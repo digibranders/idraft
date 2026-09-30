@@ -97,7 +97,7 @@ apps/web/
       page.tsx              redirect: first workspace, else /login
       not-found.tsx, error.tsx, global-error.tsx
       (auth)/layout.tsx     centered auth layout
-      (auth)/login, two-factor, two-factor/setup, reset-password, verify-email, signup
+      (auth)/login, two-factor, two-factor/setup, reset-password, verify-email, invite
       (internal)/design-system/[section]/page.tsx
       [workspace]/layout.tsx          /me, permissions, shell frame
       [workspace]/page.tsx            project list
@@ -130,25 +130,23 @@ apps/web/
 
 **Files:** modify `apps/web/package.json`, `tsconfig.json`, `.gitignore` (root); create `next.config.ts`, `postcss.config.mjs`, `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/not-found.tsx`.
 
-- [ ] **Step 1: Install every package in the table above** except the Task 16 row, with `pnpm add` and `pnpm add -D` in `apps/web`. Pin `lucide-react` to `1.48.0`. Commit the lockfile with the task.
+- [x] **Step 1: Install every package in the table above** except the Task 16 row, with `pnpm add` and `pnpm add -D` in `apps/web`. Pin `lucide-react` to `1.48.0`. Commit the lockfile with the task.
 
-- [ ] **Step 2: Scripts.** Replace the `scripts` block of `apps/web/package.json`; `preview` keeps its current value.
+- [x] **Step 2: Scripts.** Replace the `scripts` block of `apps/web/package.json`; `preview` keeps its current value.
 
 ```json
 "dev": "next dev",
 "build": "next build",
-"start": "node .next/standalone/apps/web/server.js",
+"start": "node scripts/prepare-standalone.mjs && node .next/standalone/apps/web/server.js",
 "lint": "eslint .",
 "typecheck": "next typegen && tsc --noEmit",
 "test": "vitest run",
-"format": "prettier --write .",
-"format:check": "prettier --check .",
 "gen:api": "openapi-typescript ../../backend/openapi/v1.json -o src/lib/api/schema.d.ts"
 ```
 
-The old `build` compiled `globals.css` into `.tmp/`. Nothing reads that output. Remove `apps/web/.tmp` from the index (`git rm -r --cached apps/web/.tmp`) and add `apps/web/.tmp/` and `apps/web/next-env.d.ts` to the root `.gitignore`. Update the description field: the package is the web application.
+The old `build` compiled `globals.css` into `.tmp/`. Nothing reads that output. Remove `apps/web/.tmp` from the index (`git rm -r --cached apps/web/.tmp`) and add `apps/web/.tmp/` and `apps/web/next-env.d.ts` to the root `.gitignore`. Update the description field: the package is the web application. `scripts/prepare-standalone.mjs` copies `.next/static` and `public` (when it exists) into the standalone tree, because `next build` leaves them out; the Dockerfile of Task 16 does the same two copies. Add `"engines": { "node": ">=20.11" }` (`import.meta.dirname` in the config needs it). The `format` scripts arrive in Task 2 with the Prettier config and ignore file.
 
-- [ ] **Step 3: `next.config.ts`.**
+- [x] **Step 3: `next.config.ts`.**
 
 ```ts
 import path from 'node:path';
@@ -168,36 +166,38 @@ const config: NextConfig = {
 export default config;
 ```
 
-- [ ] **Step 4: `postcss.config.mjs`.**
+- [x] **Step 4: `postcss.config.mjs`.**
 
 ```js
 const config = { plugins: { '@tailwindcss/postcss': {} } };
 export default config;
 ```
 
-- [ ] **Step 5: `tsconfig.json`.** Keep every strict flag. Add `"jsx": "preserve"`, `"incremental": true`, `"plugins": [{ "name": "next" }]`, add `"DOM.Iterable"` to `lib`, and set `include` to `["next-env.d.ts", ".next/types/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "*.ts", "*.mts"]` with `"exclude": ["node_modules", "design-preview"]`.
+- [x] **Step 5: `tsconfig.json`.** Keep every strict flag. Add `"jsx": "react-jsx"`, `"incremental": true`, `"plugins": [{ "name": "next" }]`, `"allowJs": false`, add `"DOM.Iterable"` to `lib`, and set `include` to `["next-env.d.ts", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "*.ts", "*.mts"]` with `"exclude": ["node_modules", "design-preview"]`. Next 16 rewrites the file on the first build: it requires `jsx: react-jsx`, `esModuleInterop` and `resolveJsonModule`, and adds the `.next/dev/types` entry. Keep those; set `allowJs` back to `false` (Next only suggests `true`).
 
-- [ ] **Step 6: Root layout.** `src/app/layout.tsx` is a Server Component: `<html lang="en" suppressHydrationWarning>` carrying `GeistSans.variable` and `GeistMono.variable` from `geist/font/sans` and `geist/font/mono` (they define `--font-geist-sans` and `--font-geist-mono`, which `tokens.css` already reads), imports `@/styles/globals.css`, exports `metadata` (title template `%s · Sightline`, default `Sightline`) and `viewport` (`colorScheme: 'light dark'`). The body renders `children` only; providers arrive in Task 3.
+- [x] **Step 5a: Tailwind sources.** In `globals.css`, change the import to `@import "tailwindcss" source(none);` and add `@source "../app"; @source "../components"; @source "../features"; @source "../providers";`. Automatic detection would scan all of `apps/web`, putting the preview's classes in the app bundle and the app's in the preview bundle. `design-preview/preview.css` imports `globals.css` and lists its own sources, so the preview is unaffected.
 
-- [ ] **Step 7: First pages.** `src/app/page.tsx` renders the product name in an `h1` with `type-page-title` inside `main` (replaced by the redirect in Task 12). `src/app/not-found.tsx` renders a heading and one sentence (replaced by `ErrorPage` in Task 13).
+- [x] **Step 6: Root layout.** `src/app/layout.tsx` is a Server Component: `<html lang="en" suppressHydrationWarning>` carrying `GeistSans.variable` and `GeistMono.variable` from `geist/font/sans` and `geist/font/mono` (they define `--font-geist-sans` and `--font-geist-mono`, which `tokens.css` already reads), imports `@/styles/globals.css`, exports `metadata` (title template `%s · Sightline`, default `Sightline`, and `robots: noindex, nofollow` because every page sits behind sign-in; record that decision in 20 in Task 17) and `viewport` (`colorScheme: 'light dark'`). The body renders `children` only; providers arrive in Task 3.
 
-- [ ] **Step 8: Verify.** `pnpm build` succeeds and writes `.next/standalone/apps/web/server.js`. `pnpm dev` serves `/` with Geist loaded (the computed `font-family` of `body` starts with the Geist family) and the `background` token as page color in both themes (toggle the `dark` class on `<html>` by hand). `pnpm lint`, `pnpm typecheck`, `pnpm test` (304 tests) and `pnpm run preview` pass.
+- [x] **Step 7: First pages.** `src/app/page.tsx` renders the product name in an `h1` with `type-page-title` inside `main` (replaced by the redirect in Task 12). `src/app/not-found.tsx` renders a heading and one sentence (replaced by `ErrorPage` in Task 13).
 
-- [ ] **Step 9: Fable review, fixes, gates, commit** "Scaffold the Next.js app in apps/web".
+- [x] **Step 8: Verify.** `pnpm build` succeeds and writes `.next/standalone/apps/web/server.js`. `pnpm dev` serves `/` with Geist loaded (the computed `font-family` of `body` starts with the Geist family) and the `background` token as page color in both themes (toggle the `dark` class on `<html>` by hand). `pnpm lint`, `pnpm typecheck`, `pnpm test` (304 tests) and `pnpm run preview` pass.
+
+- [x] **Step 9: Fable review, fixes, gates, commit** "Scaffold the Next.js app in apps/web".
 
 ### Task 2: Lint, format and test tooling for JSX
 
 **Files:** modify `eslint.config.mjs`, `vitest.config.ts`; create `prettier.config.mjs`, `.prettierignore`, `vitest.setup.ts`, `src/test/render.tsx`.
 
 - [ ] **Step 1: ESLint.** Extend the flat config, keeping every existing rule:
-  - `@next/eslint-plugin-next` core-web-vitals rules; `eslint-plugin-react` flat recommended plus `jsx-runtime`, with `react/no-danger: error`; `eslint-plugin-react-hooks` recommended; `eslint-plugin-jsx-a11y` strict.
+  - `@next/eslint-plugin-next` core-web-vitals rules; `eslint-plugin-react` flat recommended plus `jsx-runtime`, with `react/no-danger: error` and `settings.react.version: '19.3.0'` (never `'detect'`: that path calls `context.getFilename`, which ESLint 10 removed, and crashes the run); `eslint-plugin-react-hooks` recommended; `eslint-plugin-jsx-a11y` strict.
   - `eslint-plugin-better-tailwindcss` with `settings['better-tailwindcss'].entryPoint = 'src/styles/globals.css'`: `no-unknown-classes`, `no-conflicting-classes`, `no-duplicate-classes` as errors; `enforce-consistent-class-order` off (Prettier sorts); `no-restricted-classes` with the four patterns of 26 section 9 (arbitrary values outside `src/components/ui/**`, spacing steps off the scale, raw `z-` numbers).
   - `eslint-plugin-boundaries` with the element types `ui`, `app-component`, `feature`, `route`, `lib`, `design-system`, `mocks` and the import rules of 26 section 2 (rules 1 to 4).
   - `eslint-plugin-i18next` `no-literal-string` in `markupOnly` mode for `src/**/*.tsx`, off in `src/components/design-system/**` and tests.
   - Add `@radix-ui/*`, `cmdk`, `sonner`, `echarts-for-react` and `react-markdown` (outside the future `SafeMarkdown`) to the restricted imports.
   - Ignore `.next/**`, `next-env.d.ts`, `public/mockServiceWorker.js`, `src/lib/api/schema.d.ts`.
 - [ ] **Step 2: Prove the rules bite.** In a scratch file `src/lint-probe.tsx`, write one violation per rule (a hex color, `bg-blue-500`, `p-[13px]` outside `components/ui`, `gap-7`, `z-50`, a literal string in JSX, `dangerouslySetInnerHTML`, an import of a feature from `components/ui`) and confirm `pnpm lint` reports each one. Delete the file.
-- [ ] **Step 3: Prettier.** `prettier.config.mjs`: `singleQuote: true`, `printWidth: 120`, `plugins: ['prettier-plugin-tailwindcss']`, `tailwindStylesheet: './src/styles/globals.css'`, `tailwindFunctions: ['cn', 'cva']`. `.prettierignore`: `.next`, `design-preview`, `pnpm-lock.yaml`, `src/lib/api/schema.d.ts`, `public`. Run `pnpm format` and commit the result as its own commit ("Format the web sources with Prettier") so later diffs stay readable.
+- [ ] **Step 3: Prettier.** `prettier.config.mjs`: `singleQuote: true`, `printWidth: 120`, `plugins: ['prettier-plugin-tailwindcss']`, `tailwindStylesheet: './src/styles/globals.css'`, `tailwindFunctions: ['cn', 'cva']`. `.prettierignore`: `.next`, `design-preview`, `pnpm-lock.yaml`, `src/lib/api/schema.d.ts`, `public`. Add the scripts `"format": "prettier --write ."` and `"format:check": "prettier --check ."`. Run `pnpm format` and commit the result as its own commit ("Format the web sources with Prettier") so later diffs stay readable.
 - [ ] **Step 4: Vitest.** Two projects in `vitest.config.ts`: `unit` (`src/**/*.test.ts`, environment `node`, as today) and `dom` (`src/**/*.test.tsx`, environment `jsdom`, `@vitejs/plugin-react`, `setupFiles: ['./vitest.setup.ts']`). `vitest.setup.ts` registers `@testing-library/jest-dom/vitest` and the `vitest-axe` matcher, and calls `cleanup` after each test.
 - [ ] **Step 5: `src/test/render.tsx`.** `renderWithProviders(ui, options)` wraps in the providers of Task 3 (added there; start with a passthrough) and returns Testing Library's result plus a `user` from `@testing-library/user-event`.
 - [ ] **Step 6: A first DOM test** (`src/app/not-found.test.tsx`): the not-found page renders one `h1` and has no axe violations.
@@ -359,7 +359,7 @@ export function isApiProblem(error: unknown, code?: string): error is ApiProblem
 
 - [ ] **Step 1: `buildCsp({ nonce, development })`**, a pure function returning the policy of 20 section 7.3. Development adds `'unsafe-eval'` to `script-src` and `ws:` to `connect-src`; production never does. Tests assert each directive, that the nonce appears in `script-src` and `style-src`, and that the production policy contains neither `unsafe-eval` nor `unsafe-inline`.
 - [ ] **Step 2: `safeNextPath(value)`** returns the value only when it is a same-origin path: starts with one `/`, not `//`, not `/\`, no scheme, no control characters, and not an `/api/` path. Anything else returns `/`. Tests: `/acme/crm?x=1` passes; `//evil.example`, `https://evil.example`, `/\evil`, `javascript:alert(1)`, `/api/v1/me` and an empty value all return `/`.
-- [ ] **Step 3: `proxy.ts`.** For every request except `/_next/*`, static files and `/api/*`: generate a nonce, set `Content-Security-Policy` on the response and pass the nonce to the render through the `x-nonce` request header. If the path is not public (`/login`, `/two-factor`, `/reset-password`, `/verify-email`, `/signup`, and `/design-system` outside production) and the `__Host-session` cookie is absent, redirect to `/login?next=<path and query>`. The proxy never validates the session; the API does. Tests call the exported handler with constructed requests: an anonymous request to `/acme` redirects with the encoded `next`; a request with the cookie passes and carries a CSP header whose nonce matches `x-nonce`; `/login` without a cookie passes.
+- [ ] **Step 3: `proxy.ts`.** For every request except `/_next/*`, static files and `/api/*`: generate a nonce, set `Content-Security-Policy` on the response and pass the nonce to the render through the `x-nonce` request header. If the path is not public (`/login`, `/two-factor`, `/reset-password`, `/verify-email`, `/invite`, and `/design-system` outside production) and the `__Host-session` cookie is absent, redirect to `/login?next=<path and query>`. The proxy never validates the session; the API does. Tests call the exported handler with constructed requests: an anonymous request to `/acme` redirects with the encoded `next`; a request with the cookie passes and carries a CSP header whose nonce matches `x-nonce`; `/login` without a cookie passes.
 - [ ] **Step 4: Nonce consumers.** The root layout reads `x-nonce` from `headers()` and passes it to `ThemeProvider` (`nonce` prop, for its inline script).
 - [ ] **Step 5: Static headers** in `next.config.ts` `headers()` for all routes: the six headers of 20 section 7.3. Authenticated HTML is `Cache-Control: private, no-store` (set in the proxy for non-public paths).
 - [ ] **Step 6: Verify in the browser:** `pnpm build && pnpm start`, open `/login`, confirm no CSP violation in the console, the theme script runs, and the response carries every header.
@@ -386,9 +386,20 @@ The design system has no auth template yet. Rule: specify, then build.
 | `/reset-password` without a token | `POST /auth/password-reset/request` | the same confirmation whether or not the address has an account | `rate_limited` |
 | `/reset-password#token=...` | `POST /auth/password-reset/confirm` | go to `/login` with a notice | `invalid_token` (offer a new link), `weak_password` (on the field) |
 | `/verify-email#token=...` | `POST /auth/verify-email`; "Send a new link" calls `POST /auth/verify-email/request` | confirmation, then `/login` or `/` | `invalid_token` |
-| `/signup#invitation=...` | `POST /auth/register` | go to `/login` with a notice, or to the verify-email notice when `email_verified` is false | `registration_closed`, `weak_password`, `validation_failed` |
+| `/invite#token=...` | `POST /auth/register` with `invitation_token` | go to `/login` with a notice (an invited account is created already verified) | `registration_closed` (one message for every reason), `duplicate`, `weak_password`, `validation_failed` |
 
-Tokens arrive in the URL fragment, as the API's emails write them (`/verify-email#token=`, `/reset-password#token=`), so they never reach server logs. A small hook `useFragmentParam(name)` reads the fragment after mount and then removes it from the address bar with `history.replaceState`. Confirm the sign-up link format with the backend session before building `/signup`.
+Tokens arrive in the URL fragment, as the API's emails write them (`/verify-email#token=`, `/reset-password#token=`), so they never reach server logs. A small hook `useFragmentParam(name)` reads the fragment after mount and then removes it from the address bar with `history.replaceState`. The invitation link is `{origin}/invite#token=<token>` (agreed with the backend session on 2026-09-30; 20 section 3.2 still says `invite/[token]`, correct it in Task 17). The route that returns the workspace name, role and invited email for a token is not built yet: add it to `pending.ts` with the provisional shape and show those three values above the form.
+
+Contract details from the backend session, all in 19 sections 2.1 and 3.1 on `backend/auth`:
+
+- The browser calls sign-in, register, `verify-email/request` and `password-reset/request`. Never call them from a Server Component or route handler: the throttle counts per client address, and the server would share one.
+- Any state-changing call made from server code must set `Origin` itself, or the API answers `403 origin_not_allowed`. This plan makes none.
+- `totp_required` leaves a 10 minute pending session that only `totp/verify` and sign-out accept; every other route answers 401, so `/two-factor` must not fetch `/me`.
+- `weak_password` (422) carries `reason`: `too_short`, `too_long`, `contains_email`, `breached` or `unchanged`. One message per reason, on the field.
+- `rate_limited` (429) carries `retry_after_seconds` and a `Retry-After` header.
+- A password reset does not sign the user in: go to `/login`.
+- Other codes to map: 401 `unauthenticated`, `session_expired`, `invalid_credentials`, `invalid_code`; 400 `invalid_token`; 409 `duplicate`, `totp_already_enabled`, `totp_not_enabled`; 503 `service_unavailable`.
+- Every request carries `X-Request-Id`: `req_` plus a UUIDv7 in Crockford base32 (25 section 3.3). Add `newRequestId()` to `lib/api` in Task 8 with a test for the format, and send it from both clients.
 
 - [ ] **Step 3: Rules.** Password fields: `autocomplete="current-password"` or `"new-password"`, paste allowed, minimum 12 characters checked on blur for new passwords. Email: `autocomplete="email"`, `type="email"`. The submit button shows `loading` and the form is not submittable twice. Validation timing follows 10 section 18. A failed submit moves focus to the `FormAlert` or the first invalid field and announces the error.
 - [ ] **Step 4: Tests** (one file per form, MSW in `all` mode): the happy path; every problem in the table renders its message and keeps the typed values; `next=//evil.example` lands on `/`; a second-factor code pasted as `123 456` is accepted as `123456`; the recovery codes screen cannot continue until the checkbox is ticked; no axe violations.
@@ -402,7 +413,7 @@ Tokens arrive in the URL fragment, as the API's emails write them (`/verify-emai
 - [ ] **Step 1: `/` redirect.** `src/app/page.tsx` (Server Component) calls `/me` through `serverApi()`. `401`: redirect to `/login`. No membership: render the documented empty state ("You are not a member of any workspace"). Otherwise redirect to `/<first workspace slug>`.
 - [ ] **Step 2: Workspace layout.** `[workspace]/layout.tsx` fetches `/me`, finds the membership whose `workspace.slug` matches the segment (`notFound()` when there is none, so another tenant's slug never confirms it exists), and renders `PermissionProvider` with the membership's `permissions`, `role` and `project_ids`. It seeds the client query cache for `/me` through `HydrationBoundary`, so client components read the same data without a second request.
 - [ ] **Step 3: `can`.** `can(permissions, permission)`, `useCan(permission)`, `<Can permission fallback>`. The client never decides access; it only hides or disables what will fail (20 section 3.9). Tests: each role fixture against a table of permissions.
-- [ ] **Step 4: `ReauthDialog`** (16 section 4.4, 25): a 400 px dialog "Confirm it is you" with a password field, or a code field when the user has a second factor, calling `POST /me/reauthenticate`. `withFreshSession(mutationFn)` catches `403 fresh_session_required`, opens the dialog, and on success retries the original call once. Tests: the retry happens once; cancelling rejects with the original problem; a second `fresh_session_required` after the retry is surfaced, not looped.
+- [ ] **Step 4: `ReauthDialog`** (16 section 4.4, 25): a 400 px dialog "Confirm it is you" with a password field, or a code field when the user has a second factor, calling `POST /me/reauthenticate` with `{ password }`, or with `{ totp_code }` when the user has a second factor (the API refuses a password alone with `403 second_factor_required`). `withFreshSession(mutationFn)` catches `403 fresh_session_required`, opens the dialog, and on success retries the original call once. Tests: the retry happens once; cancelling rejects with the original problem; a second `fresh_session_required` after the retry is surfaced, not looped.
 - [ ] **Step 5: `403 two_factor_required_for_role`** anywhere redirects to `/two-factor/setup?next=<path>`.
 - [ ] **Step 6: Sign out.** Calls `POST /auth/sign-out`, clears the query cache, removes the user's preference keys from `localStorage`, hard-navigates to `/login`.
 - [ ] **Step 7: Fable review, fixes, gates, commit** "Add the workspace layout, permissions and re-authentication".
@@ -455,7 +466,7 @@ Ask the user before this task: it downloads a browser (about 170 MB) and the pin
 - [ ] **Step 1: Playwright** against `pnpm build && pnpm start` with `NEXT_PUBLIC_API_MOCKING=all` in a test build: sign in, second factor, reset, the shell at three widths, account settings, sign out, a viewer sees no write action, an unknown workspace slug is a 404. `@axe-core/playwright` with the WCAG 2.2 AA tags on every visited page. One test asserts the CSP header on every route and that no violation is reported.
 - [ ] **Step 2: Visual regression** (26 section 11): `toHaveScreenshot` over every `/design-system` section and the auth, shell and settings pages, light and dark, at 1440 x 900 and 390 x 844, in `mcr.microsoft.com/playwright:v1.63.0-noble`, with fonts awaited and the clock fixed.
 - [ ] **Step 3: `apps/web/Dockerfile`**: dependencies, build, then a slim runtime with `.next/standalone`, `.next/static` and `public`, running `node apps/web/server.js` as a non-root user (20 section 9.1).
-- [ ] **Step 4: CI** `.github/workflows/web.yml`: install with the frozen lockfile, `format:check`, lint, typecheck, `gen:api` followed by `git diff --exit-code` on `schema.d.ts`, unit and DOM tests, build, Playwright in the pinned image, image build. Agree the Compose `web` service and the Caddy routes with the backend session; they own `infra/`.
+- [ ] **Step 4: CI** `.github/workflows/web.yml`: install with the frozen lockfile, `format:check`, lint, typecheck, `gen:api` followed by `git diff --exit-code` on `schema.d.ts`, unit and DOM tests, build, Playwright in the pinned image, image build. The Compose `web` service, the Caddy routes and `web.yml` belong to the backend session's deploy plan: ask it and build them together, so there is one shape.
 - [ ] **Step 5: Fable review, fixes, gates, commit.**
 
 ### Task 17: Documents and the final review
@@ -475,8 +486,9 @@ Ask the user before this task: it downloads a browser (about 170 MB) and the pin
 | Point | Who | Needed by |
 |---|---|---|
 | `backend/auth` merged into `main`, then `main` merged into this branch | user, backend session | Task 8 |
-| Format of the sign-up invitation link | backend session | Task 11 |
-| `/me` has no `features` list (20 section 3.10) and no operator flag; the frontend uses the navigation registry and an environment check until it does | backend session | recorded in Task 17 |
+| Shape of the public route that describes an invitation token (workspace, role, email); mocked until the backend's next plan | backend session | Task 11 |
+| `user.is_platform_operator` in `/me` (the name the backend will use); mocked under that name | backend session | Task 7, recorded in Task 17 |
+| `/me` has no `features` list and the backend does not plan one; 20 section 3.10 is corrected in Task 17 and phase gating is the navigation registry | frontend | Task 17 |
 | `GET /workspaces/{id}/projects` and project summary do not exist yet; served by the pending mock | backend session | Task 13 |
 | Playwright browser and Docker image download | user | Task 16 |
 | Compose `web` service, Caddy routes, `web.yml` | backend session | Task 16 |

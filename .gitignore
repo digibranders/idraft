@@ -19,6 +19,8 @@ htmlcov/
 dist/
 *.tsbuildinfo
 apps/web/design-preview/vendor/
+apps/web/.tmp/
+apps/web/next-env.d.ts
 
 # secrets and local config
 .env

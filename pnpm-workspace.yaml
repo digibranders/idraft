@@ -5,3 +5,17 @@ packages:
 # @parcel/watcher is only used by Tailwind watch mode; its native build is not needed in CI.
 allowBuilds:
   "@parcel/watcher": false
+  # @swc/core ships prebuilt binaries as optional packages; its postinstall only re-checks them.
+  "@swc/core": false
+  # msw copies its worker script after install only when package.json names a directory, which ours does
+  # not: `msw init` writes apps/web/public/mockServiceWorker.js once and the file is committed.
+  "msw": false
+
+# Peers that lag the versions in use. Each was run against the installed version before being allowed:
+# eslint-plugin-react works on ESLint 10 when settings.react.version is a fixed version (its "detect"
+# path calls an API ESLint 10 removed); eslint-plugin-jsx-a11y and openapi-typescript work unchanged.
+peerDependencyRules:
+  allowedVersions:
+    "eslint-plugin-react>eslint": "10"
+    "eslint-plugin-jsx-a11y>eslint": "10"
+    "openapi-typescript>typescript": "6"

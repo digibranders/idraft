@@ -3,7 +3,8 @@
     "target": "ES2023",
     "lib": [
       "ES2023",
-      "DOM"
+      "DOM",
+      "DOM.Iterable"
     ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -23,10 +24,29 @@
     },
     "types": [
       "node"
-    ]
+    ],
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "allowJs": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true
   },
   "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
     "src/**/*.ts",
-    "vitest.config.ts"
+    "src/**/*.tsx",
+    "*.ts",
+    "*.mts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "design-preview"
   ]
 }
