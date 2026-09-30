@@ -435,9 +435,47 @@ async def test_a_call_refused_as_a_whole_does_not_copy_the_providers_words_onto_
     assert "acme secret launch" in stream.getvalue()
 
 
+async def test_an_answer_for_an_attempt_that_is_over_changes_nothing_and_is_logged(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """Recorded once, on a try whose commit reply was lost; the task went back in line and
+    was taken again. Recording the old answer again must not touch the new attempt."""
+    stream = io.StringIO()
+    configure_logging(service="worker", version="test", level="info", stream=stream)
+    world = World(worker_db)
+    accept = world.provider.accept_all
+
+    async def while_it_moves_on(
+        endpoint: str, requests: Sequence[CanonicalRequest]
+    ) -> SubmitResult:
+        # Meanwhile the task is on a later attempt, waiting for a later call.
+        await execute(migrated, "UPDATE ops.collection_tasks SET attempts = attempts + 1")
+        return await accept(endpoint, requests)
+
+    world.provider.answer = while_it_moves_on
+    run_id, batch = await _one_batch(world, migrated, tasks=1)
+
+    assert await world.submit(batch) == SubmitReport()
+    ((row),) = await task_rows(migrated, run_id)
+    assert (row["status"], row["attempts"], row["provider_task_id"]) == ("submit_unknown", 2, None)
+    assert await _costs(migrated) == []
+    (line,) = [
+        json.loads(line)
+        for line in stream.getvalue().splitlines()
+        if "answer for an attempt that is over" in line
+    ]
+    assert (line["level"], line["provider_task_id"], line["attempt"]) == (
+        "error",
+        f"p-{row['id']}",
+        1,
+    )
+
+
 async def test_one_task_whose_outcome_cannot_be_written_does_not_lose_the_others(
     worker_db: Ledger, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    stream = io.StringIO()
+    configure_logging(service="worker", version="test", level="info", stream=stream)
     world = World(worker_db)
     run_id, batch = await _one_batch(world, migrated)
     unlucky = batch.tasks[1].id
@@ -455,6 +493,13 @@ async def test_one_task_whose_outcome_cannot_be_written_does_not_lose_the_others
     assert statuses.pop(unlucky) == "submit_unknown"
     assert set(statuses.values()) == {"submitted"}
     assert len(await _costs(migrated)) == 2
+    # The provider may charge for it: its id and cost are in the log.
+    (line,) = [
+        json.loads(line)
+        for line in stream.getvalue().splitlines()
+        if "outcome not recorded" in line
+    ]
+    assert (line["provider_task_id"], line["cost_usd"]) == (f"p-{unlucky}", "0.0006")
 
 
 async def test_an_answer_that_cannot_be_recorded_at_first_is_recorded_on_a_second_try(

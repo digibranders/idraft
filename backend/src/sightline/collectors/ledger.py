@@ -823,11 +823,26 @@ async def begin_submission(
     return [_task(row) for row in rows]
 
 
+def _awaiting(ref: TaskRef, attempt: int | None) -> Any:
+    """The task, if it is waiting for the answer to this attempt. An answer recorded again,
+    after a commit whose reply was lost, must not land on a later attempt of the same task."""
+    condition = and_(_named([ref]), _tasks.c.status == "submit_unknown")
+    if attempt is not None:
+        condition = and_(condition, _tasks.c.attempts == attempt)
+    return condition
+
+
 async def mark_submitted(
-    db: AsyncSession, ref: TaskRef, *, provider_task_id: str, cost: Cost | None, now: datetime
+    db: AsyncSession,
+    ref: TaskRef,
+    *,
+    provider_task_id: str,
+    cost: Cost | None,
+    now: datetime,
+    attempt: int | None = None,
 ) -> bool:
-    """The provider accepted the task. False when the task was not waiting for that answer,
-    and then nothing is written.
+    """The provider accepted the task. False when the task was not waiting for that answer
+    (for `attempt`, when it is given), and then nothing is written.
 
     What the submission cost is recorded here, in the same step, from the task's own row: a
     message delivered twice cannot charge the budget twice, and the event cannot name another
@@ -836,7 +851,7 @@ async def mark_submitted(
     submitted = (
         await db.execute(
             update(_tasks)
-            .where(_named([ref]), _tasks.c.status == "submit_unknown")
+            .where(_awaiting(ref, attempt))
             .values(
                 status="submitted",
                 provider_task_id=provider_task_id,
@@ -902,11 +917,13 @@ async def record_failure(
     message: str,
     decision: RetryDecision,
     now: datetime,
+    attempt: int | None = None,
 ) -> bool:
     """The provider refused the task, or was not reached: apply what the retry policy decided.
 
     `pending` puts the task back for the dispatcher, after the delay if there is one. `failed`
-    and `dead` end it. False when the task was not in a provider call.
+    and `dead` end it. False when the task was not in a provider call (the call of `attempt`,
+    when it is given).
 
     This is for a call that is known not to have submitted the task. A call that timed out
     may have: it is not recorded here but with `note_unknown_outcome`, and the task stays
@@ -930,10 +947,7 @@ async def record_failure(
         # The provider is paused for everyone: this was not an attempt at the task.
         values["attempts"] = _tasks.c.attempts - 1
     result = await db.execute(
-        update(_tasks)
-        .where(_named([ref]), _tasks.c.status == "submit_unknown")
-        .values(**values)
-        .returning(_tasks.c.id)
+        update(_tasks).where(_awaiting(ref, attempt)).values(**values).returning(_tasks.c.id)
     )
     return result.one_or_none() is not None
 
@@ -998,7 +1012,8 @@ async def end_old_submissions(
     A task still `submit_unknown` after that time ends the same way. Whether the provider ever
     had it is not known, and by now there is no result to fetch either way. It may have been
     paid for, so it is charged at its share of its run's estimate (`price_book_estimate`): the
-    budget counts what may have been spent rather than forget it.
+    budget counts what may have been spent rather than forget it. So is a task the provider
+    accepted without saying what it cost.
     """
     lifetime: Any = literal(older_than, Interval)
     if lifetimes:
@@ -1046,12 +1061,17 @@ async def end_old_submissions(
             _tasks.c.provider_code,
             _tasks.c.provider_endpoint,
             _tasks.c.last_error_code,
+            _tasks.c.cost_usd,
         )
     )
     ended = result.all()
-    unconfirmed = [row for row in ended if row.last_error_code == NEVER_CONFIRMED]
-    if unconfirmed:
-        await _charge_estimates(db, unconfirmed, now)
+    # Never confirmed, or accepted with no cost said: either may have been paid for, and
+    # nothing has charged the budget for it.
+    uncharged = [
+        row for row in ended if row.last_error_code == NEVER_CONFIRMED or row.cost_usd is None
+    ]
+    if uncharged:
+        await _charge_estimates(db, uncharged, now)
     return len(ended)
 
 
@@ -1118,16 +1138,16 @@ async def stop_runs_of_projects_not_collecting(db: AsyncSession, *, now: datetim
     sends nothing more: its running runs are cancelled. What the provider already has is
     still fetched and paid for; the tasks not yet sent are cancelled with the run."""
     project = projects.alias("project")
-    not_collecting = (
+    # Not "a project that stopped exists", but "no collecting project exists": a project row
+    # that is gone altogether stops its runs as well.
+    not_collecting = ~(
         select(project.c.id)
         .select_from(project.join(workspaces, workspaces.c.id == project.c.workspace_id))
         .where(
             project.c.id == _runs.c.project_id,
-            or_(
-                project.c.status != "active",
-                project.c.deleted_at.is_not(None),
-                workspaces.c.status != "active",
-            ),
+            project.c.status == "active",
+            project.c.deleted_at.is_(None),
+            workspaces.c.status == "active",
         )
         .exists()
     )

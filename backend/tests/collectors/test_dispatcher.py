@@ -201,6 +201,8 @@ async def test_work_for_a_paused_or_unknown_provider_waits(
         "UPDATE core.projects SET deleted_at = now() WHERE id = $1",
         "UPDATE auth.workspaces SET status = 'suspended' "
         "WHERE id = (SELECT workspace_id FROM core.projects WHERE id = $1)",
+        # Gone altogether, as when a purge removes the row.
+        "DELETE FROM core.projects WHERE id = $1",
     ],
 )
 async def test_a_project_that_stops_collecting_sends_nothing_more(

@@ -82,11 +82,16 @@ async def _lifetimes(
     provider is known to this worker."""
     async with sessions() as db:
         endpoints = await ledger.in_flight_endpoints(db)
-    return {
-        (code, endpoint): registry.provider(code).result_lifetime(endpoint)
-        for code, endpoint in endpoints
-        if code in registry.providers
-    }
+    lifetimes: dict[tuple[str, str], timedelta] = {}
+    for code, endpoint in endpoints:
+        if code not in registry.providers:
+            continue
+        try:
+            lifetimes[(code, endpoint)] = registry.provider(code).result_lifetime(endpoint)
+        except Exception as error:
+            # One adapter's fault is not the others': this endpoint gets the usual lifetime.
+            _log.error("result lifetime unknown", provider=code, endpoint=endpoint, exc_info=error)
+    return lifetimes
 
 
 async def reconcile(

@@ -69,7 +69,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 - [ ] Taskiq scheduler for maintenance cron jobs: partitions and the reconciler are scheduled; retention stubs wait for the tables they prune. No scheduler container
 - [x] Taskiq smoke test: jobs on both queues, retries by error class through the ledger (none at the broker), worker restart mid-run, reconciler after a Redis flush (`backend/tests/worker/test_end_to_end.py`). Taskiq stays
 - [ ] Redis 8: AOF on, `noeviction`, `maxmemory 256mb`; nothing lives only in Redis
-- [ ] Graceful shutdown handling
+- [x] Graceful shutdown handling (worker: `backend/smoke.sh` stops it with SIGTERM and requires exit code 0)
 
 ### Storage and providers
 

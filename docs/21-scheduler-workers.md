@@ -31,7 +31,7 @@ High-priority schedules (for example priority-1 keywords daily at `priority_queu
 
 ## 3. Planner
 
-The worker process runs a **planner tick every 60 seconds**, holding a Redis lock (`lock:planner`, 55 s TTL) so only one planner runs even when a second `worker` container is running (scaling step 3, [28](28-data-growth-scaling.md) section 7). There is no scheduler container (ADR-022). Each completed tick pings the planner Healthchecks.io check.
+The worker process runs a **planner tick every 60 seconds**, holding a Redis lock (`lock:planner`, 55 s TTL) so only one planner runs even when a second `worker` container is running (scaling step 3, [28](28-data-growth-scaling.md) section 7). There is no scheduler container (ADR-022). Each completed tick pings the planner Healthchecks.io check (with launch hardening; until then the container's heartbeat file is the health signal).
 
 ### 3.1 Algorithm
 
@@ -128,7 +128,7 @@ FOR UPDATE OF t SKIP LOCKED;
 - **Priority:** batches are enqueued in priority order (high, then standard, then discovery and backfills), so high-priority work reaches the head of `collect` first. The dispatcher is the only producer of provider jobs, so this order is the priority mechanism; the broker needs no priority support.
 - **Fairness across projects:** each project with due work gets an equal share of the tick's 2,000, and what is left over goes to the projects that have more, up to 500 per project. A large project whose tasks are the oldest cannot take the whole tick from a small one. Taskiq has no group fairness; this SQL-side sharing gives us the property.
 - Each batch becomes one `submit_batch` Taskiq message with dedupe key `submit:` + sha256(sorted task ids) (section 5.2). The budget check against `ops.budgets` runs before the message is sent.
-- Tasks stay in `status = 'pending'` with `dispatched_at` set, so they are not selected again unless the job fails or the reconciler clears a stale `dispatched_at`.
+- Tasks stay in `status = 'pending'` with `dispatched_at` set, so they are not selected again until a handler takes them, the dispatcher releases a batch it could not send, or the reconciler clears a stale `dispatched_at`.
 
 Why a dispatcher rather than 10,000 delayed queue messages: delayed messages work, but they put the schedule in Redis. With the dispatcher, the schedule stays in PostgreSQL where it is queryable ("what will run in the next hour"), survives Redis loss, and can be rescheduled with one UPDATE.
 
@@ -168,7 +168,7 @@ Phase 1 smoke test for Taskiq: two queues in one process at the stated concurren
 
 | Queue | Job | Payload | Dedupe key | Notes |
 |---|---|---|---|---|
-| `collect` | `submit_batch` | `{task_ids, endpoint, priority}` | `submit:<hash>` | shared limiter |
+| `collect` | `submit_batch` | `{provider, endpoint, priority, tasks: [{id, created_at}]}` | `submit:<hash of the task keys>` | shared limiter |
 | `collect` | `poll_ready` | `{endpoint}` | `poll:<endpoint>` (TTL 25 s) | enqueued by the tick every 60 s, every 30 s while a collection window is open (section 8.1) |
 | `collect` | `fetch_task` | `{provider_task_id, endpoint, task_id}` | `fetch:<provider_task_id>` | |
 | `collect` | `live_call` | `{task_id}` | `live:<task_id>` | up to 120 s |
@@ -318,7 +318,7 @@ All jobs below run on the `process` queue, scheduled by Taskiq's scheduler insid
 
 - The worker is one process. On `SIGTERM` it stops taking messages from `collect` and `process` at once, lets the planner and dispatcher ticks and the Taskiq scheduler end what they are doing (a tick still running after 30 s is cut off), waits for in-flight tasks, releases its locks and exits with code 0. `stop_grace_period` is 150 s because `live_call` tasks take up to 120 s (doc 22 section 4.1).
 - If a part of the worker ends by itself (a receiver, a tick runner, the scheduler supervisor), the whole process stops the same way and exits with code 1, so the container is started again instead of running with half its parts. Taskiq's scheduler falling over is not such a case: the supervisor logs it, gives the lock up and starts it again.
-- A deploy restarts the worker once, together with `api` and before `web` (doc 22 section 8.3). Messages wait in Redis during the restart. A task interrupted by a crash or an OOM kill is not relied on to come back from the broker: its ledger row stays in `pending` (dispatched), `submitted` or `fetched`, and the reconciler (section 8.2) re-enqueues it.
+- A deploy restarts the worker once, together with `api` and before `web` (doc 22 section 8.3). Messages wait in Redis during the restart. A task interrupted by a crash or an OOM kill is not relied on to come back from the broker: its ledger row stays in `pending` (dispatched), `submit_unknown`, `submitted` or `fetched`, and the reconciler (section 8.2) brings it back: a dispatched task is released, and one in `submit_unknown` is never sent again (section 6).
 - The ticks are stateless between runs (all state in PostgreSQL and Redis locks with TTLs), so restarting the worker is always safe and a killed worker cannot hold a lock for more than its TTL.
 
 ## 13. Capacity check (V1 target load)

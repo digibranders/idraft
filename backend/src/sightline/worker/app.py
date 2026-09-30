@@ -29,7 +29,8 @@ from sightline.worker.ticks import Tick, run_tick
 REDIS_TIMEOUT_SECONDS = 5.0
 # Connections beyond one per handler: ticks, locks, pauses, the scheduler and its claims.
 REDIS_CONNECTIONS_SPARE = 20
-# A tick's statements time out well inside this; a tick still running after it is stuck.
+# How long a stopping worker lets its ticks finish. A tick is short statements under the lock
+# timeout; one that runs longer than this at a stop is cut off, and its transaction rolls back.
 STOP_TICKS_WITHIN = timedelta(seconds=30)
 HEARTBEAT_EVERY = timedelta(seconds=10)
 _HEALTH_TIMEOUT_SECONDS = 5.0

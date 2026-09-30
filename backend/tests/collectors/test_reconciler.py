@@ -117,18 +117,23 @@ async def test_a_submission_never_confirmed_is_charged_what_it_may_have_cost(
     project = await make_tenant(migrated)
     run_id = await seed_run(worker_db, project, 4, estimate="2")
     await _submitted_long_ago(migrated, run_id, "keyword-0", "submit_unknown")
-    # One the provider did have is charged by what it reported, not here.
+    # One the provider had and said what it cost was charged then, not here.
     await _submitted_long_ago(migrated, run_id, "keyword-1", "submitted")
+    await _set(migrated, run_id, "keyword-1", "cost_usd = 0.4")
+    # One it had and said nothing about the cost of is charged its estimate as well.
+    await _submitted_long_ago(migrated, run_id, "keyword-2", "submitted")
 
-    assert (await reconcile(worker_db, registry, now=NOW)).dead == 2
+    assert (await reconcile(worker_db, registry, now=NOW)).dead == 3
 
     events = await fetch(
         migrated,
-        "SELECT subject_id, cost_usd, cost_source FROM ops.provider_cost_events WHERE run_id = $1",
+        "SELECT subject_id, cost_usd, cost_source FROM ops.provider_cost_events "
+        "WHERE run_id = $1 ORDER BY subject_id",
         run_id,
     )
     assert [tuple(event) for event in events] == [
-        ("keyword-0", Decimal("0.500000"), "price_book_estimate")
+        ("keyword-0", Decimal("0.500000"), "price_book_estimate"),
+        ("keyword-2", Decimal("0.500000"), "price_book_estimate"),
     ]
     task = {row["subject_id"]: row for row in await task_rows(migrated, run_id)}["keyword-0"]
     assert (task["last_error_code"], task["cost_usd"]) == (
@@ -155,6 +160,25 @@ async def test_each_endpoint_is_given_as_long_as_its_provider_keeps_results(
     for run_id in (serp, unknown):
         assert [row["status"] for row in await task_rows(migrated, run_id)] == ["dead"]
     assert (await reconcile(worker_db, registry, now=NOW + 4 * HOUR)).dead == 1
+
+
+async def test_a_provider_that_cannot_say_how_long_it_keeps_results_gets_the_usual_time(
+    worker_db: Ledger, migrated: PostgresServer, registry: Registry, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One adapter's fault must not stop tasks of every provider from ever ending."""
+    provider = registry.provider("fake")
+
+    def broken(endpoint: str) -> timedelta:
+        raise KeyError(endpoint)
+
+    monkeypatch.setattr(provider, "result_lifetime", broken)
+    project = await make_tenant(migrated)
+    run_id = await seed_run(worker_db, project, 1)
+    await _submitted_long_ago(migrated, run_id, "keyword-0", "submitted")
+
+    report = await reconcile(worker_db, registry, now=NOW)
+
+    assert (report.dead, report.failed) == (1, ())
 
 
 async def test_a_run_whose_last_task_dies_is_completed_in_the_same_pass(

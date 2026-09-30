@@ -199,6 +199,10 @@ async def _record(
     context: dict[str, object],
 ) -> _Outcome:
     """Step 3, tried again if it fails as a whole."""
+    accepted = {
+        answer.task_id: answer.provider_task_id
+        for answer in (result.accepted if result is not None else ())
+    }
     for attempt in range(1, RECORD_ATTEMPTS + 1):
         outcome = _Outcome(jitter=jitter)
         try:
@@ -208,19 +212,16 @@ async def _record(
                     await outcome.apply(db, tasks, result, now=now)
                 elif failure is not None:
                     await outcome.apply_to_all(db, tasks, failure, now=now)
+        except asyncio.CancelledError:
+            # Stopped (the handler's time limit, or the worker stopping): what the provider
+            # said is kept here all the same.
+            _log.error("answer not recorded", accepted=accepted, reason="cancelled", **context)
+            raise
         except Exception as error:
             if attempt == RECORD_ATTEMPTS:
                 # The tasks stay `submit_unknown`. What the provider said is kept here, so
                 # its paid tasks can still be found.
-                _log.error(
-                    "answer not recorded",
-                    accepted={
-                        accepted.task_id: accepted.provider_task_id
-                        for accepted in (result.accepted if result is not None else ())
-                    },
-                    exc_info=error,
-                    **context,
-                )
+                _log.error("answer not recorded", accepted=accepted, exc_info=error, **context)
                 raise
             _log.warning("answer not recorded, trying again", attempt=attempt, **context)
             await asyncio.sleep(RECORD_RETRY_AFTER_SECONDS * attempt)
@@ -238,18 +239,33 @@ class _Outcome:
     seen: set[str] = field(default_factory=set)
 
     async def _one(
-        self, db: AsyncSession, task: LedgerTask, record: Callable[[], Awaitable[object]]
+        self,
+        db: AsyncSession,
+        task: LedgerTask,
+        record: Callable[[], Awaitable[bool]],
+        **details: object,
     ) -> bool:
         """Record one task's outcome in its own savepoint. A task whose row cannot be written
-        stays `submit_unknown`, and the others are recorded all the same. False for that."""
+        stays `submit_unknown`, and the others are recorded all the same. False for that, and
+        for a task no longer waiting for this answer; both are logged with what the provider
+        said, so a task it may charge for can still be found."""
         try:
             async with db.begin_nested():
-                await record()
+                recorded = await record()
         except Exception as error:
-            _log.error("outcome not recorded", task_id=task.ref.id, exc_info=error)
+            _log.error("outcome not recorded", task_id=task.ref.id, exc_info=error, **details)
             self.unknown += 1
             return False
-        return True
+        if not recorded:
+            # Recorded already, on a try whose commit reply was lost, and the task has moved
+            # on since: a later attempt is under way and this answer is not for it.
+            _log.error(
+                "answer for an attempt that is over",
+                task_id=task.ref.id,
+                attempt=task.attempts,
+                **details,
+            )
+        return recorded
 
     async def _refuse(
         self, db: AsyncSession, task: LedgerTask, error: ProviderError, message: str, now: datetime
@@ -277,8 +293,9 @@ class _Outcome:
             message=message,
             decision=decision,
             now=now,
+            attempt=task.attempts,
         )
-        if await self._one(db, task, record):
+        if await self._one(db, task, record, refused=kind.value):
             self.refused += 1
 
     async def _unknown(self, db: AsyncSession, tasks: Sequence[LedgerTask], message: str) -> None:
@@ -327,8 +344,13 @@ class _Outcome:
                 provider_task_id=accepted.provider_task_id,
                 cost=cost,
                 now=now,
+                attempt=task.attempts,
             )
-            if await self._one(db, task, submit):
+            details = {
+                "provider_task_id": accepted.provider_task_id,
+                "cost_usd": None if accepted.cost_usd is None else str(accepted.cost_usd),
+            }
+            if await self._one(db, task, submit, **details):
                 self.submitted += 1
         for rejected in result.rejected:
             task = by_id.get(rejected.task_id)
