@@ -3,3 +3,11 @@
 @source "./charts.js";
 @source "./interactions.js";
 @source "./customize.js";
+@source "./prompts.js";
+@source "./prompts-inspector.js";
+@source "./prompts-parts.js";
+@source "./prompts-data.js";
+@source "./prompts-state.js";
+@source "./prompts-cells.js";
+@source "./prompts-topics.js";
+@source "./prompts-topic-inspector.js";
