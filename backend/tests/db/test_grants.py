@@ -1,7 +1,7 @@
 """What each runtime role may do to each table (docs/26-testing-quality.md: DB-GRANT-01).
 
-The matrix is read back from the catalog, so a revision cannot widen a grant without this file
-changing with it.
+Table, column, sequence, function and schema privileges are read back from the catalog, for our
+roles and for PUBLIC, so a revision cannot widen a grant without this file changing with it.
 """
 
 from dataclasses import dataclass, field
@@ -74,7 +74,20 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "auth.memberships": (access("SELECT, INSERT, DELETE", UPDATE=("role", "project_ids")), READ),
     "auth.invitations": (
         access("SELECT, INSERT", UPDATE=("status", "responded_at", "token_hash", "expires_at")),
-        READ,
+        access(
+            SELECT=(
+                "id",
+                "workspace_id",
+                "email",
+                "role",
+                "project_ids",
+                "status",
+                "invited_by",
+                "expires_at",
+                "responded_at",
+                "created_at",
+            )
+        ),
     ),
     "auth.api_keys": (READ, NONE),
     "core.projects": (access("SELECT, INSERT, UPDATE"), access("SELECT", UPDATE=("data_version",))),
@@ -87,7 +100,25 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "ops.partitioned_tables": (NONE, NONE),
     "ops.schedules": (CRUD, access("SELECT", UPDATE=("next_run_at", "last_run_id"))),
     "ops.collection_runs": (
-        access("SELECT, INSERT", UPDATE=("status", "status_reason", "completed_at")),
+        access(
+            "SELECT",
+            INSERT=(
+                "workspace_id",
+                "project_id",
+                "schedule_id",
+                "workload",
+                "window_start",
+                "window_end",
+                "trigger",
+                "status",
+                "created_by_type",
+                "created_by_id",
+                "origin_request_id",
+                "estimated_cost_usd",
+                "config_snapshot",
+            ),
+            UPDATE=("status", "status_reason", "completed_at"),
+        ),
         access(
             "SELECT, INSERT",
             UPDATE=(
@@ -186,13 +217,82 @@ async def test_the_grant_matrix_is_exactly_what_the_catalog_holds(migrated: Post
     assert {table: tuple(found(table, role) for role in ROLES) for table in tables} == MATRIX
 
 
-async def test_nothing_is_granted_to_public_and_no_role_other_than_ours_has_access(
+async def test_no_table_or_column_is_granted_to_public_or_to_a_role_that_is_not_ours(
+    migrated: PostgresServer,
+) -> None:
+    """PUBLIC shows up here as a grantee that is not one of the three names."""
+    async with connection(migrated) as db:
+        tables = await db.fetch(_TABLE_GRANTS, SCHEMAS)
+        columns = await db.fetch(_COLUMN_GRANTS, SCHEMAS)
+    assert {row["grantee"] for row in tables} <= {"migrator", "app_api", "app_worker"}
+    assert {row["grantee"] for row in columns} <= {"app_api", "app_worker"}
+
+
+async def test_partitions_and_sequences_carry_no_grants(migrated: PostgresServer) -> None:
+    """Rows are reached through the parent table; identity values come from the column default."""
+    async with connection(migrated) as db:
+        granted = await db.fetch(
+            "SELECT c.oid::regclass::text AS name FROM pg_class c "
+            "JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = ANY($1) AND (c.relispartition OR c.relkind = 'S') "
+            "AND c.relacl IS NOT NULL",
+            SCHEMAS,
+        )
+        sequences = await db.fetchval(
+            "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = ANY($1) AND c.relkind = 'S'",
+            SCHEMAS,
+        )
+    assert [row["name"] for row in granted] == []
+    assert sequences > 0, "the check must have something to look at"
+
+
+# function: the runtime roles that may call it, whether through their own grant or through PUBLIC.
+FUNCTIONS: dict[str, frozenset[str]] = {
+    "auth.current_workspace_id()": frozenset(ROLES),
+    "auth.current_user_id()": frozenset(ROLES),
+    "auth.invitation_by_token(bytea)": frozenset({"app_api"}),
+    "ops.maintain_partitions()": frozenset({"app_worker"}),
+    "ops.ensure_monthly_partitions(regclass,integer,integer,boolean)": frozenset(),
+}
+# Only the two functions that read a setting are open to everyone.
+PUBLIC_FUNCTIONS = {"auth.current_workspace_id()", "auth.current_user_id()"}
+
+
+async def test_each_function_can_be_called_by_exactly_the_roles_that_need_it(
     migrated: PostgresServer,
 ) -> None:
     async with connection(migrated) as db:
-        rows = await db.fetch(_TABLE_GRANTS, SCHEMAS)
-    grantees = {row["grantee"] for row in rows}
-    assert grantees <= {"migrator", "app_api", "app_worker"}
+        rows = await db.fetch(
+            "SELECT p.oid::regprocedure::text AS name, "
+            "has_function_privilege('app_api', p.oid, 'EXECUTE') AS app_api, "
+            "has_function_privilege('app_worker', p.oid, 'EXECUTE') AS app_worker, "
+            "has_function_privilege('public', p.oid, 'EXECUTE') AS public "
+            "FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+            "WHERE n.nspname = ANY($1)",
+            SCHEMAS,
+        )
+    callers = {row["name"]: frozenset(role for role in ROLES if row[role]) for row in rows}
+    assert callers == FUNCTIONS
+    assert {row["name"] for row in rows if row["public"]} == PUBLIC_FUNCTIONS
+
+
+async def test_runtime_roles_may_use_the_schemas_and_create_nothing_in_them(
+    migrated: PostgresServer,
+) -> None:
+    async with connection(migrated) as db:
+        rows = await db.fetch(
+            "SELECT n.nspname AS schema, r.rolname AS role, "
+            "has_schema_privilege(r.rolname, n.oid, 'USAGE') AS usage, "
+            "has_schema_privilege(r.rolname, n.oid, 'CREATE') AS creates "
+            "FROM pg_namespace n CROSS JOIN pg_roles r "
+            "WHERE n.nspname = ANY($1 || ARRAY['public']) AND r.rolname = ANY($2)",
+            SCHEMAS,
+            list(ROLES),
+        )
+    assert len(rows) == (len(SCHEMAS) + 1) * len(ROLES)
+    assert {(row["schema"], row["role"]) for row in rows if row["creates"]} == set()
+    assert {row["schema"] for row in rows if row["usage"]} >= set(SCHEMAS)
 
 
 async def test_no_runtime_role_holds_truncate_references_or_trigger(

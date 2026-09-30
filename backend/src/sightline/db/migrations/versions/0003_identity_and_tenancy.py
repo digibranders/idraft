@@ -223,7 +223,7 @@ _TABLE_GRANTS: dict[str, tuple[str, str]] = {
     "auth.totp_secrets": ("SELECT, INSERT, DELETE", ""),
     "auth.workspaces": ("SELECT, INSERT, UPDATE", "SELECT"),
     "auth.memberships": ("SELECT, INSERT, DELETE", "SELECT"),
-    "auth.invitations": ("SELECT, INSERT", "SELECT"),
+    "auth.invitations": ("SELECT, INSERT", ""),
     "auth.api_keys": ("SELECT", ""),
     "core.projects": ("SELECT, INSERT, UPDATE", "SELECT"),
     "core.workspace_quotas": ("SELECT, INSERT, UPDATE", "SELECT"),
@@ -257,6 +257,25 @@ _COLUMN_GRANTS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
         "app_api",
         "UPDATE",
         ("status", "responded_at", "token_hash", "expires_at"),
+    ),
+    (
+        # Everything except token_hash: the worker expires and reports invitations, the API
+        # alone can match a link to one.
+        "auth.invitations",
+        "app_worker",
+        "SELECT",
+        (
+            "id",
+            "workspace_id",
+            "email",
+            "role",
+            "project_ids",
+            "status",
+            "invited_by",
+            "expires_at",
+            "responded_at",
+            "created_at",
+        ),
     ),
     ("core.projects", "app_worker", "UPDATE", ("data_version",)),
 )

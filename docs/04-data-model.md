@@ -1916,7 +1916,7 @@ CREATE TABLE ops.partitioned_tables (
 
 CREATE FUNCTION ops.ensure_monthly_partitions(
     p_parent regclass, p_months_back int DEFAULT 1, p_months_ahead int DEFAULT 3, p_key_is_date boolean DEFAULT false)
-RETURNS integer LANGUAGE plpgsql SET search_path = pg_catalog AS $$
+RETURNS integer LANGUAGE plpgsql SET search_path = pg_catalog SET lock_timeout = '5s' AS $$
 DECLARE
     m date;
     parent_schema name;
@@ -1925,7 +1925,9 @@ DECLARE
     created integer := 0;
 BEGIN
     -- One caller at a time: two workers starting their daily maintenance together must not race.
-    PERFORM pg_advisory_xact_lock(hashtext('ops.ensure_monthly_partitions'));
+    -- A table lock, not an advisory lock: anyone can take an advisory lock and hold it, while
+    -- no runtime role has any privilege on this table.
+    LOCK TABLE ops.partitioned_tables IN SHARE UPDATE EXCLUSIVE MODE;
     SELECT n.nspname, c.relname INTO STRICT parent_schema, parent_table
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.oid = p_parent;
@@ -1981,6 +1983,8 @@ The revision that creates a partitioned table adds its row to `ops.partitioned_t
 
 Both return the number of partitions created, so a second call the same day returns 0. Partitions are named `<table>_pYYYYMM`, owned by `migrator`, and carry no grants of their own: runtime roles reach the rows through the parent, where the grants and the policy are, and a direct query on a partition is denied.
 
+`CREATE TABLE ... PARTITION OF` takes an `ACCESS EXCLUSIVE` lock on the parent for an instant. The function's `lock_timeout = '5s'` bounds the wait for it: behind a long query the call fails and the daily job retries, instead of every other query on that table queueing behind the maintenance call. Partitions exist three months ahead, so a failed day costs nothing. If lock timeouts ever show up in the job's history, the change is to create the table standalone and `ATTACH PARTITION`, which needs only `SHARE UPDATE EXCLUSIVE`.
+
 A default partition is **not** created: an insert outside the pre-created range must fail loudly (and alert) rather than silently land in a default partition that later blocks new partition creation.
 
 ### 12.3 Autovacuum tuning for append-heavy tables
@@ -1998,7 +2002,9 @@ Current-state tables (`seo.tracked_keyword_state`, `seo.serp_current_results`) a
 
 Defense in depth: the application always scopes queries by workspace, and RLS enforces it if a query forgets.
 
-**What it protects against, and what it does not.** RLS bounds a request to the workspace the application chose for that transaction. It catches the forgotten `WHERE workspace_id = ...`, the join that drops the predicate, and the repository called with the wrong scope. It does not protect against SQL injection in the API: `app.workspace_id` is an ordinary session setting, so an attacker who can run arbitrary SQL as `app_api` can set it to any workspace. Two things follow. First, membership and role permissions (24 section 3) are enforced by the application only; the database does not know which workspaces a user belongs to when it evaluates a write. Second, what arbitrary SQL can reach is bounded by the grants in section 13.1, which is why they are narrow.
+**What it protects against, and what it does not.** RLS bounds a request to the workspace the application chose for that transaction. It catches the forgotten `WHERE workspace_id = ...`, the join that drops the predicate, and the repository called with the wrong scope. It does not protect against SQL injection in the API: `app.workspace_id` is an ordinary session setting, so an attacker who can run arbitrary SQL as `app_api` can set it to any workspace. Two things follow. First, membership and role permissions (24 section 3) are enforced by the application only; the database does not know which workspaces a user belongs to when it evaluates a write. Second, what arbitrary SQL can reach is bounded by the grants in section 13.1, which is why they are narrow. Section 13.1 also lists what those grants cannot prevent.
+
+The application writes both settings in every scoped transaction, the unused one as an empty string, so a value left on a pooled connection by an earlier transaction can never widen a later one (`backend/tests/db/test_engine.py`).
 
 ```sql
 -- The two settings are set per transaction (set_config(..., true)). After such a transaction PostgreSQL leaves
@@ -2017,8 +2023,8 @@ CREATE POLICY tenant_isolation ON core.projects
     USING (workspace_id = auth.current_workspace_id())
     WITH CHECK (workspace_id = auth.current_workspace_id());
 
--- The API sets the settings per transaction (sightline.db.engine.workspace_transaction / user_transaction):
---   BEGIN; SELECT set_config('app.workspace_id', $1, true); SELECT set_config('app.user_id', $2, true); ... COMMIT;
+-- The API sets both settings per transaction (sightline.db.engine.workspace_transaction / user_transaction):
+--   BEGIN; SELECT set_config('app.workspace_id', $1, true), set_config('app.user_id', $2, true); ... COMMIT;
 ```
 
 The policy is generated by `sightline.db.ddl.tenant_isolation`, so every tenant table gets the same text. `WITH CHECK` makes the rule explicit for writes: a row can be inserted or updated only into the workspace set on the transaction. A row whose `workspace_id` is NULL (platform overhead in `ops.audit_logs`, `ops.provider_cost_events` and `ops.cost_daily`) matches no workspace, so the API never sees it and cannot write one. Partitioned tables: the policy is on the parent and applies to queries through the parent; partitions have no grants, so they cannot be queried directly. Global dictionaries (`core.domains`, `core.urls`, registries) have no RLS.
@@ -2056,9 +2062,9 @@ A query that forgets to set the workspace returns zero rows instead of all rows.
 
 ### 13.1 Grants
 
-Least privilege, per table and, where a role may change some columns of a row but never others, per column. Both roles have `USAGE` on the six schemas and nothing else at schema or database level: no `CREATE`, no `TEMPORARY`, and on tables no `TRUNCATE`, `REFERENCES` or `TRIGGER`. Nothing is granted to `PUBLIC`. Each revision that creates a table states its grants (`sightline.db.ddl.grants` and `column_grant`); a table with no grant is unreachable by default.
+Least privilege, per table and, where a role may change some columns of a row but never others, per column. Both roles have `USAGE` on the six schemas and nothing else at schema or database level: no `CREATE`, no `TEMPORARY`, and on tables no `TRUNCATE`, `REFERENCES` or `TRIGGER`. No table, column or sequence privilege is granted to `PUBLIC`; the only functions `PUBLIC` may call are the two that read a setting (`auth.current_workspace_id()`, `auth.current_user_id()`). Each revision that creates a table states its grants (`sightline.db.ddl.grants` and `column_grant`); a table with no grant is unreachable by default.
 
-`backend/tests/db/test_grants.py` reads table and column privileges from the catalog and compares them with this matrix, and fails when a table is missing from it. `backend/tests/db/test_least_privilege.py` runs the statements each line below is meant to refuse.
+`backend/tests/db/test_grants.py` reads table, column, sequence, function and schema privileges from the catalog, for our roles and for `PUBLIC`, compares them with this matrix, and fails when a table or function is missing from it. `backend/tests/db/test_least_privilege.py` runs the statements each line below is meant to refuse.
 
 | Table | `app_api` | `app_worker` |
 |---|---|---|
@@ -2068,13 +2074,13 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `auth.totp_secrets` | SELECT, INSERT, DELETE; UPDATE (`secret_encrypted`, `confirmed_at`, `last_used_step`, `recovery_code_hashes`) | none |
 | `auth.workspaces` | SELECT, INSERT, UPDATE | SELECT |
 | `auth.memberships` | SELECT, INSERT, DELETE; UPDATE (`role`, `project_ids`) | SELECT |
-| `auth.invitations` | SELECT, INSERT; UPDATE (`status`, `responded_at`, `token_hash`, `expires_at`) | SELECT |
+| `auth.invitations` | SELECT, INSERT; UPDATE (`status`, `responded_at`, `token_hash`, `expires_at`) | SELECT (every column except `token_hash`) |
 | `auth.api_keys` | SELECT | none |
 | `core.projects` | SELECT, INSERT, UPDATE | SELECT; UPDATE (`data_version`) |
 | `core.workspace_quotas` | SELECT, INSERT, UPDATE | SELECT |
 | `ops.budgets` | SELECT, INSERT, UPDATE, DELETE | SELECT |
 | `ops.schedules` | SELECT, INSERT, UPDATE, DELETE | SELECT; UPDATE (`next_run_at`, `last_run_id`) |
-| `ops.collection_runs` | SELECT, INSERT; UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns) |
+| `ops.collection_runs` | SELECT; INSERT (what a manual run asks for: scope, workload, window, trigger, status, creator, request id, estimated cost, config snapshot); UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns) |
 | `ops.collection_tasks` | SELECT | SELECT, INSERT; UPDATE (lifecycle, attempt, result and error columns) |
 | `ops.raw_payloads` | none | SELECT, INSERT; UPDATE (`expires_at`) |
 | `ops.provider_cost_events` | SELECT | SELECT, INSERT |
@@ -2089,10 +2095,15 @@ What the narrow lines are for:
 
 - **`is_platform_operator` is set only by the ops CLI**, which connects as `migrator`. The API cannot insert or update it, so an injection bug cannot mint an operator. The same holds for `email` and `disabled_at` until the routes that change them exist and bring their grant with them.
 - **A session, token or TOTP secret cannot be re-pointed.** The API can create them and move them through their lifecycle, but `user_id`, `token_hash` and `absolute_expires_at` are fixed at insert.
+- **The API cannot forge a run's counters or actual cost.** It inserts what was asked for; the worker fills in what happened.
 - **Nothing is hard-deleted by the API** except a membership (remove a member), a TOTP secret (disable), a budget and a schedule. Users, sessions, tokens, workspaces and projects are disabled, revoked, consumed or soft-deleted. Purges belong to worker maintenance, and that plan adds the `DELETE` grants it needs.
 - **The API cannot read `ops.raw_payloads`.** The table is a cache shared by every workspace with no `workspace_id` to filter on, so RLS cannot scope it. The two raw routes (19: `serp-snapshots/{id}/raw`, Phase 4; `ai/observations/{id}/raw`, Phase 7) will read one registry row through a `SECURITY DEFINER` function that joins it to a snapshot or observation row of the current workspace. Each function is created by the revision that creates the table it joins.
-- **The worker cannot move a row between workspaces**, and reads from `auth.users` only what an email notification needs. It has no access to password hashes, sessions, tokens or TOTP secrets.
+- **The worker cannot move a row between workspaces**, and reads from `auth.users` only what an email notification needs. It has no access to password hashes, sessions, verification tokens, invitation token hashes, API key hashes or TOTP secrets.
 - **Audit entries are numbered and timed by the database.** `INSERT` excludes `id` and `occurred_at`, and neither role has `UPDATE` or `DELETE`.
+
+**What the grants cannot prevent.** The API is the authenticator, and the database cannot tell which request it is serving. Arbitrary SQL as `app_api` can therefore reset any user's password hash, create a session or a reset token for any user, and remove any TOTP secret: it can sign in as an existing user, an existing platform operator included. It can also read and write any workspace's tenant rows within the grants above, by choosing `app.workspace_id`, and add itself to any workspace. None of this can be narrowed without moving authentication into the database. The grants limit the damage to what a signed-in user could do through the API: no new operators, no DDL, no raw payload cache, no rewriting of sessions that exist, no counters or cost history, and an audit log it can add to but never change or erase. The defence against injection itself is in [24-security.md](24-security.md) section 4.
+
+Role-level `statement_timeout` values are defaults, not limits: a session can raise its own. They protect against slow queries in honest code, not against a hostile session.
 
 A later revision that needs more (a new route, the purge job) adds the grant in the same migration as the code that uses it, and adds the line here.
 

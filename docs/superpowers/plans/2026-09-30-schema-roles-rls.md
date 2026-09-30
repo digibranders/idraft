@@ -49,7 +49,8 @@ Both roles get `USAGE` on the six schemas. Neither gets `CREATE` anywhere, `TRUN
 - **Revision numbers.** The plan says `0002` (identity) and `0003` (operations). The build has `0002_runtime_role_access` (schema `USAGE`, `SELECT` on `ops.alembic_version`, and the check that the roles exist), `0003_identity_and_tenancy` and `0004_operations`. Read every `0002` below as `0003` and every `0003` as `0004`.
 - **Grant matrix.** The table above was the first draft. An independent review showed it was too wide, and it was replaced by table and column grants. The contract in force is `docs/04-data-model.md` section 13.1, checked by `backend/tests/db/test_grants.py` and `test_least_privilege.py`.
 - **Statement splitting.** asyncpg sends one statement per call, so `sightline.db.ddl.statements()` splits a script at blank lines. A revision script separates statements with an empty line and has none inside a function body.
-- **Partition functions.** `ops.ensure_monthly_partitions` takes a transaction advisory lock and builds names with `format('%I.%I')`; `ops.maintain_partitions` skips registry rows whose table is gone.
+- **Partition functions.** `ops.ensure_monthly_partitions` locks `ops.partitioned_tables` (a lock no runtime role can take), has `lock_timeout = '5s'` and builds names with `format('%I.%I')`; `ops.maintain_partitions` skips registry rows whose table is gone.
+- **Scoped transactions.** `workspace_transaction` and `user_transaction` write both settings in one statement, the unused one as an empty string.
 - **Lint.** ruff rule `S608` is on for application code.
 - **Findings and what was carried forward:** `docs/review-log.md`, "Schema, roles and tenant isolation".
 

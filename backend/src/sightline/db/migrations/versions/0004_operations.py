@@ -269,7 +269,7 @@ CREATE FUNCTION ops.ensure_monthly_partitions(
     p_months_back int DEFAULT 1,
     p_months_ahead int DEFAULT 3,
     p_key_is_date boolean DEFAULT false)
-RETURNS integer LANGUAGE plpgsql SET search_path = pg_catalog AS $$
+RETURNS integer LANGUAGE plpgsql SET search_path = pg_catalog SET lock_timeout = '5s' AS $$
 DECLARE
     m date;
     parent_schema name;
@@ -278,7 +278,11 @@ DECLARE
     created integer := 0;
 BEGIN
     -- One caller at a time: two workers starting their daily maintenance together must not race.
-    PERFORM pg_advisory_xact_lock(hashtext('ops.ensure_monthly_partitions'));
+    -- A table lock, not an advisory lock: anyone can take an advisory lock and hold it, while
+    -- no runtime role has any privilege on this table. Adding a partition locks the parent
+    -- exclusively for an instant; lock_timeout bounds the wait, so maintenance behind a long
+    -- query fails and is retried instead of queueing every other query on that table.
+    LOCK TABLE ops.partitioned_tables IN SHARE UPDATE EXCLUSIVE MODE;
     SELECT n.nspname, c.relname INTO STRICT parent_schema, parent_table
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.oid = p_parent;
@@ -369,7 +373,7 @@ _TABLE_GRANTS: dict[str, tuple[str, str]] = {
     "ops.provider_price_book": ("SELECT", "SELECT, INSERT, UPDATE"),
     "ops.budgets": (_CRUD, "SELECT"),
     "ops.schedules": (_CRUD, "SELECT"),
-    "ops.collection_runs": ("SELECT, INSERT", "SELECT, INSERT"),
+    "ops.collection_runs": ("SELECT", "SELECT, INSERT"),
     "ops.collection_tasks": ("SELECT", "SELECT, INSERT"),
     "ops.raw_payloads": ("", "SELECT, INSERT"),
     "ops.provider_cost_events": ("SELECT", "SELECT, INSERT"),
@@ -394,6 +398,27 @@ _COLUMN_GRANTS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
     # table, role, privilege, columns
     ("ops.audit_logs", "app_api", "INSERT", _AUDIT_COLUMNS),
     ("ops.audit_logs", "app_worker", "INSERT", _AUDIT_COLUMNS),
+    (
+        # A manual run: what was asked for, never the counters or the actual cost.
+        "ops.collection_runs",
+        "app_api",
+        "INSERT",
+        (
+            "workspace_id",
+            "project_id",
+            "schedule_id",
+            "workload",
+            "window_start",
+            "window_end",
+            "trigger",
+            "status",
+            "created_by_type",
+            "created_by_id",
+            "origin_request_id",
+            "estimated_cost_usd",
+            "config_snapshot",
+        ),
+    ),
     ("ops.collection_runs", "app_api", "UPDATE", ("status", "status_reason", "completed_at")),
     (
         "ops.collection_runs",

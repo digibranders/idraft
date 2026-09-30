@@ -24,8 +24,13 @@ from sightline.config.settings import Settings
 
 POOL_TIMEOUT_SECONDS = 5.0
 CONNECT_TIMEOUT_SECONDS = 5.0
-_SET_WORKSPACE = text("SELECT set_config('app.workspace_id', :workspace_id, true)")
-_SET_USER = text("SELECT set_config('app.user_id', :user_id, true)")
+# Both settings are written in every scoped transaction, the unused one as '' (which the policies
+# read as "none"). A value left on a pooled connection by an earlier transaction can then never
+# widen what this one sees.
+_SET_SCOPE = text(
+    "SELECT set_config('app.workspace_id', :workspace_id, true), "
+    "set_config('app.user_id', :user_id, true)"
+)
 
 
 def create_engine(settings: Settings) -> AsyncEngine:
@@ -59,9 +64,10 @@ async def workspace_transaction(
 ) -> AsyncIterator[AsyncSession]:
     """One transaction scoped to one workspace. Commits on success, rolls back on error."""
     async with sessions() as session, session.begin():
-        await session.execute(_SET_WORKSPACE, {"workspace_id": str(workspace_id)})
-        if user_id is not None:
-            await session.execute(_SET_USER, {"user_id": str(user_id)})
+        await session.execute(
+            _SET_SCOPE,
+            {"workspace_id": str(workspace_id), "user_id": "" if user_id is None else str(user_id)},
+        )
         yield session
 
 
@@ -75,5 +81,5 @@ async def user_transaction(
     the user's own memberships and their workspaces are visible, and no other tenant data is.
     """
     async with sessions() as session, session.begin():
-        await session.execute(_SET_USER, {"user_id": str(user_id)})
+        await session.execute(_SET_SCOPE, {"workspace_id": "", "user_id": str(user_id)})
         yield session

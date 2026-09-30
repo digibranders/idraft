@@ -309,7 +309,7 @@ Plan `docs/superpowers/plans/2026-09-30-schema-roles-rls.md`, built on branch `b
 |---|---|---|---|
 | 04-data-model.md | 4 | Real DDL for `auth.workspaces`, `auth.memberships` and `auth.api_keys` | They were comments left from the Better Auth era |
 | 04-data-model.md | 4 | `core.projects.primary_domain_id` gets its foreign key in Phase 2 | `core.domains` does not exist yet |
-| 04-data-model.md | 12.2 | `ops.partitioned_tables` registry; `ops.maintain_partitions()` is the definer entry point; `ops.ensure_monthly_partitions` is owner-only, returns a count, takes an advisory lock, quotes names and sets the autovacuum options | A definer function that accepts any table name would let the worker create tables anywhere; two workers must not race; names must survive quoting |
+| 04-data-model.md | 12.2 | `ops.partitioned_tables` registry; `ops.maintain_partitions()` is the definer entry point; `ops.ensure_monthly_partitions` is owner-only, returns a count, serialises callers with a table lock, bounds its lock wait, quotes names and sets the autovacuum options | A definer function that accepts any table name would let the worker create tables anywhere; two workers must not race; names must survive quoting |
 | 04-data-model.md | 13 | Policies call `auth.current_workspace_id()` and have `WITH CHECK`; own-membership and own-workspace visibility through `auth.current_user_id()`; what RLS does and does not protect against | One definition of the setting; "list my workspaces" runs before a workspace is chosen; the old text implied RLS also guards against injection |
 | 04-data-model.md | 13.1 (new) | The grant matrix, per table and per column | It is the contract the tests check |
 | 21-scheduler-workers.md | maintenance jobs | `ensure_partitions` calls `ops.maintain_partitions()` | The function it named is not callable by the worker |
@@ -326,10 +326,25 @@ An independent review (Fable model) ran SQL as each role against the migrated de
 | `app_api` could set `auth.users.is_platform_operator`, change any email, and update or delete any row in the auth tables | High | Column grants: the API inserts and updates named columns only; no `DELETE` on users, sessions or tokens |
 | `app_api` could read `ops.raw_payloads`, a cache shared by all workspaces, and every secret column in `auth` was reachable by both roles | High | No API grant on `ops.raw_payloads`; the worker reads four columns of `auth.users` and nothing else in the secret-bearing tables |
 | `app_worker`, which bypasses RLS, could move any row to another workspace | Medium | `UPDATE` on named columns only, never `workspace_id`, `project_id` or an identity column |
-| Two concurrent `ensure_monthly_partitions` calls could collide; a registry row for a dropped table stopped all maintenance; names were concatenated | Medium | Transaction advisory lock; stale rows skipped; `format('%I.%I')` |
+| Two concurrent `ensure_monthly_partitions` calls could collide; a registry row for a dropped table stopped all maintenance; names were concatenated | Medium | Callers serialised by a lock (first an advisory lock, replaced after the second review, below); stale rows skipped; `format('%I.%I')` |
 | Audit `id` and `occurred_at` could be supplied by the writer | Medium | `INSERT` granted per column, excluding both |
 | Docs overstated RLS (24 section 4), named the wrong partition entry point, and said migrations keep roles in sync | Medium, low | Rows above |
 | `auth.invitation_by_token` returns a row whatever its status | Low | Kept (the API must answer "expired", not "unknown"); the contract is documented on the function and pinned by a test |
+
+A second review (Fable model) of the fixes confirmed every finding above closed, listed about 90 attacks as correctly refused, and found no new escalation path. It reported three more things to fix before merge and several smaller ones, all done:
+
+| Finding | Severity | Fix |
+|---|---|---|
+| The docs listed only what injected SQL as `app_api` cannot do. It can still reset any password and create a session for any user, so it can sign in as an existing operator | Medium (docs) | Stated plainly in 04 section 13.1 ("What the grants cannot prevent") and 24 section 4. Inherent: the API is the authenticator |
+| The grant test read tables and columns for our two roles only: a column grant to `PUBLIC` or a third role, a sequence or function grant, or schema `CREATE` would have passed | Medium (tests) | The test now reads column grantees, sequences, partitions, function callers (including `PUBLIC`) and schema privileges |
+| `app_api` could block partition maintenance by holding the advisory lock, whose key is public | Medium | `LOCK TABLE ops.partitioned_tables`, a table no runtime role has any privilege on; `lock_timeout = '5s'` on the function bounds the wait for the parent's lock |
+| A session-level setting left on a pooled connection scoped later transactions | Low | `workspace_transaction` and `user_transaction` write both settings every time |
+| `app_worker` could read invitation token hashes | Low | Column `SELECT`, every column except `token_hash` |
+| `app_api` could insert a run with forged counters and cost | Low | Column `INSERT` on what a manual run asks for |
+| 23 section 13 still named three roles and `app` | Low (docs) | Four roles |
+| "Nothing is granted to `PUBLIC`" ignored the two setting functions; DB-GRANT-01 named a Phase 4 table; role `statement_timeout` read as a limit; `S608` "enforces" | Note (docs) | Reworded in 04, 24 and 26 |
+
+Accepted without change: either runtime role can create large objects (mass inserts consume storage the same way; `vacuumlo` goes in the maintenance plan), and `sightline.db.ddl.grants` accepts a repeated privilege name.
 
 Carried into later plans:
 
@@ -340,4 +355,6 @@ Carried into later plans:
 | F7 | `auth.users.email` and `disabled_at` are not writable by the API. The change-email and disable-user routes add their column grant, or a definer function, when they are built | 3 (auth) |
 | F8 | The raw payload routes need a definer function joining `ops.raw_payloads` to a row of the current workspace | Phases 4 and 7 |
 | F9 | Doc 22 uses the database name `seo` in `pg_hba.conf`; the development stack uses `sightline`. Pick one when the production Compose file is written | 6 (droplet) |
+| F10 | `core.layouts` (04 section 11.6a, specified by the frontend session) has a `workspace_id`: its migration needs `tenant_isolation`, grants for `app_api` only, a row in 13.1, and a decision on how the per-user rows are kept private inside a workspace (application check or a policy on `auth.current_user_id()`) | the plan that builds layouts |
+| F11 | `vacuumlo` or a revoke of the large object functions in the init script | maintenance plan |
 

@@ -63,6 +63,15 @@ async def _session(migrated: PostgresServer, user_id: uuid.UUID) -> uuid.UUID:
         "target_id) VALUES ('2020-01-01', 'user', 'u', 'a', 't', 'i')",
         "UPDATE ops.collection_runs SET workspace_id = gen_random_uuid()",
         "UPDATE ops.collection_runs SET actual_cost_usd = 0",
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, config_snapshot, actual_cost_usd) VALUES "
+        "(gen_random_uuid(), gen_random_uuid(), 'seo_rank', now(), now(), 'manual', 'completed', "
+        "'{}', 0)",
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, config_snapshot, tasks_total) VALUES "
+        "(gen_random_uuid(), gen_random_uuid(), 'seo_rank', now(), now(), 'manual', 'planned', "
+        "'{}', 999)",
+        "LOCK TABLE ops.partitioned_tables IN SHARE UPDATE EXCLUSIVE MODE",
     ],
 )
 async def test_the_api_role_cannot(migrated: PostgresServer, statement: str) -> None:
@@ -217,6 +226,9 @@ async def test_an_invitation_lookup_returns_the_row_whatever_its_status(
         "SELECT key_hash FROM auth.api_keys",
         "UPDATE auth.memberships SET role = 'owner'",
         "DELETE FROM auth.users",
+        "SELECT token_hash FROM auth.invitations",
+        "SELECT * FROM auth.invitations",
+        "LOCK TABLE ops.partitioned_tables IN SHARE UPDATE EXCLUSIVE MODE",
     ],
 )
 async def test_the_worker_role_cannot(migrated: PostgresServer, statement: str) -> None:
@@ -269,8 +281,31 @@ async def test_the_worker_role_can_do_what_collection_needs(
         recipient = await db.fetchrow(
             "SELECT email, name FROM auth.users WHERE id = $1", alpha.owner_id
         )
+        pending = await db.fetchval(
+            "SELECT count(*) FROM auth.invitations WHERE status = 'pending' AND workspace_id = $1",
+            alpha.workspace_id,
+        )
     assert results == ["UPDATE 1", "UPDATE 1", "UPDATE 1", "UPDATE 1", "INSERT 0 1", "INSERT 0 1"]
     assert recipient is not None
+    assert pending == 1
+
+
+async def test_the_api_can_start_a_manual_run_in_its_workspace(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    alpha, _ = tenants
+    async with scoped(migrated, "app_api", workspace_id=alpha.workspace_id) as db:
+        row = await db.fetchrow(
+            "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+            "window_end, trigger, status, created_by_type, created_by_id, config_snapshot) "
+            "VALUES ($1, $2, 'seo_rank', now(), now() + interval '1 day', 'manual', 'planned', "
+            "'user', $3, '{}') RETURNING tasks_total, actual_cost_usd",
+            alpha.workspace_id,
+            alpha.project_id,
+            str(alpha.owner_id),
+        )
+    assert row is not None
+    assert (row["tasks_total"], row["actual_cost_usd"]) == (0, None)
 
 
 async def test_a_new_user_is_never_a_platform_operator(migrated: PostgresServer) -> None:

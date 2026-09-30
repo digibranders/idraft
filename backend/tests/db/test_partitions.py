@@ -157,6 +157,29 @@ async def test_two_maintainers_at_once_take_turns(migrated: PostgresServer) -> N
     assert sorted(results) == [0, 0, 0, 5]
 
 
+@pytest.mark.parametrize("role", ["app_api", "app_worker"])
+async def test_no_runtime_role_can_hold_up_maintenance_with_a_lock(
+    migrated: PostgresServer, role: str
+) -> None:
+    """The lock that serialises maintenance is one only the owner can take."""
+    async with connection(migrated, role) as blocker, connection(migrated, "app_worker") as worker:
+        await blocker.execute("SELECT pg_advisory_lock(hashtext('ops.ensure_monthly_partitions'))")
+        with pytest.raises(asyncpg.InsufficientPrivilegeError, match="permission denied"):
+            async with blocker.transaction():
+                await blocker.execute("LOCK TABLE ops.partitioned_tables IN ACCESS SHARE MODE")
+        await worker.execute("SET statement_timeout = '3s'")
+        assert await worker.fetchval("SELECT ops.maintain_partitions()") == 0
+
+
+async def test_maintenance_waits_a_bounded_time_for_a_lock(migrated: PostgresServer) -> None:
+    async with connection(migrated) as db:
+        settings = await db.fetchval(
+            "SELECT proconfig FROM pg_proc WHERE oid = "
+            "'ops.ensure_monthly_partitions(regclass,int,int,boolean)'::regprocedure"
+        )
+    assert "lock_timeout=5s" in settings
+
+
 async def test_a_registry_row_for_a_dropped_table_does_not_stop_maintenance(
     migrated: PostgresServer,
 ) -> None:
