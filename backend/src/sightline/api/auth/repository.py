@@ -271,15 +271,20 @@ async def mark_email_verified(db: AsyncSession, *, user_id: UUID, now: datetime)
     )
 
 
-async def lock_password_hash(db: AsyncSession, user_id: UUID) -> str | None:
-    """The user's current password hash, holding a share lock on the row until commit.
+async def lock_password_hash(db: AsyncSession, user_id: UUID, *, exclusive: bool) -> str | None:
+    """The user's current password hash, holding a lock on the row until commit.
 
     Sign-in takes this lock before it creates a session, and a password change updates the same
     row before it revokes sessions. So the two cannot interleave: either the new session exists
-    when the revocation runs and is revoked, or the sign-in sees the new hash and is refused.
+    when the revocation runs and is revoked, or the sign-in sees the new hash.
+
+    `exclusive` is for a caller that will also write the row. Two callers that each took a shared
+    lock and then tried to write would deadlock.
     """
     statement = (
-        select(users.c.password_hash).where(users.c.id == user_id).with_for_update(read=True)
+        select(users.c.password_hash)
+        .where(users.c.id == user_id)
+        .with_for_update(read=not exclusive)
     )
     password_hash: str | None = (await db.execute(statement)).scalar_one_or_none()
     return password_hash

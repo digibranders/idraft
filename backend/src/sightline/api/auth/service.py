@@ -230,23 +230,37 @@ class AuthService:
 
         await self._guard(self._throttle.success(email=email))
         new_hash = await self._hash(password) if needs_rehash(user.password_hash) else None
-        signed_in = await self._open_session(user, new_hash, info, now)
+        signed_in = await self._open_session(user, password, new_hash, info, now)
         if signed_in is None:
             raise InvalidCredentialsError
         return signed_in
 
     async def _open_session(
-        self, user: UserRecord, new_hash: str | None, info: RequestInfo, now: datetime
+        self,
+        user: UserRecord,
+        password: str,
+        new_hash: str | None,
+        info: RequestInfo,
+        now: datetime,
     ) -> SignedIn | None:
-        """Create the session for a verified password. None if the password changed meanwhile.
+        """Create the session for a verified password. None if the password no longer matches.
 
         The row lock orders this against a password change or reset, which updates the same row
         before it revokes sessions: either this session exists by then and is revoked with the
-        rest, or the change came first and this sign-in, verified against the old hash, stops.
+        rest, or the change came first and is seen here.
         """
         async with self._sessions() as db, db.begin():
-            if await repository.lock_password_hash(db, user.id) != user.password_hash:
+            current = await repository.lock_password_hash(
+                db, user.id, exclusive=new_hash is not None
+            )
+            if current is None:
                 return None
+            if current != user.password_hash:
+                # The hash changed since it was verified a moment ago: a parallel sign-in
+                # rehashed it, or the password really changed. Only the stored hash decides.
+                if not await self._verify(current, password):
+                    return None
+                new_hash = None
             if new_hash is not None:
                 await repository.set_password_hash(
                     db, user_id=user.id, password_hash=new_hash, now=now

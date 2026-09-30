@@ -388,14 +388,16 @@ async def test_a_password_changed_between_verification_and_session_creation_stop
     user = await make_user(migrated)
     real = repository.lock_password_hash
 
-    async def changed_meanwhile(db: AsyncSession, user_id: uuid.UUID) -> str | None:
+    async def changed_meanwhile(
+        db: AsyncSession, user_id: uuid.UUID, *, exclusive: bool
+    ) -> str | None:
         await execute(
             migrated,
             "UPDATE auth.users SET password_hash = $1 WHERE id = $2",
             hash_password("a completely different password"),
             user_id,
         )
-        return await real(db, user_id)
+        return await real(db, user_id, exclusive=exclusive)
 
     monkeypatch.setattr(repository, "lock_password_hash", changed_meanwhile)
 
@@ -431,4 +433,41 @@ async def test_the_sign_in_lock_waits_for_a_password_change_in_progress(
         response = await pending
     finally:
         await changer.close()
+    assert response.status_code == 401
+
+
+async def test_sign_ins_at_once_for_a_hash_that_needs_replacing_all_succeed(
+    api: httpx.AsyncClient, migrated: PostgresServer
+) -> None:
+    """Each wants to rewrite the hash. None may deadlock, and none may be refused for it."""
+    old = PasswordHasher(time_cost=1, memory_cost=8192, parallelism=1).hash(PASSWORD)
+    user = await make_user(migrated, password_hash=old)
+
+    responses = await asyncio.gather(
+        *(api.post(SIGN_IN, json=_credentials(user.email)) for _ in range(6))
+    )
+
+    assert [response.status_code for response in responses] == [200] * 6
+    row = await fetchrow(migrated, "SELECT password_hash FROM auth.users WHERE id = $1", user.id)
+    assert row["password_hash"].startswith("$argon2id$v=19$m=19456,t=2,p=1$")
+    sessions = await fetchrow(
+        migrated, "SELECT count(*) AS n FROM auth.sessions WHERE user_id = $1", user.id
+    )
+    assert sessions["n"] == 6
+
+
+async def test_a_user_deleted_between_verification_and_session_creation_is_refused(
+    api: httpx.AsyncClient, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = await make_user(migrated)
+    real = repository.lock_password_hash
+
+    async def deleted_meanwhile(
+        db: AsyncSession, user_id: uuid.UUID, *, exclusive: bool
+    ) -> str | None:
+        await execute(migrated, "DELETE FROM auth.users WHERE id = $1", user_id)
+        return await real(db, user_id, exclusive=exclusive)
+
+    monkeypatch.setattr(repository, "lock_password_hash", deleted_meanwhile)
+    response = await api.post(SIGN_IN, json=_credentials(user.email))
     assert response.status_code == 401
