@@ -537,13 +537,18 @@
     });
   }
 
-  /** Sparklines: shared canvas renderer, 64 x 20, 1.5 px chart-reference, 3 px last point, ranks inverted (15 section 9). */
-  function renderSparklines() {
+  /**
+   * Sparklines: shared canvas renderer, 64 x 20, 1.5 px chart-reference, 3 px last point, ranks inverted
+   * (15 section 9). An empty value is a gap: the line breaks there. Ranks share the scale 1 to 20; a rate
+   * is drawn around its own values; other kinds scale to their own range.
+   */
+  function renderSparklines(scope = document) {
     const stroke = token('chart-reference');
     const own = token('chart-1');
     const ratio = window.devicePixelRatio || 1;
-    document.querySelectorAll('canvas[data-spark]').forEach((canvas) => {
-      const values = canvas.dataset.spark.split(',').map(Number);
+    scope.querySelectorAll('canvas[data-spark]').forEach((canvas) => {
+      const values = canvas.dataset.spark.split(',').map((value) => (value.trim() === '' ? Number.NaN : Number(value)));
+      const known = values.filter(Number.isFinite);
       const width = 64;
       const height = 20;
       canvas.width = width * ratio;
@@ -553,9 +558,15 @@
       const ctx = canvas.getContext('2d');
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       ctx.clearRect(0, 0, width, height);
+      if (known.length === 0) return;
       const rank = canvas.dataset.kind === 'rank';
-      const lo = rank ? 1 : Math.min(...values);
-      const hi = rank ? 20 : Math.max(...values);
+      const share = canvas.dataset.kind === 'rate';
+      // A rate is drawn in a window of at least 20 points around its own values: wide enough that noise of
+      // a point or two stays flat, narrow enough that a real move shows
+      const middle = (Math.min(...known) + Math.max(...known)) / 2;
+      const half = Math.max(10, (Math.max(...known) - Math.min(...known)) / 2);
+      const lo = rank ? 1 : share ? Math.max(0, middle - half) : Math.min(...known);
+      const hi = rank ? 20 : share ? Math.min(100, middle + half) : Math.max(...known);
       const pad = 2.5;
       const x = (i) => pad + (i * (width - pad * 2)) / (values.length - 1);
       const y = (v) => {
@@ -567,10 +578,21 @@
       ctx.lineWidth = 1.5;
       ctx.lineJoin = 'round';
       ctx.beginPath();
-      values.forEach((v, i) => (i === 0 ? ctx.moveTo(x(i), y(v)) : ctx.lineTo(x(i), y(v))));
+      let drawing = false;
+      values.forEach((v, i) => {
+        if (!Number.isFinite(v)) drawing = false;
+        else if (drawing) ctx.lineTo(x(i), y(v));
+        else {
+          ctx.moveTo(x(i), y(v));
+          drawing = true;
+        }
+      });
       ctx.stroke();
+      // The point marks the latest value; a series that ends in a gap has none
+      const last = values.length - 1;
+      if (!Number.isFinite(values[last])) return;
       ctx.beginPath();
-      ctx.arc(x(values.length - 1), y(values[values.length - 1]), 1.5, 0, Math.PI * 2);
+      ctx.arc(x(last), y(values[last]), 1.5, 0, Math.PI * 2);
       ctx.fill();
     });
   }
@@ -587,12 +609,15 @@
   // key text; the row open in the inspector also shows a 2 px primary edge.
 
   function syncRow(row) {
+    // A row without a key cell is not a record ("Show all 17 prompts"): it is never selected or active
+    const key = row.querySelector('[data-key-cell]');
+    if (!key) return;
+    // Rows without a checkbox (prompts grouped under a topic) can still be the active record
     const box = row.querySelector('input[type="checkbox"]');
-    const selected = box.checked || row.dataset.active === 'true';
+    const selected = box?.checked === true || row.dataset.active === 'true';
     row.setAttribute('aria-selected', String(selected));
     row.classList.toggle('bg-surface-selected', selected);
     row.classList.toggle('hover:bg-surface-hover', !selected);
-    const key = row.querySelector('[data-key-cell]');
     key.classList.toggle('text-primary-text', selected);
     key.classList.toggle('text-foreground', !selected);
   }
@@ -683,6 +708,8 @@
         instances.delete(entry.id);
       };
     },
+    /** Draws the sparklines inside `scope` only: for tables that render their own rows. */
+    sparklines: (scope) => renderSparklines(scope),
     token,
     fontFamily,
     axisTheme,

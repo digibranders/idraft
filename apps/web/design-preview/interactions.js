@@ -199,12 +199,14 @@
     project: (value) => {
       // Sidebar switcher: the name lives in a span; the breadcrumb crumb is the button's own text.
       $$('[data-popup="menu-project"]').forEach((el) => {
-        const name = el.querySelector('span.type-subsection-title');
+        // The name has its own marker: the initial beside it uses the same type style
+        const name = el.querySelector('[data-project-name]');
         if (name) name.textContent = value;
         else el.textContent = value;
         if (el.hasAttribute('aria-label')) el.setAttribute('aria-label', `Switch workspace or project: ${value}`);
         if (el.dataset.tip) el.dataset.tip = value;
       });
+      $('[data-project-initial]').textContent = value.charAt(0).toUpperCase();
       toast({ title: `Switched to ${value}`, tone: 'info' });
     },
   };
@@ -681,8 +683,26 @@
   const inspector = $('#inspector');
   const scrim = $('#inspector-scrim');
   let inspectorId = null;
+  let inspectorType = 'keyword';
   let inspectorChart = null;
   let lastOpener = null;
+  /**
+   * What the inspector can show. A type names its records, fills the panel, and knows the order of the records
+   * on screen for stepping. Parts of the panel that belong to one type carry data-inspector-type. Other
+   * scripts add types through PreviewUI.registerInspectorType (prompts.js adds "prompt").
+   */
+  const INSPECTOR_TYPES = {
+    keyword: {
+      noun: 'keyword',
+      back: 'Rankings',
+      width: 400,
+      defaultTab: 'overview',
+      has: (id) => Object.hasOwn(KEYWORDS, id),
+      fill: (id) => fillInspector(id),
+      order: () => $$('#rank-rows tr').filter((row) => !row.hidden).map((row) => row.dataset.id),
+    },
+  };
+  const inspectorDef = () => INSPECTOR_TYPES[inspectorType];
   const MODES = {
     docked: ['sticky', 'my-3', 'mr-3', 'shrink-0', 'w-inspector', 'z-(--z-inspector)', 'rounded-xl', 'shadow-inspector'],
     overlay: ['fixed', 'right-3', 'bottom-3', 'w-inspector', 'max-w-full', 'z-(--z-drawer)', 'rounded-xl', 'shadow-inspector'],
@@ -703,7 +723,7 @@
     // The spacer holds the sidebar's layout width (0 below 1024 px, 56 px for the rail, 208 px expanded).
     const sidebarWidth = $('#sidebar-spacer')?.getBoundingClientRect().width ?? 0;
     const available = vw - sidebarWidth - 720 - INSPECTOR_MARGIN;
-    if (available >= 360) return { mode: 'docked', width: Math.min(400, available) };
+    if (available >= 360) return { mode: 'docked', width: Math.min(inspectorDef().width, available) };
     if (vw >= 768) return { mode: 'overlay' };
     return { mode: 'sheet' };
   }
@@ -713,7 +733,10 @@
     const { mode, width } = inspectorMode();
     inspector.classList.remove(...ALL_MODE_CLASSES);
     inspector.classList.add(...MODES[mode]);
-    inspector.style.width = mode === 'docked' && width < 400 ? `${width}px` : '';
+    // The width class is the 400 px default; a narrower dock or a wider type (the prompt inspector is 440 px,
+    // 16 section 2.6) is set inline. Overlays are capped by the viewport through max-w-full.
+    const natural = inspectorDef().width;
+    inspector.style.width = mode === 'docked' && width !== 400 ? `${width}px` : mode === 'overlay' && natural !== 400 ? `${natural}px` : '';
     Object.assign(inspector.style, MODE_STYLES[mode]);
     inspector.dataset.mode = mode;
     scrim.hidden = mode !== 'sheet';
@@ -898,7 +921,7 @@
       cell.classList.toggle('relative', row.dataset.id === id);
       edge.slice(1).forEach((c) => cell.classList.toggle(c, row.dataset.id === id));
     });
-    $$('#rank-list [data-open-id]').forEach((a) => {
+    $$('[data-open-id]').forEach((a) => {
       const on = a.dataset.openId === id;
       a.classList.toggle('bg-surface-selected', on);
       a.querySelector('.type-body-strong')?.classList.toggle('text-primary-text', on);
@@ -906,18 +929,28 @@
     charts?.syncRows();
   }
 
-  function openInspector(id, opener) {
-    if (!KEYWORDS[id]) return;
+  function openInspector(id, opener, type = 'keyword') {
+    const def = INSPECTOR_TYPES[type];
+    if (!def?.has(id)) return;
     const wasHidden = inspector.hidden;
+    const typeChanged = type !== inspectorType;
     inspectorId = id;
+    inspectorType = type;
     if (opener) lastOpener = opener;
     inspector.hidden = false;
+    $$('[data-inspector-type]', inspector).forEach((part) => (part.hidden = part.dataset.inspectorType !== type));
+    $('[data-inspector-back]').setAttribute('aria-label', `Back to ${def.back}`);
+    $('[data-inspector-prev]').setAttribute('aria-label', `Previous ${def.noun}`);
+    $('[data-inspector-prev]').dataset.tip = `Previous ${def.noun} (K)`;
+    $('[data-inspector-next]').setAttribute('aria-label', `Next ${def.noun}`);
+    $('[data-inspector-next]').dataset.tip = `Next ${def.noun} (J)`;
     layoutInspector();
-    fillInspector(id);
+    def.fill(id);
     setActiveRow(id);
-    selectTab('overview');
+    // Stepping to another record of the same type keeps the tab the person is reading
+    if (wasHidden || typeChanged) selectTab(def.defaultTab);
     const url = new URL(location.href);
-    url.searchParams.set('inspect', `keyword:${id}`);
+    url.searchParams.set('inspect', `${type}:${id}`);
     history.replaceState(null, '', url);
     if (wasHidden) {
       const mode = inspector.dataset.mode;
@@ -955,9 +988,12 @@
 
   function step(delta) {
     if (!inspectorId) return;
-    const rows = $$('[data-selectable] tbody tr').map((r) => r.dataset.id);
-    const next = rows[(rows.indexOf(inspectorId) + delta + rows.length) % rows.length];
-    openInspector(next);
+    const ids = inspectorDef().order();
+    if (ids.length === 0) return;
+    const at = ids.indexOf(inspectorId);
+    // A record that is no longer in the list (filtered away) steps to the first or the last one
+    const next = at === -1 ? ids[delta > 0 ? 0 : ids.length - 1] : ids[(at + delta + ids.length) % ids.length];
+    openInspector(next, undefined, inspectorType);
   }
 
   /**
@@ -997,13 +1033,16 @@
     });
     $$('#inspector [role="tabpanel"]').forEach((panel) => (panel.hidden = panel.dataset.panel !== name));
     if (name === 'overview') requestAnimationFrame(() => inspectorChart?.resize());
+    inspector.dispatchEvent(new window.CustomEvent('inspector-tab', { detail: { tab: name } }));
   }
 
-  $$('#inspector [role="tab"]').forEach((tab, i, all) => {
+  // Arrow keys move inside the tab list the tab belongs to: each record type has its own
+  $$('#inspector [role="tab"]').forEach((tab) => {
     tab.addEventListener('click', () => selectTab(tab.dataset.tab));
     tab.addEventListener('keydown', (event) => {
       if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-      const next = all[(i + (event.key === 'ArrowRight' ? 1 : -1) + all.length) % all.length];
+      const all = $$('[role="tab"]', tab.closest('[role="tablist"]'));
+      const next = all[(all.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : -1) + all.length) % all.length];
       next.focus();
       selectTab(next.dataset.tab);
     });
@@ -2125,7 +2164,7 @@
     openModal(deleteDialog);
     slugInput.focus();
   });
-  slugInput?.addEventListener('input', () => (deleteSubmit.disabled = slugInput.value !== 'northwind-crm'));
+  slugInput?.addEventListener('input', () => (deleteSubmit.disabled = slugInput.value !== 'fynix-digital'));
   $('[data-delete-cancel]')?.addEventListener('click', closeDelete);
   $('[data-scrim]', deleteDialog)?.addEventListener('click', closeDelete);
   deleteDialog?.addEventListener('keydown', (event) => {
@@ -2146,16 +2185,23 @@
   // Views: #/overview, #/rankings, #/settings/<section>. Rankings is shown when there is no route, so links that
   // carry ?inspect= keep working. Destinations that are not built say so instead of navigating.
 
-  const VIEWS = { overview: 'Overview', rankings: 'Rankings', settings: 'Settings' };
+  const VIEWS = { overview: 'Overview', rankings: 'Rankings', prompts: 'Topics & Prompts', settings: 'Settings' };
+  // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer, #/prompts/panels, #/prompts/versions
+  const PAGE_TABS = { prompts: ['topics', 'explorer', 'panels', 'versions'] };
   let route = { view: 'rankings', section: null };
 
   function parseRoute(hash) {
     const [, view, section] = /^#\/([a-z-]+)(?:\/([a-z-]+))?$/.exec(hash) ?? [];
     if (!(view in VIEWS)) return null;
+    if (view in PAGE_TABS) return { view, section: PAGE_TABS[view].includes(section) ? section : PAGE_TABS[view][0] };
     if (view !== 'settings') return { view, section: null };
     return { view, section: section in SETTINGS_LABELS ? section : 'engines' };
   }
-  const routeHash = (r) => (r.view === 'settings' ? `#/settings/${r.section}` : `#/${r.view}`);
+  function routeHash(r) {
+    if (r.view === 'settings') return `#/settings/${r.section}`;
+    // The first tab of a page is the page itself
+    return r.view in PAGE_TABS && r.section !== PAGE_TABS[r.view][0] ? `#/${r.view}/${r.section}` : `#/${r.view}`;
+  }
 
   function showRoute(next) {
     const viewChanged = next.view !== route.view;
@@ -2175,6 +2221,8 @@
     $$('[data-scope-control]').forEach((el) => (el.hidden = settings));
     document.title = `${settings ? `${label}, Settings` : label} · Design System Preview`;
     if (viewChanged) window.scrollTo(0, 0);
+    // Pages built in their own script (prompts.js) show their tab from this
+    window.dispatchEvent(new window.CustomEvent('preview-route', { detail: next }));
   }
 
   window.addEventListener('hashchange', () => {
@@ -2205,7 +2253,7 @@
   );
 
   function previewNote(name) {
-    toast({ title: `${name} is not in this preview`, description: 'Overview, Rankings and Settings are built so far.', tone: 'info' });
+    toast({ title: `${name} is not in this preview`, description: 'Overview, Rankings, Topics & Prompts and Settings are built so far.', tone: 'info' });
   }
   document.addEventListener('click', (event) => {
     const missing = event.target.closest('[data-nav-missing], [data-preview-note]');
@@ -2239,9 +2287,10 @@
     }
   });
 
-  // Restore an inspector from the URL (?inspect=keyword:k2), as a shared link would
+  // Restore an inspector from the URL (?inspect=keyword:k2), as a shared link would. Types added by other
+  // scripts restore their own records once they have registered.
   const fromUrl = new URL(location.href).searchParams.get('inspect');
-  if (fromUrl?.startsWith('keyword:')) openInspector(fromUrl.slice(8));
+  if (fromUrl?.startsWith('keyword:') && route.view === 'rankings') openInspector(fromUrl.slice(8));
 
   /** Helpers shared with customize.js (layout customization), which is a separate ES module. */
   window.PreviewUI = {
@@ -2258,6 +2307,18 @@
     askDiscard,
     setSelectValue,
     addLeaveGuard: (guard) => leaveGuards.push(guard),
+    wireDialog,
+    engineLogo,
+    badge,
+    registerInspectorType: (name, definition) => {
+      INSPECTOR_TYPES[name] = definition;
+    },
+    openInspector,
+    closeInspector,
+    inspectorState: () => ({ open: !inspector.hidden, type: inspectorType, id: inspectorId, mode: inspector.dataset.mode }),
+    /** Re-marks the row of the open record after a table has rendered its rows again. */
+    syncActiveRow: () => setActiveRow(inspector.hidden ? null : inspectorId),
+    currentRoute: () => route,
     dismissDiscard,
     selectInspectorTab: selectTab,
     refreshInspectorChart: () => inspectorId && renderInspectorChart(KEYWORDS[inspectorId]),

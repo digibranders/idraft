@@ -4,7 +4,7 @@
  * Spec: docs/superpowers/specs/2026-09-30-layout-customization-design.md.
  *
  * The rules (catalog, sanitizing, resolution, edits, change count) are the tested TypeScript of
- * src/lib/layouts, transpiled to ./vendor/layouts by layouts-core.mjs. This file is only the interface:
+ * src/lib/layouts, transpiled to ./vendor/layouts by core-modules.mjs. This file is only the interface:
  * it renders a layout by moving card nodes from a card bank into a grid, and edits a draft in customize mode.
  * In the app this is features/layouts (LayoutProvider, LayoutGrid, CardFrame, CardCatalogDialog) with dnd-kit
  * and the API of spec section 9; here layouts persist in browser storage.
@@ -141,22 +141,22 @@ const NUMBER_DATA = {
   'seo.est_clicks': { value: '18.4K', delta: '+3.1%', tone: 'neutral', context: 'estimate, per month', href: '#/rankings' },
   'seo.aio_citation_rate': { value: '38.2%', delta: '+0.4 pts', tone: 'neutral', context: '157 of 411 checks', href: '#/rankings' },
   'seo.share_of_voice': { value: '18.2%', delta: '+0.6 pts', tone: 'neutral', context: 'among 5 tracked entities', href: '#/competitors' },
-  'ai.mention_rate|chatgpt_web': { value: '34%', delta: '+2.1 pts', tone: 'neutral', context: '612 of 1,800 responses' },
-  'ai.mention_rate|gemini_web': { value: '29%', delta: '−0.8 pts', tone: 'neutral', context: '376 of 1,296 responses' },
-  'ai.mention_rate|google_ai_mode': { value: '41%', delta: '−6.0 pts', tone: 'neg', context: '398 of 980 observations' },
-  'ai.mention_rate|google_ai_overview': { value: '16%', delta: '+0.3 pts', tone: 'neutral', context: '66 of 411 observations' },
-  'ai.citation_rate|chatgpt_web': { value: '21%', delta: '+3.4 pts', tone: 'pos', context: '378 of 1,800 responses' },
-  'ai.citation_rate|gemini_web': { value: '14%', delta: '+0.2 pts', tone: 'neutral', context: '181 of 1,296 responses' },
-  'ai.citation_rate|google_ai_mode': { value: '33%', delta: '−1.1 pts', tone: 'neutral', context: '323 of 980 observations' },
-  'ai.citation_rate|google_ai_overview': { value: '38%', delta: '+0.4 pts', tone: 'neutral', context: '157 of 411 observations' },
-  'ai.recommendation_rate|chatgpt_web': { value: '18%', delta: '+0.9 pts', tone: 'neutral', context: '324 of 1,800 responses' },
-  'ai.recommendation_rate|gemini_web': { value: '15%', delta: '−0.4 pts', tone: 'neutral', context: '194 of 1,296 responses' },
-  'ai.recommendation_rate|google_ai_mode': { value: 'n/a', context: 'not classified for this engine' },
-  'ai.recommendation_rate|google_ai_overview': { value: 'n/a', context: 'not classified for this engine' },
-  'ai.share_of_voice|chatgpt_web': { value: '27%', delta: '+1.0 pts', tone: 'neutral', context: '1,204 responses with a tracked entity' },
-  'ai.share_of_voice|gemini_web': { value: '24%', delta: '−0.5 pts', tone: 'neutral', context: '842 responses with a tracked entity' },
-  'ai.share_of_voice|google_ai_mode': { value: '31%', delta: '−2.2 pts', tone: 'neutral', context: '711 observations with a tracked entity' },
-  'ai.share_of_voice|google_ai_overview': { value: '22%', delta: '+0.1 pts', tone: 'neutral', context: '268 observations with a tracked entity' },
+  'ai.mention_rate|chatgpt_web': { value: '34%', delta: '+2.1 pts', tone: 'neutral', context: '612 of 1,800 responses', href: '#/prompts' },
+  'ai.mention_rate|gemini_web': { value: '29%', delta: '−0.8 pts', tone: 'neutral', context: '376 of 1,296 responses', href: '#/prompts' },
+  'ai.mention_rate|google_ai_mode': { value: '41%', delta: '−6.0 pts', tone: 'neg', context: '398 of 980 observations', href: '#/prompts' },
+  'ai.mention_rate|google_ai_overview': { value: '16%', delta: '+0.3 pts', tone: 'neutral', context: '66 of 411 observations', href: '#/prompts' },
+  'ai.citation_rate|chatgpt_web': { value: '21%', delta: '+3.4 pts', tone: 'pos', context: '378 of 1,800 responses', href: '#/prompts' },
+  'ai.citation_rate|gemini_web': { value: '14%', delta: '+0.2 pts', tone: 'neutral', context: '181 of 1,296 responses', href: '#/prompts' },
+  'ai.citation_rate|google_ai_mode': { value: '33%', delta: '−1.1 pts', tone: 'neutral', context: '323 of 980 observations', href: '#/prompts' },
+  'ai.citation_rate|google_ai_overview': { value: '38%', delta: '+0.4 pts', tone: 'neutral', context: '157 of 411 observations', href: '#/prompts' },
+  'ai.recommendation_rate|chatgpt_web': { value: '18%', delta: '+0.9 pts', tone: 'neutral', context: '324 of 1,800 responses', href: '#/prompts' },
+  'ai.recommendation_rate|gemini_web': { value: '15%', delta: '−0.4 pts', tone: 'neutral', context: '194 of 1,296 responses', href: '#/prompts' },
+  'ai.recommendation_rate|google_ai_mode': { value: 'n/a', context: 'not classified for this engine', href: '#/prompts' },
+  'ai.recommendation_rate|google_ai_overview': { value: 'n/a', context: 'not classified for this engine', href: '#/prompts' },
+  'ai.share_of_voice|chatgpt_web': { value: '27%', delta: '+1.0 pts', tone: 'neutral', context: '1,204 responses with a tracked entity', href: '#/prompts' },
+  'ai.share_of_voice|gemini_web': { value: '24%', delta: '−0.5 pts', tone: 'neutral', context: '842 responses with a tracked entity', href: '#/prompts' },
+  'ai.share_of_voice|google_ai_mode': { value: '31%', delta: '−2.2 pts', tone: 'neutral', context: '711 observations with a tracked entity', href: '#/prompts' },
+  'ai.share_of_voice|google_ai_overview': { value: '22%', delta: '+0.1 pts', tone: 'neutral', context: '268 observations with a tracked entity', href: '#/prompts' },
 };
 const numberKey = (number) => (number.engine ? `${number.metric}|${number.engine}` : number.metric);
 const numberLabel = (number) => {
@@ -330,6 +330,8 @@ function confirmAction({ title, body, confirmLabel, customizer, opener }) {
     $('[data-confirm-ok]', confirmDialog).focus();
   });
 }
+// Other pages of the preview confirm large bulk actions with the same dialog (prompts.js)
+ui.confirmAction = confirmAction;
 
 const catalogDialog = $('#dlg-catalog');
 const catalogList = $('[data-catalog-list]', catalogDialog);
