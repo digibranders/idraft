@@ -144,6 +144,7 @@
       "codeDescription": "Enter the 6-digit code from your authenticator app to continue.",
       "password": "Password",
       "code": "Authentication code",
+      "digit": "Digit {position} of {length}",
       "showPassword": "Show password",
       "hidePassword": "Hide password",
       "submit": "Confirm",
@@ -153,7 +154,50 @@
       "invalidCode": "The code is not correct. Check the time on your device, then try the new code.",
       "secondFactorRequired": "Your account uses two-factor authentication, so confirm with a code instead.",
       "rateLimited": "Too many attempts. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
-      "failed": "Something went wrong. Try again, and contact support if it keeps happening."
+      "failed": "The request did not go through. Try again, and contact support if it keeps happening."
+    },
+    "skipToMain": "Skip to main content",
+    "primary": "Primary",
+    "breadcrumb": "Breadcrumb",
+    "projectOverview": "Project overview",
+    "navigation": "Navigation",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "projectSwitcher": {
+      "label": "Project: {project}",
+      "search": "Search projects",
+      "empty": "No projects match \"{query}\"",
+      "clear": "Clear",
+      "open": "Show projects",
+      "timeZone": "Times in {timeZone}"
+    },
+    "theme": {
+      "switch": "Dark theme",
+      "tooltip": "Switch theme",
+      "group": "Theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "help": {
+      "label": "Help",
+      "shortcuts": "Keyboard shortcuts"
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "description": "Single-key shortcuts work while focus is not in a text field.",
+      "toggleSidebar": "Collapse or expand the sidebar"
+    },
+    "user": {
+      "trigger": "Account menu, {name}",
+      "tooltip": "Account",
+      "accountSettings": "Account settings",
+      "signOut": "Sign out",
+      "signOutFailed": "You could not be signed out. Try again in a moment."
     }
   },
   "session": {
@@ -163,7 +207,7 @@
       "signedInAs": "Signed in as {email}",
       "signOut": "Sign out"
     },
-    "signOutFailed": "You could not be signed out. Check your connection and try again.",
+    "signOutFailed": "You could not be signed out. Try again in a moment.",
     "invitation": {
       "title": "The invitation could not be accepted",
       "expired": "It has expired. Ask the person who invited you for a new one.",
@@ -172,6 +216,47 @@
       "unverified": "Your email address is not verified yet. Open the verification link we sent you, then open the invitation link again.",
       "failed": "The request did not go through. Open the invitation link again to retry.",
       "continueTo": "Continue to {workspace}"
+    }
+  },
+  "navigation": {
+    "items": {
+      "overview": "Overview",
+      "matrix": "Matrix",
+      "rankings": "Rankings",
+      "keywords": "Keywords",
+      "pages": "Pages",
+      "aiOverview": "Overview",
+      "prompts": "Topics & Prompts",
+      "citations": "Citations",
+      "sources": "Sources",
+      "competitors": "Competitors",
+      "discover": "Discover",
+      "reports": "Reports",
+      "integrations": "Integrations",
+      "settings": "Settings"
+    },
+    "groups": {
+      "seo": "SEO",
+      "ai": "AI Visibility"
+    },
+    "inGroup": "{group}: {item}"
+  },
+  "status": {
+    "error": {
+      "title": "This page could not be loaded",
+      "reason": "An unexpected error occurred. Your data is not affected.",
+      "retry": "Try again",
+      "errorId": "Error ID {id}",
+      "copyErrorId": "Copy error ID",
+      "copied": "Error ID copied"
+    },
+    "notFound": {
+      "title": "This page does not exist or you do not have access to it",
+      "reason": "Check the link, or go back to the project."
+    },
+    "inline": {
+      "network": "Could not reach the server. Check your connection.",
+      "server": "The server returned an error. Your filters are unchanged."
     }
   }
 }

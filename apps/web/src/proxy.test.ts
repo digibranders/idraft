@@ -67,6 +67,11 @@ describe('proxy', () => {
     expect(proxy(request('/design-system')).headers.get('location')).toBeNull();
   });
 
+  it('hands the render its path and query, whatever path header the client sent', () => {
+    const response = proxy(request('/acme/crm?loc=2840', { ...SIGNED_IN, 'x-pathname': '//evil.example' }));
+    expect(response.headers.get('x-middleware-request-x-pathname')).toBe('/acme/crm?loc=2840');
+  });
+
   it('replaces a nonce the client sent with its own', () => {
     const response = proxy(request('/acme', { ...SIGNED_IN, 'x-nonce': 'chosen-by-the-client' }));
     const nonce = nonceOf(response.headers.get('content-security-policy'));

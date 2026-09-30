@@ -1073,14 +1073,15 @@ Purpose: "Confirm it is you" (password or TOTP) on `403 fresh_session_required`,
 ```ts
 interface ReauthDialogProps {
   open: boolean;
-  method: 'password' | 'totp';
-  onSubmit: (secret: string) => Promise<'ok' | 'invalid'>;   // the feature performs the request
+  method: 'password' | 'totp';      // how to ask first
+  onSubmit: (method: 'password' | 'totp', secret: string) =>
+    Promise<'ok' | 'invalid' | 'second-factor-required'>;   // the feature performs the request; anything else rejects
   onCancel: () => void;
 }
 ```
 
 - **Variants:** none (400 px).
-- **States:** idle, submitting, invalid.
+- **States:** idle, submitting, invalid (on the field, which is emptied), switched to the code (`second-factor-required`: the account has two-factor on, so the password alone is refused; a warning `FormAlert` says so), failed (a lock with its wait, or one plain sentence). Each opening starts clean.
 - **A11y:** modal; `autocomplete="current-password"` or `"one-time-code"` with `inputMode="numeric"`; paste allowed.
 - **Use:** only on that 403 code; may stack above the current dialog.
 - **Not for:** sign-in screens.

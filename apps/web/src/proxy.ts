@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { publicEnv } from '@/lib/env/public';
 import { isPublicPath } from '@/lib/routes/public-paths';
+import { PATHNAME_HEADER } from '@/lib/routes/paths';
 import { buildCsp, createNonce } from '@/lib/security/csp';
 import { SESSION_COOKIE } from '@/lib/security/session-cookie';
 
@@ -40,6 +41,9 @@ export function proxy(request: NextRequest): NextResponse {
 
   const headers = new Headers(request.headers);
   headers.set('x-nonce', nonce);
+  // Where the page is, for a layout that sends a stale session to sign in and back (it has no other way
+  // to know the path below it). Set here, so a client cannot choose it.
+  headers.set(PATHNAME_HEADER, `${pathname}${search}`);
   headers.set('Content-Security-Policy', policy);
   const response = NextResponse.next({ request: { headers } });
   response.headers.set('Content-Security-Policy', policy);

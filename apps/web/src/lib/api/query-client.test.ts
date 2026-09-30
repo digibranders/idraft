@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { apiMutation, apiQuery } from './query';
-import { getQueryClient, isSignedOut, loginUrl, makeQueryClient } from './query-client';
+import { getQueryClient, isSignedOut, loginUrl, makeQueryClient, SIGN_OUT_META } from './query-client';
 import { retryDelay, shouldRetry, shouldRetryMutation } from './retry';
 import { TEST_API_ORIGIN, testApi } from '@/test/api-server';
 import { server } from '@/test/msw';
@@ -91,6 +91,20 @@ describe('the error policy', () => {
     const signOut = new MutationObserver(client, apiMutation('post', '/api/v1/auth/sign-out', { client: testApi() }));
     await signOut.mutate(undefined).catch(() => undefined);
     expect(onSignedOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the 401 of signing out to sign-out itself, which knows where to go', async () => {
+    const onSignedOut = vi.fn(() => true);
+    const client = makeQueryClient({ onSignedOut });
+    client.setQueryData(['kept'], 1);
+    server.use(http.post(`${TEST_API_ORIGIN}/api/v1/auth/sign-out`, () => problem(401, 'unauthenticated')));
+    const signOut = new MutationObserver(client, {
+      ...apiMutation('post', '/api/v1/auth/sign-out', { client: testApi() }),
+      meta: { [SIGN_OUT_META]: true },
+    });
+    await signOut.mutate(undefined).catch(() => undefined);
+    expect(onSignedOut).not.toHaveBeenCalled();
+    expect(client.getQueryData(['kept'])).toBe(1);
   });
 
   it('leaves any other 401 to the screen: a wrong password is not a lost session', async () => {

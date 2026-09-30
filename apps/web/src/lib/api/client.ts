@@ -1,5 +1,6 @@
 import createClient, { type Client, type ClientOptions, type Middleware } from 'openapi-fetch';
 
+import { apiFetch } from './api-fetch';
 import { HTTP_ERROR, problemFrom } from './problem';
 import type { paths } from './schema';
 import { REQUEST_ID_HEADER, newRequestId } from '@/lib/request-id';
@@ -18,11 +19,11 @@ export type ApiClient = Client<paths>;
 const QUERY_SERIALIZER = { array: { style: 'form', explode: false } } as const;
 
 /**
- * `fetch` is looked up at each call, not when the client is made: openapi-fetch would otherwise keep the
- * function it found at import, and miss a fetch that is wrapped later (Next.js on the server, MSW in tests).
- * The second argument is openapi-fetch's `requestInitExt`, passed on untouched.
+ * `fetch` is looked up at each call, not when the client is made (./api-fetch.ts): openapi-fetch would
+ * otherwise keep the function it found at import, and miss a fetch that is wrapped later (Next.js on the
+ * server, MSW in tests). The second argument is openapi-fetch's `requestInitExt`, passed on untouched.
  */
-const lateFetch = (request: Request, init?: RequestInit): Promise<Response> => globalThis.fetch(request, init);
+const lateFetch = (request: Request, init?: RequestInit): Promise<Response> => apiFetch(request, init);
 
 /** Gives every request an `X-Request-Id` (25-observability.md section 3.3), unless it already has one. */
 function requestIdMiddleware(requestId: () => string): Middleware {

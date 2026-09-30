@@ -1,15 +1,16 @@
 import type { Role } from '@/lib/api/types';
+import type { Permission } from '@/lib/permissions/permissions';
 
 /**
  * The permission keys each role holds, as the API grants them (docs/24-security.md section 3.2,
- * backend/src/sightline/api/permissions.py). The OpenAPI document types permissions as plain strings, so
- * the mocks keep this copy; permissions.test.ts compares it with the backend's table.
+ * backend/src/sightline/api/permissions.py). Keyed by the app's list of permissions, so a key the app does
+ * not know fails to compile; permissions.test.ts compares the table with the backend's.
  */
 const MANAGERS: readonly Role[] = ['owner', 'admin'];
 const WRITERS: readonly Role[] = ['owner', 'admin', 'editor'];
 const ANALYSTS: readonly Role[] = ['owner', 'admin', 'editor', 'analyst'];
 
-export const PERMISSION_HOLDERS: Readonly<Record<string, readonly Role[]>> = {
+export const PERMISSION_HOLDERS: Readonly<Record<Permission, readonly Role[]>> = {
   'workspace:delete': ['owner'],
   'workspace:update': MANAGERS,
   'members:manage': MANAGERS,

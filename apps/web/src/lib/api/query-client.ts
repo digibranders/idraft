@@ -8,6 +8,12 @@ import { isPublicPath } from '@/lib/routes/public-paths';
 const CONFIGURATION_STALE_MS = 30_000;
 const LOGIN_PATH = '/login';
 
+/**
+ * Marks the sign-out mutation (`meta: { [SIGN_OUT_META]: true }`): a 401 it gets means the person is
+ * signed out already, and it must not send them to sign in with the page they left in `next`.
+ */
+export const SIGN_OUT_META = 'signOut';
+
 /** The codes of a 401 that mean the session is gone, as opposed to a wrong password (19 section 2.7). */
 const SIGNED_OUT_CODES: ReadonlySet<string> = new Set(['unauthenticated', 'session_expired']);
 
@@ -64,7 +70,12 @@ export function makeQueryClient({
   };
   const client: QueryClient = new QueryClient({
     queryCache: new QueryCache({ onError: handleError }),
-    mutationCache: new MutationCache({ onError: handleError }),
+    mutationCache: new MutationCache({
+      // Signing out handles its own 401 (the session had ended already) and leaves for the sign-in page itself
+      onError: (error, _variables, _context, mutation) => {
+        if (mutation.meta?.[SIGN_OUT_META] !== true) handleError(error);
+      },
+    }),
     defaultOptions: {
       queries: { staleTime: CONFIGURATION_STALE_MS, retry: retry ? shouldRetry : false, retryDelay },
       // A write is sent again only after a 409 conflict, where the API wrote nothing

@@ -772,3 +772,10 @@ None of these is a disagreement between documents; each needs a code, token or p
 | 25-component-inventory.md | 4.28 | `FormAlert` gains a `positive` tone (the outcome of the step before, such as "Your password was changed") and `live={false}` for an alert that takes focus | The sign-in notices, and one announcement per alert (10-forms section 18) |
 | 19-responsive-behavior.md, globals.css | 10 | `type-input-touch` (16 / 24 px) exists and text fields and OTP cells use it below 768 px | Named there as a new utility; the auth screens are the first phone forms |
 | 24-page-templates.md | 11 | T7: the heading takes focus when a step without a field replaces the panel, the page title follows the step, the account email is `autocomplete="username"`, OTP cells are named by position | Review of the auth screens |
+
+## Workspace identity and re-authentication (2026-10-01)
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| 25-component-inventory.md | 3.33 | `ReauthDialog.onSubmit` takes the method and may answer `second-factor-required`, which switches the dialog to the code | The API refuses a password alone from an account with two-factor on (19 section 3.1, `second_factor_required`), and `/me` can be older than that change |
+

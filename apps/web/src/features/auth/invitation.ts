@@ -6,6 +6,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import { hardNavigate } from '@/lib/navigation/hard-navigate';
 import { homeWithInvitationFailure, type InvitationFailure } from '@/lib/routes/home-notices';
+import { workspacePath } from '@/lib/routes/paths';
 import { safeNextPath } from '@/lib/security/next-path';
 
 /**
@@ -39,7 +40,7 @@ export function useAfterSignIn(next: string | null, invitation: string | null | 
     }
     try {
       const { data } = await accept.mutateAsync({ body: { token: invitation } });
-      hardNavigate(`/${encodeURIComponent(data.workspace.slug)}`);
+      hardNavigate(workspacePath(data.workspace.slug));
     } catch (error) {
       hardNavigate(homeWithInvitationFailure((isApiProblem(error) ? FAILURES[error.code] : undefined) ?? 'failed'));
     }
