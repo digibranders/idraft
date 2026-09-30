@@ -130,12 +130,67 @@ class Settings(_DatabaseSettings):
     process_concurrency: int = Field(default=4, ge=1, le=32)
     # The worker touches this file while it is healthy; the container healthcheck reads its age.
     heartbeat_file: Path | None = None
+    # The worker only. DataForSEO's API login, both or neither: without them the provider is
+    # not registered and nothing is sent to it.
+    dataforseo_login: SecretStr | None = None
+    dataforseo_password: SecretStr | None = None
+    # The worker only. The raw payload bucket (docs/23 section 9): R2's S3 endpoint,
+    # https://<account id>.r2.cloudflarestorage.com, and a token scoped to the bucket. All
+    # three or none: without them nothing is fetched, since a result is kept only once stored.
+    r2_raw_endpoint: str | None = None
+    r2_raw_bucket: str = Field(default="seo-raw", pattern=r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")
+    r2_raw_access_key_id: SecretStr | None = None
+    r2_raw_secret_access_key: SecretStr | None = None
+    # Resolve submissions of unknown outcome by asking the provider which tasks it holds. Off
+    # until spike S-01 confirms that DataForSEO's task list returns our tags.
+    resolve_unknown_submissions: bool = False
 
-    @field_validator("heartbeat_file", mode="before")
+    @field_validator("heartbeat_file", "r2_raw_endpoint", mode="before")
     @classmethod
-    def _no_heartbeat_file(cls, value: object) -> object:
+    def _empty_is_unset(cls, value: object) -> object:
         # An empty variable is "not set". As a path it would be the working directory.
         return None if value == "" else value
+
+    @field_validator(
+        "dataforseo_login",
+        "dataforseo_password",
+        "r2_raw_access_key_id",
+        "r2_raw_secret_access_key",
+    )
+    @classmethod
+    def _empty_credential_is_none(cls, value: SecretStr | None) -> SecretStr | None:
+        return value if value is not None and value.get_secret_value().strip() else None
+
+    @field_validator("r2_raw_endpoint")
+    @classmethod
+    def _validate_r2_endpoint(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parts = urlsplit(value)
+        if (
+            parts.scheme not in ("https", "http")
+            or not parts.hostname
+            or parts.path
+            not in (
+                "",
+                "/",
+            )
+        ):
+            raise ValueError("must be the bucket service's origin, such as https://host")
+        return f"{parts.scheme}://{parts.netloc}"
+
+    @property
+    def dataforseo_credentials(self) -> tuple[str, str] | None:
+        if self.dataforseo_login is None or self.dataforseo_password is None:
+            return None
+        return (
+            self.dataforseo_login.get_secret_value(),
+            self.dataforseo_password.get_secret_value(),
+        )
+
+    @property
+    def raw_storage_configured(self) -> bool:
+        return self.r2_raw_endpoint is not None
 
     _check_origin = field_validator("app_origin")(_validate_origin)
 
@@ -212,6 +267,27 @@ class Settings(_DatabaseSettings):
                 raise ValueError("EMAIL_PROVIDER must not be console when APP_ENV is production")
             if self.app_env != "test" and not _is_local_origin(self.app_origin):
                 raise ValueError("EMAIL_PROVIDER must not be console unless APP_ORIGIN is local")
+        return self
+
+    @model_validator(mode="after")
+    def _providers_are_configured_whole(self) -> Self:
+        if (self.dataforseo_login is None) != (self.dataforseo_password is None):
+            raise ValueError(
+                "DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD are set together or not at all"
+            )
+        r2 = (self.r2_raw_endpoint, self.r2_raw_access_key_id, self.r2_raw_secret_access_key)
+        if any(part is not None for part in r2) and any(part is None for part in r2):
+            raise ValueError(
+                "R2_RAW_ENDPOINT, R2_RAW_ACCESS_KEY_ID and R2_RAW_SECRET_ACCESS_KEY are set "
+                "together or not at all"
+            )
+        # Credentials for the bucket go over TLS, except to a store on this machine in tests.
+        if (
+            self.r2_raw_endpoint is not None
+            and self.r2_raw_endpoint.startswith("http://")
+            and self.app_env == "production"
+        ):
+            raise ValueError("R2_RAW_ENDPOINT must be https:// when APP_ENV is production")
         return self
 
 

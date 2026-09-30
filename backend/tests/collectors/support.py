@@ -25,10 +25,13 @@ from sightline.providers.contract import (
     AcceptedTask,
     CanonicalRequest,
     Contract,
+    FetchResult,
     ProviderCallError,
     ProviderError,
+    ReadyTask,
     RejectedTask,
     SubmitResult,
+    SubmittedTask,
 )
 from tests.api.auth.support import execute, fetch, fetchrow, make_workspace
 from tests.api.workspaces.support import make_project
@@ -279,6 +282,7 @@ class FakeWorkload:
         self.built: list[str] = []
         # Subjects whose request is tagged with another task's id, and whether building fails.
         self.mistags: set[str] = set()
+        self.misruns: set[str] = set()
         self.fails_to_build = False
 
     async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
@@ -331,6 +335,7 @@ class FakeWorkload:
             task.ref: CanonicalRequest(
                 # A mistagged request carries the id of another task.
                 task_id=str(task.ref.id + (1 if task.subject_id in self.mistags else 0)),
+                run_id=uuid.uuid4() if task.subject_id in self.misruns else task.run_id,
                 priority="high" if task.priority == "high" else "standard",
                 params=SerpParams(keyword=task.subject_id, location_id=task.location_id or 0),
             )
@@ -359,9 +364,38 @@ class FakeProvider:
         self.size = size
         self.calls: list[tuple[str, list[CanonicalRequest]]] = []
         self.answer: Answer = self.accept_all
+        # What the provider holds and has finished, as a test sets it up.
+        self.ready: list[ReadyTask] = []
+        self.results: dict[str, FetchResult] = {}
+        self.posted: list[SubmittedTask] = []
+        self.fetched: list[str] = []
+        self.lists_submissions = False
 
     def batch_size(self, endpoint: str) -> int:
         return self.size
+
+    async def list_ready(self, endpoint: str) -> Sequence[ReadyTask]:
+        return list(self.ready)
+
+    async def fetch(self, endpoint: str, provider_task_id: str) -> FetchResult:
+        self.fetched.append(provider_task_id)
+        return self.results.get(
+            provider_task_id,
+            FetchResult(
+                provider_task_id=provider_task_id,
+                status="ready",
+                body=f'{{"id": "{provider_task_id}"}}'.encode(),
+            ),
+        )
+
+    async def find_submitted(
+        self, endpoint: str, since: datetime, until: datetime
+    ) -> Sequence[SubmittedTask]:
+        return [
+            task
+            for task in self.posted
+            if task.posted_at is None or since <= task.posted_at <= until
+        ]
 
     def result_lifetime(self, endpoint: str) -> timedelta:
         # An endpoint named for LLM Responses keeps its results four hours longer.

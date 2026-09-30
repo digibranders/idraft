@@ -103,7 +103,7 @@ async def _build(
             request = built.get(task.ref)
             if request is None:
                 continue
-            if request.task_id != str(task.ref.id):
+            if request.task_id != str(task.ref.id) or request.run_id != task.run_id:
                 # Answers are matched by this id: a wrong one would put another task's
                 # provider id and cost, perhaps another workspace's, on this one.
                 _log.error("request names another task", task_id=task.ref.id, workload=name)

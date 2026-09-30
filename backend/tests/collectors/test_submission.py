@@ -567,13 +567,16 @@ async def test_a_request_tagged_with_another_tasks_id_is_not_sent(
     this one's provider id and cost."""
     world = World(worker_db)
     world.workload.mistags = {"keyword-0"}
+    # And one that names its own task under another run.
+    world.workload.misruns = {"keyword-1"}
     run_id, batch = await _one_batch(world, migrated)
 
-    assert await world.submit(batch) == SubmitReport(submitted=2, refused=1)
-    mistagged = await _row(migrated, run_id, "keyword-0")
-    assert (mistagged["status"], mistagged["last_error_message"]) == ("failed", NOT_BUILT)
+    assert await world.submit(batch) == SubmitReport(submitted=1, refused=2)
+    for subject in ("keyword-0", "keyword-1"):
+        mistagged = await _row(migrated, run_id, subject)
+        assert (mistagged["status"], mistagged["last_error_message"]) == ("failed", NOT_BUILT)
     ((_, requests),) = world.provider.calls
-    assert len(requests) == 2
+    assert len(requests) == 1
 
 
 async def test_a_workload_that_fails_to_build_ends_its_tasks_instead_of_retrying_them_for_ever(
@@ -636,7 +639,10 @@ async def test_a_task_the_provider_accepts_but_we_cannot_place_is_logged_with_it
 
 def test_a_request_is_sent_with_its_own_parameters() -> None:
     request = CanonicalRequest(
-        task_id="7", priority="standard", params=SerpParams(keyword="shoes", location_id=2356)
+        task_id="7",
+        run_id=UUID(int=1),
+        priority="standard",
+        params=SerpParams(keyword="shoes", location_id=2356),
     )
     assert request.model_dump()["params"] == {"keyword": "shoes", "location_id": 2356}
     assert '"keyword":"shoes"' in request.model_dump_json()

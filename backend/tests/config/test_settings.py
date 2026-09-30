@@ -79,6 +79,63 @@ def test_the_worker_has_its_own_settings(monkeypatch: pytest.MonkeyPatch) -> Non
     assert Settings().heartbeat_file is None
 
 
+PROVIDERS_ENV = {
+    "DATAFORSEO_LOGIN": "api@example.com",
+    "DATAFORSEO_PASSWORD": "dfs-secret",
+    "R2_RAW_ENDPOINT": "https://0123abcd.r2.cloudflarestorage.com/",
+    "R2_RAW_ACCESS_KEY_ID": "r2-key",
+    "R2_RAW_SECRET_ACCESS_KEY": "r2-secret",
+}
+
+
+def test_the_worker_reads_its_provider_and_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, BASE_ENV)
+    bare = Settings()
+    assert (bare.dataforseo_credentials, bare.raw_storage_configured) == (None, False)
+    assert (bare.r2_raw_bucket, bare.resolve_unknown_submissions) == ("seo-raw", False)
+
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, "RESOLVE_UNKNOWN_SUBMISSIONS": "true"})
+    settings = Settings()
+
+    assert settings.dataforseo_credentials == ("api@example.com", "dfs-secret")
+    assert settings.raw_storage_configured
+    # The origin alone: a path would be taken for part of every key.
+    assert settings.r2_raw_endpoint == "https://0123abcd.r2.cloudflarestorage.com"
+    assert settings.resolve_unknown_submissions
+    for secret in ("dfs-secret", "r2-secret", "r2-key"):
+        assert secret not in repr(settings)
+        assert secret not in str(settings)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"DATAFORSEO_PASSWORD": ""},
+        {"DATAFORSEO_LOGIN": "   "},
+        {"R2_RAW_SECRET_ACCESS_KEY": ""},
+        {"R2_RAW_ENDPOINT": ""},
+        {"R2_RAW_ENDPOINT": "r2.example.com"},
+        {"R2_RAW_ENDPOINT": "https://r2.example.com/seo-raw"},
+        {"R2_RAW_ENDPOINT": "ftp://r2.example.com"},
+        {"R2_RAW_BUCKET": "Seo_Raw"},
+        {"R2_RAW_ENDPOINT": "http://r2.example.com", "APP_ENV": "production"},
+    ],
+)
+def test_a_provider_or_bucket_is_configured_whole_or_not_at_all(
+    monkeypatch: pytest.MonkeyPatch, override: dict[str, str]
+) -> None:
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, **override})
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_a_local_store_may_be_reached_over_plain_http_outside_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, "R2_RAW_ENDPOINT": "http://127.0.0.1:9000"})
+    assert Settings().r2_raw_endpoint == "http://127.0.0.1:9000"
+
+
 def test_app_env_is_read_from_its_variable_only(monkeypatch: pytest.MonkeyPatch) -> None:
     _set(monkeypatch, {**BASE_ENV, "APP_ENV": "production", "ENVIRONMENT": "local"})
     assert Settings().app_env == "production"
