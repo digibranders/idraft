@@ -9,8 +9,9 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
 
+from sightline.api.access import public
 from sightline.api.auth.dependencies import (
     CurrentSession,
     FreshSession,
@@ -19,9 +20,10 @@ from sightline.api.auth.dependencies import (
     clear_session_cookie,
     set_session_cookie,
 )
-from sightline.api.auth.service import AuthService, Profile, RequestInfo, request_info
+from sightline.api.auth.service import AuthService, Profile
 from sightline.api.auth.sessions import SessionContext
 from sightline.api.permissions import Role, permissions_for
+from sightline.api.request_info import Info
 from sightline.api.resources import Resources, get_resources
 from sightline.api.schemas.auth import (
     Accepted,
@@ -58,16 +60,7 @@ def get_auth_service(resources: Annotated[Resources, Depends(get_resources)]) ->
     return resources.auth
 
 
-def get_request_info(request: Request) -> RequestInfo:
-    return request_info(
-        client_host=None if request.client is None else request.client.host,
-        user_agent=request.headers.get("user-agent"),
-        request_id=getattr(request.state, "request_id", None),
-    )
-
-
 Auth = Annotated[AuthService, Depends(get_auth_service)]
-Info = Annotated[RequestInfo, Depends(get_request_info)]
 
 
 def _cookie_lifetime(session: SessionContext) -> int:
@@ -80,6 +73,7 @@ def _cookie_lifetime(session: SessionContext) -> int:
 
 @router.post(
     "/auth/register",
+    dependencies=[Depends(public)],
     status_code=201,
     summary="Create an account",
     description="While registration is by invitation, `invitation_token` is required.",
@@ -101,6 +95,7 @@ async def register(
 
 @router.post(
     "/auth/verify-email/request",
+    dependencies=[Depends(public)],
     status_code=202,
     summary="Send a new verification email",
     description="Answers 202 whether or not the address has an account.",
@@ -113,7 +108,11 @@ async def request_email_verification(
     return Accepted()
 
 
-@router.post("/auth/verify-email", summary="Confirm an email address with the emailed token")
+@router.post(
+    "/auth/verify-email",
+    dependencies=[Depends(public)],
+    summary="Confirm an email address with the emailed token",
+)
 async def verify_email(body: VerifyEmailRequest, auth: Auth, info: Info) -> Done:
     await auth.verify_email(token=body.token, info=info)
     return Done()
@@ -121,6 +120,7 @@ async def verify_email(body: VerifyEmailRequest, auth: Auth, info: Info) -> Done
 
 @router.post(
     "/auth/sign-in",
+    dependencies=[Depends(public)],
     summary="Sign in with email and password",
     description=(
         "Sets the session cookie. `totp_required` means the session can only call "
@@ -151,6 +151,7 @@ async def sign_out(session: OptionalSession, auth: Auth, info: Info) -> Response
 
 @router.post(
     "/auth/password-reset/request",
+    dependencies=[Depends(public)],
     status_code=202,
     summary="Send a password reset email",
     description="Answers 202 whether or not the address has an account.",
@@ -165,6 +166,7 @@ async def request_password_reset(
 
 @router.post(
     "/auth/password-reset/confirm",
+    dependencies=[Depends(public)],
     summary="Set a new password with the emailed token",
     description="Ends every session of the user. It does not sign anyone in.",
 )

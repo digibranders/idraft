@@ -11,6 +11,7 @@ from typing import Annotated
 import structlog
 from fastapi import Depends, Request, Response
 
+from sightline.api.access import AccessRule, declare
 from sightline.api.auth.sessions import ExpiredSession, SessionContext
 from sightline.api.problems import (
     FreshSessionRequiredError,
@@ -81,6 +82,7 @@ def _identified(request: Request, context: SessionContext) -> Iterator[None]:
         structlog.contextvars.reset_contextvars(**tokens)
 
 
+@declare(AccessRule("authenticated"))
 async def current_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext]:
@@ -90,6 +92,7 @@ async def current_session(
         yield context
 
 
+@declare(AccessRule("authenticated"))
 async def pending_or_active_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext]:
@@ -99,6 +102,7 @@ async def pending_or_active_session(
         yield context
 
 
+@declare(AccessRule("public"))
 async def optional_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext | None]:
@@ -117,6 +121,7 @@ async def optional_session(
         yield context
 
 
+@declare(AccessRule("authenticated", fresh=True))
 def fresh_session(
     context: Annotated[SessionContext, Depends(current_session)],
 ) -> SessionContext:

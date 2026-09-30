@@ -13,7 +13,6 @@ from sightline.api.auth import repository
 from sightline.api.auth.passwords import hash_password, verify_password
 from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
 from sightline.api.resources import Resources
-from tests.api.auth.conftest import AppFactory
 from tests.api.auth.support import (
     PASSWORD,
     RecordingEmailSender,
@@ -26,6 +25,7 @@ from tests.api.auth.support import (
     new_email,
     open_session,
 )
+from tests.api.conftest import AppFactory
 from tests.conftest import PostgresServer
 
 REQUEST = "/api/v1/auth/password-reset/request"

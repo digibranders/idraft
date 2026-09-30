@@ -14,11 +14,12 @@ from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
+from sightline.api.access import public
 from sightline.api.resources import Resources, get_resources
 from sightline.db.probe import probe_database
 
 CHECK_TIMEOUT_SECONDS = 1.0
-router = APIRouter(prefix="/api", tags=["health"])
+router = APIRouter(prefix="/api", tags=["health"], dependencies=[Depends(public)])
 _log = structlog.get_logger(__name__)
 
 

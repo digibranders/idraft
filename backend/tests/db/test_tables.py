@@ -23,6 +23,9 @@ DECLARED = {
     "auth.workspaces",
     "auth.memberships",
     "auth.invitations",
+    "core.projects",
+    "core.workspace_quotas",
+    "ops.audit_logs",
 }
 # Alembic reports a difference as a tuple, or as a list of tuples for one column.
 Difference = tuple[object, ...] | list[tuple[object, ...]]
@@ -93,7 +96,7 @@ def _copy(*, without_column: tuple[str, str] | None = None) -> MetaData:
     return copied
 
 
-def test_the_metadata_declares_the_auth_tables() -> None:
+def test_the_metadata_declares_the_tables_the_application_uses() -> None:
     assert set(tables.metadata.tables) == DECLARED
 
 
@@ -137,7 +140,8 @@ async def test_the_columns_with_a_database_default_are_the_ones_marked_as_fetche
         rows = await db.fetch(
             "SELECT table_schema || '.' || table_name AS name, column_name::text AS column "
             "FROM information_schema.columns "
-            "WHERE table_schema || '.' || table_name = ANY($1) AND column_default IS NOT NULL",
+            "WHERE table_schema || '.' || table_name = ANY($1) "
+            "AND (column_default IS NOT NULL OR is_identity = 'YES')",
             sorted(DECLARED),
         )
     in_database = {(row["name"], row["column"]) for row in rows}

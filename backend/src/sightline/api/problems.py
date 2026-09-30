@@ -142,6 +142,10 @@ class RegistrationClosedError(ProblemError):
     status, code, title = 403, "registration_closed", "Registration is by invitation"
 
 
+class EmailNotVerifiedError(ProblemError):
+    status, code, title = 403, "email_not_verified", "Email address is not verified"
+
+
 class NotFoundError(ProblemError):
     status, code, title = 404, "not_found", "Resource not found"
 
@@ -154,12 +158,30 @@ class DuplicateError(ProblemError):
     status, code, title = 409, "duplicate", "Already exists"
 
 
+class InvalidStateTransitionError(ProblemError):
+    status, code, title = 409, "invalid_state_transition", "Not possible in the current state"
+
+
+class LastOwnerError(ProblemError):
+    status, code, title = 409, "last_owner", "A workspace needs an owner"
+
+
 class TotpAlreadyEnabledError(ProblemError):
     status, code, title = 409, "totp_already_enabled", "Two-factor is already on"
 
 
 class TotpNotEnabledError(ProblemError):
     status, code, title = 409, "totp_not_enabled", "Two-factor is not on"
+
+
+class InvitationExpiredError(ProblemError):
+    status, code, title = 410, "invitation_expired", "Invitation has expired"
+
+
+class QuotaExceededError(ProblemError):
+    """Carries `limit`, `used` and `requested`."""
+
+    status, code, title = 422, "quota_exceeded", "Workspace limit reached"
 
 
 class WeakPasswordProblemError(ProblemError):
@@ -300,9 +322,10 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
         # Starlette runs this handler outside the middleware stack, after the request id and the
         # caller's id have been unbound from the log context, so they are passed explicitly.
         context = {"route": route_template(request.scope), "request_id": _request_id(request)}
-        user_id = getattr(request.state, "user_id", None)
-        if isinstance(user_id, str):
-            context["user_id"] = user_id
+        for name in ("user_id", "workspace_id"):
+            value = getattr(request.state, name, None)
+            if isinstance(value, str):
+                context[name] = value
         if isinstance(error, ResponseValidationError):
             # Its message quotes the value the handler returned, which may be tenant content.
             _log.error(
