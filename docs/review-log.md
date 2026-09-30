@@ -457,3 +457,35 @@ Carried into the next plans:
 | F33 | Every route refuses a query parameter it does not declare, the health routes included. A monitor that adds a cache-busting parameter would read the API as down: keep probes free of query strings, or exempt the two health routes when the monitors are set up | 6 (droplet) |
 | F34 | With the daily workspace allowance used up, a taken slug still answers `409`, so slug existence can be asked without limit by anyone who may create workspaces. Slugs are not secret; the general request limit (F15) bounds it | launch hardening |
 | F35 | Addresses are normalised (NFC) when read from a request, and nothing normalises rows stored before. No environment holds accounts yet except the local operator, whose address is ASCII. If that changes before this ships, normalise `auth.users.email` and `auth.invitations.email` in a revision | 6 (droplet), before the first real accounts |
+
+### Worker, queues and task ledger (2026-09-30)
+
+Plan: [superpowers/plans/2026-09-30-worker-ledger.md](superpowers/plans/2026-09-30-worker-ledger.md). Code: `backend/src/sightline/{domain,collectors,providers/contract.py,worker}`, migrations 0006 to 0008, `backend/smoke.sh`.
+
+Every task was reviewed on the Opus model, most of them twice (the fixes were reviewed again). The invariant the plan is for held under every review: no path sends a task to the provider twice, including a redelivered message, two handlers at once, the reconciler releasing a task whose old message turns up later, and a worker stopped or Redis wiped mid-run. What the reviews changed:
+
+| Task | Found by review and fixed |
+|---|---|
+| 1. Rules | A `time` with `fold=1` moved a window across a clock change; a window carried past midnight by a clock change (Nuuk) made a monthly schedule drift for good, so the day of the month is now a column; naive times were read in the machine's zone; two different tasks could share an idempotency key; backoff caps were untestable and could overflow |
+| 2. Worker process | After Redis was wiped the worker never read its queues again yet reported healthy; a listener restart left handlers running beyond the concurrency cap; the documented Redis ACL blocked the broker's claim lock; 100 messages were taken at a time, so a stopping worker stranded them; scheduled runs could be skipped or sent twice; receivers took messages after SIGTERM; a failing scheduler stopped the worker with exit code 0. The read loop of the stream is now the worker's own |
+| 3. Ledger and budget | Inserting more than 2,047 tasks exceeded the parameter limit of a statement; the run guard, written with a bound parameter, failed on the sixth run created on a connection; a cancelled run's tasks were still sent; budget-held tasks were claimed again every tick and crowded out other work; two runs planned minutes apart could both take the same budget room; a zero-task run never completed; a cost could be recorded twice |
+| 4. Planner | A failing schedule used up every tick; a week-old window was planned and then cancelled; a workload could write through the planner's session, which bypasses row-level security; lists of thousands of scopes or refs in a statement took longer to plan than a statement may run |
+| 5. Dispatcher and submission | A provider that could not give its batch size stranded a whole tick; one database error while recording an answer lost every provider id in the batch; a mistagged request put one task's cost on another, possibly in another workspace; a whole-call error copied one workspace's request text onto others' tasks; the request params serialized as an empty object |
+| 6. Reconciler | One failing step skipped the rest; a backlog after Redis loss took hours to release; a submission never confirmed was ended with no cost, so the budget forgot money that may have been spent |
+
+Decisions that changed the specification: doc 04 (schedules name their weekday or day of the month; the run guard covers scheduled runs only; a budget that blocked a run can be deleted; the dispatcher's partial index), doc 21 (sections 3 to 6, 8.2, 10 and 12, as built), doc 22 (the Redis ACL is tested from the document), doc 27 (planning counts what running runs still expect to spend). Plan decision D4 is new to doc 21: a task not sent 24 hours after its window is cancelled, and a window found that late is not planned.
+
+Carried into the next plans:
+
+| Id | Item | Plan |
+|---|---|---|
+| F36 | Resolve `submit_unknown` by asking the provider (`id_list`, `tasks_ready`) within 15 minutes, as doc 21 section 6 describes. Until then such a task ends `dead` after the result lifetime and is charged its share of the run's estimate | 3 (DataForSEO client) |
+| F37 | The requeue route must refuse, or warn on, a task that ended `submission_never_confirmed`: the provider may already have it | 5 (runs and tasks routes) |
+| F38 | A manual, backfill or retry run is guarded only by its request: add a partial unique index on `origin_request_id` with the route that starts such runs | 5 |
+| F39 | A schedule that has runs cannot be deleted (their foreign key has no action, and the run guard's check rules out `SET NULL`). Decide soft delete or a relaxed check with the schedules route | 5 |
+| F40 | `ops.schedules.workspace_id` is not tied to its project's workspace by the schema; the planner refuses a mismatched schedule, but a composite foreign key would make it impossible | launch hardening |
+| F41 | The shared DataForSEO rate limiter, `retry_after` from the adapter, and halving the limiter on `rate_limited` | 3 |
+| F42 | Alerts: a schedule overdue by more than an hour must count only schedules whose workload is registered; failed and deferred planner counts, reconcile step failures and unmatched accepted tasks are logged at error level and need routing | 10 (launch hardening) |
+| F43 | Each worker start leaves two consumer names in each stream's group; a message read at the moment of a stop waits the redelivery time. A stable consumer name per container, or deleting the name at stop after claiming its pending messages | launch hardening |
+| F44 | A cron run whose send fails after its claim is lost for its period (the partition job has three months of partitions ahead) | launch hardening |
+| F45 | Tests in `tests/collectors` other than the planner's read the real clock; near the end of a month the partition of the month before is what they rely on. Move them to a fixed clock as the planner's are | when next touched |
