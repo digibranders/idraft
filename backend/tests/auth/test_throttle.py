@@ -183,3 +183,19 @@ async def test_clearing_lifts_the_account_lock_and_keeps_the_address_lock(redis:
 
     assert await throttle.check(email=EMAIL, ip="198.51.100.9") is None
     assert await throttle.check(email=EMAIL, ip=IP) is not None
+
+
+async def test_a_lock_that_expires_between_the_two_reads_is_no_lock(
+    redis: Redis, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    throttle = LoginThrottle(redis)
+    await _fail(throttle, 5)
+    real = redis.mget
+
+    async def expire_after_reading(*keys: str) -> object:
+        found = await real(*keys)
+        await redis.delete(*keys)
+        return found
+
+    monkeypatch.setattr(redis, "mget", expire_after_reading)
+    assert await throttle.check(email=EMAIL, ip=IP) is None

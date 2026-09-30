@@ -440,6 +440,69 @@
         "title": "ReadinessChecks",
         "type": "object"
       },
+      "ReauthenticateRequest": {
+        "additionalProperties": false,
+        "description": "Exactly one of `password` and `totp_code`.",
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "totp_code": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totp Code"
+          }
+        },
+        "title": "ReauthenticateRequest",
+        "type": "object"
+      },
+      "ReauthenticateResponse": {
+        "properties": {
+          "fresh_until": {
+            "format": "date-time",
+            "title": "Fresh Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fresh_until"
+        ],
+        "title": "ReauthenticateResponse",
+        "type": "object"
+      },
+      "RecoveryCodesResponse": {
+        "properties": {
+          "recovery_codes": {
+            "description": "Shown once. Each works one time.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Recovery Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recovery_codes"
+        ],
+        "title": "RecoveryCodesResponse",
+        "type": "object"
+      },
       "RegisterRequest": {
         "additionalProperties": false,
         "properties": {
@@ -622,6 +685,74 @@
           "status"
         ],
         "title": "SignInResponse",
+        "type": "object"
+      },
+      "TotpConfirmRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^[0-9]{6}$",
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "TotpConfirmRequest",
+        "type": "object"
+      },
+      "TotpSetupResponse": {
+        "properties": {
+          "otpauth_uri": {
+            "description": "For the QR code an authenticator app scans.",
+            "title": "Otpauth Uri",
+            "type": "string"
+          },
+          "secret": {
+            "description": "The same secret, for typing in by hand. Shown once.",
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "otpauth_uri",
+          "secret"
+        ],
+        "title": "TotpSetupResponse",
+        "type": "object"
+      },
+      "TotpVerifyRequest": {
+        "additionalProperties": false,
+        "description": "Exactly one of `code` and `recovery_code`.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "recovery_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Code"
+          }
+        },
+        "title": "TotpVerifyRequest",
         "type": "object"
       },
       "ValidationItem": {
@@ -1075,6 +1206,186 @@
         ]
       }
     },
+    "/api/v1/auth/totp/disable": {
+      "post": {
+        "description": "Needs a fresh session. Refused for an owner or admin of any workspace.",
+        "operationId": "disable_totp_api_v1_auth_totp_disable_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Turn two-factor off",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/totp/recovery-codes": {
+      "post": {
+        "description": "Needs a fresh session. The previous codes stop working.",
+        "operationId": "regenerate_recovery_codes_api_v1_auth_totp_recovery_codes_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Replace the recovery codes",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/totp/setup": {
+      "post": {
+        "description": "Needs a fresh session. Two-factor is not on until the first code is confirmed.",
+        "operationId": "setup_totp_api_v1_auth_totp_setup_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpSetupResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Start two-factor enrolment",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/totp/setup/confirm": {
+      "post": {
+        "description": "Returns the recovery codes once and ends the user's other sessions.",
+        "operationId": "confirm_totp_api_v1_auth_totp_setup_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Turn two-factor on with a first code",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/totp/verify": {
+      "post": {
+        "description": "Completes a sign-in that answered `totp_required`, or refreshes a full session. The session cookie is replaced.",
+        "operationId": "verify_totp_api_v1_auth_totp_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Give the second factor",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/verify-email": {
       "post": {
         "operationId": "verify_email_api_v1_auth_verify_email_post",
@@ -1223,6 +1534,48 @@
           }
         },
         "summary": "Change the caller's name or picture",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/me/reauthenticate": {
+      "post": {
+        "description": "The session cookie is replaced and the new session is fresh for 10 minutes.",
+        "operationId": "reauthenticate_api_v1_me_reauthenticate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthenticateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthenticateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Re-enter a credential before a sensitive action",
         "tags": [
           "auth"
         ]

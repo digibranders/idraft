@@ -192,6 +192,10 @@ async def test_the_profile_can_be_renamed_and_given_a_picture(
         {"image": "javascript:alert(1)"},
         {"image": "https://" + "a" * 2050},
         {"image": "https://cdn.example.com/a b.png"},
+        {"image": "https://cdn.example.com/\u0000"},
+        {"image": "https://cdn.example.com/\u0001x"},
+        {"image": "https://cdn.example.com/\u200bx"},
+        {"image": "https://cdn.example.com/x\n"},
         {"email": "new@client.example"},
         {"is_platform_operator": True},
         {},
@@ -210,3 +214,21 @@ async def test_a_profile_update_that_is_not_allowed_is_a_validation_error(
 
 async def test_a_profile_update_needs_a_session(api: httpx.AsyncClient) -> None:
     assert (await api.patch(ME, json={"name": "Mallory"})).status_code == 401
+
+
+async def test_a_pending_sign_in_is_not_listed_but_can_be_ended(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """A pending session means someone entered the right password. "End the others" ends it too."""
+    user = await make_user(migrated)
+    mine, _ = await open_session(resources, user)
+    pending_token, pending = await open_session(resources, user, state="pending_totp")
+
+    listed = (await api.get(SESSIONS, headers=cookie(mine))).json()["data"]
+    ended = await api.delete(f"{SESSIONS}/{pending.session_id}", headers=cookie(mine))
+
+    assert str(pending.session_id) not in {item["session_id"] for item in listed}
+    assert ended.status_code == 204
+    assert (
+        await api.get("/api/v1/_probe/pending", headers=cookie(pending_token))
+    ).status_code == 401

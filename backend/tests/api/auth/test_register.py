@@ -5,11 +5,13 @@ import hashlib
 import io
 import json
 import re
+import uuid
 from datetime import timedelta
 
 import httpx
 import pytest
 
+from sightline.api.auth import passwords
 from sightline.api.auth.service import request_info
 from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
 from sightline.config.logging import configure_logging
@@ -453,3 +455,70 @@ async def test_an_email_request_is_dropped_when_the_limiter_cannot_count(
     assert first.status_code == 202
     assert len(mailbox.messages) == 1
     assert "email request dropped: throttle unavailable" in stream.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("invited", "typed"),
+    [
+        ("stra\u00dfe-x@corp.example", "strasse-x@corp.example"),
+        ("\ufb01nance@corp.example", "finance@corp.example"),
+        ("jane@corp.example", "jane@corp.example.evil.test"),
+        ("jane@corp.example", "jane+other@corp.example"),
+    ],
+)
+async def test_an_invitation_verifies_only_the_address_it_was_sent_to(
+    api: httpx.AsyncClient, migrated: PostgresServer, invited: str, typed: str
+) -> None:
+    """Two addresses that fold to the same text are still two accounts to the database."""
+    unique = uuid.uuid4().hex[:8]
+    invited, typed = f"{unique}{invited}", f"{unique}{typed}"
+    token = await make_invitation(migrated, email=invited)
+
+    response = await api.post(REGISTER, json=_body(typed, invitation_token=token))
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "registration_closed"
+    assert await _user_count(migrated, typed) == 0
+
+
+async def test_an_invitation_cancelled_while_the_password_was_hashed_is_not_honoured(
+    api: httpx.AsyncClient, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    email = new_email()
+    token = await make_invitation(migrated, email=email)
+    real = passwords.hash_password
+
+    def hash_after_cancelling(password: str) -> str:
+        encoded = real(password)
+        asyncio.run(
+            execute(
+                migrated, "UPDATE auth.invitations SET status = 'cancelled' WHERE email = $1", email
+            )
+        )
+        return encoded
+
+    monkeypatch.setattr("sightline.api.auth.service.hash_password", hash_after_cancelling)
+    response = await api.post(REGISTER, json=_body(email, invitation_token=token))
+
+    assert response.status_code == 403
+    assert await _user_count(migrated, email) == 0
+
+
+@pytest.mark.parametrize(
+    "email", ["jane\u202e@client.example", "jane\u200b@client.example", "jane\u009f@client.example"]
+)
+async def test_an_email_with_invisible_characters_is_a_validation_error(
+    client_for: AppFactory, email: str
+) -> None:
+    async with client_for(registration="open") as api:
+        response = await api.post(REGISTER, json=_body(email))
+    assert response.status_code == 422
+
+
+async def test_token_attempts_from_one_address_are_limited(client_for: AppFactory) -> None:
+    async with client_for(registration="open") as api:
+        statuses = [
+            (await api.post(VERIFY, json={"token": f"guess-{index}"})).status_code
+            for index in range(61)
+        ]
+    assert statuses == [400] * 60 + [429]

@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sightline.api.auth import repository
-from sightline.api.auth.passwords import hash_password
+from sightline.api.auth.passwords import hash_password, verify_password
 from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
 from sightline.api.resources import Resources
 from tests.api.auth.conftest import AppFactory
@@ -435,3 +435,169 @@ async def test_a_change_racing_another_change_is_decided_by_the_stored_password(
     row = await fetchrow(migrated, "SELECT password_hash FROM auth.users WHERE id = $1", user.id)
     assert row["password_hash"] == theirs
     assert (await api.get(CURRENT, headers=cookie(other))).status_code == 200
+
+
+async def test_a_right_change_clears_earlier_wrong_attempts(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    token, _ = await open_session(resources, user, fresh=True)
+    for _ in range(4):
+        await api.post(
+            CHANGE,
+            json={"current_password": "not my password!", "new_password": NEW_PASSWORD},
+            headers=cookie(token),
+        )
+    changed = await api.post(
+        CHANGE,
+        json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
+        headers=cookie(token),
+    )
+    assert changed.status_code == 200
+
+    typo = await api.post(SIGN_IN, json={"email": user.email, "password": "one typo here"})
+
+    assert typo.status_code == 401
+    assert await _can_sign_in(api, user.email, NEW_PASSWORD)
+
+
+async def test_the_fifth_wrong_current_password_records_a_lockout(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    token, _ = await open_session(resources, user, fresh=True)
+    body = {"current_password": "not my password!", "new_password": NEW_PASSWORD}
+    responses = [await api.post(CHANGE, json=body, headers=cookie(token)) for _ in range(5)]
+    assert await audit_actions(migrated, responses[4].headers["x-request-id"]) == [
+        "auth.password.change_failed",
+        "auth.lockout",
+    ]
+
+
+async def test_a_wrong_password_is_recorded_even_when_redis_cannot_count(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = await make_user(migrated)
+    token, _ = await open_session(resources, user, fresh=True)
+
+    async def unavailable(self: object, *, email: str, ip: str) -> bool:
+        raise ThrottleUnavailableError
+
+    monkeypatch.setattr(LoginThrottle, "failure", unavailable)
+    change = await api.post(
+        CHANGE,
+        json={"current_password": "not my password!", "new_password": NEW_PASSWORD},
+        headers=cookie(token),
+    )
+    sign_in = await api.post(SIGN_IN, json={"email": user.email, "password": "wrong password"})
+
+    assert (change.status_code, sign_in.status_code) == (503, 503)
+    assert await audit_actions(migrated, change.headers["x-request-id"]) == [
+        "auth.password.change_failed"
+    ]
+    assert await audit_actions(migrated, sign_in.headers["x-request-id"]) == ["auth.sign_in_failed"]
+
+
+async def test_a_user_disabled_a_moment_ago_cannot_change_the_password_or_the_profile(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The session is still in the cache for up to a minute; the account check is not."""
+    user = await make_user(migrated, name="Jane Doe")
+    token, _ = await open_session(resources, user, fresh=True)
+    assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
+    await execute(migrated, "UPDATE auth.users SET disabled_at = now() WHERE id = $1", user.id)
+
+    change = await api.post(
+        CHANGE,
+        json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
+        headers=cookie(token),
+    )
+    await api.patch("/api/v1/me", json={"name": "Mallory"}, headers=cookie(token))
+
+    assert change.status_code == 401
+    row = await fetchrow(
+        migrated, "SELECT name, password_hash FROM auth.users WHERE id = $1", user.id
+    )
+    assert row["name"] == "Jane Doe"
+    assert verify_password(row["password_hash"], PASSWORD)
+
+
+async def test_a_user_disabled_while_the_new_password_was_hashed_keeps_the_old_one(
+    api: httpx.AsyncClient,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = await make_user(migrated)
+    token = await _reset_token(api, mailbox, user.email)
+    real = hash_password
+
+    def hash_after_disabling(password: str) -> str:
+        encoded = real(password)
+        asyncio.run(
+            execute(migrated, "UPDATE auth.users SET disabled_at = now() WHERE id = $1", user.id)
+        )
+        return encoded
+
+    monkeypatch.setattr("sightline.api.auth.service.hash_password", hash_after_disabling)
+    response = await api.post(CONFIRM, json={"token": token, "new_password": NEW_PASSWORD})
+
+    assert (response.status_code, response.json()["code"]) == (400, "invalid_token")
+    row = await fetchrow(
+        migrated,
+        "SELECT u.password_hash, t.consumed_at FROM auth.users u "
+        "JOIN auth.verification_tokens t ON t.user_id = u.id WHERE u.id = $1",
+        user.id,
+    )
+    assert verify_password(row["password_hash"], PASSWORD)
+    assert row["consumed_at"] is None
+
+
+async def test_a_reset_does_not_remove_the_second_factor(
+    api: httpx.AsyncClient, migrated: PostgresServer, mailbox: RecordingEmailSender
+) -> None:
+    user = await make_user(migrated)
+    await execute(
+        migrated,
+        "INSERT INTO auth.totp_secrets (user_id, secret_encrypted, confirmed_at) "
+        "VALUES ($1, '\\x01', now())",
+        user.id,
+    )
+    token = await _reset_token(api, mailbox, user.email)
+    assert (
+        await api.post(CONFIRM, json={"token": token, "new_password": NEW_PASSWORD})
+    ).status_code == 200
+
+    response = await api.post(SIGN_IN, json={"email": user.email, "password": NEW_PASSWORD})
+
+    assert response.json() == {"status": "totp_required"}
+
+
+async def test_two_changes_at_once_from_two_sessions_leave_one_password(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    first, _ = await open_session(resources, user, fresh=True)
+    second, _ = await open_session(resources, user, fresh=True)
+    candidates = ["the first new passphrase", "the second new passphrase"]
+
+    responses = await asyncio.gather(
+        *(
+            api.post(
+                CHANGE,
+                json={"current_password": PASSWORD, "new_password": candidate},
+                headers=cookie(token),
+            )
+            for token, candidate in zip((first, second), candidates, strict=True)
+        )
+    )
+
+    assert sorted(response.status_code for response in responses) == [200, 401]
+    working = [
+        item for item in [PASSWORD, *candidates] if await _can_sign_in(api, user.email, item)
+    ]
+    assert len(working) == 1
+    assert working[0] in candidates

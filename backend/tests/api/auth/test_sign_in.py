@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import io
+import re
 import uuid
 
 import asyncpg
@@ -228,9 +229,9 @@ async def test_a_user_with_two_factor_gets_a_session_that_is_not_yet_usable(
 
     assert response.status_code == 200
     assert response.json() == {"status": "totp_required"}
-    assert "max-age=6" in response.headers["set-cookie"].lower() or "max-age=5" in (
-        response.headers["set-cookie"].lower()
-    )
+    lifetime = re.search(r"max-age=(\d+)", response.headers["set-cookie"].lower())
+    assert lifetime is not None
+    assert 590 <= int(lifetime[1]) <= 600
     token = _session_cookie(response)
     assert (await api.get(ME, headers=cookie(token))).status_code == 401
     row = await fetchrow(

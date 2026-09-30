@@ -51,17 +51,20 @@ Name = Annotated[
 Email = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=3, max_length=EMAIL_MAX),
+    AfterValidator(_printable),
     AfterValidator(_email),
 ]
 Password = Annotated[str, StringConstraints(max_length=PASSWORD_BODY_MAX)]
 # Shown in an <img>. https only, and nothing a browser would treat as a second attribute.
 ImageUrl = Annotated[
-    str, StringConstraints(max_length=IMAGE_URL_MAX, pattern=r"^https://[^\s<>\"'`\\]+$")
-]
-Token = Annotated[
     str,
-    StringConstraints(min_length=1, max_length=TOKEN_BODY_MAX),
+    StringConstraints(max_length=IMAGE_URL_MAX, pattern=r"^https://[^\s<>\"'`\\]+$"),
+    AfterValidator(_printable),
 ]
+Token = Annotated[str, StringConstraints(min_length=1, max_length=TOKEN_BODY_MAX)]
+# Pydantic's regex engine anchors `$` at the very end: a trailing newline does not match.
+TotpCode = Annotated[str, StringConstraints(pattern=r"^[0-9]{6}$")]
+RecoveryCode = Annotated[str, StringConstraints(min_length=1, max_length=64)]
 
 
 class _Body(BaseModel):
@@ -188,3 +191,46 @@ class ProfileUpdate(_Body):
         if "name" in self.model_fields_set and self.name is None:
             raise ValueError("name cannot be null")
         return self
+
+
+class TotpSetupResponse(BaseModel):
+    otpauth_uri: str = Field(description="For the QR code an authenticator app scans.")
+    secret: str = Field(description="The same secret, for typing in by hand. Shown once.")
+
+
+class TotpConfirmRequest(_Body):
+    code: TotpCode
+
+
+class RecoveryCodesResponse(BaseModel):
+    recovery_codes: list[str] = Field(description="Shown once. Each works one time.")
+
+
+class TotpVerifyRequest(_Body):
+    """Exactly one of `code` and `recovery_code`."""
+
+    code: TotpCode | None = None
+    recovery_code: RecoveryCode | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> TotpVerifyRequest:
+        if (self.code is None) == (self.recovery_code is None):
+            raise ValueError("give exactly one of code and recovery_code")
+        return self
+
+
+class ReauthenticateRequest(_Body):
+    """Exactly one of `password` and `totp_code`."""
+
+    password: Password | None = None
+    totp_code: TotpCode | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> ReauthenticateRequest:
+        if (self.password is None) == (self.totp_code is None):
+            raise ValueError("give exactly one of password and totp_code")
+        return self
+
+
+class ReauthenticateResponse(BaseModel):
+    fresh_until: datetime

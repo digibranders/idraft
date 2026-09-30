@@ -108,6 +108,12 @@ class InvalidCredentialsError(ProblemError):
     status, code, title = 401, "invalid_credentials", "Email or password is not correct"
 
 
+class InvalidCodeError(ProblemError):
+    """A two-factor code or recovery code that is wrong, already used or not set up."""
+
+    status, code, title = 401, "invalid_code", "Code is not correct"
+
+
 class ForbiddenError(ProblemError):
     status, code, title = 403, "forbidden", "Not allowed"
 
@@ -120,6 +126,10 @@ class FreshSessionRequiredError(ProblemError):
 
 class OriginNotAllowedError(ProblemError):
     status, code, title = 403, "origin_not_allowed", "Origin not allowed"
+
+
+class TwoFactorRequiredForRoleError(ProblemError):
+    status, code, title = 403, "two_factor_required_for_role", "This role must keep two-factor on"
 
 
 class RegistrationClosedError(ProblemError):
@@ -136,6 +146,14 @@ class ConflictError(ProblemError):
 
 class DuplicateError(ProblemError):
     status, code, title = 409, "duplicate", "Already exists"
+
+
+class TotpAlreadyEnabledError(ProblemError):
+    status, code, title = 409, "totp_already_enabled", "Two-factor is already on"
+
+
+class TotpNotEnabledError(ProblemError):
+    status, code, title = 409, "totp_not_enabled", "Two-factor is not on"
 
 
 class WeakPasswordProblemError(ProblemError):

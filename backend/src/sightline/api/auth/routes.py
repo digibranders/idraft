@@ -15,6 +15,7 @@ from sightline.api.auth.dependencies import (
     CurrentSession,
     FreshSession,
     OptionalSession,
+    PendingOrActiveSession,
     clear_session_cookie,
     set_session_cookie,
 )
@@ -35,12 +36,18 @@ from sightline.api.schemas.auth import (
     PasswordChangeRequest,
     PasswordResetConfirmRequest,
     ProfileUpdate,
+    ReauthenticateRequest,
+    ReauthenticateResponse,
+    RecoveryCodesResponse,
     RegisterRequest,
     RegisterResponse,
     SessionItem,
     SessionList,
     SignInRequest,
     SignInResponse,
+    TotpConfirmRequest,
+    TotpSetupResponse,
+    TotpVerifyRequest,
     VerifyEmailRequest,
 )
 
@@ -193,6 +200,82 @@ async def change_password(
     return Done()
 
 
+def _secret(response: Response) -> None:
+    """The body carries something shown once. No cache may keep it."""
+    response.headers["Cache-Control"] = "no-store"
+
+
+@router.post(
+    "/auth/totp/setup",
+    summary="Start two-factor enrolment",
+    description="Needs a fresh session. Two-factor is not on until the first code is confirmed.",
+)
+async def setup_totp(
+    session: FreshSession, response: Response, auth: Auth, info: Info
+) -> TotpSetupResponse:
+    setup = await auth.setup_totp(session=session, info=info)
+    _secret(response)
+    return TotpSetupResponse(otpauth_uri=setup.uri, secret=setup.secret)
+
+
+@router.post(
+    "/auth/totp/setup/confirm",
+    summary="Turn two-factor on with a first code",
+    description="Returns the recovery codes once and ends the user's other sessions.",
+)
+async def confirm_totp(
+    body: TotpConfirmRequest, session: CurrentSession, response: Response, auth: Auth, info: Info
+) -> RecoveryCodesResponse:
+    codes = await auth.confirm_totp(session=session, code=body.code, info=info)
+    _secret(response)
+    return RecoveryCodesResponse(recovery_codes=codes)
+
+
+@router.post(
+    "/auth/totp/verify",
+    summary="Give the second factor",
+    description=(
+        "Completes a sign-in that answered `totp_required`, or refreshes a full session. "
+        "The session cookie is replaced."
+    ),
+)
+async def verify_totp(
+    body: TotpVerifyRequest,
+    session: PendingOrActiveSession,
+    response: Response,
+    auth: Auth,
+    info: Info,
+) -> Done:
+    verified = await auth.verify_totp(
+        session=session, code=body.code, recovery_code=body.recovery_code, info=info
+    )
+    set_session_cookie(response, verified.token, max_age=_cookie_lifetime(verified.session))
+    return Done()
+
+
+@router.post(
+    "/auth/totp/recovery-codes",
+    summary="Replace the recovery codes",
+    description="Needs a fresh session. The previous codes stop working.",
+)
+async def regenerate_recovery_codes(
+    session: FreshSession, response: Response, auth: Auth, info: Info
+) -> RecoveryCodesResponse:
+    codes = await auth.regenerate_recovery_codes(session=session, info=info)
+    _secret(response)
+    return RecoveryCodesResponse(recovery_codes=codes)
+
+
+@router.post(
+    "/auth/totp/disable",
+    summary="Turn two-factor off",
+    description="Needs a fresh session. Refused for an owner or admin of any workspace.",
+)
+async def disable_totp(session: FreshSession, auth: Auth, info: Info) -> Done:
+    await auth.disable_totp(session=session, info=info)
+    return Done()
+
+
 @router.get("/auth/sessions", summary="The caller's signed-in sessions")
 async def list_sessions(session: CurrentSession, auth: Auth) -> SessionList:
     return SessionList(
@@ -272,6 +355,27 @@ def _me(profile: Profile, session: SessionContext) -> MeResponse:
 @router.get("/me", summary="The signed-in user, this session and their workspaces")
 async def me(session: CurrentSession, auth: Auth) -> MeResponse:
     return _me(await auth.profile(session), session)
+
+
+@router.post(
+    "/me/reauthenticate",
+    summary="Re-enter a credential before a sensitive action",
+    description="The session cookie is replaced and the new session is fresh for 10 minutes.",
+)
+async def reauthenticate(
+    body: ReauthenticateRequest,
+    session: CurrentSession,
+    response: Response,
+    auth: Auth,
+    info: Info,
+) -> ReauthenticateResponse:
+    rotated = await auth.reauthenticate(
+        session=session, password=body.password, totp_code=body.totp_code, info=info
+    )
+    set_session_cookie(response, rotated.token, max_age=_cookie_lifetime(rotated.session))
+    # `fresh` is always set on a rotated session; the fallback only satisfies the type.
+    fresh_until = rotated.session.fresh_until or rotated.session.last_seen_at
+    return ReauthenticateResponse(fresh_until=fresh_until)
 
 
 @router.patch("/me", summary="Change the caller's name or picture")

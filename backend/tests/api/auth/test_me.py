@@ -19,7 +19,8 @@ ME = "/api/v1/me"
 
 
 async def test_me_needs_a_session(api: httpx.AsyncClient) -> None:
-    assert (await api.get(ME)).status_code == 401
+    response = await api.get(ME)
+    assert (response.status_code, response.json()["code"]) == (401, "unauthenticated")
 
 
 async def test_me_describes_the_user_and_the_session(

@@ -82,8 +82,9 @@ class LoginThrottle:
                 ttls = await pipe.execute()
         except _REDIS_ERRORS:
             raise ThrottleUnavailableError from None
+        # A lock that expired between the two reads reports a negative time to live.
         wait = max((int(ttl) for ttl in ttls), default=0)
-        return max(wait, 1)
+        return wait if wait > 0 else None
 
     async def failure(self, *, email: str, ip: str) -> bool:
         """Count a failed attempt. True when it locked the account."""

@@ -39,14 +39,28 @@ from sightline.api.auth.repository import (
 from sightline.api.auth.sessions import SessionContext, SessionStore
 from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
 from sightline.api.auth.tokens import hash_token, new_token
+from sightline.api.auth.totp import (
+    TotpCipher,
+    hash_recovery_code,
+    matching_step,
+    new_recovery_codes,
+    new_secret,
+    provisioning_uri,
+)
+from sightline.api.permissions import TOTP_REQUIRED_ROLES
 from sightline.api.problems import (
+    ConflictError,
     DuplicateError,
+    InvalidCodeError,
     InvalidCredentialsError,
     InvalidTokenError,
     NotFoundError,
     RateLimitedError,
     RegistrationClosedError,
     ServiceUnavailableError,
+    TotpAlreadyEnabledError,
+    TotpNotEnabledError,
+    TwoFactorRequiredForRoleError,
     UnauthenticatedError,
     WeakPasswordProblemError,
 )
@@ -57,11 +71,17 @@ VERIFY_TOKEN_LIFETIME = timedelta(hours=24)
 RESET_TOKEN_LIFETIME = timedelta(hours=1)
 EMAILS_PER_HOUR = 3
 EMAIL_REQUESTS_PER_HOUR_PER_IP = 30
+# Tokens are 256 random bits, so this is about load, not guessing.
+TOKEN_ATTEMPTS_PER_HOUR_PER_IP = 60
 REGISTRATIONS_PER_HOUR_PER_IP = 10
 # argon2id needs 19 MiB per hash. This bounds how much memory sign-ins can take at once.
 HASHING_CONCURRENCY = 4
 _HOUR = 3600
 _log = structlog.get_logger(__name__)
+
+
+class _SessionEndedError(Exception):
+    """The session being replaced was revoked meanwhile. Aborts the surrounding transaction."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +122,14 @@ class SignedIn:
     token: str
     session: SessionContext
     status: Literal["signed_in", "totp_required"]
+    # The token hash of the session this one replaced, to evict from the cache after commit.
+    replaced: bytes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TotpSetup:
+    uri: str
+    secret: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +147,7 @@ class AuthService:
         store: SessionStore,
         throttle: LoginThrottle,
         breached: BreachedPasswords | None,
+        totp: TotpCipher,
         email: EmailSender,
         app_origin: str,
         registration: Literal["invited", "open"],
@@ -127,6 +156,7 @@ class AuthService:
         self._store = store
         self._throttle = throttle
         self._breached = breached
+        self._totp = totp
         self._email = email
         self._origin = app_origin
         self._registration = registration
@@ -146,7 +176,8 @@ class AuthService:
     ) -> Registered:
         now = datetime.now(UTC)
         await self._limit("register:ip", info.throttle_ip, REGISTRATIONS_PER_HOUR_PER_IP)
-        invited = await self._holds_invitation(email, invitation_token, now)
+        async with self._sessions() as db, db.begin():
+            invited = await self._holds_invitation(db, email, invitation_token, now)
         if self._registration == "invited" and not invited:
             # One answer whether the token is missing, unknown, used, expired or for someone else.
             raise RegistrationClosedError
@@ -156,6 +187,9 @@ class AuthService:
         token = new_token()
         try:
             async with self._sessions() as db, db.begin():
+                # Hashing took a moment: the invitation may have been cancelled since.
+                if invited and not await self._holds_invitation(db, email, invitation_token, now):
+                    raise RegistrationClosedError
                 user_id = await repository.insert_user(
                     db, email=email, name=name, password_hash=password_hash
                 )
@@ -194,6 +228,7 @@ class AuthService:
 
     async def verify_email(self, *, token: str, info: RequestInfo) -> None:
         now = datetime.now(UTC)
+        await self._limit("token:ip", info.throttle_ip, TOKEN_ATTEMPTS_PER_HOUR_PER_IP)
         async with self._sessions() as db, db.begin():
             user_id = await repository.consume_token(
                 db, token_hash=hash_token(token), purpose="email_verification", now=now
@@ -304,6 +339,7 @@ class AuthService:
         so a refused password does not cost the user their link.
         """
         now = datetime.now(UTC)
+        await self._limit("token:ip", info.throttle_ip, TOKEN_ATTEMPTS_PER_HOUR_PER_IP)
         token_hash = hash_token(token)
         async with self._sessions() as db, db.begin():
             user_id = await repository.find_token_user(
@@ -316,12 +352,15 @@ class AuthService:
         password_hash = await self._hash(new_password)
 
         revoked: list[bytes] = []
+        consumed: UUID | None = None
         async with self._sessions() as db, db.begin():
-            consumed = await repository.consume_token(
-                db, token_hash=token_hash, purpose="password_reset", now=now
-            )
+            # Locking the user row first orders this against a sign-in in progress. It finds
+            # no row if the account was disabled while the password was being hashed.
+            if await repository.lock_password_hash(db, user.id, exclusive=True) is not None:
+                consumed = await repository.consume_token(
+                    db, token_hash=token_hash, purpose="password_reset", now=now
+                )
             if consumed is not None:
-                # Writing the user row first orders this against a sign-in in progress.
                 await repository.set_password_hash(
                     db, user_id=user.id, password_hash=password_hash, now=now
                 )
@@ -355,10 +394,7 @@ class AuthService:
     ) -> EmailMessage:
         """Change the password of the signed-in user and end their other sessions."""
         now = datetime.now(UTC)
-        async with self._sessions() as db, db.begin():
-            user = await repository.get_user(db, session.user_id)
-        if user is None:
-            raise UnauthenticatedError
+        user = await self._user(session)
         await self._refuse_if_locked(user.email, info)
         if not await self._verify(user.password_hash, current_password):
             await self._credential_failed(user, "auth.password.change_failed", info)
@@ -388,9 +424,272 @@ class AuthService:
         if not still_mine:
             raise InvalidCredentialsError
         await self._store.forget(revoked)
+        await self._credential_accepted(user)
         return mail.password_changed_email(
             origin=self._origin, to=user.email, name=user.name, signed_out="others"
         )
+
+    # -----------------------------------------------------------------------------------------
+    # Two-factor
+
+    async def setup_totp(self, *, session: SessionContext, info: RequestInfo) -> TotpSetup:
+        """Start enrolment. The secret is stored encrypted and does nothing until confirmed."""
+        user = await self._user(session)
+        secret = new_secret()
+        async with self._sessions() as db, db.begin():
+            stored = await repository.store_unconfirmed_totp(
+                db,
+                user_id=user.id,
+                secret_encrypted=self._totp.encrypt(secret, user_id=user.id),
+            )
+            if stored:
+                await self._audit(db, "auth.totp.setup_started", user.id, info, None)
+        if not stored:
+            raise TotpAlreadyEnabledError
+        return TotpSetup(uri=provisioning_uri(secret, email=user.email), secret=secret)
+
+    async def confirm_totp(
+        self, *, session: SessionContext, code: str, info: RequestInfo
+    ) -> list[str]:
+        """Turn two-factor on with a first valid code. Returns the recovery codes, shown once."""
+        now = datetime.now(UTC)
+        user = await self._user(session)
+        await self._refuse_if_locked(user.email, info)
+        async with self._sessions() as db, db.begin():
+            record = await repository.get_totp(db, user.id)
+        if record is None:
+            raise ConflictError("Start two-factor setup first.")
+        if record.confirmed:
+            raise TotpAlreadyEnabledError
+        secret = self._totp.decrypt(record.secret_encrypted, user_id=user.id)
+        step = matching_step(secret, code, at=now)
+        if step is None:
+            await self._credential_failed(user, "auth.totp.confirm_failed", info)
+            raise InvalidCodeError
+
+        codes = new_recovery_codes()
+        revoked: list[bytes] = []
+        async with self._sessions() as db, db.begin():
+            confirmed = await repository.confirm_totp(
+                db,
+                user_id=user.id,
+                step=step,
+                recovery_code_hashes=[hash_recovery_code(item) for item in codes],
+                now=now,
+            )
+            if confirmed:
+                revoked = await self._store.revoke_all(
+                    db, user_id=user.id, except_session_id=session.session_id, now=now
+                )
+                await self._audit(db, "auth.totp.enabled", user.id, info, None)
+        if not confirmed:
+            # Another request confirmed first. Its recovery codes are the real ones.
+            raise TotpAlreadyEnabledError
+        await self._store.forget(revoked)
+        return codes
+
+    async def verify_totp(
+        self,
+        *,
+        session: SessionContext,
+        code: str | None,
+        recovery_code: str | None,
+        info: RequestInfo,
+    ) -> SignedIn:
+        """Complete a sign-in, or refresh a full session, with the second factor.
+
+        The session is replaced, not upgraded: a new token, fresh, ending when the old one would.
+        """
+        user = await self._user(session)
+        await self._refuse_if_locked(user.email, info)
+        method = "code" if code is not None else "recovery_code"
+        rotated = await self._use_second_factor(
+            user,
+            session,
+            code=code,
+            recovery_code=recovery_code,
+            info=info,
+            action="auth.totp.verified",
+            details={"method": method},
+        )
+        if rotated is None:
+            await self._credential_failed(user, "auth.totp.verify_failed", info)
+            raise InvalidCodeError
+        await self._credential_accepted(user)
+        return rotated
+
+    async def reauthenticate(
+        self,
+        *,
+        session: SessionContext,
+        password: str | None,
+        totp_code: str | None,
+        info: RequestInfo,
+    ) -> SignedIn:
+        """Prove again who is at the keyboard. Replaces the session with a fresh one."""
+        now = datetime.now(UTC)
+        user = await self._user(session)
+        await self._refuse_if_locked(user.email, info)
+        if password is not None:
+            rotated = await self._use_password(user, session, password, info, now)
+        else:
+            rotated = await self._use_second_factor(
+                user,
+                session,
+                code=totp_code,
+                recovery_code=None,
+                info=info,
+                action="auth.reauthenticated",
+                details={"method": "code"},
+            )
+        if rotated is None:
+            await self._credential_failed(user, "auth.reauthenticate_failed", info)
+            raise InvalidCredentialsError
+        await self._credential_accepted(user)
+        return rotated
+
+    async def _use_password(
+        self,
+        user: UserRecord,
+        session: SessionContext,
+        password: str,
+        info: RequestInfo,
+        now: datetime,
+    ) -> SignedIn | None:
+        """Check the password and, if it holds, replace the session. None when it is wrong."""
+        if not await self._verify(user.password_hash, password):
+            return None
+        async with self._sessions() as db, db.begin():
+            rotated = await self._rotate(db, session, info, now)
+            if rotated is not None:
+                await self._audit(db, "auth.reauthenticated", user.id, info, {"method": "password"})
+        if rotated is not None and rotated.replaced is not None:
+            await self._store.forget([rotated.replaced])
+        return rotated
+
+    async def regenerate_recovery_codes(
+        self, *, session: SessionContext, info: RequestInfo
+    ) -> list[str]:
+        codes = new_recovery_codes()
+        async with self._sessions() as db, db.begin():
+            replaced = await repository.replace_recovery_codes(
+                db,
+                user_id=session.user_id,
+                recovery_code_hashes=[hash_recovery_code(item) for item in codes],
+            )
+            if replaced:
+                await self._audit(
+                    db, "auth.totp.recovery_codes_replaced", session.user_id, info, None
+                )
+        if not replaced:
+            raise TotpNotEnabledError
+        return codes
+
+    async def disable_totp(self, *, session: SessionContext, info: RequestInfo) -> None:
+        """Turn two-factor off, unless a role of the user requires it."""
+        now = datetime.now(UTC)
+        async with user_transaction(self._sessions, session.user_id) as db:
+            required = await repository.holds_role(
+                db, user_id=session.user_id, roles=sorted(TOTP_REQUIRED_ROLES)
+            )
+        if required:
+            raise TwoFactorRequiredForRoleError
+        revoked: list[bytes] = []
+        async with self._sessions() as db, db.begin():
+            if await repository.delete_totp(db, session.user_id):
+                revoked = await self._store.revoke_all(
+                    db, user_id=session.user_id, except_session_id=session.session_id, now=now
+                )
+                await self._audit(db, "auth.totp.disabled", session.user_id, info, None)
+        await self._store.forget(revoked)
+
+    async def _use_second_factor(
+        self,
+        user: UserRecord,
+        session: SessionContext,
+        *,
+        code: str | None,
+        recovery_code: str | None,
+        info: RequestInfo,
+        action: str,
+        details: dict[str, object],
+    ) -> SignedIn | None:
+        """Check a TOTP code or a recovery code and, if it holds, replace the session.
+
+        Using the factor and creating the session are one transaction: a code is never spent on a
+        session that was not created. None when the factor is wrong, already used or not set up.
+        """
+        now = datetime.now(UTC)
+        async with self._sessions() as db, db.begin():
+            record = await repository.get_totp(db, user.id)
+        if record is None or not record.confirmed:
+            return None
+        step: int | None = None
+        if code is not None:
+            secret = self._totp.decrypt(record.secret_encrypted, user_id=user.id)
+            step = matching_step(secret, code, at=now)
+            if step is None:
+                return None
+
+        try:
+            async with self._sessions() as db, db.begin():
+                if step is not None:
+                    # A step can be claimed once, so a replayed code stops here.
+                    if not await repository.claim_totp_step(db, user_id=user.id, step=step):
+                        return None
+                    left = record.recovery_codes_left
+                else:
+                    remaining = await repository.use_recovery_code(
+                        db, user_id=user.id, code_hash=hash_recovery_code(recovery_code or "")
+                    )
+                    if remaining is None:
+                        return None
+                    left = remaining
+                rotated = await self._rotate(db, session, info, now)
+                if rotated is None:
+                    # The session ended meanwhile. Leaving by exception rolls the claim back.
+                    raise _SessionEndedError
+                await self._audit(
+                    db, action, user.id, info, details | {"recovery_codes_left": left}
+                )
+        except _SessionEndedError:
+            return None
+        if rotated.replaced is not None:
+            await self._store.forget([rotated.replaced])
+        return rotated
+
+    async def _rotate(
+        self, db: AsyncSession, session: SessionContext, info: RequestInfo, now: datetime
+    ) -> SignedIn | None:
+        """Replace a session with a new, fresh, active one that ends when the old one would.
+
+        None if the old session was revoked meanwhile: a dead session is never exchanged.
+        """
+        replaced = await self._store.revoke(
+            db, session_id=session.session_id, user_id=session.user_id, now=now
+        )
+        if replaced is None:
+            return None
+        token, new_session = await self._store.create(
+            db,
+            user_id=session.user_id,
+            state="active",
+            fresh=True,
+            ip=info.ip,
+            user_agent=info.user_agent,
+            now=now,
+            absolute_expires_at=session.absolute_expires_at,
+        )
+        return SignedIn(token=token, session=new_session, status="signed_in", replaced=replaced)
+
+    async def _user(self, session: SessionContext) -> UserRecord:
+        """The account behind a session. A cached session can outlive its account by a minute:
+        nothing that changes the account may rely on the cache alone."""
+        async with self._sessions() as db, db.begin():
+            user = await repository.get_user(db, session.user_id)
+        if user is None or user.disabled_at is not None:
+            raise UnauthenticatedError
+        return user
 
     # -----------------------------------------------------------------------------------------
     # Sessions
@@ -505,16 +804,14 @@ class AuthService:
     # -----------------------------------------------------------------------------------------
     # Helpers
 
-    async def _holds_invitation(self, email: str, token: str | None, now: datetime) -> bool:
+    @staticmethod
+    async def _holds_invitation(
+        db: AsyncSession, email: str, token: str | None, now: datetime
+    ) -> bool:
         if token is None:
             return False
-        async with self._sessions() as db, db.begin():
-            invitation = await repository.find_invitation_by_token(db, hash_token(token))
-        return (
-            invitation is not None
-            and invitation.status == "pending"
-            and invitation.expires_at > now
-            and invitation.email.casefold() == email.casefold()
+        return await repository.holds_pending_invitation(
+            db, token_hash=hash_token(token), email=email, now=now
         )
 
     async def _check_password(self, password: str, *, email: str) -> None:
@@ -535,24 +832,37 @@ class AuthService:
             )
 
     async def _credential_failed(self, user: UserRecord, action: str, info: RequestInfo) -> None:
-        """Count a wrong credential from a signed-in user and record it, committed at once."""
-        locked = await self._guard(self._throttle.failure(email=user.email, ip=info.throttle_ip))
+        """Record a wrong credential from a signed-in user, then count it.
+
+        The audit row is committed first, so it exists even if Redis cannot count.
+        """
         async with self._sessions() as db, db.begin():
             await self._audit(db, action, user.id, info, None)
-            if locked:
+        if await self._guard(self._throttle.failure(email=user.email, ip=info.throttle_ip)):
+            async with self._sessions() as db, db.begin():
                 await self._audit(db, "auth.lockout", user.id, info, None)
+
+    async def _credential_accepted(self, user: UserRecord) -> None:
+        """A right credential clears the account's failures, as a successful sign-in does."""
+        try:
+            await self._throttle.success(email=user.email)
+        except ThrottleUnavailableError:
+            _log.warning("failure count not cleared after a successful credential check")
 
     async def _sign_in_failed(
         self, *, email: str, user: UserRecord | None, reason: str, info: RequestInfo
     ) -> None:
-        """Count the failure and record it. Commits before the caller raises."""
-        locked = await self._guard(self._throttle.failure(email=email, ip=info.throttle_ip))
+        """Record the failure, then count it. Both are committed before the caller raises.
+
+        The audit row comes first, so it exists even if Redis cannot count.
+        """
         user_id = None if user is None else user.id
         async with self._sessions() as db, db.begin():
             await self._audit(
                 db, "auth.sign_in_failed", user_id, info, {"reason": reason}, email=email
             )
-            if locked:
+        if await self._guard(self._throttle.failure(email=email, ip=info.throttle_ip)):
+            async with self._sessions() as db, db.begin():
                 await self._audit(db, "auth.lockout", user_id, info, None, email=email)
 
     async def _audit(

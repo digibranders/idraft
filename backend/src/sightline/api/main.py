@@ -17,6 +17,7 @@ from sightline.api.auth.service import AuthService
 from sightline.api.auth.sessions import SessionStore
 from sightline.api.auth.throttle import LoginThrottle
 from sightline.api.auth.tokens import derive_key
+from sightline.api.auth.totp import TotpCipher
 from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
@@ -33,6 +34,7 @@ from sightline.providers.email import EmailSender, build_email_sender
 REDIS_TIMEOUT_SECONDS = 1.0
 HTTP_TIMEOUT_SECONDS = 10.0
 SESSION_CACHE_KEY_LABEL = b"sightline session cache v1"
+TOTP_SECRET_KEY_LABEL = b"sightline totp secrets v1"
 HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz"})
 
 
@@ -97,6 +99,7 @@ def create_app(
                     store=session_store,
                     throttle=LoginThrottle(redis),
                     breached=BreachedPasswords(http) if settings.breached_password_check else None,
+                    totp=TotpCipher(derive_key(settings.totp_key, TOTP_SECRET_KEY_LABEL)),
                     email=email,
                     app_origin=settings.app_origin,
                     registration=settings.registration,

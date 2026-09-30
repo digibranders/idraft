@@ -5,13 +5,29 @@ Functions take the caller's session so a use case stays in one transaction. Noth
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import Row, and_, exists, func, insert, select, text, update
+from sqlalchemy import (
+    Row,
+    and_,
+    any_,
+    bindparam,
+    delete,
+    exists,
+    func,
+    insert,
+    literal,
+    or_,
+    select,
+    text,
+    update,
+)
+from sqlalchemy.dialects.postgresql import CITEXT
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -280,12 +296,18 @@ async def lock_password_hash(db: AsyncSession, user_id: UUID, *, exclusive: bool
     when the revocation runs and is revoked, or the sign-in sees the new hash.
 
     `exclusive` is for a caller that will also write the row. Two callers that each took a shared
-    lock and then tried to write would deadlock.
+    lock and then tried to write would deadlock. It is the lock an UPDATE of a non-key column
+    takes (FOR NO KEY UPDATE), so it does not hold up the foreign-key check of a session insert.
+
+    None for a user who is gone or disabled.
     """
+    statement = select(users.c.password_hash).where(
+        users.c.id == user_id, users.c.disabled_at.is_(None)
+    )
     statement = (
-        select(users.c.password_hash)
-        .where(users.c.id == user_id)
-        .with_for_update(read=not exclusive)
+        statement.with_for_update(key_share=True)
+        if exclusive
+        else statement.with_for_update(read=True)
     )
     password_hash: str | None = (await db.execute(statement)).scalar_one_or_none()
     return password_hash
@@ -358,28 +380,25 @@ async def consume_token(
 # Invitations (read only here; the workspace routes write them)
 
 
-@dataclass(frozen=True, slots=True)
-class InvitationRecord:
-    id: UUID
-    email: str
-    status: str
-    expires_at: datetime
-
-
 # The policy on auth.invitations hides the row from someone who is not yet a member, so the lookup
-# goes through the definer function. It returns the row whatever its state: the caller checks.
-_INVITATION_BY_TOKEN = text(
-    "SELECT id, email, status, expires_at FROM auth.invitation_by_token(:token_hash)"
-)
+# goes through the definer function, which returns the row whatever its state. The checks are
+# here, and the email is compared by the database as citext: the same comparison that makes
+# auth.users.email unique. Comparing in Python would call two addresses equal that PostgreSQL
+# stores as different accounts.
+_PENDING_INVITATION = text(
+    "SELECT 1 FROM auth.invitation_by_token(:token_hash) "
+    "WHERE email = :email AND status = 'pending' AND expires_at > :now"
+).bindparams(bindparam("email", type_=CITEXT))
 
 
-async def find_invitation_by_token(db: AsyncSession, token_hash: bytes) -> InvitationRecord | None:
-    row = (await db.execute(_INVITATION_BY_TOKEN, {"token_hash": token_hash})).one_or_none()
-    if row is None:
-        return None
-    return InvitationRecord(
-        id=row.id, email=str(row.email), status=str(row.status), expires_at=row.expires_at
+async def holds_pending_invitation(
+    db: AsyncSession, *, token_hash: bytes, email: str, now: datetime
+) -> bool:
+    """Whether this token is a pending, unexpired invitation addressed to exactly this email."""
+    found = await db.execute(
+        _PENDING_INVITATION, {"token_hash": token_hash, "email": email, "now": now}
     )
+    return found.first() is not None
 
 
 # ---------------------------------------------------------------------------------------------
@@ -510,4 +529,131 @@ async def update_profile(
 ) -> None:
     """Set `name` and `image`, whichever are given. The caller has validated both."""
     allowed = {key: value for key, value in changes.items() if key in ("name", "image")}
-    await db.execute(update(users).where(users.c.id == user_id).values(**allowed, updated_at=now))
+    await db.execute(
+        update(users)
+        .where(users.c.id == user_id, users.c.disabled_at.is_(None))
+        .values(**allowed, updated_at=now)
+    )
+
+
+# ---------------------------------------------------------------------------------------------
+# Two-factor
+
+
+@dataclass(frozen=True, slots=True)
+class TotpRecord:
+    secret_encrypted: bytes
+    confirmed: bool
+    recovery_codes_left: int
+
+
+async def get_totp(db: AsyncSession, user_id: UUID) -> TotpRecord | None:
+    statement = select(
+        totp_secrets.c.secret_encrypted,
+        totp_secrets.c.confirmed_at,
+        func.cardinality(totp_secrets.c.recovery_code_hashes),
+    ).where(totp_secrets.c.user_id == user_id)
+    row = (await db.execute(statement)).one_or_none()
+    if row is None:
+        return None
+    return TotpRecord(
+        secret_encrypted=bytes(row[0]),
+        confirmed=row[1] is not None,
+        recovery_codes_left=int(row[2]),
+    )
+
+
+async def store_unconfirmed_totp(
+    db: AsyncSession, *, user_id: UUID, secret_encrypted: bytes
+) -> bool:
+    """Start enrolment, replacing a secret that was never confirmed. False if two-factor is on."""
+    statement = (
+        postgresql_insert(totp_secrets)
+        .values(user_id=user_id, secret_encrypted=secret_encrypted)
+        .on_conflict_do_update(
+            index_elements=[totp_secrets.c.user_id],
+            set_={
+                "secret_encrypted": secret_encrypted,
+                "last_used_step": None,
+                "recovery_code_hashes": [],
+            },
+            where=totp_secrets.c.confirmed_at.is_(None),
+        )
+        .returning(totp_secrets.c.user_id)
+    )
+    return (await db.execute(statement)).scalar_one_or_none() is not None
+
+
+async def confirm_totp(
+    db: AsyncSession, *, user_id: UUID, step: int, recovery_code_hashes: list[str], now: datetime
+) -> bool:
+    """Turn two-factor on. The step that proved the code is recorded, so it cannot be replayed."""
+    statement = (
+        update(totp_secrets)
+        .where(totp_secrets.c.user_id == user_id, totp_secrets.c.confirmed_at.is_(None))
+        .values(confirmed_at=now, last_used_step=step, recovery_code_hashes=recovery_code_hashes)
+        .returning(totp_secrets.c.user_id)
+    )
+    return (await db.execute(statement)).scalar_one_or_none() is not None
+
+
+async def claim_totp_step(db: AsyncSession, *, user_id: UUID, step: int) -> bool:
+    """Use a time step once. One UPDATE decides, so the same code cannot be accepted twice."""
+    statement = (
+        update(totp_secrets)
+        .where(
+            totp_secrets.c.user_id == user_id,
+            totp_secrets.c.confirmed_at.is_not(None),
+            or_(totp_secrets.c.last_used_step.is_(None), totp_secrets.c.last_used_step < step),
+        )
+        .values(last_used_step=step)
+        .returning(totp_secrets.c.user_id)
+    )
+    return (await db.execute(statement)).scalar_one_or_none() is not None
+
+
+async def use_recovery_code(db: AsyncSession, *, user_id: UUID, code_hash: str) -> int | None:
+    """Remove a recovery code. Returns how many are left, or None if the code was not there."""
+    statement = (
+        update(totp_secrets)
+        .where(
+            totp_secrets.c.user_id == user_id,
+            totp_secrets.c.confirmed_at.is_not(None),
+            literal(code_hash) == any_(totp_secrets.c.recovery_code_hashes),
+        )
+        .values(
+            recovery_code_hashes=func.array_remove(totp_secrets.c.recovery_code_hashes, code_hash)
+        )
+        .returning(func.cardinality(totp_secrets.c.recovery_code_hashes))
+    )
+    left: int | None = (await db.execute(statement)).scalar_one_or_none()
+    return left
+
+
+async def replace_recovery_codes(
+    db: AsyncSession, *, user_id: UUID, recovery_code_hashes: list[str]
+) -> bool:
+    statement = (
+        update(totp_secrets)
+        .where(totp_secrets.c.user_id == user_id, totp_secrets.c.confirmed_at.is_not(None))
+        .values(recovery_code_hashes=recovery_code_hashes)
+        .returning(totp_secrets.c.user_id)
+    )
+    return (await db.execute(statement)).scalar_one_or_none() is not None
+
+
+async def delete_totp(db: AsyncSession, user_id: UUID) -> bool:
+    statement = (
+        delete(totp_secrets)
+        .where(totp_secrets.c.user_id == user_id)
+        .returning(totp_secrets.c.user_id)
+    )
+    return (await db.execute(statement)).scalar_one_or_none() is not None
+
+
+async def holds_role(db: AsyncSession, *, user_id: UUID, roles: Sequence[str]) -> bool:
+    """Whether the user has one of `roles` in any workspace. Run inside `user_transaction`."""
+    statement = select(
+        exists().where(memberships.c.user_id == user_id, memberships.c.role.in_(roles))
+    )
+    return bool((await db.execute(statement)).scalar_one())
