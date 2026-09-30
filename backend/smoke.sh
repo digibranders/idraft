@@ -38,6 +38,7 @@ docker run --rm --network "$network" \
 
 docker run -d --name smoke-api --network "$network" -p 127.0.0.1:18080:8000 \
   -e APP_ORIGIN=http://localhost:3000 \
+  -e TOTP_ENCRYPTION_KEY="$(head -c 32 /dev/urandom | base64)" \
   -e DATABASE_URL="postgresql://app_api:api-smoke@$host" \
   -e REDIS_URL=redis://smoke-redis:6379/0 "$image" >/dev/null
 

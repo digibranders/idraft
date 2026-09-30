@@ -7,6 +7,8 @@ file: local development passes values with `uv run --env-file .env`. Connection 
 
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 import sys
 from typing import Literal, Self
@@ -19,7 +21,9 @@ from sqlalchemy.exc import ArgumentError
 
 LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 
+TOTP_KEY_BYTES = 32
 _POSTGRES_SCHEMES = ("postgresql+asyncpg://", "postgresql://", "postgres://")
+_EMAIL_FROM_PATTERN = re.compile(r"[^\r\n<>]*<[^\s<>@]+@[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+")
 _TIMEOUT_PATTERN = re.compile(r"[1-9][0-9]{0,8}(ms|s|min)", re.ASCII)
 
 
@@ -99,6 +103,14 @@ class Settings(_DatabaseSettings):
     db_statement_timeout: str = "15s"
     redis_url: SecretStr
     sentry_dsn: SecretStr | None = None
+    # `invited`: an account can be created only with a pending invitation. `open`: anyone can.
+    registration: Literal["invited", "open"] = "invited"
+    # base64 of 32 random bytes. Encrypts TOTP secrets at rest; only the api process needs it.
+    totp_encryption_key: SecretStr | None = None
+    email_provider: Literal["console", "resend"] = "console"
+    email_api_key: SecretStr | None = None
+    email_from: str = "Sightline <no-reply@localhost>"
+    breached_password_check: bool = True
 
     _check_origin = field_validator("app_origin")(_validate_origin)
 
@@ -117,15 +129,52 @@ class Settings(_DatabaseSettings):
             raise ValueError("must be a duration such as 500ms, 15s or 2min")
         return value
 
-    @field_validator("sentry_dsn")
+    @field_validator("sentry_dsn", "email_api_key")
     @classmethod
-    def _empty_dsn_is_none(cls, value: SecretStr | None) -> SecretStr | None:
+    def _empty_secret_is_none(cls, value: SecretStr | None) -> SecretStr | None:
         return value if value is not None and value.get_secret_value() else None
+
+    @field_validator("totp_encryption_key")
+    @classmethod
+    def _validate_totp_key(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        try:
+            key = base64.b64decode(value.get_secret_value(), validate=True)
+        except (binascii.Error, ValueError):
+            key = b""
+        if len(key) != TOTP_KEY_BYTES:
+            raise ValueError("must be 32 random bytes, base64 encoded")
+        return value
+
+    @field_validator("email_from")
+    @classmethod
+    def _validate_email_from(cls, value: str) -> str:
+        if not _EMAIL_FROM_PATTERN.fullmatch(value):
+            raise ValueError("must be an address, or a name followed by <address>, on one line")
+        return value
+
+    @property
+    def totp_key(self) -> bytes:
+        """The decoded key. Only the api process has one."""
+        if self.totp_encryption_key is None:
+            raise RuntimeError("this process has no TOTP encryption key")
+        return base64.b64decode(self.totp_encryption_key.get_secret_value(), validate=True)
 
     @model_validator(mode="after")
     def _production_is_served_over_https(self) -> Self:
         if self.app_env == "production" and not self.app_origin.startswith("https://"):
             raise ValueError("APP_ORIGIN must be https:// when APP_ENV is production")
+        return self
+
+    @model_validator(mode="after")
+    def _the_api_can_run_auth(self) -> Self:
+        if self.process_role == "api" and self.totp_encryption_key is None:
+            raise ValueError("TOTP_ENCRYPTION_KEY is required for the api process")
+        if self.email_provider == "resend" and self.email_api_key is None:
+            raise ValueError("EMAIL_API_KEY is required when EMAIL_PROVIDER is resend")
+        if self.app_env == "production" and self.email_provider == "console":
+            raise ValueError("EMAIL_PROVIDER must not be console when APP_ENV is production")
         return self
 
 

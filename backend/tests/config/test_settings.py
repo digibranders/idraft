@@ -10,11 +10,14 @@ from sightline.config.settings import (
     to_sqlalchemy_url,
 )
 
+TOTP_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="  # bytes 0 to 31
 BASE_ENV = {
     "APP_ORIGIN": "https://app.example.com",
     "DATABASE_URL": "postgresql://app_api:pw@postgres:5432/sightline",
     "REDIS_URL": "redis://app:pw@redis:6379/0",
+    "TOTP_ENCRYPTION_KEY": TOTP_KEY,
 }
+PRODUCTION_EMAIL = {"EMAIL_PROVIDER": "resend", "EMAIL_API_KEY": "re_123"}
 
 
 def _set(monkeypatch: pytest.MonkeyPatch, env: dict[str, str]) -> None:
@@ -33,10 +36,16 @@ def test_loads_required_values_and_defaults(monkeypatch: pytest.MonkeyPatch) -> 
     assert settings.db_pool_size == 10
     assert settings.db_statement_timeout == "15s"
     assert settings.sentry_dsn is None
+    assert settings.registration == "invited"
+    assert settings.email_provider == "console"
+    assert settings.email_api_key is None
+    assert settings.email_from == "Sightline <no-reply@localhost>"
+    assert settings.breached_password_check is True
+    assert settings.totp_key == bytes(range(32))
 
 
 def test_app_env_is_read_from_its_variable_only(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, {**BASE_ENV, "APP_ENV": "production", "ENVIRONMENT": "local"})
+    _set(monkeypatch, {**BASE_ENV, **PRODUCTION_EMAIL, "APP_ENV": "production", "ENVIRONMENT": "x"})
     assert Settings().app_env == "production"
 
 
@@ -84,12 +93,16 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
             "DATABASE_URL": "postgresql://app_api:LEAK1@postgres/sightline",
             "REDIS_URL": "redis://app:LEAK2@redis:6379/0",
             "SENTRY_DSN": "https://LEAK3@o0.ingest.sentry.io/0",
+            "TOTP_ENCRYPTION_KEY": "TEVBSzRMRUFLNExFQUs0TEVBSzRMRUFLNExFQUs0TEU=",
+            "EMAIL_PROVIDER": "resend",
+            "EMAIL_API_KEY": "re_LEAK5",
         },
     )
     settings = Settings()
     assert "LEAK" not in repr(settings)
     assert "LEAK" not in str(settings)
     assert "LEAK" not in settings.model_dump_json()
+    assert "TEVBSz" not in repr(settings) + settings.model_dump_json()
 
 
 @pytest.mark.parametrize(
@@ -119,6 +132,18 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
         {"LOG_LEVEL": "verbose"},
         {"APP_ENV": "staging"},
         {"APP_ENV": "production", "APP_ORIGIN": "http://app.example.com"},
+        {"REGISTRATION": "closed"},
+        {"TOTP_ENCRYPTION_KEY": ""},
+        {"TOTP_ENCRYPTION_KEY": "not base64 at all!"},
+        {"TOTP_ENCRYPTION_KEY": "AAECAwQFBgcICQoLDA0ODw=="},
+        {"TOTP_ENCRYPTION_KEY": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gIQ=="},
+        {"EMAIL_PROVIDER": "sendgrid"},
+        {"EMAIL_PROVIDER": "resend"},
+        {"EMAIL_PROVIDER": "resend", "EMAIL_API_KEY": ""},
+        {"EMAIL_FROM": "Sightline"},
+        {"EMAIL_FROM": "Sightline <a@b.example>\r\nBcc: x@y.example"},
+        {"APP_ENV": "production", "EMAIL_PROVIDER": "console"},
+        {"BREACHED_PASSWORD_CHECK": "sometimes"},
     ],
 )
 def test_rejects_invalid_values(monkeypatch: pytest.MonkeyPatch, override: dict[str, str]) -> None:
@@ -176,3 +201,45 @@ def test_the_migrator_exits_without_a_database_url(capsys: pytest.CaptureFixture
         load_migrator_settings()
     assert exit_info.value.code == 2
     assert "DATABASE_URL" in capsys.readouterr().err
+
+
+def test_the_api_cannot_start_without_a_totp_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    env = {name: value for name, value in BASE_ENV.items() if name != "TOTP_ENCRYPTION_KEY"}
+    _set(monkeypatch, env)
+    with pytest.raises(ValidationError, match="TOTP_ENCRYPTION_KEY is required"):
+        Settings()
+
+
+@pytest.mark.parametrize("role", ["worker", "migrator", "cli"])
+def test_other_processes_do_not_need_a_totp_key(monkeypatch: pytest.MonkeyPatch, role: str) -> None:
+    env = {name: value for name, value in BASE_ENV.items() if name != "TOTP_ENCRYPTION_KEY"}
+    _set(monkeypatch, {**env, "PROCESS_ROLE": role})
+    settings = Settings()
+    assert settings.totp_encryption_key is None
+    with pytest.raises(RuntimeError, match="no TOTP encryption key"):
+        _ = settings.totp_key
+
+
+def test_a_rejected_totp_key_is_not_echoed(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, {**BASE_ENV, "TOTP_ENCRYPTION_KEY": "c2hvcnQtc2VjcmV0LWtleQ=="})
+    with pytest.raises(ValidationError) as error:
+        Settings()
+    assert "c2hvcnQt" not in str(error.value)
+    assert "32 random bytes" in str(error.value)
+
+
+def test_production_with_resend_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(
+        monkeypatch,
+        {
+            **BASE_ENV,
+            "APP_ENV": "production",
+            "EMAIL_PROVIDER": "resend",
+            "EMAIL_API_KEY": "re_123",
+            "EMAIL_FROM": "Sightline <login@mail.example.com>",
+            "REGISTRATION": "open",
+        },
+    )
+    settings = Settings()
+    assert settings.email_provider == "resend"
+    assert settings.registration == "open"

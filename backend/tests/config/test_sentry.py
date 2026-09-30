@@ -24,6 +24,7 @@ def _settings(sentry_dsn: str | None = None) -> Settings:
         release_sha="abc123",
         app_env="test",
         sentry_dsn=SecretStr(sentry_dsn) if sentry_dsn else None,
+        totp_encryption_key=SecretStr("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="),
     )
 
 

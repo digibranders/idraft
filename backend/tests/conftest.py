@@ -28,16 +28,24 @@ BASE_URL = "https://app.example.com"
 SETTINGS_VARIABLES = (
     "APP_ENV",
     "APP_ORIGIN",
+    "BREACHED_PASSWORD_CHECK",
     "DATABASE_URL",
     "DB_POOL_SIZE",
     "DB_STATEMENT_TIMEOUT",
+    "EMAIL_API_KEY",
+    "EMAIL_FROM",
+    "EMAIL_PROVIDER",
     "ENVIRONMENT",
     "LOG_LEVEL",
     "PROCESS_ROLE",
     "REDIS_URL",
+    "REGISTRATION",
     "RELEASE_SHA",
     "SENTRY_DSN",
+    "TOTP_ENCRYPTION_KEY",
 )
+# A fixed key for tests only: base64 of bytes 0 to 31.
+TEST_TOTP_KEY = SecretStr("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
 POSTGRES_IMAGE = "postgres:18"
 INITDB_DIR = Path(__file__).parents[2] / "infra" / "compose" / "postgres" / "initdb"
 ROLE_PASSWORDS = {"migrator": "migrator-pw", "app_api": "api-pw", "app_worker": "worker-pw"}
@@ -134,6 +142,7 @@ def settings(postgres_url: str, redis_url: str) -> Settings:
         redis_url=SecretStr(redis_url),
         db_pool_size=1,
         app_env="test",
+        totp_encryption_key=TEST_TOTP_KEY,
     )
 
 
@@ -160,6 +169,8 @@ def app_settings(migrated: PostgresServer, redis_url: str) -> Settings:
         db_pool_size=2,
         log_level="critical",
         app_env="test",
+        totp_encryption_key=TEST_TOTP_KEY,
+        breached_password_check=False,
     )
 
 
