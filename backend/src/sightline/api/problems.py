@@ -88,12 +88,24 @@ class BadRequestError(ProblemError):
     status, code, title = 400, "bad_request", "Bad request"
 
 
+class InvalidTokenError(ProblemError):
+    """An emailed token that is unknown, used, expired or meant for something else."""
+
+    status, code, title = 400, "invalid_token", "Link is not valid"
+
+
 class UnauthenticatedError(ProblemError):
     status, code, title = 401, "unauthenticated", "Authentication required"
 
 
 class SessionExpiredError(ProblemError):
     status, code, title = 401, "session_expired", "Session expired"
+
+
+class InvalidCredentialsError(ProblemError):
+    """One answer for an unknown email, a wrong password and a disabled account."""
+
+    status, code, title = 401, "invalid_credentials", "Email or password is not correct"
 
 
 class ForbiddenError(ProblemError):
@@ -110,6 +122,10 @@ class OriginNotAllowedError(ProblemError):
     status, code, title = 403, "origin_not_allowed", "Origin not allowed"
 
 
+class RegistrationClosedError(ProblemError):
+    status, code, title = 403, "registration_closed", "Registration is by invitation"
+
+
 class NotFoundError(ProblemError):
     status, code, title = 404, "not_found", "Resource not found"
 
@@ -118,8 +134,22 @@ class ConflictError(ProblemError):
     status, code, title = 409, "conflict", "Conflict"
 
 
+class DuplicateError(ProblemError):
+    status, code, title = 409, "duplicate", "Already exists"
+
+
+class WeakPasswordProblemError(ProblemError):
+    """Carries `reason`: too_short, too_long, contains_email or breached."""
+
+    status, code, title = 422, "weak_password", "Password is not strong enough"
+
+
 class RateLimitedError(ProblemError):
     status, code, title = 429, "rate_limited", "Too many requests"
+
+
+class ServiceUnavailableError(ProblemError):
+    status, code, title = 503, "service_unavailable", "Service unavailable"
 
 
 def _request_id(request: Request) -> str:

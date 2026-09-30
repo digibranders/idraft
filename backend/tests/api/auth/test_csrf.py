@@ -1,9 +1,13 @@
 """The Origin check (docs/24-security.md section 2.1; docs/19 section 2.1 rules 7 and 8)."""
 
+import io
+import json
+
 import httpx
 import pytest
 from fastapi import FastAPI
 
+from sightline.config.logging import configure_logging
 from tests.conftest import BASE_URL
 
 OPEN = "/api/v1/_probe/open"
@@ -86,11 +90,6 @@ async def test_the_health_routes_are_not_affected(bare: httpx.AsyncClient) -> No
 
 
 async def test_a_refusal_is_in_the_access_log(bare: httpx.AsyncClient) -> None:
-    import io
-    import json
-
-    from sightline.config.logging import configure_logging
-
     stream = io.StringIO()
     configure_logging(service="api", version="test", level="info", stream=stream)
     await bare.post(OPEN)

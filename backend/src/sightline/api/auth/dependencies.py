@@ -99,6 +99,24 @@ async def pending_or_active_session(
         yield context
 
 
+async def optional_session(
+    request: Request, resources: Annotated[Resources, Depends(get_resources)]
+) -> AsyncIterator[SessionContext | None]:
+    """The session if the cookie names a live one, pending or active. Never refuses."""
+    token = session_token(request)
+    context: SessionContext | None = None
+    if token is not None:
+        try:
+            context = await resources.session_store.load(token, now=datetime.now(UTC))
+        except ExpiredSession:
+            context = None
+    if context is None:
+        yield None
+        return
+    with _identified(request, context):
+        yield context
+
+
 def fresh_session(
     context: Annotated[SessionContext, Depends(current_session)],
 ) -> SessionContext:
@@ -109,5 +127,6 @@ def fresh_session(
 
 
 CurrentSession = Annotated[SessionContext, Depends(current_session)]
+OptionalSession = Annotated[SessionContext | None, Depends(optional_session)]
 PendingOrActiveSession = Annotated[SessionContext, Depends(pending_or_active_session)]
 FreshSession = Annotated[SessionContext, Depends(fresh_session)]

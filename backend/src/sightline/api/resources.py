@@ -9,6 +9,7 @@ from fastapi import Request
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from sightline.api.auth.service import AuthService
 from sightline.api.auth.sessions import SessionStore
 from sightline.config.settings import Settings
 from sightline.db.migrate import MigrationState
@@ -25,6 +26,7 @@ class Resources:
     http: httpx.AsyncClient
     email: EmailSender
     session_store: SessionStore
+    auth: AuthService
 
 
 def get_resources(request: Request) -> Resources:

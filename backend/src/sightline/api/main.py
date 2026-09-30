@@ -11,7 +11,11 @@ from redis.asyncio import Redis
 
 from sightline import __version__
 from sightline.api.access_log import AccessLogMiddleware
+from sightline.api.auth.passwords import BreachedPasswords
+from sightline.api.auth.routes import router as auth_router
+from sightline.api.auth.service import AuthService
 from sightline.api.auth.sessions import SessionStore
+from sightline.api.auth.throttle import LoginThrottle
 from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
@@ -31,9 +35,16 @@ HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz"})
 
 
 def create_app(
-    settings: Settings | None = None, *, email_sender: EmailSender | None = None
+    settings: Settings | None = None,
+    *,
+    email_sender: EmailSender | None = None,
+    http_transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
-    """Build the application. `email_sender` replaces the configured one; tests pass a recorder."""
+    """Build the application.
+
+    `email_sender` replaces the configured sender and `http_transport` the network for outbound
+    calls; tests pass a recorder and a mock so nothing leaves the process.
+    """
     settings = settings or load_settings()
     configure_logging(
         service=settings.process_role, version=settings.release_sha, level=settings.log_level
@@ -54,9 +65,20 @@ def create_app(
             stack.push_async_callback(redis.aclose)
             # Outbound calls (breached-password lookup, email). Redirects are never followed: a
             # request that carries a key must not be replayed to another host.
-            http = httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=False)
+            http = httpx.AsyncClient(
+                timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=False, transport=http_transport
+            )
             stack.push_async_callback(http.aclose)
             sessions = create_session_factory(engine)
+            email = email_sender or build_email_sender(
+                http,
+                provider=settings.email_provider,
+                api_key=None
+                if settings.email_api_key is None
+                else settings.email_api_key.get_secret_value(),
+                sender=settings.email_from,
+            )
+            session_store = SessionStore(sessions, redis)
             app.state.resources = Resources(
                 settings=settings,
                 engine=engine,
@@ -64,16 +86,17 @@ def create_app(
                 redis=redis,
                 migrations=migrations,
                 http=http,
-                email=email_sender
-                or build_email_sender(
-                    http,
-                    provider=settings.email_provider,
-                    api_key=None
-                    if settings.email_api_key is None
-                    else settings.email_api_key.get_secret_value(),
-                    sender=settings.email_from,
+                email=email,
+                session_store=session_store,
+                auth=AuthService(
+                    sessions=sessions,
+                    store=session_store,
+                    throttle=LoginThrottle(redis),
+                    breached=BreachedPasswords(http) if settings.breached_password_check else None,
+                    email=email,
+                    app_origin=settings.app_origin,
+                    registration=settings.registration,
                 ),
-                session_store=SessionStore(sessions, redis),
             )
             yield
 
@@ -94,5 +117,6 @@ def create_app(
     app.add_middleware(RequestIdMiddleware)
     register_problem_handlers(app, app_origin=settings.app_origin)
     app.include_router(health_router)
+    app.include_router(auth_router)
     install_openapi(app)
     return app

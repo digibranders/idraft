@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 
 import httpx
 import pytest
@@ -44,3 +45,31 @@ async def api(auth_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
         transport=transport, base_url=BASE_URL, headers={"Origin": BASE_URL}
     ) as client:
         yield client
+
+
+AppFactory = Callable[..., AbstractAsyncContextManager[httpx.AsyncClient]]
+
+
+@pytest.fixture
+def client_for(app_settings: Settings, mailbox: RecordingEmailSender) -> AppFactory:
+    """A client for an application with some settings changed, for example open registration."""
+
+    @asynccontextmanager
+    async def build(
+        *, http_transport: httpx.AsyncBaseTransport | None = None, **changes: object
+    ) -> AsyncIterator[httpx.AsyncClient]:
+        application = create_app(
+            app_settings.model_copy(update=changes),
+            email_sender=mailbox,
+            http_transport=http_transport,
+        )
+        application.include_router(probes)
+        async with LifespanManager(application):
+            await application.state.resources.redis.flushdb()
+            transport = httpx.ASGITransport(app=application, raise_app_exceptions=False)
+            async with httpx.AsyncClient(
+                transport=transport, base_url=BASE_URL, headers={"Origin": BASE_URL}
+            ) as client:
+                yield client
+
+    return build
