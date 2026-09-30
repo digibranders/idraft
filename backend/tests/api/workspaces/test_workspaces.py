@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from sightline.api import timezones
+from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
 from sightline.api.openapi import build_openapi
 from sightline.api.resources import Resources
 from sightline.api.slugs import ReservedProjectSlug, ReservedWorkspaceSlug
@@ -703,3 +704,36 @@ async def test_a_refused_slug_or_null_has_a_code_of_its_own(
     assert [(error["path"], error["code"]) for error in profile.json()["errors"]] == [
         ("name", "null_not_allowed")
     ]
+
+
+async def test_no_workspace_is_created_when_the_allowance_cannot_be_counted(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def unavailable(self: object, *args: object, **kwargs: object) -> bool:
+        raise ThrottleUnavailableError
+
+    _, headers = await _operator(resources, migrated)
+    monkeypatch.setattr(LoginThrottle, "allow", unavailable)
+    slug = _slug()
+
+    response = await api.post(WORKSPACES, json={"name": "Acme", "slug": slug}, headers=headers)
+
+    # An allowance that cannot be counted is not waved through.
+    assert _problem(response) == (503, "service_unavailable")
+    assert await fetch(migrated, "SELECT 1 FROM auth.workspaces WHERE slug = $1", slug) == []
+
+
+async def test_padding_around_an_address_is_not_part_of_it(api: httpx.AsyncClient) -> None:
+    padded = " " * 2000 + "nobody@client.example" + "\n"
+    response = await api.post(
+        "/api/v1/auth/sign-in", json={"email": padded, "password": "a password of some length"}
+    )
+    # Read as the address it is: there is no such account.
+    assert _problem(response) == (401, "invalid_credentials")
+    wrong_type = await api.post(
+        "/api/v1/auth/sign-in", json={"email": 5, "password": "a password of some length"}
+    )
+    assert [error["code"] for error in wrong_type.json()["errors"]] == ["string_type"]

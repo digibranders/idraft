@@ -52,12 +52,17 @@ def _routes() -> list[tuple[str, str]]:
 
 
 ALL_ROUTES = _routes()
-WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "{workspace_id}" in path]
+
+
+def _names(path: str) -> list[str]:
+    """The path's parameters, written `{name}` or `{name:converter}`."""
+    return PATH_PARAMETER.findall(path)
+
+
+WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
 # Routes that also name something inside the workspace: a project, a member, an invitation.
 CHILD_ROUTES = [
-    (method, path)
-    for method, path in WORKSPACE_ROUTES
-    if set(PATH_PARAMETER.findall(path)) - {"workspace_id"}
+    (method, path) for method, path in WORKSPACE_ROUTES if set(_names(path)) - {"workspace_id"}
 ]
 # Every GET that returns tenant data without naming a child: the lists, and the two routes
 # that list the caller's workspaces.
@@ -197,7 +202,7 @@ async def _checksum(pg: PostgresServer, *workspaces: Workspace) -> dict[str, str
 
 
 def test_every_route_is_scoped_by_a_workspace_or_accounted_for() -> None:
-    unscoped = {route for route in ALL_ROUTES if "{workspace_id}" not in route[1]}
+    unscoped = {route for route in ALL_ROUTES if "workspace_id" not in _names(route[1])}
     assert unscoped == set(NOT_PATH_SCOPED)
     assert all(path.startswith("/api/v1/workspaces/{workspace_id}") for _, path in WORKSPACE_ROUTES)
     # Each mutating route has a body that would do something if it were let through.
@@ -240,7 +245,9 @@ async def test_another_workspaces_child_in_the_callers_own_path_is_not_found(
     assert _without_request_details(foreign) == _without_request_details(nowhere)
 
 
-PROJECT_ROUTES = [(method, path) for method, path in WORKSPACE_ROUTES if "{project_id}" in path]
+PROJECT_ROUTES = [
+    (method, path) for method, path in WORKSPACE_ROUTES if "project_id" in _names(path)
+]
 
 
 @pytest.mark.parametrize(("method", "path"), PROJECT_ROUTES)

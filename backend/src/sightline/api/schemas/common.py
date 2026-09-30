@@ -33,7 +33,8 @@ def printable(value: str) -> str:
 
 # Normalising can shorten a string (a letter and its accent become one character) and lengthen
 # it, so the limit is checked on the result. It is also slow on long runs of accents, so nothing
-# longer than this is normalised at all: no address of ADDRESS_MAX characters is longer raw.
+# longer than this is normalised at all: the longest decomposition of one character is four,
+# so no address of ADDRESS_MAX characters is longer than this before it is composed.
 _RAW_ADDRESS_MAX = 4 * ADDRESS_MAX
 
 
@@ -42,6 +43,8 @@ def _one_spelling(value: object) -> object:
     two addresses. Runs before the length check of the type."""
     if not isinstance(value, str):
         return value
+    # Padding is not part of the address, and must not count against it.
+    value = value.strip()
     if len(value) > _RAW_ADDRESS_MAX:
         raise PydanticCustomError(
             "string_too_long",
