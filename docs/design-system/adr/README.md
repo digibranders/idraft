@@ -20,5 +20,6 @@
 | [ADR-DS-016](ADR-DS-016-chart-palette.md) | Colorblind-validated categorical palette; no pie charts |
 | [ADR-DS-017](ADR-DS-017-rank-arrows-metric-signs.md) | Arrows for rank changes, signs for metric changes |
 | [ADR-DS-018](ADR-DS-018-visual-v2-reference-screens.md) | Visual v2 from reference screens |
-| [ADR-DS-020](ADR-DS-020-engine-logos.md) | Engine logos beside engine names, from one pinned package |
 | [ADR-DS-019](ADR-DS-019-card-drawer-inspector.md) | The inspector is a floating card drawer with card sections; the top bar always spans the full width |
+| [ADR-DS-020](ADR-DS-020-engine-logos.md) | Engine logos beside engine names, from one pinned package |
+| [ADR-DS-021](ADR-DS-021-customizable-layouts.md) | Customizable layouts: a catalog of cards, snapshot documents, personal over team over built-in |
