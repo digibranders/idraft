@@ -87,7 +87,7 @@ API keys are not in V1 ([ADR-022](adr/ADR-022-python-backend-simplified-platform
 | `viewer` | Read-only dashboards; typical for client stakeholders |
 | `billing` | Costs and budgets only |
 
-Platform operators (our own staff) are not a workspace role. They are flagged on the user (`auth.users.is_platform_operator`, [04-data-model.md](04-data-model.md) section 4, set only by the ops CLI) and can open the cross-workspace Operations screen ([25-observability.md](25-observability.md) section 8.1) and the `/api/v1/admin/*` routes (quotas, platform queue summary), which the API marks with the pseudo-permission `platform_operator` ([19-api-specification.md](19-api-specification.md) section 2.13). The flag grants no workspace permission by itself; every operator read of tenant data is audit-logged.
+Platform operators (our own staff) are not a workspace role. They are flagged on the user (`auth.users.is_platform_operator`, [04-data-model.md](04-data-model.md) section 4, set only by the ops CLI, which connects as `migrator`; the API's database role has no grant to write the column) and can open the cross-workspace Operations screen ([25-observability.md](25-observability.md) section 8.1) and the `/api/v1/admin/*` routes (quotas, platform queue summary), which the API marks with the pseudo-permission `platform_operator` ([19-api-specification.md](19-api-specification.md) section 2.13). The flag grants no workspace permission by itself; every operator read of tenant data is audit-logged.
 
 Project-level restriction (Phase 1 schema, Phase 12 UI): a membership can be limited to a list of projects (`auth.memberships.project_ids uuid[]`, NULL = all). This supports agencies giving a client access to only their own project.
 
@@ -126,13 +126,15 @@ Enforcement: every route declares its permission as a FastAPI dependency (`Depen
 
 ## 4. Tenant isolation
 
-Three layers. Any one should be sufficient; all three are required.
+Three layers against a request reading or writing another workspace's data. Any one should be sufficient for that; all three are required.
 
 1. **URL scoping.** Every tenant route is under `/api/v1/workspaces/{workspace_id}/...`. The workspace id in the path is checked against the session's memberships. Resource ids in the path (project, keyword, prompt) are always looked up with `WHERE workspace_id = $ws`.
 2. **Repository layer.** SQLAlchemy repositories for tenant tables take a `TenantContext(workspace_id, project_ids | ALL)` as their first argument and add the predicate. There is no repository method without it. An import-linter contract forbids route modules from importing the engine or session factory; they receive a tenant-scoped repository through a dependency.
-3. **Row-level security.** The API connects as `app_api` (no `BYPASSRLS`, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Each request transaction runs `SELECT set_config('app.workspace_id', $1, true)`. Policies on every tenant table compare `workspace_id` to that setting. If the setting is missing, queries return no rows. The worker connects as `app_worker`, which bypasses RLS because planning, dispatch, rollups and purge read across workspaces; it has no HTTP surface, every task row carries its `workspace_id`, and the cross-tenant suite runs worker tasks for two workspaces ([04](04-data-model.md) section 13).
+3. **Row-level security.** The API connects as `app_api` (no `BYPASSRLS`, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Each request transaction runs `SELECT set_config('app.workspace_id', $1, true)`. Policies on every tenant table compare `workspace_id` to that setting. If the setting is missing, queries return no rows, and a write into any other workspace is rejected. The worker connects as `app_worker`, which bypasses RLS because planning, dispatch, rollups and purge read across workspaces; it has no HTTP surface, every task row carries its `workspace_id`, and the cross-tenant suite runs worker tasks for two workspaces ([04](04-data-model.md) section 13).
 
-Worker code paths take `workspace_id` from the task row, never from provider data, and set it per transaction like the API does. Ingest batches are grouped by workspace, so one transaction never writes two tenants. Only the `migrator` (owner) and `backup` (read-only) roles bypass RLS, and neither is used by a running application process.
+Worker code paths take `workspace_id` from the task row, never from provider data. Ingest batches are grouped by workspace, so one transaction never writes two tenants. Three roles are not filtered by RLS: `app_worker` (`BYPASSRLS`), `backup` (`BYPASSRLS`, read-only) and `migrator` (the table owner). Only `app_worker` is used by a running application process, and its column grants stop it changing the workspace of an existing row ([04](04-data-model.md) section 13.1).
+
+**What RLS does not do.** It bounds a request to the workspace the application chose; it does not check that the user belongs to that workspace or holds a permission there. Membership and the permission matrix of section 3.2 are enforced by layers 1 and 2 only, which is why the cross-tenant suite and the permission tests run on every change. For the same reason RLS is not a defence against SQL injection in the API: `app.workspace_id` is an ordinary session setting, and SQL that can run as `app_api` can set it. Injection is prevented by bound parameters everywhere (no string-built SQL in application code; ruff rule `S608` fails the build on it, with migrations and tests exempt because they build statements from constants) and contained by least-privilege grants: even with arbitrary SQL, `app_api` cannot make a user a platform operator, re-point a session, rewrite a token, read the raw payload cache, alter the audit log or run DDL ([04](04-data-model.md) section 13.1).
 
 **Tests** ([26-testing-quality.md](26-testing-quality.md) section 6): a pytest cross-tenant suite creates two workspaces with overlapping keyword text and calls every GET route of workspace A with ids from workspace B, expecting 404 (never 403, to avoid confirming existence). This runs in CI on every change.
 
@@ -267,7 +269,7 @@ Two toolchains, each with a committed lockfile ([ADR-022](adr/ADR-022-python-bac
 
 ## 12. Audit logging
 
-`ops.audit_logs` records: authentication events (login, failed login, 2FA change), membership and role changes, API key lifecycle, integration connect and disconnect, provider credential changes, budget changes, schedule changes, core panel membership changes, prompt version creation, data exports, and data deletion. Audit logs are append-only for `app` (no `UPDATE` or `DELETE` grants) and retained 2 years.
+`ops.audit_logs` records: authentication events (login, failed login, 2FA change), membership and role changes, API key lifecycle, integration connect and disconnect, provider credential changes, budget changes, schedule changes, core panel membership changes, prompt version creation, data exports, and data deletion. Audit logs are append-only for both runtime roles (no `UPDATE` or `DELETE` grants), the entry id and time come from the database and cannot be supplied by the writer, and entries are retained 2 years.
 
 ## 13. Data protection and privacy
 

@@ -29,7 +29,13 @@ target-version = "py313"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "C4", "T20", "N"]
+# S608: no SQL built from strings in application code (docs/24-security.md section 4).
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "C4", "T20", "N", "S608"]
+
+[tool.ruff.lint.per-file-ignores]
+# Revisions and tests build statements from constants in the same file, never from input.
+"src/sightline/db/migrations/versions/*" = ["S608"]
+"tests/*" = ["S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sightline"]

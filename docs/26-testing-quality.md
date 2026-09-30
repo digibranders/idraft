@@ -391,11 +391,13 @@ Time comes from an injected `Clock`; tests run against container PostgreSQL and 
 | DB-MIG-01 | `alembic upgrade head` on an empty database | success; `alembic check` finds no difference between the SQLAlchemy models and the schema; one head revision |
 | DB-MIG-02 | Migrations on the anonymized fixture (50 MB slice on PRs; 1 GB nightly and when migrations change) | success with `lock_timeout = '2s'`; no `ACCESS EXCLUSIVE` over 2 s on tables over 10 MB (doc 04 section 14, item 6) |
 | DB-MIG-03 | Backfill `UPDATE` inside a migration file | rejected by the migration linter |
-| DB-RLS-01 | Catalog | every table with `workspace_id` has RLS enabled and `tenant_isolation` |
-| DB-RLS-02 | `app` without `app.workspace_id`; with A's id | zero rows; zero B rows and B inserts rejected |
-| DB-RLS-03 | `app` runs `SET row_security = off` | error |
-| DB-GRANT-01 | `app` updates `seo.serp_snapshots.depth_returned`; `ops.audit_logs` update or delete by `app`; any DDL by `app` | permission denied |
-| DB-PART-01 | `ops.ensure_monthly_partitions` | `_pYYYYMM` for 1 month back to 3 ahead; second call no-op |
+| DB-RLS-01 | Catalog | every table with `workspace_id` has RLS enabled and `tenant_isolation`; every policy's `USING` and `WITH CHECK` text equals the reviewed text |
+| DB-RLS-02 | `app_api` without `app.workspace_id`; with A's id | zero rows; zero B rows; inserts for B or with a NULL workspace rejected; updates and deletes of B rows affect nothing |
+| DB-RLS-03 | `app_api` runs `SET row_security = off` | error |
+| DB-GRANT-01 | `app_api` or `app_worker` updates `seo.serp_snapshots.depth_returned`; updates or deletes `ops.audit_logs`; runs any DDL, `CREATE TEMP TABLE` or `SET ROLE` | permission denied |
+| DB-GRANT-02 | Table and column privileges of `app_api` and `app_worker`, read from the catalog | equal to the matrix in doc 04 section 13.1; a table missing from the matrix fails the test; nothing granted to `PUBLIC` |
+| DB-GRANT-03 | Each statement the matrix is meant to refuse (set `is_platform_operator`, re-point a session, read `ops.raw_payloads` as the API, move a row to another workspace as the worker, supply an audit `id` or `occurred_at`, query a partition directly) | permission denied; the statements each role needs still succeed |
+| DB-PART-01 | `ops.maintain_partitions` | `_pYYYYMM` for 1 month back to 3 ahead; second call creates 0; concurrent calls take turns; a registry row for a dropped table is skipped; only `app_worker` may call it, and neither runtime role may call `ops.ensure_monthly_partitions` |
 | DB-PART-02 | `2026-10-31 23:59:59.999+00` and `2026-11-01 00:00+00` | `_p202610` and `_p202611` |
 | DB-PART-03 | Same call with session `TimeZone = 'America/New_York'` | bounds still UTC month starts |
 | DB-PART-04 | Insert beyond created range | fails (no default partition) |

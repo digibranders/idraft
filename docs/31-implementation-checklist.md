@@ -47,7 +47,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 - [ ] Extensions: citext, pg_trgm, pgcrypto, btree_gist, pg_stat_statements
 - [ ] Schemas `auth`, `core`, `ops`; roles `app_api` (api, subject to RLS), `app_worker` (worker, bypasses RLS, never reachable from a request), `migrator` (owner), `backup` (read-only) with grants
 - [ ] Tables for Phase 1 ([29](29-phase-roadmap.md) Phase 1 database list; DDL in [04](04-data-model.md)); no `ops.secrets` or `ops.fetch_cache` yet
-- [ ] `ops.ensure_monthly_partitions()` (UTC-safe) and daily maintenance job
+- [ ] `ops.maintain_partitions()` over the partition registry (UTC-safe; built) and the daily maintenance job that calls it
 - [ ] RLS policy generator for all `workspace_id` tables; per-transaction `set_config('app.workspace_id', ...)`
 - [ ] Synthetic fixture database (1 GB) for migration checks
 

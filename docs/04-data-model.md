@@ -168,30 +168,51 @@ CREATE TABLE auth.invitations (
 );
 CREATE UNIQUE INDEX ON auth.invitations (workspace_id, email) WHERE status = 'pending';
 
--- Workspace and membership tables, unchanged in shape (the former "organization" and "member"):
--- auth.workspaces: id uuid PK, name text, slug citext UNIQUE, logo text, metadata text,
---                  created_at timestamptz,
---                  plan_code text NOT NULL DEFAULT 'internal',
---                  timezone text NOT NULL DEFAULT 'UTC',
---                  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','deleting')),
---                  purge_after timestamptz                 -- set on soft delete to deleted time + 30 days (24 section 13)
--- auth.memberships: id uuid PK, workspace_id uuid NOT NULL, user_id uuid NOT NULL, created_at timestamptz,
---                  role text NOT NULL CHECK (role IN ('owner','admin','editor','analyst','viewer','billing')),
---                  project_ids uuid[]                      -- NULL = all projects; else restricted to these
---
--- Deferred, no routes in V1 (ADR-022; 19 section 3.2.4). Kept so API keys can ship without a migration:
--- auth.api_keys:    id uuid PK, workspace_id uuid NOT NULL, name text NOT NULL,
---                   prefix text NOT NULL,                  -- 8 chars, shown in UI and used for lookup
---                   key_hash bytea NOT NULL,               -- sha256(secret); the secret is shown once
---                   scopes text[] NOT NULL,                -- permission keys (24 section 3.2), subset of the creator's
---                   expires_at timestamptz,                -- default created_at + 365 days
---                   ip_allowlist cidr[] NOT NULL DEFAULT '{}',
---                   rate_limit_per_minute integer NOT NULL DEFAULT 120 CHECK (rate_limit_per_minute BETWEEN 1 AND 600),
---                   last_used_at timestamptz, last_used_ip inet,   -- updated at most once per minute
---                   created_by uuid NOT NULL, created_at timestamptz NOT NULL, revoked_at timestamptz
+CREATE TABLE auth.workspaces (
+    id           uuid PRIMARY KEY DEFAULT uuidv7(),
+    name         text NOT NULL,
+    slug         citext NOT NULL UNIQUE,
+    logo         text,
+    metadata     text,
+    plan_code    text NOT NULL DEFAULT 'internal',
+    timezone     text NOT NULL DEFAULT 'UTC',
+    status       text NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','deleting')),
+    purge_after  timestamptz,                     -- set on soft delete to deleted time + 30 days (24 section 13)
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE auth.memberships (
+    id            uuid PRIMARY KEY DEFAULT uuidv7(),
+    workspace_id  uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE CASCADE,
+    user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    role          text NOT NULL CHECK (role IN ('owner','admin','editor','analyst','viewer','billing')),
+    project_ids   uuid[],                         -- NULL = all projects; else restricted to these
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (workspace_id, user_id)
+);
+CREATE INDEX ON auth.memberships (user_id);
+
+-- Deferred, no routes in V1 (ADR-022; 19 section 3.2.4). Created so API keys can ship without a migration.
+CREATE TABLE auth.api_keys (
+    id                     uuid PRIMARY KEY DEFAULT uuidv7(),
+    workspace_id           uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE CASCADE,
+    name                   text NOT NULL,
+    prefix                 text NOT NULL UNIQUE,  -- 8 chars, shown in UI and used for lookup
+    key_hash               bytea NOT NULL,        -- sha256(secret); the secret is shown once
+    scopes                 text[] NOT NULL,       -- permission keys (24 section 3.2), subset of the creator's
+    expires_at             timestamptz,           -- default created_at + 365 days
+    ip_allowlist           cidr[] NOT NULL DEFAULT '{}',
+    rate_limit_per_minute  integer NOT NULL DEFAULT 120 CHECK (rate_limit_per_minute BETWEEN 1 AND 600),
+    last_used_at           timestamptz,           -- updated at most once per minute
+    last_used_ip           inet,
+    created_by             uuid NOT NULL REFERENCES auth.users(id),
+    created_at             timestamptz NOT NULL DEFAULT now(),
+    revoked_at             timestamptz
+);
+CREATE INDEX ON auth.api_keys (workspace_id);
 ```
 
-`auth.users`, `auth.sessions`, `auth.verification_tokens` and `auth.totp_secrets` have no `workspace_id` and no RLS: the auth module reads them before any workspace is known, always by a unique key (email, token hash, user id). `auth.invitations`, `auth.memberships` and `auth.api_keys` carry `workspace_id` and follow section 13, except that invitation acceptance looks the invitation up by `token_hash` through a `SECURITY DEFINER` function (section 13).
+`auth.users`, `auth.sessions`, `auth.verification_tokens` and `auth.totp_secrets` have no `workspace_id` and no RLS: the auth module reads them before any workspace is known, always by a unique key (email, token hash, user id). What the API may change on them is bounded by column grants instead (section 13.1). `auth.workspaces`, `auth.memberships`, `auth.invitations` and `auth.api_keys` follow section 13, with two additions: a user can read their own memberships and the workspaces those belong to before a workspace is chosen, and invitation acceptance looks the invitation up by `token_hash` through a `SECURITY DEFINER` function.
 
 ```sql
 CREATE TABLE core.projects (
@@ -199,7 +220,7 @@ CREATE TABLE core.projects (
     workspace_id         uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE RESTRICT,
     name                 text NOT NULL,
     slug                 citext NOT NULL,
-    primary_domain_id    integer REFERENCES core.domains(id),
+    primary_domain_id    integer REFERENCES core.domains(id),   -- the foreign key is added by the Phase 2 revision that creates core.domains
     default_location_id  integer,            -- provider-neutral location id, see core.locations
     default_language_code text,              -- ISO 639-1, e.g. 'en'
     timezone             text NOT NULL DEFAULT 'UTC',
@@ -1882,17 +1903,32 @@ CREATE TABLE ops.maintenance_windows (
 
 Raw payload retention in R2 is in [23-backup-disaster-recovery.md](23-backup-disaster-recovery.md) section 9 (canonical per class) and [28-data-growth-scaling.md](28-data-growth-scaling.md) section 4. `ops.idempotency_keys` rows are deleted 24 hours after creation and `ops.exports` files expire per `expires_at`; both are pruned by the `retention_drop` job.
 
-### 12.2 Partition management function
+### 12.2 Partition management functions
 
 ```sql
-CREATE OR REPLACE FUNCTION ops.ensure_monthly_partitions(
+-- The tables whose partitions are maintained. No runtime role can read or write it.
+CREATE TABLE ops.partitioned_tables (
+    parent        regclass PRIMARY KEY,
+    key_is_date   boolean NOT NULL DEFAULT false,   -- true for the fp tables partitioned on a date
+    months_back   integer NOT NULL DEFAULT 1 CHECK (months_back >= 0),
+    months_ahead  integer NOT NULL DEFAULT 3 CHECK (months_ahead >= 1)
+);
+
+CREATE FUNCTION ops.ensure_monthly_partitions(
     p_parent regclass, p_months_back int DEFAULT 1, p_months_ahead int DEFAULT 3, p_key_is_date boolean DEFAULT false)
-RETURNS void LANGUAGE plpgsql AS $$
+RETURNS integer LANGUAGE plpgsql SET search_path = pg_catalog AS $$
 DECLARE
     m date;
-    part_name text;
-    parent_name text := p_parent::text;
+    parent_schema name;
+    parent_table name;
+    part_table name;
+    created integer := 0;
 BEGIN
+    -- One caller at a time: two workers starting their daily maintenance together must not race.
+    PERFORM pg_advisory_xact_lock(hashtext('ops.ensure_monthly_partitions'));
+    SELECT n.nspname, c.relname INTO STRICT parent_schema, parent_table
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.oid = p_parent;
     -- Month boundaries are computed and written in UTC so the result does not depend on the session TimeZone.
     FOR m IN
         SELECT generate_series(
@@ -1900,24 +1936,56 @@ BEGIN
             date_trunc('month', (now() AT TIME ZONE 'UTC') + make_interval(months => p_months_ahead))::date,
             interval '1 month')::date
     LOOP
-        part_name := parent_name || '_p' || to_char(m, 'YYYYMM');
-        IF to_regclass(part_name) IS NULL THEN
+        part_table := parent_table || '_p' || to_char(m, 'YYYYMM');
+        IF to_regclass(format('%I.%I', parent_schema, part_table)) IS NULL THEN
             -- timestamptz keys get explicit UTC literals; date keys (fp tables) get plain dates.
-            EXECUTE format('CREATE TABLE %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',
-                           part_name, parent_name,
+            EXECUTE format('CREATE TABLE %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)',
+                           parent_schema, part_table, parent_schema, parent_table,
                            CASE WHEN p_key_is_date THEN m::text ELSE m::text || ' 00:00:00+00' END,
                            CASE WHEN p_key_is_date THEN (m + interval '1 month')::date::text
                                 ELSE (m + interval '1 month')::date::text || ' 00:00:00+00' END);
+            EXECUTE format('ALTER TABLE %I.%I SET (autovacuum_vacuum_insert_scale_factor = 0.05, '
+                           'autovacuum_analyze_scale_factor = 0.02)', parent_schema, part_table);
+            created := created + 1;
         END IF;
     END LOOP;
+    RETURN created;
 END $$;
+
+-- The only entry point a runtime role may call. It takes no arguments, so the worker cannot
+-- name a table of its choice.
+CREATE FUNCTION ops.maintain_partitions() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$
+DECLARE
+    entry ops.partitioned_tables;
+    created integer := 0;
+BEGIN
+    -- A registry row whose table has been dropped is skipped, so one stale row can never stop
+    -- partitions being created for every other table.
+    FOR entry IN
+        SELECT t.* FROM ops.partitioned_tables t
+        WHERE EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = t.parent)
+    LOOP
+        created := created + ops.ensure_monthly_partitions(
+            entry.parent, entry.months_back, entry.months_ahead, entry.key_is_date);
+    END LOOP;
+    RETURN created;
+END $$;
+
+REVOKE ALL ON FUNCTION ops.ensure_monthly_partitions(regclass, int, int, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION ops.maintain_partitions() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION ops.maintain_partitions() TO app_worker;
 ```
 
-A `maintenance` task (Taskiq scheduler) runs daily and calls this, through its `SECURITY DEFINER` wrapper owned by `migrator` (section 13), for every partitioned table. A default partition is **not** created: an insert outside the pre-created range must fail loudly (and alert) rather than silently land in a default partition that later blocks new partition creation.
+The revision that creates a partitioned table adds its row to `ops.partitioned_tables` and calls `ops.maintain_partitions()` once, so the table is usable as soon as the migration ends. After that a `maintenance` task (Taskiq scheduler) calls `SELECT ops.maintain_partitions()` daily as `app_worker`. The function runs as its owner, `migrator`, because creating a partition is DDL and no runtime role may run DDL. `ops.ensure_monthly_partitions` does the work for one table and is callable by `migrator` only: a definer function that accepted any table name would let the worker create tables anywhere.
+
+Both return the number of partitions created, so a second call the same day returns 0. Partitions are named `<table>_pYYYYMM`, owned by `migrator`, and carry no grants of their own: runtime roles reach the rows through the parent, where the grants and the policy are, and a direct query on a partition is denied.
+
+A default partition is **not** created: an insert outside the pre-created range must fail loudly (and alert) rather than silently land in a default partition that later blocks new partition creation.
 
 ### 12.3 Autovacuum tuning for append-heavy tables
 
-Append-only partitions need little vacuuming, but PostgreSQL still needs to freeze them and update visibility maps for index-only scans. For each partitioned parent, set on partitions at creation:
+Append-only partitions need little vacuuming, but PostgreSQL still needs to freeze them and update visibility maps for index-only scans. `ops.ensure_monthly_partitions` sets this on every partition it creates:
 
 ```sql
 ALTER TABLE <partition> SET (autovacuum_vacuum_insert_scale_factor = 0.05,
@@ -1930,38 +1998,103 @@ Current-state tables (`seo.tracked_keyword_state`, `seo.serp_current_results`) a
 
 Defense in depth: the application always scopes queries by workspace, and RLS enforces it if a query forgets.
 
+**What it protects against, and what it does not.** RLS bounds a request to the workspace the application chose for that transaction. It catches the forgotten `WHERE workspace_id = ...`, the join that drops the predicate, and the repository called with the wrong scope. It does not protect against SQL injection in the API: `app.workspace_id` is an ordinary session setting, so an attacker who can run arbitrary SQL as `app_api` can set it to any workspace. Two things follow. First, membership and role permissions (24 section 3) are enforced by the application only; the database does not know which workspaces a user belongs to when it evaluates a write. Second, what arbitrary SQL can reach is bounded by the grants in section 13.1, which is why they are narrow.
+
 ```sql
--- Roles (ADR-022): app_api (the api container; NOBYPASSRLS, subject to RLS), app_worker (the worker container;
--- BYPASSRLS, because planning, dispatch and maintenance read across workspaces), migrator (owns every schema and
--- table; runs Alembic), backup (read-only; used by pg_dump). No role other than migrator owns objects.
-ALTER TABLE seo.tracked_keywords ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON seo.tracked_keywords
-    USING (workspace_id = NULLIF(current_setting('app.workspace_id', true), '')::uuid);
--- The API sets the GUC per transaction:
---   BEGIN; SELECT set_config('app.workspace_id', $1, true); ... COMMIT;
+-- The two settings are set per transaction (set_config(..., true)). After such a transaction PostgreSQL leaves
+-- a custom setting as an empty string on the pooled connection, and ''::uuid raises, hence NULLIF.
+CREATE FUNCTION auth.current_workspace_id() RETURNS uuid
+    LANGUAGE sql STABLE PARALLEL SAFE
+    RETURN NULLIF(current_setting('app.workspace_id', true), '')::uuid;
+
+CREATE FUNCTION auth.current_user_id() RETURNS uuid
+    LANGUAGE sql STABLE PARALLEL SAFE
+    RETURN NULLIF(current_setting('app.user_id', true), '')::uuid;
+
+-- Every table with a workspace_id column:
+ALTER TABLE core.projects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON core.projects
+    USING (workspace_id = auth.current_workspace_id())
+    WITH CHECK (workspace_id = auth.current_workspace_id());
+
+-- The API sets the settings per transaction (sightline.db.engine.workspace_transaction / user_transaction):
+--   BEGIN; SELECT set_config('app.workspace_id', $1, true); SELECT set_config('app.user_id', $2, true); ... COMMIT;
 ```
 
-Every table with a `workspace_id` column gets the same policy (generated by a migration helper). Partitioned tables: policies on the parent apply to queries through the parent. Global dictionaries (`core.domains`, `core.urls`, registries) have no RLS and are readable by `app`.
+The policy is generated by `sightline.db.ddl.tenant_isolation`, so every tenant table gets the same text. `WITH CHECK` makes the rule explicit for writes: a row can be inserted or updated only into the workspace set on the transaction. A row whose `workspace_id` is NULL (platform overhead in `ops.audit_logs`, `ops.provider_cost_events` and `ops.cost_daily`) matches no workspace, so the API never sees it and cannot write one. Partitioned tables: the policy is on the parent and applies to queries through the parent; partitions have no grants, so they cannot be queried directly. Global dictionaries (`core.domains`, `core.urls`, registries) have no RLS.
 
-Database roles ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)):
+Two tables widen what can be **read**, never what can be written, because "list my workspaces" runs before a workspace is chosen:
+
+| Table | Visible when | Writable when |
+|---|---|---|
+| `auth.memberships` | `workspace_id = auth.current_workspace_id() OR user_id = auth.current_user_id()` | `workspace_id = auth.current_workspace_id()` |
+| `auth.workspaces` | `id = auth.current_workspace_id() OR id IN (SELECT m.workspace_id FROM auth.memberships m WHERE m.user_id = auth.current_user_id())` | `id = auth.current_workspace_id()` |
+
+The subquery on `auth.memberships` runs under that table's own policy, which shows a user exactly their own rows. `backend/tests/db/test_rls.py` pins every policy's `USING` and `WITH CHECK` text from `pg_policy`, so a widened policy cannot ship unnoticed.
+
+Database roles ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)), created by `infra/compose/postgres/initdb/10-roles.sh` (22 section 4.2.2):
 
 | Role | Used by | Rights |
 |---|---|---|
-| `app_api` | the `api` container | `SELECT`, `INSERT`, `UPDATE`, `DELETE` on application tables; `NOBYPASSRLS`, so every tenant table is filtered by `app.workspace_id`. Owns nothing, cannot run DDL |
-| `app_worker` | the `worker` container | The same table rights plus `BYPASSRLS`. Never reachable from an HTTP request. Owns nothing, cannot run DDL |
-| `migrator` | the one-off `migrator` container (`alembic upgrade head` during deploy) | Owner of every schema, table, function and partition. Not used at runtime |
-| `backup` | the nightly `pg_dump` job | Read-only: `SELECT` on all tables and sequences, member of `pg_read_all_data`; `BYPASSRLS` so the dump is complete |
+| `app_api` | the `api` container | The grants of section 13.1; `NOBYPASSRLS`, so every tenant table is filtered by `app.workspace_id`. Owns nothing, cannot run DDL, cannot create temporary tables, cannot `SET ROLE` |
+| `app_worker` | the `worker` container | The grants of section 13.1 plus `BYPASSRLS` and `pg_read_all_stats`. Never reachable from an HTTP request. Owns nothing, cannot run DDL |
+| `migrator` | the one-off `migrator` container (`python -m sightline.db.migrate` during deploy) | Owner of the database and of every schema, table, function and partition. Not a superuser. Not used at runtime |
+| `backup` | the nightly `pg_dump` job | Read-only: member of `pg_read_all_data`; `BYPASSRLS` so the dump is complete. No password (peer authentication over the Unix socket) |
 
 The API is the only process that serves users, so it is the one RLS guards: every request transaction sets `app.workspace_id`, and a query that forgets its workspace filter returns nothing.
 
-The worker is different by nature. The planner's due-schedule scan, the dispatcher's due-task scan, the reconciler, partition maintenance, rollups and tenant purge all read across workspaces, so `app_worker` bypasses RLS. Its safety comes from the task ledger instead: every task row carries `workspace_id` and `project_id`, every ingest and derivation write copies them from the task, and the cross-tenant test suite runs the worker tasks for two workspaces and asserts that no row is written under the wrong one. Two narrow `SECURITY DEFINER` functions owned by `migrator`, each with a fixed `search_path`, cover what neither runtime role may do directly:
+The worker is different by nature. The planner's due-schedule scan, the dispatcher's due-task scan, the reconciler, partition maintenance, rollups and tenant purge all read across workspaces, so `app_worker` bypasses RLS. Its safety comes from two things. The task ledger: every task row carries `workspace_id` and `project_id`, every ingest and derivation write copies them from the task, and the cross-tenant test suite runs the worker tasks for two workspaces and asserts that no row is written under the wrong one. And its grants: it has `UPDATE` on named columns only, never on `workspace_id`, `project_id` or an identity column, so no worker bug can move an existing row to another workspace.
+
+Two narrow `SECURITY DEFINER` functions owned by `migrator`, each with `search_path = pg_catalog` and `EXECUTE` revoked from `PUBLIC`, cover what neither runtime role may do directly:
 
 | Function | Caller | Why |
 |---|---|---|
-| `auth.invitation_by_token(token_hash)` | `app_api` | Accepting an invitation happens before the user belongs to the workspace, so the RLS policy on `auth.invitations` would hide the row. Returns that one invitation only |
-| `ops.ensure_monthly_partitions()` | `app_worker` | Creating a partition is DDL, and no runtime role may run DDL |
+| `auth.invitation_by_token(token_hash)` | `app_api` | Accepting an invitation happens before the user belongs to the workspace, so the RLS policy on `auth.invitations` would hide the row. Returns the one invitation with that token hash, whatever its status or expiry, so the API can answer "expired" instead of "unknown". The caller must check `status` and `expires_at` before acting on it |
+| `ops.maintain_partitions()` | `app_worker` | Creating a partition is DDL, and no runtime role may run DDL (section 12.2) |
 
-A query that forgets to set the workspace returns zero rows instead of all rows. That failure mode is deliberate, and it is why the policy wraps the setting in `NULLIF(..., '')`: `current_setting(..., true)` is NULL on a connection that never set it, but after a transaction that used `set_config(..., true)` PostgreSQL leaves the custom setting on that pooled connection as an empty string, and `''::uuid` raises instead of matching nothing. `backend/tests/db/test_engine.py` pins both behaviours against PostgreSQL 18.
+A query that forgets to set the workspace returns zero rows instead of all rows. That failure mode is deliberate, and it is why the helper wraps the setting in `NULLIF(..., '')`: `current_setting(..., true)` is NULL on a connection that never set it, but after a transaction that used `set_config(..., true)` PostgreSQL leaves the custom setting on that pooled connection as an empty string, and `''::uuid` raises instead of matching nothing. `backend/tests/db/test_engine.py` pins both behaviours against PostgreSQL 18.
+
+### 13.1 Grants
+
+Least privilege, per table and, where a role may change some columns of a row but never others, per column. Both roles have `USAGE` on the six schemas and nothing else at schema or database level: no `CREATE`, no `TEMPORARY`, and on tables no `TRUNCATE`, `REFERENCES` or `TRIGGER`. Nothing is granted to `PUBLIC`. Each revision that creates a table states its grants (`sightline.db.ddl.grants` and `column_grant`); a table with no grant is unreachable by default.
+
+`backend/tests/db/test_grants.py` reads table and column privileges from the catalog and compares them with this matrix, and fails when a table is missing from it. `backend/tests/db/test_least_privilege.py` runs the statements each line below is meant to refuse.
+
+| Table | `app_api` | `app_worker` |
+|---|---|---|
+| `auth.users` | SELECT; INSERT (`email`, `name`, `image`, `password_hash`); UPDATE (`name`, `image`, `password_hash`, `email_verified_at`, `updated_at`) | SELECT (`id`, `email`, `name`, `disabled_at`) |
+| `auth.sessions` | SELECT, INSERT; UPDATE (`state`, `fresh_until`, `idle_expires_at`, `revoked_at`, `last_seen_at`) | none |
+| `auth.verification_tokens` | SELECT, INSERT; UPDATE (`consumed_at`) | none |
+| `auth.totp_secrets` | SELECT, INSERT, DELETE; UPDATE (`secret_encrypted`, `confirmed_at`, `last_used_step`, `recovery_code_hashes`) | none |
+| `auth.workspaces` | SELECT, INSERT, UPDATE | SELECT |
+| `auth.memberships` | SELECT, INSERT, DELETE; UPDATE (`role`, `project_ids`) | SELECT |
+| `auth.invitations` | SELECT, INSERT; UPDATE (`status`, `responded_at`, `token_hash`, `expires_at`) | SELECT |
+| `auth.api_keys` | SELECT | none |
+| `core.projects` | SELECT, INSERT, UPDATE | SELECT; UPDATE (`data_version`) |
+| `core.workspace_quotas` | SELECT, INSERT, UPDATE | SELECT |
+| `ops.budgets` | SELECT, INSERT, UPDATE, DELETE | SELECT |
+| `ops.schedules` | SELECT, INSERT, UPDATE, DELETE | SELECT; UPDATE (`next_run_at`, `last_run_id`) |
+| `ops.collection_runs` | SELECT, INSERT; UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns) |
+| `ops.collection_tasks` | SELECT | SELECT, INSERT; UPDATE (lifecycle, attempt, result and error columns) |
+| `ops.raw_payloads` | none | SELECT, INSERT; UPDATE (`expires_at`) |
+| `ops.provider_cost_events` | SELECT | SELECT, INSERT |
+| `ops.cost_daily` | SELECT | SELECT, INSERT; UPDATE (`request_count`, `cost_usd`, `subjects`) |
+| `ops.audit_logs` | SELECT; INSERT (every column except `id` and `occurred_at`) | SELECT; INSERT (the same columns) |
+| `ops.providers`, `ops.component_versions` | SELECT | SELECT |
+| `ops.provider_price_book` | SELECT | SELECT, INSERT, UPDATE |
+| `ops.partitioned_tables` | none | none |
+| `ops.alembic_version` | SELECT | SELECT |
+
+What the narrow lines are for:
+
+- **`is_platform_operator` is set only by the ops CLI**, which connects as `migrator`. The API cannot insert or update it, so an injection bug cannot mint an operator. The same holds for `email` and `disabled_at` until the routes that change them exist and bring their grant with them.
+- **A session, token or TOTP secret cannot be re-pointed.** The API can create them and move them through their lifecycle, but `user_id`, `token_hash` and `absolute_expires_at` are fixed at insert.
+- **Nothing is hard-deleted by the API** except a membership (remove a member), a TOTP secret (disable), a budget and a schedule. Users, sessions, tokens, workspaces and projects are disabled, revoked, consumed or soft-deleted. Purges belong to worker maintenance, and that plan adds the `DELETE` grants it needs.
+- **The API cannot read `ops.raw_payloads`.** The table is a cache shared by every workspace with no `workspace_id` to filter on, so RLS cannot scope it. The two raw routes (19: `serp-snapshots/{id}/raw`, Phase 4; `ai/observations/{id}/raw`, Phase 7) will read one registry row through a `SECURITY DEFINER` function that joins it to a snapshot or observation row of the current workspace. Each function is created by the revision that creates the table it joins.
+- **The worker cannot move a row between workspaces**, and reads from `auth.users` only what an email notification needs. It has no access to password hashes, sessions, tokens or TOTP secrets.
+- **Audit entries are numbered and timed by the database.** `INSERT` excludes `id` and `occurred_at`, and neither role has `UPDATE` or `DELETE`.
+
+A later revision that needs more (a new route, the purge job) adds the grant in the same migration as the code that uses it, and adds the line here.
 
 ## 14. Migration strategy
 

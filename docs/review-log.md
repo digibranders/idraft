@@ -301,3 +301,43 @@ Carried into the next plans, because they need tables, roles or auth to exist:
 | F3 | The catch-all error handler runs outside the middleware stack: workspace and user ids bound by the auth middleware must be passed to the 500 log line the way the request id is | 3 |
 | F4 | Check what Sentry's Redis integration records before session ids become cache keys | 3 |
 
+### Schema, roles and tenant isolation (2026-09-30)
+
+Plan `docs/superpowers/plans/2026-09-30-schema-roles-rls.md`, built on branch `backend/schema`. Revisions `0002` (runtime role access), `0003` (identity and tenancy) and `0004` (operations). Carried items F1 and F2 above are closed: the test suite, the development stack and the image smoke test all connect as the real roles, created by the same init script production uses, and `/api/readyz` answers 200 as `app_api`.
+
+| Doc | Section | Change | Why |
+|---|---|---|---|
+| 04-data-model.md | 4 | Real DDL for `auth.workspaces`, `auth.memberships` and `auth.api_keys` | They were comments left from the Better Auth era |
+| 04-data-model.md | 4 | `core.projects.primary_domain_id` gets its foreign key in Phase 2 | `core.domains` does not exist yet |
+| 04-data-model.md | 12.2 | `ops.partitioned_tables` registry; `ops.maintain_partitions()` is the definer entry point; `ops.ensure_monthly_partitions` is owner-only, returns a count, takes an advisory lock, quotes names and sets the autovacuum options | A definer function that accepts any table name would let the worker create tables anywhere; two workers must not race; names must survive quoting |
+| 04-data-model.md | 13 | Policies call `auth.current_workspace_id()` and have `WITH CHECK`; own-membership and own-workspace visibility through `auth.current_user_id()`; what RLS does and does not protect against | One definition of the setting; "list my workspaces" runs before a workspace is chosen; the old text implied RLS also guards against injection |
+| 04-data-model.md | 13.1 (new) | The grant matrix, per table and per column | It is the contract the tests check |
+| 21-scheduler-workers.md | maintenance jobs | `ensure_partitions` calls `ops.maintain_partitions()` | The function it named is not callable by the worker |
+| 22-infrastructure-devops.md | 4.2.2 | The init script as built; migrations never create roles; revision `0002` fails fast when roles are missing; `pg_hba.conf` and the password rotation row name the real roles | The text said the first migration keeps roles in sync, which a non-superuser `migrator` cannot do |
+| 24-security.md | 3.1, 4, 12 | RLS bounds a request to the workspace the application chose, and nothing more; `app_worker` is listed among the roles that bypass RLS; grants as the containment for injection; audit id and time come from the database | Section 4 said only `migrator` and `backup` bypass RLS and overstated what RLS proves |
+| 26-testing-quality.md | 5 | DB-RLS-01 to 03 and DB-GRANT-01 name the real roles; new DB-GRANT-02 (catalog equals the matrix) and DB-GRANT-03 (the refused statements); DB-PART-01 covers the registry function | The cases still said `app` |
+| 31-implementation-checklist.md | Phase 1 | Partition item names the function as built | Same |
+| backend/pyproject.toml | ruff | Rule `S608` on for application code | Doc 24 section 4 relies on "no string-built SQL"; now the build enforces it |
+
+An independent review (Fable model) ran SQL as each role against the migrated development database. It reported the isolation itself sound (no cross-workspace read or write as `app_api`) and these findings, all fixed on the branch with a test that fails without the fix:
+
+| Finding | Severity | Fix |
+|---|---|---|
+| `app_api` could set `auth.users.is_platform_operator`, change any email, and update or delete any row in the auth tables | High | Column grants: the API inserts and updates named columns only; no `DELETE` on users, sessions or tokens |
+| `app_api` could read `ops.raw_payloads`, a cache shared by all workspaces, and every secret column in `auth` was reachable by both roles | High | No API grant on `ops.raw_payloads`; the worker reads four columns of `auth.users` and nothing else in the secret-bearing tables |
+| `app_worker`, which bypasses RLS, could move any row to another workspace | Medium | `UPDATE` on named columns only, never `workspace_id`, `project_id` or an identity column |
+| Two concurrent `ensure_monthly_partitions` calls could collide; a registry row for a dropped table stopped all maintenance; names were concatenated | Medium | Transaction advisory lock; stale rows skipped; `format('%I.%I')` |
+| Audit `id` and `occurred_at` could be supplied by the writer | Medium | `INSERT` granted per column, excluding both |
+| Docs overstated RLS (24 section 4), named the wrong partition entry point, and said migrations keep roles in sync | Medium, low | Rows above |
+| `auth.invitation_by_token` returns a row whatever its status | Low | Kept (the API must answer "expired", not "unknown"); the contract is documented on the function and pinned by a test |
+
+Carried into later plans:
+
+| Id | Item | Plan |
+|---|---|---|
+| F5 | `ops.collection_runs.schedule_id` and `blocked_by_budget_id` have no `ON DELETE` action, so deleting a schedule or budget with history fails. Decide `SET NULL` versus soft delete when the purge and schedule routes are designed | 4 (worker) and the purge plan |
+| F6 | The purge and retention jobs need `DELETE` grants that do not exist yet (sessions, verification tokens, tasks, cost events, raw payload registry rows). Each grant ships with the job that uses it | maintenance plan |
+| F7 | `auth.users.email` and `disabled_at` are not writable by the API. The change-email and disable-user routes add their column grant, or a definer function, when they are built | 3 (auth) |
+| F8 | The raw payload routes need a definer function joining `ops.raw_payloads` to a row of the current workspace | Phases 4 and 7 |
+| F9 | Doc 22 uses the database name `seo` in `pg_hba.conf`; the development stack uses `sightline`. Pick one when the production Compose file is written | 6 (droplet) |
+

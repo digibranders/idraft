@@ -507,7 +507,7 @@ lc_messages = 'C.UTF-8'
 local   all       postgres                    peer
 local   seo       backup                      peer map=backup_map
 local   all       all                         reject
-host    seo       app,migrator  172.30.10.0/24  scram-sha-256
+host    seo       app_api,app_worker,migrator  172.30.10.0/24  scram-sha-256
 host    all       all       0.0.0.0/0         reject
 host    all       all       ::/0              reject
 ```
@@ -522,16 +522,20 @@ The backup script runs `docker exec -u postgres seo-postgres pg_dump -U backup .
 
 #### 4.2.2 Roles
 
-Created by `infra/compose/postgres/initdb/10-roles.sh` on first initialisation (it reads `PG_API_PASSWORD`, `PG_WORKER_PASSWORD` and `PG_MIGRATOR_PASSWORD` from its environment, section 4.1), and kept in sync by the first Alembic migration for existing clusters. The four roles are fixed by ADR-022; summary, consistent with doc 24 section 9 and doc 04 section 13:
+Created by `infra/compose/postgres/initdb/10-roles.sh`, which the PostgreSQL image runs once, as the superuser, when the data directory is first initialised. It reads `PG_API_PASSWORD`, `PG_WORKER_PASSWORD` and `PG_MIGRATOR_PASSWORD` from its environment (section 4.1) and fails if one is missing. The script also makes `migrator` the owner of the database, revokes everything on the database and `CREATE` on `public` from `PUBLIC`, grants `CONNECT` to the three other roles, and creates `pg_stat_statements` (not a trusted extension, so the superuser creates it; migrations create the trusted ones).
+
+Migrations never create or alter a role: `migrator` is not a superuser and has no `CREATEROLE`. Revision `0002` checks that `app_api` and `app_worker` exist and stops with "database roles are missing" when they do not, so a cluster initialised without the script fails at deploy, not at the first request. On a cluster that already has data the script does not run again; apply its SQL by hand as `postgres` (a role change is a runbook step, section 12).
+
+The same script, unchanged, is mounted into the test containers, the development stack and the image smoke test, so a role cannot differ between them and production. The four roles are fixed by ADR-022; summary, consistent with doc 24 section 9 and doc 04 section 13:
 
 | Role | Attributes | Grants | Role-level settings |
 |---|---|---|---|
-| `migrator` | LOGIN | owns schemas `core`, `seo`, `ai`, `fp`, `ops`, `auth`; DDL | `lock_timeout = '2s'`, `statement_timeout = '15min'` |
-| `app_api` | LOGIN, NOBYPASSRLS | used by `api`: DML on tenant tables (RLS enforced), SELECT on dictionaries, DML on `auth` tables | `statement_timeout = '15s'` |
-| `app_worker` | LOGIN, BYPASSRLS | used by `worker`: INSERT on observation tables, DML on ops and current-state tables, SELECT on tenant configuration | `statement_timeout = '120s'` |
-| `backup` | LOGIN, BYPASSRLS | `pg_read_all_data` (read-only) | none (a dump can take many minutes) |
+| `migrator` | LOGIN; not a superuser | owns the database and schemas `core`, `seo`, `ai`, `fp`, `ops`, `auth`; DDL | `lock_timeout = '2s'`, `statement_timeout = '15min'` |
+| `app_api` | LOGIN, NOBYPASSRLS | used by `api`: the table and column grants of doc 04 section 13.1 (RLS enforced on tenant tables) | `statement_timeout = '15s'` |
+| `app_worker` | LOGIN, BYPASSRLS | used by `worker`: the table and column grants of doc 04 section 13.1; `pg_read_all_stats` | `statement_timeout = '120s'` |
+| `backup` | LOGIN, BYPASSRLS; no password | `pg_read_all_data` (read-only) | none (a dump can take many minutes) |
 
-The api is the only process that serves users, so it is the one RLS guards. The worker bypasses RLS because the planner, dispatcher, reconciler, rollups and purge read across workspaces by design; it is never reachable from a request, every task row carries its `workspace_id`, and the cross-tenant suite runs the worker tasks for two workspaces (doc 04 section 13). Partition creation is DDL and goes through `ops.ensure_monthly_partitions()`, a `SECURITY DEFINER` function owned by `migrator`.
+The api is the only process that serves users, so it is the one RLS guards. The worker bypasses RLS because the planner, dispatcher, reconciler, rollups and purge read across workspaces by design; it is never reachable from a request, every task row carries its `workspace_id`, and the cross-tenant suite runs the worker tasks for two workspaces (doc 04 section 13). Partition creation is DDL and goes through `ops.maintain_partitions()`, a `SECURITY DEFINER` function owned by `migrator` that takes no arguments and works through a registry table (doc 04 section 12.2).
 
 `backup` needs `BYPASSRLS`: `pg_dump` sets `row_security = off` and aborts with "query would be affected by row-level security policy" when a non-bypassing role reads an RLS table. Without it, the nightly dump fails on the first tenant table.
 
@@ -1479,7 +1483,7 @@ Platform secrets are GitHub Actions `production` environment secrets; a deploy r
 | Provider keys, Sentry, email | Create the new value at the provider; update the secret; re-run the `release` workflow. Revoke the old value after the deploy is healthy. |
 | R2 raw bucket token | Create a new token scoped to `seo-raw` (Object Read & Write); update the secret; deploy; delete the old token in the Cloudflare dashboard. |
 | R2 backup token (host) | Create a new token scoped to `seo-backups`; edit `/etc/seo-platform/rclone.conf` as root; run `systemctl start seo-backup.service`; confirm the Healthchecks ping; delete the old token. |
-| PostgreSQL role passwords | Update the secret (`PG_API_PASSWORD` and `DATABASE_URL_API`, `PG_WORKER_PASSWORD` and `DATABASE_URL_WORKER`, or the `migrator` pair); in the same maintenance window run `ALTER ROLE app PASSWORD '<new>';` as `postgres`, then deploy. Existing connections keep working; new connections use the new password. Tasks that fail between the `ALTER` and the deploy are retried from the ledger. |
+| PostgreSQL role passwords | Update the secret (`PG_API_PASSWORD` and `DATABASE_URL_API`, `PG_WORKER_PASSWORD` and `DATABASE_URL_WORKER`, or the `migrator` pair); in the same maintenance window run `ALTER ROLE <role> PASSWORD '<new>';` as `postgres` for the role being rotated (`app_api`, `app_worker` or `migrator`), then deploy. Existing connections keep working; new connections use the new password. Tasks that fail between the `ALTER` and the deploy are retried from the ledger. |
 | Redis ACL passwords | Update the secret; deploy (renders a new `users.acl` and runs `ACL LOAD`); the deploy recreates the app containers with the new `REDIS_URL_APP`. |
 | Deploy SSH key, Tailscale OAuth client | Generate the new credential; add it on the host or in Tailscale; update the secret; run a deploy; remove the old credential. |
 | Backup age keys | Doc 23 section 5.4. |

@@ -44,6 +44,15 @@
 
 Both roles get `USAGE` on the six schemas. Neither gets `CREATE` anywhere, `TRUNCATE`, or `REFERENCES`. `backup` reads everything through `pg_read_all_data`.
 
+**Execution notes (2026-09-30), where the build differs from the text below:**
+
+- **Revision numbers.** The plan says `0002` (identity) and `0003` (operations). The build has `0002_runtime_role_access` (schema `USAGE`, `SELECT` on `ops.alembic_version`, and the check that the roles exist), `0003_identity_and_tenancy` and `0004_operations`. Read every `0002` below as `0003` and every `0003` as `0004`.
+- **Grant matrix.** The table above was the first draft. An independent review showed it was too wide, and it was replaced by table and column grants. The contract in force is `docs/04-data-model.md` section 13.1, checked by `backend/tests/db/test_grants.py` and `test_least_privilege.py`.
+- **Statement splitting.** asyncpg sends one statement per call, so `sightline.db.ddl.statements()` splits a script at blank lines. A revision script separates statements with an empty line and has none inside a function body.
+- **Partition functions.** `ops.ensure_monthly_partitions` takes a transaction advisory lock and builds names with `format('%I.%I')`; `ops.maintain_partitions` skips registry rows whose table is gone.
+- **Lint.** ruff rule `S608` is on for application code.
+- **Findings and what was carried forward:** `docs/review-log.md`, "Schema, roles and tenant isolation".
+
 **Shell note for this machine:** `export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"` before Docker and test commands. Run the gates with `backend/check.sh`.
 
 ---
@@ -465,10 +474,12 @@ Grants per the matrix, including `GRANT SELECT ON ops.alembic_version TO app_api
 
 ### Task 6: Write the schema decisions back into the docs
 
-- [ ] Doc 04: real DDL for `auth.workspaces`, `auth.memberships`, `auth.api_keys`; the two helper functions and the user-visibility policies in section 13; the partition registry and `ops.maintain_partitions()` in section 12.2; the grant matrix; the deferred `primary_domain_id` foreign key.
-- [ ] Doc 22 section 4.2: the init script as built (the database is owned by `migrator`; `backup` has no password; `pg_stat_statements`).
-- [ ] Review log: F1 and F2 closed; one row per change.
-- [ ] Commit `Record the schema and role decisions in the docs`
+- [x] Doc 04: real DDL for `auth.workspaces`, `auth.memberships`, `auth.api_keys`; the two helper functions and the user-visibility policies in section 13; the partition registry and `ops.maintain_partitions()` in section 12.2; the grant matrix (new section 13.1); the deferred `primary_domain_id` foreign key.
+- [x] Doc 22 section 4.2.2: the init script as built (the database is owned by `migrator`; `backup` has no password; `pg_stat_statements`); migrations never create roles.
+- [x] Doc 24 sections 3.1, 4 and 12: what RLS does and does not prove; the roles that bypass it; grants as containment.
+- [x] Docs 21, 26 and 31: the partition entry point and the DB test cases name what was built.
+- [x] Review log: F1 and F2 closed; one row per change; the review findings; items carried forward.
+- [x] Commit `Record the schema and role decisions in the docs`
 
 ---
 

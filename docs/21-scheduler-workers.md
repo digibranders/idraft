@@ -265,7 +265,7 @@ All jobs below run on the `process` queue, scheduled by Taskiq's scheduler insid
 | Job | Schedule (UTC) | Action |
 |---|---|---|
 | `reconcile` | every 5 min | section 8.2 |
-| `ensure_partitions` | daily 00:10 | `ops.ensure_monthly_partitions()` for every partitioned table, 3 months ahead |
+| `ensure_partitions` | daily 00:10 | `SELECT ops.maintain_partitions()`: every table in `ops.partitioned_tables`, 3 months ahead ([04-data-model.md](04-data-model.md) section 12.2) |
 | `retention_drop` | daily 00:30 | drop expired partitions per retention table ([04-data-model.md](04-data-model.md) section 12.1); prune non-current derivations older than 90 days |
 | `raw_retention` | daily 01:00 | delete R2 objects whose `ops.raw_payloads.expires_at` passed (batched, 1,000 per call) |
 | `cost_reconcile` | daily 00:45 | provider daily spend vs our cost events ([06-dataforseo-seo-integration.md](06-dataforseo-seo-integration.md) section 6.1) |

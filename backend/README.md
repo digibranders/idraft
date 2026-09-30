@@ -91,6 +91,8 @@ Code that touches tenant data opens its transaction with `workspace_transaction(
 
 A new table with a `workspace_id` column needs `tenant_isolation(...)` and `grants(...)` from `sightline.db.ddl` in its revision. Two tests fail until it has them: the catalog check in `tests/db/test_rls.py` and the grant matrix in `tests/db/test_grants.py`.
 
+Grants are least privilege. Give a role `UPDATE` on a whole table only when it may change every column; otherwise use `column_grant(...)` for the columns it changes. The worker bypasses row-level security, so it never gets `UPDATE` on `workspace_id`, `project_id` or an identity column. When a route or job needs a new privilege, add it in the same revision as the code, update the matrix in `tests/db/test_grants.py` and the table in `docs/04-data-model.md` section 13.1. Row-level security does not stop SQL injection (the workspace setting can be set by any SQL the API runs), so application code never builds SQL from strings; ruff rule `S608` fails the build on it.
+
 ## API contract
 
 `openapi/v1.json` is generated from the code and committed; a test fails when it drifts. Regenerate it with:
