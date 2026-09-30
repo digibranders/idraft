@@ -1,19 +1,46 @@
+import { Toast } from '@base-ui/react/toast';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
+import { NextIntlClientProvider } from 'next-intl';
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import type { ReactElement, ReactNode } from 'react';
 
-/** The providers a component needs to render as it does in the app. */
-function TestProviders({ children }: { children: ReactNode }): ReactNode {
-  return children;
-}
+import messages from '../../messages/en.json';
+import { makeQueryClient } from '@/lib/api/query-client';
+import { LiveRegions } from '@/providers/live-regions';
 
 export type ProvidedRender = RenderResult & { user: UserEvent };
+export interface ProvidedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
+  /** The query string the component starts with, for components that keep state in the URL. */
+  searchParams?: string;
+}
 
 /**
- * Renders inside the app's providers and returns a `user` for interactions, so tests drive components the
- * way a person does (pointer and keyboard events in order) instead of firing single events.
+ * Renders with what a component gets in the app: the message catalog, a query cache of its own (so one
+ * test never sees another's data, and an error arrives at once instead of after retries), URL state, toasts
+ * and the live regions. Returns a `user` for interactions, so tests drive components the way a person
+ * does (pointer and keyboard events in order) instead of firing single events.
  */
-export function renderWithProviders(ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>): ProvidedRender {
+export function renderWithProviders(
+  ui: ReactElement,
+  { searchParams = '', ...options }: ProvidedRenderOptions = {},
+): ProvidedRender {
+  const queryClient = makeQueryClient({ retry: false });
+  function TestProviders({ children }: { children: ReactNode }): ReactNode {
+    return (
+      <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+        <QueryClientProvider client={queryClient}>
+          <NuqsTestingAdapter searchParams={searchParams}>
+            <Toast.Provider>
+              {children}
+              <LiveRegions />
+            </Toast.Provider>
+          </NuqsTestingAdapter>
+        </QueryClientProvider>
+      </NextIntlClientProvider>
+    );
+  }
   const user = userEvent.setup();
   return { user, ...render(ui, { wrapper: TestProviders, ...options }) };
 }

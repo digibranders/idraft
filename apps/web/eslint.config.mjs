@@ -19,9 +19,6 @@ const FORMAT_DIR = 'src/lib/format/**';
 const SOURCES = ['src/**/*.{ts,tsx}'];
 const MARKUP = ['src/**/*.tsx'];
 const TESTS = ['src/**/*.test.{ts,tsx}', 'src/test/**', 'vitest.setup.ts'];
-// The two pages written before the message catalog exists. Task 3 of the foundation plan moves their text
-// into messages/en.json and empties this list.
-const BEFORE_CATALOG = ['src/app/page.tsx', 'src/app/not-found.tsx'];
 
 // -------------------------------------------------------------------------------------------------
 // Imports
@@ -118,7 +115,14 @@ const ARBITRARY_BREAKPOINT = {
   pattern: '(^|:)(min|max)-\\[',
   message: 'Use the breakpoints of globals.css, not an arbitrary one (19-responsive-behavior.md).',
 };
-const EVERYWHERE = [OFF_SCALE_SPACING, RAW_Z_INDEX, ARBITRARY_BREAKPOINT];
+// p-sidebar compiles, because named sizes live in the spacing scale. They are heights and widths.
+const SIZE_AS_SPACING = {
+  pattern:
+    '^(.*:)?!?-?(p[xytrblse]?|m[xytrblse]?|gap(-[xy])?|space-[xy]|scroll-[pm][xytrblse]?)-(?!(auto|px)!?$)[a-z][a-z-]*!?$',
+  message:
+    'Named sizes are for height, width and size. Padding, margin and gap use the spacing steps (04-spacing-density.md).',
+};
+const EVERYWHERE = [OFF_SCALE_SPACING, SIZE_AS_SPACING, RAW_Z_INDEX, ARBITRARY_BREAKPOINT];
 
 // -------------------------------------------------------------------------------------------------
 // Import boundaries (26 section 2). Elements are folders; the first match wins.
@@ -140,8 +144,11 @@ const FILES = [
   { category: 'class-helper', pattern: 'src/lib/utils.ts' },
   // The clients that talk to the API. Components never reach them, by alias or by relative path.
   { category: 'api-client', pattern: ['src/lib/api/client.ts', 'src/lib/api/server.ts', 'src/lib/api/query.ts'] },
+  // The message catalog, and the two files that may read it. Everything else gets text through next-intl.
+  { category: 'catalog', pattern: 'messages/*.json' },
+  { category: 'catalog-reader', pattern: ['src/i18n/request.ts', 'src/i18n/types.d.ts'] },
   // Files Next.js loads by name. Nothing imports them.
-  { category: 'entry', pattern: ['src/proxy.ts', 'src/instrumentation.ts'] },
+  { category: 'entry', pattern: ['src/proxy.ts', 'src/instrumentation.ts', 'src/instrumentation.node.ts'] },
 ];
 const to = (...types) => ({ to: { element: { types: { anyOf: types } } } });
 const toFile = (category) => ({ to: { file: { categories: category } } });
@@ -167,7 +174,9 @@ const POLICIES = [
   { from: from('providers'), allow: to('providers', 'ui', 'lib', 'mocks') },
   { from: from('mocks'), allow: to('mocks', 'lib') },
   { from: from('lib'), allow: to('lib') },
+  { from: { file: { categories: 'catalog-reader' } }, allow: toFile('catalog') },
   { from: { file: { categories: 'entry' } }, allow: to('lib', 'mocks') },
+  { from: { file: { categories: 'entry' } }, allow: toFile('entry') },
 ];
 
 export default tseslint.config(
@@ -301,7 +310,7 @@ export default tseslint.config(
   // whose type is a set of literal values (variant, size, side) is an option, not text, and is skipped.
   {
     files: MARKUP,
-    ignores: ['src/components/design-system/**', ...TESTS, ...BEFORE_CATALOG],
+    ignores: ['src/components/design-system/**', ...TESTS],
     plugins: { i18next },
     languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: ROOT } },
     rules: {

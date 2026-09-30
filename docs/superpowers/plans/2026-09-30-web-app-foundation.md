@@ -63,6 +63,7 @@ Installed in Task 1. Versions are the ones verified in [`research/09-frontend-st
 | `next-intl` | runtime | Message catalog |
 | `react-hook-form` 7, `@hookform/resolvers` 5, `zod` 4 | runtime | Forms and the env schema |
 | `openapi-fetch` | runtime | HTTP client |
+| `server-only` | runtime | Makes importing a server module from client code a build error (added in Task 3) |
 | `@tailwindcss/postcss` 4.3, `postcss` | dev | Tailwind in the Next build |
 | `@types/react`, `@types/react-dom` | dev | Types |
 | `shadcn` 4.21 | dev | CLI for `shadcn add`, and `shadcn/tailwind.css` (Base UI data-attribute variants) |
@@ -216,7 +217,7 @@ Done differently from the steps above, and why:
 
 **Files:** create `src/lib/env.ts`, `src/lib/utils.ts`, `src/lib/utils.test.ts`, `messages/en.json`, `src/i18n/request.ts`, `src/messages.test.ts`, `src/providers/app-providers.tsx`, `src/lib/a11y/announce.ts`, `src/lib/a11y/announce.test.tsx` (it needs a document, and the file extension picks the jsdom project); modify `next.config.ts`, `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/not-found.tsx`, `src/test/render.tsx`, `eslint.config.mjs`.
 
-- [ ] **Step 1: `src/lib/env.ts`.** One zod schema, parsed at import:
+- [x] **Step 1: `src/lib/env.ts`.** One zod schema, parsed at import:
 
 | Variable | Rule |
 |---|---|
@@ -228,11 +229,22 @@ Done differently from the steps above, and why:
 
 The generated paths already start with `/api/v1`, so the server client needs the API's origin, not a base URL ending in `/api/v1`. Record this rename of `API_INTERNAL_BASE_URL` in 20 section 9.2 in Task 17. Tests: a missing server variable throws with the variable's name; mocking on in production throws.
 
-- [ ] **Step 2: `cn`.** `src/lib/utils.ts` exports `cn(...inputs)` built with `extendTailwindMerge` so the design system's custom names merge correctly: the 15 `type-*` utilities form one conflict group; the named sizes (`control`, `control-sm`, `control-lg`, `row`, `row-compact`, `row-header`, `topbar`, `sidebar`, `sidebar-collapsed`, `sidebar-item`, `tab`, `metric-strip`, `badge`, `avatar`, `save-bar`, `inspector`, `inspector-wide`, `drawer`, `command`, `icon-xs` to `icon-lg`) are added to the spacing theme. Tests: `cn('type-body', 'type-table')` is `type-table`; `cn('h-control', 'h-control-sm')` is `h-control-sm`; `cn('px-3', 'px-4')` is `px-4`; `cn('text-foreground', 'type-body')` keeps both; falsy inputs are dropped.
-- [ ] **Step 3: Messages.** `messages/en.json` starts with the namespaces `common` (Cancel, Save, Close, Retry, Loading) and `errors` (not found, generic). `src/i18n/request.ts` returns locale `en` and the catalog. Wrap the Next config with `createNextIntlPlugin('./src/i18n/request.ts')`. `src/messages.test.ts` walks every string in the catalog and fails on U+2013, U+2014, a trailing exclamation mark, or an empty value. Move the text of `page.tsx` and `not-found.tsx` into the catalog, including the `metadata` titles and the product name (lint cannot see strings outside JSX, so read them with `getTranslations` in `generateMetadata`), then empty `BEFORE_CATALOG` in `eslint.config.mjs` and delete the constant.
-- [ ] **Step 4: Providers.** `AppProviders` (client component) composes, outside in: `NextIntlClientProvider` (messages passed from the root layout), `ThemeProvider` from `next-themes` (`attribute="class"`, `defaultTheme="system"`, `enableSystem`, `disableTransitionOnChange`), `QueryClientProvider` (one client per browser, `staleTime` 30 s by default, `retry` only for network errors and 5xx, never for an `ApiProblem` below 500), `NuqsAdapter`, and the Base UI `Toast.Provider` (its viewport arrives with the toast primitive in Task 6). The root layout renders `<AppProviders>` around `children`.
-- [ ] **Step 5: `announce`.** `announce(message, politeness)` writes to one of two visually hidden live regions that `AppProviders` mounts once. Test: two calls with the same text are both announced (the region is cleared between them).
-- [ ] **Step 6: Opus review, fixes, gates, commit** "Add the environment schema, cn, the message catalog and the providers".
+- [x] **Step 2: `cn`.** `src/lib/utils.ts` exports `cn(...inputs)` built with `extendTailwindMerge` so the design system's custom names merge correctly: the 15 `type-*` utilities form one conflict group; the named sizes (`control`, `control-sm`, `control-lg`, `row`, `row-compact`, `row-header`, `topbar`, `sidebar`, `sidebar-collapsed`, `sidebar-item`, `tab`, `metric-strip`, `badge`, `avatar`, `save-bar`, `inspector`, `inspector-wide`, `drawer`, `command`, `icon-xs` to `icon-lg`) are added to the spacing theme. Tests: `cn('type-body', 'type-table')` is `type-table`; `cn('h-control', 'h-control-sm')` is `h-control-sm`; `cn('px-3', 'px-4')` is `px-4`; `cn('text-foreground', 'type-body')` keeps both; falsy inputs are dropped.
+- [x] **Step 3: Messages.** `messages/en.json` starts with the namespaces `common` (Cancel, Save, Close, Retry, Loading) and `errors` (not found, generic). `src/i18n/request.ts` returns locale `en` and the catalog. Wrap the Next config with `createNextIntlPlugin('./src/i18n/request.ts')`. `src/messages.test.ts` walks every string in the catalog and fails on U+2013, U+2014, a trailing exclamation mark, or an empty value. Move the text of `page.tsx` and `not-found.tsx` into the catalog, including the `metadata` titles and the product name (lint cannot see strings outside JSX, so read them with `getTranslations` in `generateMetadata`), then empty `BEFORE_CATALOG` in `eslint.config.mjs` and delete the constant.
+- [x] **Step 4: Providers.** `AppProviders` (client component) composes, outside in: `NextIntlClientProvider` (messages passed from the root layout), `ThemeProvider` from `next-themes` (`attribute="class"`, `defaultTheme="system"`, `enableSystem`, `disableTransitionOnChange`), `QueryClientProvider` (one client per browser, `staleTime` 30 s by default, `retry` only for network errors and 5xx, never for an `ApiProblem` below 500), `NuqsAdapter`, and the Base UI `Toast.Provider` (its viewport arrives with the toast primitive in Task 6). The root layout renders `<AppProviders>` around `children`.
+- [x] **Step 5: `announce`.** `announce(message, politeness)` writes to one of two visually hidden live regions that `AppProviders` mounts once. Test: two calls with the same text are both announced (the region is cleared between them).
+- [x] **Step 6: Opus review, fixes, gates, commit** "Add the environment schema, cn, the message catalog and the providers".
+
+Done differently from the steps above, and why:
+
+- The environment is three files under `src/lib/env/`: `public.ts` (no dependency, safe in a client bundle), `schema.ts` (zod, used by `next.config.ts` and the server) and `server.ts` (`server-only`). One file would have put zod, about 90 KB gzip, into every client bundle that reads the mocking mode. `next.config.ts` inlines the validated public values through `env`, defaults included, so server and browser always agree. `src/instrumentation.node.ts` ends the process when a server value is missing, since Next.js would otherwise keep answering 500 on an open port.
+- `NextIntlClientProvider` sits in the root layout (a Server Component), not inside `AppProviders`, because that is how it receives the messages without a prop.
+- The announcer follows 20-accessibility section 10.1 exactly: `announce(message, { politeness, key, debounceMs })` in `src/lib/a11y/announcer.ts`, one message per region, cleared after one second.
+- The class name lists live in `src/lib/design/class-names.ts`, with their own test against `globals.css`; `utils.ts` exports `cn` only, so that is all a primitive can reach.
+- Added: `src/lib/api/retry.ts` and `query-client.ts` (no retry on the server and in tests), `.env.example`, the `server-only` package, a lint rule against named sizes used as padding or gap.
+- The theme is stored by next-themes in `localStorage` under `sightline.theme`; 01 section 3 said a cookie and is corrected.
+
+Carried to later tasks: the toast duration of 6 seconds (20-accessibility section 10.5) in Task 6; `private, no-store` on authenticated HTML in Task 10; the image build must pass `NEXT_PUBLIC_APP_ENV=production` as a build argument, because a build without it is a development build (Task 16); the whole catalog is sent to the browser, which is fine at this size and should become per-route namespaces when it grows; 20 section 7.4 should say the theme key is per device, not per user (Task 17); the app has no icon yet, so `/favicon.ico` is a 404 until the shell task adds one.
 
 ### Task 4: Primitives, batch 1: static and display
 
@@ -410,8 +422,8 @@ Contract details from the backend session, all in 19 sections 2.1 and 3.1 on `ba
 - Every request carries `X-Request-Id`: `req_` plus a UUIDv7 in Crockford base32 (25 section 3.3). Add `newRequestId()` to `lib/api` in Task 8 with a test for the format, and send it from both clients.
 
 - [ ] **Step 3: Rules.** Password fields: `autocomplete="current-password"` or `"new-password"`, paste allowed, minimum 12 characters checked on blur for new passwords. Email: `autocomplete="email"`, `type="email"`. The submit button shows `loading` and the form is not submittable twice. Validation timing follows 10 section 18. A failed submit moves focus to the `FormAlert` or the first invalid field and announces the error.
-- [ ] **Step 4: Tests** (one file per form, MSW in `all` mode): the happy path; every problem in the table renders its message and keeps the typed values; `next=//evil.example` lands on `/`; a second-factor code pasted as `123 456` is accepted as `123456`; the recovery codes screen cannot continue until the checkbox is ticked; no axe violations.
-- [ ] **Step 5: Against the real API.** Start the backend (its README, "Run locally"), create an operator with its CLI, run the app with `NEXT_PUBLIC_API_MOCKING=off` and `API_PROXY_TARGET=http://127.0.0.1:8000`, and walk every row of the table in Chrome: sign in, wrong password, throttle, second factor setup and verify, reset (the link is printed on the API's stderr), sign out. Record what differs from the mocks and fix the mocks.
+- [ ] **Step 4: Tests** (one file per form, MSW in `all` mode): the happy path; every problem in the table renders its message and keeps the typed values; `next=//evil.example` lands on `/`; a second-factor code pasted as `123 456` is accepted as `123456`; no axe violations.
+- [ ] **Step 5: Against the real API.** Start the backend (its README, "Run locally"), create an operator with its CLI, run the app with `NEXT_PUBLIC_API_MOCKING=off` and `API_PROXY_TARGET=http://127.0.0.1:8000`, and walk every row of the table in Chrome: sign in, wrong password, throttle, the code prompt for a user enrolled through the API, reset (the link is printed on the API's stderr), sign out. Record what differs from the mocks and fix the mocks.
 - [ ] **Step 6: Opus review, fixes, gates, commit** "Add the auth screens".
 
 ### Task 12: Identity, permissions and the fresh-session dialog

@@ -1,0 +1,22 @@
+{
+  "app": {
+    "name": "Sightline"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "close": "Close",
+    "retry": "Try again",
+    "loading": "Loading"
+  },
+  "errors": {
+    "notFound": {
+      "title": "Page not found",
+      "description": "This page does not exist, or you do not have access to it."
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "description": "The page could not be shown. Try again, and contact support if it keeps happening."
+    }
+  }
+}
