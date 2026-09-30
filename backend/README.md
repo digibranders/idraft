@@ -14,16 +14,18 @@ Start PostgreSQL and Redis (loopback ports 54329 and 63799, so they do not colli
 docker compose -f ../infra/compose/docker-compose.dev.yml up -d --wait
 ```
 
-Create the local settings file:
+The first start runs `infra/compose/postgres/initdb/10-roles.sh`, which creates the four database roles. It is the same script production uses.
+
+Create the local settings files (the API connects as `app_api`, migrations run as `migrator`):
 
 ```bash
-cp .env.example .env
+cp .env.example .env && cp .env.migrator.example .env.migrator
 ```
 
 Apply the migrations:
 
 ```bash
-uv run --env-file .env python -m sightline.db.migrate
+uv run --env-file .env.migrator python -m sightline.db.migrate
 ```
 
 Start the API with reload:
@@ -69,12 +71,25 @@ docker build --target api -t sightline-api:dev . && ./smoke.sh sightline-api:dev
 Revisions live in `src/sightline/db/migrations/versions/` and are written as SQL in `op.execute(...)`. Create one with:
 
 ```bash
-uv run --env-file .env alembic revision --rev-id 0002 -m "describe the change"
+uv run --env-file .env.migrator alembic revision --rev-id 0005 -m "describe the change"
 ```
 
 Revision ids are sequential (`0001`, `0002`, ...) so the history reads in order. The migrator takes a PostgreSQL advisory lock, so two running at once queue instead of colliding.
 
 The version table is `ops.alembic_version`. `/api/readyz` reports `migrations: false` until the database is at the revision the running build expects.
+
+## Database roles and tenant isolation
+
+| Role | Used by | Notes |
+|---|---|---|
+| `migrator` | migrations | Owns every schema and table. Not a superuser |
+| `app_api` | the API | Subject to row-level security: it sees only the workspace set on the transaction |
+| `app_worker` | the worker | Reads across workspaces; never reachable from a request |
+| `backup` | `pg_dump` | Read-only |
+
+Code that touches tenant data opens its transaction with `workspace_transaction(sessions, workspace_id)` from `sightline.db.engine`. A transaction that does not is shown no tenant rows. `user_transaction(sessions, user_id)` is for the few requests that run before a workspace is chosen: it shows a user their own memberships and workspaces, nothing else.
+
+A new table with a `workspace_id` column needs `tenant_isolation(...)` and `grants(...)` from `sightline.db.ddl` in its revision. Two tests fail until it has them: the catalog check in `tests/db/test_rls.py` and the grant matrix in `tests/db/test_grants.py`.
 
 ## API contract
 

@@ -1,20 +1,29 @@
 # Local development only: PostgreSQL 18 and Redis 8 on loopback ports that do not collide with
 # a Homebrew PostgreSQL or Redis. Production is infra/compose/docker-compose.yml.
+#
+# The role script runs when the data volume is first created. After changing it, recreate the
+# volume: docker compose -f infra/compose/docker-compose.dev.yml down -v
 name: sightline-dev
 
 services:
   postgres:
     image: postgres:18
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
     environment:
-      POSTGRES_USER: sightline
-      POSTGRES_PASSWORD: sightline
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres-dev
       POSTGRES_DB: sightline
+      # Development values only. Production reads these from /etc/seo-platform/.env.
+      PG_MIGRATOR_PASSWORD: migrator-dev
+      PG_API_PASSWORD: api-dev
+      PG_WORKER_PASSWORD: worker-dev
     ports:
       - "127.0.0.1:54329:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sightline -d sightline"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sightline"]
       interval: 5s
       timeout: 3s
       retries: 10
