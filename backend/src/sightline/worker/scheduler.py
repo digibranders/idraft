@@ -35,8 +35,9 @@ async def _end(scheduling: asyncio.Task[None]) -> None:
     try:
         await scheduling
     except asyncio.CancelledError:
-        if not scheduling.cancelled():
-            # It is this task that is being cancelled, not the scheduler.
+        current = asyncio.current_task()
+        if not scheduling.cancelled() or (current is not None and current.cancelling()):
+            # It is this task that is being cancelled, not only the scheduler.
             raise
     except Exception as error:
         _log.error("scheduler ended", exc_info=error)

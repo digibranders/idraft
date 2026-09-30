@@ -77,6 +77,11 @@ class Provider(Protocol):
         """How many requests one call to this endpoint takes (DataForSEO task endpoints: 100)."""
         ...
 
+    def result_lifetime(self, endpoint: str) -> timedelta:
+        """How long the provider keeps a task's result (DataForSEO: 72 hours, 76 for LLM
+        Responses standard tasks)."""
+        ...
+
     async def submit(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:
         """Send the requests in one call. Raises `ProviderCallError` when the call failed."""
         ...

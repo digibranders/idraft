@@ -363,6 +363,10 @@ class FakeProvider:
     def batch_size(self, endpoint: str) -> int:
         return self.size
 
+    def result_lifetime(self, endpoint: str) -> timedelta:
+        # An endpoint named for LLM Responses keeps its results four hours longer.
+        return timedelta(hours=76 if endpoint == "llm" else 72)
+
     async def submit(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:
         self.calls.append((endpoint, list(requests)))
         return await self.answer(endpoint, requests)

@@ -158,7 +158,7 @@ How a stream is read is the worker's own (`worker/queues.py`), on top of the `ta
 | Dedupe | a Redis key per message (section 5.2), set with `SET NX` before enqueue | replaces broker-level job ids |
 | Scheduler | Taskiq's scheduler runs the maintenance cron jobs (section 10) inside the worker, under `lock:taskiq-scheduler` | no scheduler container; a second worker container does not double-fire |
 | Lost messages | a message held by a worker that crashed is claimed by another consumer once it has been idle for 10 minutes; a message lost with Redis itself is re-enqueued by the reconciler from the ledger (section 8.2) | nothing lives only in Redis |
-| Stream length | each stream is capped at about 10,000 messages; a longer backlog loses its oldest, and the reconciler sends their work again once their dedupe keys have expired | Redis has no eviction, and acknowledged messages stay in a stream until it is trimmed |
+| Stream length | each stream is capped at about 10,000 messages; a longer backlog loses its oldest. The reconciler releases their tasks and the dispatcher sends them again; a batch of exactly the same tasks finds the lost message's dedupe key still held and waits until it expires (at most an hour). Nothing is paid twice | Redis has no eviction, and acknowledged messages stay in a stream until it is trimmed |
 
 No broker retries is deliberate for provider jobs. A blind retry of a `submit_batch` after a timeout could double-submit paid tasks. Retries for provider work are driven by task state in PostgreSQL (section 6), which knows whether the provider accepted the task.
 
@@ -275,7 +275,7 @@ The worker runs a **reconciler every 5 minutes** (a Taskiq scheduled job on `pro
 5. Observations with no current facts for the project's current derivation (after 15 minutes): enqueue `extract_observation`.
 6. Dates with ingested data newer than the rollup's `computed_at`: enqueue rollups.
 
-After a full Redis loss, steps 1 to 6 restore all in-flight work within one reconciler cycle, with no duplicate provider spend: tasks already accepted by the provider have `provider_task_id` and are fetched, not resubmitted.
+After a full Redis loss, steps 1 to 6 restore all in-flight work within a few reconciler passes (a pass releases stale dispatches in batches of 2,000 for up to a minute), with no duplicate provider spend: tasks already accepted by the provider have `provider_task_id` and are fetched, not resubmitted.
 
 ## 9. Freshness and staleness
 

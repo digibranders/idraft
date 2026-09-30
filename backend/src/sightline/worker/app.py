@@ -27,7 +27,8 @@ from sightline.worker.scheduler import run_scheduler
 from sightline.worker.ticks import Tick, run_tick
 
 REDIS_TIMEOUT_SECONDS = 5.0
-REDIS_CONNECTIONS = 50
+# Connections beyond one per handler: ticks, locks, pauses, the scheduler and its claims.
+REDIS_CONNECTIONS_SPARE = 20
 # A tick's statements time out well inside this; a tick still running after it is stuck.
 STOP_TICKS_WITHIN = timedelta(seconds=30)
 HEARTBEAT_EVERY = timedelta(seconds=10)
@@ -111,7 +112,9 @@ async def run_worker(settings: Settings, assemble: Assemble, stop: asyncio.Event
     redis = Redis(
         connection_pool=BlockingConnectionPool.from_url(
             settings.redis_url.get_secret_value(),
-            max_connections=REDIS_CONNECTIONS,
+            max_connections=settings.collect_concurrency
+            + settings.process_concurrency
+            + REDIS_CONNECTIONS_SPARE,
             timeout=REDIS_TIMEOUT_SECONDS,
             socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
             socket_timeout=REDIS_TIMEOUT_SECONDS,

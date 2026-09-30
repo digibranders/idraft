@@ -87,6 +87,9 @@ _NOTHING_COLLECTED = ("failed", "dead", "cancelled")
 _COLLECTED = ("ingested", "skipped_cached")
 _BUDGET_EXCEEDED = "budget_exceeded"
 PROJECT_NOT_COLLECTING = "project_not_collecting"
+NEVER_CONFIRMED = "submission_never_confirmed"
+# What `ops.collection_tasks.cost_usd` and the cost events hold: dollars to six places.
+_COST_STEP = Decimal("0.000001")
 _CHECK_VIOLATION = "23514"
 
 Priority = Literal["high", "standard", "low"]
@@ -863,29 +866,32 @@ async def mark_submitted(
     if submitted is None:
         return False
     if cost is not None:
-        occurred = _aware(now).astimezone(UTC)
-        await db.execute(
-            provider_cost_events.insert().values(
-                occurred_at=occurred,
-                workspace_id=submitted.workspace_id,
-                project_id=submitted.project_id,
-                provider_code=submitted.provider_code,
-                endpoint=submitted.provider_endpoint,
-                workload=submitted.workload,
-                channel=cost_channel(TaskWorkload(submitted.workload)),
-                run_id=submitted.run_id,
-                task_id=submitted.id,
-                subject_type=submitted.subject_type,
-                subject_id=submitted.subject_id,
-                engine_code=submitted.engine_code,
-                units=1,
-                price_unit="task",
-                cost_usd=cost.usd,
-                cost_source=cost.source,
-                billing_period=occurred.date().replace(day=1),
-            )
-        )
+        await db.execute(provider_cost_events.insert().values(_cost_event(submitted, cost, now)))
     return True
+
+
+def _cost_event(task: Row[tuple[Any, ...]], cost: Cost, now: datetime) -> dict[str, Any]:
+    """One cost event for one task, from the task's own row."""
+    occurred = _aware(now).astimezone(UTC)
+    return {
+        "occurred_at": occurred,
+        "workspace_id": task.workspace_id,
+        "project_id": task.project_id,
+        "provider_code": task.provider_code,
+        "endpoint": task.provider_endpoint,
+        "workload": task.workload,
+        "channel": cost_channel(TaskWorkload(task.workload)),
+        "run_id": task.run_id,
+        "task_id": task.id,
+        "subject_type": task.subject_type,
+        "subject_id": task.subject_id,
+        "engine_code": task.engine_code,
+        "units": 1,
+        "price_unit": "task",
+        "cost_usd": cost.usd,
+        "cost_source": cost.source,
+        "billing_period": occurred.date().replace(day=1),
+    }
 
 
 async def record_failure(
@@ -951,6 +957,17 @@ async def note_unknown_outcome(db: AsyncSession, refs: Collection[TaskRef], mess
 # Reconciliation
 
 
+async def in_flight_endpoints(db: AsyncSession) -> list[tuple[str, str]]:
+    """The providers and endpoints that have tasks `submitted` or `submit_unknown`."""
+    rows = await db.execute(
+        select(_tasks.c.provider_code, _tasks.c.provider_endpoint)
+        .where(_tasks.c.status.in_(("submitted", "submit_unknown")))
+        .distinct()
+        .order_by(_tasks.c.provider_code, _tasks.c.provider_endpoint)
+    )
+    return [(row.provider_code, row.provider_endpoint) for row in rows]
+
+
 async def stale_dispatches(
     db: AsyncSession, *, older_than: timedelta, now: datetime, limit: int = DISPATCH_LIMIT
 ) -> list[LedgerTask]:
@@ -979,7 +996,9 @@ async def end_old_submissions(
     `older_than`.
 
     A task still `submit_unknown` after that time ends the same way. Whether the provider ever
-    had it is not known, and by now there is no result to fetch either way.
+    had it is not known, and by now there is no result to fetch either way. It may have been
+    paid for, so it is charged at its share of its run's estimate (`price_book_estimate`): the
+    budget counts what may have been spent rather than forget it.
     """
     lifetime: Any = literal(older_than, Interval)
     if lifetimes:
@@ -1004,7 +1023,7 @@ async def end_old_submissions(
             completed_at=_aware(now),
             last_error_code=case(
                 (_tasks.c.status == "submitted", "provider_never_answered"),
-                else_="submission_never_confirmed",
+                else_=NEVER_CONFIRMED,
             ),
             last_error_message=case(
                 (
@@ -1014,9 +1033,53 @@ async def end_old_submissions(
                 else_="The provider never confirmed the submission.",
             ),
         )
-        .returning(_tasks.c.id)
+        .returning(
+            _tasks.c.id,
+            _tasks.c.created_at,
+            _tasks.c.run_id,
+            _tasks.c.workspace_id,
+            _tasks.c.project_id,
+            _tasks.c.workload,
+            _tasks.c.subject_type,
+            _tasks.c.subject_id,
+            _tasks.c.engine_code,
+            _tasks.c.provider_code,
+            _tasks.c.provider_endpoint,
+            _tasks.c.last_error_code,
+        )
     )
-    return len(result.all())
+    ended = result.all()
+    unconfirmed = [row for row in ended if row.last_error_code == NEVER_CONFIRMED]
+    if unconfirmed:
+        await _charge_estimates(db, unconfirmed, now)
+    return len(ended)
+
+
+async def _charge_estimates(
+    db: AsyncSession, tasks: Sequence[Row[tuple[Any, ...]]], now: datetime
+) -> None:
+    """Charge each task its share of its run's estimate, on the task and as a cost event."""
+    share = (_runs.c.estimated_cost_usd / func.nullif(_runs.c.tasks_total, 0)).label("share")
+    shares = {
+        row.id: row.share
+        for row in await db.execute(
+            select(_runs.c.id, share).where(_runs.c.id.in_({task.run_id for task in tasks}))
+        )
+    }
+    events = []
+    for task in tasks:
+        estimate = shares.get(task.run_id)
+        if estimate is None or estimate <= 0:
+            continue
+        cost = Cost(usd=Decimal(estimate).quantize(_COST_STEP), source="price_book_estimate")
+        await db.execute(
+            update(_tasks)
+            .where(_named([TaskRef(id=task.id, created_at=task.created_at)]))
+            .values(cost_usd=func.coalesce(_tasks.c.cost_usd, 0) + cost.usd)
+        )
+        events.append(_cost_event(task, cost, now))
+    if events:
+        await db.execute(provider_cost_events.insert(), events)
 
 
 async def _cancel(db: AsyncSession, runs: Any, *, code: str, message: str, now: datetime) -> int:

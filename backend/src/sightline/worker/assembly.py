@@ -67,7 +67,7 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
 
     async def reconcile_ledger() -> None:
         now = await database_time(context.sessions)
-        report = await reconcile(context.sessions, now=now)
+        report = await reconcile(context.sessions, parts, now=now)
         if not report.quiet:
             _log.info("ledger reconciled", **asdict(report))
 

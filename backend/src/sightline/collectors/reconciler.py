@@ -1,16 +1,19 @@
 """The reconciler and the partition job (docs/21-scheduler-workers.md sections 8.2 and 10).
 
 The reconciler brings the ledger back to what is true, every 5 minutes. Nothing it does depends
-on Redis: after Redis is lost, one pass finds all the work that was in flight there. Each step
-is its own transaction, so one that fails leaves the others done.
+on Redis. Each step is its own transaction, and a step that fails is logged and named in the
+report while the others go on.
 
 1. A task dispatched 10 minutes ago and still `pending` lost its message, or the message is
    still waiting behind others. It is released and dispatched again. If the old message turns
    up after all, the ledger lets one of the two take the task and the other take nothing.
+   Released in batches for up to a minute a pass, so a backlog after Redis was lost comes back
+   within a few passes.
 2. A task the provider has had longer than it keeps results, or whose submission was never
-   confirmed within that time, is `dead`.
-3. A task not sent 24 hours after its run's window closed is `cancelled`, and so are the unsent
-   tasks of a run that ended.
+   confirmed within that time, is `dead`. One never confirmed is charged its share of its
+   run's estimate, since the provider may have charged for it.
+3. The unsent tasks of a run that ended are `cancelled`, then any task not sent 24 hours after
+   its run's window closed.
 4. A running run whose tasks have all ended is completed. A cancelled run is given its totals
    once the tasks the provider still had when it was cancelled have ended.
 
@@ -20,66 +23,114 @@ come with the first real adapter.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
+from sightline.collectors.registry import Registry
 
 STALE_DISPATCH = timedelta(minutes=10)
-# How long a provider keeps a task's result. DataForSEO: three days (docs/21 section 8.2).
+# How long a provider keeps a task's result when it does not say. DataForSEO: three days.
 RESULT_LIFETIME = timedelta(hours=72)
+# The longest one pass spends releasing stale dispatches, and how many it releases at a time.
+RELEASE_FOR = timedelta(minutes=1)
+RELEASE_BATCH = ledger.DISPATCH_LIMIT
+_log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
 class ReconcileReport:
     released: int = 0
     dead: int = 0
-    missed: int = 0
     run_ended: int = 0
+    missed: int = 0
     completed: int = 0
     # Cancelled runs given their totals once their last task ended.
     settled: int = 0
+    # Steps that failed in this pass. The next pass tries them again.
+    failed: tuple[str, ...] = ()
 
     @property
     def quiet(self) -> bool:
         return self == ReconcileReport()
 
 
+async def _release(sessions: async_sessionmaker[AsyncSession], now: datetime) -> int:
+    released = 0
+    deadline = time.monotonic() + RELEASE_FOR.total_seconds()
+    while True:
+        async with sessions() as db, db.begin():
+            stale = await ledger.stale_dispatches(
+                db, older_than=STALE_DISPATCH, now=now, limit=RELEASE_BATCH
+            )
+            await ledger.release(db, [task.ref for task in stale])
+        released += len(stale)
+        if len(stale) < RELEASE_BATCH or time.monotonic() >= deadline:
+            return released
+
+
+async def _lifetimes(
+    sessions: async_sessionmaker[AsyncSession], registry: Registry
+) -> dict[tuple[str, str], timedelta]:
+    """The result lifetime of every provider and endpoint with work in flight, where its
+    provider is known to this worker."""
+    async with sessions() as db:
+        endpoints = await ledger.in_flight_endpoints(db)
+    return {
+        (code, endpoint): registry.provider(code).result_lifetime(endpoint)
+        for code, endpoint in endpoints
+        if code in registry.providers
+    }
+
+
 async def reconcile(
-    sessions: async_sessionmaker[AsyncSession],
-    *,
-    now: datetime,
-    lifetimes: Mapping[tuple[str, str], timedelta] | None = None,
+    sessions: async_sessionmaker[AsyncSession], registry: Registry, *, now: datetime
 ) -> ReconcileReport:
-    """One pass. `lifetimes` gives the result lifetime per provider and endpoint where it is
-    not three days."""
-    async with sessions() as db, db.begin():
-        stale = await ledger.stale_dispatches(db, older_than=STALE_DISPATCH, now=now)
-        await ledger.release(db, [task.ref for task in stale])
-    async with sessions() as db, db.begin():
-        dead = await ledger.end_old_submissions(
-            db, older_than=RESULT_LIFETIME, lifetimes=lifetimes, now=now
+    """One pass."""
+    counts: dict[str, int] = {}
+    failed: list[str] = []
+
+    async def step(name: str, action: Callable[[], Awaitable[int]]) -> None:
+        try:
+            counts[name] = await action()
+        except Exception as error:
+            _log.error("reconcile step failed", step=name, exc_info=error)
+            failed.append(name)
+
+    async def in_transaction(
+        work: Callable[[AsyncSession], Awaitable[int]],
+    ) -> int:
+        async with sessions() as db, db.begin():
+            return await work(db)
+
+    async def end_old() -> int:
+        lifetimes = await _lifetimes(sessions, registry)
+        return await in_transaction(
+            lambda db: ledger.end_old_submissions(
+                db, older_than=RESULT_LIFETIME, lifetimes=lifetimes, now=now
+            )
         )
-    async with sessions() as db, db.begin():
-        missed = await ledger.cancel_missed(db, now=now)
-    async with sessions() as db, db.begin():
-        run_ended = await ledger.cancel_for_ended_runs(db, now=now)
-    # Last, so a run whose final tasks were ended above is completed in the same pass.
-    async with sessions() as db, db.begin():
-        completed = await ledger.complete_finished_runs(db, now=now)
-        settled = await ledger.settle_cancelled_runs(db)
-    return ReconcileReport(
-        released=len(stale),
-        dead=dead,
-        missed=missed,
-        run_ended=run_ended,
-        completed=completed,
-        settled=settled,
+
+    async def close_runs() -> int:
+        return await in_transaction(lambda db: ledger.complete_finished_runs(db, now=now))
+
+    await step("released", lambda: _release(sessions, now))
+    await step("dead", end_old)
+    # A run that ended says why its tasks were not sent; only then is lateness the reason.
+    await step(
+        "run_ended", lambda: in_transaction(lambda db: ledger.cancel_for_ended_runs(db, now=now))
     )
+    await step("missed", lambda: in_transaction(lambda db: ledger.cancel_missed(db, now=now)))
+    # Last, so a run whose final tasks were ended above is completed in the same pass.
+    await step("completed", close_runs)
+    await step("settled", lambda: in_transaction(ledger.settle_cancelled_runs))
+    return ReconcileReport(**counts, failed=tuple(failed))
 
 
 async def ensure_partitions(sessions: async_sessionmaker[AsyncSession]) -> int:

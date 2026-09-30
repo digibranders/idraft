@@ -460,6 +460,37 @@ async def test_a_schedule_is_due_at_the_instant_its_window_starts(
     assert len(await _runs(migrated, schedule_id)) == 1
 
 
+async def test_the_lock_on_a_schedule_being_planned_does_not_block_runs_that_refer_to_it(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """Only `next_run_at` and `last_run_id` change, so the row's key stays free: a manual run
+    of the same schedule, or a retry, can be recorded while the planner works."""
+    project = await make_tenant(migrated)
+    schedule_id = await _due_schedule(migrated, project)
+    workload = FakeWorkload()
+    begun, go_on = asyncio.Event(), asyncio.Event()
+    workload.gates[schedule_id] = (begun, go_on)
+
+    planning = asyncio.create_task(plan_due(worker_db, _registry(workload), now=NOW))
+    await asyncio.wait_for(begun.wait(), timeout=10)
+    try:
+        async with connection(migrated) as other:
+            await other.execute("SET lock_timeout = '1s'")
+            # Refers to the locked row through its foreign key.
+            await other.execute(
+                "INSERT INTO ops.collection_runs (workspace_id, project_id, schedule_id, "
+                "workload, window_start, window_end, trigger, status, config_snapshot) "
+                "VALUES ($1, $2, $3, 'seo_rank', $4, $4, 'schedule', 'planned', '{}')",
+                project.workspace_id,
+                project.id,
+                schedule_id,
+                NOW + DAY,
+            )
+    finally:
+        go_on.set()
+    assert await planning == PlannerReport(planned=1)
+
+
 async def test_a_planner_does_not_wait_for_a_schedule_another_one_holds(
     worker_db: Ledger, migrated: PostgresServer
 ) -> None:

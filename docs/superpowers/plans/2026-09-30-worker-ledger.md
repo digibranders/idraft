@@ -98,7 +98,7 @@ As built, the file list differs from the one planned: messages live with the cod
 
 ### Task 6: Reconciler and maintenance
 
-- [ ] Tests first: a task dispatched 10 minutes ago with no live message is released; a task `submitted` for 72 hours is `dead`; a pending task 24 hours past its window is `cancelled`; runs whose tasks are all terminal are completed; `ensure_partitions` creates the months ahead; both jobs are on the scheduler's list.
+- [ ] Tests first: a task dispatched 10 minutes ago is released (on age alone: see doc 21 section 8.2); a task `submitted` for 72 hours is `dead`; a pending task 24 hours past its window is `cancelled`; runs whose tasks are all terminal are completed; `ensure_partitions` creates the months ahead; both jobs are on the scheduler's list.
 - [ ] `collectors/reconciler.py`, maintenance jobs in `worker/jobs.py`, scheduler wiring.
 - [ ] Gates, Opus review, fixes, commit.
 

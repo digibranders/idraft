@@ -13,9 +13,11 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 from redis.asyncio import Redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import NoPermissionError
 from taskiq import ScheduledTask
 from taskiq.exceptions import ScheduledTaskCancelledError, SendTaskError
+from taskiq_redis import RedisStreamBroker
 
 from sightline.config.logging import configure_logging
 from sightline.worker import queues as queues_module
@@ -151,6 +153,67 @@ async def _is_clear(queues: Queues, key: str) -> bool:
     return not await queues.is_waiting(key)
 
 
+async def test_an_acknowledgement_redis_misses_is_tried_again(
+    redis: Redis, redis_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Never acknowledged, the message would run a second time ten minutes later."""
+    monkeypatch.setattr(queues_module, "_RECONNECT_AFTER_SECONDS", 0.01)
+    queues = Queues(redis_url, redis)
+    handled: list[int] = []
+    misses = 0
+    # taskiq-redis's own acknowledgement, which the queue wraps.
+    real = RedisStreamBroker._ack_generator
+
+    def flaky(self: RedisStreamBroker, id: str, queue_name: str):  # type: ignore[no-untyped-def]
+        ack = real(self, id=id, queue_name=queue_name)
+
+        async def once_more() -> None:
+            nonlocal misses
+            if misses < 2:
+                misses += 1
+                raise RedisConnectionError("reset by peer")
+            await ack()
+
+        return once_more
+
+    monkeypatch.setattr(RedisStreamBroker, "_ack_generator", flaky)
+
+    async def handle(message: Note) -> None:
+        handled.append(message.number)
+
+    queues.register("collect", "submit", handle)
+    async with _receiving(queues):
+        await queues.enqueue("submit", Note(number=1), dedupe_key="submit:1")
+        await eventually(lambda: misses == 2, within=10)
+        await eventually(lambda: _none_unacknowledged(redis), within=10)
+
+    assert (handled, misses) == ([1], 2)
+
+
+async def test_a_handler_that_runs_too_long_is_stopped_before_its_message_is_handed_over(
+    redis: Redis, redis_url: str
+) -> None:
+    stream = io.StringIO()
+    configure_logging(service="worker", version="test", level="info", stream=stream)
+    # Handed over after one second: the handler may run for four fifths of it.
+    queues = Queues(redis_url, redis, redeliver_after=timedelta(seconds=1))
+    finished = False
+
+    async def stuck(message: Note) -> None:
+        nonlocal finished
+        await asyncio.sleep(10)
+        finished = True
+
+    queues.register("collect", "submit", stuck)
+    async with _receiving(queues):
+        await queues.enqueue("submit", Note(number=1), dedupe_key="submit:1")
+        await eventually(lambda: _is_clear(queues, "submit:1"), within=5)
+
+    assert not finished
+    (line,) = [json.loads(line) for line in stream.getvalue().splitlines() if "job failed" in line]
+    assert line["err"]["type"] == "TimeoutError"
+
+
 async def test_a_message_is_acknowledged_only_after_its_handler_finishes(
     redis: Redis, redis_url: str
 ) -> None:
@@ -257,9 +320,12 @@ async def test_a_message_that_is_not_what_the_job_takes_never_reaches_the_handle
     assert "secret-looking text" not in stream.getvalue()
 
 
-async def _die_mid_handler(redis: Redis, redis_url: str, redeliver_after: timedelta) -> None:
-    """A worker takes message 1 and dies in its handler: nothing acknowledges the message."""
-    dying = Queues(redis_url, redis, redeliver_after=redeliver_after)
+async def _die_mid_handler(redis: Redis, redis_url: str) -> None:
+    """A worker takes message 1 and dies in its handler: nothing acknowledges the message.
+
+    Its handler goes on running in this event loop, where a real crash would end it. With the
+    usual time limit it runs past the test, never to acknowledge anything."""
+    dying = Queues(redis_url, redis)
     started = asyncio.Event()
 
     async def never_finishes(message: Note) -> None:
@@ -282,7 +348,7 @@ async def test_a_message_held_by_a_consumer_that_died_goes_to_another(
     redis: Redis, redis_url: str
 ) -> None:
     fast = timedelta(milliseconds=200)
-    await _die_mid_handler(redis, redis_url, fast)
+    await _die_mid_handler(redis, redis_url)
     survivor = Queues(redis_url, redis, redeliver_after=fast)
     handled: list[int] = []
 
@@ -303,7 +369,7 @@ async def test_a_busy_consumer_still_finds_the_messages_of_one_that_died(
 ) -> None:
     monkeypatch.setattr(queues_module, "CLAIM_EVERY", timedelta(milliseconds=300))
     fast = timedelta(milliseconds=200)
-    await _die_mid_handler(redis, redis_url, fast)
+    await _die_mid_handler(redis, redis_url)
     survivor = Queues(redis_url, redis, redeliver_after=fast)
     handled: list[int] = []
 
@@ -514,15 +580,16 @@ async def _nothing() -> None: ...
 # Scheduled jobs
 
 
-def _scheduled(job: str) -> ScheduledTask:
+def _scheduled(job: str, cron: str | None = None) -> ScheduledTask:
+    if cron is not None:
+        return ScheduledTask(task_name=job, labels={}, args=[], kwargs={}, cron=cron)
     return ScheduledTask(task_name=job, labels={}, args=[], kwargs={}, interval=1)
 
 
-async def test_a_scheduled_run_is_sent_once_in_half_its_period(
-    redis: Redis, redis_url: str
-) -> None:
+async def test_a_scheduled_run_is_sent_once(redis: Redis, redis_url: str) -> None:
     """Two schedulers at a change of the lock, or one that has just started, would each send
-    the same run. The claim is made when a run is sent, per job, for half the job's period."""
+    the same run. The claim is made when a run is sent: an interval job for half its period,
+    a cron job for its minute, whenever in the minute the second scheduler starts."""
     first, second = Queues(redis_url, redis), Queues(redis_url, redis)
     for queues in (first, second):
         queues.register_scheduled("reconcile", _nothing, every=timedelta(seconds=4))
@@ -533,11 +600,14 @@ async def test_a_scheduled_run_is_sent_once_in_half_its_period(
     with pytest.raises(ScheduledTaskCancelledError):
         await other.pre_send(_scheduled("reconcile"))
     # Another job has its own claim.
-    await other.pre_send(_scheduled("partitions"))
+    await one.pre_send(_scheduled("partitions", cron="10 0 * * *"))
+    with pytest.raises(ScheduledTaskCancelledError):
+        await other.pre_send(_scheduled("partitions", cron="10 0 * * *"))
 
-    # Half of four seconds, and half a minute for a time of day.
     assert 1500 < await redis.pttl("dedupe:scheduled:reconcile") <= 2000
-    assert 25_000 < await redis.pttl("dedupe:scheduled:partitions") <= 30_000
+    (minute,) = [key async for key in redis.scan_iter("dedupe:scheduled:partitions:*")]
+    # Past the end of the minute the run was sent in.
+    assert 60_000 < await redis.pttl(minute) <= 120_000
     # The next run, a period later, finds the claim gone.
     await redis.pexpire("dedupe:scheduled:reconcile", 1)
     await asyncio.sleep(0.05)

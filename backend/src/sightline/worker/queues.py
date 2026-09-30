@@ -2,9 +2,15 @@
 
 A message carries ids and small keys. It is a Pydantic model, checked when it is sent and when
 it is received. It is sent only if its dedupe key was new, and the key is cleared when its
-handler finishes. A handler that raises is logged and its message acknowledged: nothing is
-retried by the queue, because the queue does not know whether a provider was already paid. The
-ledger decides what happens next (the reconciler brings back what is still due).
+handler finishes. A handler that raises is logged and its message acknowledged: the queue does
+not retry, because it does not know whether a provider was already paid. The ledger decides
+what happens next (the reconciler brings back what is still due).
+
+A handler can still run twice: a message whose acknowledgement never reached Redis, or whose
+consumer died, is handed to another consumer after `REDELIVER_AFTER`. So every handler is safe
+to run twice: provider work checks the ledger first, and maintenance jobs are idempotent. A
+handler that runs longer than `HANDLER_TIME_LIMIT` is stopped, so its message is never handed
+over while it still runs.
 
 The queues are Redis streams read through Taskiq. How a stream is read is ours (`_Stream`), for
 four reasons the broker of taskiq-redis does not cover:
@@ -53,13 +59,19 @@ DEDUPE_TTL = timedelta(hours=1)
 # must exceed the longest handler (120 s for a live call), or a slow handler's message would be
 # handed to a second one while the first still runs.
 REDELIVER_AFTER = timedelta(minutes=10)
+# The longest a handler may run: well inside `REDELIVER_AFTER`.
+HANDLER_TIME_LIMIT = timedelta(minutes=8)
 # How often a busy consumer looks for such messages. An idle one looks every time it finds
 # nothing new.
 CLAIM_EVERY = timedelta(seconds=30)
 # Acknowledged messages stay in a stream until it is trimmed. Redis has no eviction, so the
-# streams are capped; a backlog longer than this loses its oldest messages. The reconciler
-# sends their work again from the ledger once their dedupe keys have expired.
+# streams are capped; a backlog longer than this loses its oldest messages. Their tasks are
+# released by the reconciler and dispatched again, but a batch made of exactly the same tasks
+# finds its old dedupe key still held and is not sent until the key expires.
 STREAM_MAX_LENGTH = 10_000
+# A claim of a cron run covers its minute and the next, whenever in the minute it is sent.
+_CRON_CLAIM = timedelta(minutes=2)
+_ACK_ATTEMPTS = 3
 _RECONNECT_AFTER_SECONDS = 1.0
 _log = structlog.get_logger(__name__)
 
@@ -121,16 +133,55 @@ class _Stream(RedisStreamBroker):
             return []
         return list(fetched[0][1])
 
+    async def _regroup(self, redis: Redis) -> None:
+        """Make the stream and its consumer group again, after Redis came back empty. Never
+        raises: a failure is logged and waited out, like any other Redis trouble."""
+        try:
+            await redis.xgroup_create(
+                self.queue_name, self.consumer_group_name, id="0", mkstream=True
+            )
+            _log.warning("queue made again", queue=self.queue_name)
+        except ResponseError as error:
+            if "BUSYGROUP" not in str(error):
+                _log.error("queue not made again", queue=self.queue_name, exc_info=error)
+                await asyncio.sleep(_RECONNECT_AFTER_SECONDS)
+        except (RedisError, OSError) as error:
+            _log.warning(
+                "queue not reachable", queue=self.queue_name, error_kind=type(error).__name__
+            )
+            await asyncio.sleep(_RECONNECT_AFTER_SECONDS)
+
+    def _ack_generator(self, id: str, queue_name: str) -> Callable[[], Awaitable[None]]:
+        """Acknowledge, trying again for a moment if Redis does not answer. A message never
+        acknowledged is handed over again after `REDELIVER_AFTER`, and runs a second time."""
+        ack = super()._ack_generator(id=id, queue_name=queue_name)
+
+        async def acknowledge() -> None:
+            for attempt in range(1, _ACK_ATTEMPTS + 1):
+                try:
+                    await ack()
+                    return
+                except (RedisError, OSError) as error:
+                    if attempt == _ACK_ATTEMPTS:
+                        _log.error(
+                            "message not acknowledged, it will run again",
+                            queue=queue_name,
+                            error_kind=type(error).__name__,
+                        )
+                        return
+                    await asyncio.sleep(_RECONNECT_AFTER_SECONDS * attempt)
+
+        return acknowledge
+
     async def listen(self) -> AsyncGenerator[AckableMessage]:
         async with Redis(connection_pool=self.connection_pool) as redis:
             while True:
                 try:
                     messages = await self._take(redis)
                 except ResponseError as error:
-                    if "NOGROUP" in str(error):
-                        # Redis came back empty: the stream and its group are made again.
-                        _log.warning("queue made again", queue=self.queue_name)
-                        await self._declare_consumer_group()
+                    # NOGROUP: Redis came back empty. UNBLOCKED: it was emptied under a read.
+                    if "NOGROUP" in str(error) or "UNBLOCKED" in str(error):
+                        await self._regroup(redis)
                     else:
                         _log.error("queue read refused", queue=self.queue_name, exc_info=error)
                         await asyncio.sleep(_RECONNECT_AFTER_SECONDS)
@@ -155,12 +206,13 @@ class _Stream(RedisStreamBroker):
 
 
 class _OncePerPeriod(LabelScheduleSource):
-    """The scheduled jobs, each sent at most once in half its period.
+    """The scheduled jobs, each run sent once.
 
     One scheduler holds the scheduler lock, but when the lock changes hands two can each send
     the same run, and a scheduler that starts sends every interval job at once. The claim is
     made when the run is sent, so a run that waits in a busy queue does not take the place of
-    the next one.
+    the next one. An interval job claims half its period. A cron job claims its minute: a
+    scheduler that starts late in the minute would otherwise send it again.
     """
 
     def __init__(self, broker: _Stream, redis: Redis, periods: dict[str, timedelta]) -> None:
@@ -169,11 +221,15 @@ class _OncePerPeriod(LabelScheduleSource):
         self._periods = periods
 
     async def pre_send(self, task: ScheduledTask) -> None:
-        half = int(self._periods[task.task_name].total_seconds() * 1000) // 2
+        if task.cron is not None:
+            minute = int(time.time()) // 60
+            key = f"{DEDUPE_PREFIX}scheduled:{task.task_name}:{minute}"
+            hold = int(_CRON_CLAIM.total_seconds() * 1000)
+        else:
+            key = f"{DEDUPE_PREFIX}scheduled:{task.task_name}"
+            hold = int(self._periods[task.task_name].total_seconds() * 1000) // 2
         try:
-            claimed = await self._redis.set(
-                f"{DEDUPE_PREFIX}scheduled:{task.task_name}", "1", nx=True, px=half
-            )
+            claimed = await self._redis.set(key, "1", nx=True, px=hold)
         except (RedisError, OSError) as error:
             _log.warning(
                 "scheduled run not sent", job=task.task_name, error_kind=type(error).__name__
@@ -194,6 +250,8 @@ class Queues:
         self._jobs: dict[str, AsyncTaskiqDecoratedTask[Any, Any]] = {}
         self._models: dict[str, type[BaseModel]] = {}
         self._periods: dict[str, timedelta] = {}
+        # Below the redelivery time, whatever that is set to.
+        self._time_limit = min(HANDLER_TIME_LIMIT, redeliver_after * 0.8)
 
     def broker(self, queue: QueueName) -> RedisStreamBroker:
         return self._brokers[queue]
@@ -223,7 +281,8 @@ class Queues:
                             ],
                         )
                         return
-                    await handler(parsed)  # type: ignore[arg-type]
+                    async with asyncio.timeout(self._time_limit.total_seconds()):
+                        await handler(parsed)  # type: ignore[arg-type]
                 except Exception as error:
                     _log.error("job failed", exc_info=error)
                 finally:
@@ -257,7 +316,8 @@ class Queues:
         async def guarded() -> None:
             with structlog.contextvars.bound_contextvars(job=job):
                 try:
-                    await handler()
+                    async with asyncio.timeout(self._time_limit.total_seconds()):
+                        await handler()
                 except Exception as error:
                     _log.error("job failed", exc_info=error)
 

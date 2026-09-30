@@ -201,7 +201,9 @@ async def dispatch(
     unsent: list[TaskRef] = []
     for batch in made:
         try:
-            # False: the same batch is already waiting, and it will take these tasks.
+            # False: a batch of the same tasks holds the key. It is waiting and will take them,
+            # or it was lost with the key still held; then the reconciler releases them again
+            # and they go once the key has expired.
             await sender.send(batch)
             sent += 1
         except Exception as error:
