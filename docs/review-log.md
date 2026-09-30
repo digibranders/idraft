@@ -360,3 +360,51 @@ Carried into later plans:
 | F10 | `core.layouts` (04 section 11.6a, specified by the frontend session) has a `workspace_id`: its migration needs `tenant_isolation`, grants for `app_api` only, a row in 13.1, and a decision on how the per-user rows are kept private inside a workspace (application check or a policy on `auth.current_user_id()`) | the plan that builds layouts |
 | F11 | `vacuumlo` or a revoke of the large object functions in the init script | maintenance plan |
 
+### Auth: accounts, sessions and two-factor (2026-09-30)
+
+Plan `docs/superpowers/plans/2026-09-30-auth-accounts-sessions.md`, built on branch `backend/auth`. Revision `0005` (the auth audit function). Routes: the 16 auth routes and 3 current-user routes of doc 19 section 3.1, and `GET /api/v1/openapi.json` behind a session. Carried items F3 (ids on the 500 log line) and F4 (Sentry and Redis) are closed.
+
+Decisions the specs left open, now written into the docs:
+
+| Decision | Doc | Why |
+|---|---|---|
+| Registration is by invitation unless `REGISTRATION=open`; the first account comes from `python -m sightline.cli create-operator` | 24 section 2, 19 section 3.1, 22 section 7.1 | The first users are the agency and its clients. Open registration would let anyone create a workspace and spend the provider budget |
+| A registration with a valid invitation token is verified at once; the address is compared by the database as `citext` | 24 section 2 | The token was sent to that mailbox. A comparison in Python called two addresses equal that PostgreSQL stores as different accounts |
+| Revocation sets `revoked_at` and writes a Redis tombstone; the API never deletes a session row | 24 section 2 | Doc 24 said "deletes the row"; `app_api` has no `DELETE` on sessions, and a delete of the cache key alone can be undone by a slow reader |
+| Cached sessions carry an HMAC bound to the token hash | 24 section 2 | Without it, anyone who could write to Redis could become any user |
+| The breached-password check is the Pwned Passwords range API, failing open | 24 section 2 | No bundled list to keep current; only 5 hex characters of a SHA-1 leave the server |
+| Recovery codes are 80-bit random values stored as `sha256` | 04 section 4, 24 section 2 | They are random like session tokens. Ten argon2 verifications per attempt would be a cheap way to exhaust the API |
+| Auth events go to `ops.audit_logs` through `ops.record_auth_event`; a failure is committed before the error is returned and before it is counted | 04 section 13, 24 section 12 | The events have no workspace, which the row-level policy rejects for `app_api`; a row written in a transaction that then fails would be lost |
+| Email is a port with a console sender (local origins only) and a Resend sender; tokens travel in the URL fragment | 24 section 2, 22 section 7.1 | One POST to swap the provider; a fragment is never sent to a server, so tokens stay out of access logs |
+| The Origin check covers every state-changing request under `/api/`, public routes included | 19 section 2.1, 24 section 2.1 | It also stops login CSRF |
+| The failure count is cleared only when a sign-in completes | 24 section 2 | Otherwise someone who knows the password could start over after every few wrong codes and guess the second factor without limit |
+| A user with two-factor on must re-authenticate with a code | 19 section 3.1, 24 section 2 | Otherwise a stolen cookie plus the password would be enough to replace the recovery codes |
+| Sign-in locks the user row; a password change or reset writes it before revoking | 24 section 2 | A revocation of every session must not miss one created at the same moment |
+| The 60 s cache is not trusted for anything that changes an account | 24 section 2 | A disabled user's session can stay cached for a minute |
+| Log lines carry `user_id`, never the session | 25 section 3.1, 24 section 11 | The redaction treats a session id as a credential; the user is what an operator needs |
+
+Each task was followed by an independent review (Fable model) that ran the code. What the reviews found and what was done:
+
+| Task | Findings fixed |
+|---|---|
+| 1. Primitives and settings | Hashing and lookups raised on text UTF-8 cannot carry; a time without a zone was read as local time; the range listing was read without a size limit; the production email rule also stopped the worker |
+| 2. Audit function and metadata | The action pattern was looser than its message; a `NULL` target echoed the row in the error; the drift check missed primary keys, which columns have defaults, and undeclared tables |
+| 3. Email | A name could still become a link (bare domains, `mailto:`); the Resend post followed redirects if the client did; a subject could carry a Unicode line break; the console sender could run on a server that forgot `APP_ENV` |
+| 4. Sessions | Sliding a session did not check that the user was still enabled; a cache entry with a time lacking its zone was a 500; anyone able to write to Redis could forge a session; a rotated session could be given a longer life than the policy; a configured origin with `:443` never matched a browser |
+| 5. Registration and sign-in | An invitation verified a different address that folded to the same text; two sign-ins that both rewrote an old hash deadlocked; the invitation was not re-checked inside the insert; emails accepted invisible characters; token routes had no limit |
+| 6. Passwords and sessions | An image URL with a NUL was a 500; a just-disabled user could still change their password; a right change did not clear the failure count; a reset could complete for a user disabled meanwhile; a Redis outage lost the audit row of a wrong password |
+| 7 and 8 | Recorded below when the reviews return |
+
+Carried into the next plans:
+
+| Id | Item | Plan |
+|---|---|---|
+| F12 | `two_factor_enrollment_required`: an owner or admin without TOTP is blocked from workspace routes. Needs `require_permission` and the workspace routes | 3b (workspaces, members, projects) |
+| F13 | While `REGISTRATION=invited`, creating a workspace should be limited to platform operators, or an invited client could create a second workspace and spend on it | 3b |
+| F14 | Invitation routes: create, resend, cancel, accept, decline. Accepting must mark the invitation `accepted`; registration only reads it. The invitation email reuses the email port and the fragment token | 3b |
+| F15 | The general request limit (600 per minute per user) and `GET /api/v1/roles` | 3b |
+| F16 | Verification and reset emails are sent from a background task in the api process. Move them to the worker outbox, which also removes the keep-alive timing difference between known and unknown addresses | 4 (worker) |
+| F17 | Purge of expired sessions and used tokens, with the `DELETE` grants it needs | maintenance plan |
+| F18 | Production Compose: `APP_ENV=production`, `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, `TOTP_ENCRYPTION_KEY` in `required-secrets.txt`; `--forwarded-allow-ips` and Caddy `trusted_proxies` verified with a test that the api sees the real client address | 6 (droplet) |
+| F19 | The frontend branch adds the permission `layouts:manage` to doc 24 section 3.2. When it merges, `sightline.api.permissions` and its test need the same row | at that merge |
+| F20 | `auth.users.email` and `disabled_at` still have no route. A disable-user path must revoke the user's sessions and evict them from the cache | 3b or the admin plan |

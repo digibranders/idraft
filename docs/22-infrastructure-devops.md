@@ -247,6 +247,7 @@ services:
       REDIS_URL: ${REDIS_URL_APP:?}
       SENTRY_DSN: ${SENTRY_DSN_BACKEND:?}
       EMAIL_API_KEY: ${EMAIL_API_KEY:?}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?}   # base64 of 32 random bytes; see section 7
     healthcheck:
       test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/readyz', timeout=3).status == 200 else 1)"]
       interval: 10s
@@ -701,9 +702,9 @@ Notes:
 - One origin: no CORS, one cookie (`__Host-session`, `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`), no staging API (ADR-022).
 - Rate limiting is not done in Caddy. The official `caddy:2` image has no rate-limit module, and doc 24 section 10 requires official images only. The API enforces all limits in doc 24 section 8 with Redis-backed counters. Caddy contributes body caps and blocks internal paths.
 - Caddy's access logs redact `Authorization`, `Cookie` and `Set-Cookie` by default (`log_credentials` is off unless enabled). There is no public callback route, so no path needs a filter.
-- uvicorn trusts `X-Forwarded-For` only from `caddy` and `web` (`--forwarded-allow-ips`, section 4.1). `web` forwards the client address it received from Caddy on its server-side API calls, so rate limiting and audit logs see the real client IP.
+- uvicorn trusts `X-Forwarded-For` only from `caddy` and `web` (`--forwarded-allow-ips`, section 4.1). `web` forwards the client address it received from Caddy on its server-side API calls, so rate limiting and audit logs see the real client IP. The sign-in throttle (20 failures per 15 minutes per address, doc 24 section 2) depends on this: if every request appeared to come from one container address, twenty wrong passwords from anyone would lock sign-in for everyone. For the same reason `web` does not call sign-in, register or the email-request routes server side; the browser calls them.
 - `/api/healthz` stays public; Better Stack polls it. It is liveness only: `200 {"status":"ok"}` when the process answers, with no release, hostname or database call ([19](19-api-specification.md) section 3.12 owns both routes). `/api/readyz` (used by the container healthcheck and the deploy script) checks PostgreSQL, Redis and that the schema is at the revision the build expects, reports booleans only, and is not exposed.
-- If the optional Cloudflare proxy is turned on, add Cloudflare's published address ranges to Caddy's `trusted_proxies` in the same change, or rate limits will see Cloudflare addresses instead of clients.
+- If the optional Cloudflare proxy is turned on, add Cloudflare's published address ranges to Caddy's `trusted_proxies` in the same change, or rate limits and the sign-in throttle will see Cloudflare edge addresses instead of clients, and one edge address can then lock out every user behind it.
 
 ## 5. Host configuration
 
@@ -934,7 +935,7 @@ ADR-022 and doc 24 section 5.1 set the policy: platform secrets are GitHub Actio
 
 | File | In git | Content |
 |---|---|---|
-| `infra/compose/config/app.env` | yes, plaintext | non-secret settings: `APP_ORIGIN` (the one domain), R2 bucket names and endpoint, log level, feature flags, Sentry environment |
+| `infra/compose/config/app.env` | yes, plaintext | non-secret settings: `APP_ENV=production`, `APP_ORIGIN` (the one domain), `REGISTRATION` (`invited`, the default, or `open`), `EMAIL_PROVIDER=resend`, `EMAIL_FROM` (a sender on the verified domain), R2 bucket names and endpoint, log level, feature flags, Sentry environment. The api refuses to start in production with the console email sender, and refuses it for any origin that is not a local address even when `APP_ENV` is missing |
 | `infra/compose/required-secrets.txt` | yes, plaintext | the names (never the values) of every key the platform `.env` must contain |
 | GitHub Actions `production` environment secrets | no | the values of all platform secrets (doc 24 section 5.1 list) |
 | `/etc/seo-platform/.env` | no | all platform secrets as dotenv, root 0600, written on every deploy |
@@ -946,7 +947,7 @@ Each service gets the minimum it needs. This map is the `environment:` blocks of
 
 ```yaml
 web:       [SENTRY_DSN_WEB]
-api:       [DATABASE_URL_API, REDIS_URL_APP, SENTRY_DSN_BACKEND, EMAIL_API_KEY]
+api:       [DATABASE_URL_API, REDIS_URL_APP, SENTRY_DSN_BACKEND, EMAIL_API_KEY, TOTP_ENCRYPTION_KEY]
 worker:    [DATABASE_URL_WORKER, REDIS_URL_APP, DATAFORSEO_LOGIN, DATAFORSEO_PASSWORD,
             R2_RAW_ACCESS_KEY_ID, R2_RAW_SECRET_ACCESS_KEY, HC_PLANNER_URL, HC_MAINTENANCE_URL,
             HC_OPS_HEALTH_URL, SENTRY_DSN_BACKEND, EMAIL_API_KEY]

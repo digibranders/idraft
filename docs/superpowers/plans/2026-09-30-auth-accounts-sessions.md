@@ -14,6 +14,16 @@
 
 **Shell note for this machine:** `export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"` before Docker and test commands. Run the gates with `backend/check.sh -q -p no:cacheprovider` and never pipe them in a way that hides the exit code.
 
+**Execution notes (2026-09-30), where the build differs from the text below:**
+
+- **Re-authentication moved from Task 6 to Task 7**, because it shares its code path with the second factor. A user with two-factor on must re-authenticate with a code (not in the original plan; found in review).
+- **Task 5 order.** The invitation is checked before the password policy, so in `invited` mode nothing about a password is said to a caller without a valid token. The invitation is checked again inside the insert transaction.
+- **`totp_encryption_key`** is required for the api process only; the worker and the CLI do not need it. Two keys are derived from it with HKDF: one encrypts TOTP secrets, one authenticates cached sessions.
+- **`build_email_sender`** takes plain values, not `Settings`, so `sightline.providers` stays free of `sightline.config` (which imports SQLAlchemy).
+- **Sessions are not named in logs**, only the user.
+- **Session cache.** Entries are authenticated and a revocation leaves a 120 s tombstone. Neither was in the plan; both came from review.
+- **Findings, fixes and carried items:** `docs/review-log.md`, "Auth: accounts, sessions and two-factor".
+
 **Every task ends the same way:** gates green, commit, then an independent review with the Fable model (`model: "fable"`) given the task's diff range and the spec sections above; fix what it finds before the next task.
 
 ---

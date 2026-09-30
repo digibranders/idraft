@@ -149,7 +149,7 @@ CREATE TABLE auth.totp_secrets (
     secret_encrypted      bytea NOT NULL,         -- the server must recompute codes, so the secret is encrypted (AES-GCM, key from the platform secrets file), not hashed
     confirmed_at          timestamptz,            -- NULL until the first valid code; an unconfirmed secret does not count as enabled
     last_used_step        bigint,                 -- last accepted 30 s time step; blocks code replay
-    recovery_code_hashes  text[] NOT NULL DEFAULT '{}',   -- argon2id hashes; a used code is removed
+    recovery_code_hashes  text[] NOT NULL DEFAULT '{}',   -- sha256 hex of 80-bit random codes; a used code is removed
     created_at            timestamptz NOT NULL DEFAULT now()
 );
 
@@ -2053,12 +2053,13 @@ The API is the only process that serves users, so it is the one RLS guards: ever
 
 The worker is different by nature. The planner's due-schedule scan, the dispatcher's due-task scan, the reconciler, partition maintenance, rollups and tenant purge all read across workspaces, so `app_worker` bypasses RLS. Its safety comes from two things. The task ledger: every task row carries `workspace_id` and `project_id`, every ingest and derivation write copies them from the task, and the cross-tenant test suite runs the worker tasks for two workspaces and asserts that no row is written under the wrong one. And its grants: it has `UPDATE` on named columns only, never on `workspace_id`, `project_id` or an identity column, so no worker bug can move an existing row to another workspace.
 
-Two narrow `SECURITY DEFINER` functions owned by `migrator`, each with `search_path = pg_catalog` and `EXECUTE` revoked from `PUBLIC`, cover what neither runtime role may do directly:
+Three narrow `SECURITY DEFINER` functions owned by `migrator`, each with `search_path = pg_catalog` and `EXECUTE` revoked from `PUBLIC`, cover what neither runtime role may do directly:
 
 | Function | Caller | Why |
 |---|---|---|
 | `auth.invitation_by_token(token_hash)` | `app_api` | Accepting an invitation happens before the user belongs to the workspace, so the RLS policy on `auth.invitations` would hide the row. Returns the one invitation with that token hash, whatever its status or expiry, so the API can answer "expired" instead of "unknown". The caller must check `status` and `expires_at` before acting on it |
 | `ops.maintain_partitions()` | `app_worker` | Creating a partition is DDL, and no runtime role may run DDL (section 12.2) |
+| `ops.record_auth_event(action, user_id, target_type, target_id, ip, user_agent, request_id, details)` | `app_api` | Auth events (sign-in, failed sign-in, password and 2FA changes) have no workspace, and the policy on `ops.audit_logs` rejects a `NULL` workspace written by `app_api`. The function writes exactly one such row and fixes what the caller must not choose: the workspace is always `NULL`, the action must match `auth.<words>`, the actor is derived from the user id, and the id and time come from the table. It inserts as the owner, which row-level security does not apply to, so it would stop working if `FORCE ROW LEVEL SECURITY` were ever set on the table |
 
 A query that forgets to set the workspace returns zero rows instead of all rows. That failure mode is deliberate, and it is why the helper wraps the setting in `NULLIF(..., '')`: `current_setting(..., true)` is NULL on a connection that never set it, but after a transaction that used `set_config(..., true)` PostgreSQL leaves the custom setting on that pooled connection as an empty string, and `''::uuid` raises instead of matching nothing. `backend/tests/db/test_engine.py` pins both behaviours against PostgreSQL 18.
 

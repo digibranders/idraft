@@ -69,7 +69,7 @@ Rules 1 to 4 describe the planned API key behavior and apply only once API keys 
 4. API keys cannot call: `/api/v1/auth/*`, `/api/v1/me` mutations, API key management, member and role management, integration connect and disconnect, workspace deletion. These routes return `403 session_required`.
 5. **Re-authentication for sensitive actions.** Routes marked **fresh** in the catalog require a session authenticated (password or TOTP challenge) within the last 10 minutes (doc 24 section 2). Otherwise they return `403 fresh_session_required` with `reauth_url` in the problem body. Fresh routes are marked in the catalog. They include: create and delete an API key (when API keys ship), change a member's role or project scope, remove a member, connect, reauthorize or disconnect an integration, rotate a webhook secret, delete a project, delete or restore a workspace.
 6. **2FA enforcement.** A user whose role in the path workspace is `owner` or `admin` and who has not enabled TOTP receives `403 two_factor_enrollment_required` on every route of that workspace except `GET {W}` and `GET /api/v1/me`.
-7. **CSRF.** `SameSite=Lax` plus an Origin check: for cookie-authenticated `POST`, `PUT`, `PATCH`, `DELETE`, the `Origin` header must equal the app's own origin (`https://<domain>`). Otherwise `403 origin_not_allowed`. There is no staging or preview origin. API-key requests (when shipped) carry no cookies and skip the Origin check.
+7. **CSRF.** `SameSite=Lax` plus an Origin check: for every `POST`, `PUT`, `PATCH`, `DELETE` under `/api/`, with or without a cookie, the `Origin` header must equal the app's own origin (`https://<domain>`) exactly. Otherwise `403 origin_not_allowed`. This includes sign-in and the other public auth routes, and it includes server-side calls from `web`, which must set the header themselves. There is no staging or preview origin. API-key requests (when shipped) carry no cookies and will skip the Origin check.
 8. **CORS.** Not used. Web and API share one origin, so the API sends no `Access-Control-*` headers and answers cross-origin preflights with `403`. All response headers (`ETag`, `Location`, `Retry-After`, `RateLimit-*`, `X-Request-Id`, `Deprecation`, `Sunset`) are readable by the app without an expose list.
 
 ### 2.2 Tenancy in the path
@@ -276,12 +276,18 @@ All errors use RFC 9457 `application/problem+json`. They are produced by FastAPI
 | 400 | `idempotency_key_required` | Planned (section 2.8); not returned in V1 |
 | 401 | `unauthenticated` | No session and no API key |
 | 401 | `session_expired` | Session past sliding or absolute lifetime |
+| 401 | `invalid_credentials` | Wrong email or password at sign-in; wrong credential on re-authentication or password change |
+| 401 | `invalid_code` | Wrong, reused or unusable TOTP code or recovery code |
+| 400 | `invalid_token` | An emailed token that is unknown, used or expired |
 | 401 | `invalid_api_key`, `api_key_expired` | Planned with API keys (section 2.1); not returned in V1 |
 | 403 | `forbidden` | Caller can see the resource but lacks the permission |
 | 403 | `api_key_scope_insufficient` | Planned with API keys: key scopes do not include the route permission |
 | 403 | `session_required` | Planned with API keys: route not callable with an API key |
 | 403 | `fresh_session_required` | Sensitive action, section 2.1 rule 5 |
 | 403 | `two_factor_enrollment_required` | Owner or admin without TOTP |
+| 403 | `two_factor_required_for_role` | Owner or admin trying to turn TOTP off |
+| 403 | `second_factor_required` | Re-authentication with the password alone by a user who has TOTP on |
+| 403 | `registration_closed` | Registration without a usable invitation while `REGISTRATION=invited` |
 | 403 | `origin_not_allowed` | CSRF Origin check failed |
 | 403 | `ip_not_allowed` | Planned with API keys: key IP allowlist |
 | 404 | `not_found` | Missing, deleted, or not visible to the caller (section 2.2) |
@@ -299,6 +305,7 @@ All errors use RFC 9457 `application/problem+json`. They are produced by FastAPI
 | 413 | `payload_too_large` | Body above the route limit (JSON 1 MB default; uploads 50 MB) |
 | 415 | `unsupported_media_type` | |
 | 422 | `validation_failed` | Schema validation; `errors[]` populated |
+| 422 | `weak_password` | Password policy; `reason` is `too_short`, `too_long`, `contains_email`, `breached` or `unchanged` |
 | 422 | `immutable_field` | Changing tracked keyword identity or prompt text by PATCH |
 | 422 | `idempotency_key_reused` | Planned (section 2.8): same key with a different request fingerprint |
 | 422 | `quota_exceeded` | `core.workspace_quotas` limit; `limit`, `used`, `requested` included |
@@ -314,6 +321,7 @@ All errors use RFC 9457 `application/problem+json`. They are produced by FastAPI
 | 429 | `manual_run_limit` | 20 manual runs per project per day (doc 24 section 8) |
 | 429 | `export_concurrency_limit` | 10 concurrent exports per workspace |
 | 500 | `internal_error` | Unexpected; Sentry event id in `request_id` correlation |
+| 503 | `service_unavailable` | A dependency the request cannot do without is down (sign-in when Redis cannot count attempts) |
 | 503 | `query_timeout` | Analytics statement exceeded its timeout; retry with a narrower window |
 | 503 | `provider_paused` | Provider paused for the workspace or platform (doc 21 section 6) |
 | 503 | `maintenance` | Planned maintenance; `Retry-After` set |
@@ -492,32 +500,32 @@ Authentication is our own module in the FastAPI app (`sightline.api.auth`, [ADR-
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
-| POST | `/api/v1/auth/register` | public | `{ name, email, password }` | `201`; user created unverified, verification email sent | no | `422 weak_password`, `409 duplicate` | 1 |
+| POST | `/api/v1/auth/register` | public | `{ name, email, password, invitation_token? }` | `201 { user_id, email_verified }`. With `REGISTRATION=invited` (the default) `invitation_token` is required and the account is created verified; with `open` the user is created unverified and a verification email is sent | no | `403 registration_closed` (no usable invitation for this email; one answer for every reason), `422 weak_password` (with `reason`: `too_short`, `too_long`, `contains_email`, `breached`), `409 duplicate`, `429 rate_limited` (10 per hour per client address) | 1 |
 | POST | `/api/v1/auth/verify-email/request` | public | `{ email }` | `202` always (no account enumeration) | no | | 1 |
-| POST | `/api/v1/auth/verify-email` | public | `{ token }` (from the emailed link, posted by the web page) | `200`; email marked verified, token consumed | no | `400 invalid_token` | 1 |
-| POST | `/api/v1/auth/sign-in` | public | `{ email, password }` | `200 { status: 'signed_in' }` with `__Host-session` set; or `200 { status: 'totp_required' }` with a pending session that only `totp/verify` accepts | no | `401 invalid_credentials`, `429 rate_limited` (lockout) | 1 |
-| POST | `/api/v1/auth/totp/verify` | pending or full session | `{ code }` or `{ recovery_code }` | `200`; session upgraded to full and marked fresh | no | `401 invalid_code` | 1 |
-| POST | `/api/v1/auth/sign-out` | authenticated | none | `204`; session revoked, cookie cleared | no | | 1 |
+| POST | `/api/v1/auth/verify-email` | public | `{ token }` (from the fragment of the emailed link, posted by the web page) | `200`; email marked verified, token consumed | no | `400 invalid_token` (one answer for unknown, used, expired), `429 rate_limited` (60 per hour per client address) | 1 |
+| POST | `/api/v1/auth/sign-in` | public | `{ email, password }` | `200 { status: 'signed_in' }` with `__Host-session` set; or `200 { status: 'totp_required' }` with a pending session (10 minutes) that only `totp/verify` and `sign-out` accept | no | `401 invalid_credentials` (same for unknown email, wrong password, disabled account), `429 rate_limited` (lockout, with `retry_after_seconds`), `503 service_unavailable` (Redis cannot count attempts) | 1 |
+| POST | `/api/v1/auth/totp/verify` | pending or full session | `{ code }` or `{ recovery_code }` (exactly one) | `200`; the session is replaced by a full, fresh one and the cookie is set again | no | `401 invalid_code` (wrong, already used, or 2FA not on), `429 rate_limited` | 1 |
+| POST | `/api/v1/auth/sign-out` | none required | none | `204`; the session, pending or full, is revoked if the cookie names a live one; the cookie is cleared either way | no | | 1 |
 | POST | `/api/v1/auth/password-reset/request` | public | `{ email }` | `202` always | no | | 1 |
-| POST | `/api/v1/auth/password-reset/confirm` | public | `{ token, new_password }` | `200`; all sessions revoked | no | `400 invalid_token`, `422 weak_password` | 1 |
+| POST | `/api/v1/auth/password-reset/confirm` | public | `{ token, new_password }` | `200`; all sessions revoked, email marked verified, account lockout lifted; nobody is signed in | no | `400 invalid_token`, `422 weak_password` (the token stays usable), `429 rate_limited` | 1 |
 | POST | `/api/v1/auth/password/change` | authenticated (session) fresh | `{ current_password, new_password }` | `200`; other sessions revoked | no | `401 invalid_credentials`, `422 weak_password` | 1 |
 | POST | `/api/v1/auth/totp/setup` | authenticated (session) fresh | none | `{ otpauth_uri, secret }`; secret stored unconfirmed | no | `409 totp_already_enabled` | 1 |
-| POST | `/api/v1/auth/totp/setup/confirm` | authenticated (session) | `{ code }` | `{ recovery_codes }` (shown once, stored hashed); TOTP enabled; other sessions revoked | no | `401 invalid_code` | 1 |
-| POST | `/api/v1/auth/totp/recovery-codes` | authenticated (session) fresh | none | `{ recovery_codes }` (shown once; previous codes invalidated) | no | | 1 |
-| POST | `/api/v1/auth/totp/disable` | authenticated (session) fresh | none | `200`; blocked for owners and admins | no | `403 two_factor_required_for_role` | 1 |
+| POST | `/api/v1/auth/totp/setup/confirm` | authenticated (session) | `{ code }` | `{ recovery_codes }` (shown once, stored hashed; `Cache-Control: no-store`); TOTP enabled; other sessions revoked | no | `401 invalid_code`, `409 totp_already_enabled`, `409 conflict` (no setup in progress) | 1 |
+| POST | `/api/v1/auth/totp/recovery-codes` | authenticated (session) fresh | none | `{ recovery_codes }` (shown once; previous codes invalidated; `Cache-Control: no-store`) | no | `409 totp_not_enabled` | 1 |
+| POST | `/api/v1/auth/totp/disable` | authenticated (session) fresh | none | `200`; other sessions revoked; blocked for an owner or admin of any workspace; a no-op when 2FA is not on | no | `403 two_factor_required_for_role` | 1 |
 | GET | `/api/v1/auth/sessions` | authenticated (session) | none | `{ data: Array<{ session_id, created_at, last_seen_at, ip, user_agent, is_current }> }` | no | | 1 |
-| DELETE | `/api/v1/auth/sessions/{session_id}` | authenticated (session) | none | `204`; session revoked and evicted from the Redis cache | no | | 1 |
+| DELETE | `/api/v1/auth/sessions/{session_id}` | authenticated (session) | none | `204`; session revoked and evicted from the Redis cache; revoking the current session also clears the cookie | no | `404 not_found` (not the caller's session) | 1 |
 | POST | `/api/v1/auth/sessions/revoke-others` | authenticated (session) | none | `204` | no | | 1 |
 
-Password change, password reset and TOTP changes revoke other sessions (doc 24 section 2). Every sign-in, failed sign-in, TOTP change and session revocation writes `ops.audit_logs` from the auth service in the same transaction. `GET /api/v1/me` returns the current session, so there is no separate get-session route.
+Password change and TOTP changes revoke other sessions; password reset revokes every session (doc 24 section 2). Every sign-in, failed sign-in, TOTP change and session revocation writes `ops.audit_logs` from the auth service: a success in the same transaction, a failure in its own transaction that commits before the error is returned. `GET /api/v1/me` returns the current session, so there is no separate get-session route. The public auth routes are limited per client address and the email-sending ones per mailbox (doc 24 section 2); these use fixed windows in Redis.
 
 **Current user (ours):**
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
 | GET | `/api/v1/me` | authenticated | none | `One<Me>` | no | | 1 |
-| PATCH | `/api/v1/me` | authenticated (session only) | `{ name?, image? }` | `One<Me>` | no | | 1 |
-| POST | `/api/v1/me/reauthenticate` | authenticated (session only) | `{ password }` or `{ totp_code }` | `{ fresh_until }`; re-verifies the credential and rotates the session id; the new session's `fresh_until` is 10 minutes ahead | no | `401 invalid_credentials` | 1 |
+| PATCH | `/api/v1/me` | authenticated (session only) | `{ name?, image? }` (at least one; `image` is an `https://` URL of at most 2,048 characters, or `null` to remove it) | `One<Me>` | no | | 1 |
+| POST | `/api/v1/me/reauthenticate` | authenticated (session only) | `{ password }` or `{ totp_code }` (exactly one). A user with 2FA on must send `totp_code` | `{ fresh_until }`; re-verifies the credential and replaces the session (new cookie, same absolute end); the new session's `fresh_until` is 10 minutes ahead | no | `401 invalid_credentials`, `403 second_factor_required` (password given, 2FA is on), `429 rate_limited` | 1 |
 
 ```ts
 interface Me {
