@@ -17,8 +17,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.collectors.ledger import NewTask
+from sightline.collectors.ledger import LedgerTask, NewTask, TaskRef
 from sightline.domain.workloads import TaskWorkload
+from sightline.providers.contract import CanonicalRequest, Provider
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,19 +58,40 @@ class Workload(Protocol):
         session bypasses row-level security."""
         ...
 
+    async def build_requests(
+        self, db: AsyncSession, tasks: Sequence[LedgerTask]
+    ) -> Mapping[TaskRef, CanonicalRequest]:
+        """What to ask the provider for each task, keyed by the task. The database is
+        read-only while this runs, and every read must name the task's workspace. A task left
+        out is not sent: its outcome is recorded as a request that could not be built."""
+        ...
+
 
 class Registry:
     def __init__(self) -> None:
         self._workloads: dict[TaskWorkload, Workload] = {}
+        self._providers: dict[str, Provider] = {}
 
     def add_workload(self, workload: Workload) -> None:
         if workload.name in self._workloads:
             raise ValueError(f"workload {workload.name} is already registered")
         self._workloads[workload.name] = workload
 
+    def add_provider(self, provider: Provider) -> None:
+        if provider.code in self._providers:
+            raise ValueError(f"provider {provider.code} is already registered")
+        self._providers[provider.code] = provider
+
     def workload(self, name: TaskWorkload) -> Workload:
         return self._workloads[name]
+
+    def provider(self, code: str) -> Provider:
+        return self._providers[code]
 
     @property
     def workloads(self) -> frozenset[TaskWorkload]:
         return frozenset(self._workloads)
+
+    @property
+    def providers(self) -> frozenset[str]:
+        return frozenset(self._providers)

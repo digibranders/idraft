@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import uuid
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
@@ -15,10 +16,20 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
-from sightline.collectors.ledger import NewRun, NewTask, Trigger
+from sightline.collectors.ledger import LedgerTask, NewRun, NewTask, TaskRef, Trigger
 from sightline.collectors.registry import Plan, ScheduleWindow
+from sightline.domain.retries import ProviderErrorKind
 from sightline.domain.tasks import scheduled_for
 from sightline.domain.workloads import TaskWorkload
+from sightline.providers.contract import (
+    AcceptedTask,
+    CanonicalRequest,
+    Contract,
+    ProviderCallError,
+    ProviderError,
+    RejectedTask,
+    SubmitResult,
+)
 from tests.api.auth.support import execute, fetch, fetchrow, make_workspace
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
@@ -258,6 +269,9 @@ class FakeWorkload:
         self.writes: str | None = None
         # Whether it plans its first task twice.
         self.repeats = False
+        # Subjects it cannot build a request for, and those it has built requests for.
+        self.unbuildable: set[str] = set()
+        self.built: list[str] = []
 
     async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
         if window.schedule_id in self.broken:
@@ -296,3 +310,99 @@ class FakeWorkload:
             estimated_cost_usd=self.price * len(tasks),
             config_snapshot={"adapter": "fake@1", "provider_mode": window.provider_mode},
         )
+
+    async def build_requests(
+        self, db: AsyncSession, tasks: Sequence[LedgerTask]
+    ) -> Mapping[TaskRef, CanonicalRequest]:
+        if self.writes is not None:
+            await db.execute(text(self.writes))
+        self.built.extend(task.subject_id for task in tasks)
+        return {
+            task.ref: CanonicalRequest(
+                task_id=str(task.ref.id),
+                priority="high" if task.priority == "high" else "standard",
+                params=SerpParams(keyword=task.subject_id, location_id=task.location_id or 0),
+            )
+            for task in tasks
+            if task.subject_id not in self.unbuildable
+        }
+
+
+class SerpParams(Contract):
+    keyword: str
+    location_id: int
+
+
+Answer = Callable[[str, Sequence[CanonicalRequest]], Awaitable[SubmitResult]]
+
+
+class FakeProvider:
+    """Answers a submission the way a test tells it to; by default it accepts everything, at
+    a price per task."""
+
+    def __init__(
+        self, *, code: str = "fake", price: str | None = "0.0006", size: int = 100
+    ) -> None:
+        self.code = code
+        self.price = None if price is None else Decimal(price)
+        self.size = size
+        self.calls: list[tuple[str, list[CanonicalRequest]]] = []
+        self.answer: Answer = self.accept_all
+
+    def batch_size(self, endpoint: str) -> int:
+        return self.size
+
+    async def submit(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:
+        self.calls.append((endpoint, list(requests)))
+        return await self.answer(endpoint, requests)
+
+    async def accept_all(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:
+        return SubmitResult(
+            accepted=[
+                AcceptedTask(
+                    task_id=request.task_id,
+                    provider_task_id=f"p-{request.task_id}",
+                    cost_usd=self.price,
+                )
+                for request in requests
+            ]
+        )
+
+    def fail_with(self, kind: ProviderErrorKind, message: str = "refused") -> None:
+        """Every call fails as a whole."""
+
+        async def fail(endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:
+            raise ProviderCallError(ProviderError(kind=kind, message=message))
+
+        self.answer = fail
+
+    def reject(self, kind: ProviderErrorKind, *positions: int) -> None:
+        """Refuse the requests at these positions of each call, accept the rest."""
+
+        async def partly(endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:
+            accepted = await self.accept_all(endpoint, requests)
+            refused = {requests[position].task_id for position in positions}
+            return SubmitResult(
+                accepted=[task for task in accepted.accepted if task.task_id not in refused],
+                rejected=[
+                    RejectedTask(
+                        task_id=task_id, error=ProviderError(kind=kind, message="bad keyword")
+                    )
+                    for task_id in sorted(refused)
+                ],
+            )
+
+        self.answer = partly
+
+
+class Pauses:
+    """Provider pauses kept in memory."""
+
+    def __init__(self) -> None:
+        self.reasons: dict[str, str] = {}
+
+    async def paused(self, providers: Collection[str]) -> frozenset[str]:
+        return frozenset(code for code in providers if code in self.reasons)
+
+    async def pause(self, provider: str, *, reason: str) -> None:
+        self.reasons[provider] = reason

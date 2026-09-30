@@ -231,7 +231,7 @@ Retry policy is decided by the error kind returned from the adapter ([05-provide
 | `upstream_unavailable`, `provider_error`, `timeout` | yes | 60 s x 2^n + jitter (cap 30 min) | 4 | `dead`, alert if > 1% of run |
 | `not_found_expired` | resubmit as new provider task if window open | none | 1 | `dead` |
 | `invalid_request` | no | | | `failed`, task config flagged |
-| `auth`, `payment`, `account_limit` | no | | | provider paused for workspace/platform; admins alerted; tasks stay `pending` until resumed |
+| `auth`, `payment`, `account_limit` | no | | | provider paused for 15 minutes (`rl:paused:<provider>` in Redis), error logged; tasks stay `pending` and go out when the pause runs out. A provider still refusing is paused again, so fixing the account is all it takes to resume |
 | `schema_mismatch` (normalize) | no fetch retry; re-ingest after parser fix | | | `failed` with raw kept; parser owners alerted |
 | `empty_result` | not an error | | | `ingested` with status `empty` |
 

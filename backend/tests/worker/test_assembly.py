@@ -1,58 +1,113 @@
 """The parts the worker is assembled from (docs/21-scheduler-workers.md sections 3 and 4)."""
 
-from datetime import UTC, datetime, time, timedelta
+import asyncio
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from redis.asyncio import Redis
 
 from sightline.collectors.registry import Registry
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
-from sightline.domain.schedules import Cadence, ScheduleRule, next_occurrence
 from sightline.worker.app import WorkerContext
 from sightline.worker.assembly import assemble, production_registry
 from sightline.worker.queues import Queues
 from tests.api.auth.support import fetch
-from tests.collectors.support import FakeWorkload, empty_ledger, make_schedule, make_tenant
+from tests.collectors.support import (
+    FakeProvider,
+    FakeWorkload,
+    empty_ledger,
+    make_schedule,
+    make_tenant,
+)
 from tests.conftest import PostgresServer
+from tests.worker.conftest import eventually
 
 
-async def test_the_planner_tick_plans_what_is_due_now(
+@pytest.fixture
+async def context(
     worker_settings: Settings, redis: Redis, migrated: PostgresServer
-) -> None:
+) -> AsyncIterator[WorkerContext]:
     await empty_ledger(migrated)
     engine = create_engine(worker_settings)
-    context = WorkerContext(
+    queues = Queues(worker_settings.redis_url.get_secret_value(), redis)
+    yield WorkerContext(
         settings=worker_settings,
         engine=engine,
         sessions=create_session_factory(engine),
         redis=redis,
-        queues=Queues(worker_settings.redis_url.get_secret_value(), redis),
+        queues=queues,
     )
-    registry = Registry()
-    registry.add_workload(FakeWorkload(subjects=2))
-    project = await make_tenant(migrated)
-    daily = ScheduleRule(cadence=Cadence.DAILY, timezone="UTC", window_start_local=time(2, 0))
-    due = next_occurrence(daily, datetime.now(UTC) - timedelta(days=1))
-    schedule_id = await make_schedule(migrated, project, next_run_at=due)
-    try:
-        ticks = {tick.name: tick for tick in assemble(context, registry)}
-        planner = ticks["planner"]
-        await planner.action()
-    finally:
-        await engine.dispose()
+    await queues.shutdown()
+    await engine.dispose()
 
-    # Every minute, and one worker at a time.
-    assert (planner.interval, planner.lock_ttl) == (timedelta(seconds=60), timedelta(seconds=55))
-    (run,) = await fetch(
+
+async def test_a_schedule_goes_from_the_planner_through_the_queue_to_the_provider(
+    context: WorkerContext, migrated: PostgresServer
+) -> None:
+    registry = Registry()
+    registry.add_workload(FakeWorkload(subjects=3))
+    provider = FakeProvider()
+    registry.add_provider(provider)
+    project = await make_tenant(migrated)
+    # A one-hour window that began two hours ago: every task in it is due now.
+    began = (datetime.now(UTC) - timedelta(hours=2)).replace(second=0, microsecond=0)
+    schedule_id = await make_schedule(
         migrated,
-        "SELECT status, tasks_total FROM ops.collection_runs "
-        "WHERE schedule_id = $1 AND status = 'running'",
+        project,
+        next_run_at=began,
+        window_start_local=began.strftime("%H:%M"),
+        window_hours=1,
+    )
+    ticks = {tick.name: tick for tick in assemble(context, registry)}
+
+    await ticks["planner"].action()
+    await ticks["dispatcher"].action()
+    await context.queues.startup()
+    finish = asyncio.Event()
+    receiving = asyncio.create_task(context.queues.receive("collect", concurrency=2, finish=finish))
+    try:
+        await eventually(lambda: _submitted(migrated, schedule_id, 3), within=10)
+    finally:
+        finish.set()
+        await receiving
+
+    # One call for the three tasks, and every one of them paid for once.
+    assert len(provider.calls) == 1
+    (costs,) = await fetch(migrated, "SELECT count(*) AS events FROM ops.provider_cost_events")
+    assert costs["events"] == 3
+
+
+async def _submitted(pg: PostgresServer, schedule_id: object, expected: int) -> bool:
+    (row,) = await fetch(
+        pg,
+        "SELECT count(*) AS tasks FROM ops.collection_tasks t "
+        "JOIN ops.collection_runs r ON r.id = t.run_id "
+        "WHERE r.schedule_id = $1 AND t.status = 'submitted'",
         schedule_id,
     )
-    # One run whatever the hour: a window that began between these lines would only add a
-    # missed one.
-    assert run["tasks_total"] == 2
+    return bool(row["tasks"] == expected)
 
 
-def test_no_workload_is_registered_yet_so_the_deployed_worker_plans_nothing() -> None:
-    assert production_registry().workloads == frozenset()
+async def test_the_ticks_run_on_their_intervals_one_worker_at_a_time(
+    context: WorkerContext,
+) -> None:
+    ticks = {tick.name: tick for tick in assemble(context)}
+
+    assert (ticks["planner"].interval, ticks["planner"].lock_ttl) == (
+        timedelta(seconds=60),
+        timedelta(seconds=55),
+    )
+    assert (ticks["dispatcher"].interval, ticks["dispatcher"].lock_ttl) == (
+        timedelta(seconds=15),
+        timedelta(seconds=14),
+    )
+    # With nothing registered both run and do nothing.
+    await ticks["planner"].action()
+    await ticks["dispatcher"].action()
+
+
+def test_nothing_is_registered_yet_so_the_deployed_worker_plans_and_spends_nothing() -> None:
+    registry = production_registry()
+    assert (registry.workloads, registry.providers) == (frozenset(), frozenset())

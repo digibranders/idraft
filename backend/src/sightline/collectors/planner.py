@@ -21,12 +21,13 @@ from typing import Any, Literal
 from uuid import UUID
 
 import structlog
-from sqlalchemy import Row, and_, select, text, update
+from sqlalchemy import Row, and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import budget, ledger
 from sightline.collectors.ledger import SEND_WITHIN, NewRun
-from sightline.collectors.registry import Plan, Registry, ScheduleWindow, Workload
+from sightline.collectors.read_only import read_only
+from sightline.collectors.registry import Registry, ScheduleWindow
 from sightline.db.errors import gave_way
 from sightline.db.tables import projects, schedules, workspaces
 from sightline.domain.schedules import Cadence, ScheduleRule, next_occurrence, occurrences_until
@@ -125,22 +126,6 @@ def _rule(schedule: Row[tuple[Any, ...]]) -> ScheduleRule:
     )
 
 
-async def _ask(db: AsyncSession, workload: Workload, window: ScheduleWindow) -> Plan:
-    """Ask the workload for the window's tasks, with the database read-only while it answers.
-
-    The session is the planner's, as `app_worker`, which bypasses row-level security: a
-    workload that wrote through it could write anything, in any workspace, and it would
-    commit with the run. What the workload reads is kept; nothing it tries to write is.
-    """
-    asking = await db.begin_nested()
-    try:
-        await db.execute(text("SET LOCAL transaction_read_only = on"))
-        return await workload.plan(db, window)
-    finally:
-        # Rolling back is what ends the read-only setting, and a plan has nothing to keep.
-        await asking.rollback()
-
-
 async def _plan(
     db: AsyncSession, registry: Registry, schedule: Row[tuple[Any, ...]], now: datetime
 ) -> Outcome:
@@ -205,7 +190,8 @@ async def _plan(
         window_end=window_start + hours,
         window_hours=schedule.window_hours,
     )
-    plan = await _ask(db, registry.workload(workload), window)
+    async with read_only(db):
+        plan = await registry.workload(workload).plan(db, window)
     run_id = await ledger.create_run(db, run_for(window_start, dict(plan.config_snapshot)), now=now)
     if run_id is None:
         # The window already has its run (the schedule was set back by hand). Nothing is

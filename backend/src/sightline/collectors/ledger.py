@@ -60,8 +60,10 @@ from sightline.db.tables import (
     budgets,
     collection_runs,
     collection_tasks,
+    projects,
     provider_cost_events,
     schedules,
+    workspaces,
 )
 from sightline.domain.retries import ProviderErrorKind, RetryDecision
 from sightline.domain.tasks import idempotency_key
@@ -84,6 +86,7 @@ TERMINAL_STATUSES = ("ingested", "failed", "dead", "cancelled", "skipped_cached"
 _NOTHING_COLLECTED = ("failed", "dead", "cancelled")
 _COLLECTED = ("ingested", "skipped_cached")
 _BUDGET_EXCEEDED = "budget_exceeded"
+PROJECT_NOT_COLLECTING = "project_not_collecting"
 _CHECK_VIOLATION = "23514"
 
 Priority = Literal["high", "standard", "low"]
@@ -616,20 +619,25 @@ async def claim_due(
     held: Collection[Scope] = (),
     limit: int = DISPATCH_LIMIT,
     per_project: int = DISPATCH_PER_PROJECT,
+    providers: Collection[str] | None = None,
 ) -> list[LedgerTask]:
     """Lock and return the tasks that are due, oldest first, fairly across projects.
 
     Each project with due work gets an equal share of `limit`, at most `per_project`; what is
     left over after that goes to the projects that still have more, the one that has waited
     longest first. One large project cannot use a whole tick while a small one waits. Tasks
-    of a paused provider and of a scope a budget holds back are left where they are, so they
-    take nobody's share. The rows stay locked until the transaction ends, and rows another
-    dispatcher holds are skipped.
+    of a paused provider, of a provider not in `providers` (when it is given) and of a scope a
+    budget holds back are left where they are, so they take nobody's share. The rows stay
+    locked until the transaction ends, and rows another dispatcher holds are skipped.
 
     Two statements, however many projects there are: one for the shares, one for the
     leftover.
     """
+    if providers is not None and not providers:
+        return []
     due = _due(_aware(now), paused_providers, held)
+    if providers is not None:
+        due = and_(due, _tasks.c.provider_code.in_(sorted(providers)))
     oldest_first = (_tasks.c.scheduled_for, _tasks.c.id)
     waiting = (
         select(_tasks.c.project_id, func.min(_tasks.c.scheduled_for).label("first_due"))
@@ -988,6 +996,38 @@ async def cancel_missed(
         message=f"Not sent within {hours:g} hours of the end of its run's window.",
         now=now,
     )
+
+
+async def stop_runs_of_projects_not_collecting(db: AsyncSession, *, now: datetime) -> int:
+    """A project that was paused, archived or deleted, or whose workspace was suspended,
+    sends nothing more: its running runs are cancelled. What the provider already has is
+    still fetched and paid for; the tasks not yet sent are cancelled with the run."""
+    project = projects.alias("project")
+    not_collecting = (
+        select(project.c.id)
+        .select_from(project.join(workspaces, workspaces.c.id == project.c.workspace_id))
+        .where(
+            project.c.id == _runs.c.project_id,
+            or_(
+                project.c.status != "active",
+                project.c.deleted_at.is_not(None),
+                workspaces.c.status != "active",
+            ),
+        )
+        .exists()
+    )
+    stopped = await db.execute(
+        update(_runs)
+        .where(_runs.c.status == "running", not_collecting)
+        .values(
+            status="cancelled",
+            status_reason=PROJECT_NOT_COLLECTING,
+            blocked_by_budget_id=None,
+            completed_at=_aware(now),
+        )
+        .returning(_runs.c.id)
+    )
+    return len(stopped.all())
 
 
 async def cancel_for_ended_runs(db: AsyncSession, *, now: datetime) -> int:
