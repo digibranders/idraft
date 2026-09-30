@@ -104,10 +104,6 @@ class MemberService:
                     role=new_role,
                     project_ids=new_scope,
                 )
-                if manages_members(old_role) and not manages_members(new_role):
-                    await repository.cancel_invitations_sent_by(
-                        db, workspace_id=access.workspace_id, user_id=user_id, now=datetime.now(UTC)
-                    )
                 await audit.record(
                     db,
                     workspace_id=access.workspace_id,
@@ -118,6 +114,9 @@ class MemberService:
                     info=info,
                     before={"role": target.role, "project_ids": scope_snapshot(target.project_ids)},
                     after={"role": new_role.value, "project_ids": scope_snapshot(new_scope)},
+                )
+                await self._withdraw_invitations(
+                    db, access, user_id, info, was=old_role, now=new_role
                 )
             updated = await repository.get_member(db, access.workspace_id, user_id)
         if updated is None:  # pragma: no cover - read under the lock that guards removal
@@ -134,9 +133,6 @@ class MemberService:
             if owners == [target.user_id]:
                 raise LastOwnerError("Make someone else an owner first.")
             await repository.delete_member(db, workspace_id=access.workspace_id, user_id=user_id)
-            await repository.cancel_invitations_sent_by(
-                db, workspace_id=access.workspace_id, user_id=user_id, now=datetime.now(UTC)
-            )
             await audit.record(
                 db,
                 workspace_id=access.workspace_id,
@@ -146,6 +142,48 @@ class MemberService:
                 target_id=user_id,
                 info=info,
                 before={"role": target.role, "project_ids": scope_snapshot(target.project_ids)},
+            )
+            await self._withdraw_invitations(
+                db, access, user_id, info, was=Role(target.role), now=None
+            )
+
+    @staticmethod
+    async def _withdraw_invitations(
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        user_id: UUID,
+        info: RequestInfo,
+        *,
+        was: Role,
+        now: Role | None,
+    ) -> None:
+        """Withdraw the pending invitations a member can no longer send: all of them when they
+        stop managing members (`now=None` is removal), the ones to the owner role when they
+        stop being an owner. Each is recorded, by whoever made the change."""
+        if not manages_members(was):
+            return
+        if now is None or not manages_members(now):
+            only_role = None
+        elif was is Role.OWNER and now is not Role.OWNER:
+            only_role = Role.OWNER.value
+        else:
+            return
+        withdrawn = await repository.cancel_invitations_sent_by(
+            db,
+            workspace_id=access.workspace_id,
+            user_id=user_id,
+            only_role=only_role,
+            now=datetime.now(UTC),
+        )
+        for invitation_id in withdrawn:
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="invitation.cancelled",
+                target_type="invitation",
+                target_id=invitation_id,
+                info=info,
             )
 
     @staticmethod

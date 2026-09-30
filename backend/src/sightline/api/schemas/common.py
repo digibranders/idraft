@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import unicodedata
-from typing import Annotated
+from typing import Annotated, ClassVar
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    GetJsonSchemaHandler,
+    StringConstraints,
+)
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema, PydanticCustomError
 
 from sightline.providers.email import ADDRESS_MAX, ADDRESS_PATTERN
 
@@ -22,10 +31,13 @@ def printable(value: str) -> str:
     return value
 
 
+def _one_spelling(value: object) -> object:
+    """A composed and a decomposed "é" are different bytes, and the database would keep them as
+    two addresses. Runs before the length check: composing can make a string longer."""
+    return unicodedata.normalize("NFC", value) if isinstance(value, str) else value
+
+
 def _email(value: str) -> str:
-    # One spelling per address: a composed and a decomposed "é" are different bytes, and the
-    # database would keep them as two addresses.
-    value = unicodedata.normalize("NFC", value)
     # The same shape the email sender accepts, so an address that registers can be written to.
     if not ADDRESS_PATTERN.fullmatch(value):
         raise ValueError("must be an email address")
@@ -42,6 +54,7 @@ Name = Annotated[
 ]
 Email = Annotated[
     str,
+    BeforeValidator(_one_spelling),
     StringConstraints(strip_whitespace=True, min_length=3, max_length=ADDRESS_MAX),
     AfterValidator(printable),
     AfterValidator(_email),
@@ -75,9 +88,37 @@ def _distinct(value: list[UUID] | None) -> list[UUID] | None:
 ProjectScope = Annotated[list[UUID] | None, AfterValidator(_distinct)]
 
 
+class Patch(Body):
+    """The body of a partial update: a field left out is not changed.
+
+    Every field is optional, so in Python every field can be None. Only the ones named in
+    `nullable` may be sent as null, to clear a value; the others refuse it (`refuse_null`). The
+    API document says the same, so a generated client types them as "string, may be left out"
+    and not as "string or null".
+    """
+
+    nullable: ClassVar[frozenset[str]] = frozenset()
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        schema = handler.resolve_ref_schema(handler(core_schema))
+        for name, described in schema.get("properties", {}).items():
+            options = described.get("anyOf")
+            if name in cls.nullable or options is None:
+                continue
+            kept = [option for option in options if option != {"type": "null"}]
+            if len(kept) == 1:
+                del described["anyOf"]
+                described.pop("default", None)
+                described.update(kept[0])
+        return schema
+
+
 def refuse_null(value: object) -> object:
     """For a field of a partial update that may be left out and may not be null. Used as a field
     validator, so the error names the field."""
     if value is None:
-        raise ValueError("cannot be null")
+        raise PydanticCustomError("null_not_allowed", "Cannot be null.")
     return value

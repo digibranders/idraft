@@ -12,6 +12,7 @@ from enum import StrEnum
 from typing import Annotated
 
 from pydantic import AfterValidator, StringConstraints
+from pydantic_core import PydanticCustomError
 
 SLUG_MIN = 3
 SLUG_MAX = 40
@@ -69,13 +70,13 @@ class ReservedProjectSlug(StrEnum):
 
 def _not_a_workspace_route(value: str) -> str:
     if value in ReservedWorkspaceSlug:
-        raise ValueError("is a reserved word")
+        raise PydanticCustomError("slug_reserved", "This word is reserved.")
     return value
 
 
 def _not_a_project_route(value: str) -> str:
     if value in ReservedProjectSlug:
-        raise ValueError("is a reserved word")
+        raise PydanticCustomError("slug_reserved", "This word is reserved.")
     return value
 
 
@@ -85,7 +86,7 @@ _UUID_SHAPE = re.compile(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 def _not_an_id(value: str) -> str:
     # A path segment is either a slug or an id. One that could be both cannot be told apart.
     if _UUID_SHAPE.fullmatch(value):
-        raise ValueError("looks like an id")
+        raise PydanticCustomError("slug_is_id", "A slug cannot have the shape of an id.")
     return value
 
 

@@ -75,13 +75,6 @@ class WorkspaceService:
                 raise ForbiddenError("Only a platform operator can create a workspace.")
             await check_timezone(db, timezone)
             workspace_id = await repository.new_id(db)
-        await limits.enforce(
-            self._throttle,
-            "workspace:create",
-            user.id,
-            limit=WORKSPACES_PER_DAY,
-            window_seconds=_DAY,
-        )
         try:
             async with workspace_transaction(self._sessions, workspace_id, user_id=user.id) as db:
                 workspace = await repository.insert_workspace(
@@ -91,6 +84,16 @@ class WorkspaceService:
                     db, workspace_id=workspace_id, user_id=user.id, role=Role.OWNER
                 )
                 await repository.insert_default_quotas(db, workspace_id)
+                # Counted once the workspace can be created, so an attempt refused for a taken
+                # slug costs nothing, and before the transaction commits, so a workspace over
+                # the allowance is never stored.
+                await limits.enforce(
+                    self._throttle,
+                    "workspace:create",
+                    user.id,
+                    limit=WORKSPACES_PER_DAY,
+                    window_seconds=_DAY,
+                )
                 await audit.record(
                     db,
                     workspace_id=workspace_id,

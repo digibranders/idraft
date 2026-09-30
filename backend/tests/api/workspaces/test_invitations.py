@@ -1047,3 +1047,35 @@ async def test_an_address_has_one_spelling(
 
     assert (first.status_code, first.json()["data"]["email"]) == (201, composed)
     assert _problem(second) == (409, "duplicate")
+
+
+async def test_an_address_is_measured_in_the_spelling_that_is_stored(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+) -> None:
+    """Composing can make a string longer: U+0958 becomes two characters. The length limit is
+    checked on the result, or an address too long for the sender would be stored."""
+    workspace = await make_workspace(migrated)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    address = "\u0958" * 200 + "@client.example"
+    assert len(address) < 254 < len(unicodedata.normalize("NFC", address))
+
+    response = await api.post(
+        _invitations(workspace), json={"email": address, "role": "viewer"}, headers=headers
+    )
+    registered = await api.post(
+        "/api/v1/auth/register",
+        json={"name": "N", "email": address, "password": PASSWORD, "invitation_token": "x" * 43},
+    )
+
+    assert _problem(response) == _problem(registered) == (422, "validation_failed")
+    assert [error["path"] for error in response.json()["errors"]] == ["email"]
+    assert mailbox.messages == []
+    assert (
+        await fetch(
+            migrated, "SELECT 1 FROM auth.invitations WHERE workspace_id = $1", workspace.id
+        )
+        == []
+    )

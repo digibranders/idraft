@@ -37,6 +37,7 @@ router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/projects", tags=["p
 _STATUSES: frozenset[str] = frozenset(get_args(ProjectStatus))
 _LISTED_BY_DEFAULT = frozenset({"active", "paused"})
 _STATUS_FILTER = "filter[status_in]"
+_STATUS_FILTER_REPEATS = 10
 
 
 def get_project_service(resources: Annotated[Resources, Depends(get_resources)]) -> ProjectService:
@@ -89,7 +90,7 @@ def status_filter(
         list[Annotated[str, StringConstraints(max_length=64)]] | None,
         Query(
             alias=_STATUS_FILTER,
-            max_length=len(_STATUSES),
+            max_length=_STATUS_FILTER_REPEATS,
             description="Comma-separated statuses. Default: `active,paused`.",
         ),
     ] = None,

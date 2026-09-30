@@ -637,14 +637,7 @@
             "title": "Project Ids"
           },
           "role": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Role"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/Role"
           }
         },
         "title": "MemberUpdate",
@@ -725,31 +718,17 @@
             "type": "string"
           },
           "detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "default": null,
-            "title": "Detail"
+            "title": "Detail",
+            "type": "string"
           },
           "errors": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ValidationItem"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "default": null,
-            "title": "Errors"
+            "items": {
+              "$ref": "#/components/schemas/ValidationItem"
+            },
+            "title": "Errors",
+            "type": "array"
           },
           "instance": {
             "title": "Instance",
@@ -1062,17 +1041,10 @@
         "description": "At least one member. `default_language_code: null` removes it; the others cannot be null.",
         "properties": {
           "deep_check_weekday": {
-            "anyOf": [
-              {
-                "maximum": 6.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deep Check Weekday"
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Deep Check Weekday",
+            "type": "integer"
           },
           "default_language_code": {
             "anyOf": [
@@ -1087,59 +1059,31 @@
             "title": "Default Language Code"
           },
           "name": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
           },
           "slug": {
-            "anyOf": [
-              {
-                "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slug"
+            "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
+            "title": "Slug",
+            "type": "string"
           },
           "status": {
-            "anyOf": [
-              {
-                "enum": [
-                  "active",
-                  "paused",
-                  "archived"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "enum": [
+              "active",
+              "paused",
+              "archived"
             ],
-            "title": "Status"
+            "title": "Status",
+            "type": "string"
           },
           "timezone": {
-            "anyOf": [
-              {
-                "maxLength": 64,
-                "minLength": 1,
-                "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Timezone"
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "title": "ProjectUpdate",
@@ -1775,43 +1719,22 @@
             "title": "Logo"
           },
           "name": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
           },
           "slug": {
-            "anyOf": [
-              {
-                "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slug"
+            "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
+            "title": "Slug",
+            "type": "string"
           },
           "timezone": {
-            "anyOf": [
-              {
-                "maxLength": 64,
-                "minLength": 1,
-                "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Timezone"
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "title": "WorkspaceUpdate",
@@ -3198,7 +3121,7 @@
                     "maxLength": 64,
                     "type": "string"
                   },
-                  "maxItems": 3,
+                  "maxItems": 10,
                   "type": "array"
                 },
                 {

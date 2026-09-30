@@ -16,6 +16,7 @@ from sightline.api.schemas.common import (
     Email,
     ImageUrl,
     Name,
+    Patch,
     ProjectScope,
     Token,
     UserRef,
@@ -53,7 +54,7 @@ class WorkspaceCreate(Body):
     timezone: Timezone = Field(default="UTC", description="An IANA time zone name.")
 
 
-class WorkspaceUpdate(Body):
+class WorkspaceUpdate(Patch):
     """At least one field. `logo: null` removes the logo; the others cannot be null."""
 
     name: Name | None = None
@@ -61,6 +62,7 @@ class WorkspaceUpdate(Body):
     logo: ImageUrl | None = None
     timezone: Timezone | None = None
 
+    nullable = frozenset({"logo"})
     _not_null = field_validator("name", "slug", "timezone")(refuse_null)
 
     @model_validator(mode="after")
@@ -97,12 +99,13 @@ class MemberPage(BaseModel):
     page: OffsetPageInfo
 
 
-class MemberUpdate(Body):
+class MemberUpdate(Patch):
     """At least one field. `project_ids: null` gives every project, an empty list none."""
 
     role: Role | None = None
     project_ids: ProjectScope = Field(default=None, max_length=PROJECT_SCOPE_MAX)
 
+    nullable = frozenset({"project_ids"})
     _not_null = field_validator("role")(refuse_null)
 
     @model_validator(mode="after")

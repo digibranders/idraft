@@ -46,9 +46,11 @@ uv run --env-file .env.migrator python -m sightline.cli create-operator --email 
 
 That account is a verified platform operator and can sign in at `POST /api/v1/auth/sign-in`. The command checks the password's length but not the breached-password list (it makes no network calls), and it never changes an account that already exists. To let anyone register instead, start the API with `REGISTRATION=open`.
 
-The operator then creates the first workspace, invites people and adds projects. With the session cookie in a jar (`-c jar -b jar`) and the `Origin` header described below:
+The operator then signs in, creates the first workspace, invites people and adds projects. The first command fills the cookie jar; use `localhost`, not `127.0.0.1`, or the cookie is not sent back:
 
 ```bash
+curl -c jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  -d '{"email": "you@example.com", "password": "<your password>"}' http://localhost:8000/api/v1/auth/sign-in
 curl -b jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   -d '{"name": "Acme", "slug": "acme", "timezone": "Asia/Kolkata"}' http://localhost:8000/api/v1/workspaces
 curl -b jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \

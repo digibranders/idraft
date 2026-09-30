@@ -15,7 +15,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 from sightline.api.pagination import OffsetPageInfo
-from sightline.api.schemas.common import Body, Name, UserRef, refuse_null
+from sightline.api.schemas.common import Body, Name, Patch, UserRef, refuse_null
 from sightline.api.slugs import ProjectSlug
 from sightline.api.timezones import Timezone
 
@@ -83,7 +83,7 @@ class ProjectCreate(Body):
     default_language_code: LanguageCode | None = None
 
 
-class ProjectUpdate(Body):
+class ProjectUpdate(Patch):
     """At least one member. `default_language_code: null` removes it; the others cannot be null."""
 
     name: Name | None = None
@@ -93,6 +93,7 @@ class ProjectUpdate(Body):
     default_language_code: LanguageCode | None = None
     status: ProjectStatus | None = None
 
+    nullable = frozenset({"default_language_code"})
     _not_null = field_validator("name", "slug", "timezone", "deep_check_weekday", "status")(
         refuse_null
     )

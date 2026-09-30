@@ -233,7 +233,7 @@ Not applicable in V1. Readiness is polling only (`tasks_ready` plus the id sweep
 | Session API | 600 req/min per user, 1,200 per workspace | Redis sliding window in a FastAPI middleware (the same Redis limiter module the collector uses) |
 | API keys | Deferred with API keys (section 2.2); target 120 req/min default, configurable per key | Redis |
 | Invitations | Per hour: 20 per inviter, 50 per workspace, 3 per invited address (from any workspace, and however often one is withdrawn and sent again). An invitation makes the platform send mail to an address of the caller's choosing. Refused when Redis cannot count. The email's first sentence is ours; the workspace and inviter names are reduced to plain words, quoted and labelled | Redis |
-| Workspace creation | 5 per user per day (matters with `REGISTRATION=open`, where each workspace has quotas of its own) | Redis |
+| Workspace creation | 5 workspaces per user per day; an attempt refused for another reason costs none (matters with `REGISTRATION=open`, where each workspace has quotas of its own) | Redis |
 | Exports | 10 concurrent per workspace; large exports async | Taskiq `process` queue |
 | On-demand collection (`runs:trigger`) | Counted against monthly quota and budget; 20 manual runs per project per day | PostgreSQL |
 

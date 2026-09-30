@@ -513,19 +513,24 @@ async def cancel_invitation(
 
 
 async def cancel_invitations_sent_by(
-    db: AsyncSession, *, workspace_id: UUID, user_id: UUID, now: datetime
-) -> None:
-    """Withdraw the pending invitations a member sent. For when they stop managing members: an
-    invitation they sent as a manager must not outlast their right to send it."""
-    await db.execute(
+    db: AsyncSession, *, workspace_id: UUID, user_id: UUID, only_role: str | None, now: datetime
+) -> list[UUID]:
+    """Withdraw the pending invitations a member sent, all of them or those to `only_role`, and
+    say which. An invitation must not outlast its sender's right to send it."""
+    conditions = [
+        invitations.c.workspace_id == workspace_id,
+        invitations.c.invited_by == user_id,
+        invitations.c.status == "pending",
+    ]
+    if only_role is not None:
+        conditions.append(invitations.c.role == only_role)
+    statement = (
         update(invitations)
-        .where(
-            invitations.c.workspace_id == workspace_id,
-            invitations.c.invited_by == user_id,
-            invitations.c.status == "pending",
-        )
+        .where(*conditions)
         .values(status="cancelled", responded_at=now)
+        .returning(invitations.c.id)
     )
+    return list((await db.execute(statement)).scalars())
 
 
 @dataclass(frozen=True, slots=True)

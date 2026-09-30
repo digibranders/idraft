@@ -622,3 +622,73 @@ def test_the_reserved_words_are_in_the_api_document() -> None:
     assert schemas["ReservedProjectSlug"]["enum"] == [word.value for word in ReservedProjectSlug]
     assert {"api", "login", "invite", "design-system"} <= set(ReservedWorkspaceSlug)
     assert {"onboarding", "costs", "ops", "settings", "projects"} <= set(ReservedProjectSlug)
+
+
+async def test_an_attempt_refused_for_a_taken_slug_costs_no_allowance(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(workspace_rules, "WORKSPACES_PER_DAY", 1)
+    taken = await make_workspace(migrated)
+    _, headers = await _operator(resources, migrated)
+
+    refused = [
+        await api.post(WORKSPACES, json={"name": "Mine", "slug": taken.slug}, headers=headers)
+        for _ in range(3)
+    ]
+    created = await api.post(WORKSPACES, json={"name": "Mine", "slug": _slug()}, headers=headers)
+    over = _slug()
+    limited = await api.post(WORKSPACES, json={"name": "Mine", "slug": over}, headers=headers)
+
+    assert [response.status_code for response in refused] == [409, 409, 409]
+    assert created.status_code == 201
+    assert _problem(limited) == (429, "rate_limited")
+    # The workspace over the allowance was not kept.
+    assert await fetch(migrated, "SELECT 1 FROM auth.workspaces WHERE slug = $1", over) == []
+
+
+def test_a_field_that_refuses_null_is_not_nullable_in_the_api_document() -> None:
+    schemas = build_openapi()["components"]["schemas"]
+    for model, fields in (
+        ("WorkspaceUpdate", ("name", "slug", "timezone")),
+        ("MemberUpdate", ("role",)),
+        ("ProjectUpdate", ("name", "slug", "timezone", "deep_check_weekday", "status")),
+    ):
+        for field in fields:
+            assert "anyOf" not in schemas[model]["properties"][field], (model, field)
+            assert field not in schemas[model].get("required", []), (model, field)
+    # The ones that do take null say so.
+    assert {"type": "null"} in schemas["WorkspaceUpdate"]["properties"]["logo"]["anyOf"]
+    assert {"type": "null"} in schemas["ProjectUpdate"]["properties"]["default_language_code"][
+        "anyOf"
+    ]
+    # An error body leaves these out when it has none; it never sends null.
+    assert "anyOf" not in schemas["Problem"]["properties"]["detail"]
+    assert "anyOf" not in schemas["Problem"]["properties"]["errors"]
+
+
+async def test_a_refused_slug_or_null_has_a_code_of_its_own(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    _, headers = await _operator(resources, migrated)
+    workspace = await make_workspace(migrated)
+    owner = await make_user(migrated)
+    await add_member(migrated, workspace, owner, "owner")
+
+    reserved = await api.post(WORKSPACES, json={"name": "A", "slug": "settings"}, headers=headers)
+    like_an_id = await api.post(
+        WORKSPACES,
+        json={"name": "A", "slug": "0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11"},
+        headers=headers,
+    )
+    null = await api.patch(
+        f"{WORKSPACES}/{workspace.id}",
+        json={"name": None},
+        headers=await _session(resources, owner),
+    )
+
+    assert [error["code"] for error in reserved.json()["errors"]] == ["slug_reserved"]
+    assert [error["code"] for error in like_an_id.json()["errors"]] == ["slug_is_id"]
+    assert [error["code"] for error in null.json()["errors"]] == ["null_not_allowed"]

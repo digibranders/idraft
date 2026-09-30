@@ -650,6 +650,44 @@ async def test_invitations_a_member_sent_are_withdrawn_when_they_stop_managing_m
         removed.id: "cancelled",
         kept.id: "pending",
     }
+    # Each withdrawal is recorded, after the change that caused it and by whoever made it.
+    actions = [action for action, *_ in await _audit(migrated, workspace)]
+    assert actions[3:] == [
+        "member.updated",
+        "invitation.cancelled",
+        "member.removed",
+        "invitation.cancelled",
+        "member.updated",
+    ]
+
+
+async def test_an_owner_invitation_does_not_outlive_its_senders_ownership(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    _, owner = await _member(resources, migrated, workspace, "owner")
+    second, second_headers = await _member(resources, migrated, workspace, "owner")
+    invitations = f"/api/v1/workspaces/{workspace.id}/invitations"
+    address = new_email()
+    for email, role in ((address, "owner"), (new_email(), "viewer")):
+        sent = await api.post(
+            invitations, json={"email": email, "role": role}, headers=second_headers
+        )
+        assert sent.status_code == 201
+
+    await api.patch(f"{_members(workspace)}/{second.id}", json={"role": "admin"}, headers=owner)
+
+    rows = await fetch(
+        migrated, "SELECT role, status FROM auth.invitations WHERE workspace_id = $1", workspace.id
+    )
+    # Still an admin, so what an admin may send stays; what only an owner may send goes.
+    assert {row["role"]: row["status"] for row in rows} == {
+        "owner": "cancelled",
+        "viewer": "pending",
+    }
+    # The address is free to be invited again.
+    again = await api.post(invitations, json={"email": address, "role": "viewer"}, headers=owner)
+    assert again.status_code == 201
 
 
 async def test_many_changes_at_once_never_deadlock_or_lose_the_last_owner(

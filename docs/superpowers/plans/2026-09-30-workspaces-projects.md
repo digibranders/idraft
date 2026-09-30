@@ -57,7 +57,8 @@ Deferred to launch hardening or to the phase that needs it (added to doc 29 sect
 | `backend/src/sightline/api/audit.py` | `record(db, ...)`: one workspace audit row |
 | `backend/src/sightline/api/pagination.py` | `OffsetParams`, `OffsetPageInfo`, `strict_query(*names)` |
 | `backend/src/sightline/api/slugs.py` | Slug pattern and the two reserved lists |
-| `backend/src/sightline/api/workspaces/access.py` | `WorkspaceAccess`, `workspace_member`, `require_permission` |
+| `backend/src/sightline/api/workspaces/access.py` | `WorkspaceAccess` |
+| `backend/src/sightline/api/workspaces/dependencies.py` | `workspace_member`, `require_permission` |
 | `backend/src/sightline/api/workspaces/repository.py` | SQL for workspaces, memberships, invitations |
 | `backend/src/sightline/api/workspaces/service.py` | Workspace and member rules |
 | `backend/src/sightline/api/workspaces/invitations.py` | Invitation rules and the invitation email |
@@ -125,10 +126,12 @@ Decisions made while building, each the result of a task review (all on the Opus
 - **Membership changes take one lock per workspace.** Locking the owner rows deadlocked when an owner was promoted while another change waited.
 - **`two_factor_enabled` and `last_active_at`** are shown to those who manage members and to the member themself.
 - **Pending invitations a member sent are withdrawn** when they are removed or demoted below admin.
-- **An empty project scope** is a member of no project.- **What an invitation grants is judged again when it is accepted**: the sender must still be a member in good standing who could grant that role. Inviting an owner or admin needs a fresh session.
+- **An empty project scope** is a member of no project.
+- **What an invitation grants is judged again when it is accepted**: the sender must still be a member in good standing who could grant that role. Inviting an owner or admin needs a fresh session.
 - **Accepting returns the workspace** as well as the membership, so the web app knows where to send the user.
 - **The invitation email** opens with a sentence of ours and shows the workspace, the inviter, the invited address and the role as labelled lines.
 - **An email address has one spelling**: it is normalised (NFC) when it is read from a request.
 - **A request that waits for a lock** gives up after 3 seconds and is answered `409 conflict`; a statement that runs into its timeout is `503 query_timeout`. Both were 500 before.
 - **The project limit counts active and paused projects.** Archiving frees a slot and reviving needs one, so a workspace at its limit has a way out while delete is not built.
 - **"Not limited to some projects"** is a declared requirement of the create route (`projects:write every-project`), checked before the body.
+- **Final review.** An email address is normalised before its length is checked (composing can lengthen it). The workspace allowance, like the invitation allowances, counts only what is created. A partial update's fields that refuse null are not nullable in the API document (`Patch` in `schemas/common.py`). Invitations withdrawn by a demotion or removal are recorded, and an owner's invitations for the owner role are withdrawn when they stop being an owner. Path parameters come from a known set, and the cross-tenant suite checks the project scope on every route that names a project.

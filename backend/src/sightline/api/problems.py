@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from pydantic import BaseModel, ConfigDict
+from pydantic.json_schema import SkipJsonSchema
 from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
@@ -53,11 +54,12 @@ class Problem(BaseModel):
     type: str
     title: str
     status: int
-    detail: str | None = None
+    # Left out of a body when there is none, never sent as null.
+    detail: str | SkipJsonSchema[None] = None
     instance: str
     code: str
     request_id: str
-    errors: list[ValidationItem] | None = None
+    errors: list[ValidationItem] | SkipJsonSchema[None] = None
 
 
 class ProblemError(Exception):

@@ -237,6 +237,40 @@ async def test_another_workspaces_child_in_the_callers_own_path_is_not_found(
     assert _without_request_details(foreign) == _without_request_details(nowhere)
 
 
+PROJECT_ROUTES = [(method, path) for method, path in WORKSPACE_ROUTES if "{project_id}" in path]
+
+
+@pytest.mark.parametrize(("method", "path"), PROJECT_ROUTES)
+async def test_a_project_outside_the_members_scope_is_not_found(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    tenants: tuple[Tenant, Tenant],
+    method: str,
+    path: str,
+) -> None:
+    """The same isolation inside one workspace: a member limited to one project gets 404 for
+    another project of their own workspace, on every route that names a project, whatever
+    their role would otherwise allow."""
+    a, _ = tenants
+    hidden = await make_project(migrated, a.workspace.id, name="Hidden", slug="hidden")
+    limited = await make_user(migrated, name="Limited")
+    await add_member(migrated, a.workspace, limited, "editor", [a.project_id])
+    token, _ = await open_session(resources, limited, fresh=True)
+
+    outside = await _call(api, method, path, {**a.ids(), "project_id": str(hidden)}, cookie(token))
+    nowhere = await _call(
+        api, method, path, {**a.ids(), "project_id": str(uuid.uuid4())}, cookie(token)
+    )
+    inside = await _call(api, method, path, a.ids(), cookie(token))
+
+    assert _problem(outside) == _problem(nowhere) == (404, "not_found")
+    assert _without_request_details(outside) == _without_request_details(nowhere)
+    assert inside.status_code < 300, inside.text
+    row = await fetchrow(migrated, "SELECT name FROM core.projects WHERE id = $1", hidden)
+    assert row["name"] == "Hidden"
+
+
 async def test_no_request_with_another_workspaces_ids_changes_anything(
     api: httpx.AsyncClient, migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
 ) -> None:

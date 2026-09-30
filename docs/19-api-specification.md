@@ -79,7 +79,7 @@ Rules 1 to 4 describe the planned API key behavior and apply only once API keys 
 - **404, not 403, for anything the caller cannot see.** A workspace the caller is not a member of, a project outside the caller's project scope, and any resource id (project, tracked keyword, prompt, observation, run, export, alert) that belongs to another workspace or project all return `404 not_found` with an identical body. A 403 is returned only when the caller can see the resource but lacks the permission for the action (`403 forbidden`), so a 403 never confirms the existence of another tenant's data.
 - **Order of checks**, each answering before the next is looked at: session (`401`), membership (`404`), project scope (`404`), a suspended workspace on a write (`403 workspace_suspended`), permission (`403 forbidden`), fresh session (`403 fresh_session_required`), then the body (`422`). A well-formed request for another workspace is therefore `404` whatever its body holds. Two answers come earlier and depend on nothing about the workspace: a body that is not JSON (`400`) and, for a signed-in caller, a query parameter the route does not have (`422`, section 2.4). A `403` says nothing about the resource: a member without the permission gets it for a project that exists, one that does not and one of another workspace alike.
 - The membership is read from the database on every request and never cached, so a removed member, a disabled user and a changed role take effect on the next request. The workspace is taken from the path only. A project is checked against the member's scope when its path parameter is named `project_id`, which a test enforces for every route; a route that takes a project id in its query or body checks the scope itself.
-- **Workspace status.** A `deleting` workspace is `404` for its members. A `suspended` workspace can be read and not changed: every `POST`, `PUT`, `PATCH` and `DELETE` in it is `403 workspace_suspended`, whatever the caller's role. No route sets either status yet.
+- **Workspace status.** A `deleting` workspace is `404` for its members on every workspace route, and is left out of `GET /api/v1/workspaces`; `GET /api/v1/me` still lists the membership with `status: 'deleting'`, so the web app can say what happened. A `suspended` workspace can be read and not changed: every `POST`, `PUT`, `PATCH` and `DELETE` in it is `403 workspace_suspended`, whatever the caller's role. No route sets either status yet.
 - Child ids are always resolved together with their parent path. `GET {P}/prompts/{prompt_id}` with a prompt from a different project of the same workspace is also `404`.
 - Global dictionaries (`core.domains`, `core.urls`, `core.locations`, `ai.engines`, `seo.serp_feature_types`) are never listed without a tenant join, except the small registries under section 3.2.5.
 
@@ -268,8 +268,8 @@ All errors use RFC 9457 `application/problem+json`. They are produced by FastAPI
 ```
 
 - `type` resolves to a documentation page per code. `code` is the stable machine value; `title` and `detail` are for humans and may change.
-- `errors[]` is present for `validation_failed` and for bulk endpoints that reject individual items. `location` is `body`, `query`, `path` or `header`; `path` is a dot path into that location. `code` inside `errors[]` is the Pydantic error type.
-- Extensions per code are documented in OpenAPI (for example `existing_id` on `duplicate`, `retry_after_seconds` on `rate_limited`, `reauth_url` on `fresh_session_required`, `limit` and `used` on quota errors).
+- `errors[]` is present for `validation_failed` and for bulk endpoints that reject individual items. `location` is `body`, `query`, `path` or `header`; `path` is a dot path into that location. `code` inside `errors[]` is the Pydantic error type, or one of our own for a rule Pydantic cannot state: `extra_forbidden` (unknown query parameter), `null_not_allowed`, `slug_reserved`, `slug_is_id`, `timezone_unknown`, `project_unknown`, `scope_not_allowed`.
+- Extensions per code are listed here and, once error codes are enumerated in the OpenAPI document (review log F31), there too (for example `existing_id` on `duplicate`, `retry_after_seconds` on `rate_limited`, `reauth_url` on `fresh_session_required`, `limit` and `used` on quota errors).
 - 5xx bodies never contain stack traces, SQL, or provider responses.
 
 | Status | Code | When |
@@ -297,8 +297,8 @@ All errors use RFC 9457 `application/problem+json`. They are produced by FastAPI
 | 403 | `ip_not_allowed` | Planned with API keys: key IP allowlist |
 | 404 | `not_found` | Missing, deleted, or not visible to the caller (section 2.2) |
 | 405 | `method_not_allowed` | |
-| 409 | `duplicate` | Unique identity already exists; `existing_id` included |
-| 409 | `conflict` | Concurrent modification of the same resource: the request waited 3 seconds for a row another request holds, or two requests waited on each other. Safe to retry |
+| 409 | `duplicate` | Unique identity already exists; `existing_id` included where the caller may know it (not for a workspace or project slug, section 3.2.1 and 3.3) |
+| 409 | `conflict` | Concurrent modification of the same resource: a statement could not get a row another request holds within 3 seconds, or two requests waited on each other. Nothing was written. Safe to retry |
 | 409 | `invalid_state_transition` | For example confirming an import that is not `preview_ready` |
 | 409 | `idempotency_key_in_use` | Planned (section 2.8): same key still processing |
 | 409 | `cursor_stale` | Computed-sort cursor after `data_version` changed |
@@ -556,7 +556,7 @@ interface Me {
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
 | GET | `/api/v1/workspaces` | authenticated | none | `{ data: Workspace[] }` of the caller's memberships | no | | 1 |
-| POST | `/api/v1/workspaces` | authenticated, verified email; while `REGISTRATION=invited` a platform operator | `{ name, slug, timezone? }` (`timezone` defaults to `UTC`) | `201 One<Workspace>`; caller becomes `owner`; default quotas row | no | `409 duplicate` (slug; no `existing_id`, the other workspace may be someone else's), `403 email_not_verified`, `403 forbidden` (not an operator), `422 validation_failed` with `timezone_unknown`, `429 rate_limited` (5 per user per day) | 1 |
+| POST | `/api/v1/workspaces` | authenticated, verified email; while `REGISTRATION=invited` a platform operator | `{ name, slug, timezone? }` (`timezone` defaults to `UTC`) | `201 One<Workspace>`; caller becomes `owner`; default quotas row | no | `409 duplicate` (slug; no `existing_id`, the other workspace may be someone else's), `403 email_not_verified`, `403 forbidden` (not an operator), `422 validation_failed` with `timezone_unknown`, `429 rate_limited` (5 workspaces per user per day; an attempt refused for another reason costs none) | 1 |
 | GET | `{W}` | member | none | `One<Workspace>` | no | | 1 |
 | PATCH | `{W}` | `workspace:update` | `{ name?, slug?, logo?, timezone? }` | `One<Workspace>` | no | `409 duplicate` | 1 |
 | DELETE | `{W}` | `workspace:delete` fresh | `{ confirm_slug }` | `202`; `status = 'deleting'`, access revoked, hard purge after 30 days (doc 24 section 13) | no | `422 confirmation_mismatch` | deferred |
@@ -595,7 +595,7 @@ An invitation is accepted by its token, not by its id: the invited person is not
 
 - **Owners.** Only an owner grants the owner role, invites an owner, or changes or removes an owner. The last owner cannot be demoted or removed. Owners and admins always have every project: `project_ids` must be null for them, and promotion to either lifts a scope the member had.
 - **Scope.** `project_ids: null` is every project; a list limits the member to those projects, which must be live projects of the workspace; an empty list is a member of no project, who sees the workspace and none of its projects.
-- **An invitation grants nothing until it is accepted**, so what its sender may grant is judged twice: when it is sent, and again when it is accepted. When a member stops managing members (removed, or demoted below admin), the pending invitations they sent are withdrawn. Someone who already belongs and accepts an invitation keeps the membership they have.
+- **An invitation grants nothing until it is accepted**, so what its sender may grant is judged twice: when it is sent, and again when it is accepted. When a member stops managing members (removed, or demoted below admin), the pending invitations they sent are withdrawn; when an owner stops being an owner, the ones they sent for the owner role are. Each withdrawal is an `invitation.cancelled` audit entry. Someone who already belongs and accepts an invitation keeps the membership they have.
 - **What a member sees of the others.** Name, email, role, scope and joining date. `two_factor_enabled` and `last_active_at` are null unless the caller holds `members:manage` or the row is the caller's own.
 
 ```ts
@@ -716,11 +716,11 @@ interface ProjectDomain { entity: EntityRef; domain: DomainRef; match_scope: 'ho
 
 **The project limit** (`max_projects`) counts active and paused projects. An archived project does not count, so archiving one frees a slot, and bringing it back (`status` from `archived` to `active` or `paused`) needs a free slot and is `422 quota_exceeded` without one. A deleted project is gone for the count, and its slug stays taken until the delete route decides otherwise. `409 duplicate` for a slug carries no `existing_id`: the project that holds it may be deleted or outside the caller's scope.
 
-`filter[status_in]` takes comma-separated statuses and may be given more than once; every value counts and an unknown one is `422`.
+`filter[status_in]` takes comma-separated statuses and may be given more than once (up to 10 times); every value counts and an unknown one is `422`.
 
 **What is accepted today.** `ProjectCreate` takes `name`, `slug`, `timezone?`, `deep_check_weekday?` and `default_language_code?`, and `PATCH {P}` takes those and `status`. `primary_domain`, `default_location_id` and `own_entity` arrive with Phase 2, which creates the tables they point at, and `settings` with Phase 3, its first reader; until then a request that sends one is `422`, and `Project.primary_domain` and `default_location_id` are null. The settings routes move to Phase 3 for the same reason.
 
-Changing `timezone` affects only future business dates; already computed `observed_date` values stay (doc 04 section 2). The response of `PATCH {P}` always has `meta.warnings`, which holds `timezone_change_applies_forward` when the zone changed and is empty otherwise. Changing `deep_check_weekday` updates the next occurrence of the project's `seo_rank` schedule.
+Changing `timezone` affects only future business dates; already computed `observed_date` values stay (doc 04 section 2). The response of `PATCH {P}` always has `meta.warnings`, which holds `timezone_change_applies_forward` when the zone changed and is empty otherwise. `deep_check_weekday` and `status` are stored and steer nothing yet; from Phase 4 a changed weekday updates the next occurrence of the project's `seo_rank` schedule.
 
 ### 3.4 Entities: brands, competitors, aliases, domains, candidates (Phase 2, candidates Phase 8)
 

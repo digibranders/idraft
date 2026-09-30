@@ -85,11 +85,21 @@ def test_the_declared_access_is_the_documented_access() -> None:
     assert app.dependency_overrides == {}
 
 
-def test_a_project_in_a_path_is_always_called_project_id() -> None:
-    """The membership dependency checks the project scope for a path parameter of that name."""
+# The path parameters routes may use. The membership dependency checks the project scope for the
+# one named `project_id`, so a project must never travel under another name: a new name is added
+# here only after confirming it is not a project, or a thing inside one project, in disguise. A
+# route for something inside a project carries `{project_id}` before it.
+PATH_PARAMETERS = {"workspace_id", "project_id", "user_id", "invitation_id", "session_id"}
+
+
+def test_path_parameters_come_from_a_known_set_and_a_project_is_called_project_id() -> None:
     for route in iter_route_contexts(create_app(placeholder_settings()).routes):
         assert route.path is not None
+        names = re.findall(r"\{(\w+)\}", route.path)
+        assert set(names) <= PATH_PARAMETERS, route.path
         assert re.findall(r"/projects/\{(\w+)\}", route.path) in ([], ["project_id"]), route.path
+        if "project_id" in names:
+            assert names[:2] == ["workspace_id", "project_id"], route.path
 
 
 def test_no_router_adds_a_query_parameter_to_the_routes_it_includes() -> None:
