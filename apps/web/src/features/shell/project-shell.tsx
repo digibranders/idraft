@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { TopBarControls } from './top-bar-controls';
@@ -18,6 +18,7 @@ import { destinationOf, LIVE_NAVIGATION, NAVIGATION, navHref, visibleNavigation 
 import type { SidebarPreference } from '@/lib/navigation/sidebar-state';
 import { useMembership } from '@/lib/permissions';
 import { projectPath, workspacePath } from '@/lib/routes/paths';
+import { useGuardedPush } from '@/lib/navigation/use-leave-guard';
 
 export interface ShellProject extends SwitcherProject {
   slug: string;
@@ -51,7 +52,7 @@ export function ProjectShell({
   const t = useTranslations('shell');
   const nav = useTranslations('navigation');
   const pathname = usePathname();
-  const router = useRouter();
+  const push = useGuardedPush();
   const { permissions } = useMembership();
   const sidebarRef = useRef<HTMLElement | null>(null);
   const { rail, toggle, closePeek } = useSidebar(sidebarPreference, sidebarRef);
@@ -93,9 +94,7 @@ export function ProjectShell({
   const switchTo = (next: SwitcherProject): void => {
     const target = projects.find((candidate) => candidate.id === next.id);
     if (!target) return;
-    router.push(
-      current === null ? projectPath(workspace.slug, target.slug) : navHref(current, workspace.slug, target.slug),
-    );
+    push(current === null ? projectPath(workspace.slug, target.slug) : navHref(current, workspace.slug, target.slug));
   };
   const allProjects = {
     href: workspacePath(workspace.slug),

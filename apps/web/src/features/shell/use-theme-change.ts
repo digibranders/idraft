@@ -1,10 +1,10 @@
 'use client';
 
 import { useTheme } from 'next-themes';
-import { useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 
 import type { ThemeChoice } from '@/components/app/shell/user-menu';
+import { useHydrated } from '@/lib/dom/use-hydrated';
 
 export interface ThemeChange {
   /** What the person chose: System, Light or Dark. */
@@ -23,8 +23,6 @@ const tokenOf = (name: string): string =>
   getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
 const durationOf = (name: string): number => Number.parseFloat(tokenOf(`duration-${name}`)) || 0;
 
-const noSubscription = (): (() => void) => () => undefined;
-
 const isChoice = (value: string | undefined): value is ThemeChoice =>
   value === 'system' || value === 'light' || value === 'dark';
 
@@ -35,11 +33,7 @@ const isChoice = (value: string | undefined): value is ThemeChoice =>
  */
 export function useThemeChange(): ThemeChange {
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const hydrated = useSyncExternalStore(
-    noSubscription,
-    () => true,
-    () => false,
-  );
+  const hydrated = useHydrated();
   const choice: ThemeChoice = isChoice(theme) ? theme : 'system';
   const resolved = hydrated ? (resolvedTheme === 'dark' ? 'dark' : 'light') : null;
 

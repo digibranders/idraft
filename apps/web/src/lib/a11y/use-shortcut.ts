@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { createContext, use, useEffect, useRef } from 'react';
+
+/**
+ * Whether the person keeps single-key shortcuts on (Settings > Preferences). The workspace provides it from
+ * their preferences; elsewhere they are on. `ApplyPreferences` sets `SingleKeyShortcutsContext` of
+ * components/ui/kbd.tsx from the same preference, so the key hints hide when the keys do nothing.
+ */
+export const SingleKeysContext = createContext(true);
 
 export interface ShortcutOptions {
   /**
@@ -8,7 +15,7 @@ export interface ShortcutOptions {
    * `dismiss`: Escape closing something that is not a dialog (the rail's overlay), from anywhere.
    */
   kind: 'single-key' | 'dismiss';
-  /** Off when the person turned single-key shortcuts off, or when there is nothing to dismiss. On by default. */
+  /** Off when there is nothing to dismiss. On by default; a single-key shortcut also follows `SingleKeysContext`. */
   enabled?: boolean | undefined;
 }
 
@@ -41,8 +48,9 @@ export function useShortcut(key: string, handler: (event: KeyboardEvent) => void
   useEffect(() => {
     latest.current = handler;
   }, [handler]);
-  const enabled = options.enabled ?? true;
+  const singleKeys = use(SingleKeysContext);
   const { kind } = options;
+  const enabled = (options.enabled ?? true) && (kind !== 'single-key' || singleKeys);
   useEffect(() => {
     if (!enabled) return undefined;
     const onKey = (event: KeyboardEvent): void => {

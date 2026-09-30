@@ -75,3 +75,13 @@ export function formatDateRange(fromIso: string, toIso: string): string {
   const from = formatBusinessDate(fromIso, { withYear: fromYear !== toYear });
   return `${from} to ${formatBusinessDate(toIso)}`;
 }
+
+/** The time zone of this browser, for times that belong to the person rather than a project (their sessions). */
+export function browserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/** A date written the way `locale` writes it, for the format example of Settings > Preferences: "Sep 30, 2026". */
+export function formatLocaleDate(instant: Date, locale: string, timeZone: string): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone }).format(instant);
+}
