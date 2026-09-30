@@ -14,7 +14,7 @@ Lucide has no brand icons. Simple Icons has no OpenAI mark. `@lobehub/icons-stat
 2. Marks come from `@lobehub/icons-static-svg` at a pinned version (1.95.1). It is a dev dependency of `apps/web`; only the marks in use are bundled. No other component may import it.
 3. Marks are not recolored, cropped or placed on colored tiles. The OpenAI mark is monochrome and follows the text color.
 4. Google AI Mode and Google AI Overview both use the Google mark.
-5. Logos appear in engine lists and engine columns. They do not appear in chart legends (the series color dot is the key) or in the column headers of dense keyword tables.
+5. Logos appear in engine lists, engine columns and chart legends. In a legend the logo follows the series color dot, which stays as the key to the line color. They do not appear in the column headers of dense keyword tables.
 6. `EngineLogo` takes a `hidden` prop, and `EngineBadge` a `logo` prop, so logos can be switched off in one place.
 
 ## Consequences
