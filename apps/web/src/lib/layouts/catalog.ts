@@ -70,7 +70,7 @@ export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
   dashboardCard('competitors.share_of_voice', 'Share of voice', 'Share of voice as bars, for search or for one AI engine.', 'cross', ['third', 'half'], EITHER, {
     addedOn: RELEASE,
     options: {
-      channel: { label: 'Channel', values: [{ value: 'seo', label: 'Search' }, ...ENGINES.slice(0, 3).map((e) => ({ value: e.code, label: e.label }))], default: 'seo' },
+      channel: { label: 'Channel', values: [{ value: 'seo', label: 'Search' }, ...ENGINES.map((e) => ({ value: e.code, label: e.label }))], default: 'seo' },
     },
   }),
   dashboardCard('activity.key_changes', 'Key changes', 'Detectable changes and collection issues in the window, most urgent first.', 'activity', ['half', 'two_thirds', 'full'], NONE, {

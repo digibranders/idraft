@@ -29,12 +29,24 @@ function intervalText(counts) {
   return interval ? formatInterval(interval.low, interval.high) : null;
 }
 
-/** One related keyword in an inspector table: keyword, rank, and whether the AI Overview cites the site. */
-function keywordRow([keyword, rank, overview, cited]) {
+/**
+ * One related keyword in an inspector table: keyword, rank, and whether the AI Overview cites the site.
+ * `linked` marks the keyword a prompt's AI Overview is read from.
+ */
+function keywordRow({ keyword, rank, overview, cited, linked = false }) {
   const row = el('tr', 'h-row-compact border-t border-border-subtle');
   const status = el('td', 'pr-4 pl-3');
   status.append(el('span', cited ? 'h-badge inline-flex items-center px-2 rounded-sm bg-positive-subtle text-positive-text type-micro whitespace-nowrap' : NEUTRAL_BADGE, overview));
-  row.append(el('td', 'pl-4 truncate max-w-40', keyword), el('td', 'text-right num', rank), status);
+  const name = el('td', 'pl-4 max-w-40');
+  const line = el('span', 'flex items-center gap-2 min-w-0');
+  line.append(el('span', 'truncate', keyword));
+  if (linked) {
+    const badge = el('span', `${NEUTRAL_BADGE} shrink-0`, 'Linked');
+    badge.dataset.tip = 'The AI Overview of this prompt is read from the rank checks of this keyword';
+    line.append(badge);
+  }
+  name.append(line);
+  row.append(name, el('td', 'text-right num', rank), status);
   return row;
 }
 

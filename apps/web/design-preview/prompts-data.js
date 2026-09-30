@@ -36,16 +36,40 @@ const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 // -------------------------------------------------------------------------------------------------
 // Engines, entities and vocabulary
 
-/** `recommendations` is false where answers are not classified for recommendation: that rate is then "n/a". */
+/**
+ * `recommendations` is false where answers are not classified for recommendation: that rate is then "n/a".
+ * `asked` is false for AI Overview: no prompt is sent to it. It is read from the rank check of the prompt's
+ * linked keyword on the day of each run, and a check counts only when Google showed an AI Overview
+ * (16 section 1, rule 5: no surface is not a miss).
+ */
 const ENGINES = [
-  { code: 'chatgpt_web', name: 'ChatGPT', unit: 'responses', recommendations: true },
-  { code: 'gemini_web', name: 'Gemini', unit: 'responses', recommendations: true },
-  { code: 'google_ai_mode', name: 'AI Mode', unit: 'observations', recommendations: false },
+  { code: 'chatgpt_web', name: 'ChatGPT', unit: 'responses', recommendations: true, asked: true },
+  { code: 'gemini_web', name: 'Gemini', unit: 'responses', recommendations: true, asked: true },
+  { code: 'google_ai_mode', name: 'AI Mode', unit: 'observations', recommendations: false, asked: true },
+  { code: 'google_ai_overview', name: 'AI Overview', unit: 'AI Overviews', recommendations: false, asked: false },
 ];
+/** The engines a prompt is sent to. A manual run and the panel sizing are about these. */
+const ASKED_ENGINES = ENGINES.filter((engine) => engine.asked);
+const OVERVIEW = 'google_ai_overview';
 const engineOf = (code) => ENGINES.find((engine) => engine.code === code);
 /** Whether an engine has this metric at all. When not, its cells say why instead of showing a number. */
 const measures = (code, metric) => metric !== 'recommendation' || engineOf(code).recommendations;
 const NOT_CLASSIFIED = 'not classified for this engine';
+
+/**
+ * Why a prompt has no observation on an engine, as a short cell text and a sentence. An asked engine did
+ * not answer in the window; AI Overview has two different reasons, and they call for different actions.
+ */
+function absenceOf(prompt, code) {
+  if (engineOf(code).asked) return { text: 'n/a', note: 'not observed', reason: 'not observed in this window' };
+  if (!prompt.linked) return { text: 'n/a', note: 'no linked keyword', reason: 'no linked keyword. AI Overview is read from the rank checks of a linked keyword' };
+  return { text: 'No AIO', note: 'no AI Overview', reason: `Google showed no AI Overview for "${linkedKeywordOf(prompt).keyword}" in this window` };
+}
+/** The same reason as a sentence of its own. */
+const absenceSentence = (prompt, code) => {
+  const { reason } = absenceOf(prompt, code);
+  return `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`;
+};
 
 const OWN = 'Northwind';
 /** Tracked competitors, each with the chart color it has everywhere (15 section 4.2) and a base mention share. */
@@ -220,16 +244,21 @@ const TARGETS = {
   chatgpt_web: { n: 1800, mention: 612, prevMention: 574, citation: 378, prevCitation: 317, recommendation: 324, competitorMentions: 1655 },
   gemini_web: { n: 1296, mention: 376, prevMention: 386, citation: 181, prevCitation: 179, recommendation: 194, competitorMentions: 1191 },
   google_ai_mode: { n: 980, mention: 398, prevMention: 457, citation: 323, prevCitation: 334, recommendation: null, competitorMentions: 886 },
+  // AI Overview links to pages more often than it names a brand, so citations outnumber mentions.
+  // These are rank checks of the keywords linked to core prompts. They are not the 411 keywords with an AI
+  // Overview that the Overview's search cards count: that is every tracked keyword at its latest check
+  google_ai_overview: { n: 384, mention: 62, prevMention: 61, citation: 158, prevCitation: 156, recommendation: null, competitorMentions: 220 },
 };
 /**
  * The prompt-weighted rates the strip shows, where prompts differ in their number of observations. The
  * Overview reads 34% (+2.1 pts) and 29% (−0.8 pts) for mention rate, 21% (+3.4) and 14% (+0.2) for citation,
- * 18% and 15% for recommendation.
+ * 18% and 15% for recommendation. AI Overview reads 16.1% (+0.3 pts) and 41.1% (+0.5 pts).
  * AI Mode has the same count on every prompt, so its weighted rate is its pooled rate and needs no fitting.
  */
 const WEIGHTED = {
   chatgpt_web: { mention: 0.34, prevMention: 0.319, citation: 0.21, prevCitation: 0.176, recommendation: 0.18 },
   gemini_web: { mention: 0.29, prevMention: 0.298, citation: 0.14, prevCitation: 0.138, recommendation: 0.15 },
+  google_ai_overview: { mention: 0.161, prevMention: 0.158, citation: 0.411, prevCitation: 0.406 },
 };
 const ENGINE_BIAS = { chatgpt_web: 0, gemini_web: -0.05, google_ai_mode: 0.07 };
 /** Observation counts of the 248 generated core prompts, per engine. The two pinned prompts add theirs. */
@@ -238,6 +267,15 @@ const OBSERVATION_MIX = {
   gemini_web: [[8, 82], [4, 153], [3, 7], [0, 6]],
   google_ai_mode: [[4, 244], [0, 4]],
 };
+/**
+ * AI Overviews seen per generated core prompt in the window: one rank check of the linked keyword per weekly
+ * run, counted when it showed an AI Overview. Half the prompts have none, because no keyword is linked or
+ * because Google showed no AI Overview for it.
+ */
+const OVERVIEW_MIX = [[4, 66], [3, 24], [2, 17], [1, 10], [0, 131]];
+const PINNED_OVERVIEWS = [4, 0];
+/** Of the prompts without an AI Overview, the share that does have a linked keyword. */
+const LINKED_WITHOUT_OVERVIEW = 0.45;
 
 function draw(n, p, random) {
   let k = 0;
@@ -294,6 +332,44 @@ function fitPromptWeighted(items, field, target, maxOf, random, what) {
   }
 }
 
+/**
+ * Fits one engine's counts over the core panel (`prompts` is the panel, pinned prompts first) to its totals
+ * in TARGETS and to its prompt-weighted rates in WEIGHTED. The pinned prompts keep their counts.
+ */
+function fitPanel(prompts, code, random) {
+  const target = TARGETS[code];
+  const pinned = prompts.slice(0, PINNED.length).map((prompt) => prompt.engines[code]);
+  const free = prompts.slice(PINNED.length).map((prompt) => prompt.engines[code]);
+  const observations = [...pinned, ...free].reduce((sum, item) => sum + item.n, 0);
+  if (observations !== target.n) throw new Error(`Fixture: ${engineOf(code).name} has ${observations} observations in the panel, and its target says ${target.n}`);
+  const left = (field) => target[field] - pinned.reduce((sum, item) => sum + item[field], 0);
+  const all = [...pinned, ...free];
+  const byN = (item) => item.n;
+  const name = engineOf(code).name;
+  for (const field of ['mention', 'prevMention', 'citation', 'prevCitation']) fitTotal(cellsOf(free, field, byN), left(field), random, `${name} ${field}`);
+  // The strip shows the prompt-weighted rate (17 section 4.1); it is fitted so it reads as the Overview does
+  const observed = (items) => items.filter((item) => item.n > 0);
+  const fitWeighted = (field, maxOf) => {
+    const wanted = WEIGHTED[code]?.[field];
+    if (wanted === undefined) return;
+    const pinnedRates = observed(pinned).reduce((sum, item) => sum + item[field] / item.n, 0);
+    fitPromptWeighted(free, field, (wanted * observed(all).length - pinnedRates) / observed(free).length, maxOf, random, `${name} ${field}`);
+  };
+  for (const field of ['mention', 'prevMention', 'citation', 'prevCitation']) fitWeighted(field, byN);
+  // A recommendation is a kind of mention, so it cannot outnumber them
+  if (target.recommendation === null) all.forEach((item) => (item.recommendation = null));
+  else {
+    const byMention = (item) => item.mention;
+    free.forEach((item) => (item.recommendation = Math.min(item.recommendation, item.mention)));
+    fitTotal(cellsOf(free, 'recommendation', byMention), left('recommendation'), random, `${name} recommendation`);
+    fitWeighted('recommendation', byMention);
+  }
+  // Competitor mentions: the total sets the panel's share of voice
+  const competitorCells = free.flatMap((item) => item.competitors.map((_, c) => ({ read: () => item.competitors[c], write: (value) => (item.competitors[c] = value), max: () => item.n })));
+  const pinnedCompetitors = pinned.reduce((sum, item) => sum + item.competitors.reduce((a, b) => a + b, 0), 0);
+  fitTotal(competitorCells, target.competitorMentions - pinnedCompetitors, random, `${name} competitor mentions`);
+}
+
 /** Days a prompt's wording can have changed on: the last three are inside the chart's eight weeks. */
 const VERSION_DAYS = ['Jun 15', 'Jun 29', 'Jul 13', 'Jul 20', 'Jul 27', 'Aug 3', 'Sep 7', 'Sep 14', 'Sep 21'];
 const RECENT_VERSION_DAYS = 3;
@@ -306,6 +382,42 @@ function versionDayOf(prompt) {
   const random = seeded(prompt.seed + 3);
   const older = VERSION_DAYS.length - RECENT_VERSION_DAYS;
   return prompt.versionChanged ? VERSION_DAYS[older + Math.floor(random() * RECENT_VERSION_DAYS)] : VERSION_DAYS[Math.floor(random() * older)];
+}
+
+/**
+ * Gives every prompt its AI Overview counts and says whether a keyword is linked to it. It runs last and
+ * draws from its own generator, so the counts of the asked engines are what they were without it.
+ */
+function addOverviews(prompts) {
+  const random = seeded(20261001);
+  const mix = shuffled(OVERVIEW_MIX.flatMap(([n, count]) => Array.from({ length: count }, () => n)), random);
+  const core = prompts.filter((prompt) => prompt.panel === 'Core');
+  const seen = (prompt) => {
+    const index = core.indexOf(prompt);
+    if (index >= 0) return index < PINNED.length ? PINNED_OVERVIEWS[index] : mix[index - PINNED.length];
+    // A branded query shows an AI Overview less often; a discovery prompt has one run in the window
+    return prompt.panel === 'Discovery' ? (random() < 0.35 ? 1 : 0) : random() < 0.4 ? 4 : 0;
+  };
+  for (const prompt of prompts) {
+    const n = seen(prompt);
+    const p = clamp(prompt.strength * 0.4 + (random() - 0.5) * 0.2, 0.01, 0.9);
+    const previous = clamp(p + (random() - 0.5) * 0.12, 0.01, 0.9);
+    prompt.linked = n > 0 || random() < LINKED_WITHOUT_OVERVIEW;
+    prompt.engines[OVERVIEW] = {
+      n,
+      mention: draw(n, p, random),
+      citation: draw(n, clamp(p * 2.3, 0, 0.95), random),
+      recommendation: null,
+      prevMention: draw(n, previous, random),
+      prevCitation: draw(n, clamp(previous * 2.3, 0, 0.95), random),
+      competitors: COMPETITORS.map((competitor) => draw(n, clamp(competitor.base * (0.3 + random() * 0.6), 0, 0.95), random)),
+    };
+  }
+  // The first pinned prompt is linked to "best crm for startups", which the AI Overview cites (KEYWORD_FACTS)
+  Object.assign(core[0].engines[OVERVIEW], { mention: 1, citation: 3, prevMention: 1, prevCitation: 3 });
+  core[0].linked = true;
+  core[1].linked = true;
+  fitPanel(core, OVERVIEW, random);
 }
 
 function buildPrompts() {
@@ -327,7 +439,9 @@ function buildPrompts() {
     const index = prompts.length;
     const strength = clamp((branded ? 0.78 : TOPIC_STRENGTH[source.topic]) + (random() - 0.5) * 0.5, 0.02, 0.95);
     const engines = {};
-    for (const { code } of ENGINES) {
+    // Only the asked engines are drawn here. AI Overview is added afterwards from its own generator
+    // (addOverviews), so its presence does not shift any number drawn for the other three.
+    for (const { code } of ASKED_ENGINES) {
       const n = observationsOf(code, index);
       const p = clamp(strength + ENGINE_BIAS[code] + (random() - 0.5) * 0.2, 0.01, 0.97);
       const previous = clamp(p + (random() - 0.5) * 0.24, 0.01, 0.97);
@@ -356,6 +470,7 @@ function buildPrompts() {
       versionChanged: version > 1 && random() < 0.18,
       stale: panel === 'Core' && random() < 0.04,
       seed: Math.floor(random() * 2 ** 31),
+      strength,
       engines,
     });
   };
@@ -371,42 +486,13 @@ function buildPrompts() {
   Object.assign(prompts[1].engines.gemini_web, { mention: 2, citation: 1, recommendation: 1, prevMention: 1, prevCitation: 0 });
   Object.assign(prompts[1], { version: 1, versionChanged: false, stale: false });
 
-  for (const { code } of ENGINES) {
-    const target = TARGETS[code];
-    const pinned = prompts.slice(0, PINNED.length).map((prompt) => prompt.engines[code]);
-    const free = prompts.slice(PINNED.length).map((prompt) => prompt.engines[code]);
-    const left = (field) => target[field] - pinned.reduce((sum, item) => sum + item[field], 0);
-    const all = [...pinned, ...free];
-    const byN = (item) => item.n;
-    const name = engineOf(code).name;
-    for (const field of ['mention', 'prevMention', 'citation', 'prevCitation']) fitTotal(cellsOf(free, field, byN), left(field), random, `${name} ${field}`);
-    // The strip shows the prompt-weighted rate (17 section 4.1); it is fitted so it reads as the Overview does
-    const observed = (items) => items.filter((item) => item.n > 0);
-    const fitWeighted = (field, maxOf) => {
-      const wanted = WEIGHTED[code]?.[field];
-      if (wanted === undefined) return;
-      const pinnedRates = observed(pinned).reduce((sum, item) => sum + item[field] / item.n, 0);
-      fitPromptWeighted(free, field, (wanted * observed(all).length - pinnedRates) / observed(free).length, maxOf, random, `${name} ${field}`);
-    };
-    for (const field of ['mention', 'prevMention', 'citation', 'prevCitation']) fitWeighted(field, byN);
-    // A recommendation is a kind of mention, so it cannot outnumber them
-    if (target.recommendation === null) all.forEach((item) => (item.recommendation = null));
-    else {
-      const byMention = (item) => item.mention;
-      free.forEach((item) => (item.recommendation = Math.min(item.recommendation, item.mention)));
-      fitTotal(cellsOf(free, 'recommendation', byMention), left('recommendation'), random, `${name} recommendation`);
-      fitWeighted('recommendation', byMention);
-    }
-    // Competitor mentions: the total sets the panel's share of voice
-    const competitorCells = free.flatMap((item) => item.competitors.map((_, c) => ({ read: () => item.competitors[c], write: (value) => (item.competitors[c] = value), max: () => item.n })));
-    const pinnedCompetitors = pinned.reduce((sum, item) => sum + item.competitors.reduce((a, b) => a + b, 0), 0);
-    fitTotal(competitorCells, target.competitorMentions - pinnedCompetitors, random, `${name} competitor mentions`);
-  }
+  for (const { code } of ASKED_ENGINES) fitPanel(prompts, code, random);
 
   // Branded prompts are watched weekly in their own panel; discovery prompts are observed once a month,
   // which is too little for a rate, and that is what their rows show
   BRANDED.forEach(([text, type, topic]) => add({ text, type, topic }, 'Brand watch', true, () => 4));
   discovery.forEach((source) => add(source, 'Discovery', false, () => 1));
+  addOverviews(prompts);
   for (const prompt of prompts) {
     for (const { code } of ENGINES) if (!measures(code, 'recommendation')) prompt.engines[code].recommendation = null;
     prompt.versionDay = versionDayOf(prompt);
@@ -480,6 +566,7 @@ function trendOf(prompt, scope) {
 }
 
 const RUN_DAYS = ['Sep 7', 'Sep 14', 'Sep 21', 'Sep 28'];
+const RANK_CHECK = { hour: 6, minute: 12 };
 
 // -------------------------------------------------------------------------------------------------
 // Observations of one prompt: the single answers behind its counts, generated the same way every time
@@ -517,8 +604,10 @@ function observationsOf(prompt) {
         engineOrder,
         run,
         day: days[Math.max(0, run)],
-        // A run asks the engines one after the other, a few minutes apart, replicate by replicate
-        minute: startMinute + engineOrder * 4 + (i % perRun),
+        // A run asks the engines one after the other, a few minutes apart, replicate by replicate.
+        // An AI Overview comes from that day's rank check, which runs at 06:12
+        hour: engine.asked ? hour : RANK_CHECK.hour,
+        minute: engine.asked ? startMinute + engineOrder * 4 + (i % perRun) : RANK_CHECK.minute,
         replicate: (i % perRun) + 1,
         mentioned: mentioned[i],
         cited: cited[i],
@@ -526,16 +615,19 @@ function observationsOf(prompt) {
       });
     }
   });
-  all.forEach((observation) => (observation.time = `0${hour}:${String(observation.minute).padStart(2, '0')}`));
+  all.forEach((observation) => (observation.time = `0${observation.hour}:${String(observation.minute).padStart(2, '0')}`));
   all.sort((a, b) => b.run - a.run || a.engineOrder - b.engineOrder || b.replicate - a.replicate);
   observationCache.set(prompt.id, all);
   return all;
 }
 
 const DAY_ORDER = { 'Aug 31': 0, 'Sep 3': 3, 'Sep 7': 7, 'Sep 14': 14, 'Sep 21': 21, 'Sep 28': 28 };
-/** When the prompt was last observed: the latest of its observations. `order` sorts; -1 is "never". */
+/**
+ * When the prompt was last asked: the latest answer of an asked engine. A rank check that showed an AI
+ * Overview is not a run of the prompt, so it does not count. `order` sorts; -1 is "never".
+ */
 function updatedOf(prompt) {
-  const observations = observationsOf(prompt);
+  const observations = observationsOf(prompt).filter((observation) => observation.engine.asked);
   if (observations.length === 0) return { text: 'Not yet', order: -1 };
   const latest = observations.reduce((a, b) => (b.run > a.run || (b.run === a.run && b.minute > a.minute) ? b : a));
   return { text: `${latest.day}, ${latest.time}`, order: DAY_ORDER[latest.day] * 1440 + Number(latest.time.slice(0, 2)) * 60 + latest.minute };
@@ -561,7 +653,8 @@ function answerFor(prompt, observation) {
   const random = seeded(prompt.seed + 17 * (observation.engineOrder + 1));
   const counts = prompt.engines[observation.engine.code];
   const rivals = COMPETITORS.map((competitor, c) => ({ ...competitor, count: counts.competitors[c] + random() })).sort((a, b) => b.count - a.count);
-  const listLike = prompt.type === 'recommendation' || prompt.type === 'comparison';
+  // An AI Overview summarizes the results of the linked keyword: it is prose, not a ranked answer to the prompt
+  const listLike = observation.engine.asked && (prompt.type === 'recommendation' || prompt.type === 'comparison');
   const names = rivals.slice(0, 3).map((rival) => rival.name);
   let rank = null;
   if (observation.mentioned) {
@@ -683,14 +776,69 @@ const TOPIC_SEO = buildTopicSeo();
 /** Tracked keywords of a topic: how many, how many were checked, how many rank in the top 10, and the visibility. */
 const seoOf = (topicName) => TOPIC_SEO.get(topicName);
 
-const RELATED_KEYWORDS = [
-  ['best crm for startups', '3', 'Cited #2', true],
-  ['crm for small business', '4', 'Cited #2', true],
-  ['sales pipeline software', '8', 'Not cited', false],
-  ['crm tools for startups', '5', 'Cited #4', true],
-  ['startup crm', '>20', 'No AI Overview', false],
-  ['best sales crm', '11', 'Not cited', false],
-];
+/** Tracked keywords of each topic: the ones a prompt of the topic can be linked to. */
+const TOPIC_KEYWORDS = {
+  Startups: ['best crm for startups', 'startup crm', 'crm tools for startups'],
+  'Small business': ['crm for small business', 'small business crm software', 'simple crm'],
+  Pricing: ['crm pricing comparison', 'free crm', 'cheap crm software'],
+  Comparisons: ['hubspot alternatives', 'crm comparison', 'best sales crm'],
+  Integrations: ['crm gmail integration', 'crm with google calendar', 'crm integrations'],
+  Onboarding: ['how to set up a crm', 'import contacts to crm', 'crm migration'],
+  Mobile: ['crm mobile app', 'best mobile crm', 'crm for iphone'],
+  Pipeline: ['sales pipeline software', 'sales pipeline template', 'pipeline management tool'],
+  'Email tracking': ['crm with email tracking', 'email tracking software', 'track email opens'],
+  Forecasting: ['sales forecasting software', 'crm forecasting', 'revenue forecast tool'],
+  'Lead management': ['lead management software', 'lead scoring', 'lead tracking tool'],
+  Automation: ['sales automation tool', 'automate follow-up emails', 'crm automation'],
+  Reporting: ['crm reporting', 'sales dashboard software', 'sales reports tool'],
+};
+/** Rank and AI Overview status of the keywords the page templates draw (24 section 9.5). */
+const KEYWORD_FACTS = {
+  'best crm for startups': { rank: '3', overview: 'Cited #2', cited: true },
+  'crm for small business': { rank: '4', overview: 'Cited #2', cited: true },
+  'sales pipeline software': { rank: '8', overview: 'Not cited', cited: false },
+  'crm tools for startups': { rank: '5', overview: 'Cited #4', cited: true },
+  'startup crm': { rank: '>20', overview: 'No AI Overview', cited: false },
+  'best sales crm': { rank: '11', overview: 'Not cited', cited: false },
+};
+
+function hash(text) {
+  let value = 7;
+  for (const character of text) value = (value * 31 + character.charCodeAt(0)) % 2147483647;
+  return value;
+}
+
+/** One tracked keyword as an inspector row: its rank and whether the AI Overview of its latest check cites the site. */
+function keywordFacts(keyword) {
+  if (KEYWORD_FACTS[keyword]) return { keyword, ...KEYWORD_FACTS[keyword] };
+  const random = seeded(hash(keyword));
+  const rank = 1 + Math.floor(random() * 24);
+  const shown = random() < 0.6;
+  const cited = shown && random() < 0.45;
+  return { keyword, rank: rank > 20 ? '>20' : String(rank), overview: !shown ? 'No AI Overview' : cited ? `Cited #${1 + Math.floor(random() * 4)}` : 'Not cited', cited };
+}
+
+/**
+ * The keyword a prompt is linked to, or null. Its AI Overview status is the prompt's own count, so the
+ * keyword row, the AI Overview column and the AI Overview card of a prompt always say the same thing.
+ */
+function linkedKeywordOf(prompt) {
+  if (!prompt.linked) return null;
+  const pool = TOPIC_KEYWORDS[prompt.topic];
+  const keyword = prompt.id === 'p1' ? pool[0] : pool[Math.floor(seeded(prompt.seed + 7)() * pool.length)];
+  const counts = prompt.engines[OVERVIEW];
+  const overview = counts.n === 0 ? 'No AI Overview' : counts.citation > 0 ? `Cited in ${counts.citation} of ${counts.n}` : `Not cited in ${counts.n}`;
+  return { keyword, rank: keywordFacts(keyword).rank, overview, cited: counts.citation > 0, linked: true };
+}
+
+/** Keywords for the prompt drawer: the linked one first, then others of the same topic. */
+function relatedKeywordsOf(prompt) {
+  const linked = linkedKeywordOf(prompt);
+  const others = TOPIC_KEYWORDS[prompt.topic].filter((keyword) => keyword !== linked?.keyword).map(keywordFacts);
+  return [...(linked ? [linked] : []), ...others.slice(0, prompt.branded ? 0 : 2)];
+}
+
+const topicKeywords = (topicName) => TOPIC_KEYWORDS[topicName].map(keywordFacts);
 
 // -------------------------------------------------------------------------------------------------
 // The 28-day rolling mention rate at each weekly run (17 section 7.3), for the history chart
@@ -708,8 +856,13 @@ function rollingCounts(prompt, code) {
 }
 
 export {
+  ASKED_ENGINES,
   NOT_CLASSIFIED,
-  RELATED_KEYWORDS,
+  absenceOf,
+  absenceSentence,
+  linkedKeywordOf,
+  relatedKeywordsOf,
+  topicKeywords,
   measures,
   versionDayOrder,
   seoOf,

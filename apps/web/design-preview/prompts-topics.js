@@ -157,7 +157,11 @@ const OPTIONAL_AFTER_MENTION = ['citation', 'engine', 'trend', 'seo', 'top10', '
 
 function topicRateCell(topic, metric) {
   const average = topic[metric];
-  const engines = scopeEngines().map((engine) => engine.name).join(', ');
+  // The engines that took part: one without enough observations in this topic is left out of the average
+  const engines = scopeEngines()
+    .filter((engine) => groupRate(topic.prompts, engine.code, metric).rate !== null)
+    .map((engine) => engine.name)
+    .join(', ');
   const observed = topic.prompts.reduce((sum, prompt) => sum + scopeCodes().reduce((total, code) => total + prompt.engines[code].n, 0), 0);
   return rateCell({
     value: average.value,

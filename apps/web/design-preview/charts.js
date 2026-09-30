@@ -376,6 +376,7 @@
     { key: 'chatgpt', token: 'chart-2', start: 31.9, end: 34, noise: 1.8, ci: 3 },
     { key: 'gemini', token: 'chart-3', start: 29.8, end: 29, noise: 1.8, ci: 3.4 },
     { key: 'aimode', token: 'chart-4', start: 47, end: 41, noise: 2.2, ci: 4 },
+    { key: 'aio', token: 'chart-5', start: 14.6, end: 16.1, noise: 1.4, ci: 3.2 },
   ].map((m) => {
     const values = walk(overviewRandom, 28, m.start, m.end, m.noise);
     values[values.length - 1] = m.end;
@@ -662,14 +663,12 @@
 
   /** Shared with interactions.js (inspector chart, legend and interval toggles, selection sync). */
   // Mention rate trend cards (layout customization): one chart per card instance, mounted when the card is
-  // placed and disposed when it is hidden. AI Overview has no row in the small multiples, so it gets its own series.
-  const aioValues = walk(overviewRandom, 28, 14.6, 16.1, 1.4);
-  aioValues[aioValues.length - 1] = 16.1;
+  // placed and disposed when it is hidden. Each engine reuses its series from the small multiples.
   const TREND_SERIES = {
     chatgpt_web: MULTIPLES[1],
     gemini_web: MULTIPLES[2],
     google_ai_mode: MULTIPLES[3],
-    google_ai_overview: { key: 'aio', token: 'chart-5', values: aioValues, half: aioValues.map(() => 3.2 + overviewRandom() * 0.8), ci: 3.2 },
+    google_ai_overview: MULTIPLES[4],
   };
 
   function trendOption(id, engine) {

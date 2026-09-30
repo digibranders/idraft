@@ -5,7 +5,7 @@
  * which topics are in scope and in what order.
  */
 import { formatInteger, formatPercent, formatSampleCount } from './vendor/format/number.js';
-import { RELATED_KEYWORDS, WEEKS, averageFor, changeFor, clamp, groupAverage, groupChange, groupEntities, groupRate, seeded, shuffled } from './prompts-data.js';
+import { WEEKS, averageFor, changeFor, clamp, groupAverage, groupChange, groupEntities, groupRate, seeded, topicKeywords } from './prompts-data.js';
 import { el, keywordRow, percent0, plural } from './prompts-parts.js';
 import { deltaNode, scopeCodes, scopeEngines, scopeText } from './prompts-state.js';
 
@@ -55,7 +55,7 @@ function fillNumbers(topic) {
 function engineRow(topic, engine) {
   const { rate, pooled } = groupRate(topic.prompts, engine.code, 'mention');
   const row = el('li', 'h-9 flex items-center gap-3');
-  const label = el('span', 'w-24 shrink-0 flex items-center gap-2 min-w-0 type-body text-foreground');
+  const label = el('span', 'w-28 shrink-0 flex items-center gap-2 min-w-0 type-body text-foreground');
   label.append(engineLogo(engine.name), el('span', 'truncate', engine.name));
   const track = el('span', 'flex-1 h-2 rounded-full bg-neutral-subtle overflow-hidden');
   track.setAttribute('aria-hidden', 'true');
@@ -246,8 +246,7 @@ function fillRelated(topic) {
           return tr;
         })),
   );
-  const keywords = shuffled(RELATED_KEYWORDS, seeded(hash(topic.id) + 5)).slice(0, 4);
-  $('[data-topic-keywords]', inspector).replaceChildren(...keywords.map(keywordRow));
+  $('[data-topic-keywords]', inspector).replaceChildren(...topicKeywords(topic.name).map(keywordRow));
 }
 
 // -------------------------------------------------------------------------------------------------

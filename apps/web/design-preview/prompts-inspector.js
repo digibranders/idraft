@@ -6,7 +6,7 @@
  */
 import { formatInteger, formatInterval, formatSampleCount } from './vendor/format/number.js';
 import { rateState, wilsonInterval } from './vendor/stats/index.js';
-import { COMPETITORS, ENGINES, NOT_CLASSIFIED, OWN, PROMPT_BY_ID, RELATED_KEYWORDS, TYPE_LABEL, WEEKS, answerFor, averageFor, countsOf, engineOf, observationsOf, measures, rollingCounts, seeded, shuffled, topicPath, updatedOf } from './prompts-data.js';
+import { COMPETITORS, ENGINES, NOT_CLASSIFIED, OWN, absenceOf, absenceSentence, linkedKeywordOf, relatedKeywordsOf, PROMPT_BY_ID, TYPE_LABEL, WEEKS, answerFor, averageFor, countsOf, engineOf, observationsOf, measures, rollingCounts, seeded, topicPath, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, el, insufficient, keywordRow, percent0, plural } from './prompts-parts.js';
 
 const ui = window.PreviewUI;
@@ -34,6 +34,29 @@ const fact = (label, value) => {
   return item;
 };
 
+/** Where an observation came from: a replicate of the run, or the rank check an AI Overview was read from. */
+const sourceOf = (observation) => (observation.engine.asked ? `replicate ${observation.replicate}` : 'rank check');
+
+/**
+ * The AI Overview card. It is not an answer to the prompt: it is what Google showed for the linked keyword,
+ * so the card names the keyword and quotes the overview (QuoteBox, 23 section 5) instead of ranking the brand.
+ */
+function overviewPreview(prompt, card, header, answer, facts) {
+  const linked = linkedKeywordOf(prompt);
+  const source = el('p', 'flex flex-wrap gap-x-4 gap-y-1 type-meta');
+  source.append(fact('Keyword', linked.keyword), fact('Rank', linked.rank));
+  const quote = el('div', 'rounded-md border border-border-subtle bg-surface-subtle p-3 type-table');
+  quote.append(evidenceText(answer.text));
+  const footer = el('footer', 'flex flex-wrap items-center gap-1.5');
+  answer.sources.slice(0, 3).forEach((domain) => footer.append(el('span', NEUTRAL_BADGE, domain)));
+  const open = el('button', 'ml-auto h-control-sm px-2 rounded-md border border-border bg-surface flex items-center gap-1.5 whitespace-nowrap type-body-strong text-foreground hover:bg-surface-hover', 'Open evidence');
+  open.type = 'button';
+  open.dataset.previewNote = 'The evidence viewer';
+  footer.append(open);
+  card.append(header, source, quote, facts, footer);
+  return card;
+}
+
 /** ResponsePreview (23 section 5.1): the latest valid observation on one engine. */
 function responsePreview(prompt, engine) {
   const card = el('article', 'rounded-lg border border-border bg-surface p-4 flex flex-col gap-2');
@@ -41,14 +64,16 @@ function responsePreview(prompt, engine) {
   header.append(engineLogo(engine.name), el('h3', 'type-subsection-title', engine.name));
   const latest = observationsOf(prompt).find((observation) => observation.engine.code === engine.code);
   if (!latest) {
-    card.append(header, el('p', 'type-meta', prompt.pending ? 'Not observed yet. The first answer arrives with the next run.' : 'Not observed in this window.'));
+    const waiting = engine.asked ? 'Not observed yet. The first answer arrives with the next run.' : 'Not observed yet. Link a keyword to read its AI Overview.';
+    card.append(header, el('p', 'type-meta', prompt.pending ? waiting : absenceSentence(prompt, engine.code)));
     return card;
   }
-  header.append(el('span', 'type-meta num truncate', `${latest.day}, ${latest.time} · replicate ${latest.replicate}`));
+  header.append(el('span', 'type-meta num truncate', `${latest.day}, ${latest.time} · ${sourceOf(latest)}`));
   header.append(el('span', 'ml-auto shrink-0 h-badge inline-flex items-center px-2 rounded-sm bg-positive-subtle text-positive-text type-micro', 'Valid'));
   const answer = answerFor(prompt, latest);
   const facts = el('p', 'flex flex-wrap gap-x-4 gap-y-1 type-meta');
   facts.append(fact('Mentioned', latest.mentioned ? 'Yes' : 'No'), fact('Cited', latest.cited ? 'Yes' : 'No'));
+  if (!engine.asked) return overviewPreview(prompt, card, header, answer, facts);
   if (answer.rank) facts.append(fact('Rank', `${answer.rank} of ${answer.listed}`));
   else facts.append(fact('Recommended', latest.recommended === null ? 'n/a' : latest.recommended ? 'Yes' : 'No'));
   const footer = el('footer', 'flex flex-wrap items-center gap-1.5');
@@ -91,12 +116,15 @@ function fillStrip(prompt) {
     const counts = countsOf(prompt, engine.code, 'mention');
     const status = rateState(counts.n);
     const value = status === 'ok' ? el('span', 'type-metric-sm num shrink-0', percent0(counts.k / counts.n)) : el('span', 'type-metric-sm num shrink-0 text-foreground-tertiary', 'n/a');
-    const note = status === 'ok' ? `${formatSampleCount(counts.k, counts.n)} obs` : status === 'insufficient' ? `${plural(counts.n, 'observation')}, too few` : 'not observed';
+    const note = status === 'ok' ? `${formatSampleCount(counts.k, counts.n)} obs` : status === 'insufficient' ? `${plural(counts.n, 'observation')}, too few` : absenceOf(prompt, engine.code).note;
     return strengthCard(engine.name, engine.name, value, note);
   });
   const citation = averageFor(prompt, ENGINES.map((engine) => engine.code), 'citation');
   const value = el('span', `type-metric-sm num shrink-0${citation.value === null ? ' text-foreground-tertiary' : ''}`, citation.value === null ? 'n/a' : percent0(citation.value));
-  cards.push(strengthCard('Citation rate', null, value, citation.used > 0 ? `avg of ${citation.used}` : ENGINES.some((engine) => prompt.engines[engine.code].n > 0) ? 'insufficient data' : 'not observed'));
+  const citationCard = strengthCard('Citation rate', null, value, citation.used > 0 ? `avg of ${citation.used}` : ENGINES.some((engine) => prompt.engines[engine.code].n > 0) ? 'insufficient data' : 'not observed');
+  // Four engines fill two rows of two; the average of them takes the full width below
+  citationCard.classList.add('col-span-2');
+  cards.push(citationCard);
   $('[data-prompt-kv]', inspector).replaceChildren(...cards);
 }
 
@@ -124,7 +152,7 @@ function fillHistory(prompt) {
         const line = el('span', 'flex items-center gap-2 min-w-0');
         line.append(el('span', 'w-12 shrink-0 type-meta num', observation.day), engineLogo(observation.engine.name), el('span', 'truncate', observation.engine.name));
         first.append(line);
-        first.dataset.tip = `${observation.day}, ${observation.time} · replicate ${observation.replicate}`;
+        first.dataset.tip = `${observation.day}, ${observation.time} · ${sourceOf(observation)}`;
         const recommended = yesNo(observation.recommended, 'Recommended');
         recommended.classList.add('pr-4');
         row.append(first, yesNo(observation.mentioned, 'Mentioned'), yesNo(observation.cited, 'Cited'), recommended);
@@ -217,6 +245,21 @@ function countCell(counts, className) {
   return cell;
 }
 
+/** Shown first when no keyword is linked: the reason the AI Overview cells are empty, and the way out. */
+function linkKeywordRow() {
+  const row = el('tr', 'border-t border-border-subtle');
+  const cell = el('td', 'px-4 py-2');
+  cell.colSpan = 3;
+  const line = el('span', 'flex flex-wrap items-center gap-x-3 gap-y-1');
+  const link = el('button', 'ml-auto h-control-sm px-2 rounded-md border border-border bg-surface whitespace-nowrap type-body-strong text-foreground hover:bg-surface-hover', 'Link a keyword');
+  link.type = 'button';
+  link.dataset.previewNote = 'Linking a keyword';
+  line.append(el('span', 'type-meta', 'No keyword is linked, so this prompt has no AI Overview.'), link);
+  cell.append(line);
+  row.append(cell);
+  return row;
+}
+
 function fillCompetitors(prompt) {
   const metric = $('[data-prompt-entity-metric] [aria-checked="true"]', inspector).dataset.value;
   const headRow = el('tr', 'text-left border-t border-border-subtle bg-surface-subtle');
@@ -249,9 +292,9 @@ function fillCompetitors(prompt) {
     }),
   );
 
-  const random = seeded(prompt.seed + 401);
-  const keywords = shuffled(RELATED_KEYWORDS, random).slice(0, prompt.branded ? 1 : 3);
-  $('[data-prompt-keywords]', inspector).replaceChildren(...keywords.map(keywordRow));
+  const rows = relatedKeywordsOf(prompt).map(keywordRow);
+  if (!prompt.linked) rows.unshift(linkKeywordRow());
+  $('[data-prompt-keywords]', inspector).replaceChildren(...rows);
 }
 
 inspector.addEventListener('click', (event) => {
@@ -291,7 +334,7 @@ function fillStats(prompt) {
         if (status !== 'ok') {
           const gap = el('td', 'pr-4 pl-3');
           gap.colSpan = 3;
-          gap.append(status === 'none' ? el('span', 'type-meta', 'Not observed in this window') : insufficient(`Insufficient data: ${plural(counts.n, 'observation')}`));
+          gap.append(status === 'none' ? el('span', 'type-meta', absenceSentence(prompt, engine.code)) : insufficient(`Insufficient data: ${plural(counts.n, 'observation')}`));
           return simpleRow([name, gap]);
         }
         const interval = el('td', 'pl-3');
@@ -316,10 +359,10 @@ function renderHistoryChart() {
   const usable = rateState(counts.n) === 'ok';
   historyEl.hidden = !usable;
   if (!usable) {
-    note.textContent = counts.n === 0 ? `${engine.name} has not observed this prompt in the window.` : `${plural(counts.n, 'observation')} on ${engine.name}: too few for a trend.`;
+    note.textContent = counts.n === 0 ? `${engine.name}: ${absenceOf(prompt, engine.code).reason}.` : `${plural(counts.n, 'observation')} on ${engine.name}: too few for a trend.`;
     return;
   }
-  note.textContent = `28-day rolling rate at each weekly run, with its 95% interval. ${plural(counts.n, 'observation')} per point.`;
+  note.textContent = `28-day rolling rate at each weekly ${engine.asked ? 'run' : 'rank check'}, with its 95% interval. ${plural(counts.n, 'observation')} per point.`;
   if (historyEl.clientWidth === 0) return;
   historyChart ??= echarts.init(historyEl, null, { renderer: 'canvas' });
   const series = rollingCounts(prompt, engine.code);

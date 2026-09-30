@@ -6,7 +6,7 @@
  */
 import { formatInteger, formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS, pooledCounts } from './vendor/stats/index.js';
-import { TYPE_LABEL, averageFor, changeFor, countsOf, engineOf, rateFor, trendOf, updatedOf } from './prompts-data.js';
+import { TYPE_LABEL, absenceOf, averageFor, changeFor, countsOf, engineOf, rateFor, trendOf, updatedOf } from './prompts-data.js';
 import { NEUTRAL_BADGE, NEUTRAL_BADGE_LOOK, el, insufficient, percent0, plural } from './prompts-parts.js';
 import { deltaNode, scopeCodes } from './prompts-state.js';
 
@@ -52,14 +52,17 @@ export function promptRateCell(prompt, metric, withChange) {
   const usable = scope.filter((code) => rateFor(prompt, code, metric) !== null);
   const pooled = pooledCounts(usable.map((code) => countsOf(prompt, code, metric)));
   const names = usable.map((code) => engineOf(code).name).join(', ');
+  // With one engine in scope the reason is that engine's own: AI Overview says whether a keyword is linked
+  const only = scope.length === 1 ? absenceOf(prompt, scope[0]) : null;
+  const absent = only ? { text: only.text, tip: `${engineOf(scope[0]).name}: ${only.reason}` } : { text: 'n/a', tip: 'Not observed in this window' };
   return rateCell({
     value,
     change: withChange ? changeFor(prompt, scope, metric) : null,
     sample: `${formatSampleCount(pooled.k, pooled.n)} ${metric === 'sov' ? 'mentions' : 'obs'}`,
     tip: used === 1 ? `${names} only` : `Equal-weight average of ${names}`,
     gap: {
-      text: observed === 0 ? 'n/a' : 'Insufficient',
-      tip: observed === 0 ? 'Not observed in this window' : `${plural(observed, 'observation')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on an engine.`,
+      text: observed === 0 ? absent.text : 'Insufficient',
+      tip: observed === 0 ? absent.tip : `${plural(observed, 'observation')} in scope. A rate needs at least ${MIN_OBSERVATIONS} on an engine.`,
     },
   });
 }

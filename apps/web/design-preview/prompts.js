@@ -14,6 +14,7 @@
 import { formatDecimal, formatInteger, formatPercent, formatSampleCount } from './vendor/format/number.js';
 import { MIN_OBSERVATIONS, detectableChange, isDetectableChange, pooledCounts, promptWeightedRate, rateState } from './vendor/stats/index.js';
 import {
+  ASKED_ENGINES,
   COMPETITORS,
   ENGINES,
   METRICS,
@@ -25,6 +26,7 @@ import {
   PROMPT_QUOTA,
   TOPIC_PARENT,
   TYPE_LABEL,
+  absenceOf,
   averageFor,
   changeFor,
   clamp,
@@ -106,7 +108,10 @@ function engineValue(prompt, engine, metric) {
   const counts = countsOf(prompt, engine.code, metric);
   const status = rateState(counts.observations);
   if (counts.reason) return { node: el('span', 'text-foreground-tertiary', 'n/a'), tip: `${engine.name}: ${counts.reason}`, text: 'n/a' };
-  if (status === 'none') return { node: el('span', 'text-foreground-tertiary', 'n/a'), tip: `${engine.name}: not observed in this window`, text: 'n/a' };
+  if (status === 'none') {
+    const absence = absenceOf(prompt, engine.code);
+    return { node: el('span', 'text-foreground-tertiary whitespace-nowrap', absence.text), tip: `${engine.name}: ${absence.reason}`, text: absence.text };
+  }
   if (status === 'insufficient') {
     return {
       node: insufficient(`${counts.observations} obs`),
@@ -271,26 +276,64 @@ function renderHead() {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Strip (23 section 2): per engine for the metric the engine columns show; four rates when one engine is in scope
+// Strip (23 section 2): one card per engine, with the metric the engine columns show as its value and the
+// other headline rates on the line below; four rates of one engine when only that engine is in scope
 
 const strip = $('[data-prompt-strip]', view);
-const STRIP_COLUMNS = { 2: ['grid-cols-2'], 3: ['grid-cols-1', '@xl:grid-cols-3'], 4: ['grid-cols-2', '@4xl:grid-cols-4'], 5: ['grid-cols-2', '@xl:grid-cols-3', '@4xl:grid-cols-5'] };
+/** Prompts and one card per engine: three to five items. Six would truncate their labels at 1440 px. */
+const STRIP_COLUMNS = { 3: ['grid-cols-1', '@xl:grid-cols-3'], 4: ['grid-cols-2', '@4xl:grid-cols-4'], 5: ['grid-cols-2', '@xl:grid-cols-3', '@4xl:grid-cols-5'] };
+/** The rates an engine card names under its value. "Share of voice" is spelled out where the card is wide enough. */
+const CARD_RATES = [
+  { metric: 'mention', label: 'Mention' },
+  { metric: 'citation', label: 'Cited' },
+  { metric: 'sov', label: 'Share of voice', short: 'SOV' },
+];
 const ALL_STRIP_COLUMNS = [...new Set(Object.values(STRIP_COLUMNS).flat())];
 
-function stripItem({ label, logo, value, delta, context, wide }) {
+/** "Cited 21% · Share of voice 27%": the other rates of an engine card, each a label and its value. */
+function cardRates(rates) {
+  const line = el('span', 'type-meta truncate min-w-0 basis-full');
+  rates.forEach((rate, i) => {
+    if (i > 0) line.append(' · ');
+    // Two rates leave room for the full name from a 1,280 px strip; three never do
+    if (rate.short && rates.length === 2) line.append(el('span', '@7xl:hidden', rate.short), el('span', 'hidden @7xl:inline', rate.label));
+    else line.append(rate.short ?? rate.label);
+    line.append(' ', el('span', `num ${rate.value === 'n/a' ? '' : 'text-foreground-secondary'}`.trim(), rate.value));
+  });
+  return line;
+}
+
+function stripItem({ label, logo, value, delta, context, rates, tip, wide, tight }) {
   const cell = el('div', `bg-surface px-4 @4xl:px-5 py-3 min-w-0${wide ? ' col-span-2 @xl:col-span-2 @4xl:col-span-1' : ''}`);
   const dt = el('dt', 'flex items-center gap-1.5 min-w-0 type-meta');
-  if (logo) dt.append(engineLogo(logo));
-  dt.append(el('span', 'truncate', label));
+  if (logo) {
+    // The engine is what tells the items apart, so its name never truncates: the metric, which is the
+    // same on all of them, gives way first where the row is tight
+    const mark = engineLogo(logo);
+    // Five items at 1280 px leave no room for the logo beside "Mention rate AI Overview". It is decorative
+    // (07 section 5), so it waits for a wider strip rather than cut the label
+    if (tight) mark.classList.add('hidden', '@6xl:block');
+    dt.append(mark, el('span', 'truncate', label), el('span', 'shrink-0 whitespace-nowrap', logo));
+  } else dt.append(el('span', 'truncate', label));
   const dd = el('dd', 'flex flex-wrap items-baseline gap-x-2 min-w-0');
   dd.append(el('span', `type-metric num shrink-0${value === 'n/a' ? ' text-foreground-tertiary' : ''}`, value));
   if (delta) {
     delta.classList.add('type-body-strong');
     dd.append(delta);
   }
-  dd.append(el('span', 'type-meta truncate min-w-0 basis-full', context));
+  dd.append(rates ? cardRates(rates) : el('span', 'type-meta truncate min-w-0 basis-full', context));
+  // The counts behind every rate of the card are one hover away (P5)
+  if (tip) cell.dataset.tip = tip;
   cell.append(dt, dd);
   return cell;
+}
+
+/** The card of one engine: the metric of the engine columns as its value, the other headline rates below. */
+function engineCard(engine) {
+  const primary = scopeRate(engine.code, state.metric);
+  const others = CARD_RATES.filter((rate) => rate.metric !== state.metric).map((rate) => ({ ...rate, ...scopeRate(engine.code, rate.metric) }));
+  const counts = [{ metric: state.metric, ...primary }, ...others].map((rate) => `${METRICS[rate.metric].label}: ${rate.context}`);
+  return { label: METRICS[state.metric].label, logo: engine.name, value: primary.value, delta: primary.delta, rates: others, tip: `${engine.name}. ${counts.join('. ')}.` };
 }
 
 /** One rate of the filtered scope on one engine: prompt-weighted, with the pooled counts as its context. */
@@ -300,7 +343,10 @@ function scopeRate(code, metric) {
   const pooled = pooledCounts(current);
   const engine = engineOf(code);
   if (!measures(code, metric)) return { value: 'n/a', delta: null, context: NOT_CLASSIFIED };
-  if (pooled.n === 0) return { value: 'n/a', delta: null, context: `no ${engine.unit} in this scope` };
+  const observations = current.reduce((sum, entry) => sum + entry.observations, 0);
+  if (observations === 0 || pooled.n === 0) return { value: 'n/a', delta: null, context: `no ${engine.unit} in this scope` };
+  // A narrow scope can leave an engine with fewer observations than a rate needs, like a single prompt
+  if (rateState(observations) !== 'ok') return { value: 'n/a', delta: null, context: `${formatInteger(observations)} ${engine.unit}, too few for a rate` };
   const rate = metric === 'sov' ? pooled.k / pooled.n : promptWeightedRate(current);
   let delta = null;
   if (metric === 'mention' || metric === 'citation') {
@@ -314,15 +360,17 @@ function scopeRate(code, metric) {
 function renderStrip() {
   const engines = scopeEngines();
   const count = scopePrompts().length;
-  const items = [{ label: 'Prompts', value: formatInteger(count), context: scopeText() }];
+  // The filter chips above already say which prompts these are, so the card only adds how many topics they span
+  const items = [{ label: 'Prompts', value: formatInteger(count), context: plural(topicsInScope().length, 'topic') }];
   if (engines.length > 1) {
-    items.unshift({ label: 'Topics', value: formatInteger(topicsInScope().length), context: 'in this scope' });
-    for (const engine of engines) items.push({ label: `${METRICS[state.metric].label} ${engine.name}`, logo: engine.name, ...scopeRate(engine.code, state.metric) });
+    for (const engine of engines) items.push(engineCard(engine));
   } else {
     for (const metric of Object.keys(METRICS)) items.push({ label: METRICS[metric].label, ...scopeRate(engines[0].code, metric) });
     items[0].label = `Prompts on ${engines[0].name}`;
   }
   if (items.length === 5) items[4].wide = true;
+  // Five engine-labelled items leave no room for the logos at 1280 px
+  if (engines.length > 3) items.forEach((item) => (item.tight = true));
   $('[data-prompt-meta]', view).textContent = `Updated Sep 28, 02:10 · ${plural(topicsInScope().length, 'topic')} · ${plural(count, 'prompt')}`;
   strip.classList.remove(...ALL_STRIP_COLUMNS);
   strip.classList.add(...STRIP_COLUMNS[items.length]);
@@ -732,7 +780,13 @@ function clearSelection() {
 const MANUAL_RUNS_LEFT = 400;
 
 function runNow(ids) {
-  const runs = ids.length * scopeEngines().length;
+  // A run asks the prompt. AI Overview is not asked: it arrives with the next rank check of the linked keyword
+  const asked = scopeEngines().filter((engine) => engine.asked);
+  if (asked.length === 0) {
+    toast({ title: 'Nothing to run', description: 'AI Overview is read from rank checks, not asked. Add ChatGPT, Gemini or AI Mode to the scope to run these prompts.', tone: 'info' });
+    return;
+  }
+  const runs = ids.length * asked.length;
   if (runs > MANUAL_RUNS_LEFT) {
     toast({
       title: 'Not queued',
@@ -743,7 +797,7 @@ function runNow(ids) {
   }
   toast({
     title: ids.length === 1 ? 'Run queued' : `Run queued for ${plural(ids.length, 'prompt')}`,
-    description: `${plural(runs, 'observation')} on ${scopeEngines().map((engine) => engine.name).join(', ')}. ${formatInteger(MANUAL_RUNS_LEFT - runs)} of ${MANUAL_RUNS_LEFT} manual runs are left this month.`,
+    description: `${plural(runs, 'observation')} on ${asked.map((engine) => engine.name).join(', ')}. ${formatInteger(MANUAL_RUNS_LEFT - runs)} of ${MANUAL_RUNS_LEFT} manual runs are left this month.`,
   });
 }
 
@@ -1038,6 +1092,7 @@ $('form', addDialog).addEventListener('submit', (event) => {
       versionChanged: false,
       stale: false,
       pending: true,
+      linked: false,
       seed: Math.floor(random() * 2 ** 31),
       engines: Object.fromEntries(
         ENGINES.map((engine) => [engine.code, { n: 0, mention: 0, citation: 0, recommendation: measures(engine.code, 'recommendation') ? 0 : null, prevMention: 0, prevCitation: 0, competitors: COMPETITORS.map(() => 0) }]),
@@ -1071,7 +1126,7 @@ $('form', addDialog).addEventListener('submit', (event) => {
 // -------------------------------------------------------------------------------------------------
 // Panels tab (20 section 5.7)
 
-/** Share of prompts whose mention flips between two weekly runs, per engine (measured; 17 section 8.1). */
+/** Share of prompts whose mention flips between two weekly runs, per asked engine (measured; 17 section 8.1). */
 const FLIP_RATE = { chatgpt_web: 0.22, gemini_web: 0.18, google_ai_mode: 0.25 };
 const MEMBERSHIP = [
   ['Sep 21', 'plus', '4 prompts promoted from Discovery', 'Ana Brandt', 'Pricing questions buyers started asking'],
@@ -1101,7 +1156,7 @@ function renderPanels() {
       name.append(line);
       const engines = el('td', 'px-3');
       const engineList = el('span', 'flex flex-wrap items-center gap-x-3 gap-y-1');
-      ENGINES.forEach((engine) => {
+      ASKED_ENGINES.forEach((engine) => {
         const item = el('span', 'flex items-center gap-1.5 whitespace-nowrap');
         item.append(engineLogo(engine.name), engine.name);
         engineList.append(item);
@@ -1126,7 +1181,7 @@ function renderPanels() {
 
   const core = active.filter((prompt) => prompt.panel === 'Core').length;
   $('[data-panel-flip]', view).replaceChildren(
-    ...ENGINES.map((engine) => {
+    ...ASKED_ENGINES.map((engine) => {
       const row = el('li', 'h-9 flex items-center gap-3 border-t border-border-subtle first:border-t-0');
       const label = el('span', 'flex items-center gap-2 min-w-0 type-body text-foreground');
       label.append(engineLogo(engine.name), el('span', 'truncate', engine.name));
@@ -1134,10 +1189,12 @@ function renderPanels() {
       return row;
     }),
   );
-  const changes = ENGINES.map((engine) => detectableChange(core, FLIP_RATE[engine.code]));
+  const changes = ASKED_ENGINES.map((engine) => detectableChange(core, FLIP_RATE[engine.code]));
+  // The panel is what gets asked. AI Overview is not asked, so it has no flip rate and no part in the sizing
+  const notAsked = 'AI Overview is read from rank checks and is not part of the panel.';
   $('[data-panel-detect]', view).textContent = changes.includes(null)
-    ? `With ${formatInteger(core)} prompts, the core panel is too small to detect a week-over-week change on every engine.`
-    : `With ${formatInteger(core)} prompts, the core panel can detect a week-over-week change in mention rate of ${points(Math.max(...changes))} or more on every engine.`;
+    ? `With ${formatInteger(core)} prompts, the core panel is too small to detect a week-over-week change on every engine it asks. ${notAsked}`
+    : `With ${formatInteger(core)} prompts, the core panel can detect a week-over-week change in mention rate of ${points(Math.max(...changes))} or more on every engine it asks. ${notAsked}`;
   $('[data-panel-changed]', view).textContent = `${formatPercent(PANELS[0].changed)} of the panel changed in the last 90 days. A warning shows at 10%.`;
   $('[data-panel-history]', view).replaceChildren(
     ...MEMBERSHIP.map(([day, glyph, what, who, why]) => {
@@ -1163,12 +1220,12 @@ function renderSizing() {
     result.textContent = 'Enter a whole number from 10 to 5,000.';
     return;
   }
-  const changes = ENGINES.map((engine) => detectableChange(size, FLIP_RATE[engine.code]));
+  const changes = ASKED_ENGINES.map((engine) => detectableChange(size, FLIP_RATE[engine.code]));
   if (changes.some((change) => change === null)) {
     result.textContent = `A panel of ${formatInteger(size)} is too small to detect a change on every engine.`;
     return;
   }
-  const [first, ...rest] = ENGINES.map((engine, i) => `${formatDecimal(changes[i] * 100, 1)} on ${engine.name}`);
+  const [first, ...rest] = ASKED_ENGINES.map((engine, i) => `${formatDecimal(changes[i] * 100, 1)} on ${engine.name}`);
   result.textContent = `A panel of ${formatInteger(size)} detects about ${first.replace(' on', ' points on')}, ${rest.join(' and ')}.`;
 }
 $('#panel-size').addEventListener('input', renderSizing);

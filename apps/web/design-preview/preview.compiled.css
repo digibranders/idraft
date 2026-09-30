@@ -2149,6 +2149,19 @@
       padding-inline: calc(var(--spacing) * 5);
     }
   }
+  @container (width >= 72rem) {
+    .\@6xl\:block {
+      display: block;
+    }
+  }
+  @container (width >= 80rem) {
+    .\@7xl\:hidden {
+      display: none;
+    }
+    .\@7xl\:inline {
+      display: inline;
+    }
+  }
   .dark\:bg-primary:where(.dark, .dark *) {
     background-color: var(--primary);
   }

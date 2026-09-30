@@ -633,6 +633,21 @@ Review of the page (independent, before commit), all fixed: recommendation rate 
 
 What the preview does not show for this page: the evidence viewer, the prompt page (Prompt Detail), the prompt editor, import, the prompt generator, the statistics panel, and "Save view as". The mobile filter sheet is not built for this page: below 1024 px the filter bar keeps its chips and "+ Filter". Detectable changes use the unpaired interval on pooled counts; the paired bootstrap and the false discovery control of 17 sections 6.1 and 6.4 are the API's.
 
+### AI Overview as the fourth engine (2026-09-30)
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| adr/ADR-DS-022 | decision 11, consequences | AI Overview is an engine on the page and the one that is not asked: read from the rank check of the linked keyword on the day of each run, counted only when Google showed one. Unit "AI Overviews". "No AIO" and "n/a" name the two reasons a prompt has none | Product owner: AI Overview everywhere engines are listed |
+| 24-page-templates.md | 9.2, 9.5 | Overview: a fifth small multiple and a fourth row in "AI by engine" (average of 4 engines, 30.0%). Topics & Prompts: AI Overview column, "avg of 4", strip of Prompts and one card per engine | Same |
+| adr/ADR-DS-022, 24-page-templates.md | decision 12; 9.5 | Engine cards show mention, citation and share of voice together; the Prompts card shows the topic count and drops "core, not branded" | Product owner |
+| 23-application-patterns.md | 4.2 | Prompt inspector: four engine cards in two rows, Citation rate below at full width | Same |
+| apps/web/src/lib/layouts/catalog.ts | `competitors.share_of_voice` | The channel option lists all four engines (was the first three) | Same |
+| apps/web/design-preview | prompts*.js, index.html, charts.js, customize.js | The fixture gives every prompt AI Overview counts from their own generator, so no number of the other three engines changed (checked prompt by prompt). Totals match the Overview's AI numbers: 62 of 384 mentions (16%, +0.3 pts), 158 of 384 citations (41%, +0.5 pts), share of voice 22%. They are rank checks of linked keywords, not the 411 keywords with an AI Overview in the search cards. "Run now", the panel table and the panel sizing use the asked engines only | Same |
+
+Independent review of this change, all addressed: the prompt-side AI Overview totals are now their own (384 checks), not a copy of the 411 keywords in the search cards; the linked keyword is named in the drawer and its status comes from the prompt's own counts; the AI Overview card quotes the overview instead of ranking the brand; a topic's tooltip names only the engines that took part; a strip rate needs four observations like every other rate; the panel total is checked against its target when the fixture is built.
+
+Open point: 11 and 16 key AI Overview observations to tracked keywords and do not say which checks belong to a prompt. The preview takes the linked keyword's rank check on each run day (at most four in 28 days for a weekly panel), so AI Overview has the same cadence as the asked engines. The API has to confirm or replace that unit.
+
 ## Unresolved (9)
 
 None of these is a disagreement between documents; each needs a code, token or product decision outside the documents.

@@ -378,8 +378,8 @@ The wireframes below define structure. For the finished visual quality of sectio
 | ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  | 2 to 3      ###             47        |
 | ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  | 4 to 10     ##########     213        |
 | ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  | 11 to 20    #########      187        |
-| Small multiples: SEO visibility, ChatGPT, Gemini, AI Mode    | 21 to 100   ####            84        |
-| Method: prompt-weighted, 95% Wilson intervals. (i)           | Not in top 20 ##########   414        |
+| Small multiples: SEO visibility, ChatGPT, Gemini, AI Mode,   | 21 to 100   ####            84        |
+| AI Overview. Method: prompt-weighted, 95% Wilson. (i)        | Not in top 20 ##########   414        |
 +--------------------------------------------------------------+---------------------------------------+
 | SEO and AI matrix (keywords)      [Open Matrix]  | Not classified                                    |
 | AI strong, SEO weak 9 kw| Strong in both   41 kw | Near threshold 133                                |
@@ -404,7 +404,8 @@ The wireframes below define structure. For the finished visual quality of sectio
 | ChatGPT  34%      21%       18%         27%   9.1%     | Northwind  18.2%   31.4%   27%              |
 | Gemini   29%      14%       15%         24%   6.0%     | HubSpot    24.0%   40.1%   33%              |
 | AI Mode  41%      33%       n/a         31%   12.4%    | Pipedrive   9.6%   14.8%   12%              |
-| Equal-weight average (3 engines): mention 35%          | Zoho        6.1%    9.9%    8%              |
+| AI Overv. 16%     41%       n/a         22%   14.8%    | Zoho        6.1%    9.9%    8%              |
+| Equal-weight average (4 engines): mention 30.0%        |                                             |
 ```
 
 | Region | Component | Notes |
@@ -412,8 +413,8 @@ The wireframes below define structure. For the finished visual quality of sectio
 | Header | `PageHeader`, no tabs; meta shows freshness per channel | Secondary "Create report"; no primary |
 | Filter bar | Compare; chips for Engine, Topic via "+ Filter"; `Branded: Excluded` default chip. Date range and location are in the top bar | [13-filters-search.md](13-filters-search.md) section 4 |
 | Notice | `SetupChecklist` (collapsed) | Only until setup completes |
-| S1 | `MetricStrip` `md`, 3 SEO items, group divider, 3 AI items (one per engine, never pooled) | Visibility links to Rankings; Top 10 to Rankings `rank=top10`; AI items to Prompts with `eng=` |
-| S2 | `ChartFrame` 280 px with metric small multiples (SEO visibility, then one per engine with CI bands; shared x axis); side list: rank distribution as horizontal bars with counts | Depth note in the side list tooltip: "Top 50 and 100 from deep checks (last 8 days)" |
+| S1 | `MetricStrip` `md`, 3 SEO items, group divider, 3 AI items (one per asked engine, never pooled; AI Overview is the third SEO item, "AIO citation rate", and its mention rate is a number the person can add) | Visibility links to Rankings; Top 10 to Rankings `rank=top10`; AI items to Prompts with `eng=` |
+| S2 | `ChartFrame` 280 px with metric small multiples (SEO visibility, then one per engine with CI bands, AI Overview last; shared x axis; the frame grows by one 56 px row per series); side list: rank distribution as horizontal bars with counts | Depth note in the side list tooltip: "Top 50 and 100 from deep checks (last 8 days)" |
 | S3 | `QuadrantSummary` plus a side list of the unclassified groups and the definition line | Quadrant labels from [15-data-visualization.md](15-data-visualization.md) section 8 |
 | S4 | `ChangeFeed` (max 8, grouped by severity) and opportunities list (`OpportunityStatus` rows with count and volume represented) | Each row links to the filtered view |
 | S5 | `SimpleTable` "AI by engine" (A1, A2, A5, A7, A8 per engine, equal-weight line only with two or more engines) and capped competitor table | Competitor names with color swatches |
@@ -587,7 +588,7 @@ Route `/ai/prompts`. Tabs: Topics (the default), Prompts, Panels, Versions ([ADR
 | 0 | (select) | `select` | 40 | always | Topic rows only |
 | 1 | Topic | text | flex, min 240 | 1 (pinned) | Chevron (24 px, `aria-expanded`), then the name in `type-body-strong` over "Category · 17 prompts" in `type-label`. Prompt rows are indented 44 px on `surface-subtle` and use `PromptCell` |
 | 2 | Prompts | `count` | 96 | 2 | Prompts of the topic in scope |
-| 3 | Mention rate | `rate` | 128 | 1 | Per engine prompt-weighted, then the equal-weight average; header note "avg of 3". With its change and sample |
+| 3 | Mention rate | `rate` | 128 | 1 | Per engine prompt-weighted, then the equal-weight average; header note "avg of 4" (the number of engines in scope). With its change and sample |
 | 4 | Citation rate | `rate` | 128 | 2 | Same rule, without the change |
 | 5 | Top engine | engine | 160 | 2 | `EngineLogo`, name and rate of the engine with the highest mention rate; all engines in the tooltip |
 | 6 | Trend | `sparkline` | 96 | 3 | Weekly mention rate: the mean of the prompts' trends |
@@ -600,7 +601,7 @@ The two search columns make this the one table that shows a topic on both channe
 
 Toolbar: topic search, the count, "Expand all", Columns. Bulk bar: Run now, Export. Footer: "13 topics · 250 prompts · Updated ...". Below 768 px the rows become two-line list rows that open the topic inspector.
 
-**Strip.** Topics, Prompts, then one item per engine for the metric of the engine columns (five items with three engines). With one engine in scope: prompts on that engine and its four rates.
+**Strip.** Prompts (with the number of topics below), then one card per engine: the metric of the engine columns as the value with its change, and the other headline rates on the line below ("Cited 21% · Share of voice 27%"). Counts are in the card's tooltip. With one engine in scope: prompts on that engine and its four rates, each with its counts. AI Overview counts "AI Overviews" and is not asked ([ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md), decisions 11 and 12).
 
 **Topic inspector** (440 px). Header: topic name, category, prompt count and scope badges, "Add prompt". Tabs: Overview (Mention rate, Citation rate and Share of voice as three cards; "Visibility trend", the own brand against the three most mentioned competitors over eight weeks; "By engine", a bar and `k of n` per engine; "In search", the topic's keyword count, SEO visibility and Top 10 with a link to Rankings; "Top prompts in this topic", five rows with "View all"), Prompts (every prompt of the topic in scope), Competitors (mention rate per entity per engine), Related (the other topics of the category, related keywords). Content in [23-application-patterns.md](23-application-patterns.md) section 4.2.
 
@@ -641,7 +642,8 @@ The drawing narrows the table to fit; at 1440 all columns below except Top compe
 | 3 | ChatGPT | `engineGroup` | 88 | 2 | Value of the engine-column metric (default Mention rate A1). 88 px, not 72: the header holds the engine name and its sort control |
 | 4 | Gemini | `engineGroup` | 88 | 2 | Same |
 | 5 | AI Mode | `engineGroup` | 88 | 2 | Same |
-| 6 | Mention rate | `rate` | 112 / 72 | 1 | Equal-weight average of the engines in scope; header "Mention rate (avg of 3)" with tooltip naming the engines. When one engine is in scope this column shows that engine and the engine group collapses |
+| 5a | AI Overview | `engineGroup` | 88 | 2 | Same, from the rank checks of the linked keyword. "No AIO" when the keyword showed none, "n/a" when no keyword is linked; the tooltip says which |
+| 6 | Mention rate | `rate` | 112 / 72 | 1 | Equal-weight average of the engines in scope; header "Mention rate (avg of 4)" with tooltip naming the engines. When one engine is in scope this column shows that engine and the engine group collapses |
 | 7 | Citation rate | `rate` | 112 / 72 | 2 | Same rule (A2) |
 | 8 | Top competitor | `competitor` | 140 / 120 | 4 | Entity with the highest mention rate on this prompt, with its rate |
 | 9 | Trend | `sparkline` | 96 / 88 | 3 | Weekly mention rate (equal-weight); gaps where insufficient |
@@ -658,7 +660,7 @@ The toolbar "Engine columns" `MetricSwitcher` sets which metric the engine group
 |---|---|---|
 | Header | `PageHeader`, tabs Explorer, Panels, Versions | Primary "Add prompts" |
 | Filter bar | Compare and Engine scopes; `Panel: Core` and `Branded: Excluded` default chips. The date range and location are in the top bar (location filters prompts by market, [13-filters-search.md](13-filters-search.md) section 4) | Device hidden on AI screens |
-| Strip | `MetricStrip` `md` for the filtered scope: Mention, Citation, Recommendation, SOV (per selected engine; with 3 engines the strip shows per-engine mention items instead) | Never a silently pooled value |
+| Strip | `MetricStrip` `md` for the filtered scope: Mention, Citation, Recommendation, SOV (per selected engine; with several engines the strip shows per-engine mention items instead) | Never a silently pooled value |
 | Table | `DataTable`. The header has two rows while several engines are in scope: a group cell that names the metric ("Mention rate by engine") over one sortable column per engine. With one engine the group is gone and Mention rate is that engine's | Default sort Mention rate descending. The change shows on Mention rate only |
 | Inspector | 440 px prompt inspector | `j`/`k` stepping |
 
