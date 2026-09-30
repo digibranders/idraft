@@ -39,8 +39,10 @@ In this plan:
 |---|---|
 | A. Foundation (Tasks 1 to 7) | The app builds and boots. Lint, type and test tooling cover JSX. The primitives the shell, the auth screens and the settings forms need exist, each with tests and a section in the `/design-system` route |
 | B. API and security (Tasks 8 to 10) | Typed API client, the mock layer, the request proxy with the session check, the Content Security Policy and the static headers |
-| C. Auth, shell and account (Tasks 11 to 15) | Sign in, second factor, password reset, email verification and sign-up work against the real API. Signed-in users get the shell and can manage their profile, security and preferences |
+| C. Auth, shell and account (Tasks 11 to 15) | Sign in (with the code prompt for a user who has two-factor on), password reset, email verification and sign-up by invitation work against the real API. Signed-in users get the shell and can manage their profile, security and preferences |
 | D. Delivery (Tasks 16 and 17) | End-to-end tests, accessibility and visual regression in CI, the `web` image, the documents brought up to date |
+
+Deferred by the product owner on 2026-09-30 ("defer 2fa"): two-factor enrolment, that is the setup screen with the QR code, recovery codes, turning it off, and any requirement that a role enrols. The code prompt at sign-in stays, because a user who enrolled through the API cannot sign in without it.
 
 Not in this plan (next plans, in order): porting Overview, Rankings and Topics & Prompts with `DataTable`, charts, `FilterBar` and the inspector; the command palette, date range, location and notification center in the top bar (their controls are absent until then, not disabled); project and workspace settings; onboarding; Sentry.
 
@@ -61,7 +63,6 @@ Installed in Task 1. Versions are the ones verified in [`research/09-frontend-st
 | `next-intl` | runtime | Message catalog |
 | `react-hook-form` 7, `@hookform/resolvers` 5, `zod` 4 | runtime | Forms and the env schema |
 | `openapi-fetch` | runtime | HTTP client |
-| `uqr` | runtime | QR matrix for the authenticator setup screen, drawn as SVG rects |
 | `@tailwindcss/postcss` 4.3, `postcss` | dev | Tailwind in the Next build |
 | `@types/react`, `@types/react-dom` | dev | Types |
 | `shadcn` 4.21 | dev | CLI for `shadcn add`, and `shadcn/tailwind.css` (Base UI data-attribute variants) |
@@ -96,7 +97,7 @@ apps/web/
       page.tsx              redirect: first workspace, else /login
       not-found.tsx, error.tsx, global-error.tsx
       (auth)/layout.tsx     centered auth layout
-      (auth)/login, two-factor, two-factor/setup, reset-password, verify-email, invite
+      (auth)/login, two-factor, reset-password, verify-email, invite
       (internal)/design-system/[section]/page.tsx
       [workspace]/layout.tsx          /me, permissions, shell frame
       [workspace]/page.tsx            project list
@@ -318,7 +319,7 @@ Every primitive in Tasks 4 to 6 follows the same steps. They are written once he
 
 # Part B. API and security
 
-**Precondition.** `backend/openapi/v1.json` must contain the auth routes. They are on branch `backend/auth`. When this part starts, ask the user whether `backend/auth` is merged into `main`; if it is, merge `main` into `frontend/app-foundation` (a normal merge; tell the backend session first). If it is not merged yet, generate from the worktree copy with `pnpm exec openapi-typescript ../../.claude/worktrees/backend-auth/backend/openapi/v1.json -o src/lib/api/schema.d.ts` and regenerate from the committed document after the merge.
+**Precondition, met on 2026-09-30.** `main` (25e99f0, with the auth API) is merged into `frontend/app-foundation` (871bf3f), so `backend/openapi/v1.json` has the 16 auth routes, `GET` and `PATCH /me` and `POST /me/reauthenticate`.
 
 ### Task 8: The typed API client
 
@@ -390,7 +391,6 @@ The design system has no auth template yet. Rule: specify, then build.
 |---|---|---|---|
 | `/login` | `POST /auth/sign-in` | `signed_in`: go to `safeNextPath(next)`. `totp_required`: go to `/two-factor` keeping `next` | `invalid_credentials` (one message for wrong email or password), `rate_limited` (with the wait in minutes), `validation_failed` |
 | `/two-factor` | `POST /auth/totp/verify` with `code`, or with `recovery_code` after "Use a recovery code" | go to `safeNextPath(next)` | `invalid_code`, `rate_limited`, `session_expired` (back to `/login`) |
-| `/two-factor/setup` | `POST /auth/totp/setup`, then `POST /auth/totp/setup/confirm` | show the recovery codes once with Copy and a "I saved these codes" checkbox, then continue | `invalid_code`, `totp_already_enabled` (continue) |
 | `/reset-password` without a token | `POST /auth/password-reset/request` | the same confirmation whether or not the address has an account | `rate_limited` |
 | `/reset-password#token=...` | `POST /auth/password-reset/confirm` | go to `/login` with a notice | `invalid_token` (offer a new link), `weak_password` (on the field) |
 | `/verify-email#token=...` | `POST /auth/verify-email`; "Send a new link" calls `POST /auth/verify-email/request` | confirmation, then `/login` or `/` | `invalid_token` |
@@ -422,7 +422,7 @@ Contract details from the backend session, all in 19 sections 2.1 and 3.1 on `ba
 - [ ] **Step 2: Workspace layout.** `[workspace]/layout.tsx` fetches `/me`, finds the membership whose `workspace.slug` matches the segment (`notFound()` when there is none, so another tenant's slug never confirms it exists), and renders `PermissionProvider` with the membership's `permissions`, `role` and `project_ids`. It seeds the client query cache for `/me` through `HydrationBoundary`, so client components read the same data without a second request.
 - [ ] **Step 3: `can`.** `can(permissions, permission)`, `useCan(permission)`, `<Can permission fallback>`. The client never decides access; it only hides or disables what will fail (20 section 3.9). Tests: each role fixture against a table of permissions.
 - [ ] **Step 4: `ReauthDialog`** (16 section 4.4, 25): a 400 px dialog "Confirm it is you" with a password field, or a code field when the user has a second factor, calling `POST /me/reauthenticate` with `{ password }`, or with `{ totp_code }` when the user has a second factor (the API refuses a password alone with `403 second_factor_required`). `withFreshSession(mutationFn)` catches `403 fresh_session_required`, opens the dialog, and on success retries the original call once. Tests: the retry happens once; cancelling rejects with the original problem; a second `fresh_session_required` after the retry is surfaced, not looped.
-- [ ] **Step 5: `403 two_factor_required_for_role`** anywhere redirects to `/two-factor/setup?next=<path>`.
+- [ ] **Step 5: Two-factor is opt-in.** No route requires enrolment for now, so nothing redirects to a setup screen. A `403 two_factor_required_for_role`, should the API ever send one before the setup screen exists, shows the inline permission panel with the API's own `detail`.
 - [ ] **Step 6: Sign out.** Calls `POST /auth/sign-out`, clears the query cache, removes the user's preference keys from `localStorage`, hard-navigates to `/login`.
 - [ ] **Step 7: Opus review, fixes, gates, commit** "Add the workspace layout, permissions and re-authentication".
 
@@ -457,9 +457,9 @@ Spec: 11 section 5 (the table of the three sections), 24 sections 6 and 9.13, 10
 
 - [ ] **Step 1: `SettingsNav`**: 200 px local navigation, a `Select` below 1024 px. Only "Your account" is listed in this plan.
 - [ ] **Step 2: Profile.** Name through the `SaveBar` (`PATCH /me`), email read-only with the Verified badge (and "Send verification email" when not verified), the workspace table (workspace, role, project access). Leaving with unsaved changes opens `DiscardChangesDialog`.
-- [ ] **Step 3: Security.** "Change password" dialog (`POST /auth/password/change`, new password at least 12 characters, confirm field, `wrong_password` and `weak_password` on their fields; it signs out other sessions and says so). Two-factor: state badge, "Set up" (the setup flow of Task 11 in a dialog), "New recovery codes" (`POST /auth/totp/recovery-codes`, codes shown once), "Turn off" (`POST /auth/totp/disable`; disabled with the reason for owners and admins). Sessions: `GET /auth/sessions` as a 32 px-row table with device, place and IP, last active, a "This device" badge, "Sign out" per row (`DELETE /auth/sessions/{id}`) and "Sign out other sessions". Every action that needs a fresh session goes through `withFreshSession`.
+- [ ] **Step 3: Security.** "Change password" dialog (`POST /auth/password/change`, new password at least 12 characters, confirm field, `wrong_password` and `weak_password` on their fields; it signs out other sessions and says so). Two-factor is deferred: the section shows its state only ("Off", or "On" for a user who enrolled through the API) with one sentence that setup arrives later; it has no controls. Sessions: `GET /auth/sessions` as a 32 px-row table with device, place and IP, last active, a "This device" badge, "Sign out" per row (`DELETE /auth/sessions/{id}`) and "Sign out other sessions". Every action that needs a fresh session goes through `withFreshSession`.
 - [ ] **Step 4: Preferences.** Theme (segmented control: System, Light, Dark), default table density, number and date format with a live example from `@/lib/format`, "Reduce motion" and "Single-key shortcuts" switches. Each control saves at once (10 section 13.3) to `localStorage` keyed by user id, and a small `usePreference` hook reads them. No `SaveBar`.
-- [ ] **Step 5: Tests:** each mutation's success and each problem; the discard guard; the owner cannot turn the second factor off and sees why; preferences survive a reload and are cleared on sign out; axe.
+- [ ] **Step 5: Tests:** each mutation's success and each problem; the discard guard; preferences survive a reload and are cleared on sign out; axe.
 - [ ] **Step 6: Against the real API,** as in Task 11 step 5.
 - [ ] **Step 7: Opus review, fixes, gates, commit** "Add account settings: profile, security and preferences".
 
@@ -471,7 +471,7 @@ Spec: 11 section 5 (the table of the three sections), 24 sections 6 and 9.13, 10
 
 Ask the user before this task: it downloads a browser (about 170 MB) and the pinned Playwright Docker image (about 2 GB). Tell the backend session before touching `.github/` and `infra/`.
 
-- [ ] **Step 1: Playwright** against `pnpm build && pnpm start` with `NEXT_PUBLIC_API_MOCKING=all` in a test build: sign in, second factor, reset, the shell at three widths, account settings, sign out, a viewer sees no write action, an unknown workspace slug is a 404. `@axe-core/playwright` with the WCAG 2.2 AA tags on every visited page. One test asserts the CSP header on every route and that no violation is reported.
+- [ ] **Step 1: Playwright** against `pnpm build && pnpm start` with `NEXT_PUBLIC_API_MOCKING=all` in a test build: sign in, the code prompt for an enrolled user, reset, the shell at three widths, account settings, sign out, a viewer sees no write action, an unknown workspace slug is a 404. `@axe-core/playwright` with the WCAG 2.2 AA tags on every visited page. One test asserts the CSP header on every route and that no violation is reported.
 - [ ] **Step 2: Visual regression** (26 section 11): `toHaveScreenshot` over every `/design-system` section and the auth, shell and settings pages, light and dark, at 1440 x 900 and 390 x 844, in `mcr.microsoft.com/playwright:v1.63.0-noble`, with fonts awaited and the clock fixed.
 - [ ] **Step 3: `apps/web/Dockerfile`**: dependencies, build, then a slim runtime with `.next/standalone`, `.next/static` and `public`, running `node apps/web/server.js` as a non-root user (20 section 9.1).
 - [ ] **Step 4: CI** `.github/workflows/web.yml`: install with the frozen lockfile, `format:check`, lint, typecheck, `gen:api` followed by `git diff --exit-code` on `schema.d.ts`, unit and DOM tests, build, Playwright in the pinned image, image build. The Compose `web` service, the Caddy routes and `web.yml` belong to the backend session's deploy plan: ask it and build them together, so there is one shape.
@@ -493,7 +493,6 @@ Ask the user before this task: it downloads a browser (about 170 MB) and the pin
 
 | Point | Who | Needed by |
 |---|---|---|
-| `backend/auth` merged into `main`, then `main` merged into this branch | user, backend session | Task 8 |
 | Shape of the public route that describes an invitation token (workspace, role, email); mocked until the backend's next plan | backend session | Task 11 |
 | `user.is_platform_operator` in `/me` (the name the backend will use); mocked under that name | backend session | Task 7, recorded in Task 17 |
 | `/me` has no `features` list and the backend does not plan one; 20 section 3.10 is corrected in Task 17 and phase gating is the navigation registry | frontend | Task 17 |
@@ -510,7 +509,7 @@ Ask the user before this task: it downloads a browser (about 170 MB) and the pin
 | Accepting an invitation is `POST /api/v1/invitations/accept` with `{ token }`, called after the invited person registered (with `invitation_token`, which verifies the email) and signed in. Errors: 400 `invalid_token`, 410 `invitation_expired`, 403 `email_not_verified`. The public route that describes an invitation before sign-up is deferred, so `/invite` shows the form without the workspace name | Task 11 |
 | `/me` gains `user.is_platform_operator`. Only an operator may create a workspace while registration is by invitation | Tasks 7 and 14 |
 | `GET` and `POST {W}/projects`, `GET` and `PATCH {P}`: a project has `name`, `slug`, `timezone`, `deep_check_weekday`, `default_language_code`; `primary_domain` and `default_location_id` are null until the keyword system. Slugs are 3 to 40 characters, lower-case letters, digits and hyphens, and the reserved words are enums in the OpenAPI document | Tasks 9, 13 and 14 (the pending mock uses this shape) |
-| Two-factor is opt-in: no route answers `two_factor_enrollment_required` for now, and sign-in asks for a code only from a user who enrolled. The backend session relayed that the product owner wants optional features such as two-factor left for later | Tasks 11, 12 and 15: `/two-factor/setup`, the redirect of Task 12 step 5 and the two-factor block of Security move to a later plan if the product owner confirms. `/two-factor` (entering a code at sign-in) stays, because an enrolled user cannot sign in without it |
+| Two-factor is opt-in: no route answers `two_factor_enrollment_required` for now, and sign-in asks for a code only from a user who enrolled | Confirmed by the product owner: `/two-factor/setup`, the redirect of Task 12 step 5 and the two-factor controls of Security are removed from this plan. `/two-factor` (entering a code at sign-in) stays |
 | Invitation resend, cancel and decline, `GET /roles`, change of email, workspace and project delete are deferred on the backend | none in this plan |
 
 ## Self-review
