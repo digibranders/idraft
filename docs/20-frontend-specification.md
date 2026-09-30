@@ -474,6 +474,8 @@ Data: project, entity, keyword import, prompt, engine, schedule and budget endpo
 
 Route `[workspace]/[project]`. Permission `data:read`. SEO half Phase 5, AI half Phase 9, cross-channel widgets Phase 10a.
 
+The wireframe below is the built-in default. The headline numbers and the cards are rendered from a layout the person can customize ([layout customization design](superpowers/specs/2026-09-30-layout-customization-design.md), [design-system/23-application-patterns.md](design-system/23-application-patterns.md) section 18). Layouts are stored by the API (`core.layouts`), not in browser storage, so they follow the person across devices.
+
 ```
 +------------------------------------------------------------------------------+
 | Overview                       Filter bar (location, device, window, compare) |

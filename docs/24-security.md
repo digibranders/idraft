@@ -114,6 +114,7 @@ Project-level restriction (Phase 1 schema, Phase 12 UI): a membership can be lim
 | `audit:read` | yes | yes | | | | |
 | `alerts:write` (rules, webhook endpoints, acknowledging alert events) | yes | yes | yes | | | |
 | `views:write` (saved views; private views for analyst, workspace views editor and above) | yes | yes | yes | yes | | |
+| `layouts:manage` (set or remove the workspace's team default layout; every member may arrange their own view without a permission key) | yes | yes | | | | |
 | `imports:write` (keyword, prompt and first-party file imports) | yes | yes | yes | | | |
 | `api_keys:manage` | yes | yes | | | | |
 | `ops:read` (task lists, dead letters, workspace ops summary; run lists and freshness need only `data:read`, provider status `providers:manage`) | yes | yes | yes | | | |

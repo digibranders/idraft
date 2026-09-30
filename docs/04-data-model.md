@@ -1720,6 +1720,28 @@ CREATE TABLE core.saved_views (
 );
 ```
 
+### 11.6a Layouts
+
+Which cards and headline numbers a person sees on a screen ([layout customization design](superpowers/specs/2026-09-30-layout-customization-design.md) section 9). A row with `owner_user_id IS NULL` is the workspace's team default.
+
+```sql
+CREATE TABLE core.layouts (
+    id              uuid PRIMARY KEY DEFAULT uuidv7(),
+    workspace_id    uuid NOT NULL,
+    owner_user_id   uuid REFERENCES auth.users(id) ON DELETE CASCADE,   -- NULL = team default
+    screen          text NOT NULL,                  -- 'overview', 'inspector.keyword', ...
+    document        jsonb NOT NULL,                 -- LayoutDocument, at most 16 KB
+    schema_version  integer NOT NULL,               -- copy of document.schema, for migrations
+    updated_by      uuid NOT NULL REFERENCES auth.users(id),
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    updated_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX layouts_personal ON core.layouts (workspace_id, owner_user_id, screen) WHERE owner_user_id IS NOT NULL;
+CREATE UNIQUE INDEX layouts_team     ON core.layouts (workspace_id, screen)                WHERE owner_user_id IS NULL;
+```
+
+Row-level security is the standard workspace policy (`tenant_isolation`, section 13). It does not separate the members of a workspace, so the API enforces that: personal routes read and write only rows whose `owner_user_id` is the session user, and writing the team default row requires `layouts:manage`. Grants go to `app_api` only (SELECT, INSERT, UPDATE, DELETE); `app_worker` needs none. The migration is not written yet (carried item F10 in [review-log.md](review-log.md)). Layouts are separate from saved views because a saved view belongs to a project and holds a table's query, while a layout belongs to a workspace and holds no query. Layout documents contain no tenant data (card type keys, widths, enum options, metric keys), so they need no retention rule beyond deletion with the user or workspace.
+
 ### 11.7 Audit log and component versions
 
 ```sql

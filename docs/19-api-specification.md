@@ -1539,6 +1539,34 @@ interface Delivery { delivery_id: Uuid; event_id: Uuid; event_type: string; atte
 
 Backed by `core.saved_views` (doc 04 section 11.6).
 
+#### 3.11.5c Layouts (platform foundation phase)
+
+Which cards and headline numbers a person sees on a screen ([layout customization design](superpowers/specs/2026-09-30-layout-customization-design.md)). Workspace-scoped: a layout is the same in every project.
+
+| Method | Path | Permission | Request | Response | Pg | Errors | Ph |
+|---|---|---|---|---|---|---|---|
+| GET | `{W}/layouts/{screen}` | any member | none | `One<ResolvedLayout>` with `ETag` (personal, else team default, else `source: 'builtin'` with a null document) | no | `404` unknown screen | 1 |
+| PUT | `{W}/me/layouts/{screen}` | any member, session only | `LayoutDocument`; `If-Match` when a personal layout exists | `One<ResolvedLayout>` | no | `422 validation_failed`, `412 precondition_failed` | 1 |
+| DELETE | `{W}/me/layouts/{screen}` | any member, session only | none | `204` (back to the team or built-in default) | no | | 1 |
+| PUT | `{W}/layouts/{screen}/default` | `layouts:manage` | `LayoutDocument`; `If-Match` when a team default exists | `One<ResolvedLayout>` | no | `422 validation_failed`, `412 precondition_failed` | 1 |
+| DELETE | `{W}/layouts/{screen}/default` | `layouts:manage` | none | `204` | no | | 1 |
+
+```ts
+interface LayoutDocument { schema: 1; numbers?: NumberItem[]; cards?: CardItem[] }
+interface NumberItem { id: string; metric: string; engine?: string }
+interface CardItem { id: string; type: string; width?: 'third' | 'half' | 'two_thirds' | 'full'; options?: Record<string, string> }
+interface ResolvedLayout {
+  screen: string;
+  source: 'personal' | 'team' | 'builtin';
+  document: LayoutDocument | null;      // null when source is 'builtin': the web app holds the built-in default
+  team_default_exists: boolean;
+  updated_at: Iso | null;
+  updated_by: { user_id: Uuid; name: string } | null;
+}
+```
+
+`PUT` validates the screen, `schema`, that every card type and metric key is in the catalog for that screen, allowed widths, the limits (12 cards, 6 numbers) and the size (16 KB). The list of valid keys is JSON generated from the catalog in `packages/contracts`. Option contents are validated by the web app against each card type; the API checks only that `options` is a flat object of strings. Setting or removing a team default writes `ops.audit_logs` (`layout.default.set`, `layout.default.remove`). API keys cannot call these routes (section 2.1 rule 4). Backed by `core.layouts` (doc 04 section 11.6a).
+
 #### 3.11.5b Platform alerts (platform operators only)
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
