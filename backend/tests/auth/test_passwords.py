@@ -145,3 +145,59 @@ async def test_the_check_fails_open(failure: str) -> None:
 
     async with _client(httpx.MockTransport(respond)) as client:
         assert await BreachedPasswords(client).is_breached(GOOD) is False
+
+
+LONE_SURROGATE = "\ud800 is not valid text"
+
+
+def test_a_password_that_is_not_valid_text_is_a_mismatch_not_an_error() -> None:
+    assert verify_password(hash_password(GOOD), LONE_SURROGATE) is False
+
+
+async def test_a_password_that_is_not_valid_text_can_still_be_looked_up() -> None:
+    def respond(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="0000000000000000000000000000000000A:3\r\n")
+
+    async with _client(httpx.MockTransport(respond)) as client:
+        assert await BreachedPasswords(client).is_breached(LONE_SURROGATE) is False
+
+
+async def test_a_real_count_anywhere_in_the_listing_counts() -> None:
+    _, suffix = _suffix(GOOD)
+
+    def respond(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=f"{suffix}:0\r\n{suffix}:7\r\n")
+
+    async with _client(httpx.MockTransport(respond)) as client:
+        assert await BreachedPasswords(client).is_breached(GOOD) is True
+
+
+@pytest.mark.parametrize("count", ["", "abc", "-1", "0", "00", " "])
+async def test_a_count_that_is_not_a_positive_number_is_not_a_breach(count: str) -> None:
+    _, suffix = _suffix(GOOD)
+
+    def respond(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=f"{suffix}:{count}\r\n")
+
+    async with _client(httpx.MockTransport(respond)) as client:
+        assert await BreachedPasswords(client).is_breached(GOOD) is False
+
+
+async def test_an_oversized_answer_is_abandoned() -> None:
+    _, suffix = _suffix(GOOD)
+    padding = ("F" * 35 + ":1\r\n") * 30_000
+
+    def respond(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=padding + f"{suffix}:9\r\n")
+
+    async with _client(httpx.MockTransport(respond)) as client:
+        assert await BreachedPasswords(client).is_breached(GOOD) is False
+
+
+async def test_an_error_that_is_not_a_network_error_is_not_swallowed() -> None:
+    def respond(_: httpx.Request) -> httpx.Response:
+        raise RuntimeError("a bug, not an outage")
+
+    async with _client(httpx.MockTransport(respond)) as client:
+        with pytest.raises(RuntimeError, match="a bug"):
+            await BreachedPasswords(client).is_breached(GOOD)

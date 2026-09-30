@@ -8,7 +8,6 @@ file: local development passes values with `uv run --env-file .env`. Connection 
 from __future__ import annotations
 
 import base64
-import binascii
 import re
 import sys
 from typing import Literal, Self
@@ -139,13 +138,15 @@ class Settings(_DatabaseSettings):
     def _validate_totp_key(cls, value: SecretStr | None) -> SecretStr | None:
         if value is None:
             return None
+        # Stripped: a key read from a secrets file usually ends with a newline.
+        text = value.get_secret_value().strip()
         try:
-            key = base64.b64decode(value.get_secret_value(), validate=True)
-        except (binascii.Error, ValueError):
+            key = base64.b64decode(text, validate=True)
+        except ValueError:
             key = b""
         if len(key) != TOTP_KEY_BYTES:
             raise ValueError("must be 32 random bytes, base64 encoded")
-        return value
+        return SecretStr(text)
 
     @field_validator("email_from")
     @classmethod
@@ -173,7 +174,12 @@ class Settings(_DatabaseSettings):
             raise ValueError("TOTP_ENCRYPTION_KEY is required for the api process")
         if self.email_provider == "resend" and self.email_api_key is None:
             raise ValueError("EMAIL_API_KEY is required when EMAIL_PROVIDER is resend")
-        if self.app_env == "production" and self.email_provider == "console":
+        # Only the api sends mail so far. The console sender prints tokens, so never in production.
+        if (
+            self.process_role == "api"
+            and self.app_env == "production"
+            and self.email_provider == "console"
+        ):
             raise ValueError("EMAIL_PROVIDER must not be console when APP_ENV is production")
         return self
 

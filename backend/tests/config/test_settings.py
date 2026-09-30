@@ -243,3 +243,18 @@ def test_production_with_resend_is_accepted(monkeypatch: pytest.MonkeyPatch) -> 
     settings = Settings()
     assert settings.email_provider == "resend"
     assert settings.registration == "open"
+
+
+@pytest.mark.parametrize("key", [TOTP_KEY + "\n", f"  {TOTP_KEY}  ", TOTP_KEY + "\r\n"])
+def test_whitespace_around_the_totp_key_is_ignored(
+    monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    _set(monkeypatch, {**BASE_ENV, "TOTP_ENCRYPTION_KEY": key})
+    assert Settings().totp_key == bytes(range(32))
+
+
+def test_the_worker_may_run_in_production_without_an_email_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set(monkeypatch, {**BASE_ENV, "APP_ENV": "production", "PROCESS_ROLE": "worker"})
+    assert Settings().email_provider == "console"

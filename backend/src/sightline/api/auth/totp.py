@@ -73,15 +73,22 @@ def matching_step(secret: str, code: str, *, at: datetime) -> int | None:
 
     The caller must then claim the step (a step can be used once), which is what stops a replay.
     """
+    if at.utcoffset() is None:
+        raise ValueError("at must be timezone-aware")
     if not _CODE.fullmatch(code):
         return None
     totp = pyotp.TOTP(secret)
     current = int(at.timestamp()) // STEP_SECONDS
     matched: int | None = None
-    # Every candidate is compared, so the time taken does not say which step matched.
-    for step in (current - 1, current, current + 1):
-        if hmac.compare_digest(totp.at(step * STEP_SECONDS), code):
-            matched = step
+    try:
+        # Every candidate is compared, so the time taken does not say which step matched.
+        for step in (current - 1, current, current + 1):
+            if hmac.compare_digest(totp.at(step * STEP_SECONDS), code):
+                matched = step
+    except ValueError:
+        # A secret that is not base32 (binascii.Error is a ValueError). Secrets are authenticated
+        # by the cipher, so only a bug or a wrong key version reaches this.
+        raise TotpSecretError from None
     return matched
 
 
@@ -95,4 +102,4 @@ def new_recovery_codes() -> list[str]:
 
 def hash_recovery_code(code: str) -> str:
     normalised = _RECOVERY_SEPARATORS.sub("", code).upper()
-    return hashlib.sha256(normalised.encode()).hexdigest()
+    return hashlib.sha256(normalised.encode("utf-8", "surrogatepass")).hexdigest()

@@ -17,4 +17,6 @@ def new_token() -> str:
 
 
 def hash_token(token: str) -> bytes:
-    return hashlib.sha256(token.encode()).digest()
+    # surrogatepass: a value that is not valid text is hashed rather than raising. It matches no
+    # stored hash, because real tokens are ASCII.
+    return hashlib.sha256(token.encode("utf-8", "surrogatepass")).digest()

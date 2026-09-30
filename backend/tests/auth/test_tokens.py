@@ -17,3 +17,8 @@ def test_the_stored_form_is_the_sha256_digest() -> None:
     token = new_token()
     assert hash_token(token) == hashlib.sha256(token.encode()).digest()
     assert len(hash_token(token)) == 32
+
+
+def test_a_value_that_is_not_valid_text_hashes_without_raising() -> None:
+    assert len(hash_token("\ud800")) == 32
+    assert hash_token("\ud800") != hash_token("?")

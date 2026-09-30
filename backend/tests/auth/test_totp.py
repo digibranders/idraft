@@ -2,7 +2,7 @@ import hashlib
 import os
 import re
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import pyotp
 import pytest
@@ -113,3 +113,46 @@ def test_a_recovery_code_is_hashed_without_its_dashes_and_case() -> None:
     assert hash_recovery_code(code) == expected
     assert hash_recovery_code(plain.lower()) == expected
     assert hash_recovery_code(f"  {code.lower()} ") == expected
+
+
+# RFC 6238 appendix B, SHA-1, secret "12345678901234567890". The 6-digit code is the last six
+# digits of each 8-digit vector.
+RFC_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+
+
+@pytest.mark.parametrize(
+    ("unix_time", "code"),
+    [
+        (59, "287082"),
+        (1111111109, "081804"),
+        (1111111111, "050471"),
+        (1234567890, "005924"),
+        (2000000000, "279037"),
+        (20000000000, "353130"),
+    ],
+)
+def test_rfc_6238_vectors(unix_time: int, code: str) -> None:
+    at = datetime.fromtimestamp(unix_time, UTC)
+    assert matching_step(RFC_SECRET, code, at=at) == unix_time // 30
+
+
+def test_a_time_without_a_zone_is_refused() -> None:
+    with pytest.raises(ValueError, match="timezone-aware"):
+        matching_step(new_secret(), "123456", at=datetime(2026, 9, 30, 12, 0, 7))
+
+
+def test_the_same_instant_in_another_zone_gives_the_same_step() -> None:
+    secret = new_secret()
+    code = pyotp.TOTP(secret).at(NOW)
+    elsewhere = NOW.astimezone(timezone(timedelta(hours=5, minutes=30)))
+    assert matching_step(secret, code, at=elsewhere) == STEP
+
+
+@pytest.mark.parametrize("secret", ["not-base32!", "A" * 33])
+def test_a_stored_secret_that_is_not_base32_is_a_secret_error(secret: str) -> None:
+    with pytest.raises(TotpSecretError):
+        matching_step(secret, "123456", at=NOW)
+
+
+def test_a_recovery_code_that_is_not_valid_text_hashes_without_raising() -> None:
+    assert len(hash_recovery_code("\ud800")) == 64
