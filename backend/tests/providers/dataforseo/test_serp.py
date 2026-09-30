@@ -44,11 +44,23 @@ def test_a_task_asks_for_what_the_rules_say() -> None:
         "depth": 20,
         "priority": 1,
         "load_async_ai_overview": True,
-        "people_also_ask_click_depth": 0,
         "group_organic_results": True,
         "calculate_rectangles": False,
         "tag": TAG,
     }
+
+
+@pytest.mark.parametrize(
+    ("keyword", "sent"),
+    [
+        ("c++ tutorial", "c%2B%2B tutorial"),
+        ("100% cotton", "100%25 cotton"),
+        # Escaped once, in order: a keyword that already looks escaped is searched as typed.
+        ("%2B means plus", "%252B means plus"),
+    ],
+)
+def test_a_keyword_is_sent_so_it_is_searched_as_entered(keyword: str, sent: str) -> None:
+    assert task_body(_request(_params(keyword=keyword)), TAG)["keyword"] == sent
 
 
 def test_no_callback_is_asked_for() -> None:
@@ -106,6 +118,8 @@ def test_a_task_of_another_workload_is_not_built() -> None:
         {"depth": 701},
         {"people_also_ask_click_depth": 5},
         {"queue": "live"},
+        {"device": "desktop", "os": "ios"},
+        {"device": "mobile", "os": "windows"},
         {"pingback_url": "https://example.com/"},
     ],
 )

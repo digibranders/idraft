@@ -28,7 +28,6 @@
         "depth": 20,
         "priority": 1,
         "load_async_ai_overview": true,
-        "people_also_ask_click_depth": 0,
         "group_organic_results": true,
         "calculate_rectangles": false,
         "tag": "i:test:t:z:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"

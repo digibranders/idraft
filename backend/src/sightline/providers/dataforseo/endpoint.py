@@ -20,5 +20,5 @@ class TaskEndpoint:
     # The result's path after the base, without the task id: `task_get/advanced`.
     result: str
     build: TaskBuilder
-    # How long the provider lists a finished task as ready.
+    # How long a task may go without a result before it is given up.
     result_lifetime: timedelta

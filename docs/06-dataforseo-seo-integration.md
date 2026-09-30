@@ -87,7 +87,6 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
   "depth": 20,
   "priority": 1,
   "load_async_ai_overview": true,
-  "people_also_ask_click_depth": 0,
   "group_organic_results": true,
   "calculate_rectangles": false,
   "tag": "i:prod:t:9f2c1a:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"
@@ -96,7 +95,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 
 | Field | Our rule |
 |---|---|
-| `keyword` | `seo.keywords.text` as entered (trimmed). Case is preserved because Google can return different SERPs for different casing (observed by an open-source tracker, `research/06-open-source.md`). Max 700 chars (validated). Search operators (`site:` etc.) are rejected at input: they cost 5x and are not rank tracking. |
+| `keyword` | `seo.keywords.text` as entered (trimmed). Case is preserved because Google can return different SERPs for different casing (observed by an open-source tracker, `research/06-open-source.md`). Max 700 chars (validated). Search operators (`site:` etc.) are rejected at input: they cost 5x and are not rank tracking. Sent with `%` as `%25` and `+` as `%2B`: DataForSEO decodes a `%` followed by two characters and reads `+` as a space. |
 | `location_code` | From `core.provider_location_map` for our `location_id`. We use codes, never names (names change). |
 | `location_coordinate` | Only for hyperlocal tracking (Phase 15). Organic format is `lat,lng,radius`; the radius unit in the docs is ambiguous, so this needs a spike before use. |
 | `language_code` | ISO 639-1 from tracked keyword. |
@@ -105,7 +104,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 | `depth` | From depth profile for this check. |
 | `priority` | 1 (standard queue) by default; 2 only for schedules with `priority = 'high'` and `provider_mode = 'priority_queue'`. |
 | `load_async_ai_overview` | **Always true.** Without it, AI Overviews that Google loads asynchronously come back as `null`, which undercounts AI Overview presence. The surcharge is refunded when no async AIO is present. The billing formula is ambiguous in the docs (additive one base price vs whole-task multiplier); S-01 resolves it, and section 6 shows both cases. |
-| `people_also_ask_click_depth` | 0 on daily checks. 1 on deep checks when the project has keyword discovery enabled (adds $0.00015 per click; unperformed clicks refunded). Questions visible without clicking are still captured. |
+| `people_also_ask_click_depth` | Not sent on daily checks (no clicks; the documented values are 1 to 4). 1 on deep checks when the project has keyword discovery enabled (adds $0.00015 per click; unperformed clicks refunded). Questions visible without clicking are still captured. |
 | `group_organic_results` | true (provider default): nested `related_result` entries are grouped under their parent result. See 5.2. |
 | `calculate_rectangles` | false. Pixel position is post-MVP (it adds one base price). |
 | `tag` | Reference to our task: `i:<installation>:t:<task id base36>:a:<attempt>:r:<run id, 32 hex>`. Max 255 chars. Echoed back in `tasks_ready`, `id_list` and results, used to map provider tasks to ours without a lookup table. Each part is a check: the installation (`INSTALLATION_ID`, `prod` in production) keeps two installations sharing the account from taking each other's answers; the whole run id is carried because the first digits of a version 7 id are its time, shared by every run of the same minute; the attempt keeps the answer to an earlier submission from being taken for a later one's. |
@@ -348,7 +347,7 @@ Labs SERP-derived datasets (`ranked_keywords`, `domain_intersection`, `competito
 | 40102 (no search results) | not an error | A finished, empty result: stored and ingested like any other |
 | 5xxxx other than 50301; HTTP 408, 425, and every 5xx but 501, 503 and 505 (a proxy's 520 to 524 among them) | timeout when posting tasks, else provider_error | Posting: the tasks may have been created and charged, so they become `submit_unknown` and are not sent again blind. Reading: retry |
 | A connection that never opened | upstream_unavailable | Nothing was sent: retry |
-| A timeout, a dropped connection or an unreadable answer after the request was sent | timeout when posting tasks; a read that timed out is also timeout, any other is provider_error | As the row above |
+| A timeout, a dropped connection or an unreadable answer after the request was sent | timeout when posting tasks, else provider_error | As the row above. A refused call whose answer still names tasks it created is read task by task, so those are recorded |
 | HTTP 400, 413, 422 | invalid_request | Do not retry |
 | Any other code or HTTP status | provider_error | Retry with backoff: reading again costs nothing, and a wrong failure cannot be undone |
 | No turn under our own limiter within 30 s, or the limiter not reachable | throttled | Not sent and not an attempt: retry in 30 s, without slowing the limiter |

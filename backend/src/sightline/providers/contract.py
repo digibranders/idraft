@@ -181,8 +181,9 @@ class Provider(Protocol):
         ...
 
     def result_lifetime(self, endpoint: str) -> timedelta:
-        """How long the provider keeps a task's result (DataForSEO: 72 hours, 76 for LLM
-        Responses standard tasks)."""
+        """How long a task may go without a result before it is given up, and a submission
+        of unknown outcome with it (DataForSEO: 72 hours, the time its readiness list covers;
+        76 for LLM Responses standard tasks). Finished results can be fetched for longer."""
         ...
 
     async def submit(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:

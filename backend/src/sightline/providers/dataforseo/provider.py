@@ -20,6 +20,8 @@ from decimal import ROUND_UP, Decimal
 from types import MappingProxyType
 from typing import Final
 
+import structlog
+
 from sightline.domain.retries import ProviderErrorKind
 from sightline.providers.contract import (
     AcceptedTask,
@@ -44,16 +46,17 @@ CODE: Final = "dataforseo"
 # Tasks in one `task_post` (DataForSEO refuses more with 40006).
 BATCH_SIZE: Final = 100
 ENDPOINTS: Final[Mapping[str, TaskEndpoint]] = MappingProxyType({serp.SERP_ORGANIC: serp.ENDPOINT})
-# `id_list` gives up to 1,000 tasks a call. More pages than this in one period is more than
-# the resolver asks about; it is refused rather than read in part.
-ID_LIST_PAGE: Final = 1_000
-ID_LIST_PAGES: Final = 5
+# `id_list` gives up to 1,000 tasks a call. A look at a period makes at most this many calls;
+# a period that needs more is refused rather than read in part.
+ID_LIST_LIMIT: Final = 1_000
+ID_LIST_CALLS: Final = 8
 # A task id is used in a path: letters, digits and hyphens only.
 _TASK_ID: Final = re.compile(r"[0-9A-Za-z-]{1,64}")
 # What `ops.collection_tasks.cost_usd`, numeric(14,6), holds.
 _COST_STEP: Final = Decimal("0.000001")
 _COST_LIMIT: Final = Decimal(10) ** 8
 _DATETIME: Final = "%Y-%m-%d %H:%M:%S %z"
+_log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,9 +90,14 @@ def _cost(value: object) -> Decimal | None:
     """A cost as the ledger can hold it, rounded up so a budget never counts less than was
     spent. None for anything that is not a cost."""
     number = _number(value)
-    if number is None or number < 0:
+    # Compared before rounding: quantizing a huge number raises, and this runs on answers
+    # to calls that may have created paid tasks, where nothing may raise.
+    if number is None or number < 0 or number >= _COST_LIMIT:
         return None
-    rounded = number.quantize(_COST_STEP, rounding=ROUND_UP)
+    try:
+        rounded = number.quantize(_COST_STEP, rounding=ROUND_UP)
+    except ArithmeticError:
+        return None
     return rounded if rounded < _COST_LIMIT else None
 
 
@@ -177,7 +185,8 @@ class DataForSeo:
                 if tag in by_tag:
                     raise ValueError("the same attempt at the task is already in this call")
                 tasks.append(spec.build(request, tag))
-            except (TypeError, ValueError) as error:
+            except Exception as error:
+                # Not sent, so certainly not created: refused on its own.
                 refusal = ProviderError(kind=K.INVALID_REQUEST, message=f"not sent: {error}")
                 rejected.append(RejectedTask(task_id=request.task_id, error=refusal))
                 continue
@@ -188,23 +197,30 @@ class DataForSeo:
         answered = await self._client.call(
             "POST", f"{spec.base}/task_post", sending=True, body=tasks
         )
+        # From here on nothing may raise: the answer names tasks that may be paid for.
         accepted: list[AcceptedTask] = []
+        limited: ProviderError | None = None
         for task in answered.tasks:
-            echoed = _field(task.data, "tag") if task is not None else None
-            task_id = by_tag.get(echoed) if isinstance(echoed, str) else None
-            if task is None or task_id is None:
-                continue
-            outcome = read_status(task.status_code, task.status_message, sending=True)
-            if outcome is Answer.OK and task.id is not None:
-                accepted.append(
-                    AcceptedTask(
-                        task_id=task_id, provider_task_id=task.id, cost_usd=_cost(task.cost)
+            try:
+                echoed = _field(task.data, "tag") if task is not None else None
+                task_id = by_tag.get(echoed) if isinstance(echoed, str) else None
+                if task is None or task_id is None:
+                    continue
+                outcome = read_status(task.status_code, task.status_message, sending=True)
+                if outcome is Answer.OK and task.id is not None:
+                    cost = _cost(task.cost)
+                    accepted.append(
+                        AcceptedTask(task_id=task_id, provider_task_id=task.id, cost_usd=cost)
                     )
-                )
-            elif isinstance(outcome, ProviderError) and outcome.kind is not K.TIMEOUT:
-                await self._client.slow_if_limited(outcome)
-                rejected.append(RejectedTask(task_id=task_id, error=outcome))
-            # Anything else leaves the task's outcome unknown: it may have been created.
+                elif isinstance(outcome, ProviderError) and outcome.kind is not K.TIMEOUT:
+                    if outcome.kind is K.RATE_LIMITED:
+                        limited = outcome
+                    rejected.append(RejectedTask(task_id=task_id, error=outcome))
+                # Anything else leaves the task's outcome unknown: it may have been created.
+            except Exception:
+                _log.exception("a task of the answer could not be read; its outcome is unknown")
+        if limited is not None:
+            await self._client.slow_if_limited(limited)
         return SubmitResult(accepted=tuple(accepted), rejected=tuple(rejected))
 
     async def _only_task(self, answered: Answered) -> TaskAnswer:
@@ -262,29 +278,57 @@ class DataForSeo:
     async def find_submitted(
         self, endpoint: str, since: datetime, until: datetime
     ) -> Sequence[SubmittedTask]:
-        """Every task posted in the period, from any endpoint: the tag says which is ours."""
+        """Every task posted in the period, from any endpoint: the tag says which is ours.
+
+        A task left out would be taken for one the provider never received, and sent again.
+        So the list is complete or refused: a period with a full page is split in two and each
+        half asked for, rather than paged by offset (tasks posted in the same second have no
+        order that holds from one call to the next). Tasks listed twice at the halves' shared
+        second are kept once.
+        """
         self._endpoint_to_call(endpoint)
-        period = {"datetime_from": _utc(since), "datetime_to": _utc(until)}
+        _utc(since)
+        _utc(until)
         if since >= until:
             raise ValueError("a period starts before it ends")
-        found: list[SubmittedTask] = []
-        for page in range(ID_LIST_PAGES):
-            body: dict[str, object] = {
-                **period,
-                "limit": ID_LIST_PAGE,
-                "offset": page * ID_LIST_PAGE,
-                "sort": "asc",
-                "include_metadata": True,
-            }
-            answered = await self._client.call(
-                "POST", "/v3/tasks/id_list", family="id_list", body=[body]
-            )
-            items = (await self._only_task(answered)).result or []
-            found += [self._submitted(item) for item in items]
-            if len(items) < ID_LIST_PAGE:
-                return found
-        # A task left out would be taken for one the provider never received, and sent again.
-        raise _provider_fault("more tasks were posted in the period than one look reads")
+        found: dict[str, SubmittedTask] = {}
+        periods = [(since, until)]
+        calls = 0
+        while periods:
+            start, end = periods.pop()
+            if calls == ID_LIST_CALLS:
+                raise _provider_fault("more tasks were posted in the period than one look reads")
+            calls += 1
+            items = await self._posted_in(start, end)
+            if len(items) < ID_LIST_LIMIT:
+                for item in items:
+                    task = self._submitted(item)
+                    found[task.provider_task_id] = task
+                continue
+            middle = (start + (end - start) / 2).replace(microsecond=0)
+            if not start < middle < end:
+                raise _provider_fault("more tasks were posted in one second than one call lists")
+            periods += [(middle, end), (start, middle)]
+        return list(found.values())
+
+    async def _posted_in(self, start: datetime, end: datetime) -> list[object]:
+        body: dict[str, object] = {
+            "datetime_from": _utc(start),
+            "datetime_to": _utc(end),
+            "limit": ID_LIST_LIMIT,
+            "offset": 0,
+            "sort": "asc",
+            "include_metadata": True,
+        }
+        answered = await self._client.call(
+            "POST", "/v3/tasks/id_list", family="id_list", body=[body]
+        )
+        task = await self._only_task(answered)
+        items = task.result if task.result is not None else []
+        # A list that does not hold what it says it counted is not taken for the whole.
+        if task.result_count != len(items):
+            raise _provider_fault("the list of posted tasks did not hold what it counted")
+        return items
 
     def _submitted(self, item: object) -> SubmittedTask:
         provider_task_id = _field(item, "id")

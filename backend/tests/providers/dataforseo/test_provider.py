@@ -24,6 +24,7 @@ from sightline.providers.contract import (
 )
 from sightline.providers.dataforseo import provider as provider_module
 from sightline.providers.dataforseo.client import DataForSeoClient
+from sightline.providers.dataforseo.endpoint import TaskEndpoint
 from sightline.providers.dataforseo.provider import AccountState, DataForSeo
 from sightline.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
 from sightline.providers.dataforseo.tags import make_tag
@@ -198,6 +199,9 @@ async def test_a_task_the_answer_does_not_name_for_certain_is_left_unknown(
         (-0.0012, None),
         ("abc", None),
         (1e20, None),
+        # Too large to round: rounding it would raise, after the tasks were created.
+        (1e30, None),
+        (10**30, None),
         (None, None),
     ],
 )
@@ -245,6 +249,59 @@ async def test_a_request_that_cannot_be_built_is_refused_alone(
         ("38", "not sent: the request is not bound to an attempt"),
     ]
     assert {task.error.kind for task in result.rejected} == {K.INVALID_REQUEST}
+
+
+async def test_a_builder_that_breaks_refuses_its_request_before_anything_is_sent(
+    api: Api, gate: FakeGate
+) -> None:
+    def broken(request: CanonicalRequest, tag: str) -> dict[str, object]:
+        raise RuntimeError("builder bug")
+
+    endpoint = TaskEndpoint(
+        base="/v3/serp/google/organic",
+        result="task_get/advanced",
+        build=broken,
+        result_lifetime=timedelta(hours=72),
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as http:
+        client = DataForSeoClient(http, gate, login=LOGIN, password=PASSWORD, origin=ORIGIN)
+        adapter = DataForSeo(client, installation=INSTALLATION, endpoints={"x": endpoint})
+        result = await adapter.submit("x", [_request(35)])
+
+    assert [(task.task_id, task.error.kind) for task in result.rejected] == [
+        ("35", K.INVALID_REQUEST)
+    ]
+    assert api.requests == []
+
+
+async def test_many_tasks_refused_for_the_rate_slow_the_limiter_once(
+    dataforseo: DataForSeo, api: Api, gate: FakeGate
+) -> None:
+    def answer(index: int, task: dict[str, Any]) -> dict[str, Any]:
+        return task_answer(status_code=40202, message="Slow.", task_id=f"p-{index}", data=task)
+
+    api.on("POST", TASK_POST, _echoing(answer))
+
+    result = await dataforseo.submit(SERP_ORGANIC, [_request(n) for n in range(35, 45)])
+
+    assert len(result.rejected) == 10
+    assert gate.slowed == 1
+
+
+async def test_an_answer_with_created_tasks_is_read_even_when_the_call_was_refused(
+    dataforseo: DataForSeo, api: Api
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        posted = json.loads(request.content)
+        tasks = [_created(0, posted[0]), task_answer(status_code=40501, data=posted[1])]
+        return as_json(envelope(tasks, status_code=40501, message="Invalid Field."))
+
+    api.on("POST", TASK_POST, handler)
+
+    result = await dataforseo.submit(SERP_ORGANIC, [_request(35), _request(36)])
+
+    assert [task.task_id for task in result.accepted] == ["35"]
+    assert [task.task_id for task in result.rejected] == ["36"]
 
 
 async def test_a_call_with_nothing_left_to_send_is_not_made(
@@ -464,39 +521,81 @@ async def test_the_times_asked_for_are_in_utc(dataforseo: DataForSeo, api: Api) 
     assert api.posted()[0]["datetime_from"] == "2026-10-01 14:30:00 +00:00"
 
 
-async def test_a_long_list_is_read_page_by_page(
+async def test_a_full_list_is_asked_for_again_in_halves_and_read_once(
     dataforseo: DataForSeo, api: Api, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(provider_module, "ID_LIST_PAGE", 2)
-    items = fixture("id_list")["tasks"][0]["result"]
-    pages = [items, items[:1]]
+    """Paging by offset could skip a task among those posted in the same second."""
+    monkeypatch.setattr(provider_module, "ID_LIST_LIMIT", 3)
+    ours, theirs = fixture("id_list")["tasks"][0]["result"]
+    lists = {
+        ("09:00:00", "09:30:00"): [ours, theirs, theirs],
+        ("09:00:00", "09:15:00"): [ours, theirs],
+        # The second the halves share is in both.
+        ("09:15:00", "09:30:00"): [theirs],
+    }
 
     def handler(request: httpx.Request) -> httpx.Response:
-        offset = json.loads(request.content)[0]["offset"]
-        return as_json(envelope([task_answer(result=pages[offset // 2])]))
+        asked = json.loads(request.content)[0]
+        period = (asked["datetime_from"][11:19], asked["datetime_to"][11:19])
+        return as_json(envelope([task_answer(result=lists[period])]))
 
     api.on("POST", ID_LIST, handler)
 
     found = await dataforseo.find_submitted(SERP_ORGANIC, SINCE, UNTIL)
 
-    assert [json.loads(request.content)[0]["offset"] for request in api.requests] == [0, 2]
-    assert len(found) == 3
+    asked = [json.loads(request.content)[0] for request in api.requests]
+    assert [(entry["datetime_from"][11:19], entry["offset"]) for entry in asked] == [
+        ("09:00:00", 0),
+        ("09:00:00", 0),
+        ("09:15:00", 0),
+    ]
+    assert sorted(task.provider_task_id for task in found) == sorted([ours["id"], theirs["id"]])
 
 
 async def test_a_list_longer_than_one_look_reads_is_not_taken_for_all(
     dataforseo: DataForSeo, api: Api, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A task left out would be sent again, and paid twice."""
-    monkeypatch.setattr(provider_module, "ID_LIST_PAGE", 2)
-    monkeypatch.setattr(provider_module, "ID_LIST_PAGES", 2)
-    items = fixture("id_list")["tasks"][0]["result"]
-    api.answer("POST", ID_LIST, envelope([task_answer(result=items)]))
+    monkeypatch.setattr(provider_module, "ID_LIST_LIMIT", 1)
+    monkeypatch.setattr(provider_module, "ID_LIST_CALLS", 3)
+    ours = fixture("id_list")["tasks"][0]["result"][0]
+    api.answer("POST", ID_LIST, envelope([task_answer(result=[ours])]))
 
     with pytest.raises(ProviderCallError) as caught:
         await dataforseo.find_submitted(SERP_ORGANIC, SINCE, UNTIL)
 
     assert caught.value.error.kind is K.PROVIDER_ERROR
-    assert len(api.requests) == 2
+    assert len(api.requests) == 3
+
+
+async def test_a_second_with_more_tasks_than_one_call_lists_is_refused(
+    dataforseo: DataForSeo, api: Api, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(provider_module, "ID_LIST_LIMIT", 1)
+    ours = fixture("id_list")["tasks"][0]["result"][0]
+    api.answer("POST", ID_LIST, envelope([task_answer(result=[ours])]))
+
+    with pytest.raises(ProviderCallError, match="one second"):
+        await dataforseo.find_submitted(SERP_ORGANIC, SINCE, SINCE + timedelta(seconds=1))
+
+    assert len(api.requests) == 1
+
+
+@pytest.mark.parametrize(("result", "count"), [([{"id": "a"}], 5), (None, None), (None, 3)])
+async def test_a_list_that_does_not_hold_what_it_counted_is_not_taken_for_whole(
+    dataforseo: DataForSeo, api: Api, result: list[Any] | None, count: int | None
+) -> None:
+    listed = {**task_answer(result=result), "result_count": count}
+    api.answer("POST", ID_LIST, envelope([listed]))
+
+    with pytest.raises(ProviderCallError, match="counted"):
+        await dataforseo.find_submitted(SERP_ORGANIC, SINCE, UNTIL)
+
+
+async def test_an_empty_list_is_an_answer(dataforseo: DataForSeo, api: Api) -> None:
+    api.answer("POST", ID_LIST, envelope([task_answer(result=None)]))
+
+    assert await dataforseo.find_submitted(SERP_ORGANIC, SINCE, UNTIL) == []
 
 
 async def test_what_a_listed_task_does_not_say_clearly_is_left_unknown(

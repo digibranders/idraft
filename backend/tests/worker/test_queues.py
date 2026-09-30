@@ -897,7 +897,10 @@ async def test_the_queues_work_as_the_redis_user_the_deployment_gives_them(
             await eventually(lambda: scheduled >= 1, within=10)
             stop.set()
             await scheduler
-        # The rate limiter's buckets and its script, as the same user.
+        # The rate limiter's buckets and its script, as the same user. The script cache is
+        # emptied first (as the superuser), as after a Redis restart: the user must be able to
+        # load the script again, not only run one already loaded.
+        await redis.script_flush()
         gate = RedisCallGate(
             client,
             "dataforseo",
