@@ -160,6 +160,20 @@ def test_a_provider_or_bucket_is_configured_whole_or_not_at_all(
         Settings()
 
 
+def test_a_production_server_that_spends_money_names_its_installation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A copy started with production's env must not quietly tag its tasks `local`, nor
+    quietly share production's tags."""
+    production = {**BASE_ENV, **PROVIDERS_ENV, "APP_ENV": "production"}
+    _set(monkeypatch, production)
+    with pytest.raises(ValidationError, match="INSTALLATION_ID"):
+        Settings()
+
+    _set(monkeypatch, {**production, "INSTALLATION_ID": "prod"})
+    assert Settings().installation_id == "prod"
+
+
 def test_a_local_store_may_be_reached_over_plain_http_outside_production(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

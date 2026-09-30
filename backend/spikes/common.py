@@ -176,7 +176,15 @@ async def submit_all(
         batch = list(sent[start : start + 100])
         budget.allow(sum((estimate(task) for task in batch), Decimal(0)))
         posted_at = datetime.now(UTC)
-        result = await provider.submit(endpoint, requests_for(batch, run_id))
+        try:
+            result = await provider.submit(endpoint, requests_for(batch, run_id))
+        except ProviderCallError as error:
+            # The run goes on and reports it. The tasks may exist (a timeout): counted at
+            # their estimate, and not collected, since their ids are not known.
+            for task in batch:
+                task.notes.append(f"call failed: {error.error.kind.value} {error.error.message}")
+                budget.charge(None, fallback=estimate(task))
+            continue
         for accepted in result.accepted:
             task = by_number[int(accepted.task_id)]
             task.provider_task_id = accepted.provider_task_id

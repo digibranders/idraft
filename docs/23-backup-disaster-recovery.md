@@ -580,6 +580,8 @@ Procedure (30 to 60 minutes, mostly waiting):
 3. Check the second copy: `doctl compute droplet backups <droplet-id>` must list an image less than 8 days old.
 4. Record the run in the runbook's drill log, `docs/ops/restore-drills.md` (one table row: date, custodian, where it ran, dump key, result and exit code, restore seconds, total seconds, date of the newest DigitalOcean image) and commit it. The script prints the row.
 
+The drill starts no worker. A worker started against a restored copy (a fuller rehearsal, or a staging copy) runs with `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` empty, or with an `INSTALLATION_ID` of its own, never `prod`. The restored ledger holds production's task ids and runs, and the installation in every tag is what keeps such a copy from sending production's tasks again or taking production's results from the shared account. The worker refuses to start in production with DataForSEO credentials and no `INSTALLATION_ID` set.
+
 ```bash
 export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare RCLONE_CONFIG_R2_REGION=auto \
        RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true \

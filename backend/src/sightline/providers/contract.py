@@ -159,7 +159,7 @@ class GateUnavailableError(Exception):
 class CallGate(Protocol):
     """Where an adapter waits for its turn to call the provider (docs/21 section 7).
 
-    An adapter reports a call it could not make as `throttled`, never as `rate_limited`: the
+    An adapter reports a call it could not make as `not_sent`, never as `rate_limited`: the
     provider did not see it, and slowing down for it would hold back more calls still.
     """
 

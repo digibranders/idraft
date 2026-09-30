@@ -287,6 +287,15 @@ class Settings(_DatabaseSettings):
         # A task sent is paid for; without the bucket its result could never be kept.
         if self.dataforseo_login is not None and self.r2_raw_endpoint is None:
             raise ValueError("DATAFORSEO_LOGIN needs R2_RAW_ENDPOINT: results are kept in R2")
+        # The installation is in every task's tag, so two installations on one account never
+        # take each other's results. A server that spends money names it; a copy started with
+        # production's env (a restore rehearsal) must name another one, not fall back quietly.
+        if (
+            self.app_env == "production"
+            and self.dataforseo_login is not None
+            and "installation_id" not in self.model_fields_set
+        ):
+            raise ValueError("INSTALLATION_ID must be set when DATAFORSEO_LOGIN is, in production")
         return self
 
 

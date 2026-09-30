@@ -23,9 +23,11 @@ class ProviderErrorKind(StrEnum):
     TIMEOUT = "timeout"
     SCHEMA_MISMATCH = "schema_mismatch"
     EMPTY_RESULT = "empty_result"
-    # Not sent: our own limiter gave no turn in time, or could not be reached. The provider
-    # never saw the call, so it is not an attempt and says nothing about the provider's rate.
-    THROTTLED = "throttled"
+    # Not sent: our own limiter gave no turn in time or could not be reached, or no connection
+    # to the provider could be opened. The provider never saw the call, so it is not an
+    # attempt, and says nothing about the provider's rate. A network outage of minutes must
+    # not end the tasks that fell due in it.
+    NOT_SENT = "not_sent"
 
 
 RetryStatus = Literal["pending", "failed", "dead"]
@@ -96,8 +98,8 @@ _PAUSES_PROVIDER = frozenset(
     {ProviderErrorKind.AUTH, ProviderErrorKind.PAYMENT, ProviderErrorKind.ACCOUNT_LIMIT}
 )
 _NEVER_RETRIED = frozenset({ProviderErrorKind.INVALID_REQUEST, ProviderErrorKind.SCHEMA_MISMATCH})
-# A call held back by our limiter waits about as long as the limiter was willing to wait for it.
-THROTTLED_WAIT = timedelta(seconds=30)
+# A call not made waits about as long as the limiter was willing to wait for a turn.
+NOT_SENT_WAIT = timedelta(seconds=30)
 # Added to a delay so tasks that failed together do not all come back together.
 JITTER_SHARE = 0.2
 
@@ -133,11 +135,11 @@ def decide(
         raise ValueError("an empty result is a result, not a failure")
     if kind in _PAUSES_PROVIDER:
         return RetryDecision(status="pending", pause_provider=True, counts=False)
-    if kind is ProviderErrorKind.THROTTLED:
+    if kind is ProviderErrorKind.NOT_SENT:
         # Not counted, so never ended for it: a task held back for long enough is ended by
         # its run's window like any task still waiting.
         spread = 1 + JITTER_SHARE * jitter
-        return RetryDecision(status="pending", delay=THROTTLED_WAIT * spread, counts=False)
+        return RetryDecision(status="pending", delay=NOT_SENT_WAIT * spread, counts=False)
     if kind in _NEVER_RETRIED:
         return RetryDecision(status="failed")
     if kind is ProviderErrorKind.NOT_FOUND_EXPIRED:

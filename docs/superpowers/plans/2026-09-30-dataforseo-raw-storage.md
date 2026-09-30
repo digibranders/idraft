@@ -70,27 +70,27 @@ No workload is registered in production by this plan, so the deployed worker sti
 
 - [x] Tests first (httpx `MockTransport`): `task_post` sends up to 100 tasks with our tags, basic auth and no callback URL, and maps accepted and refused tasks with their cost; `tasks_ready` returns ids with tags; `task_get/advanced` returns the exact bytes; `id_list` returns tags and costs; `user_data` returns balance and limits; a connect error is `upstream_unavailable` and a read timeout `timeout`; every call takes the limiter first; credentials never reach a log line.
 - [x] `providers/dataforseo/client.py`, `serp.py`, synthetic fixtures.
-- [ ] Gates, Opus review, fixes, commit.
+- [x] Gates, Opus review, fixes, commit.
 
 ### Task 4: Raw payload storage
 
 - [x] Tests first (an S3 server in a container; see the tech stack): a payload is stored under its key, compressed, and read back byte for byte; the same bytes twice are stored once; the registry row has size, hash, class and expiry; an R2 failure raises and registers nothing; keys follow doc 23 section 9.1.
 - [x] `storage/raw.py`, `collectors/raw_payloads.py`.
-- [ ] Gates, Opus review, fixes, commit.
+- [x] Gates, Opus review, fixes, commit.
 
 ### Task 5: Ready, fetched, and the reconciler's provider steps
 
-- [ ] Tests first: `poll_ready` moves only `submitted` tasks and sends one `fetch_task` per task; `fetch_task` stores the payload once and moves the task to `fetched`, and a second delivery does nothing; an expired result follows the retry policy; the id sweeper fetches tasks `submitted` two hours ago; an unknown submission found by its tag becomes `submitted` with its cost, and one not found after 15 minutes goes back to `pending`, only when the resolver is on.
-- [ ] `collectors/fetching.py`, ledger transitions, reconciler steps, jobs and ticks in `worker/assembly.py`.
-- [ ] Gates, Opus review, fixes, commit.
+- [x] Tests first: `poll_ready` moves only `submitted` tasks and sends one `fetch_task` per task; `fetch_task` stores the payload once and moves the task to `fetched`, and a second delivery does nothing; an expired result follows the retry policy; the id sweeper fetches tasks `submitted` two hours ago; an unknown submission found by its tag becomes `submitted` with its cost, and one not found after 15 minutes goes back to `pending`, only when the resolver is on.
+- [x] `collectors/fetching.py`, ledger transitions, reconciler steps, jobs and ticks in `worker/assembly.py`.
+- [x] Gates, Opus review, fixes, commit.
 
 ### Task 6: End to end, image, docs
 
-- [ ] `tests/worker/test_dataforseo_end_to_end.py`: the real process with a fake workload against a fake DataForSEO (an httpx transport) and the test S3 server: a schedule becomes fetched tasks with their payloads in storage, each sent and paid once; an unknown submission is resolved.
-- [ ] `backend/smoke.sh` unchanged in behaviour (no credentials in CI); docs 05, 06, 21, 22, 23, 31, review log, README.
-- [ ] Whole-branch Opus review, fixes, commit.
+- [x] `tests/worker/test_dataforseo_end_to_end.py`: the real process with a fake workload against a fake DataForSEO (an httpx transport) and the test S3 server: a schedule becomes fetched tasks with their payloads in storage, each sent and paid once; an unknown submission is resolved.
+- [x] `backend/smoke.sh` unchanged in behaviour (no credentials in CI); docs 05, 06, 21, 22, 23, 31, review log, README.
+- [x] Whole-branch Opus review, fixes, commit.
 
 ### Task 7: The Phase 0 test runs
 
-- [ ] `backend/spikes/` with S-01 (billing, tag echo, `id_list`), S-02 (payload sizes and zstd ratio), S-03 (AI Overview presence with and without async loading) and S-15 (turnaround by hour), each with a spend cap; a fixture capture tool writing to `backend/tests/fixtures/dataforseo/`.
+- [x] `backend/spikes/` with S-01 (billing, tag echo, `id_list`), S-02 (payload sizes and zstd ratio), S-03 (AI Overview presence with and without async loading) and S-15 (turnaround by hour), each with a spend cap; a fixture capture tool writing to `backend/tests/fixtures/dataforseo/`.
 - [ ] Run with the product owner's credentials and approval; write `docs/spikes/S-01.md`, `S-02.md`, `S-03.md`, `S-15.md`; replace the synthetic fixtures; update docs 27 and 28 with the measured numbers.

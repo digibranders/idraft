@@ -159,7 +159,13 @@ async def reconcile(
         if fetches is None:
             return 0
         async with sessions() as db, db.begin():
-            orders = await ledger.sweep_submitted(db, now=now, after=SWEEP_AFTER, limit=SWEEP_LIMIT)
+            orders = await ledger.sweep_submitted(
+                db,
+                now=now,
+                after=SWEEP_AFTER,
+                limit=SWEEP_LIMIT,
+                providers=registry.providers,
+            )
         await send_fetches(sessions, fetches, orders, now=now)
         return len(orders)
 

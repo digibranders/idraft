@@ -162,10 +162,10 @@ def test_every_error_ends_and_never_waits_longer_than_its_cap(
 
 
 def test_a_call_our_limiter_held_back_is_not_an_attempt_and_slows_nothing() -> None:
-    decision = decide(K.THROTTLED, attempts=6, jitter=0.0)
+    decision = decide(K.NOT_SENT, attempts=6, jitter=0.0)
 
     assert decision == RetryDecision(status="pending", delay=timedelta(seconds=30), counts=False)
-    spread = decide(K.THROTTLED, attempts=1, jitter=0.999).delay
+    spread = decide(K.NOT_SENT, attempts=1, jitter=0.999).delay
     assert spread is not None
     assert timedelta(seconds=30) < spread < timedelta(seconds=30) * (1 + JITTER_SHARE)
 

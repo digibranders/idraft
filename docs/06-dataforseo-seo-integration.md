@@ -117,7 +117,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 |---|---|
 | 2,000 API calls per minute (all endpoints combined, raisable) | Global Redis-backed rate limiter shared by every DataForSEO call on the Taskiq `collect` queue, at 1,000 calls/min (50% headroom for fetches and ops calls) |
 | 100 tasks per `task_post` | Always fill batches to 100 where possible; the submitter groups pending tasks by endpoint and priority |
-| `tasks_ready`: 20 calls/min, up to 1,000 ids per call, last 3 days | Poll every 60 s per endpoint while any task is `submitted`, every 30 s while a collection window is open; stop polling when none are |
+| `tasks_ready`: 20 calls/min, up to 1,000 ids per call, last 3 days | Poll every 60 s per endpoint while any task is `submitted`; no call when none are. A 30 s poll during open windows is not built: the id sweeper bounds what a slower poll could miss |
 | Results re-fetchable free for 30 days (HTML 7 days) | Fetch immediately; re-fetch within 30 days is allowed for re-ingest |
 | 10 s callback timeout, then task goes to `tasks_ready` | Not relevant: no callback URL is sent, so every task is found through `tasks_ready` or the id sweeper |
 | Live: 1 task per call | Used only for "check now" and small backfills |
@@ -132,12 +132,14 @@ stateDiagram-v2
     pending --> submitted: task_post accepted (provider id stored)
     pending --> submit_unknown: task_post outcome unknown (timeout after send)
     submit_unknown --> submitted: tag found by reconciler
-    submit_unknown --> pending: tag not matched within 15 min (doc 21 section 6)
+    submit_unknown --> pending: tag not found 15 min after sending, retry policy for timeout (doc 21 section 6)
     pending --> failed: task_post rejected (invalid_request)
-    submitted --> ready: found in tasks_ready (poll_ready)
-    submitted --> ready: older than the collection window and task_get returns result (id sweeper)
+    submitted --> ready: found in tasks_ready (ready poll)
+    submitted --> ready: not listed 2 hours after submission, or asked again after a wait (id sweeper)
     ready --> fetched: task_get/advanced ok, raw stored in R2
-    ready --> failed: task_get error (retryable)
+    ready --> submitted: not ready yet, or a fetch or storage failure that may mend (not an attempt)
+    ready --> pending: result dropped (40403) or the task failed at the provider (50301), retry policy
+    ready --> failed: fetch refused for good (invalid_request)
     fetched --> ingested: normalize + DB write ok
     fetched --> failed: schema_mismatch (raw kept)
     failed --> pending: retry policy allows (new provider task)
@@ -155,9 +157,9 @@ stateDiagram-v2
 
 ### 4.2 Readiness: polling only
 
-- **Polling** ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)): the `poll_ready` Taskiq task calls `tasks_ready` every 60 s while tasks are outstanding, and every 30 s while a collection window is open. For each returned id it parses `tag`, moves the matching task from `submitted` to `ready` with a conditional `UPDATE ... WHERE status = 'submitted'`, and enqueues `fetch_task` on the `collect` queue only when that update changed a row (natural dedupe: an id listed twice is fetched once). It never fetches inline.
+- **Polling** ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)): the `ready_poll` tick calls `tasks_ready` every 60 s for each endpoint with tasks `submitted`. For each returned id it parses `tag`, moves the matching task from `submitted` to `ready` with a conditional `UPDATE ... WHERE status = 'submitted'` (a task still waiting out a failed fetch's wait is left alone), and enqueues `fetch_task` on the `collect` queue only when that update changed a row (natural dedupe: an id listed twice is fetched once). It never fetches inline.
 - **Why no pingback or postback**: postback POSTs the full gzipped result to our API, which puts large bodies on the API process inside a 10 s timeout. Pingback would add a public endpoint, a Caddy IP allowlist and a route token for a latency gain of at most one poll interval, which no screen needs. Neither is used; no callback URL is sent.
-- **Id sweeper**: tasks still `submitted` once they are older than the collection window are fetched directly by id with `task_get` (covers edge cases where a task is not listed). Tasks with no result after 72 hours become `dead` and alert.
+- **Id sweeper**: tasks still `submitted` 2 hours after submission, or whose wait after a failed fetch is over, are fetched directly by id with `task_get` (covers a task not listed, and one whose result was handed over and not stored). Tasks with no result after 72 hours become `dead` and alert.
 
 ### 4.3 Fetch and store
 
@@ -341,7 +343,7 @@ Labs SERP-derived datasets (`ranked_keywords`, `domain_intersection`, `competito
 | 40203 (own cost limit) | account_limit | Pause DataForSEO workloads, alert admins |
 | 40209 (too many simultaneous) | concurrency | Retry after 5 s |
 | 40403 (results expired) | not_found_expired | Resubmit if run window still open, else mark dead |
-| 50301 (third-party source unavailable), HTTP 503 | upstream_unavailable | Retry with backoff per doc 21 section 6 (max 4 attempts), then `dead` |
+| 50301 (third-party source unavailable), HTTP 503 | upstream_unavailable | Retry with backoff per doc 21 section 6 (max 4 attempts), then `dead`. On a fetched task it means the task itself failed: it is submitted again under that policy |
 | 401xx (not authorized, account not activated or blocked), HTTP 401 and 403 | auth | Pause provider, alert |
 | 402xx other than the codes above (balance, payment), HTTP 402 | payment | Pause provider, alert |
 | HTTP 429 | rate_limited | As 40202; a `Retry-After` in whole seconds is the least wait |
@@ -349,11 +351,10 @@ Labs SERP-derived datasets (`ranked_keywords`, `domain_intersection`, `competito
 | 40601, 40602 (task in queue, task being processed) | not an error | `task_get` asked too early: the task stays `submitted` |
 | 40102 (no search results) | not an error | A finished, empty result: stored and ingested like any other |
 | 5xxxx other than 50301; HTTP 408, 425, and every 5xx but 501, 503 and 505 (a proxy's 520 to 524 among them) | timeout when posting tasks, else provider_error | Posting: the tasks may have been created and charged, so they become `submit_unknown` and are not sent again blind. Reading: retry |
-| A connection that never opened | upstream_unavailable | Nothing was sent: retry |
 | A timeout, a dropped connection or an unreadable answer after the request was sent | timeout when posting tasks, else provider_error | As the row above. A refused call whose answer still names tasks it created is read task by task, so those are recorded |
 | HTTP 400, 413, 422 | invalid_request | Do not retry |
 | Any other code or HTTP status | provider_error | Retry with backoff: reading again costs nothing, and a wrong failure cannot be undone |
-| No turn under our own limiter within 30 s, or the limiter not reachable | throttled | Not sent and not an attempt: retry in 30 s, without slowing the limiter |
+| No turn under our own limiter within 30 s, the limiter not reachable, or no connection opened to the provider | not_sent | Not sent and not an attempt: retry in 30 s, without slowing the limiter |
 
 HTTP status is 200 for most errors; the real status is in `status_code` at top and task level (verified). The adapter checks both levels. Spike S-01 checks whether any 402xx code refuses one API only (a subscription code such as 40204): if so, it must stop that workload, not pause every DataForSEO workload.
 

@@ -238,14 +238,15 @@ class DataForSeoClient:
         raise ProviderCallError(error)
 
     async def _take_turn(self, family: str | None) -> None:
-        # The call is not made either way, so the provider never sees it: `throttled` when
+        # The call is not made either way, so the provider never sees it: `not_sent` when
         # the limiter said no or could not be asked, never a rate limit of the provider's.
         try:
             turn = await self._gate.enter(family, within=TURN_WAIT)
         except GateUnavailableError as error:
             message = f"the call limiter could not be reached: {error}"
         except Exception as error:
-            # Our own fault, such as a family with no limit: not made, and not throttling.
+            # Our own fault, such as a family with no limit: not made, and not to be waited
+            # out, since it will not mend by itself.
             raise ProviderCallError(
                 ProviderError(
                     kind=K.PROVIDER_ERROR,
@@ -256,7 +257,7 @@ class DataForSeoClient:
             if turn:
                 return
             message = "no turn under the call limit came in time"
-        raise ProviderCallError(ProviderError(kind=K.THROTTLED, message=message)) from None
+        raise ProviderCallError(ProviderError(kind=K.NOT_SENT, message=message)) from None
 
     async def _send(
         self,
@@ -285,8 +286,10 @@ class DataForSeoClient:
             httpx.PoolTimeout,
             httpx.UnsupportedProtocol,
         ) as error:
-            # No connection was made: nothing was sent.
-            kind, name = K.UPSTREAM_UNAVAILABLE, type(error).__name__
+            # No connection was made: nothing was sent, and the task has lost no try. A
+            # network outage of minutes waits in `not_sent` instead of ending tasks.
+            kind = K.NOT_SENT
+            name = f"the provider could not be reached: {type(error).__name__}"
         except httpx.HTTPError as error:
             kind, name = _unreadable(sending=sending), type(error).__name__
         except _TooLargeError:

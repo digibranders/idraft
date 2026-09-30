@@ -132,7 +132,7 @@ async def test_no_turn_means_no_call(api: Api, events: list[str]) -> None:
             await client.call("POST", PATH, sending=True, body=[{}])
 
     # Not the provider's limit: nothing is slowed for it, and it is not an attempt.
-    assert caught.value.error.kind is K.THROTTLED
+    assert caught.value.error.kind is K.NOT_SENT
     assert gate.slowed == 0
     assert api.requests == []
 
@@ -145,7 +145,7 @@ async def test_a_gate_that_cannot_be_reached_means_no_call(api: Api, events: lis
             await client.call("POST", PATH, sending=True, body=[{}])
 
     # Not sent, so not an unknown outcome.
-    assert caught.value.error.kind is K.THROTTLED
+    assert caught.value.error.kind is K.NOT_SENT
     assert "ConnectionError" in caught.value.error.message
     assert api.requests == []
 
@@ -215,7 +215,9 @@ async def test_a_connection_that_never_opened_sent_nothing(
 ) -> None:
     failure = await _failure(_raising(error), sending=sending)
 
-    assert failure.error.kind is K.UPSTREAM_UNAVAILABLE
+    # Not an attempt at the task: a network outage of minutes must not end tasks.
+    assert failure.error.kind is K.NOT_SENT
+    assert failure.error.message.startswith("the provider could not be reached")
 
 
 @pytest.mark.parametrize("error", [httpx.ReadTimeout("no answer"), httpx.WriteTimeout("slow")])

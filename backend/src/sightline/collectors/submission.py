@@ -311,8 +311,8 @@ class _Outcome:
         names only what happened. The provider's own words are in the log."""
         if error.kind is ProviderErrorKind.TIMEOUT:
             message = "No answer from the provider; it may have the task."
-        elif error.kind is ProviderErrorKind.THROTTLED:
-            message = "Not sent: too many calls to the provider just now."
+        elif error.kind is ProviderErrorKind.NOT_SENT:
+            message = "Not sent: the provider could not be called just now."
         else:
             message = f"The provider refused the whole call ({error.kind.value})."
         for task in tasks:

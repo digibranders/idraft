@@ -41,6 +41,7 @@ FETCH_JOB: Final = "fetch_task"
 NOT_READY_WAIT: Final = timedelta(minutes=30)
 # How long a fetch that may work next time waits.
 FETCH_AGAIN_AFTER: Final = timedelta(minutes=5)
+PROVIDER_NOT_REGISTERED: Final = "provider_not_registered"
 # Failures that no second fetch mends. A result the provider dropped is handled apart.
 _FOR_GOOD: Final = frozenset({K.INVALID_REQUEST, K.SCHEMA_MISMATCH})
 # How long each workload's raw results are kept (doc 23 section 9.2).
@@ -203,8 +204,13 @@ async def fetch_task(
     if task is None:
         # Fetched already, or no longer waiting to be: nothing to ask the provider.
         return "skipped"
-    provider = registry.provider(order.provider)
     context = {"task_id": order.task_id, "provider": order.provider, "endpoint": order.endpoint}
+    if order.provider not in registry.providers:
+        # Its credentials were removed while the task was out: kept, for when they are back.
+        _log.warning("fetch for a provider this worker does not have", **context)
+        await _again(sessions, order, after=NOT_READY_WAIT, code=PROVIDER_NOT_REGISTERED)
+        return "retry"
+    provider = registry.provider(order.provider)
     try:
         result = await provider.fetch(order.endpoint, order.provider_task_id)
     except ProviderCallError as error:
@@ -219,7 +225,10 @@ async def fetch_task(
         return "not_ready"
     if result.status != "ready" or result.body is None:
         reason = result.error or ProviderError(kind=K.PROVIDER_ERROR, message="no result")
-        return await _failed(sessions, task, order, reason, jitter=jitter)
+        # The answer says the task itself failed (a source the provider could not reach):
+        # it will never have a result, and is sent again under the retry policy.
+        failed_there = reason.kind is K.UPSTREAM_UNAVAILABLE
+        return await _failed(sessions, task, order, reason, jitter=jitter, resend=failed_there)
     payload = RawPayload(
         body=result.body,
         content_type=result.content_type,
@@ -253,7 +262,11 @@ async def _keep(
         return "retry"
     async with sessions() as db, db.begin():
         fetched = await ledger.mark_fetched(
-            db, order.ref, provider_task_id=order.provider_task_id, raw_payload_id=payload_id
+            db,
+            order.ref,
+            provider_task_id=order.provider_task_id,
+            raw_payload_id=payload_id,
+            now=await ledger.transaction_time(db),
         )
     return "fetched" if fetched else "skipped"
 
@@ -286,8 +299,12 @@ async def _failed(
     error: ProviderError,
     *,
     jitter: Callable[[], float],
+    resend: bool = False,
 ) -> FetchOutcome:
-    if error.kind is not K.NOT_FOUND_EXPIRED and error.kind not in _FOR_GOOD:
+    """A fetch that did not bring a result. The retry policy decides when the provider dropped
+    the result, refused the fetch for good, or (`resend`) failed the task itself; anything else
+    is fetched again later, since the provider may still have the result."""
+    if not resend and error.kind is not K.NOT_FOUND_EXPIRED and error.kind not in _FOR_GOOD:
         wait = FETCH_AGAIN_AFTER
         if error.retry_after is not None:
             wait = max(wait, error.retry_after)

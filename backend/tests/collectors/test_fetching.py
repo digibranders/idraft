@@ -29,7 +29,7 @@ from sightline.providers.contract import (
 )
 from sightline.storage.raw import RawStorageError
 from tests.api.auth.support import execute, fetch
-from tests.collectors.support import task_rows
+from tests.collectors.support import FakeProvider, task_rows
 from tests.collectors.test_submission import World, _one_batch
 from tests.conftest import PostgresServer
 
@@ -267,7 +267,7 @@ async def test_a_result_the_provider_dropped_is_submitted_again(
             status="failed",
             error=ProviderError(kind=K.PROVIDER_ERROR, message="Internal error."),
         ),
-        ProviderCallError(ProviderError(kind=K.THROTTLED, message="no turn")),
+        ProviderCallError(ProviderError(kind=K.NOT_SENT, message="no turn")),
         RuntimeError("adapter bug"),
     ],
 )
@@ -762,3 +762,125 @@ async def test_a_provider_that_cannot_list_its_tasks_is_not_asked(
     assert {row["status"] for row in await task_rows(migrated, rows[0]["run_id"])} == {
         "submit_unknown"
     }
+
+
+# Across the steps (the whole-branch review)
+
+
+async def test_the_poll_waits_out_the_wait_a_failed_fetch_named(
+    world: World, migrated: PostgresServer
+) -> None:
+    """The provider lists a task until it is fetched: asking every minute would ignore it."""
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    world.provider.ready = [_listed(row)]
+    fetches = Fetches()
+    await _poll(world, fetches)
+    world.provider.reading_fails = ProviderCallError(
+        ProviderError(kind=K.RATE_LIMITED, message="slow", retry_after=timedelta(minutes=10))
+    )
+    await _fetch_all(world, MemoryStore(), fetches.sent)
+    world.provider.reading_fails = None
+
+    again = await _poll(world, fetches)
+
+    assert again.ready == 0
+    assert len(fetches.sent) == 1
+    (after,) = await task_rows(migrated, run_id)
+    assert after["status"] == "submitted"
+
+
+async def test_a_task_the_provider_failed_is_sent_again_under_the_retry_policy(
+    world: World, migrated: PostgresServer
+) -> None:
+    """It will never have a result: fetching it again for three days would not help."""
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    world.provider.ready = [_listed(row)]
+    world.provider.results[row["provider_task_id"]] = FetchResult(
+        provider_task_id=row["provider_task_id"],
+        status="failed",
+        error=ProviderError(kind=K.UPSTREAM_UNAVAILABLE, message="Source unavailable."),
+    )
+    fetches = Fetches()
+    await _poll(world, fetches)
+
+    assert await _fetch_all(world, MemoryStore(), fetches.sent) == ["failed"]
+
+    (after,) = await task_rows(migrated, run_id)
+    assert (after["status"], after["attempts"], after["last_error_code"]) == (
+        "pending",
+        1,
+        "upstream_unavailable",
+    )
+
+
+async def test_a_later_failure_does_not_undo_the_time_kept_for_a_result_not_stored(
+    world: World, migrated: PostgresServer
+) -> None:
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    world.provider.ready = [_listed(row)]
+    fetches = Fetches()
+    await _poll(world, fetches)
+    store = MemoryStore()
+    store.fails = True
+    await _fetch_all(world, store, fetches.sent)
+    # Swept again, and this time the provider fails.
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET status = 'ready', ready_at = now() WHERE id = $1",
+        row["id"],
+    )
+    world.provider.reading_fails = ProviderCallError(
+        ProviderError(kind=K.PROVIDER_ERROR, message="down")
+    )
+    await _fetch_all(world, store, fetches.sent)
+
+    (after,) = await task_rows(migrated, run_id)
+    assert after["last_error_code"] == "storage_failed"
+    assert after["last_error_message"] == "down"
+
+
+async def test_a_task_accepted_without_a_cost_is_charged_its_estimate_once_fetched(
+    world: World, migrated: PostgresServer
+) -> None:
+    world.provider.price = None
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_runs SET estimated_cost_usd = 0.003 WHERE id = $1",
+        run_id,
+    )
+    world.provider.ready = [_listed(row)]
+    fetches = Fetches()
+    await _poll(world, fetches)
+
+    assert await _fetch_all(world, MemoryStore(), fetches.sent) == ["fetched"]
+
+    costs = await fetch(
+        migrated, "SELECT task_id, cost_usd, cost_source FROM ops.provider_cost_events"
+    )
+    assert [(c["task_id"], c["cost_usd"], c["cost_source"]) for c in costs] == [
+        (row["id"], Decimal("0.003000"), "price_book_estimate")
+    ]
+
+
+async def test_a_task_of_a_provider_this_worker_does_not_have_is_left_for_later(
+    world: World, migrated: PostgresServer
+) -> None:
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    world.provider.ready = [_listed(row)]
+    fetches = Fetches()
+    await _poll(world, fetches)
+    without = World(world.sessions, provider=FakeProvider(code="another"))
+
+    assert await _fetch_all(without, MemoryStore(), fetches.sent) == ["retry"]
+
+    (after,) = await task_rows(migrated, run_id)
+    assert (after["status"], after["last_error_code"]) == ("submitted", "provider_not_registered")
+    # And the sweeper, which only sweeps providers it has, leaves it alone.
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET next_attempt_at = now() - interval '1 minute' "
+        "WHERE id = $1",
+        row["id"],
+    )
+    assert (await _reconcile(without, Fetches())).swept == 0

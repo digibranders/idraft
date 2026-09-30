@@ -82,7 +82,7 @@ The tests start PostgreSQL 18, Redis 8 and an S3 server (versitygw, which checks
 
 The worker calls DataForSEO only when `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` are set, and then raw storage must be set too (`R2_RAW_ENDPOINT`, `R2_RAW_ACCESS_KEY_ID`, `R2_RAW_SECRET_ACCESS_KEY`, `R2_RAW_BUCKET`). Without them it registers no provider and sends nothing. Each installation sharing a DataForSEO account needs its own `INSTALLATION_ID` (`prod` in production): it is part of every task's tag, so one installation never takes another's results.
 
-`RESOLVE_UNKNOWN_SUBMISSIONS` stays off until spike S-01 confirms that DataForSEO's `id_list` returns our tags. With it off, a submission whose answer was lost ends after 72 hours and is charged its estimate; with it on, it is looked for and settled within 15 minutes.
+`RESOLVE_UNKNOWN_SUBMISSIONS` stays off until spike S-01 confirms that DataForSEO's `id_list` returns our tags. With it off, a submission whose answer was lost ends after 72 hours and is charged its estimate; with it on, it is looked for once it is 15 minutes old, within one reconciler pass (5 minutes) of that.
 
 No test calls the real API: the adapter's tests answer from synthetic fixtures in `tests/fixtures/dataforseo/`, which the spikes replace with captured answers.
 

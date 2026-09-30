@@ -1286,8 +1286,10 @@ async def mark_ready(
 ) -> list[FetchOrder]:
     """The listed tasks that were `submitted` become `ready`. A task is matched by all its tag
     says and by the provider's id: a listing of another installation, of an earlier attempt or
-    of another run matches nothing. Returns the tasks that changed; a task listed again, or
-    already fetched, is not among them."""
+    of another run matches nothing. A task still waiting out a failed fetch (`next_attempt_at`
+    to come) is left to wait: the provider lists it until it is fetched, and asking every
+    minute would ignore the wait it named. Returns the tasks that changed; a task listed
+    again, or already fetched, is not among them."""
     if not found:
         return []
     listed = (
@@ -1309,6 +1311,10 @@ async def mark_ready(
             _tasks.c.provider_task_id == listed.c.provider_task_id,
             _tasks.c.provider_code == provider_code,
             _tasks.c.status == "submitted",
+            or_(
+                _tasks.c.next_attempt_at.is_(None),
+                _tasks.c.next_attempt_at <= literal(_aware(now), DateTime(timezone=True)),
+            ),
         )
         .values(status="ready", ready_at=_aware(now), ready_source="poll")
         .returning(*_ORDER_COLUMNS)
@@ -1317,11 +1323,18 @@ async def mark_ready(
 
 
 async def sweep_submitted(
-    db: AsyncSession, *, now: datetime, after: timedelta, limit: int
+    db: AsyncSession,
+    *,
+    now: datetime,
+    after: timedelta,
+    limit: int,
+    providers: Collection[str],
 ) -> list[FetchOrder]:
     """Tasks `submitted` for `after` without being listed as ready, or whose time to be asked
     again has come, become `ready` to be fetched directly (the id sweeper). At most `limit`,
-    oldest first."""
+    oldest first, and only of `providers`: a task no worker can fetch is left alone."""
+    if not providers:
+        return []
     due_at = func.coalesce(
         _tasks.c.next_attempt_at, _tasks.c.submitted_at + literal(after, Interval)
     )
@@ -1330,6 +1343,7 @@ async def sweep_submitted(
         .where(
             _tasks.c.status == "submitted",
             _tasks.c.provider_task_id.is_not(None),
+            _tasks.c.provider_code.in_(sorted(providers)),
             due_at <= literal(_aware(now), DateTime(timezone=True)),
         )
         .order_by(due_at, _tasks.c.id)
@@ -1366,22 +1380,49 @@ def _ready(ref: TaskRef, provider_task_id: str) -> Any:
 
 
 async def mark_fetched(
-    db: AsyncSession, ref: TaskRef, *, provider_task_id: str, raw_payload_id: int
+    db: AsyncSession,
+    ref: TaskRef,
+    *,
+    provider_task_id: str,
+    raw_payload_id: int,
+    now: datetime,
 ) -> bool:
-    """The result is stored. False when the task was not `ready` under this id."""
-    result = await db.execute(
-        update(_tasks)
-        .where(_ready(ref, provider_task_id))
-        .values(
-            status="fetched",
-            raw_payload_id=raw_payload_id,
-            next_attempt_at=None,
-            last_error_code=None,
-            last_error_message=None,
+    """The result is stored. False when the task was not `ready` under this id.
+
+    A task accepted without a cost it was paid for all the same: it is charged its share of
+    its run's estimate here, as a task that dies unconfirmed is, so the budget counts it."""
+    fetched = (
+        await db.execute(
+            update(_tasks)
+            .where(_ready(ref, provider_task_id))
+            .values(
+                status="fetched",
+                raw_payload_id=raw_payload_id,
+                next_attempt_at=None,
+                last_error_code=None,
+                last_error_message=None,
+            )
+            .returning(
+                _tasks.c.id,
+                _tasks.c.created_at,
+                _tasks.c.run_id,
+                _tasks.c.workspace_id,
+                _tasks.c.project_id,
+                _tasks.c.workload,
+                _tasks.c.subject_type,
+                _tasks.c.subject_id,
+                _tasks.c.engine_code,
+                _tasks.c.provider_code,
+                _tasks.c.provider_endpoint,
+                _tasks.c.cost_usd,
+            )
         )
-        .returning(_tasks.c.id)
-    )
-    return result.one_or_none() is not None
+    ).one_or_none()
+    if fetched is None:
+        return False
+    if fetched.cost_usd is None:
+        await _charge_estimates(db, [fetched], now)
+    return True
 
 
 async def not_fetched_yet(
@@ -1417,7 +1458,12 @@ async def not_fetched_yet(
             ready_at=None,
             ready_source=None,
             next_attempt_at=at + wait,
-            last_error_code=code,
+            # Once a result could not be stored, the task is kept for the provider's 30 days
+            # (`end_old_submissions`): a later failure does not take that mark away.
+            last_error_code=case(
+                (func.coalesce(_tasks.c.last_error_code, "") == STORAGE_FAILED, STORAGE_FAILED),
+                else_=literal(code, Text),
+            ),
             last_error_message=None if message is None else message[:ERROR_MESSAGE_MAX],
         )
         .returning(_tasks.c.id)

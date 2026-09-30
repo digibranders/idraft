@@ -274,14 +274,16 @@ services:
       DB_POOL_SIZE: "8"
       DB_STATEMENT_TIMEOUT: "120s"
       REDIS_URL: ${REDIS_URL_APP:?}
-      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:?}
-      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:?}
-      R2_RAW_ENDPOINT: ${R2_RAW_ENDPOINT:?}        # https://<account id>.r2.cloudflarestorage.com
+      # Empty until the provider account and bucket exist: the worker then registers no
+      # provider and calls nothing. Set together; the worker refuses DataForSEO without R2.
+      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:-}
+      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:-}
+      R2_RAW_ENDPOINT: ${R2_RAW_ENDPOINT:-}        # https://<account id>.r2.cloudflarestorage.com
       R2_RAW_BUCKET: seo-raw
-      R2_RAW_ACCESS_KEY_ID: ${R2_RAW_ACCESS_KEY_ID:?}
-      R2_RAW_SECRET_ACCESS_KEY: ${R2_RAW_SECRET_ACCESS_KEY:?}
+      R2_RAW_ACCESS_KEY_ID: ${R2_RAW_ACCESS_KEY_ID:-}
+      R2_RAW_SECRET_ACCESS_KEY: ${R2_RAW_SECRET_ACCESS_KEY:-}
       RESOLVE_UNKNOWN_SUBMISSIONS: "false"         # true once spike S-01 confirms id_list returns tags
-      INSTALLATION_ID: prod                        # in every provider tag; a restored copy runs with another
+      INSTALLATION_ID: prod                        # in every provider tag; required in production with DataForSEO; a restored copy runs with another
       HC_PLANNER_URL: ${HC_PLANNER_URL:?}
       HC_MAINTENANCE_URL: ${HC_MAINTENANCE_URL:?}
       HC_OPS_HEALTH_URL: ${HC_OPS_HEALTH_URL:?}

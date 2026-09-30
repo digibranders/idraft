@@ -134,12 +134,12 @@ async def test_a_retried_task_is_sent_as_its_next_attempt(
     ]
 
 
-async def test_a_call_our_limiter_held_back_is_not_an_attempt(
+async def test_a_call_that_was_never_made_is_not_an_attempt(
     worker_db: Ledger, migrated: PostgresServer
 ) -> None:
     """The provider never saw it: the tasks wait a little and lose no try."""
     world = World(worker_db)
-    world.provider.fail_with(K.THROTTLED)
+    world.provider.fail_with(K.NOT_SENT)
     run_id, batch = await _one_batch(world, migrated)
 
     report = await world.submit(batch)
@@ -149,7 +149,7 @@ async def test_a_call_our_limiter_held_back_is_not_an_attempt(
     assert {
         (row["status"], row["attempts"], row["last_error_code"], row["last_error_message"])
         for row in rows
-    } == {("pending", 0, "throttled", "Not sent: too many calls to the provider just now.")}
+    } == {("pending", 0, "not_sent", "Not sent: the provider could not be called just now.")}
     (clock,) = await fetch(migrated, "SELECT now() AS now")
     for row in rows:
         wait = row["next_attempt_at"] - clock["now"]
