@@ -198,6 +198,12 @@ class ServiceUnavailableError(ProblemError):
     status, code, title = 503, "service_unavailable", "Service unavailable"
 
 
+def invalid_field(path: str, *, code: str, message: str) -> RequestValidationError:
+    """A `422 validation_failed` for a body field that only the database can judge, in the same
+    shape as the errors Pydantic finds."""
+    return RequestValidationError([{"loc": ("body", path), "type": code, "msg": message}])
+
+
 def _request_id(request: Request) -> str:
     existing = getattr(request.state, "request_id", None)
     return existing if isinstance(existing, str) else new_request_id()

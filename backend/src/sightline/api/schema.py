@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
 from sightline.api.problems import MEDIA_TYPE, Problem
+from sightline.api.slugs import ReservedProjectSlug, ReservedWorkspaceSlug
 
 _FASTAPI_DEFAULT_ERROR_SCHEMAS = ("HTTPValidationError", "ValidationError")
 _REF_TEMPLATE = "#/components/schemas/{model}"
@@ -29,6 +30,14 @@ def build_schema(app: FastAPI) -> dict[str, Any]:
     problem = Problem.model_json_schema(ref_template=_REF_TEMPLATE)
     schemas.update(problem.pop("$defs", {}))
     schemas["Problem"] = problem
+    # Not the type of any field, so nothing would carry them into the document: the web forms
+    # refuse these words before asking the API.
+    for reserved in (ReservedWorkspaceSlug, ReservedProjectSlug):
+        schemas[reserved.__name__] = {
+            "type": "string",
+            "enum": [member.value for member in reserved],
+            "description": "Words a slug cannot be: they are routes of the web app.",
+        }
 
     for path_item in document.get("paths", {}).values():
         for operation in path_item.values():

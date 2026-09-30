@@ -40,6 +40,7 @@ async def test_me_describes_the_user_and_the_session(
         "email_verified": True,
         "image": None,
         "two_factor_enabled": False,
+        "is_platform_operator": False,
         "created_at": data["user"]["created_at"],
     }
     assert set(data["session"]) == {"fresh_until", "expires_at", "auth_method"}
@@ -48,7 +49,6 @@ async def test_me_describes_the_user_and_the_session(
     assert data["session"]["expires_at"].startswith(session.idle_expires_at.isoformat()[:19])
     assert data["memberships"] == []
     assert "password" not in response.text
-    assert "is_platform_operator" not in response.text
 
 
 async def test_me_lists_only_the_callers_memberships_with_their_permissions(

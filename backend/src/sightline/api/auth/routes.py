@@ -351,6 +351,7 @@ def _me(profile: Profile, session: SessionContext) -> MeResponse:
                 email_verified=profile.user.email_verified_at is not None,
                 image=profile.user.image,
                 two_factor_enabled=profile.two_factor_enabled,
+                is_platform_operator=profile.user.is_platform_operator,
                 created_at=profile.user.created_at,
             ),
             session=MeSession(fresh_until=session.fresh_until, expires_at=session.idle_expires_at),
