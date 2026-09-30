@@ -501,6 +501,18 @@ Ask the user before this task: it downloads a browser (about 170 MB) and the pin
 | Playwright browser and Docker image download | user | Task 16 |
 | Compose `web` service, Caddy routes, `web.yml` | backend session | Task 16 |
 
+## Contract updates from the backend session (2026-09-30)
+
+`main` has the auth API since 25e99f0. Its next plan, `backend/workspaces`, is in progress. These change the tasks below when they are reached:
+
+| Change | Affects |
+|---|---|
+| Accepting an invitation is `POST /api/v1/invitations/accept` with `{ token }`, called after the invited person registered (with `invitation_token`, which verifies the email) and signed in. Errors: 400 `invalid_token`, 410 `invitation_expired`, 403 `email_not_verified`. The public route that describes an invitation before sign-up is deferred, so `/invite` shows the form without the workspace name | Task 11 |
+| `/me` gains `user.is_platform_operator`. Only an operator may create a workspace while registration is by invitation | Tasks 7 and 14 |
+| `GET` and `POST {W}/projects`, `GET` and `PATCH {P}`: a project has `name`, `slug`, `timezone`, `deep_check_weekday`, `default_language_code`; `primary_domain` and `default_location_id` are null until the keyword system. Slugs are 3 to 40 characters, lower-case letters, digits and hyphens, and the reserved words are enums in the OpenAPI document | Tasks 9, 13 and 14 (the pending mock uses this shape) |
+| Two-factor is opt-in: no route answers `two_factor_enrollment_required` for now, and sign-in asks for a code only from a user who enrolled. The backend session relayed that the product owner wants optional features such as two-factor left for later | Tasks 11, 12 and 15: `/two-factor/setup`, the redirect of Task 12 step 5 and the two-factor block of Security move to a later plan if the product owner confirms. `/two-factor` (entering a code at sign-in) stays, because an enrolled user cannot sign in without it |
+| Invitation resend, cancel and decline, `GET /roles`, change of email, workspace and project delete are deferred on the backend | none in this plan |
+
 ## Self-review
 
 - **Coverage of 20 section 10, Phase 1:** auth routes (Task 11), app shell with the generated client (Tasks 8 and 13), workspace and project layouts (Tasks 12 and 13), permission context (Task 12), error and loading system (Task 13), CSP and headers (Task 10), standalone image and CI (Task 16). Deferred and named in Scope: the flag context (no API field yet), workspace, member and project settings, onboarding, `size-limit`.
