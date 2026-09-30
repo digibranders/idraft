@@ -64,10 +64,10 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ### Worker and queue
 
-- [ ] Taskiq with the Redis broker; queues `collect` (provider calls, concurrency 8, shared rate limiter) and `process` (ingest, extraction, analytics, maintenance, concurrency 4) in one worker process ([21](21-scheduler-workers.md))
-- [ ] Planner tick inside the worker under a Redis lock; dispatcher checks the budget before enqueueing; reconciler re-enqueues from `ops.collection_tasks` after Redis loss (no workloads yet)
-- [ ] Taskiq scheduler for maintenance cron jobs: partitions, retention stubs wired to real functions; no scheduler container
-- [ ] Taskiq smoke test: jobs on both queues, retry by error class, worker restart mid-job, reconciler after a Redis flush; if it fails, switch to Celery and record the decision
+- [x] Taskiq with the Redis broker; queues `collect` (provider calls, concurrency 8) and `process` (ingest, extraction, analytics, maintenance, concurrency 4) in one worker process ([21](21-scheduler-workers.md)). The shared rate limiter arrives with the DataForSEO client
+- [x] Planner tick inside the worker under a Redis lock; dispatcher checks the budget before enqueueing; reconciler re-enqueues from `ops.collection_tasks` after Redis loss (no workloads yet)
+- [ ] Taskiq scheduler for maintenance cron jobs: partitions and the reconciler are scheduled; retention stubs wait for the tables they prune. No scheduler container
+- [x] Taskiq smoke test: jobs on both queues, retries by error class through the ledger (none at the broker), worker restart mid-run, reconciler after a Redis flush (`backend/tests/worker/test_end_to_end.py`). Taskiq stays
 - [ ] Redis 8: AOF on, `noeviction`, `maxmemory 256mb`; nothing lives only in Redis
 - [ ] Graceful shutdown handling
 

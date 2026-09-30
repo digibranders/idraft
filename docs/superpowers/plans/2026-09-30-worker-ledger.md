@@ -54,9 +54,15 @@ No workload and no provider is registered in production by this plan, so the dep
 | `backend/src/sightline/collectors/planner.py` | One planner tick |
 | `backend/src/sightline/collectors/dispatcher.py` | One dispatcher tick |
 | `backend/src/sightline/collectors/submission.py` | `submit_batch`: provider call and ledger outcome |
-| `backend/src/sightline/collectors/reconciler.py` | The reconciler's ledger steps |
-| `backend/src/sightline/worker/{settings,brokers,messages,dedupe,locks,ticks,jobs,app,healthcheck,__main__}.py` | The process: queues, messages, locks, ticks, shutdown |
+| `backend/src/sightline/collectors/reconciler.py` | The reconciler's ledger steps and the partition job |
+| `backend/src/sightline/collectors/read_only.py` | The read-only savepoint workloads run in |
+| `backend/src/sightline/worker/queues.py` | The two queues: the stream read loop, sends with dedupe keys, scheduled jobs and their claims |
+| `backend/src/sightline/worker/{locks,ticks,scheduler,pauses}.py` | Redis locks, ticks under locks, the scheduler supervisor, provider pauses |
+| `backend/src/sightline/worker/{app,assembly,healthcheck,__main__}.py` | The process, what it is made of, its healthcheck, its entrypoint |
 | `backend/src/sightline/db/tables.py` | Adds the `ops` tables the worker reads and writes |
+| `backend/src/sightline/db/migrations/versions/0006` to `0008` | Run guard over scheduled runs, schedule days, the dispatcher's index, budget deletion |
+
+As built, the file list differs from the one planned: messages live with the code that sends them (`collectors/dispatcher.py`), because `collectors` may not import `worker`; brokers, dedupe and jobs are one module (`worker/queues.py`), and the jobs are registered in `worker/assembly.py`.
 
 ## Tasks
 
