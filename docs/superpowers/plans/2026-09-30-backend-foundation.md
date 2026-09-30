@@ -2426,3 +2426,9 @@ What differs from the task text above (the code in the repository is authoritati
 
 Next plans, in order: 2 schema, roles and RLS for the Phase 1 tables; 3 auth module; 4 Taskiq worker, ledger and dispatcher (with the L1 smoke test); 5 DataForSEO client and the Phase 0 spikes; 6 droplet, Compose and deploy.
 
+### After the code review (same day)
+
+The review's findings and fixes are listed in `docs/review-log.md` ("Code review of the backend foundation"). Final state: 220 tests, 99% branch coverage, every gate clean, image smoke-tested with `backend/smoke.sh`.
+
+Files added after the tasks above: `config/redaction.py`, `db/probe.py`, `api/resources.py`, `api/schema.py`, `api/routing.py`, `api/access_log.py`, `backend/smoke.sh`, `backend/check.sh`. `db.migrate.current_revision` and `head_revision` were replaced by `migration_state()` and `db.probe.probe_database`. The settings field `environment` is `app_env`. `openapi_url` is `None`.
+

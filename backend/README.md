@@ -42,6 +42,14 @@ One script runs every gate CI runs (ruff, format, mypy, import contracts, tests 
 ./check.sh
 ```
 
+## The image
+
+`smoke.sh` runs a built image the way production does: it migrates a fresh PostgreSQL 18 with only `DATABASE_URL` set, starts the API, and requires `/api/readyz` to answer 200 as uid 10001. CI runs it on every change.
+
+```bash
+docker build --target api -t sightline-api:dev . && ./smoke.sh sightline-api:dev
+```
+
 ## Layout
 
 | Package | Holds | Rule (enforced by import-linter) |
@@ -61,8 +69,10 @@ One script runs every gate CI runs (ruff, format, mypy, import contracts, tests 
 Revisions live in `src/sightline/db/migrations/versions/` and are written as SQL in `op.execute(...)`. Create one with:
 
 ```bash
-uv run --env-file .env alembic revision -m "describe the change"
+uv run --env-file .env alembic revision --rev-id 0002 -m "describe the change"
 ```
+
+Revision ids are sequential (`0001`, `0002`, ...) so the history reads in order. The migrator takes a PostgreSQL advisory lock, so two running at once queue instead of colliding.
 
 The version table is `ops.alembic_version`. `/api/readyz` reports `migrations: false` until the database is at the revision the running build expects.
 
@@ -76,4 +86,4 @@ uv run python -m sightline.api.openapi > openapi/v1.json
 
 ## Logs
 
-Every line on stdout is one JSON object (`ts`, `level`, `msg`, `service`, `version`, plus context such as `request_id`). Secret-shaped keys are redacted at any depth. Request lines carry the route template, never the raw URL.
+Every line on stdout is one JSON object (`ts`, `level`, `msg`, `service`, `version`, plus context such as `request_id`), including the lines of uvicorn, SQLAlchemy and Alembic. Keys that name a credential (`password`, `session_token`, `authorization`, `DATAFORSEO_*`, ...) are redacted at any depth, in dicts, header lists, models and dataclasses. Request lines carry the route template, never the raw URL. Database errors name the statement and never its bound values. Sentry receives no request bodies, cookies, query strings or frame locals.

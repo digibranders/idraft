@@ -231,6 +231,7 @@ services:
       - sightline.api.main:create_app
       - --factory                    # settings are read when the app is built, never at import
       - --no-access-log              # the API writes its own request line with the route template
+      - --no-server-header
       - --host=0.0.0.0
       - --port=8000
       - --proxy-headers
@@ -302,7 +303,7 @@ services:
     image: ${API_IMAGE:?}             # the api image carries Alembic and the migrations
     profiles: ["tools"]               # never started by `up`; run with `docker compose run --rm migrator`
     restart: "no"
-    command: ["alembic", "upgrade", "head"]
+    command: ["python", "-m", "sightline.db.migrate"]   # needs only DATABASE_URL; takes an advisory lock; logs JSON
     depends_on: *backend-deps
     environment:
       RELEASE_SHA: ${RELEASE_SHA:?}
@@ -1219,7 +1220,7 @@ The droplet never stores a long-lived registry credential: each deploy logs in w
 8. **Migrations.** If a pending migration contains the marker `-- requires-backup`, first run `systemctl start seo-backup.service` and abort unless it succeeds (doc 23 section 13.1). Then open a 20-minute maintenance window row in `ops.maintenance_windows` (doc 25) and run `docker compose run --rm migrator`, which runs `alembic upgrade head` as the `migrator` role with `lock_timeout = 2s`. Migrations must be backward compatible with the currently running code (expand, migrate, contract; doc 04 section 14), so old containers keep working while the new schema is live. Failure here aborts before any app container changes.
 9. **Restart api and worker.** `docker compose up -d --no-deps api worker`. Compose stops each old container with `SIGTERM`: uvicorn drains in-flight requests, the worker finishes in-flight tasks within `stop_grace_period`, and queued messages wait in Redis for seconds. Section 8.4 describes the gap.
 10. **Restart web.** Once `api` is `healthy`: `docker compose up -d --no-deps web`.
-11. **Health gates.** Within 120 s: all containers `healthy`; `https://<domain>/api/healthz` returns 200 with `release == <sha>`; `https://<domain>/` answers with a page or the sign-in redirect; the worker heartbeat is fresh; no new Sentry issues tagged with this release in the first 2 minutes (checked through the Sentry API, warning only).
+11. **Health gates.** Within 120 s: all containers `healthy`; `https://<domain>/api/healthz` returns 200 and `docker inspect` shows the `api`, `worker` and `web` containers running the image digests of this release (the health routes reveal no release, doc 19 section 3.12); `https://<domain>/` answers with a page or the sign-in redirect; the worker heartbeat is fresh; no new Sentry issues tagged with this release in the first 2 minutes (checked through the Sentry API, warning only).
 12. **Commit.** Close the maintenance window; `mv release.env.next release.env`; append `<utc> <sha> <web digest> <api digest> <worker digest>` to `/opt/seo-platform/releases.log`; create the Sentry release; `docker image prune` keeping the images referenced by the last three lines of `releases.log`.
 13. **On failure after step 9.** Automatically run the rollback procedure (section 8.5) and exit non-zero, which fails the GitHub job.
 

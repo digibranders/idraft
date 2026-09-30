@@ -274,3 +274,30 @@ Built beyond the plan because the specs require it and running the image showed 
 | HTTP client loggers | `httpx` and `httpcore` log at warning and above only | At info they print every request URL; the provider client will use them |
 | 500 log line | The catch-all handler passes the request id explicitly | Starlette runs it outside the middleware stack, after the id is unbound from the log context |
 
+### Code review of the backend foundation (2026-09-30)
+
+An independent review reproduced 5 high and 10 medium findings by running code. All five high findings and the medium ones below are fixed on the branch, each with a test that fails without the fix.
+
+| Finding | Fix | Doc |
+|---|---|---|
+| Sentry events carried cookies, passwords, bodies, query strings and frame locals | No bodies, cookies, query strings or locals; `before_send` and `before_breadcrumb` use the log redaction rules; `request_id` tag | 24 §11 (already required it) |
+| `/api/readyz` failed when the database was ahead of the build, which breaks rollback | A revision this build does not know means a newer build migrated the database: ready | 22 §8.5 |
+| The migrator did not run as doc 22 defined it | `python -m sightline.db.migrate` needs only `DATABASE_URL`, logs JSON, takes an advisory lock | 22 §4.1 |
+| Database errors logged bound parameters | `hide_parameters=True`; response-model errors log locations only | 25 §3.2 |
+| Redaction missed header lists, models, dataclasses and keys such as `new_password`; one input crashed the log call | Word-based key matching in `config/redaction.py`; the renderer can no longer raise | 25 §3.2 |
+| Readiness used the request pool and could hang on a frozen server | Its own connection, a hard timeout, no graceful close; failures logged at warning | 19 §3.12 |
+| Connection strings were plain strings | `SecretStr`, no value in any validation error; strict URL validation; https required in production | 24 §5.1 |
+| Inbound request ids were loosely checked, and Caddy was to add a UUID | The api owns the format and validates it as UUIDv7; Caddy does not add the header; web mints the same format | 25 §3.3 |
+| Problem responses: non-JSON extensions crashed, headers were dropped, framework 401/403/429 had a generic code, wrong content type gave 422 | `jsonable_encoder`, headers carried, catalogue codes, 415, `errors[]` capped at 50, standard members protected | 19 §2.7 |
+| The OpenAPI document was public and described FastAPI's default errors | Not served without a session; every operation documents `application/problem+json` with the `Problem` schema | 19 §1.1 |
+| Deploy gate expected `/api/healthz` to return the release | The gate checks image digests with `docker inspect` | 22 §8.4 |
+
+Carried into the next plans, because they need tables, roles or auth to exist:
+
+| Id | Item | Plan |
+|---|---|---|
+| F1 | Tests and the dev stack connect as a superuser, which bypasses RLS. The schema plan creates `app_api` (no superuser, no BYPASSRLS, not the owner) in the test fixtures and runs the cross-tenant tests as that role | 2 |
+| F2 | `app_api` needs `USAGE` on `ops` and `SELECT` on `ops.alembic_version`, or readiness reports `migrations: false` | 2 |
+| F3 | The catch-all error handler runs outside the middleware stack: workspace and user ids bound by the auth middleware must be passed to the 500 log line the way the request id is | 3 |
+| F4 | Check what Sentry's Redis integration records before session ids become cache keys | 3 |
+

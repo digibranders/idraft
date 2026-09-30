@@ -123,13 +123,14 @@ Sentry uses the same key list in `before_send` and `before_breadcrumb` (Python) 
 ### 3.3 Correlation ids
 
 ```
-browser -> Caddy (adds X-Request-Id: {http.request.uuid} if absent) -> web or api: request_id
-web server component -> api over the Docker network, forwarding X-Request-Id and sentry-trace/baggage
+browser -> Caddy -> api: the api mints request_id and returns it in X-Request-Id; Caddy's access log records that response header
+browser -> Caddy -> web: web mints a request_id in the same format for the page render
+web server component -> api over the Docker network, forwarding its X-Request-Id and sentry-trace/baggage
 api "check now" -> collection_runs.origin_request_id, task labels meta = { request_id, sentry_trace, baggage }
 planner tick -> run_id -> dispatcher -> submit_batch { task_ids } -> fetch_task { task_id } -> ingest_* -> extract, rollups
 ```
 
-- A FastAPI middleware accepts the incoming `X-Request-Id` only if it is a valid UUID, otherwise generates one, and echoes it in the response.
+- The api owns the format (section 3.1): `req_` plus a UUIDv7 in Crockford base32. Its middleware keeps an incoming `X-Request-Id` only when it is exactly that (128 bits, version 7, RFC 9562 variant), otherwise mints one, echoes it in the response and tags the Sentry scope with it. Caddy does not add the header: a Caddy UUID would be a second format that the api would have to replace, and the two logs would never share an id. `apps/web` mints ids with the same 10-line encoding (`src/lib/request-id.ts`) and forwards them on server-side calls, so a page render and its API calls share one id.
 - Every Taskiq message carries a `meta` label. A Taskiq middleware binds `contextvars` for the job, run, task, request, workspace and project ids before the handler runs, so every log line and Sentry event of that job carries them.
 - Scheduled work has no request id; `run_id` is the root. `docker compose logs worker | grep <task_id>` gives a task's history, `grep <run_id>` a run's, `grep <request_id>` a user action's.
 
