@@ -3,9 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createServerApi, serverApi } from './server';
 import { newRequestId } from '@/lib/request-id';
-import { TEST_API_ORIGIN, setupApiServer } from '@/test/api-server';
-
-const server = setupApiServer();
+import { TEST_API_ORIGIN } from '@/test/api-server';
+import { server } from '@/test/msw';
 
 const incoming = vi.hoisted(() => ({ headers: new Headers() }));
 vi.mock('next/headers', () => ({ headers: (): Promise<Headers> => Promise.resolve(incoming.headers) }));

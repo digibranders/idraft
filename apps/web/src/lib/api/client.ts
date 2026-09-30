@@ -56,21 +56,30 @@ export interface ApiClientOptions extends Omit<ClientOptions, 'querySerializer' 
   requestId?: (() => string) | undefined;
 }
 
-export function createApiClient({ requestId = newRequestId, ...options }: ApiClientOptions = {}): ApiClient {
-  const client = createClient<paths>({ querySerializer: QUERY_SERIALIZER, fetch: lateFetch, ...options });
+/** A client for `Paths`, with the serializer, the request id and the non-JSON guard every client needs. */
+export function createTypedClient<Paths extends object>({
+  requestId = newRequestId,
+  ...options
+}: ApiClientOptions = {}): Client<Paths> {
+  const client = createClient<Paths>({ querySerializer: QUERY_SERIALIZER, fetch: lateFetch, ...options });
   client.use(requestIdMiddleware(requestId), nonJsonGuard);
   return client;
 }
 
+export const createApiClient = (options: ApiClientOptions = {}): ApiClient => createTypedClient<paths>(options);
+
 /**
- * The browser client. The generated paths start with `/api/v1`, so the base is the page's own origin:
- * every call is same-origin and carries the session cookie without CORS. On the server there is no page
- * origin, and the server client of ./server.ts is used instead.
+ * The options of a browser client. The generated paths start with `/api/v1`, so the base is the page's own
+ * origin: every call is same-origin and carries the session cookie without CORS. On the server there is no
+ * page origin, and the server client of ./server.ts is used instead.
  */
-export const api: ApiClient = createApiClient({
+export const BROWSER_CLIENT_OPTIONS: ApiClientOptions = {
   baseUrl: typeof window === 'undefined' ? '' : window.location.origin,
   credentials: 'same-origin',
-});
+};
+
+/** The browser client. */
+export const api: ApiClient = createApiClient(BROWSER_CLIENT_OPTIONS);
 
 /** What an openapi-fetch call resolves to: the parsed body on success, the parsed error body otherwise. */
 type Success<Data> = { data: Data; error?: never; response: Response };

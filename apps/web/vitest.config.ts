@@ -14,12 +14,19 @@ export default defineConfig({
     projects: [
       {
         resolve: { alias },
-        test: { name: 'unit', include: ['src/**/*.test.ts'], environment: 'node' },
+        test: { name: 'unit', include: ['src/**/*.test.ts'], environment: 'node', setupFiles: ['./vitest.msw.ts'] },
       },
       {
         plugins: [react()],
         resolve: { alias },
-        test: { name: 'dom', include: ['src/**/*.test.tsx'], environment: 'jsdom', setupFiles: ['./vitest.setup.ts'] },
+        test: {
+          name: 'dom',
+          include: ['src/**/*.test.tsx'],
+          environment: 'jsdom',
+          // https, so the `__Host-` session cookie can be set: jsdom applies the cookie prefix rules
+          environmentOptions: { jsdom: { url: 'https://localhost:3000/' } },
+          setupFiles: ['./vitest.msw.ts', './vitest.setup.ts'],
+        },
       },
     ],
   },

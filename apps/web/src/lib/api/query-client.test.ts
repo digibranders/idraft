@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiMutation, apiQuery } from './query';
 import { getQueryClient, isSignedOut, loginUrl, makeQueryClient } from './query-client';
 import { retryDelay, shouldRetry, shouldRetryMutation } from './retry';
-import { TEST_API_ORIGIN, testApi, setupApiServer } from '@/test/api-server';
+import { TEST_API_ORIGIN, testApi } from '@/test/api-server';
+import { server } from '@/test/msw';
 
-const server = setupApiServer();
 const W = '0192d1a8-7e8b-7c3a-9f3e-3b5a2c1d4e5f';
 
 function problem(status: number, code: string, headers: Record<string, string> = {}): HttpResponse<string> {

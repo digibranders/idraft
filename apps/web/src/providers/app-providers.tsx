@@ -9,7 +9,9 @@ import type { ReactNode } from 'react';
 import { LiveRegions } from './live-regions';
 import { Toaster, ToastProvider } from '@/components/ui/toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { MockGate } from './mock-gate';
 import { getQueryClient } from '@/lib/api/query-client';
+import { publicEnv } from '@/lib/env/public';
 
 const THEME_STORAGE_KEY = 'sightline.theme';
 const THEMES = ['light', 'dark'];
@@ -19,7 +21,7 @@ const DEFAULT_THEME = 'system';
 /**
  * Everything a client component may rely on, in one place: the theme class on <html>, the query cache,
  * URL state, toasts, the shared tooltip delay and the live regions. The message catalog is provided by the root layout, which is a
- * Server Component and hands the messages down.
+ * Server Component and hands the messages down. With API mocking on, the page waits for the mock worker.
  */
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>): ReactNode {
   const t = useTranslations('common');
@@ -38,7 +40,11 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>): R
         <NuqsAdapter>
           <ToastProvider>
             <TooltipProvider>
-              {children}
+              {publicEnv.NEXT_PUBLIC_API_MOCKING === 'off' ? (
+                children
+              ) : (
+                <MockGate mode={publicEnv.NEXT_PUBLIC_API_MOCKING}>{children}</MockGate>
+              )}
               <Toaster label={t('notifications')} closeLabel={t('close')} />
             </TooltipProvider>
             <LiveRegions />

@@ -2,9 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 
 import { api, unwrap } from './client';
-import { setupApiServer } from '@/test/api-server';
-
-const server = setupApiServer();
+import { server } from '@/test/msw';
 
 /*
  * The browser client in a DOM: its base is the page's origin (http://localhost:3000 under jsdom), so the
