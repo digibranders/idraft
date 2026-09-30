@@ -155,7 +155,14 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
         )
 
     async def handle_unexpected(request: Request, error: Exception) -> JSONResponse:
-        _log.error("unhandled exception", exc_info=error, route=_route_template(request))
+        # Starlette runs this handler outside the middleware stack, after the request id has been
+        # unbound from the log context, so it is passed explicitly.
+        _log.error(
+            "unhandled exception",
+            exc_info=error,
+            route=_route_template(request),
+            request_id=_request_id(request),
+        )
         return problem_response(
             request,
             app_origin=app_origin,
