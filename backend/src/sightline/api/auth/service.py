@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import ipaddress
 import json
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -65,6 +64,7 @@ from sightline.api.problems import (
     UnauthenticatedError,
     WeakPasswordProblemError,
 )
+from sightline.api.request_info import RequestInfo
 from sightline.db.engine import user_transaction
 from sightline.providers.email import EmailMessage, EmailSender
 
@@ -88,32 +88,6 @@ _log = structlog.get_logger(__name__)
 
 class _SessionEndedError(Exception):
     """The session being replaced was revoked meanwhile. Aborts the surrounding transaction."""
-
-
-@dataclass(frozen=True, slots=True)
-class RequestInfo:
-    """Where a request came from, for throttling and the audit log."""
-
-    ip: str | None
-    user_agent: str | None
-    request_id: str | None
-
-    @property
-    def throttle_ip(self) -> str:
-        return self.ip or "unknown"
-
-
-def request_info(
-    *, client_host: str | None, user_agent: str | None, request_id: str | None
-) -> RequestInfo:
-    """Build RequestInfo from what the server reports. An address that is not an IP is dropped."""
-    ip: str | None = None
-    if client_host is not None:
-        try:
-            ip = str(ipaddress.ip_address(client_host))
-        except ValueError:
-            ip = None
-    return RequestInfo(ip=ip, user_agent=user_agent, request_id=request_id)
 
 
 @dataclass(frozen=True, slots=True)

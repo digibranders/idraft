@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sightline.api.auth import passwords, repository
 from sightline.api.auth.passwords import hash_password
-from sightline.api.auth.service import request_info
 from sightline.api.main import create_app
+from sightline.api.request_info import request_info
 from sightline.api.resources import Resources
 from sightline.config.logging import configure_logging
 from sightline.config.settings import Settings

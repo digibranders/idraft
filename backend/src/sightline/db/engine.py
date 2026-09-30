@@ -24,6 +24,9 @@ from sightline.config.settings import Settings
 
 POOL_TIMEOUT_SECONDS = 5.0
 CONNECT_TIMEOUT_SECONDS = 5.0
+# How long a statement waits for a row another transaction holds. Well inside the statement
+# timeout: a request that cannot get its lock is told to try again, not left to time out.
+LOCK_TIMEOUT = "3s"
 # Both settings are written in every scoped transaction, the unused one as '' (which the policies
 # read as "none"). A value left on a pooled connection by an earlier transaction can then never
 # widen what this one sees.
@@ -48,6 +51,7 @@ def create_engine(settings: Settings) -> AsyncEngine:
             "timeout": CONNECT_TIMEOUT_SECONDS,
             "server_settings": {
                 "statement_timeout": settings.db_statement_timeout,
+                "lock_timeout": LOCK_TIMEOUT,
                 "application_name": f"sightline-{settings.process_role}",
             },
         },

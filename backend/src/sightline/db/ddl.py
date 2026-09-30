@@ -66,8 +66,10 @@ def tenant_isolation(
 ) -> list[str]:
     """Enable row-level security and add the `tenant_isolation` policy.
 
-    A row is writable only for the workspace set on the transaction. `also_visible_when` widens
-    what can be read (for example a user's own memberships), never what can be written.
+    A row can be inserted or changed only into the workspace set on the transaction.
+    `also_visible_when` widens what can be read, for example a user's own memberships. It also
+    widens what a DELETE can reach, because a policy's USING clause is all a DELETE is checked
+    against: statements on such a table must name the workspace themselves.
     """
     table = _table(table)
     if not _IDENTIFIER.fullmatch(column):

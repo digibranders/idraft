@@ -25,7 +25,7 @@ from sightline.api.auth.passwords import (
     check_policy,
     hash_password,
 )
-from sightline.api.schemas.auth import Email, Name
+from sightline.api.schemas.common import Email, Name
 from sightline.config.settings import load_migrator_settings
 
 CONNECT_TIMEOUT_SECONDS = 5.0

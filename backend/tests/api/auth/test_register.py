@@ -12,10 +12,9 @@ import httpx
 import pytest
 
 from sightline.api.auth import passwords
-from sightline.api.auth.service import request_info
 from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
+from sightline.api.request_info import request_info
 from sightline.config.logging import configure_logging
-from tests.api.auth.conftest import AppFactory
 from tests.api.auth.support import (
     PASSWORD,
     RecordingEmailSender,
@@ -27,6 +26,7 @@ from tests.api.auth.support import (
     make_user,
     new_email,
 )
+from tests.api.conftest import AppFactory
 from tests.conftest import PostgresServer
 
 REGISTER = "/api/v1/auth/register"

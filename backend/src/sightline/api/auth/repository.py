@@ -223,6 +223,7 @@ class UserRecord:
     image: str | None
     password_hash: str
     email_verified_at: datetime | None
+    is_platform_operator: bool
     disabled_at: datetime | None
     created_at: datetime
 
@@ -234,6 +235,7 @@ _USER_COLUMNS = (
     users.c.image,
     users.c.password_hash,
     users.c.email_verified_at,
+    users.c.is_platform_operator,
     users.c.disabled_at,
     users.c.created_at,
 )
@@ -248,6 +250,7 @@ def _user_record(row: Row[tuple[object, ...]]) -> UserRecord:
         image=fields["image"],
         password_hash=fields["password_hash"],
         email_verified_at=fields["email_verified_at"],
+        is_platform_operator=fields["is_platform_operator"],
         disabled_at=fields["disabled_at"],
         created_at=fields["created_at"],
     )

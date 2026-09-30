@@ -532,7 +532,7 @@ The same script, unchanged, is mounted into the test containers, the development
 | Role | Attributes | Grants | Role-level settings |
 |---|---|---|---|
 | `migrator` | LOGIN; not a superuser | owns the database and schemas `core`, `seo`, `ai`, `fp`, `ops`, `auth`; DDL | `lock_timeout = '2s'`, `statement_timeout = '15min'` |
-| `app_api` | LOGIN, NOBYPASSRLS | used by `api`: the table and column grants of doc 04 section 13.1 (RLS enforced on tenant tables) | `statement_timeout = '15s'` |
+| `app_api` | LOGIN, NOBYPASSRLS | used by `api`: the table and column grants of doc 04 section 13.1 (RLS enforced on tenant tables) | `statement_timeout = '15s'`; the application also sets `lock_timeout = '3s'` on each connection, so a request that cannot get a row lock is answered `409 conflict` and not left to time out |
 | `app_worker` | LOGIN, BYPASSRLS | used by `worker`: the table and column grants of doc 04 section 13.1; `pg_read_all_stats` | `statement_timeout = '120s'` |
 | `backup` | LOGIN, BYPASSRLS; no password | `pg_read_all_data` (read-only) | none (a dump can take many minutes) |
 

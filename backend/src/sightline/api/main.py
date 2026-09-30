@@ -22,9 +22,15 @@ from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.document import router as document_router
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
+from sightline.api.projects.routes import router as projects_router
+from sightline.api.projects.service import ProjectService
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
 from sightline.api.schema import install_openapi
+from sightline.api.workspaces.invitations import InvitationService
+from sightline.api.workspaces.members import MemberService
+from sightline.api.workspaces.routes import router as workspaces_router
+from sightline.api.workspaces.service import WorkspaceService
 from sightline.config.logging import configure_logging
 from sightline.config.sentry import init_sentry
 from sightline.config.settings import Settings, load_settings
@@ -83,6 +89,7 @@ def create_app(
                 else settings.email_api_key.get_secret_value(),
                 sender=settings.email_from,
             )
+            throttle = LoginThrottle(redis)
             session_store = SessionStore(
                 sessions, redis, cache_key=derive_key(settings.totp_key, SESSION_CACHE_KEY_LABEL)
             )
@@ -98,12 +105,23 @@ def create_app(
                 auth=AuthService(
                     sessions=sessions,
                     store=session_store,
-                    throttle=LoginThrottle(redis),
+                    throttle=throttle,
                     breached=BreachedPasswords(http) if settings.breached_password_check else None,
                     totp=TotpCipher(derive_key(settings.totp_key, TOTP_SECRET_KEY_LABEL)),
                     email=email,
                     app_origin=settings.app_origin,
                     registration=settings.registration,
+                ),
+                workspaces=WorkspaceService(
+                    sessions=sessions, throttle=throttle, registration=settings.registration
+                ),
+                members=MemberService(sessions=sessions),
+                projects=ProjectService(sessions=sessions),
+                invitations=InvitationService(
+                    sessions=sessions,
+                    throttle=throttle,
+                    email=email,
+                    app_origin=settings.app_origin,
                 ),
             )
             yield
@@ -126,6 +144,8 @@ def create_app(
     register_problem_handlers(app, app_origin=settings.app_origin)
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(workspaces_router)
+    app.include_router(projects_router)
     app.include_router(document_router)
     install_openapi(app)
     return app

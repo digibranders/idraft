@@ -9,7 +9,9 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.json_schema import SkipJsonSchema
+from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
@@ -44,6 +46,10 @@ class ValidationItem(BaseModel):
     message: str
 
 
+def _no_default(schema: dict[str, Any]) -> None:
+    schema.pop("default", None)
+
+
 class Problem(BaseModel):
     """The body of every error response. Codes may add members, documented per route."""
 
@@ -52,11 +58,14 @@ class Problem(BaseModel):
     type: str
     title: str
     status: int
-    detail: str | None = None
+    # Left out of a body when there is none, never sent as null: optional, with no default.
+    detail: str | SkipJsonSchema[None] = Field(default=None, json_schema_extra=_no_default)
     instance: str
     code: str
     request_id: str
-    errors: list[ValidationItem] | None = None
+    errors: list[ValidationItem] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=_no_default
+    )
 
 
 class ProblemError(Exception):
@@ -138,8 +147,18 @@ class SecondFactorRequiredError(ProblemError):
     status, code, title = 403, "second_factor_required", "A two-factor code is required"
 
 
+class WorkspaceSuspendedError(ProblemError):
+    """A suspended workspace can be read and not changed."""
+
+    status, code, title = 403, "workspace_suspended", "Workspace is suspended"
+
+
 class RegistrationClosedError(ProblemError):
     status, code, title = 403, "registration_closed", "Registration is by invitation"
+
+
+class EmailNotVerifiedError(ProblemError):
+    status, code, title = 403, "email_not_verified", "Email address is not verified"
 
 
 class NotFoundError(ProblemError):
@@ -154,12 +173,30 @@ class DuplicateError(ProblemError):
     status, code, title = 409, "duplicate", "Already exists"
 
 
+class InvalidStateTransitionError(ProblemError):
+    status, code, title = 409, "invalid_state_transition", "Not possible in the current state"
+
+
+class LastOwnerError(ProblemError):
+    status, code, title = 409, "last_owner", "A workspace needs an owner"
+
+
 class TotpAlreadyEnabledError(ProblemError):
     status, code, title = 409, "totp_already_enabled", "Two-factor is already on"
 
 
 class TotpNotEnabledError(ProblemError):
     status, code, title = 409, "totp_not_enabled", "Two-factor is not on"
+
+
+class InvitationExpiredError(ProblemError):
+    status, code, title = 410, "invitation_expired", "Invitation has expired"
+
+
+class QuotaExceededError(ProblemError):
+    """Carries `limit`, `used` and `requested`."""
+
+    status, code, title = 422, "quota_exceeded", "Workspace limit reached"
 
 
 class WeakPasswordProblemError(ProblemError):
@@ -174,6 +211,34 @@ class RateLimitedError(ProblemError):
 
 class ServiceUnavailableError(ProblemError):
     status, code, title = 503, "service_unavailable", "Service unavailable"
+
+
+class QueryTimeoutError(ProblemError):
+    status, code, title = 503, "query_timeout", "The request took too long"
+
+
+# What PostgreSQL reports when a statement could not finish because of other work, not because
+# of a fault: the row is locked by another request (55P03), two requests waited on each other
+# and this one was chosen to give way (40P01), or the statement ran into its timeout (57014).
+_LOCK_NOT_AVAILABLE = "55P03"
+_DEADLOCK_DETECTED = "40P01"
+_QUERY_CANCELED = "57014"
+
+
+def _contention(error: DBAPIError) -> ProblemError | None:
+    """The problem to answer a database error with, when it says "busy" and not "broken"."""
+    state = getattr(error.orig, "sqlstate", None)
+    if state in (_LOCK_NOT_AVAILABLE, _DEADLOCK_DETECTED):
+        return ConflictError("Another request is changing this. Try again.")
+    if state == _QUERY_CANCELED:
+        return QueryTimeoutError("Try again, with a narrower request if it has filters.")
+    return None
+
+
+def invalid_field(path: str, *, code: str, message: str) -> RequestValidationError:
+    """A `422 validation_failed` for a body field that only the database can judge, in the same
+    shape as the errors Pydantic finds."""
+    return RequestValidationError([{"loc": ("body", path), "type": code, "msg": message}])
 
 
 def _request_id(request: Request) -> str:
@@ -300,9 +365,10 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
         # Starlette runs this handler outside the middleware stack, after the request id and the
         # caller's id have been unbound from the log context, so they are passed explicitly.
         context = {"route": route_template(request.scope), "request_id": _request_id(request)}
-        user_id = getattr(request.state, "user_id", None)
-        if isinstance(user_id, str):
-            context["user_id"] = user_id
+        for name in ("user_id", "workspace_id"):
+            value = getattr(request.state, name, None)
+            if isinstance(value, str):
+                context[name] = value
         if isinstance(error, ResponseValidationError):
             # Its message quotes the value the handler returned, which may be tenant content.
             _log.error(
@@ -320,7 +386,19 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
             title="Internal error",
         )
 
+    async def handle_database(request: Request, error: Exception) -> JSONResponse:
+        problem = _contention(error) if isinstance(error, DBAPIError) else None
+        if problem is None:
+            # Not contention: raised again, so it reaches the catch-all and the error tracker
+            # like any other fault.
+            raise error
+        _log.warning(
+            "database contention", sqlstate=getattr(getattr(error, "orig", None), "sqlstate", None)
+        )
+        return await handle_problem(request, problem)
+
     app.add_exception_handler(ProblemError, handle_problem)
+    app.add_exception_handler(DBAPIError, handle_database)
     app.add_exception_handler(RequestValidationError, handle_validation)
     app.add_exception_handler(HTTPException, handle_http)
     app.add_exception_handler(Exception, handle_unexpected)

@@ -11,7 +11,9 @@ from typing import Annotated
 import structlog
 from fastapi import Depends, Request, Response
 
-from sightline.api.auth.sessions import ExpiredSession, SessionContext
+from sightline.api.access import AccessRule, declare
+from sightline.api.auth.sessions import REAUTH_URL, ExpiredSession, SessionContext
+from sightline.api.pagination import reject_unknown_query
 from sightline.api.problems import (
     FreshSessionRequiredError,
     SessionExpiredError,
@@ -20,7 +22,6 @@ from sightline.api.problems import (
 from sightline.api.resources import Resources, get_resources
 
 SESSION_COOKIE = "__Host-session"
-REAUTH_URL = "/api/v1/me/reauthenticate"
 # What new_token() produces. Anything else is not looked up.
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}", re.ASCII)
 
@@ -62,6 +63,8 @@ async def _load(request: Request, resources: Resources, *, allow_pending: bool) 
         raise UnauthenticatedError
     if context.state == "pending_totp" and not allow_pending:
         raise UnauthenticatedError("Two-factor verification is not complete.")
+    # After the session check, so an anonymous caller learns nothing about the route's parameters.
+    reject_unknown_query(request)
     return context
 
 
@@ -81,6 +84,7 @@ def _identified(request: Request, context: SessionContext) -> Iterator[None]:
         structlog.contextvars.reset_contextvars(**tokens)
 
 
+@declare(AccessRule("authenticated"))
 async def current_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext]:
@@ -90,6 +94,7 @@ async def current_session(
         yield context
 
 
+@declare(AccessRule("authenticated"))
 async def pending_or_active_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext]:
@@ -99,10 +104,12 @@ async def pending_or_active_session(
         yield context
 
 
+@declare(AccessRule("public"))
 async def optional_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext | None]:
-    """The session if the cookie names a live one, pending or active. Never refuses."""
+    """The session if the cookie names a live one, pending or active. Never refuses one."""
+    reject_unknown_query(request)
     token = session_token(request)
     context: SessionContext | None = None
     if token is not None:
@@ -117,6 +124,7 @@ async def optional_session(
         yield context
 
 
+@declare(AccessRule("authenticated", fresh=True))
 def fresh_session(
     context: Annotated[SessionContext, Depends(current_session)],
 ) -> SessionContext:

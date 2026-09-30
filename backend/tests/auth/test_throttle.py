@@ -153,6 +153,29 @@ async def test_allow_counts_per_subject_within_a_window(redis: Redis) -> None:
     assert 3590 <= await redis.ttl(key) <= 3600
 
 
+async def test_several_allowances_are_counted_together_or_not_at_all(redis: Redis) -> None:
+    throttle = LoginThrottle(redis)
+
+    async def invite(recipient: str) -> bool:
+        return await throttle.allow_all(
+            [("both:inviter", "ann", 4), ("both:workspace", "acme", 5), ("both:to", recipient, 2)],
+            window_seconds=3600,
+        )
+
+    # The recipient's allowance refuses the third and fourth; they cost the other two nothing.
+    assert [await invite("bo") for _ in range(4)] == [True, True, False, False]
+    # So the inviter has two of four left, and then it is the inviter's that refuses.
+    assert [await invite(name) for name in ("cy", "di", "ed")] == [True, True, False]
+    # The counters share a window with the single allowance of the same scope and subject.
+    assert not await throttle.allow("both:inviter", "ann", limit=4, window_seconds=3600)
+    assert await throttle.allow("both:workspace", "acme", limit=5, window_seconds=3600)
+    ttls = [await redis.ttl(key) for key in await redis.keys("throttle:both:*")]
+    # One for the inviter, one for the workspace, one per recipient that was counted: the
+    # refused fifth left none.
+    assert len(ttls) == 5
+    assert all(3590 <= ttl <= 3600 for ttl in ttls)
+
+
 async def test_a_redis_outage_is_reported_not_ignored(black_hole: str) -> None:
     client = Redis.from_url(
         f"redis://{black_hole}/0", socket_timeout=0.2, socket_connect_timeout=0.2
@@ -169,6 +192,8 @@ async def test_a_redis_outage_is_reported_not_ignored(black_hole: str) -> None:
             await throttle.clear(email=EMAIL)
         with pytest.raises(ThrottleUnavailableError):
             await throttle.allow("x", "y", limit=1, window_seconds=1)
+        with pytest.raises(ThrottleUnavailableError):
+            await throttle.allow_all([("x", "y", 1)], window_seconds=1)
     finally:
         await client.aclose()
 

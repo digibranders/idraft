@@ -17,7 +17,7 @@ from sightline.api.main import create_app
 from sightline.config.settings import Settings
 
 
-def _placeholder_settings() -> Settings:
+def placeholder_settings() -> Settings:
     return Settings(
         process_role="cli",
         release_sha="openapi",
@@ -33,7 +33,7 @@ def _placeholder_settings() -> Settings:
 
 
 def build_openapi() -> dict[str, Any]:
-    return create_app(_placeholder_settings()).openapi()
+    return create_app(placeholder_settings()).openapi()
 
 
 def render_openapi() -> str:

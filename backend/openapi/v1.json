@@ -14,6 +14,89 @@
         "title": "Accepted",
         "type": "object"
       },
+      "AcceptedInvitation": {
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/Member"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/JoinedWorkspace",
+            "description": "Where the invitation led, to send the user."
+          }
+        },
+        "required": [
+          "workspace",
+          "member"
+        ],
+        "title": "AcceptedInvitation",
+        "type": "object"
+      },
+      "AcceptedInvitationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AcceptedInvitation"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AcceptedInvitationResponse",
+        "type": "object"
+      },
+      "DomainRef": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "category_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "seed_list",
+                  "rule",
+                  "llm",
+                  "manual",
+                  "tenant_override"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Source"
+          },
+          "domain_id": {
+            "title": "Domain Id",
+            "type": "integer"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain_id",
+          "host",
+          "registrable_domain",
+          "category",
+          "category_source"
+        ],
+        "title": "DomainRef",
+        "type": "object"
+      },
       "Done": {
         "properties": {
           "status": {
@@ -54,6 +137,183 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "Invitation": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "title": "Invitation Id",
+            "type": "string"
+          },
+          "invited_by": {
+            "$ref": "#/components/schemas/UserRef"
+          },
+          "project_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null means every project",
+            "title": "Project Ids"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "email",
+          "role",
+          "project_ids",
+          "status",
+          "invited_by",
+          "expires_at",
+          "created_at"
+        ],
+        "title": "Invitation",
+        "type": "object"
+      },
+      "InvitationAccept": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "description": "From the invitation link.",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "InvitationAccept",
+        "type": "object"
+      },
+      "InvitationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "project_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Ids"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
+        "title": "InvitationCreate",
+        "type": "object"
+      },
+      "InvitationPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Invitation"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "InvitationPage",
+        "type": "object"
+      },
+      "InvitationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Invitation"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "InvitationResponse",
+        "type": "object"
+      },
+      "JoinedWorkspace": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "name",
+          "slug"
+        ],
+        "title": "JoinedWorkspace",
         "type": "object"
       },
       "Me": {
@@ -192,6 +452,11 @@
             ],
             "title": "Image"
           },
+          "is_platform_operator": {
+            "description": "An operator of this installation. Not a role in any workspace.",
+            "title": "Is Platform Operator",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -213,6 +478,7 @@
           "email_verified",
           "image",
           "two_factor_enabled",
+          "is_platform_operator",
           "created_at"
         ],
         "title": "MeUser",
@@ -250,6 +516,154 @@
           "status"
         ],
         "title": "MeWorkspace",
+        "type": "object"
+      },
+      "Member": {
+        "properties": {
+          "joined_at": {
+            "format": "date-time",
+            "title": "Joined At",
+            "type": "string"
+          },
+          "last_active_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When a signed-in session of theirs was last used, in any workspace. null when they are signed out everywhere, and unless the caller manages members.",
+            "title": "Last Active At"
+          },
+          "project_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null means every project, an empty list none",
+            "title": "Project Ids"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "two_factor_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null unless the caller manages members: it says who is worth phishing.",
+            "title": "Two Factor Enabled"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserRef"
+          }
+        },
+        "required": [
+          "user",
+          "role",
+          "project_ids",
+          "two_factor_enabled",
+          "joined_at",
+          "last_active_at"
+        ],
+        "title": "Member",
+        "type": "object"
+      },
+      "MemberPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "MemberPage",
+        "type": "object"
+      },
+      "MemberResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Member"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "MemberResponse",
+        "type": "object"
+      },
+      "MemberUpdate": {
+        "additionalProperties": false,
+        "description": "At least one field. `project_ids: null` gives every project, an empty list none.",
+        "properties": {
+          "project_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Ids"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "title": "MemberUpdate",
+        "type": "object"
+      },
+      "OffsetPageInfo": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "offset",
+          "limit",
+          "total"
+        ],
+        "title": "OffsetPageInfo",
         "type": "object"
       },
       "PasswordChangeRequest": {
@@ -304,31 +718,15 @@
             "type": "string"
           },
           "detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Detail"
+            "title": "Detail",
+            "type": "string"
           },
           "errors": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ValidationItem"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Errors"
+            "items": {
+              "$ref": "#/components/schemas/ValidationItem"
+            },
+            "title": "Errors",
+            "type": "array"
           },
           "instance": {
             "title": "Instance",
@@ -364,7 +762,7 @@
       },
       "ProfileUpdate": {
         "additionalProperties": false,
-        "description": "At least one member. `image: null` removes the picture; `name` cannot be null.",
+        "description": "At least one field. `image: null` removes the picture; `name` cannot be null.",
         "properties": {
           "image": {
             "anyOf": [
@@ -380,20 +778,306 @@
             "title": "Image"
           },
           "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "ProfileUpdate",
+        "type": "object"
+      },
+      "Project": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
             "anyOf": [
               {
-                "maxLength": 120,
-                "minLength": 1,
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_version": {
+            "title": "Data Version",
+            "type": "integer"
+          },
+          "deep_check_weekday": {
+            "description": "Day of the weekly top-100 check. 0 is Sunday.",
+            "title": "Deep Check Weekday",
+            "type": "integer"
+          },
+          "default_language_code": {
+            "anyOf": [
+              {
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Name"
+            "title": "Default Language Code"
+          },
+          "default_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Location Id"
+          },
+          "entity_config_version": {
+            "title": "Entity Config Version",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "primary_domain": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DomainRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "title": "Workspace Id",
+            "type": "string"
           }
         },
-        "title": "ProfileUpdate",
+        "required": [
+          "project_id",
+          "workspace_id",
+          "name",
+          "slug",
+          "primary_domain",
+          "default_location_id",
+          "default_language_code",
+          "timezone",
+          "deep_check_weekday",
+          "status",
+          "data_version",
+          "entity_config_version",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Project",
+        "type": "object"
+      },
+      "ProjectChangeMeta": {
+        "properties": {
+          "warnings": {
+            "items": {
+              "const": "timezone_change_applies_forward",
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "warnings"
+        ],
+        "title": "ProjectChangeMeta",
+        "type": "object"
+      },
+      "ProjectChanged": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ProjectChangeMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "ProjectChanged",
+        "type": "object"
+      },
+      "ProjectCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "deep_check_weekday": {
+            "default": 1,
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Deep Check Weekday",
+            "type": "integer"
+          },
+          "default_language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Language Code"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An IANA time zone name. Defaults to the workspace's.",
+            "title": "Timezone"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "ProjectCreate",
+        "type": "object"
+      },
+      "ProjectPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "ProjectPage",
+        "type": "object"
+      },
+      "ProjectResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Project"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectResponse",
+        "type": "object"
+      },
+      "ProjectUpdate": {
+        "additionalProperties": false,
+        "description": "At least one member. `default_language_code: null` removes it; the others cannot be null.",
+        "properties": {
+          "deep_check_weekday": {
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Deep Check Weekday",
+            "type": "integer"
+          },
+          "default_language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Language Code"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "title": "ProjectUpdate",
         "type": "object"
       },
       "Readiness": {
@@ -564,6 +1248,57 @@
         ],
         "title": "RegisterResponse",
         "type": "object"
+      },
+      "ReservedProjectSlug": {
+        "description": "Words a slug cannot be: they are routes of the web app.",
+        "enum": [
+          "billing",
+          "costs",
+          "members",
+          "new",
+          "onboarding",
+          "ops",
+          "projects",
+          "settings"
+        ],
+        "type": "string"
+      },
+      "ReservedWorkspaceSlug": {
+        "description": "Words a slug cannot be: they are routes of the web app.",
+        "enum": [
+          "account",
+          "admin",
+          "api",
+          "assets",
+          "design-system",
+          "docs",
+          "favicon",
+          "forgot-password",
+          "health",
+          "healthz",
+          "help",
+          "icon",
+          "invite",
+          "login",
+          "logout",
+          "new",
+          "null",
+          "onboarding",
+          "public",
+          "reset-password",
+          "robots",
+          "settings",
+          "sign-in",
+          "sign-up",
+          "signup",
+          "sitemap",
+          "static",
+          "two-factor",
+          "undefined",
+          "verify-email",
+          "www"
+        ],
+        "type": "string"
       },
       "Role": {
         "enum": [
@@ -755,6 +1490,30 @@
         "title": "TotpVerifyRequest",
         "type": "object"
       },
+      "UserRef": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "email"
+        ],
+        "title": "UserRef",
+        "type": "object"
+      },
       "ValidationItem": {
         "properties": {
           "code": {
@@ -797,6 +1556,179 @@
           "token"
         ],
         "title": "VerifyEmailRequest",
+        "type": "object"
+      },
+      "Workspace": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "logo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plan_code": {
+            "title": "Plan Code",
+            "type": "string"
+          },
+          "purge_after": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purge After"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended",
+              "deleting"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "name",
+          "slug",
+          "logo",
+          "plan_code",
+          "timezone",
+          "status",
+          "created_at",
+          "purge_after"
+        ],
+        "title": "Workspace",
+        "type": "object"
+      },
+      "WorkspaceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "UTC",
+            "description": "An IANA time zone name.",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "WorkspaceCreate",
+        "type": "object"
+      },
+      "WorkspaceList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Workspace"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "WorkspaceList",
+        "type": "object"
+      },
+      "WorkspaceResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Workspace"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "WorkspaceResponse",
+        "type": "object"
+      },
+      "WorkspaceUpdate": {
+        "additionalProperties": false,
+        "description": "At least one field. `logo: null` removes the logo; the others cannot be null.",
+        "properties": {
+          "logo": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "pattern": "^https://[^\\s<>\\\"'`\\\\]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "title": "WorkspaceUpdate",
         "type": "object"
       }
     }
@@ -1469,6 +2401,48 @@
         ]
       }
     },
+    "/api/v1/invitations/accept": {
+      "post": {
+        "description": "For a signed-in account whose verified address is the one the invitation was sent to. Accepting again returns the same membership.",
+        "operationId": "accept_invitation_api_v1_invitations_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationAccept"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedInvitationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Join the workspace an invitation link invites to",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "operationId": "me_api_v1_me_get",
@@ -1578,6 +2552,770 @@
         "summary": "Re-enter a credential before a sensitive action",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/workspaces": {
+      "get": {
+        "operationId": "list_workspaces_api_v1_workspaces_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The workspaces the caller belongs to",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "post": {
+        "description": "The caller becomes its owner. Needs a verified email address. While registration is by invitation, only a platform operator may create a workspace.",
+        "operationId": "create_workspace_api_v1_workspaces_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Create a workspace",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}": {
+      "get": {
+        "operationId": "get_workspace_api_v1_workspaces__workspace_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One workspace",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "patch": {
+        "operationId": "update_workspace_api_v1_workspaces__workspace_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change a workspace's name, slug, logo or time zone",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/invitations": {
+      "get": {
+        "operationId": "list_invitations_api_v1_workspaces__workspace_id__invitations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The invitations sent for a workspace",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "post": {
+        "description": "Sends a link that works for 7 days and only for an account with this address. Only an owner can invite an owner, and inviting an owner or admin needs a fresh session.",
+        "operationId": "create_invitation_api_v1_workspaces__workspace_id__invitations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Invite someone by email",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/invitations/{invitation_id}": {
+      "delete": {
+        "description": "The link stops working. Withdrawing twice is not an error.",
+        "operationId": "cancel_invitation_api_v1_workspaces__workspace_id__invitations__invitation_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invitation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Withdraw a pending invitation",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/members": {
+      "get": {
+        "operationId": "list_members_api_v1_workspaces__workspace_id__members_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The members of a workspace",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/members/{user_id}": {
+      "delete": {
+        "description": "Needs a fresh session. The member loses access with their next request.",
+        "operationId": "remove_member_api_v1_workspaces__workspace_id__members__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Remove a member",
+        "tags": [
+          "workspaces"
+        ]
+      },
+      "patch": {
+        "description": "Needs a fresh session. Only an owner can grant the owner role or change an owner. The last owner cannot be demoted.",
+        "operationId": "update_member_api_v1_workspaces__workspace_id__members__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change a member's role or project scope",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects": {
+      "get": {
+        "operationId": "list_projects_api_v1_workspaces__workspace_id__projects_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated statuses. Default: `active,paused`.",
+            "in": "query",
+            "name": "filter[status_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "maxItems": 10,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated statuses. Default: `active,paused`.",
+              "title": "Filter[Status In]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The projects of a workspace that the caller can see",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "description": "Counts against the workspace's project limit, as every active or paused project does; an archived one does not. A member limited to some projects cannot create one.",
+        "operationId": "create_project_api_v1_workspaces__workspace_id__projects_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Create a project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}": {
+      "get": {
+        "operationId": "get_project_api_v1_workspaces__workspace_id__projects__project_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "description": "A new time zone applies to business dates from now on; dates already computed stay, and the response says so in `meta.warnings`. Bringing a project back from the archive needs a free slot in the workspace's project limit.",
+        "operationId": "update_project_api_v1_workspaces__workspace_id__projects__project_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectChanged"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change a project",
+        "tags": [
+          "projects"
         ]
       }
     }

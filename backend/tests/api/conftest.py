@@ -12,6 +12,7 @@ from sightline.api.main import create_app
 from sightline.api.resources import Resources
 from sightline.config.settings import Settings
 from tests.api.auth.support import RecordingEmailSender, probes
+from tests.api.workspaces.support import workspace_probes
 from tests.conftest import BASE_URL
 
 
@@ -24,6 +25,7 @@ def mailbox() -> RecordingEmailSender:
 async def auth_app(app_settings: Settings, mailbox: RecordingEmailSender) -> AsyncIterator[FastAPI]:
     application = create_app(app_settings, email_sender=mailbox)
     application.include_router(probes)
+    application.include_router(workspace_probes)
     async with LifespanManager(application):
         # Throttle counters and cached sessions of earlier tests must not decide this one.
         await application.state.resources.redis.flushdb()
@@ -64,6 +66,7 @@ def client_for(app_settings: Settings, mailbox: RecordingEmailSender) -> AppFact
             http_transport=http_transport,
         )
         application.include_router(probes)
+        application.include_router(workspace_probes)
         async with LifespanManager(application):
             await application.state.resources.redis.flushdb()
             transport = httpx.ASGITransport(app=application, raise_app_exceptions=False)

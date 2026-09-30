@@ -48,18 +48,20 @@ async def make_user(
     name: str = "Jane Doe",
     email: str | None = None,
     password_hash: str = PASSWORD_HASH,
+    operator: bool = False,
 ) -> User:
     address = email or f"user-{uuid.uuid4().hex[:12]}@client.example"
     db = await asyncpg.connect(pg.url())
     try:
         user_id: uuid.UUID = await db.fetchval(
-            "INSERT INTO auth.users (email, name, password_hash, email_verified_at, disabled_at) "
-            "VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            "INSERT INTO auth.users (email, name, password_hash, email_verified_at, disabled_at, "
+            "is_platform_operator) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
             address,
             name,
             password_hash,
             datetime.now(UTC) if verified else None,
             datetime.now(UTC) if disabled else None,
+            operator,
         )
     finally:
         await db.close()
