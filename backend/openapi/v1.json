@@ -1541,7 +1541,7 @@
     },
     "/api/v1/me/reauthenticate": {
       "post": {
-        "description": "The session cookie is replaced and the new session is fresh for 10 minutes.",
+        "description": "The session cookie is replaced and the new session is fresh for 10 minutes. A user with two-factor on must give `totp_code`; the password alone is refused.",
         "operationId": "reauthenticate_api_v1_me_reauthenticate_post",
         "requestBody": {
           "content": {

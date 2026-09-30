@@ -132,6 +132,12 @@ class TwoFactorRequiredForRoleError(ProblemError):
     status, code, title = 403, "two_factor_required_for_role", "This role must keep two-factor on"
 
 
+class SecondFactorRequiredError(ProblemError):
+    """Re-authentication with the password alone, by a user who has two-factor on."""
+
+    status, code, title = 403, "second_factor_required", "A two-factor code is required"
+
+
 class RegistrationClosedError(ProblemError):
     status, code, title = 403, "registration_closed", "Registration is by invitation"
 

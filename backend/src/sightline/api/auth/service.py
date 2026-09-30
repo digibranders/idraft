@@ -57,6 +57,7 @@ from sightline.api.problems import (
     NotFoundError,
     RateLimitedError,
     RegistrationClosedError,
+    SecondFactorRequiredError,
     ServiceUnavailableError,
     TotpAlreadyEnabledError,
     TotpNotEnabledError,
@@ -259,11 +260,15 @@ class AuthService:
             await self._sign_in_failed(email=email, user=user, reason="wrong_password", info=info)
             raise InvalidCredentialsError
 
-        await self._guard(self._throttle.success(email=email))
         new_hash = await self._hash(password) if needs_rehash(user.password_hash) else None
         signed_in = await self._open_session(user, password, new_hash, info, now)
         if signed_in is None:
             raise InvalidCredentialsError
+        if signed_in.status == "signed_in":
+            # Only a completed sign-in clears the failure count. With a second factor still
+            # owed, clearing it here would let someone who knows the password start over after
+            # every few wrong codes and guess the code without limit.
+            await self._guard(self._throttle.success(email=email))
         return signed_in
 
     async def _open_session(
@@ -531,6 +536,13 @@ class AuthService:
         user = await self._user(session)
         await self._refuse_if_locked(user.email, info)
         if password is not None:
+            async with self._sessions() as db, db.begin():
+                two_factor = await repository.has_confirmed_totp(db, user.id)
+            if two_factor:
+                # A fresh session may replace recovery codes and change the password. If the
+                # password alone could make it fresh, a stolen cookie plus the password would
+                # be enough to take the second factor away.
+                raise SecondFactorRequiredError
             rotated = await self._use_password(user, session, password, info, now)
         else:
             rotated = await self._use_second_factor(

@@ -360,7 +360,10 @@ async def me(session: CurrentSession, auth: Auth) -> MeResponse:
 @router.post(
     "/me/reauthenticate",
     summary="Re-enter a credential before a sensitive action",
-    description="The session cookie is replaced and the new session is fresh for 10 minutes.",
+    description=(
+        "The session cookie is replaced and the new session is fresh for 10 minutes. "
+        "A user with two-factor on must give `totp_code`; the password alone is refused."
+    ),
 )
 async def reauthenticate(
     body: ReauthenticateRequest,

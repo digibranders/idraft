@@ -759,3 +759,41 @@ async def test_two_factor_routes_refuse_an_account_disabled_a_moment_ago(
     assert (
         await api.post(REAUTH, json={"password": PASSWORD}, headers=cookie(token))
     ).status_code == 401
+
+
+async def test_signing_in_again_does_not_buy_more_guesses_at_the_code(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Someone who knows the password still gets five wrong codes, not five per sign-in."""
+    user = await make_user(migrated)
+    _, secret, _ = await _enrol(api, resources, migrated, user)
+    wrong = "000000" if _code(secret) != "000000" else "111111"
+
+    statuses = []
+    for _ in range(5):
+        pending = await _pending(api, user)
+        statuses.append(
+            (await api.post(VERIFY, json={"code": wrong}, headers=cookie(pending))).status_code
+        )
+    locked = await api.post(SIGN_IN, json={"email": user.email, "password": PASSWORD})
+
+    assert statuses == [401] * 5
+    assert locked.status_code == 429
+
+
+async def test_with_two_factor_on_the_password_alone_cannot_make_a_session_fresh(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """A stolen cookie plus the password must not be enough to replace the recovery codes."""
+    user = await make_user(migrated)
+    _, secret, _ = await _enrol(api, resources, migrated, user)
+    stale, _ = await open_session(resources, user)
+
+    refused = await api.post(REAUTH, json={"password": PASSWORD}, headers=cookie(stale))
+
+    assert (refused.status_code, refused.json()["code"]) == (403, "second_factor_required")
+    assert "set-cookie" not in refused.headers
+    assert (await api.post(RECOVERY, headers=cookie(stale))).status_code == 403
+    assert (await api.post(DISABLE, headers=cookie(stale))).status_code == 403
+    accepted = await api.post(REAUTH, json={"totp_code": _code(secret)}, headers=cookie(stale))
+    assert accepted.status_code == 200
