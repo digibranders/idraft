@@ -7,6 +7,7 @@ import sys
 
 import asyncpg
 import pytest
+from alembic import command
 from alembic.script import ScriptDirectory
 
 from sightline.db.migrate import (
@@ -66,6 +67,24 @@ def test_upgrade_creates_schemas_extensions_and_the_version_row(pg: PostgresServ
 def test_upgrade_is_idempotent(pg: PostgresServer) -> None:
     url = _fresh_database(pg, "migrate_twice")
     upgrade_to_head(url)
+    upgrade_to_head(url)
+    assert _version(url) == [migration_state().head]
+
+
+def test_the_history_can_be_walked_down_and_up_again(pg: PostgresServer) -> None:
+    """Downgrades are for local development, and they must still work."""
+    url = _fresh_database(pg, "migrate_walk")
+    upgrade_to_head(url)
+
+    command.downgrade(alembic_config(url), "0001")
+    tables = _query(
+        url,
+        "SELECT schemaname || '.' || tablename FROM pg_tables "
+        "WHERE schemaname IN ('auth', 'core', 'ops') AND tablename <> 'alembic_version'",
+    )
+    assert tables == []
+    assert _version(url) == ["0001"]
+
     upgrade_to_head(url)
     assert _version(url) == [migration_state().head]
 

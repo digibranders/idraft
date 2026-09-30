@@ -111,3 +111,67 @@ async def test_deleting_a_user_removes_their_sessions_and_memberships(
             user_id,
         )
     assert left == 0
+
+
+async def test_a_task_is_planned_once_per_idempotency_key(migrated: PostgresServer) -> None:
+    tenant = await seed_tenant(migrated, "ledger")
+    insert = (
+        "INSERT INTO ops.collection_tasks (created_at, run_id, workspace_id, project_id, workload, "
+        "subject_type, subject_id, idempotency_key, request_fingerprint, provider_code, "
+        "provider_endpoint, scheduled_for, status) VALUES (date_trunc('month', now()), $1, $2, $3, "
+        "'seo_rank', 'tracked_keyword', '7', $4, $4, 'dataforseo', 'serp', now(), 'pending') "
+        "ON CONFLICT (idempotency_key, created_at) DO NOTHING"
+    )
+    key = uuid.uuid4().bytes
+    arguments = (tenant.run_id, tenant.workspace_id, tenant.project_id, key)
+    async with scoped(migrated, "app_worker") as db:
+        first = await db.execute(insert, *arguments)
+        second = await db.execute(insert, *arguments)
+    assert (first, second) == ("INSERT 0 1", "INSERT 0 0")
+
+
+async def test_a_raw_payload_is_stored_once_per_content_hash(migrated: PostgresServer) -> None:
+    insert = (
+        "INSERT INTO ops.raw_payloads (storage, object_key, sha256, bytes_raw, bytes_stored, "
+        "compression, content_type, provider_code, provider_endpoint, fetched_at, retention_class) "
+        "VALUES ('r2', 'raw/v1/x', $1, 10, 5, 'zstd', 'application/json', 'dataforseo', 'serp', "
+        "now(), 'serp_raw')"
+    )
+    digest = uuid.uuid4().bytes + uuid.uuid4().bytes
+    async with scoped(migrated, "app_worker") as db:
+        await db.execute(insert, digest)
+        with pytest.raises(asyncpg.UniqueViolationError):
+            await db.execute(insert, digest)
+
+
+async def test_a_workspace_has_one_budget_per_scope(migrated: PostgresServer) -> None:
+    tenant = await seed_tenant(migrated, "budget")  # seeds a workspace-wide 'all' budget
+    insert = "INSERT INTO ops.budgets (workspace_id, workload, limit_usd) VALUES ($1, $2, 50)"
+    async with scoped(migrated, "superuser") as db:
+        await db.execute(insert, tenant.workspace_id, "seo_rank")
+        with pytest.raises(asyncpg.UniqueViolationError):  # NULL project ids are not distinct
+            await db.execute(insert, tenant.workspace_id, "all")
+
+
+async def test_a_schedule_is_planned_once_per_window(migrated: PostgresServer) -> None:
+    tenant = await seed_tenant(migrated, "window")
+    insert = (
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, schedule_id, workload, "
+        "window_start, window_end, trigger, status, config_snapshot) "
+        "VALUES ($1, $2, $3, 'seo_rank', '2026-10-01 02:00+00', '2026-10-01 08:00+00', "
+        "'schedule', 'planned', '{}')"
+    )
+    arguments = (tenant.workspace_id, tenant.project_id, tenant.schedule_id)
+    async with scoped(migrated, "superuser") as db:
+        await db.execute(insert, *arguments)
+        with pytest.raises(asyncpg.UniqueViolationError):
+            await db.execute(insert, *arguments)
+
+
+async def test_the_provider_registry_is_seeded(migrated: PostgresServer) -> None:
+    async with scoped(migrated, "app_api") as db:
+        rows = await db.fetch("SELECT code, kind FROM ops.providers ORDER BY code")
+    assert [(row["code"], row["kind"]) for row in rows] == [
+        ("dataforseo", "collection"),
+        ("internal", "internal_llm"),
+    ]
