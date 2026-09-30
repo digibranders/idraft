@@ -133,14 +133,15 @@ async def update_workspace(
 # Members
 
 
-def _member(record: MemberRecord) -> Member:
+def _member(record: MemberRecord, *, in_full: bool) -> Member:
+    """`in_full` adds what only someone who manages members, or the member themself, is shown."""
     return Member(
         user=UserRef(user_id=record.user_id, name=record.name, email=record.email),
         role=Role(record.role),
         project_ids=record.project_ids,
-        two_factor_enabled=record.two_factor_enabled,
+        two_factor_enabled=record.two_factor_enabled if in_full else None,
         joined_at=record.joined_at,
-        last_active_at=record.last_active_at,
+        last_active_at=record.last_active_at if in_full else None,
     )
 
 
@@ -148,7 +149,13 @@ def _member(record: MemberRecord) -> Member:
 async def list_members(access: MemberAccess, page: Offset, members: Members) -> MemberPage:
     records, total = await members.page(access, offset=page.offset, limit=page.limit)
     return MemberPage(
-        data=[_member(record) for record in records],
+        data=[
+            _member(
+                record,
+                in_full=access.holds(Permission.MEMBERS_MANAGE) or record.user_id == access.user_id,
+            )
+            for record in records
+        ],
         page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
     )
 
@@ -172,7 +179,7 @@ async def update_member(
         project_ids=body.project_ids,
         info=info,
     )
-    return MemberResponse(data=_member(record))
+    return MemberResponse(data=_member(record, in_full=True))
 
 
 @router.delete(
@@ -266,4 +273,4 @@ async def accept_invitation(
     body: InvitationAccept, session: CurrentSession, invitations: Invitations, info: Info
 ) -> MemberResponse:
     _, member = await invitations.accept(session=session, token=body.token, info=info)
-    return MemberResponse(data=_member(member))
+    return MemberResponse(data=_member(member, in_full=True))

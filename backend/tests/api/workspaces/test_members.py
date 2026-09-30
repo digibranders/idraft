@@ -6,7 +6,11 @@ import uuid
 import httpx
 import pytest
 
+from sightline.api.permissions import Role
+from sightline.api.problems import ForbiddenError, NotFoundError
+from sightline.api.request_info import RequestInfo
 from sightline.api.resources import Resources
+from sightline.api.workspaces.access import WorkspaceAccess
 from tests.api.auth.support import (
     User,
     Workspace,
@@ -17,8 +21,10 @@ from tests.api.auth.support import (
     fetchrow,
     make_user,
     make_workspace,
+    new_email,
     open_session,
 )
+from tests.api.conftest import AppFactory
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
 
@@ -107,8 +113,13 @@ async def test_any_member_lists_the_members_of_the_workspace_and_only_those(
         "last_active_at": body["data"][0]["last_active_at"],
     }
     assert body["data"][0]["last_active_at"] is not None
-    assert (body["data"][1]["role"], body["data"][1]["two_factor_enabled"]) == ("owner", True)
-    assert body["data"][1]["project_ids"] is None
+    # Someone who does not manage members is not told who has two-factor on, or when others
+    # were last active.
+    assert (body["data"][1]["role"], body["data"][1]["project_ids"]) == ("owner", None)
+    assert (body["data"][1]["two_factor_enabled"], body["data"][1]["last_active_at"]) == (
+        None,
+        None,
+    )
     assert str(stranger.id) not in response.text
     assert "password" not in response.text
 
@@ -415,3 +426,255 @@ async def test_an_owner_can_leave_when_another_owner_stays(
     assert response.status_code == 204
     assert await _role(migrated, workspace, leaving) is None
     assert await _role(migrated, workspace, staying) == "owner"
+
+
+# -------------------------------------------------------------------------------------------------
+# What the review of these routes asked to be pinned
+
+
+async def test_a_manager_sees_two_factor_and_activity_and_only_real_ones(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    _, headers = await _member(resources, migrated, workspace, "admin", name="a")
+    confirmed, _ = await _member(resources, migrated, workspace, "viewer", name="b")
+    unconfirmed, _ = await _member(resources, migrated, workspace, "viewer", name="c")
+    signed_out = await make_user(migrated, name="d")
+    await add_member(migrated, workspace, signed_out, "viewer")
+    await open_session(resources, signed_out, state="pending_totp")
+    await execute(
+        migrated,
+        "INSERT INTO auth.totp_secrets (user_id, secret_encrypted, confirmed_at) VALUES "
+        "($1, 'x', now()), ($2, 'x', NULL)",
+        confirmed.id,
+        unconfirmed.id,
+    )
+    await execute(
+        migrated, "UPDATE auth.sessions SET revoked_at = now() WHERE user_id = $1", unconfirmed.id
+    )
+
+    data = (await api.get(_members(workspace), headers=headers)).json()["data"]
+
+    assert [item["two_factor_enabled"] for item in data] == [False, True, False, False]
+    # A revoked session and one that never gave its second factor are not activity.
+    assert [item["last_active_at"] is not None for item in data] == [True, True, False, False]
+
+
+async def test_members_with_one_name_keep_one_order(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    users = [await _member(resources, migrated, workspace, "owner", name="Same") for _ in range(4)]
+    headers = users[0][1]
+
+    pages = [
+        (await api.get(_members(workspace), params={"offset": offset, "limit": 1}, headers=headers))
+        for offset in range(4)
+    ]
+
+    listed = [page.json()["data"][0]["user"]["user_id"] for page in pages]
+    assert listed == sorted(str(user.id) for user, _ in users)
+
+
+async def test_changes_here_leave_the_callers_memberships_elsewhere_alone(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Row-level security lets a user reach their own memberships of other workspaces, so the
+    statements must name the workspace themselves."""
+    here, elsewhere = await make_workspace(migrated), await make_workspace(migrated)
+    user, headers = await _member(resources, migrated, here, "owner")
+    await _member(resources, migrated, here, "owner")
+    await add_member(migrated, elsewhere, user, "owner")
+    url = f"{_members(here)}/{user.id}"
+
+    changed = await api.patch(url, json={"role": "viewer"}, headers=headers)
+    assert changed.status_code == 200
+    assert (await _role(migrated, here, user), await _role(migrated, elsewhere, user)) == (
+        "viewer",
+        "owner",
+    )
+
+    await execute(
+        migrated,
+        "UPDATE auth.memberships SET role = 'owner' WHERE workspace_id = $1 AND user_id = $2",
+        here.id,
+        user.id,
+    )
+    removed = await api.delete(url, headers=headers)
+    assert removed.status_code == 204
+    assert (await _role(migrated, here, user), await _role(migrated, elsewhere, user)) == (
+        None,
+        "owner",
+    )
+
+
+async def test_the_callers_role_is_read_again_when_the_change_is_made(
+    resources: Resources, migrated: PostgresServer
+) -> None:
+    """The dependency read the role in an earlier transaction; it may be out of date by now."""
+    workspace = await make_workspace(migrated)
+    actor, target = await make_user(migrated), await make_user(migrated)
+    await add_member(migrated, workspace, actor, "owner")
+    await add_member(migrated, workspace, target, "viewer")
+    await add_member(migrated, workspace, await make_user(migrated), "owner")
+    _, session = await open_session(resources, actor, fresh=True)
+    stale = WorkspaceAccess(
+        session=session, workspace_id=workspace.id, role=Role.OWNER, project_ids=None
+    )
+    info = RequestInfo(ip=None, user_agent=None, request_id=None)
+
+    async def change() -> None:
+        await resources.members.update(
+            access=stale,
+            user_id=target.id,
+            role=Role.OWNER,
+            scope_given=False,
+            project_ids=None,
+            info=info,
+        )
+
+    await execute(
+        migrated, "UPDATE auth.memberships SET role = 'admin' WHERE user_id = $1", actor.id
+    )
+    with pytest.raises(ForbiddenError, match="Only an owner"):
+        await change()
+    await execute(
+        migrated, "UPDATE auth.memberships SET role = 'editor' WHERE user_id = $1", actor.id
+    )
+    with pytest.raises(ForbiddenError):
+        await change()
+    with pytest.raises(ForbiddenError):
+        await resources.members.remove(access=stale, user_id=target.id, info=info)
+    await execute(migrated, "DELETE FROM auth.memberships WHERE user_id = $1", actor.id)
+    with pytest.raises(NotFoundError):
+        await change()
+    assert await _role(migrated, workspace, target) == "viewer"
+
+
+async def test_a_role_change_does_not_judge_the_scope_the_member_already_has(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    live, gone = (
+        await make_project(migrated, workspace.id),
+        await make_project(migrated, workspace.id),
+    )
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    target, _ = await _member(resources, migrated, workspace, "editor", project_ids=[gone, live])
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", gone)
+    url = f"{_members(workspace)}/{target.id}"
+
+    response = await api.patch(url, json={"role": "viewer"}, headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["data"]["role"] == "viewer"
+    assert sorted(response.json()["data"]["project_ids"]) == sorted([str(live), str(gone)])
+    assert [action for action, *_ in await _audit(migrated, workspace)] == ["member.updated"]
+
+
+async def test_the_same_scope_in_another_order_is_no_change(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    projects = sorted(
+        [await make_project(migrated, workspace.id) for _ in range(3)], key=str, reverse=True
+    )
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    # Stored in descending order by some other writer; the API sends and stores ascending.
+    target, _ = await _member(resources, migrated, workspace, "editor", project_ids=projects)
+
+    response = await api.patch(
+        f"{_members(workspace)}/{target.id}",
+        json={"project_ids": [str(project_id) for project_id in projects]},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert await _audit(migrated, workspace) == []
+
+
+async def test_an_empty_scope_is_a_member_of_no_project(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project_id = await make_project(migrated, workspace.id)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    target, target_headers = await _member(resources, migrated, workspace, "billing")
+    admin, _ = await _member(resources, migrated, workspace, "admin")
+    base = f"/api/v1/workspaces/{workspace.id}"
+
+    response = await api.patch(
+        f"{_members(workspace)}/{target.id}", json={"project_ids": []}, headers=headers
+    )
+    refused = await api.patch(
+        f"{_members(workspace)}/{admin.id}", json={"project_ids": []}, headers=headers
+    )
+
+    assert response.json()["data"]["project_ids"] == []
+    assert [error["code"] for error in refused.json()["errors"]] == ["scope_not_allowed"]
+    assert (await api.get(base, headers=target_headers)).status_code == 200
+    assert (await api.get(f"{base}/projects", headers=target_headers)).json()["data"] == []
+    assert _problem(await api.get(f"{base}/projects/{project_id}", headers=target_headers)) == (
+        404,
+        "not_found",
+    )
+
+
+async def test_invitations_a_member_sent_are_withdrawn_when_they_stop_managing_members(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    _, owner = await _member(resources, migrated, workspace, "owner")
+    demoted, demoted_headers = await _member(resources, migrated, workspace, "admin")
+    removed, removed_headers = await _member(resources, migrated, workspace, "admin")
+    kept, kept_headers = await _member(resources, migrated, workspace, "admin")
+    invitations = f"/api/v1/workspaces/{workspace.id}/invitations"
+    for headers in (demoted_headers, removed_headers, kept_headers):
+        sent = await api.post(
+            invitations, json={"email": new_email(), "role": "admin"}, headers=headers
+        )
+        assert sent.status_code == 201
+
+    await api.patch(f"{_members(workspace)}/{demoted.id}", json={"role": "editor"}, headers=owner)
+    await api.delete(f"{_members(workspace)}/{removed.id}", headers=owner)
+    # Still a manager afterwards: their invitation stays.
+    await api.patch(f"{_members(workspace)}/{kept.id}", json={"role": "owner"}, headers=owner)
+
+    rows = await fetch(
+        migrated,
+        "SELECT invited_by, status FROM auth.invitations WHERE workspace_id = $1",
+        workspace.id,
+    )
+    assert {row["invited_by"]: row["status"] for row in rows} == {
+        demoted.id: "cancelled",
+        removed.id: "cancelled",
+        kept.id: "pending",
+    }
+
+
+async def test_many_changes_at_once_never_deadlock_or_lose_the_last_owner(
+    client_for: AppFactory, migrated: PostgresServer
+) -> None:
+    """An owner promoted while other changes wait must not leave them waiting on each other."""
+    async with client_for(db_pool_size=8) as api:
+        resources = api._transport.app.state.resources  # type: ignore[attr-defined]
+        for _ in range(12):
+            workspace = await make_workspace(migrated)
+            # Joined first, so their membership sorts before the owner's.
+            early, early_headers = await _member(resources, migrated, workspace, "admin")
+            late, late_headers = await _member(resources, migrated, workspace, "owner")
+            third, _ = await _member(resources, migrated, workspace, "viewer")
+            base = _members(workspace)
+
+            responses = await asyncio.gather(
+                api.patch(f"{base}/{early.id}", json={"role": "owner"}, headers=late_headers),
+                api.patch(f"{base}/{early.id}", json={"project_ids": None}, headers=late_headers),
+                api.patch(f"{base}/{late.id}", json={"role": "admin"}, headers=late_headers),
+                api.patch(f"{base}/{third.id}", json={"role": "editor"}, headers=early_headers),
+            )
+
+            assert all(response.status_code < 500 for response in responses), [
+                response.text for response in responses
+            ]
+            roles = [await _role(migrated, workspace, user) for user in (early, late)]
+            assert "owner" in roles

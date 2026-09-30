@@ -194,9 +194,15 @@ def _members(workspace_id: UUID) -> Select[tuple[object, ...]]:
     two_factor = exists().where(
         totp_secrets.c.user_id == users.c.id, totp_secrets.c.confirmed_at.is_not(None)
     )
+    # Live, fully signed-in sessions only: that is what the index on auth.sessions covers, and a
+    # sign-in that never gave its second factor is not activity.
     last_active = (
         select(func.max(sessions.c.last_seen_at))
-        .where(sessions.c.user_id == users.c.id)
+        .where(
+            sessions.c.user_id == users.c.id,
+            sessions.c.revoked_at.is_(None),
+            sessions.c.state == "active",
+        )
         .scalar_subquery()
     )
     return (
@@ -249,29 +255,57 @@ async def list_members(
     return [_member(row) for row in await db.execute(page)], total
 
 
-async def get_member(
-    db: AsyncSession, workspace_id: UUID, user_id: UUID, *, for_update: bool = False
-) -> MemberRecord | None:
+async def get_member(db: AsyncSession, workspace_id: UUID, user_id: UUID) -> MemberRecord | None:
     statement = _members(workspace_id).where(memberships.c.user_id == user_id)
-    if for_update:
-        statement = statement.with_for_update(of=memberships, key_share=True)
     row = (await db.execute(statement)).one_or_none()
     return None if row is None else _member(row)
 
 
-async def lock_owners(db: AsyncSession, workspace_id: UUID) -> list[UUID]:
-    """The workspace's owners, their membership rows locked until the transaction ends.
+async def lock_member_changes(db: AsyncSession, workspace_id: UUID) -> None:
+    """Let one transaction at a time change who belongs to the workspace, by locking its row.
 
-    Every change to a membership takes this lock first and in the same order, so two changes
-    that would each remove an owner run one after the other, and the second sees the first.
+    What a change reads after this (the owners, the caller's role, the member) is then what the
+    previous change left, so the last owner cannot be removed by two changes that each saw
+    another owner. One lock taken first by everyone cannot deadlock. FOR NO KEY UPDATE does not
+    wait for, or block, inserts of rows that reference the workspace.
     """
-    statement = (
-        select(memberships.c.user_id)
-        .where(memberships.c.workspace_id == workspace_id, memberships.c.role == "owner")
-        .order_by(memberships.c.id)
+    await db.execute(
+        select(workspaces.c.id)
+        .where(workspaces.c.id == workspace_id)
         .with_for_update(key_share=True)
     )
+
+
+async def owner_ids(db: AsyncSession, workspace_id: UUID) -> list[UUID]:
+    statement = select(memberships.c.user_id).where(
+        memberships.c.workspace_id == workspace_id, memberships.c.role == "owner"
+    )
     return list((await db.execute(statement)).scalars())
+
+
+@dataclass(frozen=True, slots=True)
+class Membership:
+    user_id: UUID
+    role: str
+    project_ids: list[UUID] | None
+
+
+async def membership(db: AsyncSession, workspace_id: UUID, user_id: UUID) -> Membership | None:
+    """A member's role and scope, without what the member list adds to them."""
+    row = (
+        await db.execute(
+            select(memberships.c.role, memberships.c.project_ids).where(
+                memberships.c.workspace_id == workspace_id, memberships.c.user_id == user_id
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    return Membership(
+        user_id=user_id,
+        role=row.role,
+        project_ids=None if row.project_ids is None else list(row.project_ids),
+    )
 
 
 async def update_member(
@@ -482,6 +516,22 @@ async def cancel_invitation(
         .returning(invitations.c.id)
     )
     return (await db.execute(statement)).one_or_none() is not None
+
+
+async def cancel_invitations_sent_by(
+    db: AsyncSession, *, workspace_id: UUID, user_id: UUID, now: datetime
+) -> None:
+    """Withdraw the pending invitations a member sent. For when they stop managing members: an
+    invitation they sent as a manager must not outlast their right to send it."""
+    await db.execute(
+        update(invitations)
+        .where(
+            invitations.c.workspace_id == workspace_id,
+            invitations.c.invited_by == user_id,
+            invitations.c.status == "pending",
+        )
+        .values(status="cancelled", responded_at=now)
+    )
 
 
 @dataclass(frozen=True, slots=True)

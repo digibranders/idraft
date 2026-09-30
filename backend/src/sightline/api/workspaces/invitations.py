@@ -102,7 +102,10 @@ class InvitationService:
             async with workspace_transaction(
                 self._sessions, access.workspace_id, user_id=access.user_id
             ) as db:
-                # Read again here: the dependency read the role in an earlier transaction.
+                # Taken with the lock that membership changes take, and read again here: the
+                # dependency read the role in an earlier transaction, and a manager who is being
+                # demoted or removed must not get an invitation out past that change.
+                await repository.lock_member_changes(db, access.workspace_id)
                 inviter = await repository.get_member(db, access.workspace_id, access.user_id)
                 workspace = await repository.get(db, access.workspace_id)
                 if inviter is None or workspace is None:

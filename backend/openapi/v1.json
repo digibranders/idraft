@@ -482,6 +482,7 @@
                 "type": "null"
               }
             ],
+            "description": "When a signed-in session of theirs was last used, in any workspace. null when they are signed out everywhere, and unless the caller manages members.",
             "title": "Last Active At"
           },
           "project_ids": {
@@ -497,15 +498,23 @@
                 "type": "null"
               }
             ],
-            "description": "null means every project",
+            "description": "null means every project, an empty list none",
             "title": "Project Ids"
           },
           "role": {
             "$ref": "#/components/schemas/Role"
           },
           "two_factor_enabled": {
-            "title": "Two Factor Enabled",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null unless the caller manages members: it says who is worth phishing.",
+            "title": "Two Factor Enabled"
           },
           "user": {
             "$ref": "#/components/schemas/UserRef"
@@ -556,7 +565,7 @@
       },
       "MemberUpdate": {
         "additionalProperties": false,
-        "description": "At least one member. `project_ids: null` gives the member every project.",
+        "description": "At least one field. `project_ids: null` gives every project, an empty list none.",
         "properties": {
           "project_ids": {
             "anyOf": [
@@ -1697,7 +1706,7 @@
       },
       "WorkspaceUpdate": {
         "additionalProperties": false,
-        "description": "At least one member. `logo: null` removes the logo; the others cannot be null.",
+        "description": "At least one field. `logo: null` removes the logo; the others cannot be null.",
         "properties": {
           "logo": {
             "anyOf": [

@@ -54,7 +54,7 @@ class WorkspaceCreate(Body):
 
 
 class WorkspaceUpdate(Body):
-    """At least one member. `logo: null` removes the logo; the others cannot be null."""
+    """At least one field. `logo: null` removes the logo; the others cannot be null."""
 
     name: Name | None = None
     slug: WorkspaceSlug | None = None
@@ -73,10 +73,19 @@ class WorkspaceUpdate(Body):
 class Member(BaseModel):
     user: UserRef
     role: Role
-    project_ids: list[UUID] | None = Field(description="null means every project")
-    two_factor_enabled: bool
+    project_ids: list[UUID] | None = Field(
+        description="null means every project, an empty list none"
+    )
+    two_factor_enabled: bool | None = Field(
+        description="null unless the caller manages members: it says who is worth phishing."
+    )
     joined_at: datetime
-    last_active_at: datetime | None
+    last_active_at: datetime | None = Field(
+        description=(
+            "When a signed-in session of theirs was last used, in any workspace. "
+            "null when they are signed out everywhere, and unless the caller manages members."
+        )
+    )
 
 
 class MemberResponse(BaseModel):
@@ -89,7 +98,7 @@ class MemberPage(BaseModel):
 
 
 class MemberUpdate(Body):
-    """At least one member. `project_ids: null` gives the member every project."""
+    """At least one field. `project_ids: null` gives every project, an empty list none."""
 
     role: Role | None = None
     project_ids: ProjectScope = Field(default=None, max_length=PROJECT_SCOPE_MAX)
