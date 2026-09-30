@@ -1,4 +1,4 @@
-"""Statements for workspaces, memberships and invitations.
+"""Statements for workspaces, their members and their invitations.
 
 Every function runs in the caller's transaction. Inside `workspace_transaction` row-level security
 limits each statement to that workspace; inside `user_transaction` a user sees their own
@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sightline.db.errors import violated_unique_constraint
 from sightline.db.tables import (
     invitations,
     memberships,
@@ -27,8 +28,6 @@ from sightline.db.tables import (
     workspace_quotas,
     workspaces,
 )
-
-_UNIQUE_VIOLATION = "23505"
 
 
 class SlugTakenError(Exception):
@@ -107,13 +106,15 @@ async def get(
 ) -> WorkspaceRecord | None:
     statement = select(*_WORKSPACE_COLUMNS).where(workspaces.c.id == workspace_id)
     if for_update:
-        statement = statement.with_for_update()
+        # FOR NO KEY UPDATE: a plain FOR UPDATE would wait for, and block, every insert of a row
+        # that references the workspace.
+        statement = statement.with_for_update(key_share=True)
     row = (await db.execute(statement)).one_or_none()
     return None if row is None else _workspace(row)
 
 
 def _raise_if_slug_taken(error: IntegrityError) -> None:
-    if getattr(error.orig, "sqlstate", None) == _UNIQUE_VIOLATION:
+    if violated_unique_constraint(error) == "workspaces_slug_key":
         raise SlugTakenError from None
 
 
@@ -253,7 +254,7 @@ async def get_member(
 ) -> MemberRecord | None:
     statement = _members(workspace_id).where(memberships.c.user_id == user_id)
     if for_update:
-        statement = statement.with_for_update(of=memberships)
+        statement = statement.with_for_update(of=memberships, key_share=True)
     row = (await db.execute(statement)).one_or_none()
     return None if row is None else _member(row)
 
@@ -268,7 +269,7 @@ async def lock_owners(db: AsyncSession, workspace_id: UUID) -> list[UUID]:
         select(memberships.c.user_id)
         .where(memberships.c.workspace_id == workspace_id, memberships.c.role == "owner")
         .order_by(memberships.c.id)
-        .with_for_update()
+        .with_for_update(key_share=True)
     )
     return list((await db.execute(statement)).scalars())
 
@@ -433,7 +434,7 @@ async def insert_invitation(
     try:
         invitation_id: UUID = (await db.execute(statement)).scalar_one()
     except IntegrityError as error:
-        if getattr(error.orig, "sqlstate", None) == _UNIQUE_VIOLATION:
+        if violated_unique_constraint(error) == "invitations_workspace_id_email_idx":
             raise InvitationPendingError from None
         raise
     return invitation_id

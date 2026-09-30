@@ -7,9 +7,10 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.api import audit
+from sightline.api import audit, limits
 from sightline.api.auth import repository as users
 from sightline.api.auth.sessions import SessionContext
+from sightline.api.auth.throttle import LoginThrottle
 from sightline.api.permissions import Role
 from sightline.api.problems import (
     DuplicateError,
@@ -25,7 +26,9 @@ from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.api.workspaces.repository import SlugTakenError, WorkspaceRecord
 from sightline.db.engine import user_transaction, workspace_transaction
 
-_AUDITED = ("name", "slug", "logo", "timezone")
+# With open registration anyone verified can create workspaces, each with quotas of its own.
+WORKSPACES_PER_DAY = 5
+_DAY = 86_400
 
 
 def _slug_taken() -> DuplicateError:
@@ -38,13 +41,19 @@ class WorkspaceService:
         self,
         *,
         sessions: async_sessionmaker[AsyncSession],
+        throttle: LoginThrottle,
         registration: Literal["invited", "open"],
     ) -> None:
         self._sessions = sessions
+        self._throttle = throttle
         self._registration = registration
 
     async def list_for(self, session: SessionContext) -> list[WorkspaceRecord]:
         async with user_transaction(self._sessions, session.user_id) as db:
+            user = await users.get_user(db, session.user_id)
+            if user is None or user.disabled_at is not None:
+                # The account was removed or disabled while its session was cached.
+                raise UnauthenticatedError
             return await repository.list_for_user(db, session.user_id)
 
     async def create(
@@ -66,6 +75,13 @@ class WorkspaceService:
                 raise ForbiddenError("Only a platform operator can create a workspace.")
             await self._check_timezone(db, timezone)
             workspace_id = await repository.new_id(db)
+        await limits.enforce(
+            self._throttle,
+            "workspace:create",
+            user.id,
+            limit=WORKSPACES_PER_DAY,
+            window_seconds=_DAY,
+        )
         try:
             async with workspace_transaction(self._sessions, workspace_id, user_id=user.id) as db:
                 workspace = await repository.insert_workspace(

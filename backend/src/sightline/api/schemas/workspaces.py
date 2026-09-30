@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from sightline.api.pagination import OffsetPageInfo
 from sightline.api.permissions import Role
@@ -17,11 +17,12 @@ from sightline.api.schemas.common import (
     ImageUrl,
     Name,
     ProjectScope,
-    Timezone,
     Token,
     UserRef,
+    refuse_null,
 )
 from sightline.api.slugs import WorkspaceSlug
+from sightline.api.timezones import Timezone
 
 WorkspaceStatus = Literal["active", "suspended", "deleting"]
 
@@ -60,13 +61,12 @@ class WorkspaceUpdate(Body):
     logo: ImageUrl | None = None
     timezone: Timezone | None = None
 
+    _not_null = field_validator("name", "slug", "timezone")(refuse_null)
+
     @model_validator(mode="after")
     def _says_something(self) -> WorkspaceUpdate:
         if not self.model_fields_set:
             raise ValueError("give at least one of name, slug, logo, timezone")
-        for field in ("name", "slug", "timezone"):
-            if field in self.model_fields_set and getattr(self, field) is None:
-                raise ValueError(f"{field} cannot be null")
         return self
 
 
@@ -94,12 +94,12 @@ class MemberUpdate(Body):
     role: Role | None = None
     project_ids: ProjectScope = Field(default=None, max_length=PROJECT_SCOPE_MAX)
 
+    _not_null = field_validator("role")(refuse_null)
+
     @model_validator(mode="after")
     def _says_something(self) -> MemberUpdate:
         if not self.model_fields_set:
             raise ValueError("give role, project_ids or both")
-        if "role" in self.model_fields_set and self.role is None:
-            raise ValueError("role cannot be null")
         return self
 
 

@@ -890,16 +890,34 @@
           "account",
           "admin",
           "api",
+          "assets",
           "design-system",
+          "docs",
+          "favicon",
+          "forgot-password",
+          "health",
+          "healthz",
+          "help",
+          "icon",
           "invite",
           "login",
+          "logout",
           "new",
+          "null",
           "onboarding",
+          "public",
           "reset-password",
+          "robots",
           "settings",
+          "sign-in",
+          "sign-up",
           "signup",
+          "sitemap",
+          "static",
           "two-factor",
-          "verify-email"
+          "undefined",
+          "verify-email",
+          "www"
         ],
         "type": "string"
       },
@@ -1255,7 +1273,7 @@
             "description": "An IANA time zone name.",
             "maxLength": 64,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9_+/-]+$",
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
             "title": "Timezone",
             "type": "string"
           }
@@ -1342,7 +1360,7 @@
               {
                 "maxLength": 64,
                 "minLength": 1,
-                "pattern": "^[A-Za-z0-9_+/-]+$",
+                "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
                 "type": "string"
               },
               {

@@ -14,10 +14,10 @@ from uuid import UUID
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.api import audit
+from sightline.api import audit, limits
 from sightline.api.auth import repository as users
 from sightline.api.auth.sessions import SessionContext
-from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
+from sightline.api.auth.throttle import LoginThrottle
 from sightline.api.auth.tokens import hash_token, new_token
 from sightline.api.permissions import ROLE_PERMISSIONS, Permission, Role
 from sightline.api.problems import (
@@ -28,8 +28,6 @@ from sightline.api.problems import (
     InvalidTokenError,
     InvitationExpiredError,
     NotFoundError,
-    RateLimitedError,
-    ServiceUnavailableError,
     UnauthenticatedError,
     WorkspaceSuspendedError,
 )
@@ -84,9 +82,19 @@ class InvitationService:
     ) -> tuple[InvitationRecord, EmailMessage]:
         """Invite an address. Returns the invitation and the message to send it with."""
         # The inviter first: a refused attempt then costs the workspace nothing.
-        await self._limit("invite:inviter", access.user_id, INVITATIONS_PER_HOUR_PER_INVITER)
-        await self._limit(
-            "invite:workspace", access.workspace_id, INVITATIONS_PER_HOUR_PER_WORKSPACE
+        await limits.enforce(
+            self._throttle,
+            "invite:inviter",
+            access.user_id,
+            limit=INVITATIONS_PER_HOUR_PER_INVITER,
+            window_seconds=_HOUR,
+        )
+        await limits.enforce(
+            self._throttle,
+            "invite:workspace",
+            access.workspace_id,
+            limit=INVITATIONS_PER_HOUR_PER_WORKSPACE,
+            window_seconds=_HOUR,
         )
         now = datetime.now(UTC)
         token = new_token()
@@ -273,17 +281,3 @@ class InvitationService:
         if member is None:
             raise InvalidTokenError
         return member
-
-    async def _limit(self, scope: str, subject: UUID, per_hour: int) -> None:
-        try:
-            allowed = await self._throttle.allow(
-                scope, str(subject), limit=per_hour, window_seconds=_HOUR
-            )
-        except ThrottleUnavailableError:
-            raise ServiceUnavailableError("Invitations are temporarily unavailable.") from None
-        if not allowed:
-            raise RateLimitedError(
-                "Too many invitations. Try again later.",
-                headers={"Retry-After": str(_HOUR)},
-                retry_after_seconds=_HOUR,
-            )

@@ -13,7 +13,6 @@ from sightline.providers.email import ADDRESS_MAX, ADDRESS_PATTERN
 NAME_MAX = 120
 TOKEN_BODY_MAX = 128
 IMAGE_URL_MAX = 2048
-TIMEZONE_MAX = 64
 PROJECT_SCOPE_MAX = 500
 
 
@@ -51,11 +50,6 @@ ImageUrl = Annotated[
     AfterValidator(printable),
 ]
 Token = Annotated[str, StringConstraints(min_length=1, max_length=TOKEN_BODY_MAX)]
-# The shape of an IANA name. Whether the zone exists is asked of PostgreSQL, which is what
-# computes business dates with it.
-Timezone = Annotated[
-    str, StringConstraints(min_length=1, max_length=TIMEZONE_MAX, pattern=r"^[A-Za-z0-9_+/-]+$")
-]
 
 
 class Body(BaseModel):
@@ -76,3 +70,11 @@ def _distinct(value: list[UUID] | None) -> list[UUID] | None:
 
 # The projects a membership is limited to. null means every project of the workspace.
 ProjectScope = Annotated[list[UUID] | None, AfterValidator(_distinct)]
+
+
+def refuse_null(value: object) -> object:
+    """For a field of a partial update that may be left out and may not be null. Used as a field
+    validator, so the error names the field."""
+    if value is None:
+        raise ValueError("cannot be null")
+    return value

@@ -7,6 +7,7 @@ forms refuse the same words before asking the API.
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from typing import Annotated
 
@@ -19,19 +20,40 @@ SLUG_PATTERN = r"^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$"
 
 
 class ReservedWorkspaceSlug(StrEnum):
+    """The first segment of a path. A word cannot be reserved once a workspace holds it, so the
+    list also has the segments a web app commonly grows."""
+
     ACCOUNT = "account"
     ADMIN = "admin"
     API = "api"
+    ASSETS = "assets"
     DESIGN_SYSTEM = "design-system"
+    DOCS = "docs"
+    FAVICON = "favicon"
+    FORGOT_PASSWORD = "forgot-password"
+    HEALTH = "health"
+    HEALTHZ = "healthz"
+    HELP = "help"
+    ICON = "icon"
     INVITE = "invite"
     LOGIN = "login"
+    LOGOUT = "logout"
     NEW = "new"
+    NULL = "null"
     ONBOARDING = "onboarding"
+    PUBLIC = "public"
     RESET_PASSWORD = "reset-password"
+    ROBOTS = "robots"
     SETTINGS = "settings"
+    SIGN_IN = "sign-in"
+    SIGN_UP = "sign-up"
     SIGNUP = "signup"
+    SITEMAP = "sitemap"
+    STATIC = "static"
     TWO_FACTOR = "two-factor"
+    UNDEFINED = "undefined"
     VERIFY_EMAIL = "verify-email"
+    WWW = "www"
 
 
 class ReservedProjectSlug(StrEnum):
@@ -57,6 +79,16 @@ def _not_a_project_route(value: str) -> str:
     return value
 
 
-_Slug = Annotated[str, StringConstraints(pattern=SLUG_PATTERN)]
+_UUID_SHAPE = re.compile(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
+
+
+def _not_an_id(value: str) -> str:
+    # A path segment is either a slug or an id. One that could be both cannot be told apart.
+    if _UUID_SHAPE.fullmatch(value):
+        raise ValueError("looks like an id")
+    return value
+
+
+_Slug = Annotated[str, StringConstraints(pattern=SLUG_PATTERN), AfterValidator(_not_an_id)]
 WorkspaceSlug = Annotated[_Slug, AfterValidator(_not_a_workspace_route)]
 ProjectSlug = Annotated[_Slug, AfterValidator(_not_a_project_route)]

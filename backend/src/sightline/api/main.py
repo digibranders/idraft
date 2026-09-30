@@ -110,7 +110,9 @@ def create_app(
                     app_origin=settings.app_origin,
                     registration=settings.registration,
                 ),
-                workspaces=WorkspaceService(sessions=sessions, registration=settings.registration),
+                workspaces=WorkspaceService(
+                    sessions=sessions, throttle=throttle, registration=settings.registration
+                ),
                 members=MemberService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,

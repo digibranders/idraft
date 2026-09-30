@@ -5,7 +5,11 @@ import uuid
 import httpx
 import pytest
 
+from sightline.api import timezones
+from sightline.api.openapi import build_openapi
 from sightline.api.resources import Resources
+from sightline.api.slugs import ReservedProjectSlug, ReservedWorkspaceSlug
+from sightline.api.workspaces import service as workspace_rules
 from tests.api.auth.support import (
     User,
     add_member,
@@ -96,7 +100,7 @@ async def test_an_operator_creates_a_workspace_and_owns_it(
     response = await api.post(
         WORKSPACES,
         json={"name": "  Acme Corp  ", "slug": slug, "timezone": "Asia/Kolkata"},
-        headers={**headers, "X-Request-Id": "req_create_workspace_test"},
+        headers=headers,
     )
 
     assert response.status_code == 201
@@ -240,6 +244,10 @@ async def test_a_taken_slug_is_a_duplicate_and_names_no_other_workspace(
         "api",
         "design-system",
         "invite",
+        "static",
+        "undefined",
+        # A path segment is a slug or an id, never something that could be both.
+        "0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11",
         "",
     ],
 )
@@ -263,7 +271,7 @@ async def test_an_ordinary_slug_is_accepted(
     await execute(migrated, "DELETE FROM auth.workspaces WHERE slug = $1", slug)
 
 
-@pytest.mark.parametrize("timezone", ["Mars/Olympus", "EST5EDT4", "utc", "Asia/Calcuta"])
+@pytest.mark.parametrize("timezone", ["Mars/Olympus", "Asia/Calcuta", "Etc/Nowhere"])
 async def test_a_time_zone_postgresql_does_not_know_is_refused(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, timezone: str
 ) -> None:
@@ -282,6 +290,85 @@ async def test_a_time_zone_postgresql_does_not_know_is_refused(
         }
     ]
     assert await fetch(migrated, "SELECT 1 FROM auth.workspaces WHERE slug = $1", slug) == []
+
+
+@pytest.mark.parametrize(
+    "timezone",
+    ["localtime", "posixrules", "Factory", "utc", "EST5EDT4", "GMT", "/Asia/Kolkata", ""],
+)
+async def test_a_time_zone_is_utc_or_an_area_and_a_location(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, timezone: str
+) -> None:
+    """PostgreSQL knows `localtime` and `posixrules`, and they are files, not zones: the first
+    means whatever the database host is set to."""
+    _, headers = await _operator(resources, migrated)
+    response = await api.post(
+        WORKSPACES, json={"name": "Acme", "slug": _slug(), "timezone": timezone}, headers=headers
+    )
+    assert _problem(response) == (422, "validation_failed")
+    assert [error["path"] for error in response.json()["errors"]] == ["timezone"]
+
+
+@pytest.mark.parametrize(
+    ("sent", "stored"),
+    [
+        # What a browser in India reports as its zone.
+        ("Asia/Calcutta", "Asia/Kolkata"),
+        ("Europe/Kiev", "Europe/Kyiv"),
+        ("America/Buenos_Aires", "America/Argentina/Buenos_Aires"),
+        ("Asia/Kolkata", "Asia/Kolkata"),
+        ("Etc/UTC", "Etc/UTC"),
+    ],
+)
+async def test_a_zone_a_browser_reports_by_its_old_name_is_stored_by_its_current_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, sent: str, stored: str
+) -> None:
+    _, headers = await _operator(resources, migrated)
+    created = await api.post(
+        WORKSPACES, json={"name": "Acme", "slug": _slug(), "timezone": sent}, headers=headers
+    )
+    assert created.status_code == 201
+    assert created.json()["data"]["timezone"] == stored
+    url = f"{WORKSPACES}/{created.json()['data']['workspace_id']}"
+    changed = await api.patch(url, json={"timezone": "UTC"}, headers=headers)
+    back = await api.patch(url, json={"timezone": sent}, headers=headers)
+    assert (changed.json()["data"]["timezone"], back.json()["data"]["timezone"]) == ("UTC", stored)
+
+
+async def test_every_renamed_zone_exists_in_postgresql_under_its_current_name(
+    migrated: PostgresServer,
+) -> None:
+    rows = await fetch(migrated, "SELECT name FROM pg_timezone_names")
+    known = {row["name"] for row in rows}
+    assert set(timezones._RENAMED.values()) - known == set()
+    assert timezones.current_name("Asia/Calcutta") == "Asia/Kolkata"
+    assert timezones.current_name("Asia/Tokyo") == "Asia/Tokyo"
+
+
+async def test_workspace_creation_is_limited_per_user(
+    client_for: AppFactory, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(workspace_rules, "WORKSPACES_PER_DAY", 2)
+    user, other = await make_user(migrated), await make_user(migrated)
+    async with client_for(registration="open") as api:
+        resources = api._transport.app.state.resources  # type: ignore[attr-defined]
+        headers = await _session(resources, user)
+        responses = [
+            await api.post(WORKSPACES, json={"name": "Acme", "slug": _slug()}, headers=headers)
+            for _ in range(3)
+        ]
+        someone_else = await api.post(
+            WORKSPACES,
+            json={"name": "Acme", "slug": _slug()},
+            headers=await _session(resources, other),
+        )
+
+    assert [response.status_code for response in responses] == [201, 201, 429]
+    assert responses[-1].json()["code"] == "rate_limited"
+    assert responses[-1].headers["Retry-After"] == "86400"
+    assert someone_else.status_code == 201
+    owned = await fetch(migrated, "SELECT 1 FROM auth.memberships WHERE user_id = $1", user.id)
+    assert len(owned) == 2
 
 
 async def test_a_body_with_an_unknown_member_is_refused(
@@ -467,3 +554,71 @@ async def test_the_profile_says_whether_the_user_is_an_operator(
     assert (await api.get("/api/v1/me", headers=ordinary)).json()["data"]["user"][
         "is_platform_operator"
     ] is False
+
+
+async def test_a_disabled_account_with_a_cached_session_lists_nothing(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, user = await make_workspace(migrated), await make_user(migrated)
+    await add_member(migrated, workspace, user, "owner")
+    headers = await _session(resources, user)
+    assert (await api.get(WORKSPACES, headers=headers)).status_code == 200  # now cached
+    await execute(migrated, "UPDATE auth.users SET disabled_at = now() WHERE id = $1", user.id)
+
+    assert _problem(await api.get(WORKSPACES, headers=headers)) == (401, "unauthenticated")
+
+
+async def test_only_what_differs_is_written_and_recorded(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated, name="Acme")
+    owner = await make_user(migrated)
+    await add_member(migrated, workspace, owner, "owner")
+
+    response = await api.patch(
+        f"{WORKSPACES}/{workspace.id}",
+        json={"name": "Acme", "slug": workspace.slug, "timezone": "Asia/Tokyo"},
+        headers=await _session(resources, owner),
+    )
+
+    assert response.json()["data"]["timezone"] == "Asia/Tokyo"
+    (entry,) = await fetch(
+        migrated,
+        "SELECT before::text, after::text FROM ops.audit_logs WHERE workspace_id = $1",
+        workspace.id,
+    )
+    assert (entry["before"], entry["after"]) == (
+        '{"timezone": "UTC"}',
+        '{"timezone": "Asia/Tokyo"}',
+    )
+
+
+async def test_a_null_where_none_is_allowed_names_the_field(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await make_user(migrated)
+    await add_member(migrated, workspace, owner, "owner")
+
+    response = await api.patch(
+        f"{WORKSPACES}/{workspace.id}",
+        json={"name": None, "slug": None, "timezone": None, "logo": None},
+        headers=await _session(resources, owner),
+    )
+
+    assert _problem(response) == (422, "validation_failed")
+    assert sorted(error["path"] for error in response.json()["errors"]) == [
+        "name",
+        "slug",
+        "timezone",
+    ]
+
+
+def test_the_reserved_words_are_in_the_api_document() -> None:
+    schemas = build_openapi()["components"]["schemas"]
+    assert schemas["ReservedWorkspaceSlug"]["enum"] == [
+        word.value for word in ReservedWorkspaceSlug
+    ]
+    assert schemas["ReservedProjectSlug"]["enum"] == [word.value for word in ReservedProjectSlug]
+    assert {"api", "login", "invite", "design-system"} <= set(ReservedWorkspaceSlug)
+    assert {"onboarding", "costs", "ops", "settings", "projects"} <= set(ReservedProjectSlug)
