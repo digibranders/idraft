@@ -21,6 +21,8 @@ from sqlalchemy.exc import ArgumentError
 LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 
 TOTP_KEY_BYTES = 32
+# Good enough for the console sender. A real provider refuses it, so it is refused at start.
+DEFAULT_EMAIL_FROM = "Sightline <no-reply@localhost>"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
 _POSTGRES_SCHEMES = ("postgresql+asyncpg://", "postgresql://", "postgres://")
 _EMAIL_FROM_PATTERN = re.compile(r"[^\r\n<>]*<[^\s<>@]+@[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+")
@@ -120,7 +122,7 @@ class Settings(_DatabaseSettings):
     totp_encryption_key: SecretStr | None = None
     email_provider: Literal["console", "resend"] = "console"
     email_api_key: SecretStr | None = None
-    email_from: str = "Sightline <no-reply@localhost>"
+    email_from: str = DEFAULT_EMAIL_FROM
     breached_password_check: bool = True
 
     _check_origin = field_validator("app_origin")(_validate_origin)
@@ -186,6 +188,10 @@ class Settings(_DatabaseSettings):
             raise ValueError("TOTP_ENCRYPTION_KEY is required for the api process")
         if self.email_provider == "resend" and self.email_api_key is None:
             raise ValueError("EMAIL_API_KEY is required when EMAIL_PROVIDER is resend")
+        if self.email_provider == "resend" and self.email_from == DEFAULT_EMAIL_FROM:
+            raise ValueError(
+                "EMAIL_FROM must be a sender on your domain when EMAIL_PROVIDER is resend"
+            )
         # Only the api sends mail so far. The console sender prints tokens, so it is for a local
         # origin only. The origin is checked as well as APP_ENV, so a host that forgot to set
         # APP_ENV still cannot start with it.

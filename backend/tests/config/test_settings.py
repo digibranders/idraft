@@ -18,6 +18,7 @@ BASE_ENV = {
     "TOTP_ENCRYPTION_KEY": TOTP_KEY,
     "EMAIL_PROVIDER": "resend",
     "EMAIL_API_KEY": "re_123",
+    "EMAIL_FROM": "Sightline <login@mail.example.com>",
 }
 # What a developer's machine has: a local origin and no email provider.
 LOCAL_ENV = {
@@ -110,6 +111,7 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
             "TOTP_ENCRYPTION_KEY": "TEVBSzRMRUFLNExFQUs0TEVBSzRMRUFLNExFQUs0TEU=",
             "EMAIL_PROVIDER": "resend",
             "EMAIL_API_KEY": "re_LEAK5",
+            "EMAIL_FROM": "Sightline <login@mail.example.com>",
         },
     )
     settings = Settings()
@@ -153,6 +155,7 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
         {"TOTP_ENCRYPTION_KEY": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gIQ=="},
         {"EMAIL_PROVIDER": "sendgrid"},
         {"EMAIL_API_KEY": ""},
+        {"EMAIL_FROM": "Sightline <no-reply@localhost>"},
         {"EMAIL_PROVIDER": "console"},
         {"EMAIL_FROM": "Sightline"},
         {"EMAIL_FROM": "Sightline <a@b.example>\r\nBcc: x@y.example"},

@@ -269,7 +269,11 @@ class AuthService:
         new_hash = await self._hash(password) if needs_rehash(user.password_hash) else None
         signed_in = await self._open_session(user, password, new_hash, info, now)
         if signed_in is None:
-            await self._sign_in_failed(email=email, user=user, reason="password_changed", info=info)
+            # The password stopped matching, or the account was disabled or removed, in the
+            # moment between checking it and creating the session.
+            await self._sign_in_failed(
+                email=email, user=user, reason="changed_during_sign_in", info=info
+            )
             raise InvalidCredentialsError
         if signed_in.status == "signed_in":
             # Only a completed sign-in clears the failure count. With a second factor still

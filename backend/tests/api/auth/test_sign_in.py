@@ -418,7 +418,7 @@ async def test_a_password_changed_between_verification_and_session_creation_stop
     )
     assert (failure["action"], failure["after"]) == (
         "auth.sign_in_failed",
-        '{"reason": "password_changed"}',
+        '{"reason": "changed_during_sign_in"}',
     )
 
 
