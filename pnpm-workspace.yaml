@@ -1,0 +1,7 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# @parcel/watcher is only used by Tailwind watch mode; its native build is not needed in CI.
+allowBuilds:
+  "@parcel/watcher": false

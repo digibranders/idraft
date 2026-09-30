@@ -1,0 +1,361 @@
+/*
+ * tokens.css
+ * Design tokens for the SEO + AI Visibility application. Source of truth: docs/design-system/.
+ *
+ * Layers:
+ *   1. Semantic color tokens (light in :root, dark in .dark). Components use these only.
+ *   2. shadcn/ui compatibility aliases (--card, --popover, --muted, --accent, --input, ...),
+ *      so copied shadcn components render correctly before they are restyled.
+ *   3. Non-color tokens: type, spacing sizes, radius, shadow, motion, z-index.
+ *
+ * Rules:
+ *   - No component may use a raw color value. Use a token (docs/design-system/02-color-system.md).
+ *   - Every value below is checked by src/lib/design/tokens.contrast.test.ts (WCAG 2.2 AA pairs).
+ *   - Colors are OKLCH, gamut-clamped to sRGB. Hex equivalents are listed in 02-color-system.md.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* 1. Surfaces (values from docs/design-system/reference/visual-spec.md section 2.1) */
+  --background: oklch(0.979 0.003 265);          /* #F7F8FA app canvas behind page content */
+  --sidebar: oklch(0.964 0.003 265);             /* #F2F3F5 left navigation, a step darker than the canvas */
+  --surface: oklch(0.997 0.001 255);             /* #FEFEFF panels, top bar, inspector, inputs, tables */
+  --surface-subtle: oklch(0.979 0.003 265);      /* #F7F8FA table header, quote boxes, wells */
+  --surface-elevated: oklch(0.997 0.001 255);    /* popovers, menus, dialogs, chart tooltips (with shadow) */
+  --surface-hover: oklch(0.963 0.003 255);       /* #F1F3F5 row and item hover */
+  --surface-selected: oklch(0.957 0.019 263);    /* #EAF1FE selected row, active nav item, active segment */
+  --surface-disabled: oklch(0.958 0.003 255);    /* disabled control fill */
+
+  /* 1. Text */
+  --foreground: oklch(0.204 0.011 261);          /* #14171C primary text, values */
+  --foreground-secondary: oklch(0.389 0.020 263);/* #3F4550 nav labels, secondary values */
+  --foreground-tertiary: oklch(0.522 0.021 258); /* #626A76 meta, labels, table headers, axis labels */
+  --foreground-muted: oklch(0.620 0.010 260);    /* non-text only: inactive icons, separators glyphs (3:1) */
+  --foreground-disabled: oklch(0.720 0.006 260); /* disabled text (exempt from contrast) */
+  --foreground-inverse: oklch(0.985 0.002 255);  /* text on primary and inverse fills */
+  --link: oklch(0.503 0.193 261);                /* #175AD0 */
+
+  /* 1. Borders */
+  --border-subtle: oklch(0.948 0.005 258);       /* #ECEEF1 row dividers, inner separators */
+  --border: oklch(0.924 0.006 255);              /* #E3E6EA panel, control and popover outlines */
+  --border-strong: oklch(0.620 0.014 258);       /* #81878F checkbox and radio outlines (3:1 required) */
+  --ring: oklch(0.560 0.200 261);                /* focus ring */
+
+  /* 1. Primary accent (brand). The only accent hue in the UI. */
+  --primary: oklch(0.542 0.204 261);             /* #1E65E3 primary button fill, checked controls, active tab */
+  --primary-hover: oklch(0.490 0.195 261);
+  --primary-foreground: oklch(0.985 0.002 255);
+  --primary-text: oklch(0.503 0.193 261);        /* #175AD0 accent-colored text and icons on surfaces and tints */
+  --primary-subtle: oklch(0.957 0.019 263);      /* #EAF1FE accent tint background */
+  --primary-border: oklch(0.842 0.064 262);      /* #B5CCF6 selected segment outline */
+
+  /* 1. Semantic: positive (improvement, success, cited, owned) */
+  --positive-text: oklch(0.512 0.122 153);       /* #197A43 */
+  --positive-subtle: oklch(0.954 0.024 159);     /* #E3F5EA */
+  --positive-border: oklch(0.840 0.070 155);
+  --positive-solid: oklch(0.580 0.140 153);
+
+  /* 1. Semantic: negative (decline, failure, destructive) */
+  --negative-text: oklch(0.551 0.188 28);        /* #C8322B */
+  --negative-subtle: oklch(0.962 0.017 28);
+  --negative-border: oklch(0.840 0.070 28);
+  --negative-solid: oklch(0.560 0.190 28);
+  --negative-button: oklch(0.540 0.190 28);        /* solid destructive button fill (confirm dialogs only) */
+  --negative-button-hover: oklch(0.490 0.180 28);
+  --negative-button-foreground: oklch(0.985 0.002 255);
+
+  /* 1. Semantic: warning (attention, incomplete, stale) */
+  --warning-text: oklch(0.520 0.110 70);
+  --warning-subtle: oklch(0.965 0.034 85);
+  --warning-border: oklch(0.840 0.100 80);
+  --warning-solid: oklch(0.640 0.140 70);        /* meter fills and bars only; icons use --warning-text */
+
+  /* 1. Semantic: info (uses the accent hue; info never introduces a new hue) */
+  --info-text: oklch(0.503 0.193 261);
+  --info-subtle: oklch(0.957 0.019 263);
+  --info-border: oklch(0.842 0.064 262);
+
+  /* 1. Semantic: neutral badges and chips */
+  --neutral-text: oklch(0.415 0.022 261);        /* #454C58 */
+  --neutral-subtle: oklch(0.954 0.005 258);      /* #EEF0F3 badge and applied-filter chip fill */
+  --neutral-border: oklch(0.924 0.006 255);
+
+  /* 1. Data visualization: categorical series (fixed order; series 1 is always the own brand) */
+  --chart-1: oklch(0.542 0.204 261); /* own brand, cobalt   #1E65E3 */
+  --chart-2: oklch(0.652 0.164 48);  /* orange              #DD6A21 */
+  --chart-3: oklch(0.614 0.099 200); /* teal                #1B969C */
+  --chart-4: oklch(0.500 0.163 320); /* plum                #8A3C9B */
+  --chart-5: oklch(0.490 0.095 100); /* olive               #6D6111 (darker than the reference #857829 for color-vision separation) */
+  --chart-6: oklch(0.559 0.160 355); /* rose                #B84379 */
+  --chart-other: oklch(0.551 0.023 264);    /* #6B7280 "All" and "Other" aggregates */
+  --chart-reference: oklch(0.66 0.02 255);  /* previous period, baselines, averages; dashed */
+  --chart-bar-neutral: oklch(0.882 0.009 265); /* #D5D8DE competitor bars in bar lists */
+  --chart-positive: var(--positive-solid);
+  --chart-negative: var(--negative-solid);
+  --chart-grid: oklch(0.948 0.005 258);
+  --chart-axis: oklch(0.924 0.006 255);
+  --chart-label: var(--foreground-tertiary);
+  --chart-band: oklch(0.955 0.004 255);     /* depth bands, CI bands (with opacity in chart theme) */
+
+  /* Theme switch (top bar). The switch always shows the current theme, so the day values only render in light
+     and the night values only render in dark; one set serves both themes. 10-components section on ThemeSwitch. */
+  --theme-switch-day: oklch(0.915 0.040 238);   /* #CBE8FB sky track, sun side */
+  --theme-switch-night: oklch(0.360 0.085 258); /* #1F3D69 navy track, moon side */
+  --theme-switch-sun: oklch(0.580 0.130 58);    /* #B26417 sun glyph, 3.5:1 on the day track */
+  --theme-switch-moon: oklch(0.900 0.165 100);  /* #F8E048 moon glyph, 8.2:1 on the night track */
+  --theme-switch-knob: oklch(0.995 0.002 265);  /* #FDFDFE knob */
+  --shadow-switch-knob: 0 1px 2px oklch(0.215 0.010 260 / 0.20), 0 1px 1px oklch(0.215 0.010 260 / 0.10);
+
+  /* 1. Data visualization: rank bands (sequential, darker = better) */
+  --rank-band-1: oklch(0.42 0.16 262);   /* 1 to 3   */
+  --rank-band-2: oklch(0.55 0.15 262);   /* 4 to 10  */
+  --rank-band-3: oklch(0.68 0.11 262);   /* 11 to 20 */
+  --rank-band-4: oklch(0.79 0.07 262);   /* 21 to 50 */
+  --rank-band-5: oklch(0.88 0.035 262);  /* 51 to 100 */
+  --rank-band-none: oklch(0.93 0.004 255); /* unranked or beyond depth; hatched in charts */
+
+  /* 1. Data visualization: sequential (heatmaps) and diverging (change maps) */
+  --seq-1: oklch(0.97 0.012 262);
+  --seq-2: oklch(0.91 0.040 262);
+  --seq-3: oklch(0.83 0.075 262);
+  --seq-4: oklch(0.73 0.110 262);
+  --seq-5: oklch(0.62 0.150 262);
+  --seq-6: oklch(0.51 0.170 262);
+  --seq-7: oklch(0.40 0.150 262);
+  --div-neg-3: oklch(0.52 0.18 28);
+  --div-neg-2: oklch(0.70 0.12 28);
+  --div-neg-1: oklch(0.87 0.05 28);
+  --div-zero: oklch(0.96 0.003 255);
+  --div-pos-1: oklch(0.88 0.05 158);
+  --div-pos-2: oklch(0.72 0.10 158);
+  --div-pos-3: oklch(0.52 0.11 158);
+
+  /* 1. Evidence highlights: entity color at 18% behind answer text (23-application-patterns.md) */
+  --entity-1-highlight: color-mix(in oklch, var(--chart-1) 18%, transparent);
+  --entity-2-highlight: color-mix(in oklch, var(--chart-2) 18%, transparent);
+  --entity-3-highlight: color-mix(in oklch, var(--chart-3) 18%, transparent);
+  --entity-4-highlight: color-mix(in oklch, var(--chart-4) 18%, transparent);
+  --entity-5-highlight: color-mix(in oklch, var(--chart-5) 18%, transparent);
+  --entity-6-highlight: color-mix(in oklch, var(--chart-6) 18%, transparent);
+  --entity-other-highlight: color-mix(in oklch, var(--chart-other) 18%, transparent);
+
+  /* 1. Overlay scrim for modal dialogs */
+  --scrim: oklch(0.215 0.010 260 / 0.32);
+
+  /* 3. Shadows (overlays only; panels use borders) */
+  --shadow-popover: 0 1px 2px oklch(0.215 0.010 260 / 0.06), 0 4px 12px oklch(0.215 0.010 260 / 0.08);
+  --shadow-dialog: 0 2px 4px oklch(0.215 0.010 260 / 0.06), 0 12px 32px oklch(0.215 0.010 260 / 0.14);
+  --shadow-drag: 0 4px 16px oklch(0.215 0.010 260 / 0.16);
+  --shadow-inspector: 0 1px 2px oklch(0.215 0.010 260 / 0.06), 0 8px 28px oklch(0.215 0.010 260 / 0.12); /* floating inspector card */
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.175 0.005 260);
+  --sidebar: oklch(0.158 0.007 258);             /* #0B0D10 darkest layer */
+  --surface: oklch(0.195 0.006 260);
+  --surface-subtle: oklch(0.215 0.006 260);
+  --surface-elevated: oklch(0.235 0.007 260);
+  --surface-hover: oklch(0.245 0.007 260);
+  --surface-selected: oklch(0.274 0.050 263);    /* #1A2740 selected row, active nav item */
+  --surface-disabled: oklch(0.290 0.006 260);    /* lighter than surface-elevated so disabled buttons keep their shape on dialogs */
+
+  --foreground: oklch(0.945 0.004 255);
+  --foreground-secondary: oklch(0.800 0.008 255);
+  --foreground-tertiary: oklch(0.690 0.010 255);
+  --foreground-muted: oklch(0.580 0.010 255);
+  --foreground-disabled: oklch(0.460 0.008 255);
+  --foreground-inverse: oklch(0.215 0.010 260);
+  --link: oklch(0.740 0.125 262);
+
+  --border-subtle: oklch(0.255 0.006 260);
+  --border: oklch(0.300 0.007 260);
+  --border-strong: oklch(0.560 0.010 260);
+  --ring: oklch(0.680 0.160 262);
+
+  --primary: oklch(0.560 0.180 262);
+  --primary-hover: oklch(0.510 0.180 262);
+  --primary-foreground: oklch(0.985 0.002 255);
+  --primary-text: oklch(0.740 0.125 262);
+  --primary-subtle: oklch(0.265 0.050 262);
+  --primary-border: oklch(0.420 0.100 262);
+
+  --positive-text: oklch(0.735 0.136 159);       /* #4CC38A */
+  --positive-subtle: oklch(0.255 0.040 158);
+  --positive-border: oklch(0.420 0.080 158);
+  --positive-solid: oklch(0.660 0.140 158);
+
+  --negative-text: oklch(0.702 0.159 17);        /* #F1707B */
+  --negative-subtle: oklch(0.265 0.050 28);
+  --negative-border: oklch(0.450 0.110 28);
+  --negative-solid: oklch(0.640 0.180 28);
+  --negative-button: oklch(0.540 0.180 28);
+  --negative-button-hover: oklch(0.490 0.170 28);
+  --negative-button-foreground: oklch(0.985 0.002 255);
+
+  --warning-text: oklch(0.800 0.130 80);
+  --warning-subtle: oklch(0.265 0.045 80);
+  --warning-border: oklch(0.460 0.090 80);
+  --warning-solid: oklch(0.780 0.150 75);
+
+  --info-text: oklch(0.740 0.125 262);
+  --info-subtle: oklch(0.265 0.050 262);
+  --info-border: oklch(0.420 0.100 262);
+
+  --neutral-text: oklch(0.831 0.008 254);        /* #C4C8CD */
+  --neutral-subtle: oklch(0.280 0.009 256);      /* #26292D */
+  --neutral-border: oklch(0.300 0.007 260);
+
+  --chart-1: oklch(0.698 0.146 262); /* #6A9CF8 */
+  --chart-2: oklch(0.766 0.138 56);  /* #F59A55 */
+  --chart-3: oklch(0.775 0.100 200); /* #5CC9CF */
+  --chart-4: oklch(0.640 0.130 318); /* #AD71BF */
+  --chart-5: oklch(0.620 0.095 99);  /* #94873E (darker than orange for color-vision separation) */
+  --chart-6: oklch(0.740 0.141 352); /* #ED83B4 */
+  --chart-other: oklch(0.664 0.014 256);    /* #8E949C */
+  --chart-reference: oklch(0.50 0.015 255);
+  --chart-bar-neutral: oklch(0.362 0.012 258); /* #3A3E44 */
+  --chart-grid: oklch(0.255 0.006 260);
+  --chart-axis: oklch(0.300 0.007 260);
+  --chart-band: oklch(0.235 0.007 260);
+
+  --rank-band-1: oklch(0.78 0.11 262);
+  --rank-band-2: oklch(0.66 0.15 262);
+  --rank-band-3: oklch(0.54 0.14 262);
+  --rank-band-4: oklch(0.42 0.10 262);
+  --rank-band-5: oklch(0.32 0.06 262);
+  --rank-band-none: oklch(0.255 0.006 260);
+
+  --seq-1: oklch(0.24 0.02 262);
+  --seq-2: oklch(0.31 0.06 262);
+  --seq-3: oklch(0.39 0.10 262);
+  --seq-4: oklch(0.48 0.13 262);
+  --seq-5: oklch(0.58 0.15 262);
+  --seq-6: oklch(0.69 0.14 262);
+  --seq-7: oklch(0.80 0.10 262);
+  --div-neg-3: oklch(0.70 0.16 28);
+  --div-neg-2: oklch(0.50 0.13 28);
+  --div-neg-1: oklch(0.32 0.07 28);
+  --div-zero: oklch(0.24 0.006 260);
+  --div-pos-1: oklch(0.32 0.06 158);
+  --div-pos-2: oklch(0.50 0.10 158);
+  --div-pos-3: oklch(0.72 0.13 158);
+
+  --scrim: oklch(0.100 0.005 260 / 0.56);
+
+  --shadow-popover: 0 0 0 1px var(--border), 0 8px 20px oklch(0.080 0.005 260 / 0.50);
+  --shadow-dialog: 0 0 0 1px var(--border), 0 16px 40px oklch(0.080 0.005 260 / 0.60);
+  --shadow-drag: 0 0 0 1px var(--border-strong), 0 8px 24px oklch(0.080 0.005 260 / 0.55);
+  --shadow-inspector: 0 12px 32px oklch(0.080 0.005 260 / 0.50);
+}
+
+:root {
+  /* 2. shadcn/ui compatibility aliases. Copied shadcn components reference these names.
+        When a component is imported it is restyled to canonical tokens (26-implementation-guidelines.md). */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface-elevated);
+  --popover-foreground: var(--foreground);
+  --secondary: var(--surface-subtle);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--surface-subtle);
+  --muted-foreground: var(--foreground-tertiary);
+  --accent: var(--surface-hover);                 /* shadcn "accent" means highlighted item surface */
+  --accent-foreground: var(--foreground);
+  --destructive: var(--negative-button);
+  --destructive-foreground: var(--negative-button-foreground);
+  --input: var(--border);                         /* text inputs use the light outline; checkboxes and radios use --border-strong */
+  --sidebar-foreground: var(--foreground-secondary);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--surface-hover);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--ring);
+
+  /* 3. Typography */
+  --font-sans-stack: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono-stack: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 3. Component sizes (px values are CSS px at 100% zoom; docs/design-system/reference/visual-spec.md section 4) */
+  --size-control-sm: 2rem;         /* 32px: pagination, icon buttons in tables and inspectors */
+  --size-control: 2.25rem;         /* 36px: default control height (buttons, inputs, filters, chips, segments) */
+  --size-control-lg: 2.5rem;       /* 40px: auth screens and onboarding only */
+  --size-row: 2.5rem;              /* 40px: default table row */
+  --size-row-compact: 2rem;        /* 32px: tables embedded in panels and inspectors */
+  --size-row-header: 2.5rem;       /* 40px: table header row */
+  --size-topbar: 3.25rem;          /* 52px */
+  --size-sidebar: 13rem;           /* 208px expanded */
+  --size-sidebar-collapsed: 3.5rem;/* 56px collapsed */
+  --size-sidebar-item: 2rem;       /* 32px nav item */
+  --size-tab: 2.75rem;             /* 44px underline tab row */
+  --size-metric-strip: 4.75rem;    /* 76px */
+  --size-badge: 1.375rem;          /* 22px */
+  --size-avatar: 2rem;             /* 32px */
+  --size-save-bar: 3.5rem;         /* 56px sticky settings save bar */
+  --size-inspector: 25rem;         /* 400px default docked inspector */
+  --size-inspector-min: 22.5rem;   /* 360px */
+  --size-inspector-max: 40rem;     /* 640px */
+  --size-inspector-wide: 27.5rem;  /* 440px: prompt and citation inspectors */
+  --size-drawer: 35rem;            /* 560px: non-modal StatisticsPanel */
+  --size-dialog-sm: 25rem;         /* 400px */
+  --size-dialog-md: 35rem;         /* 560px */
+  --size-dialog-lg: 45rem;         /* 720px */
+  --size-popover-min: 17.5rem;     /* 280px */
+  --size-popover-max: 22.5rem;     /* 360px */
+  --size-popover-max-h: 25rem;     /* 400px */
+  --size-menu-min: 11.25rem;       /* 180px */
+  --size-menu-max: 17.5rem;        /* 280px */
+  --size-tooltip-max: 20rem;       /* 320px */
+  --size-preview-card: 20rem;      /* 320px */
+  --size-command: 40rem;           /* 640px command palette */
+  --size-command-max-h: 30rem;     /* 480px */
+  --size-control-touch: 2.75rem;   /* 44px: primary actions on touch phones only (19-responsive-behavior.md) */
+  --sticky-stack-height: 0px;      /* runtime: set per scroll container by ResizeObserver (20-accessibility.md) */
+  --size-icon-xs: 0.75rem;         /* 12px */
+  --size-icon-sm: 0.875rem;        /* 14px */
+  --size-icon: 1rem;               /* 16px default */
+  --size-icon-md: 1.125rem;        /* 18px */
+  --size-icon-lg: 1.25rem;         /* 20px */
+
+  /* 3. Motion */
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;          /* hover, press, selection feedback */
+  --duration-base: 150ms;          /* popovers, menus, tooltips */
+  --duration-slow: 200ms;          /* drawers, dialogs, inspector */
+  --duration-reveal: 400ms;        /* theme change: the circular reveal from the theme switch */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* 3. Z-index scale (the only permitted z-index values) */
+  --z-base: 0;
+  --z-pinned-cell: 10;
+  --z-table-header: 20;
+  --z-sticky: 30;                  /* page header, filter bar */
+  --z-sidebar: 40;
+  --z-inspector: 50;               /* docked inspector */
+  --z-dropdown: 60;                /* menus, popovers, selects, date pickers */
+  --z-drawer: 70;                  /* overlay drawer (tablet, mobile) */
+  --z-dialog: 80;
+  --z-command: 90;
+  --z-toast: 100;
+  --z-tooltip: 110;
+}
+
+/* Reduced motion: operating-system preference or the in-app setting (data-motion="reduced" on <html>). */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+    --duration-reveal: 0ms;
+  }
+}
+:root[data-motion="reduced"] {
+  --duration-fast: 0ms;
+  --duration-base: 0ms;
+  --duration-slow: 0ms;
+  --duration-reveal: 0ms;
+}

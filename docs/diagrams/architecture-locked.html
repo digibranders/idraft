@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visibility Platform Architecture</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a single reading column for text, figures allowed to run wider; the product's own cobalt on cool neutrals. */
+  :root {
+    --bg: #f8f8fa;
+    --surface: #ffffff;
+    --fg: #1f2126;
+    --muted: #6b7079;
+    --line: #e3e5ea;
+    --line-strong: #9aa0aa;
+    --accent: #1e65e3;
+    --accent-soft: #e8f0fd;
+    --font-body: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17191d; --surface: #222429; --fg: #eceef1; --muted: #9ba0a9; --line: #34373d; --line-strong: #6e737d;
+      --accent: #5b8def; --accent-soft: #1f2d48; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17191d; --surface: #222429; --fg: #eceef1; --muted: #9ba0a9; --line: #34373d; --line-strong: #6e737d;
+    --accent: #5b8def; --accent-soft: #1f2d48; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; margin: 0; padding-block: 40px 80px; padding-inline: clamp(16px, 4vw, 48px); }
+  .wrap { max-width: 1080px; margin-inline: auto; }
+  .prose { max-width: 70ch; }
+  h1, h2, h3 { text-wrap: balance; letter-spacing: -0.015em; line-height: 1.2; margin: 0; }
+  h1 { font-size: clamp(28px, 4vw, 38px); font-weight: 600; }
+  h2 { font-size: 22px; font-weight: 600; margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); }
+  h3 { font-size: 16px; font-weight: 600; margin-top: 28px; }
+  p { margin: 12px 0 0; }
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .lede { font-size: 17px; color: var(--muted); margin-top: 12px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 20px; font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--fg); font-weight: 500; }
+  .decisions { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 20px; }
+  .decision { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+  .decision b { display: block; font-weight: 600; margin-bottom: 4px; }
+  .decision span { color: var(--muted); font-size: 14px; }
+  figure { margin: 24px 0 0; }
+  .fig { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 12px; }
+  .fig svg { display: block; width: 100%; height: auto; min-width: 720px; color: var(--fg); font-family: var(--font-body); }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 10px; max-width: 80ch; }
+  .node rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.25; }
+  .node.accent rect { stroke: var(--accent); stroke-width: 1.75; }
+  .node.ext rect { fill: var(--bg); stroke-dasharray: 3 3; }
+  .node text { fill: var(--fg); font-size: 12.5px; font-weight: 500; }
+  .node .sub { fill: var(--muted); font-size: 11px; font-weight: 400; }
+  .edge { fill: none; stroke: var(--line-strong); stroke-width: 1.25; marker-end: url(#ar); }
+  .edge.accent { stroke: var(--accent); stroke-width: 1.75; marker-end: url(#ar-a); }
+  .edge.dashed { stroke-dasharray: 4 4; }
+  .lbl { fill: var(--muted); font-size: 11px; }
+  .lbl.strong { fill: var(--fg); font-weight: 500; }
+  .frame rect { fill: none; stroke: var(--line-strong); stroke-dasharray: 5 4; }
+  .frame text { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+  .table-wrap { overflow-x: auto; margin-top: 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; font-size: 13px; color: var(--muted); }
+  td:first-child { font-weight: 500; white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  code, pre { font-family: var(--font-mono); font-size: 13px; }
+  code { background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; overflow-x: auto; margin: 16px 0 0; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  .pill { display: inline-block; font-family: var(--font-mono); font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; }
+  .pill.keep { color: var(--accent); border-color: var(--accent); }
+  ul { padding-left: 20px; margin: 12px 0 0; }
+  li { margin-top: 6px; }
+  @media (max-width: 640px) { body { font-size: 14px; } h2 { margin-top: 40px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Locked 2026-09-30</div>
+    <h1>Visibility Platform Architecture</h1>
+    <p class="lede prose">One droplet, five services, one ledger. What runs where, how a paid provider call moves from a scheduled row to a number on a screen, and which parts of the original spec were cut.</p>
+    <div class="meta">
+      <span><b>For:</b> the agency team and client logins</span>
+      <span><b>Not yet:</b> public SaaS (nothing here blocks it)</span>
+      <span><b>Target load:</b> 1,000 keywords daily, 1,000 prompts weekly</span>
+      <span><b>Provider cost:</b> about $102 to $148 a month</span>
+    </div>
+  </header>
+
+  <h2>What is locked</h2>
+  <div class="decisions">
+    <div class="decision"><b>Python backend</b><span>FastAPI for the API, Taskiq for the worker. Extraction and statistics live where the libraries are.</span></div>
+    <div class="decision"><b>Next.js on the droplet</b><span>Same origin as the API. Server rendering calls FastAPI over the Docker network, not across the internet.</span></div>
+    <div class="decision"><b>PostgreSQL 18 is the ledger</b><span>Observations are append-only and partitioned monthly. Rollups hold counts and sums. Every number is reproducible.</span></div>
+    <div class="decision"><b>A task row before every paid call</b><span>The scheduler writes the row, the dispatcher checks the budget, then the job is queued. Losing Redis loses nothing.</span></div>
+    <div class="decision"><b>Redis for transport only</b><span>Queue (acknowledged streams), rate limiter, scheduler lock, session cache. No state lives only in Redis.</span></div>
+    <div class="decision"><b>DataForSEO behind an adapter</b><span>SERP, AI Mode and the LLM scraper through one interface, polled every 30 to 60 s. No public callback endpoint.</span></div>
+    <div class="decision"><b>Raw payloads in R2</b><span>Every provider response is kept compressed, so a parser fix can re-derive history without paying again.</span></div>
+    <div class="decision"><b>Measurement rules unchanged</b><span>Depth profiles, mention and citation kept separate, deterministic extraction first, intervals with denominators, no composite score.</span></div>
+    <div class="decision"><b>Own auth module</b><span>Argon2 passwords, a sessions table, TOTP for admins, invitations and roles. About 500 lines, no framework to fight.</span></div>
+    <div class="decision"><b>Tenant isolation stays</b><span>Row-level security on every workspace table plus a cross-tenant test in CI. Clients log in, so this is not optional.</span></div>
+    <div class="decision"><b>Docker Compose, images built in CI</b><span>Nothing is built on the server. Rollback is the previous image tag.</span></div>
+    <div class="decision"><b>4 GB droplet to start</b><span>About 2.1 to 2.8 GB in steady state. Resize to 8 GB on defined triggers, not on a hunch.</span></div>
+  </div>
+
+  <h2>Deployment</h2>
+  <p class="prose">Six containers on one DigitalOcean droplet. Caddy is the only thing listening on the public network; Postgres and Redis have no published ports. The worker is the only process that spends money.</p>
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 0 1080 460" role="img" aria-label="Deployment: a browser reaches Caddy over HTTPS; Caddy routes /api/* to FastAPI and everything else to Next.js; Next.js calls the API over the Docker network; the API and the worker share Postgres and Redis; the worker alone talks to DataForSEO and writes raw payloads to R2; Postgres dumps nightly to R2; errors and heartbeats go to Sentry and Healthchecks.">
+        <defs>
+          <marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--line-strong)"/></marker>
+          <marker id="ar-a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--accent)"/></marker>
+        </defs>
+
+        <g class="frame">
+          <rect x="190" y="16" width="690" height="430" rx="10"/>
+          <text x="204" y="38">DigitalOcean droplet, 4 GB, Docker Compose</text>
+          <text x="204" y="420">Deploy: GitHub Actions builds the web, api and worker images and pushes them to GHCR.</text>
+          <text x="204" y="436">The droplet pulls, runs Alembic migrations, then restarts api and worker.</text>
+        </g>
+
+        <g class="node ext"><rect x="20" y="180" width="120" height="56" rx="8"/><text x="80" y="204" text-anchor="middle">Browser</text><text x="80" y="221" text-anchor="middle" class="sub">team and clients</text></g>
+        <g class="node"><rect x="220" y="180" width="110" height="56" rx="8"/><text x="275" y="204" text-anchor="middle">caddy</text><text x="275" y="221" text-anchor="middle" class="sub">TLS, reverse proxy</text></g>
+        <g class="node"><rect x="380" y="90" width="140" height="56" rx="8"/><text x="450" y="114" text-anchor="middle">web</text><text x="450" y="131" text-anchor="middle" class="sub">Next.js, standalone</text></g>
+        <g class="node"><rect x="380" y="180" width="140" height="56" rx="8"/><text x="450" y="204" text-anchor="middle">api</text><text x="450" y="221" text-anchor="middle" class="sub">FastAPI on uvicorn</text></g>
+        <g class="node"><rect x="580" y="100" width="120" height="56" rx="8"/><text x="640" y="124" text-anchor="middle">redis 8</text><text x="640" y="141" text-anchor="middle" class="sub">queue, locks, cache</text></g>
+        <g class="node"><rect x="580" y="250" width="120" height="64" rx="8"/><text x="640" y="276" text-anchor="middle">postgres 18</text><text x="640" y="293" text-anchor="middle" class="sub">ledger and analytics</text></g>
+        <g class="node accent"><rect x="750" y="180" width="110" height="56" rx="8"/><text x="805" y="204" text-anchor="middle">worker</text><text x="805" y="221" text-anchor="middle" class="sub">Taskiq + scheduler</text></g>
+
+        <g class="node ext"><rect x="920" y="90" width="140" height="56" rx="8"/><text x="990" y="114" text-anchor="middle">DataForSEO</text><text x="990" y="131" text-anchor="middle" class="sub">SERP, AI Mode, scraper</text></g>
+        <g class="node ext"><rect x="920" y="180" width="140" height="56" rx="8"/><text x="990" y="204" text-anchor="middle">Cloudflare R2</text><text x="990" y="221" text-anchor="middle" class="sub">raw payloads, backups</text></g>
+        <g class="node ext"><rect x="920" y="270" width="140" height="56" rx="8"/><text x="990" y="294" text-anchor="middle">Sentry, Healthchecks</text><text x="990" y="311" text-anchor="middle" class="sub">errors, heartbeats</text></g>
+
+        <path class="edge" d="M140,208 H220"/><text class="lbl" x="180" y="200" text-anchor="middle">HTTPS</text>
+        <path class="edge" d="M330,208 H380"/><text class="lbl" x="355" y="200" text-anchor="middle">/api/*</text>
+        <path class="edge" d="M330,196 H355 V118 H380"/><text class="lbl" x="350" y="150" text-anchor="end">pages</text>
+        <path class="edge" d="M450,146 V180"/><text class="lbl" x="458" y="167">SSR calls, Docker network</text>
+        <path class="edge" d="M520,196 H550 V128 H580"/><text class="lbl" x="556" y="180">sessions, limits</text>
+        <path class="edge" d="M520,220 H550 V282 H580"/><text class="lbl" x="556" y="240">reads</text>
+        <path class="edge accent" d="M750,196 H725 V128 H700"/><text class="lbl" x="718" y="180" text-anchor="end">jobs, locks</text>
+        <path class="edge accent" d="M750,220 H725 V282 H700"/><text class="lbl" x="718" y="240" text-anchor="end">ledger, ingest</text>
+        <path class="edge accent" d="M860,196 H890 V118 H920"/><text class="lbl strong" x="884" y="162" text-anchor="end">submit, poll, fetch</text>
+        <path class="edge accent" d="M860,208 H920"/><text class="lbl" x="890" y="200" text-anchor="middle">raw JSON</text>
+        <path class="edge" d="M860,220 H890 V298 H920"/><text class="lbl" x="884" y="258" text-anchor="end">errors, heartbeats</text>
+        <path class="edge dashed" d="M640,314 V400 H1070 V208 H1060"/><text class="lbl" x="700" y="393">nightly encrypted dump, 30-day retention</text>
+      </svg>
+    </div>
+    <figcaption>The request path is one origin: no CORS, one cookie domain, no staging API for previews. The api also reports to Sentry (not drawn). Cloudflare's free proxy can sit in front of Caddy for edge caching of static assets and DDoS protection; it is optional and changes nothing inside the box.</figcaption>
+  </figure>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Container</th><th>Image</th><th>Role</th><th class="num">Steady RAM</th></tr></thead>
+      <tbody>
+        <tr><td>caddy</td><td>caddy:2</td><td>TLS, reverse proxy, request size limits</td><td class="num">40 MB</td></tr>
+        <tr><td>web</td><td>ours, Next.js standalone</td><td>Pages and server rendering; calls the api over the Docker network</td><td class="num">150 to 250 MB</td></tr>
+        <tr><td>api</td><td>ours, Python 3.13 + uv</td><td>FastAPI: auth, tenancy, reads, writes, OpenAPI</td><td class="num">120 to 200 MB</td></tr>
+        <tr><td>worker</td><td>ours, same Dockerfile as api</td><td>Taskiq worker and scheduler: planner tick, provider calls, ingest, derivation, rollups, maintenance</td><td class="num">150 to 300 MB</td></tr>
+        <tr><td>postgres</td><td>postgres:18</td><td>Ledger, observations, rollups, sessions; named volume, 768 MB shared buffers</td><td class="num">1.0 to 1.3 GB</td></tr>
+        <tr><td>redis</td><td>redis:8</td><td>Queue transport, rate limiter, scheduler lock, session cache; AOF on, 256 MB cap, noeviction</td><td class="num">100 to 256 MB</td></tr>
+        <tr><td>host</td><td>Ubuntu, Docker, sshd</td><td>2 GB swap as a safety net, weekly DigitalOcean snapshot</td><td class="num">about 400 MB</td></tr>
+        <tr><td>Total</td><td></td><td>of about 3.8 GB usable; the rest is Postgres file cache</td><td class="num">2.1 to 2.8 GB</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>The paid-call lifecycle</h2>
+  <p class="prose">This is the mechanism that protects the budget. A provider call exists as a Postgres row before it exists as a Redis job, the budget is checked before the job is queued, and retries move the row, never resubmit blindly.</p>
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 0 1080 310" role="img" aria-label="Paid-call lifecycle: the scheduler tick creates a planned row; the dispatcher checks the budget and queues it; the worker submits the task to the provider, polls until ready, fetches the result and stores the raw JSON in R2, parses it into observations, then derives rank rows, features, citations and mentions. Provider and parse errors move the row to failed, which retries by error class with backoff and then dead-letters.">
+        <defs>
+          <marker id="ar2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--line-strong)"/></marker>
+          <marker id="ar2-a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--accent)"/></marker>
+        </defs>
+        <g class="node"><rect x="16" y="96" width="118" height="48" rx="8"/><text x="75" y="125" text-anchor="middle">planned</text></g>
+        <g class="node"><rect x="168" y="96" width="118" height="48" rx="8"/><text x="227" y="125" text-anchor="middle">queued</text></g>
+        <g class="node"><rect x="320" y="96" width="118" height="48" rx="8"/><text x="379" y="125" text-anchor="middle">submitted</text></g>
+        <g class="node"><rect x="472" y="96" width="118" height="48" rx="8"/><text x="531" y="125" text-anchor="middle">ready</text></g>
+        <g class="node"><rect x="624" y="96" width="118" height="48" rx="8"/><text x="683" y="125" text-anchor="middle">fetched</text></g>
+        <g class="node"><rect x="776" y="96" width="118" height="48" rx="8"/><text x="835" y="125" text-anchor="middle">ingested</text></g>
+        <g class="node"><rect x="928" y="96" width="118" height="48" rx="8"/><text x="987" y="125" text-anchor="middle">derived</text></g>
+        <g class="node"><rect x="472" y="200" width="118" height="48" rx="8"/><text x="531" y="229" text-anchor="middle">failed</text></g>
+
+        <path class="edge accent" style="marker-end:url(#ar2-a)" d="M134,120 H168"/>
+        <text class="lbl strong" x="151" y="74" text-anchor="middle">dispatcher</text><text class="lbl strong" x="151" y="88" text-anchor="middle">budget check</text>
+        <path class="edge" style="marker-end:url(#ar2)" d="M286,120 H320"/>
+        <text class="lbl" x="303" y="74" text-anchor="middle">worker</text><text class="lbl" x="303" y="88" text-anchor="middle">POST task</text>
+        <path class="edge" style="marker-end:url(#ar2)" d="M438,120 H472"/>
+        <text class="lbl" x="455" y="74" text-anchor="middle">poll</text><text class="lbl" x="455" y="88" text-anchor="middle">every 30 to 60 s</text>
+        <path class="edge" style="marker-end:url(#ar2)" d="M590,120 H624"/>
+        <text class="lbl" x="607" y="74" text-anchor="middle">GET result</text><text class="lbl" x="607" y="88" text-anchor="middle">raw JSON to R2</text>
+        <path class="edge" style="marker-end:url(#ar2)" d="M742,120 H776"/>
+        <text class="lbl" x="759" y="74" text-anchor="middle">parse into</text><text class="lbl" x="759" y="88" text-anchor="middle">observations</text>
+        <path class="edge" style="marker-end:url(#ar2)" d="M894,120 H928"/>
+        <text class="lbl" x="911" y="74" text-anchor="middle">rank, features,</text><text class="lbl" x="911" y="88" text-anchor="middle">citations, mentions</text>
+
+        <path class="edge" style="marker-end:url(#ar2)" d="M379,144 V224 H472"/><text class="lbl" x="387" y="190">provider error</text>
+        <path class="edge" style="marker-end:url(#ar2)" d="M683,144 V224 H590"/><text class="lbl" x="675" y="190" text-anchor="end">parse error</text>
+        <path class="edge" style="marker-end:url(#ar2)" d="M531,248 V272 H227 V144"/><text class="lbl" x="400" y="264" text-anchor="middle">retry by error class with backoff, then dead letter</text>
+
+        <text class="lbl" x="16" y="170">Created by the scheduler tick every 60 s, from the project's schedules</text>
+        <text class="lbl" x="16" y="296">If Redis is lost, the reconciler re-enqueues every row still in queued or submitted. No row, no paid call. No call is paid twice.</text>
+      </svg>
+    </div>
+    <figcaption>Each state change is one UPDATE on the task row, with the provider task id, the cost from the price book and the error class recorded on it. The Operations screen reads this table directly, which is why no separate metrics stack is needed.</figcaption>
+  </figure>
+
+  <h2>Data flow</h2>
+  <p class="prose">Two collection lanes, one derivation layer, denominators all the way through. The AI Overview is parsed out of the same SERP check that produces the rank, so it costs nothing extra and is stored once.</p>
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 0 1080 320" role="img" aria-label="Data flow: a tracked keyword produces a daily SERP snapshot, from which domain rank rows, SERP features and the AI Overview are derived. A prompt produces weekly AI answers from ChatGPT, Gemini and AI Mode. AI answers and the AI Overview yield citations and entity mentions. Rank and features feed SEO rollups; citations and mentions feed AI rollups; both feed the screens and the keyword-to-prompt matrix.">
+        <defs>
+          <marker id="ar3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--line-strong)"/></marker>
+        </defs>
+        <g class="node"><rect x="16" y="72" width="130" height="44" rx="8"/><text x="81" y="90" text-anchor="middle">Tracked keyword</text><text x="81" y="106" text-anchor="middle" class="sub">1,000 in V1</text></g>
+        <g class="node"><rect x="196" y="72" width="130" height="44" rx="8"/><text x="261" y="90" text-anchor="middle">SERP snapshot</text><text x="261" y="106" text-anchor="middle" class="sub">one DataForSEO task</text></g>
+        <g class="node"><rect x="376" y="14" width="130" height="44" rx="8"/><text x="441" y="32" text-anchor="middle">Domain rank rows</text><text x="441" y="48" text-anchor="middle" class="sub">rank_group, depth-aware</text></g>
+        <g class="node"><rect x="376" y="72" width="130" height="44" rx="8"/><text x="441" y="90" text-anchor="middle">SERP features</text><text x="441" y="106" text-anchor="middle" class="sub">presence per check</text></g>
+        <g class="node accent"><rect x="376" y="130" width="130" height="44" rx="8"/><text x="441" y="148" text-anchor="middle">AI Overview</text><text x="441" y="164" text-anchor="middle" class="sub">same check, stored once</text></g>
+        <g class="node"><rect x="16" y="240" width="130" height="44" rx="8"/><text x="81" y="258" text-anchor="middle">Prompt</text><text x="81" y="274" text-anchor="middle" class="sub">1,000 in V1, 3 engines</text></g>
+        <g class="node"><rect x="196" y="240" width="130" height="44" rx="8"/><text x="261" y="258" text-anchor="middle">AI answers</text><text x="261" y="274" text-anchor="middle" class="sub">ChatGPT, Gemini, AI Mode</text></g>
+        <g class="node"><rect x="556" y="180" width="130" height="44" rx="8"/><text x="621" y="198" text-anchor="middle">Citations</text><text x="621" y="214" text-anchor="middle" class="sub">URL to domain</text></g>
+        <g class="node"><rect x="556" y="240" width="130" height="44" rx="8"/><text x="621" y="258" text-anchor="middle">Entity mentions</text><text x="621" y="274" text-anchor="middle" class="sub">alias match, evidence</text></g>
+        <g class="node"><rect x="736" y="30" width="130" height="44" rx="8"/><text x="801" y="48" text-anchor="middle">SEO rollups, state</text><text x="801" y="64" text-anchor="middle" class="sub">counts and sums per day</text></g>
+        <g class="node"><rect x="736" y="210" width="130" height="44" rx="8"/><text x="801" y="228" text-anchor="middle">AI rollups</text><text x="801" y="244" text-anchor="middle" class="sub">rates with intervals</text></g>
+        <g class="node"><rect x="916" y="127" width="148" height="44" rx="8"/><text x="990" y="145" text-anchor="middle">Screens and matrix</text><text x="990" y="161" text-anchor="middle" class="sub">denominators everywhere</text></g>
+
+        <path class="edge" style="marker-end:url(#ar3)" d="M146,94 H196"/><text class="lbl" x="171" y="86" text-anchor="middle">daily</text>
+        <path class="edge" style="marker-end:url(#ar3)" d="M326,88 H350 V36 H376"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M326,94 H376"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M326,100 H350 V152 H376"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M506,152 H530 V202 H556"/><text class="lbl" x="524" y="186" text-anchor="end">cited URLs</text>
+        <path class="edge" style="marker-end:url(#ar3)" d="M506,158 H520 V262 H556"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M146,262 H196"/><text class="lbl" x="171" y="254" text-anchor="middle">weekly</text>
+        <path class="edge" style="marker-end:url(#ar3)" d="M326,250 H540 V202 H556"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M326,262 H556"/><text class="lbl" x="440" y="278" text-anchor="middle">deterministic first, evidence kept</text>
+        <path class="edge" style="marker-end:url(#ar3)" d="M506,36 H620 V52 H736"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M506,94 H620 V52"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M686,202 H710 V232 H736"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M686,262 H710 V232"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M866,52 H890 V149 H916"/>
+        <path class="edge" style="marker-end:url(#ar3)" d="M866,232 H890 V149"/>
+        <text class="lbl" x="900" y="118" text-anchor="middle">keyword to prompt links</text>
+      </svg>
+    </div>
+    <figcaption>Derivations carry a version. When a matcher or the rank rule changes, the affected range is re-derived from the raw payloads in R2, and the rollups are rebuilt. History never changes silently.</figcaption>
+  </figure>
+
+  <h2>The stack</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Layer</th><th>Choice</th><th>Why this and not the alternative</th></tr></thead>
+      <tbody>
+        <tr><td>Frontend</td><td>Next.js (App Router), TanStack Query and Table, ECharts, shadcn/ui on Tailwind v4, the locked design system</td><td>Self-hosted next to the API. Vercel would put server rendering in another region and add 100 ms or more to every page.</td></tr>
+        <tr><td>API</td><td>FastAPI on uvicorn, Pydantic v2</td><td>OpenAPI comes for free; the TypeScript client is generated from it with openapi-typescript, so the contract stays typed end to end.</td></tr>
+        <tr><td>Auth</td><td>Own module: argon2, sessions table with a Redis cache, TOTP with pyotp, invitations, roles</td><td>fastapi-users is in maintenance mode, has no 2FA and forces its ORM. The needs here are standard and small.</td></tr>
+        <tr><td>Database</td><td>PostgreSQL 18; SQLAlchemy 2 async on asyncpg; Alembic; raw SQL for analytics</td><td>Monthly partitions on the two big observation tables, daily rollups, row-level security on the API role. The worker uses its own role and is never reachable from a request.</td></tr>
+        <tr><td>Queue</td><td>Taskiq on Redis 8 streams, two queues (collect, process); Postgres task ledger; scheduler inside the worker</td><td>Async-native, so collection (all async HTTP) stays one model. The stream broker acknowledges messages, so a crashed worker loses nothing. arq is maintenance-only; Celery is sync-first and is the fallback.</td></tr>
+        <tr><td>Extraction, statistics</td><td>rapidfuzz, tldextract, url-normalize; scipy and statsmodels</td><td>The reason for Python. Wilson intervals, bootstrap and paired comparisons are library calls, not a port.</td></tr>
+        <tr><td>Raw storage</td><td>Cloudflare R2, zstd, retention per payload class</td><td>Keeps Postgres small and makes re-parsing free.</td></tr>
+        <tr><td>Provider</td><td>DataForSEO behind an adapter; polling only</td><td>Fallback providers are built only when a defined trigger fires.</td></tr>
+        <tr><td>Hosting</td><td>DigitalOcean droplet, 4 GB, Docker Compose, Caddy; Cloudflare proxy optional</td><td>One box, one domain, defined resize triggers.</td></tr>
+        <tr><td>CI/CD</td><td>GitHub Actions: lint, typecheck, tests, build images, push to GHCR, SSH deploy, Alembic before restart</td><td>The droplet never builds anything.</td></tr>
+        <tr><td>Operations</td><td>Sentry (errors and performance), Healthchecks (cron heartbeats), one uptime ping, an in-app Operations screen over the task table</td><td>Replaces Grafana Alloy, Grafana Cloud, Prometheus and SLO error budgets.</td></tr>
+        <tr><td>Backups</td><td>Nightly pg_dump encrypted with age to R2, 30-day retention; weekly DigitalOcean snapshot; scripted monthly restore drill</td><td>Meets the 24 h recovery point without the GFS rotation, bucket lock and CI restore workflow.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Repository layout</h2>
+  <p class="prose">One Python project with two entrypoints, one Next.js app. The purity rules from the original design are kept and enforced with import-linter: <code>domain</code> and <code>extraction</code> import nothing internal, and <code>providers</code> never touches the database.</p>
+<pre><code>repo/
+  apps/web/              Next.js app, generated API client, the design system
+  backend/
+    src/sightline/
+      api/               FastAPI app: routers, auth, tenancy, problem+json errors
+      worker/            Taskiq tasks and the scheduler tick
+      domain/            pure: metrics, rank derivation, statistics, alert rules
+      extraction/        pure: canonicalizer, alias matcher, list parser, classifiers
+      providers/         DataForSEO adapter and contract tests (no db access)
+      collectors/        planners, submitters, fetchers, ingesters
+      db/                SQLAlchemy models, Alembic migrations, RLS helper
+      storage/           R2 client, zstd, raw payload writer and reader
+      config/            settings from the environment, validated at start
+    tests/
+  data/fixtures/         recorded provider responses with schema hashes
+  data/gold/             gold sets for extraction and rank derivation
+  infra/                 docker-compose.yml, Caddyfile, deploy.sh, backup.sh
+  docs/                  this documentation package</code></pre>
+
+  <h2>Cut from the original spec</h2>
+  <p class="prose">Everything below was specified for a three-engineer SaaS launch on a memory-starved host. None of it changes what a user sees or what a number means.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Item</th><th>Was</th><th>Now</th></tr></thead>
+      <tbody>
+        <tr><td>Processes</td><td>api, worker-collect, worker-process, scheduler</td><td>api and worker <span class="pill">removed</span></td></tr>
+        <tr><td>Readiness signal</td><td>Pingback endpoint, polling and a sweeper</td><td>Polling only, every 30 to 60 s <span class="pill">removed</span></td></tr>
+        <tr><td>Metrics stack</td><td>Grafana Alloy, Grafana Cloud, Prometheus registry, SLO error budgets</td><td>Sentry, Healthchecks, uptime ping, Operations screen <span class="pill">replaced</span></td></tr>
+        <tr><td>Secrets</td><td>SOPS and age files decrypted to tmpfs on deploy</td><td>A root-only .env written from GitHub Actions secrets <span class="pill">replaced</span></td></tr>
+        <tr><td>Backups</td><td>GFS 14/8/12 rotation, bucket lock, weekly CI restore test, second copy of raw AI data</td><td>Nightly dump, 30 days, weekly snapshot, monthly drill <span class="pill">replaced</span></td></tr>
+        <tr><td>Repo</td><td>12 packages and Turborepo</td><td>backend plus apps/web <span class="pill">replaced</span></td></tr>
+        <tr><td>Gold datasets</td><td>360 SERPs and 400 answers, each annotated twice</td><td>100 and 100, single annotation, grown from real bugs <span class="pill">reduced</span></td></tr>
+        <tr><td>Memory budget</td><td>Per-container tuning table for a 4 GB host</td><td>A few settings and defined resize triggers <span class="pill">reduced</span></td></tr>
+        <tr><td>Envelope encryption</td><td>AES-GCM with versioned keys and a rewrap CLI</td><td>When client integrations arrive (Phase 12) <span class="pill">deferred</span></td></tr>
+        <tr><td>API keys, idempotency keys</td><td>Phase 1</td><td>When a client asks for an API <span class="pill">deferred</span></td></tr>
+        <tr><td>Google sign-in, shared fetch cache</td><td>Phases 1 and 4</td><td>Google sign-in on request; the shared fetch cache in Phase 11 or later <span class="pill">deferred</span></td></tr>
+        <tr><td>Task ledger, budget caps, raw payloads, partitions, rollups, RLS, 2FA, versioned derivations, LLM adjudication within budget, the statistics</td><td>Specified</td><td>Unchanged <span class="pill keep">kept</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Scaling triggers</h2>
+  <p class="prose">Decisions are made on measurements, not on a hunch. Each trigger has one action.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Trigger</th><th>Action</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Swap in steady use, or Postgres cache hit ratio under 99%, or the database over 10 GB</td><td>Resize the droplet to 8 GB</td><td>$24 to $48 a month</td></tr>
+        <tr><td>Collection window overruns twice in a month</td><td>Raise worker concurrency; then a second worker container</td><td>none</td></tr>
+        <tr><td>Database over 40 GB</td><td>Attach a volume, then move Postgres to its own droplet</td><td>from $10 a month</td></tr>
+        <tr><td>API p95 over 300 ms on the overview with rollups in place</td><td>Profile the query first; a second api container behind Caddy is the last resort</td><td>none</td></tr>
+        <tr><td>The tool is offered to outside companies</td><td>API keys, envelope-encrypted integration credentials, point-in-time recovery</td><td>engineering time</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What happens next</h2>
+  <h3>Phase 0, about one week</h3>
+  <ul>
+    <li>Put the repository under git and commit the baseline.</li>
+    <li>Fund DataForSEO and create the two R2 buckets (yours to do).</li>
+    <li>Spikes S-01 to S-06: SERP task flow and billing, payload sizes, AI Overview async behaviour, ChatGPT and Gemini scraper payloads, replicate independence, AI Mode. Fixtures captured with schema hashes; the price book seeded from confirmed billing.</li>
+    <li>S-09: synthetic 12-month dataset to confirm the partition and index plan. S-11: the canonicalizer on real URLs.</li>
+    <li>Freeze docs 04, 05, 12 and 19.</li>
+  </ul>
+  <h3>Phase 1, about three and a half weeks</h3>
+  <ul>
+    <li>Backend skeleton: FastAPI, SQLAlchemy, Alembic, Taskiq, settings, structured logs, Sentry.</li>
+    <li>Schemas auth, core and ops; row-level security; the task ledger and price book; partition maintenance.</li>
+    <li>Auth: sign-up, sign-in, TOTP for admins, invitations, roles, workspaces, projects, audit log.</li>
+    <li>Worker: scheduler tick, dispatcher with budget check, the DataForSEO client with rate limiting and its error taxonomy.</li>
+    <li>Next.js shell from the design system: auth screens, switcher, settings, empty overview; generated API client.</li>
+    <li>Droplet bootstrap, Compose stack, Caddy, firewall, GitHub Actions deploy, nightly backup, Healthchecks, uptime ping.</li>
+    <li>Done when: a user signs up, creates a workspace and project, invites a member, and a second workspace cannot see the first; the nightly backup lands in R2 and restores; a deploy from main takes under 10 minutes.</li>
+  </ul>
+
+  <h2>Documents this supersedes</h2>
+  <p class="prose">ADR-001 (language) gets a companion ADR-022 for the Python backend. ADR-002, 005, 014, 018 and 021 are revised. Docs 03, 20, 21, 22, 23, 25, 28, 29 and 31 are updated to match this page. Until then, where a numbered doc and this page disagree, this page wins.</p>
+</div>
+
+</body>
+</html>

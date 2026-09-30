@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# builds
+.next/
+dist/
+*.tsbuildinfo
+apps/web/design-preview/vendor/
+
+# secrets and local config
+.env
+.env.*
+!.env.example
+
+# worktrees of this repository
+.claude/worktrees/
+
+# os and editors
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,32 @@
+{
+  "name": "@app/web",
+  "private": true,
+  "type": "module",
+  "description": "Web application. Currently contains the design-system foundations only (tokens, Tailwind mapping, formatters). The Next.js app is scaffolded in Phase 1.",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tailwindcss -i src/styles/globals.css -o .tmp/globals.compiled.css",
+    "preview": "node design-preview/icons.mjs && node design-preview/vendor.mjs && tailwindcss -i design-preview/preview.css -o design-preview/preview.compiled.css"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@lobehub/icons-static-svg": "1.95.1",
+    "@tailwindcss/cli": "^4.3.3",
+    "@types/culori": "^4.0.1",
+    "@types/node": "^24.19.0",
+    "culori": "^4.0.2",
+    "eslint": "^10.11.0",
+    "lucide-static": "1.48.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@date-fns/tz": "^1.5.0",
+    "date-fns": "^4.4.0",
+    "echarts": "6.1.0"
+  }
+}

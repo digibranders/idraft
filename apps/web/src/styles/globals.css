@@ -1,0 +1,353 @@
+/*
+ * globals.css
+ * Tailwind CSS v4 entry: imports tokens, maps them to Tailwind theme variables, removes Tailwind's
+ * default palette and scales that the design system does not allow, and defines composite type utilities.
+ * Source of truth: docs/design-system/ (26-implementation-guidelines.md explains every block).
+ */
+
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Dark mode is class-based on <html> (next-themes, attribute="class"). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Reset Tailwind defaults we do not allow, then register only design-system values. */
+@theme {
+  --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --text-*: initial;
+  --font-*: initial;
+  --ease-*: initial;
+  --animate-*: initial;
+  --blur-*: initial;
+
+  /* Spacing: 4px base. Allowed steps are enforced by lint: 0, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12. */
+  --spacing: 0.25rem;
+
+  /* Radius scale */
+  --radius-2xs: 0.125rem;   /* 2px: bar-list bars, engine presence squares */
+  --radius-xs: 0.1875rem;   /* 3px: citation markers, answer highlights, small swatches */
+  --radius-sm: 0.25rem;     /* 4px: badges, checkboxes, kbd hints, domain chips */
+  --radius-md: 0.375rem;    /* 6px: buttons, inputs, selects, filter chips, segmented controls, quote boxes, menu items */
+  --radius-lg: 0.5rem;      /* 8px: panels, cards, popovers, menus, inspector sections */
+  --radius-xl: 0.625rem;    /* 10px: dialogs, command palette */
+  --radius-full: 9999px;    /* avatars, switch track and thumb, status dots, engine status glyphs only */
+
+  /* Breakpoints (desktop-first product; mobile is monitoring only) */
+  --breakpoint-sm: 40rem;   /* 640 */
+  --breakpoint-md: 48rem;   /* 768 */
+  --breakpoint-lg: 64rem;   /* 1024 */
+  --breakpoint-xl: 80rem;   /* 1280 */
+  --breakpoint-2xl: 90rem;  /* 1440 */
+  --breakpoint-3xl: 105rem; /* 1680 */
+  --breakpoint-4xl: 120rem; /* 1920 */
+}
+
+/* Theme values that reference runtime CSS variables must use `inline` so utilities resolve per theme. */
+@theme inline {
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
+
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-background: var(--background);
+  --color-sidebar: var(--sidebar);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-disabled: var(--surface-disabled);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-disabled: var(--foreground-disabled);
+  --color-foreground-inverse: var(--foreground-inverse);
+  --color-link: var(--link);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-border: var(--primary-border);
+
+  --color-positive-text: var(--positive-text);
+  --color-positive-subtle: var(--positive-subtle);
+  --color-positive-border: var(--positive-border);
+  --color-positive-solid: var(--positive-solid);
+  --color-negative-text: var(--negative-text);
+  --color-negative-subtle: var(--negative-subtle);
+  --color-negative-border: var(--negative-border);
+  --color-negative-solid: var(--negative-solid);
+  --color-negative-button: var(--negative-button);
+  --color-negative-button-hover: var(--negative-button-hover);
+  --color-negative-button-foreground: var(--negative-button-foreground);
+  --color-warning-text: var(--warning-text);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-border: var(--warning-border);
+  --color-warning-solid: var(--warning-solid);
+  --color-info-text: var(--info-text);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-border: var(--info-border);
+  --color-neutral-text: var(--neutral-text);
+  --color-neutral-subtle: var(--neutral-subtle);
+  --color-neutral-border: var(--neutral-border);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-other: var(--chart-other);
+  --color-chart-reference: var(--chart-reference);
+  --color-chart-bar-neutral: var(--chart-bar-neutral);
+  --color-theme-switch-day: var(--theme-switch-day);
+  --color-theme-switch-night: var(--theme-switch-night);
+  --color-theme-switch-sun: var(--theme-switch-sun);
+  --color-theme-switch-moon: var(--theme-switch-moon);
+  --color-theme-switch-knob: var(--theme-switch-knob);
+  --color-rank-band-1: var(--rank-band-1);
+  --color-rank-band-2: var(--rank-band-2);
+  --color-rank-band-3: var(--rank-band-3);
+  --color-rank-band-4: var(--rank-band-4);
+  --color-rank-band-5: var(--rank-band-5);
+  --color-rank-band-none: var(--rank-band-none);
+
+  /* shadcn/ui aliases exposed as utilities so copied components compile. Prefer canonical names. */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-input: var(--input);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --shadow-popover: var(--shadow-popover);
+  --shadow-switch-knob: var(--shadow-switch-knob);
+  --shadow-dialog: var(--shadow-dialog);
+  --shadow-drag: var(--shadow-drag);
+  --shadow-inspector: var(--shadow-inspector);
+
+  --ease-standard: var(--ease-standard);
+  --ease-exit: var(--ease-exit);
+
+  /* The only four animations (21-motion.md): spinner, skeleton pulse, one-time new-row highlight, live indicator. */
+  --animate-spin: spin 800ms linear infinite;
+  --animate-skeleton-pulse: skeleton-pulse 1.5s ease-in-out infinite;
+  --animate-row-new: row-new 1500ms var(--ease-exit) 1;
+  --animate-live-pulse: live-pulse 2s linear infinite;
+
+  /* Tailwind's plain transition utilities follow the motion tokens (and therefore reduced motion). */
+  --default-transition-duration: var(--duration-fast);
+  --default-transition-timing-function: var(--ease-standard);
+
+  /* Named component sizes: h-control, h-row, w-sidebar, w-inspector, size-icon, ... (04-spacing-density.md) */
+  --spacing-control-sm: var(--size-control-sm);
+  --spacing-control: var(--size-control);
+  --spacing-control-lg: var(--size-control-lg);
+  --spacing-row: var(--size-row);
+  --spacing-row-compact: var(--size-row-compact);
+  --spacing-row-header: var(--size-row-header);
+  --spacing-topbar: var(--size-topbar);
+  --spacing-sidebar: var(--size-sidebar);
+  --spacing-sidebar-collapsed: var(--size-sidebar-collapsed);
+  --spacing-sidebar-item: var(--size-sidebar-item);
+  --spacing-tab: var(--size-tab);
+  --spacing-metric-strip: var(--size-metric-strip);
+  --spacing-badge: var(--size-badge);
+  --spacing-avatar: var(--size-avatar);
+  --spacing-save-bar: var(--size-save-bar);
+  --spacing-inspector: var(--size-inspector);
+  --spacing-inspector-min: var(--size-inspector-min);
+  --spacing-inspector-max: var(--size-inspector-max);
+  --spacing-icon-xs: var(--size-icon-xs);
+  --spacing-icon-sm: var(--size-icon-sm);
+  --spacing-icon: var(--size-icon);
+  --spacing-icon-md: var(--size-icon-md);
+  --spacing-icon-lg: var(--size-icon-lg);
+  --spacing-control-touch: var(--size-control-touch);
+  --spacing-inspector-wide: var(--size-inspector-wide);
+  --spacing-drawer: var(--size-drawer);
+  --spacing-popover-min: var(--size-popover-min);
+  --spacing-popover-max: var(--size-popover-max);
+  --spacing-menu-min: var(--size-menu-min);
+  --spacing-menu-max: var(--size-menu-max);
+  --spacing-tooltip-max: var(--size-tooltip-max);
+  --spacing-command: var(--size-command);
+
+  /* Readable-width containers for prose and settings forms only; analytics pages are full width. */
+  --container-prose: 45rem;     /* 720px: methodology text, long help */
+  --container-form: 40rem;      /* 640px: settings forms */
+  --container-dialog-sm: 25rem; /* 400px */
+  --container-dialog-md: 35rem; /* 560px */
+  --container-dialog-lg: 45rem; /* 720px */
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@keyframes row-new { 0%, 86.7% { background-color: var(--surface-selected); } 100% { background-color: transparent; } }
+@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin, .animate-skeleton-pulse, .animate-row-new, .animate-live-pulse { animation: none; }
+}
+:root[data-motion="reduced"] :is(.animate-spin, .animate-skeleton-pulse, .animate-row-new, .animate-live-pulse) {
+  animation: none;
+}
+
+/* Composite typography utilities (docs/design-system/reference/visual-spec.md section 3).
+   Use these instead of combining text-size, leading, weight and tracking. */
+@utility type-page-title {
+  font-size: 1.5rem; line-height: 2rem; font-weight: 600; letter-spacing: -0.015em; color: var(--foreground);
+}
+@utility type-inspector-title {
+  font-size: 1.125rem; line-height: 1.625rem; font-weight: 600; letter-spacing: -0.01em; color: var(--foreground);
+}
+@utility type-section-title {
+  font-size: 1rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.005em; color: var(--foreground);
+}
+@utility type-subsection-title {
+  font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; letter-spacing: 0; color: var(--foreground);
+}
+@utility type-body {
+  font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0;
+}
+@utility type-body-strong {
+  font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; letter-spacing: 0;
+}
+@utility type-prose {
+  font-size: 0.875rem; line-height: 1.375rem; font-weight: 400; letter-spacing: 0;
+}
+@utility type-table {
+  font-size: 0.8125rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0;
+}
+@utility type-meta {
+  font-size: 0.8125rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0; color: var(--foreground-tertiary);
+}
+@utility type-label {
+  font-size: 0.75rem; line-height: 1rem; font-weight: 400; letter-spacing: 0; color: var(--foreground-tertiary);
+}
+@utility type-micro {
+  font-size: 0.75rem; line-height: 1rem; font-weight: 500; letter-spacing: 0;
+}
+@utility type-metric {
+  font-size: 1.5rem; line-height: 2rem; font-weight: 600; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; color: var(--foreground);
+}
+@utility type-metric-sm {
+  font-size: 1.125rem; line-height: 1.5rem; font-weight: 600; letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums; color: var(--foreground);
+}
+@utility type-mono {
+  font-family: var(--font-mono-stack); font-size: 0.8125rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0;
+}
+@utility type-kbd {
+  font-family: var(--font-sans-stack); font-size: 0.6875rem; line-height: 1rem; font-weight: 500;
+}
+
+/* Numeric utility: every numeric table cell, delta, rank and metric uses it. */
+@utility num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Sidebar modes (11-navigation.md section 3, 19-responsive-behavior.md section 3.1). The root element carries the
+   state: data-sidebar="collapsed" is the user's choice at 1280 px and up (persisted in a cookie), and
+   data-sidebar-peek is the rail expanded as an overlay at 1024 to 1279 px.
+   rail:   the 56 px icon rail is showing (1024 to 1279 unless peeking; 1280 and up when collapsed).
+   narrow: the layout reserves 56 px for the sidebar (1024 to 1279 even while peeking; 1280 and up when collapsed).
+   peek:   the rail is expanded over the content at 1024 to 1279. */
+@custom-variant rail {
+  @media (width >= 64rem) and (width < 80rem) {
+    &:where(:root:not([data-sidebar-peek]) *) { @slot; }
+  }
+  @media (width >= 80rem) {
+    &:where(:root[data-sidebar="collapsed"] *) { @slot; }
+  }
+}
+@custom-variant narrow {
+  @media (width >= 64rem) and (width < 80rem) { @slot; }
+  @media (width >= 80rem) {
+    &:where(:root[data-sidebar="collapsed"] *) { @slot; }
+  }
+}
+@custom-variant peek {
+  @media (width >= 64rem) and (width < 80rem) {
+    &:where(:root[data-sidebar-peek] *) { @slot; }
+  }
+}
+
+/* Theme change reveal (ThemeSwitch): the new theme grows as a circle from the switch via the View Transitions API.
+   The default cross-fade is turned off so only the clip-path animation set in script runs. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Focus ring utility used by every interactive primitive (2px ring, 2px offset, meets 3:1). */
+@utility focus-ring {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+@utility focus-ring-inset {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans-stack);
+    font-size: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  *, ::before, ::after {
+    border-color: var(--border);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background-color: var(--primary-subtle);
+    color: var(--foreground);
+  }
+  /* Thin, token-colored scrollbars inside scroll regions */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  @media (forced-colors: active) {
+    :focus-visible { outline: 2px solid CanvasText; }
+  }
+}

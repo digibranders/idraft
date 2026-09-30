@@ -1,0 +1,256 @@
+# Review Log: Consistency Pass of 2026-09-29
+
+Status: Complete for this pass
+Scope: docs 00 to 31, `adr/*.md`. Research files in `research/` were read as the source of truth and not edited.
+Method: the fixed decisions listed below were applied first. Then every doc was swept for conflicting numbers, names, enums, cross-references, dashes and marketing words. All edits are small in-place replacements; no document was rewritten.
+
+## Fixed decisions applied
+
+| Decision | Canonical source |
+|---|---|
+| Canonical data model; companion tables listed in 04 section 15 | 04 |
+| Monitoring: Grafana Alloy host service (cap 128 MB), Grafana Cloud free, Sentry, Healthchecks.io, Better Stack, SQL ops checks; Beszel only as fallback | 25, ADR-021 |
+| Secrets as tmpfs files mounted through Compose `secrets:` | 22 section 7 |
+| Caddy: IP allowlist and body caps. API: rate limiting in Redis | 22 section 4.5 |
+| Logs: size-based Docker rotation, about 14 days at expected volume, size-capped | 22 section 5.3 |
+| Raw keys `raw/v1/<retention_class>/<provider>/<endpoint_slug>/<yyyy>/<mm>/<dd>/<sha256>.json.zst` | 23 section 9.1 |
+| Restore test off-server with a dedicated `restore-test` age identity; server holds public recipients only | 23 section 5 |
+| Scaling steps numbered as in 03 section 10 (1, 1b, 2, 3, 4, 5); trigger values from 28 section 7 and 8 | 28 |
+| Engine code `perplexity_api`; one engine list | 04 section 8.1 |
+| One workload list with a mapping table | 04 section 11.4.1 |
+| API JSON is snake_case | 03, 19 |
+| MVP = Phases 0 to 9 plus 10a | 29 |
+
+## Changes made
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| 00 | 6.3 | Calendar length now about 22 weeks including Phase 0 (about 19 after) | The doc 29 chart adds up to 22 weeks; old text said 18 to 20 |
+| 00 | 7 | Removed link to empty `diagrams/` folder; added link to this log | Broken link |
+| 01 | 2.4 | `poll_ready` every 2 minutes; limiter at 1,000 calls per minute (50% of 2,000) | Matched 06 section 3.2, 21 sections 5.2 and 7, ADR-018 |
+| 01 | 3.3 | ChatGPT engine set: natural or forced search per S-04 rule, pingback plus polling | Conflicted with 07 section 4.2 and ADR-018 (no postback) |
+| 01 | 3.3, 4.2 | Stale "add it" notes now state that `ai.engines.exposes_fanout` and provider `searchapi` exist | Already in 04 |
+| 01 | 6.2, 11 | First-party upload and GSC property targets point to the dedicated `fp` tables of doc 18 | `fp.metric_observations` was superseded by doc 18 |
+| 01 | 7.2 | Extraction versioning described through `derivation_id` | Matched 04 section 8.5 |
+| 01 | 10.2 | Sampling plan: R = 1 for all core prompts, R = 3 on ChatGPT and Gemini for up to 100 priority prompts | Matched ADR-010, 07 section 4.2, 17 section 7.3 |
+| 01 | 12 | S-08 limiter 1,000 per minute; S-09 targets from NFR-02; added S-15 and S-16 rows pointing to 06 and 07 | Single spike index S-01 to S-16; old values conflicted with 21 and 02 |
+| 02 | 3 | SEO-15 phases include 11 (GSC import); SEO-16 "Check now" moved to Phase 4 | Matched 08 section 3.1 and 29 Phase 4 |
+| 03 | 4 | `systemd/` lists backup, secrets, host-check, container-stats and Alloy units; restore test runs in GitHub Actions | Fixed decision: restore test off-server |
+| 03 | 6 | Limiter 1,000 calls per minute; job names `classify_batch`, `rederive_range` | Matched 06, 21 |
+| 03 | 7.1, 7.2 | Raw key shows class path; poll interval 2 min; dispatcher enqueues `submit_batch`; derivation wording | Fixed decision and 21 section 4 |
+| 03 | 8 | Config row: non-secret env, secrets as tmpfs Compose secrets; deterministic BullMQ job ids per task | Fixed decision; 21 section 5.2 |
+| 03 | 10 | Reference to 28 sections 7 and 8; step 1 triggers from 28; step 1b added; step 3 and 4 triggers from 28 | Scaling consistency |
+| 04 | 2 | Extensions paragraph: V1 uses stock `postgres:18`; the PITR phase introduces a custom image with pgBackRest | Fixed decision |
+| 04 | 4 | Additional Better Auth fields: `auth.users.is_platform_operator`, `auth.memberships.project_ids`, `auth.invitations.project_ids`, `auth.api_keys` columns (scopes, expiry, IP allowlist, rate limit, `last_used_ip`, `revoked_at`), `auth.workspaces.purge_after`; roles reference corrected to 24 section 3.1 | Required by 19 section 8 items 2 and 3, 24 |
+| 04 | 4 | `core.projects`: `data_version bigint`, `entity_config_version integer`; `default_location_code` renamed `default_location_id` | 19 section 8 item 4; 19 uses `default_location_id` |
+| 04 | 4.1, 11.2, 11.4 | Workload CHECKs: budgets add `extraction_llm`; schedules add `ai_benchmark`; runs and tasks get the task workload CHECK; cost events get a 14-value CHECK (`ai_mode` replaced by `ai_mode_keyword`) | Fixed decision: one workload list |
+| 04 | 11.4.1 (new) | Mapping table: task workload to cost workload to budget group | Fixed decision |
+| 04 | 7.1 | New view `core.keyword_weights` | Used in 09 section 6.5 SQL but undefined |
+| 04 | 7.2, 7.4 | Cross-reference to 06 section 7.2; feature code `twitter` renamed `social_posts` | Broken reference; matched 06 section 5.4 |
+| 04 | 7.6 | `seo.tracked_keyword_state`: `target_url_match`, `aio_state`, `aio_citation_position`, `aio_observation_id`, `current_depth_requested` | 19 section 8 item 11; 09 section 2 |
+| 04 | 8.1 | `perplexity_sonar` renamed `perplexity_api` | Fixed decision |
+| 04 | 8.2 | `ai.prompts.source` adds `llm_mentions` | 11 section 5.1 lists that source |
+| 04 | 8.4 | `ai.citations.flags text[]` | Flags used in 14 sections 3.2 and 9 had no column |
+| 04 | 8.5 | `ai.entity_mentions`: `mention_status` (accepted, uncertain), `structured_list_index`, match method `via_product` | 13 principle 4 and stages 4 to 6 needed them |
+| 04 | 5.2 | `supports` comment says surfaces, not workloads | Avoided a second meaning of "workload" |
+| 04 | 11.1 | `ops.secrets.kind` adds `webhook_signing_secret` | Needed by `ops.webhook_endpoints` |
+| 04 | 11.2 | `ops.collection_runs`: `status_reason`, `blocked_by_budget_id`, `created_by_type`, `created_by_id`, `origin_request_id`; `ops.collection_tasks`: `ready_source`, `result_meta`, subject type `seed_set`; idempotency key comment matches 21 section 3.4; reference fixed to 21 section 3.4 | 19 section 8 item 12, 21, 25 section 13 |
+| 04 | 11.3 | `object_key` example uses the class-first key scheme | Fixed decision |
+| 04 | 11.5 | `ops.alert_rules.channels` uses `webhook`, new `destinations`; new tables `ops.alert_digests`, `ops.webhook_endpoints`, `ops.webhook_deliveries` (partitioned, 3-month retention) | 19 section 8 item 8, 19 section 5 |
+| 04 | 11.8 (new) | DDL for `ops.idempotency_keys`, `ops.jobs`, `ops.exports`, `seo.keyword_imports`, `seo.keyword_import_rows`, `ops.maintenance_windows` | 19 section 8 items 5 to 7; 25 section 7.3 |
+| 04 | 12.1, 15 | Partition row for webhook deliveries; pruning note; section 15 adds `ops.platform_alerts`, `ops.quality_counters_daily`, points keyword imports to 11.8, notes `snoozed_until` | Completeness of the canonical model |
+| 05 | 4 | Platform credentials described as SOPS secrets rendered to tmpfs Compose secrets | Fixed decision |
+| 06 | 2.2, 3.2 | Arithmetic: 94.7 pages; 28 calls per minute is 1.4% of the account limit | Matched 27 section 3.1; arithmetic error |
+| 06 | 4 | Lifecycle diagram adds `submit_unknown`; submission goes through the dispatcher | Matched 04, 21 sections 4 and 6 |
+| 06 | 4.3 | Raw key uses `serp_raw` class path; local spool is the `spool` volume capped at 5 GiB | Fixed decision; matched 22 sections 4.1 and 9.5 |
+| 06 | 5.4 | Unknown feature types are inserted into the registry as `other:<type>` | 04 foreign key would otherwise reject them |
+| 06 | 6.1 | Reconciliation writes provider-reported adjustment rows, not a `reconciliation` event type | Value was not allowed by 04 |
+| 06 | 8, 9, 11 | "surfaces" wording; 50301 retries per 21 section 6 (max 4); S-01 method points to doc 01 | Matched 04, 21, 01 |
+| 07 | 1 | Engine table adds `xai_api_search` and the inactive consumer codes; Copilot note no longer invents a code | Engine list identical to 04 |
+| 07 | 4.1, 4.2, 6, 12 | Replicate stagger uses 21 section 3.3; S-04 uses 200 prompts; raw key uses `ai_raw` class path | Matched 21, 01, 23 |
+| 08 | 1, 3.3, 5 | Table name `seo.keyword_metrics_current`; `case_sensitive` noted as a Phase 5 schema change; `snoozed_until` column | Name did not exist; 19 section 8 item 10 |
+| 09 | 3 | Top-50 counts use checks at depth 50 or more | Deep profile runs depth-50 daily checks |
+| 11 | 1, 5.2, 11 | Device lives in `ai.project_engines.provider_params`; `snoozed_until` column; prompt limit follows the 1,000 workspace quota | Matched 04; 19 section 8 item 10 |
+| 12 | 4, 6 | Engine code list added; first-party `source` enum and `dataState` aligned with 04 and 18 | Fixed decision; stale enum |
+| 13 | 3, stages 1, 5, 6, 9 | `entity_config_version` is a column (section 6 reference fixed); tracking parameters defer to 14 section 3.1; list index stored in `structured_list_index`; mention rows include uncertain status; Recommendation Rate denominator matches 16 A5 and A6 | Broken reference and conflicts with 04, 14, 16 |
+| 15 | 6 | Page intelligence join: domain rollup joined on `domain_id`, not `url_id` | Table has no `url_id` |
+| 16 | 2, 2.1 (new) | `MetricValue` shown in snake_case wire format, identical to 19 section 2.6 (camelCase only inside TypeScript), with optional fields and prompt-weighted numerator rule; registry keys for SEO, fan-out, volatility, surface presence and first-party metrics | Fixed decision; 19 section 8 item 15 |
+| 16 | 5, 7, 12 | Research reference to section 4.3; C6 lost-sources rule matches 14 section 8; "weak organic, strong AI" uses 15 section 4.1 thresholds | Conflicts with 14, 15, research 07 |
+| 17 | 4.3, 7.3, 8.2, 10 | Bootstrap B = 1,000 interactive, 2,000 exports; priority subset 1 replicate on AI Mode; "easier to act on"; rank-change coloring uses ranked checks and the accessible palette | Matched 17 section 5, 07, 11, 20; marketing word |
+| 18 | 3.3, 4.7, 11.2, 12.1, 12.2, 14 | Raw key class path; `first_party_raw` 90 days (was 35); first-party calls write zero-cost events; question candidates go to `ai.prompt_candidates`; GSC keyword suggestions go to the keyword inbox; `credential_ref` nullable after disconnect; amendments marked applied | Fixed decisions; conflicts with 23 section 9.2, 04 section 11.4.1, 24 section 6 |
+| 19 | 2.6 | Optional fields marked as also in doc 16 | 16 now matches |
+| 19 | 2.13 | Permission list is the full doc 24 matrix; `platform_operator` pseudo-permission; stale scope mapping removed | Permission alignment |
+| 19 | 3.x | `ops:manage` replaced by `ops:read` (reads) and `tasks:requeue` (requeue, retry); imports and candidate uploads use `imports:write`; alert acknowledge uses `alerts:write`; admin routes use `platform_operator` | Keys must exist in 24 section 3.2 |
+| 19 | 3.2.5, 3.11 | Engine code list added; `Budget` and `ScheduleInput` unions use the canonical workloads; `Task` adds `submit_unknown` and `seed_set`; requeue note updated | Fixed decisions; 04, 21 |
+| 19 | 3.7.9 | Fan-out, surface presence and volatility keys now registered in 16 section 2.1 | Were "proposed" |
+| 19 | 8 | Items 1 to 8 and 10 to 18 marked resolved with pointers; item 9 narrowed to what is still open | Reflects this pass |
+| 20 | 1, 3.5, 3.7, 4.x | snake_case metric fields; `MetricComparison` from 19 replaces `MetricChange`; doc 19 paths take precedence; 200-row cursor pages; `Retry-After` polling; `data_version` from `GET {P}`; `fresh_session_required` and `two_factor_enrollment_required` errors; SEO rank-change coloring per 17 section 10 | Conflicts with 19, 17 |
+| 20 | 5.x | Permissions `taxonomy:write`, `api_keys:manage`, `workspace:update`, `imports:write`, `alerts:write`, `views:write`, `tasks:requeue`; discovery viewable with `data:read`; panel unlock with `panels:core:modify`; run triggers and provider status match 19; requeue route under the workspace path | Permission and route alignment |
+| 20 | 5.x, 6, 10 | Phases: Keyword Detail 4, 5, 10a; Page Intelligence and matrix 10a or 10b; diagnostics 15; panel sizing and AI BH movers 9; costs unit and forecast 4; onboarding step 7 Phase 3; phase table split into 10a (MVP) and 10b | Matched 19 section 7 and 29 |
+| 20 | 11 | Gap table G1, G3 to G6, G8, G11, G12 updated to resolved or narrowed | Stale gaps |
+| 21 | 2 | First-party windows match 18 section 13; discovery subject `seed_set` | Conflict with 18; CHECK in 04 |
+| 21 | 4, 5.2, 6, 10, 12, 13 | Priority read from the schedule; first-party ingest job names; `derivationId` in payload; requeue route under workspace path with `tasks:requeue`; `r2_config_audit` and first-party platform jobs listed; grace periods match 22; AI task volume about 3,400 per week | Conflicts with 18, 19, 22, 23, 27 |
+| 22 | 1, 2, 3.1, 4.1, 5.3, 6.2, 6.6, 7.1, 9.1, 9.2, 10.2, 12.4, 12.8, 13 | Beszel replaced by Alloy host service (RAM 70 to 100 MB, cap 128 MB; RSS sum 2.6 to 3.5 GB); loopback metrics ports (api range 9460-9461); app log rotation 50 MB x 8 with service label; Alloy secret bundle; bootstrap installs Alloy and container-stats timer; Beszel kept as fallback | Fixed decision (monitoring, log retention) |
+| 22 | 4.5 | Caddy comment: 2-minute poll | Matched 06, 21 |
+| 22 | 8.3 | Deploy script: pre-migration backup for `-- requires-backup`, maintenance window, `bootstrap` mode for disaster recovery | Relied on by 23 sections 11 and 13.1 and 25 section 7.3 |
+| 22 | 9.3 | `ops_health` runs in `worker-process`; staleness rule from 21 section 9 | Conflicts with 21 |
+| 22 | 11 | Scaling table uses 03 numbering and 28 values; host-only urgent signals labelled | Fixed decision |
+| 22 | 9.2 | Healthchecks count points to 25 section 12 | Three docs gave different counts |
+| 23 | 2, 9.1, 9.2, 15, 17 | Raw lock text matches 9.4 (7 days all raw, 30 days `ai_raw`); `canary/v1/` lifecycle rule; stale concerns marked resolved; check names | Internal contradiction; 26 canary |
+| 23 | 6.2, 6.3 | Backup script writes the Alloy textfile timestamp; unit may write `/var/lib/alloy/textfile` | 25 metric could not be written under `ProtectSystem=strict` |
+| 23 | 8.2, 10, 13.3 | Task status sets include `submit_unknown`; reconcile clears `dispatched_at`; job ids per 21 section 5.2; pgBackRest differential Monday to Saturday | Conflicts with 04, 21; Sunday schedule clash |
+| 24 | 1.1, 2.1, 2.2 | Platform secret location; CORS `x-request-id`; API key scopes use matrix keys | Consistency with 22, 25, 3.2 |
+| 24 | 3.1, 3.2 | Platform operator flag described (04 column, `/v1/admin/*`, `platform_operator`); matrix adds `workspace:update`, `taxonomy:write`, `tasks:requeue`, `fp:logs:write`; clarified `alerts:write` and `ops:read` scope | Every key used in 19 and 20 now in the matrix |
+| 24 | 5.1 | tmpfs Compose secrets instead of `env_file`; backup identities (`recovery`, `restore-test`) with storage, rotation, public-recipients-only server | Fixed decisions |
+| 24 | 7.4, 8 | Pingback: Caddy allowlist, GET only, 1 KB cap; API rate limit in Redis; budget reference to 27 section 10.3 | Fixed decision; broken reference |
+| 24 | 9, 11 | Loopback metrics ports; Redis ACL wording; pg-tunnel port 15432; redaction of pingback token and OAuth `code`/`state`; log retention "about 14 days at expected volume, size-capped" plus 14 days in Grafana Cloud | Fixed decision; 22, 25 |
+| 25 | 2.1, 4.1, 4.3, 4.4, 5.3, 6, 8.1, 11, 12, 13 | Uptime check on `/healthz`; metrics ports; partition runway replaces default partitions; restore drill metric removed from textfile; `max_connections` 60; backup and restore alert severities from 23; database `seo`; unit `seo-backup.service`; Redis ACL command; admin API `/v1/admin/*`; requeue route; Healthchecks list 20 of 20 including `raw-replica` and `host-health`; section 13 rows marked done | Conflicts with 04, 22, 23, 19 |
+| 26 | 3.3, 5, 8.2, 12 | Canary payloads under `canary/v1/` with a 30-day rule; RTY-04 uses `submit_unknown`; restore drill runs in GitHub Actions with 30 h freshness; section references; stale gap rows marked done | Conflicts with 23, 21 |
+| 27 | 7, 10 | R2 steady state uses 400-day `serp_raw`; workload list and budget groups from 04 section 11.4.1 | Fixed decisions |
+| 28 | 2.3, 3, 4, 7, 9 | Scenario letter note; `serp_raw` 400 days, `serp_raw_deep` removed; steps renumbered to 03 numbering and declared canonical; Redis cache uses `cache:` prefix | Fixed decisions; 22 section 4.3 |
+| 29 | header, 1, 1 (Phase 5, 14) | Spike index; calendar length 22 weeks; typed client from contracts; custom webhooks signed (Slack incoming is not); Phase 14 extends Phase 9 BH and sizing | Conflicts with 01, 19, 20 |
+| 30 | 2, R-10 | Raw SERP retention 400 days; only SERP and first-party raw have one copy; AI replica is decided | Matched 23 |
+| 31 | Phase 0 | Spike reference points to 01 section 12 | Index now complete |
+| ADR-004 | Decision, Consequences | Class-first keys and per-class retention; AI replica | Fixed decision |
+| ADR-013 | Decision, Consequences, Revisit | Public recipients only on the server; `recovery` and `restore-test` identities with storage and rotation; custom image for pgBackRest; revisit trigger matches 23 section 13.2 | Fixed decision; old trigger conflicted with 22 and 23 |
+| ADR-021 | Decision | Alloy runs as a host service without the Docker socket; Beszel fallback; checks run as scheduled SQL jobs | Fixed decision |
+
+Final checks: a search of all docs for em-dash and en-dash characters returns zero hits, and none of the banned marketing words appear. A scan of 1,168 "doc NN section X.Y" references found none pointing to a missing section (the only hits were references to research files). All local Markdown links resolve.
+
+## Unresolved issues
+
+| # | Doc(s) | Issue | Recommendation |
+|---|---|---|---|
+| U1 | 20 section 5 | Many "Data:" lines still use indicative paths written before doc 19 (for example `.../overview/seo` for `{P}/seo/metrics/overview`, `/history` for `/rank-history`, `PATCH .../keyword-candidates` for `POST {P}/keyword-candidates/decide`, `costs/unit` for `costs/unit-costs`, `.../digests` for `{P}/alert-digests`, `topics/tree` with no equivalent). A precedence note (doc 19 wins) was added. | Replace each "Data:" line with the doc 19 path during the Phase 1 frontend contract review. |
+| U2 | 19, 20 | Doc 20 needs endpoints doc 19 lacks: saved views CRUD (`core.saved_views` exists), `POST .../estimates`, `GET .../costs/reconciliation`, `POST .../alert-rules/preview`, batch alias dry-run; `/v1/me` lacks project slugs and `features`. | Add `{P}/saved-views` CRUD at Phase 5 with `views:write`; decide on the others; regenerate the doc 19 section 7 counts. |
+| U3 | 00, 22, 23, 27 | Fixed infrastructure cost: 27 and 00 say $24 to $27 per month (R2 $0 to $3); 22 and 23 section 14.4 say R2 $1.40 to $6 at month 12 ($25 to $30 total). 27 section 7 says backups stay under 10 GB, while 23 section 14.2 shows tens of GB under GFS (34 dumps). | Recompute 27 sections 2, 7, 8 and 00 section 4 from 23 section 14 after spikes S-02 and S-09. Not changed now because scenario totals depend on it. |
+| U4 | 22, 23 vs 27, 28 | Planning scenarios A, B, C mean different workloads (4 engines x 3 replicates in 22 and 23; V1 default design in 27 and 28). A note was added to 28. | Rename one set (for example S1 to S3 in 22 and 23). |
+| U5 | 28 section 2.3, 22 section 9.5 | 28 says about 50 GB usable for PostgreSQL; 22 budgets about 40 GiB before the critical disk alert. Not contradictory in intent, but confusing. | Have 28 section 2.3 cite 22 section 9.5 and use 40 GB. |
+| U6 | 04 section 15 and companions | Tables listed as canonical without DDL: `ops.task_attempts`, `seo.cannibalization_flags`, `seo.daily_page_metrics`, `ai.citation_entity_links`, `core.workspace_domain_categories`, `ai.external_mention_snapshots`, `ops.data_quality_flags`; also `core.url_remap` and `ops.backfill_progress` are named in 04 prose but not specified. | Write DDL before the Phase 0 schema freeze. |
+| U7 | 04, 13, 19 | `ai.entity_candidates` has no surrogate id; the API addresses candidates by `normalized_name`. | Add `id uuid` or document the natural key in 19. |
+| U8 | 15, 16 | `core.xch_keyword_weekly` has no recommendation columns although 15 lets the AI axis switch to recommendation rate; 16 section 12 lists "organic top-10 keywords with zero AI visibility", which 15 does not define. | Add the two columns; define or drop the 16 row. |
+| U9 | 14, 16 section 13.4 | `ai.daily_domain_citations.prompts` and `url_count` are daily distinct counts that cannot be summed over windows; topic filters cannot be served from that rollup. 16 section 5 needs per-observation untracked-name counts that `ai.entity_candidates` does not keep. | Mark the columns daily-only; serve window distinct counts and topic filters from `ai.citations`; add an untracked count to `ai.observation_facts` in Phase 13. |
+| U10 | 06, 07, 21 | LLM Responses standard tasks can take up to 72 hours, the same as the 72-hour dead-letter rule. | Use an endpoint-specific dead-letter age (for example 76 hours) for LLM Responses. |
+| U11 | 11, 04 | 11 section 2 says restoring a prompt creates no version row, but 04 keeps `change_kind = 'restore'`. | Pick one rule. |
+| U12 | 13, 14, 19 | Where the monthly LLM adjudication cap lives (budget group `extraction_llm` or `classifier_budget_usd_month` in project settings), and which workload pays for LLM domain classification (14 section 4). | Use the `extraction_llm` budget group; record domain classification as `extraction_llm` platform overhead. |
+| U13 | 22, 25 | The unattended-upgrade reboot at 04:30 UTC (22 section 6.3) has no maintenance window, so it can fire P1 alert 1. | Open a standing weekly window or skip reboots outside the monthly window. |
+| U14 | 23, 25 | 23 section 15 defines alerts for spool size, raw replica and R2 lifecycle or lock drift that have no rows in the 25 section 6 alert catalog. | Add three rows to 25 section 6. |
+| U15 | 19, 25 | Platform alert acknowledgement (`POST /v1/ops/alerts/{id}/ack` in 25 section 7.4) has no route in 19. | Add a `/v1/admin/platform-alerts` route set to 19. |
+| U16 | 01, 06, 07, 30 | Spike sample sizes: 06 adds a depth-20 sample to S-01; S-13 and S-14 are listed as Phase 0 in 01 but resolve questions in Phases 12 and 14 in 30. | Keep 01 section 12 as the only definition; mark S-13 and S-14 optional in Phase 0. |
+| U17 | 22, 24, 31 | SSH exposure: 22 section 6.1 removes the port 22 rule in steady state (Tailscale only); 24 section 9 and 31 still describe port 22 from an allowlist. | Adopt 22 and update 24 section 9 and 31. |
+| U18 | 19 section 8 | Open items 19 to 22: `ProjectSettingsV1` fields, archive versus delete, Better Auth route surface (S-07), keyword metrics source fallback order. | Decide in Phase 0. |
+| U19 | 20 section 11 | Open gaps G3 (CSP `img-src` proposal), G7 (evidence block offsets), G9 (alert rule preview), G10 (Vercel preview suffix). | Decide in Phase 1. |
+| U20 | 05, 07, 27 | Official API cost multiple: 05 section 6 says 10x to 100x, 27 section 4.3 says 10x to 25x, 07 section 7.2 says about 25x (examples $0.007 to $0.55 per call). | Replace with one range after spike S-16. |
+| U21 | 17, 26 section 12 | 26 reports that the 17 section 7.2 example numbers (785 prompts, 11 points) do not match the formula (782.5, about 9.8) and that 17 references to 16 sections 5 and 6 are swapped. Not verified in this pass. | Check and correct in 17. |
+| U22 | 16, 18, 19 | Metric key style: `fp_gsc_clicks` uses underscores while `ai.*` and `seo.*` keys use dots. | Rename to `fp.gsc_clicks` style before the API freeze. |
+| U23 | 23, 25 | Healthchecks uses all 20 free checks; the pgBackRest checks need the Business plan ($20 per month) or merged checks. | Decide when pgBackRest is triggered. |
+| U24 | 19 | `{P}/pages/insights` kind `third_party_influential_not_ranking` ships in 10a but third-party pages are Phase 13 elsewhere; `send-to-inbox` (10b) writes `ai.prompt_candidates`, a Phase 11 table. | Gate the kind to Phase 13; note the dependency. |
+| U25 | 12, 04 | Replacement key wording: 12 section 7 says "(integration, date, dimensions)", 04 section 10 says "per (integration, date)". | Use one wording. |
+
+## Resolved after the reconciliation pass (2026-09-29)
+
+| # | Resolution |
+|---|---|
+| U2 | Saved views CRUD added to 19 section 3.11.5a (Phase 5, `views:write`). Estimates, reconciliation view, alert-rule preview and alias dry-run remain Phase 1 contract-review items |
+| U3 | Fixed infrastructure harmonized to about $24 to $30 in 27 and 00 (R2 $0 to $6 at month 12 per 23) |
+| U5 | 28 section 2.3 uses 40 GB usable per 22 section 9.5; times recomputed; 00 updated |
+| U6 | DDL added in 04 section 15.1 for `ops.task_attempts`, `seo.cannibalization_flags`, `seo.daily_page_metrics`, `ai.citation_entity_links`, `core.workspace_domain_categories`, `ai.external_mention_snapshots`, `ops.data_quality_flags`, `core.url_remap`, `ops.backfill_progress` |
+| U7 | Natural key for `ai.entity_candidates` documented in 04 section 15.1 |
+| U8 | Recommendation columns added to `core.xch_keyword_weekly`; "top-10 keywords with zero AI visibility" defined in 15 section 5 |
+| U9 | Daily-only distinct counts marked in 16; window distincts and topic filters served from `ai.citations` |
+| U10 | 76-hour dead-letter age for LLM Responses standard tasks (21 section 8) |
+| U11 | Restore creates no version row; `'restore'` removed from the 04 CHECK; 11 section 2 aligned |
+| U12 | Adjudication cap is an `ops.budgets` row (`extraction_llm`); domain classification recorded as platform overhead (13 stage 11) |
+| U13 | Standing 04:25 to 04:50 UTC maintenance window for unattended reboots (22) |
+| U14 | Alerts 47 to 49 added to 25 section 6 |
+| U15 | `/v1/admin/platform-alerts` routes added to 19 section 3.11.5b; 25 references updated |
+| U16 | S-13 and S-14 marked optional in Phase 0 in 01 |
+| U17 | SSH over Tailscale only, break-glass rule documented; 24 and 31 aligned with 22 |
+| U20 | Official API cost multiple unified (5x to 50x cheap models, several hundred times flagship; S-16 measures) in 05, 07, 27 |
+| U21 | Verified already corrected in 17 (782.5 prompts, 9.8 points; section references fixed) |
+| U22 | First-party metric keys renamed to `fp.*` in 16, 18, 19, 20 |
+| U24 | Third-party page insight kind gated to Phase 13 in 19 |
+| U25 | Restatement wording aligned in 12 with 04 |
+
+Still open (deliberately deferred to Phase 0 or Phase 1 contract review): U1 (doc 20 "Data:" lines to be replaced with doc 19 paths), U4 (scenario letters in 22 and 23), U18 (19 open items 19 to 22), U19 (20 open gaps), U23 (Healthchecks plan when pgBackRest arrives).
+
+## Architecture lock (2026-09-30)
+
+The stack was locked by [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), which is the source of truth for every row below: FastAPI and Pydantic v2 backend, OpenAPI generated by FastAPI, TypeScript client generated with `openapi-typescript` and `openapi-fetch`, one origin with the API at `/api/v1`, cookie `__Host-session`, our own auth module, API keys and `Idempotency-Key` deferred, SQLAlchemy 2 and Alembic, database roles `app_api`, `app_worker`, `migrator` and `backup`, Next.js self-hosted with standalone output, polling only, Taskiq on Redis streams.
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| 19 | Intro, 1.1 | Base URL is `https://<domain>/api/v1` on the web app's origin; Caddy routes `/api/*` to `api`; no callback surface, no `/metrics`; health at `/api/healthz` and `/api/readyz`; every `/v1/` path literal prefixed with `/api` | ADR-022 serving and hosting |
+| 19 | 1.3, 1.4 | OpenAPI generated by FastAPI from Pydantic models, committed as `backend/openapi/v1.json`; `apps/web` client generated from it with `openapi-typescript` and `openapi-fetch`; external SDKs deferred | ADR-022 contracts |
+| 19 | 2.1 | Session cookie `__Host-session` (no `Domain`), opaque id in `auth.sessions` with a 60 s Redis cache; API keys planned and deferred; route token removed; CSRF is SameSite=Lax plus an Origin check against the one origin; CORS not used | ADR-022 auth and security |
+| 19 | 2.2, 2.6, 2.12, 2.13, 3.3 | Permission `preHandler` is a FastAPI dependency; auth bodies are snake_case; unknown fields rejected by Pydantic `extra="forbid"`; permission keys from `sightline.api.permissions`; `expandMetricCell()` moved to the web app's `lib/api` | Fastify, Zod and `packages/contracts` removed |
+| 19 | 2.7 | problem+json produced by FastAPI exception handlers; example error codes are Pydantic error types; API key and idempotency codes marked planned | FastAPI replaces Fastify |
+| 19 | 2.8 | Idempotency-Key deferred: header ignored in V1, design kept as planned; V1 duplicate protection from the task ledger's unique keys | ADR-022 deferred items |
+| 19 | 2.9 | Rate limits are a Redis-backed FastAPI dependency; API key row planned; export concurrency counted in PostgreSQL; pingback row removed | ADR-022 queue and readiness |
+| 19 | 3.1 | Better Auth routes replaced by our auth module: register, verify email, sign-in, TOTP verify, sign-out, password reset, password change, TOTP setup, confirm, recovery codes and disable, session list and revoke; Google sign-in removed (deferred) | ADR-022 auth |
+| 19 | 3.2.4 | API key routes marked deferred (`Ph` = `deferred`), design kept | ADR-022 deferred items |
+| 19 | 3.11.1, 3.11.7 | `pingback_vs_poll_ratio` fields removed from provider and platform ops summaries; `poll_ready_last_run_at` added to the platform summary | Polling only |
+| 19 | 3.12, 6, 7, 8 | Pingback route and its rules removed; performance timing reported to Sentry instead of Prometheus; phase counts recomputed (Phase 1 54, Phase 4 24, MVP 262, deferred 4, total 336); gap 21 resolved | Polling only; own auth; no metrics export |
+| 20 | 2 | Stack: self-hosted standalone Next.js, generated API client row, same-origin auth calls, static headers in `next.config.ts` with the nonce CSP in `proxy.ts`, Cloudflare optional | ADR-022 web hosting |
+| 20 | 3.1, 3.2 | Location is `apps/web/` in a repository without Turborepo; no imports from `backend/`; reserved slugs and enums reach the app through generated types; API keys settings route deferred | `packages/contracts` removed |
+| 20 | 3.4, 3.5 | Server components call the API over the Docker network (`API_INTERNAL_BASE_URL`) with the cookie forwarded; browser uses same-origin `/api/v1`; `openapi-fetch` wrapped for TanStack Query; no runtime response parsing | ADR-022 contracts and serving |
+| 20 | 3.9, 3.10 | Permissions from the API enum; feature flags from the API configuration, not Vercel | Vercel and `packages/config` removed |
+| 20 | 4.11, 9.4 | Lighthouse CI against the standalone build; alias test worker chunk removed; static asset caching with optional Cloudflare | No Vercel previews; extraction is Python |
+| 20 | 5.18, 5.19.3, 5.19.6 | Providers view shows last poll instead of pingback ratio; API keys page deferred; alias test tool calls `POST {P}/alias-test` instead of a Web Worker, new gap G13 | Polling only; API keys deferred; extraction is Python |
+| 20 | 7.3, 7.4 | `connect-src 'self'` only; no preview or staging origins; cookie `__Host-session` without `Domain`; CSRF wording for one origin | One origin |
+| 20 | 8.1 to 8.4 | MSW typed from generated types; XSS fixtures in `data/fixtures/xss/`; contract test is the client generation check; E2E runs against the full Compose topology | `packages/testing` and Zod descriptors removed |
+| 20 | 9, 10, 11 | Section 9 rewritten as build and deploy on the droplet (standalone image, env vars, no previews, release order `migrator`, `api` and `worker`, then `web`); Phase 1 row updated; G7 and G10 updated | ADR-022 CI/CD and hosting |
+| 04 | 2, 4 | Better Auth table mapping replaced by our own `auth.users`, `auth.sessions`, `auth.verification_tokens`, `auth.totp_secrets` and `auth.invitations` DDL; workspaces and memberships unchanged ("organization" is workspace); `auth.api_keys` kept with a deferred note | ADR-022 auth |
+| 04 | 11.2 | `ready_source` CHECK drops `'pingback'`; dispatcher comment names Taskiq | Polling only; Taskiq |
+| 04 | 11.8 | `ops.idempotency_keys` marked deferred (table kept, unused in V1) | ADR-022 deferred items |
+| 04 | 13 | Roles `app_api` (RLS enforced), `app_worker` (bypasses RLS), `migrator`, `backup`; two narrow `SECURITY DEFINER` functions remain (invitation by token, partition creation) | ADR-022 database roles, corrected the same day: the worker reads across workspaces by design |
+| 04 | 14, 16 | Migrations are Alembic revisions with SQL in `op.execute`, run as `migrator` from the one-off container; DM-1 resolved | ADR-022 data |
+| 04 | 4, 7.3, 8.3, 11.4.1, 12.2 | Zod comments now Pydantic; workload map in `sightline.domain.workloads`; partition maintenance is a Taskiq task | Zod and `packages/contracts` removed |
+| 05 | 3, 3.5, 4 | Adapter contract rewritten in Python (Pydantic models, `Protocol`, shared `httpx.AsyncClient`, Pydantic response models); contract tests in pytest; platform credentials from `/etc/seo-platform/.env` | ADR-022 language; no SOPS |
+| 06 | 1, 3, 4, 6.1, 11 | Pingback removed: `tasks_ready` polled every 60 s, 30 s while a collection window is open, id sweeper for tasks older than the window; `webhook_resend` unused; BullMQ limiter and jobs replaced by Taskiq tasks on `collect` and `process`; S-01 question updated | ADR-022 readiness and queue |
+| 07 | 3, 11 | `pingback_url` removed from request bodies; `provider.llm` queue and discovery jobs mapped to Taskiq `collect` with Redis limiters; callback row points to polling | ADR-022 readiness and queue |
+| 08 | 3.3, 9.3 | Import rows validated with Pydantic; cannibalization detector runs on the Taskiq `process` queue | Zod and BullMQ removed |
+| 12 | Intro, 2 to 6, 8 | Canonical schemas are Pydantic v2 models in `sightline.domain.observations` (camelCase aliases on the wire); nightly drift canary replaced by the schema hash check in the test suite | ADR-022 contracts and testing |
+| 13 | 2, 3, 4 | Stages 1 to 10 are pure Python in `sightline.extraction` on the `process` queue, Stage 11 on `collect`; inputs are frozen dataclasses; JS libraries swapped for `tldextract` and `markdown-it-py`, with a rule-based chunker and no language model in V1; Stage 11 output validated with Pydantic | ADR-022 language |
+| 18 | 3.3, 4.6, 4.8, 5.2, 9.1, 9.2, 11.1, 13 | Taskiq task names on `collect` and `process`; incremental syncs dispatched before backfills; quota counters shown in the Operations screen instead of Prometheus; Pydantic response models with `httpx`; log agent marked as waiting for API keys; path `/api/v1/ingest/logs` | ADR-022 queue, metrics, deferred API keys |
+| design-system/26 | Header, 2, 6, 10 | Generated OpenAPI client replaces `@contracts`; self-hosted standalone Next.js; server components fetch over the Docker network; no preview deployments | ADR-022 contracts and hosting |
+| adr/ADR-022 | New | Architecture lock: Python backend, self-hosted Next.js, Taskiq on Redis streams, own auth, polling only, simplified operations | User decision 2026-09-30 after a review for over-engineering |
+| adr/001, 005, 014, 018, 021 | Status | Superseded by ADR-022, original text kept | Same |
+| adr/002, 012, 013, 017 | Amendment | Process model and host budget; shared fetch cache deferred; backup retention and restore testing; timing | Same |
+| 00 | 2, 3, 6 | Ten decisions, decision table, build vs buy, estimates (45.5 engineer-weeks, 19.5 calendar weeks) | Same |
+| 01 | Header, 12 | S-07 and S-08 dropped, S-10 moved to Phase 1; research text kept as history | Same |
+| 03 | 1 to 8, 10 | Technology table, repository layout (`backend/`, `apps/web/`, `data/fixtures/`, `data/gold/`), six containers, two Taskiq queues, polling flows, scaling steps | Same |
+| 21 | 5, 8, 12 | Taskiq settings (`RedisStreamBroker`, acknowledged delivery, one process with two receivers), polling-only readiness, one worker process | Same |
+| 22 | 1 to 4, 7, 8, 9, 11 | Compose file, Caddyfile, RAM table, `.env` secrets flow, three-image CI/CD, four database roles, no Alloy | Same |
+| 23 | 4 to 11, 14 to 17 | 30-day dailies, DigitalOcean weekly backups, monthly scripted restore drill; GFS, bucket lock and the CI restore workflow removed | Same |
+| 24 | 2, 4, 5, 7.4, 9 to 11, 14 | Own auth module and same-origin cookie; API keys and envelope encryption deferred; `.env` secrets; roles; Python logging | Same |
+| 25 | All | Sentry, Healthchecks, Better Stack and the Operations screen; metrics catalog and Alloy removed; alert catalog reduced to 42; `ops.slo_samples` | Same |
+| 26 | 2, 3.3, 4, 5 | pytest and Vitest tooling; schema hash check in the normal suite; gold sets 100 and 100, single annotation | Same |
+| 27, 28 | Fixed costs; 7, 9 | About $30 a month fixed; resize and scaling triggers from ADR-022 | Same |
+| 29, 31 | Phases 0 and 1 | Phase 0 about 1 week, Phase 1 about 3.5 weeks; checklists rewritten | Same |
+| 30 | Risks | R-20 and Q-07 retired; R-21 (Taskiq maturity), R-22 (two toolchains), R-23 (no preview deployments) added | Same |
+| diagrams/README | 11 of 18 diagrams | Updated to the locked architecture; `architecture-locked.html` added as the reference page | Same |
+| 04 | 13, 15.1 | `ops.slo_samples` added; roles as above | Replaces the external metrics store |
+| 13 | Stage 8 | Candidate chunker is rule-based; no language model in the worker in V1 | The 4 GB budget in ADR-022 depends on it |
+
+Corrections made to ADR-022 on the day it was written, after the document owners checked it against the detail:
+
+| Point | First version | Corrected | Why |
+|---|---|---|---|
+| Database roles | One `app` role for api and worker, under RLS | `app_api` under RLS, `app_worker` bypassing it | The planner, dispatcher, rollups and purge read across workspaces by design |
+| Queue broker | "Taskiq with the Redis broker", two queues in one process | `RedisStreamBroker`; one broker per queue; one process runs both receivers, with a three-service fallback | The list broker loses a message when a worker dies mid-task, and a Taskiq broker is bound to one queue |
+| Retries | "up to 3 times" on the diagram | By error class with backoff (doc 21 section 6: 4, 6 or 10 attempts) | The diagram was wrong; doc 21 was right |
+| Heartbeats | Four checks | Plus the host check and the restore drill | Without the host check nothing reports disk, swap or a dead `web` container |
+| R2 cost | About $1 | About $1 at the start, $1.50 to $6 by month 12 | Raw payloads and 30 dailies accumulate |
+
+Open after the lock (none blocks Phase 0):
+
+| Id | Item | Decide by |
+|---|---|---|
+| L1 | Taskiq single-process entrypoint with two receivers (`taskiq.api.run_receiver_task`) is unverified | Phase 1 smoke test |
+| L2 | The roadmap still assumes three engineers for its 19.5 calendar weeks | Re-estimate at the end of Phase 1 |
+| L3 | The log-ingest route and its agent need API keys, which are deferred | Phase 12 |
+| L4 | The alias test tool now calls the API and only tests saved configuration | Phase 2 |
+| L5 | mypy or pyright; Python markdown and tokenizer library choices in doc 13 | Phase 1 |
+| L6 | CSP keeps a per-request nonce in the Next.js proxy, not a static header | Confirm in Phase 1 |
+
