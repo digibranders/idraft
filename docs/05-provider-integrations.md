@@ -208,6 +208,8 @@ Notes on the design choices:
 - `fingerprint` excludes our task id and priority, so identical SERP requests on the same day across projects are recognized (shared fetch, [04-data-model.md](04-data-model.md) section 11.3).
 - `classifyError` returns a retry decision rather than throwing provider-specific errors up the stack.
 
+**As built (step 3 of the build order).** `backend/src/sightline/providers/contract.py` holds the part of this contract that submitting and fetching need; normalizing arrives with the first workload that ingests. A `Provider` has `code`, `batch_size(endpoint)`, `result_lifetime(endpoint)`, `payload_slug(endpoint)` (the endpoint's name in raw payload keys), `submit` (a batch; a request left out of both lists has an unknown outcome), `list_ready`, `fetch` (the exact response bytes), `lists_submissions` and `find_submitted` (the tasks posted in a period, with their tags, complete or refused). Instead of a `CallContext`, the DataForSEO adapter is built with the process's one `httpx.AsyncClient` and a `CallGate` (the shared limiter, doc 21 section 7). Every request carries its task id, run id and the attempt submission stamps on it; the tag echoes all three, and an answer is matched by tag, never by position. A call that fails as a whole raises `ProviderCallError`; the kinds are those of section 3.3, with `throttled` for a call our own limiter held back.
+
 ### 3.3 Error taxonomy
 
 ```python

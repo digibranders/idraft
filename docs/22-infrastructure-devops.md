@@ -287,6 +287,8 @@ services:
       HC_OPS_HEALTH_URL: ${HC_OPS_HEALTH_URL:?}
       SENTRY_DSN: ${SENTRY_DSN_BACKEND:?}
       EMAIL_API_KEY: ${EMAIL_API_KEY:?}
+      # Reserved: the spool is not built. Raw payloads go straight to R2, and an R2 outage
+      # delays fetching (DataForSEO keeps results 30 days) instead of filling a local disk.
       SPOOL_DIR: /var/spool/seo
       SPOOL_MAX_BYTES: "5368709120"   # 5 GiB, see disk budget
       HEARTBEAT_FILE: /tmp/heartbeat
@@ -1337,7 +1339,7 @@ CPU steal is worth watching on a Basic (shared vCPU) droplet: sustained steal ab
 | Swap file | 2 GiB | fixed |
 | Ballast file | 1 GiB | deleted only during a disk-full incident |
 | Redis AOF + RDB | 0.5 GiB | 256 MB maxmemory, AOF rewrite |
-| Raw payload spool (R2 outage buffer) | 5 GiB cap | `SPOOL_MAX_BYTES`; collection pauses when full |
+| Raw payload spool (R2 outage buffer) | 5 GiB cap | `SPOOL_MAX_BYTES`; collection pauses when full. Not built yet: fetches wait for R2 instead |
 | PostgreSQL WAL | 2 to 3 GiB | `max_wal_size = 2GB` |
 | PostgreSQL temp files | up to 4 GiB transient | `temp_file_limit` |
 | **Subtotal excluding table data** | **about 21 to 26 GiB** | |
