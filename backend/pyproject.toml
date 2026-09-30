@@ -17,6 +17,8 @@ dependencies = [
     "sentry-sdk[fastapi]>=2.71.0",
     "sqlalchemy[asyncio]>=2.1.1",
     "structlog>=26.1.0",
+    "taskiq>=0.13.0",
+    "taskiq-redis>=1.2.4",
     "uvicorn[standard]>=0.54.0",
 ]
 
