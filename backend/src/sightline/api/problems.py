@@ -92,8 +92,22 @@ class UnauthenticatedError(ProblemError):
     status, code, title = 401, "unauthenticated", "Authentication required"
 
 
+class SessionExpiredError(ProblemError):
+    status, code, title = 401, "session_expired", "Session expired"
+
+
 class ForbiddenError(ProblemError):
     status, code, title = 403, "forbidden", "Not allowed"
+
+
+class FreshSessionRequiredError(ProblemError):
+    """Carries `reauth_url`: where the client sends the user to re-enter a credential."""
+
+    status, code, title = 403, "fresh_session_required", "Recent sign-in required"
+
+
+class OriginNotAllowedError(ProblemError):
+    status, code, title = 403, "origin_not_allowed", "Origin not allowed"
 
 
 class NotFoundError(ProblemError):
@@ -229,9 +243,12 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
         )
 
     async def handle_unexpected(request: Request, error: Exception) -> JSONResponse:
-        # Starlette runs this handler outside the middleware stack, after the request id has been
-        # unbound from the log context, so it is passed explicitly.
+        # Starlette runs this handler outside the middleware stack, after the request id and the
+        # caller's id have been unbound from the log context, so they are passed explicitly.
         context = {"route": route_template(request.scope), "request_id": _request_id(request)}
+        user_id = getattr(request.state, "user_id", None)
+        if isinstance(user_id, str):
+            context["user_id"] = user_id
         if isinstance(error, ResponseValidationError):
             # Its message quotes the value the handler returned, which may be tenant content.
             _log.error(

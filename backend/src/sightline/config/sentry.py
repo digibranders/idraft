@@ -10,6 +10,7 @@ from typing import Any
 
 import sentry_sdk
 from fastapi.exceptions import ResponseValidationError
+from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.types import Breadcrumb, BreadcrumbHint, Event, Hint
 
 from sightline.config.redaction import redact
@@ -54,6 +55,9 @@ def init_sentry(settings: Settings) -> bool:
         send_default_pii=False,
         include_local_variables=False,
         max_request_body_size="never",
+        # It records every command and key as a breadcrumb and a span. Session cache keys are
+        # hashes, not tokens, but nothing about sessions belongs in a third-party service.
+        disabled_integrations=[RedisIntegration()],
         before_send=scrub_event,
         before_breadcrumb=scrub_breadcrumb,
     )

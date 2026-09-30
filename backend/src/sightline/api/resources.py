@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import httpx
 from fastapi import Request
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from sightline.api.auth.sessions import SessionStore
 from sightline.config.settings import Settings
 from sightline.db.migrate import MigrationState
+from sightline.providers.email import EmailSender
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,9 @@ class Resources:
     sessions: async_sessionmaker[AsyncSession]
     redis: Redis
     migrations: MigrationState
+    http: httpx.AsyncClient
+    email: EmailSender
+    session_store: SessionStore
 
 
 def get_resources(request: Request) -> Resources:

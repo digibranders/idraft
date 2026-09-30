@@ -64,6 +64,9 @@ addopts = "-ra --strict-markers --cov=sightline --cov-branch --cov-report=term-m
 
 [tool.coverage.run]
 omit = ["src/sightline/db/migrations/*"]
+# SQLAlchemy's async layer runs on greenlets; without this, lines after an awaited query are
+# reported as missed.
+concurrency = ["greenlet", "thread"]
 
 [tool.importlinter]
 root_package = "sightline"
