@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from alembic import op
 
-from sightline.db.ddl import grants, statements, tenant_isolation
+from sightline.db.ddl import column_grant, grants, statements, tenant_isolation
 
 revision: str = "0003"
 down_revision: str | None = "0002"
@@ -184,7 +184,9 @@ CREATE TABLE core.workspace_quotas (
 """
 
 # Accepting an invitation happens before the user belongs to the workspace, so the policy on
-# auth.invitations would hide the row. This returns that one invitation and nothing else.
+# auth.invitations would hide the row. This returns that one invitation and nothing else. It
+# returns it whatever its status or expiry, so the API can answer "expired" rather than "unknown":
+# the caller must check `status` and `expires_at` before acting on it.
 _INVITATION_LOOKUP = """
 CREATE FUNCTION auth.invitation_by_token(p_token_hash bytea) RETURNS SETOF auth.invitations
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
@@ -205,16 +207,58 @@ _OWN_WORKSPACE = (
     "id IN (SELECT m.workspace_id FROM auth.memberships m WHERE m.user_id = auth.current_user_id())"
 )
 
-_CRUD = "SELECT, INSERT, UPDATE, DELETE"
-_AUTH_TABLES = (
-    "auth.users",
-    "auth.sessions",
-    "auth.verification_tokens",
-    "auth.totp_secrets",
-    "auth.workspaces",
-    "auth.memberships",
-    "auth.invitations",
-    "auth.api_keys",
+# Least privilege. Where a role may change only some columns of a table, it gets column grants
+# instead of a table-wide UPDATE: the API can never set is_platform_operator, re-point a session to
+# another user or rewrite a token, and the worker (which bypasses row-level security) can never move
+# a row to another workspace. The contract is tested in tests/db/test_grants.py.
+#
+# Nothing here is deleted by the API except a membership (remove a member) and a TOTP secret
+# (disable): users, sessions, tokens, workspaces and projects are disabled, revoked, consumed or
+# soft-deleted. Purges and clean-ups belong to worker maintenance and get their grants with it.
+_TABLE_GRANTS: dict[str, tuple[str, str]] = {
+    # table: (app_api, app_worker)
+    "auth.users": ("SELECT", ""),
+    "auth.sessions": ("SELECT, INSERT", ""),
+    "auth.verification_tokens": ("SELECT, INSERT", ""),
+    "auth.totp_secrets": ("SELECT, INSERT, DELETE", ""),
+    "auth.workspaces": ("SELECT, INSERT, UPDATE", "SELECT"),
+    "auth.memberships": ("SELECT, INSERT, DELETE", "SELECT"),
+    "auth.invitations": ("SELECT, INSERT", "SELECT"),
+    "auth.api_keys": ("SELECT", ""),
+    "core.projects": ("SELECT, INSERT, UPDATE", "SELECT"),
+    "core.workspace_quotas": ("SELECT, INSERT, UPDATE", "SELECT"),
+}
+_COLUMN_GRANTS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+    # table, role, privilege, columns
+    ("auth.users", "app_api", "INSERT", ("email", "name", "image", "password_hash")),
+    (
+        "auth.users",
+        "app_api",
+        "UPDATE",
+        ("name", "image", "password_hash", "email_verified_at", "updated_at"),
+    ),
+    ("auth.users", "app_worker", "SELECT", ("id", "email", "name", "disabled_at")),
+    (
+        "auth.sessions",
+        "app_api",
+        "UPDATE",
+        ("state", "fresh_until", "idle_expires_at", "revoked_at", "last_seen_at"),
+    ),
+    ("auth.verification_tokens", "app_api", "UPDATE", ("consumed_at",)),
+    (
+        "auth.totp_secrets",
+        "app_api",
+        "UPDATE",
+        ("secret_encrypted", "confirmed_at", "last_used_step", "recovery_code_hashes"),
+    ),
+    ("auth.memberships", "app_api", "UPDATE", ("role", "project_ids")),
+    (
+        "auth.invitations",
+        "app_api",
+        "UPDATE",
+        ("status", "responded_at", "token_hash", "expires_at"),
+    ),
+    ("core.projects", "app_worker", "UPDATE", ("data_version",)),
 )
 
 
@@ -230,10 +274,10 @@ def upgrade() -> None:
         *tenant_isolation("core.projects"),
         *tenant_isolation("core.workspace_quotas"),
     ]
-    for table in _AUTH_TABLES:
-        script += grants(table, api=_CRUD, worker="SELECT")
-    script += grants("core.projects", api=_CRUD, worker="SELECT, UPDATE")
-    script += grants("core.workspace_quotas", api="SELECT, INSERT, UPDATE", worker="SELECT")
+    for table, (api, worker) in _TABLE_GRANTS.items():
+        script += grants(table, api=api, worker=worker)
+    for table, role, privilege, columns in _COLUMN_GRANTS:
+        script.append(column_grant(table, role=role, privilege=privilege, columns=columns))
     for statement in script:
         op.execute(statement)
 

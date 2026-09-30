@@ -1,6 +1,6 @@
 import pytest
 
-from sightline.db.ddl import grants, statements, tenant_isolation
+from sightline.db.ddl import column_grant, grants, statements, tenant_isolation
 
 
 def test_grant_statements_per_role() -> None:
@@ -97,3 +97,26 @@ def test_a_comment_above_a_statement_stays_with_it() -> None:
 
 def test_an_empty_script_has_no_statements() -> None:
     assert statements("   \n\n  ") == []
+
+
+def test_a_column_grant_names_its_columns() -> None:
+    statement = column_grant(
+        "auth.users", role="app_api", privilege="UPDATE", columns=("name", "image")
+    )
+    assert statement == "GRANT UPDATE (name, image) ON auth.users TO app_api"
+
+
+@pytest.mark.parametrize(
+    ("role", "privilege", "columns", "message"),
+    [
+        ("postgres", "UPDATE", ("name",), "runtime role"),
+        ("app_api", "DELETE", ("name",), "privileges"),
+        ("app_api", "UPDATE", (), "column names"),
+        ("app_api", "UPDATE", ("name); DROP TABLE x; --",), "column names"),
+    ],
+)
+def test_a_column_grant_is_validated(
+    role: str, privilege: str, columns: tuple[str, ...], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        column_grant("auth.users", role=role, privilege=privilege, columns=columns)

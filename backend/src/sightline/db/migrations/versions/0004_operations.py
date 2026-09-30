@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from alembic import op
 
-from sightline.db.ddl import grants, statements, tenant_isolation
+from sightline.db.ddl import column_grant, grants, statements, tenant_isolation
 
 revision: str = "0004"
 down_revision: str | None = "0003"
@@ -272,10 +272,16 @@ CREATE FUNCTION ops.ensure_monthly_partitions(
 RETURNS integer LANGUAGE plpgsql SET search_path = pg_catalog AS $$
 DECLARE
     m date;
-    part_name text;
-    parent_name text := p_parent::text;
+    parent_schema name;
+    parent_table name;
+    part_table name;
     created integer := 0;
 BEGIN
+    -- One caller at a time: two workers starting their daily maintenance together must not race.
+    PERFORM pg_advisory_xact_lock(hashtext('ops.ensure_monthly_partitions'));
+    SELECT n.nspname, c.relname INTO STRICT parent_schema, parent_table
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.oid = p_parent;
     -- Month boundaries are computed and written in UTC, so the result does not depend on the
     -- session TimeZone.
     FOR m IN
@@ -286,18 +292,18 @@ BEGIN
                                 + make_interval(months => p_months_ahead))::date,
             interval '1 month')::date
     LOOP
-        part_name := parent_name || '_p' || to_char(m, 'YYYYMM');
-        IF to_regclass(part_name) IS NULL THEN
+        part_table := parent_table || '_p' || to_char(m, 'YYYYMM');
+        IF to_regclass(format('%I.%I', parent_schema, part_table)) IS NULL THEN
             -- timestamptz keys get explicit UTC literals; date keys get plain dates.
             EXECUTE format(
-                'CREATE TABLE %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',
-                part_name, parent_name,
+                'CREATE TABLE %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)',
+                parent_schema, part_table, parent_schema, parent_table,
                 CASE WHEN p_key_is_date THEN m::text ELSE m::text || ' 00:00:00+00' END,
                 CASE WHEN p_key_is_date THEN (m + interval '1 month')::date::text
                      ELSE (m + interval '1 month')::date::text || ' 00:00:00+00' END);
             EXECUTE format(
-                'ALTER TABLE %s SET (autovacuum_vacuum_insert_scale_factor = 0.05, '
-                'autovacuum_analyze_scale_factor = 0.02)', part_name);
+                'ALTER TABLE %I.%I SET (autovacuum_vacuum_insert_scale_factor = 0.05, '
+                'autovacuum_analyze_scale_factor = 0.02)', parent_schema, part_table);
             created := created + 1;
         END IF;
     END LOOP;
@@ -310,7 +316,12 @@ DECLARE
     entry ops.partitioned_tables;
     created integer := 0;
 BEGIN
-    FOR entry IN SELECT * FROM ops.partitioned_tables LOOP
+    -- A registry row whose table has been dropped is skipped, so one stale row can never stop
+    -- partitions being created for every other table.
+    FOR entry IN
+        SELECT t.* FROM ops.partitioned_tables t
+        WHERE EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = t.parent)
+    LOOP
         created := created + ops.ensure_monthly_partitions(
             entry.parent, entry.months_back, entry.months_ahead, entry.key_is_date);
     END LOOP;
@@ -346,21 +357,86 @@ _TENANT_TABLES = (
 )
 
 _CRUD = "SELECT, INSERT, UPDATE, DELETE"
-# table: (app_api, app_worker). The contract is tested in tests/db/test_grants.py.
-_GRANTS: dict[str, tuple[str, str]] = {
+# Least privilege, as in the previous revision. The worker bypasses row-level security, so it gets
+# UPDATE on named columns only and can never change a row's workspace, project or identity. The
+# API cannot read ops.raw_payloads at all: that table is a cache shared by every workspace and has
+# no workspace column to filter on. The contract is tested in tests/db/test_grants.py.
+_TABLE_GRANTS: dict[str, tuple[str, str]] = {
+    # table: (app_api, app_worker)
     "ops.providers": ("SELECT", "SELECT"),
     "ops.component_versions": ("SELECT", "SELECT"),
-    "ops.partitioned_tables": ("SELECT", "SELECT"),
+    "ops.partitioned_tables": ("", ""),
     "ops.provider_price_book": ("SELECT", "SELECT, INSERT, UPDATE"),
     "ops.budgets": (_CRUD, "SELECT"),
-    "ops.schedules": (_CRUD, "SELECT, UPDATE"),
-    "ops.collection_runs": ("SELECT, INSERT, UPDATE", "SELECT, INSERT, UPDATE"),
-    "ops.collection_tasks": ("SELECT", "SELECT, INSERT, UPDATE"),
-    "ops.raw_payloads": ("SELECT", "SELECT, INSERT, UPDATE"),
+    "ops.schedules": (_CRUD, "SELECT"),
+    "ops.collection_runs": ("SELECT, INSERT", "SELECT, INSERT"),
+    "ops.collection_tasks": ("SELECT", "SELECT, INSERT"),
+    "ops.raw_payloads": ("", "SELECT, INSERT"),
     "ops.provider_cost_events": ("SELECT", "SELECT, INSERT"),
-    "ops.cost_daily": ("SELECT", "SELECT, INSERT, UPDATE"),
-    "ops.audit_logs": ("SELECT, INSERT", "SELECT, INSERT"),
+    "ops.cost_daily": ("SELECT", "SELECT, INSERT"),
+    "ops.audit_logs": ("SELECT", "SELECT"),
 }
+# Every column except id and occurred_at, so an entry's time always comes from the database clock.
+_AUDIT_COLUMNS = (
+    "workspace_id",
+    "actor_type",
+    "actor_id",
+    "action",
+    "target_type",
+    "target_id",
+    "before",
+    "after",
+    "ip",
+    "user_agent",
+    "request_id",
+)
+_COLUMN_GRANTS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+    # table, role, privilege, columns
+    ("ops.audit_logs", "app_api", "INSERT", _AUDIT_COLUMNS),
+    ("ops.audit_logs", "app_worker", "INSERT", _AUDIT_COLUMNS),
+    ("ops.collection_runs", "app_api", "UPDATE", ("status", "status_reason", "completed_at")),
+    (
+        "ops.collection_runs",
+        "app_worker",
+        "UPDATE",
+        (
+            "status",
+            "status_reason",
+            "blocked_by_budget_id",
+            "tasks_total",
+            "tasks_succeeded",
+            "tasks_failed",
+            "estimated_cost_usd",
+            "actual_cost_usd",
+            "completed_at",
+        ),
+    ),
+    ("ops.schedules", "app_worker", "UPDATE", ("next_run_at", "last_run_id")),
+    (
+        "ops.collection_tasks",
+        "app_worker",
+        "UPDATE",
+        (
+            "provider_task_id",
+            "scheduled_for",
+            "status",
+            "dispatched_at",
+            "attempts",
+            "next_attempt_at",
+            "submitted_at",
+            "ready_at",
+            "completed_at",
+            "raw_payload_id",
+            "ready_source",
+            "result_meta",
+            "cost_usd",
+            "last_error_code",
+            "last_error_message",
+        ),
+    ),
+    ("ops.raw_payloads", "app_worker", "UPDATE", ("expires_at",)),
+    ("ops.cost_daily", "app_worker", "UPDATE", ("request_count", "cost_usd", "subjects")),
+)
 
 
 def upgrade() -> None:
@@ -368,8 +444,10 @@ def upgrade() -> None:
     for table in _TENANT_TABLES:
         # Rows without a workspace (platform overhead) match no workspace: the API never sees them.
         script += tenant_isolation(table)
-    for table, (api, worker) in _GRANTS.items():
+    for table, (api, worker) in _TABLE_GRANTS.items():
         script += grants(table, api=api, worker=worker)
+    for table, role, privilege, columns in _COLUMN_GRANTS:
+        script.append(column_grant(table, role=role, privilege=privilege, columns=columns))
     for statement in script:
         op.execute(statement)
 

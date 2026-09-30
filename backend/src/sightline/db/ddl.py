@@ -7,12 +7,14 @@ function, never by editing one that a revision already used.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 API_ROLE = "app_api"
 WORKER_ROLE = "app_worker"
 POLICY_NAME = "tenant_isolation"
 _QUALIFIED_NAME = re.compile(r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*")
 _IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]*")
+_COLUMN_PRIVILEGES = frozenset({"SELECT", "INSERT", "UPDATE"})
 _PRIVILEGES = re.compile(r"(SELECT|INSERT|UPDATE|DELETE)(, (SELECT|INSERT|UPDATE|DELETE))*")
 
 
@@ -38,6 +40,25 @@ def grants(table: str, *, api: str = "", worker: str = "") -> list[str]:
         for role, privileges in ((API_ROLE, api), (WORKER_ROLE, worker))
         if privileges
     ]
+
+
+def column_grant(table: str, *, role: str, privilege: str, columns: Sequence[str]) -> str:
+    """GRANT one privilege on named columns only.
+
+    Used where a role may change some columns of a row but must never change others: the API may
+    rename a user but not make them a platform operator; the worker may bump a counter but not move
+    a row to another workspace.
+    """
+    table = _table(table)
+    if role not in (API_ROLE, WORKER_ROLE):
+        raise ValueError(f"expected a runtime role, got {role!r}")
+    if privilege not in _COLUMN_PRIVILEGES:
+        raise ValueError(
+            f"expected one of {sorted(_COLUMN_PRIVILEGES)} privileges, got {privilege!r}"
+        )
+    if not columns or not all(_IDENTIFIER.fullmatch(column) for column in columns):
+        raise ValueError(f"expected lower-case column names, got {list(columns)!r}")
+    return f"GRANT {privilege} ({', '.join(columns)}) ON {table} TO {role}"
 
 
 def tenant_isolation(

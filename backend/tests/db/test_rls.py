@@ -114,8 +114,13 @@ async def test_the_api_cannot_change_or_delete_another_workspaces_rows(
         updated = await db.execute(
             "UPDATE core.projects SET name = 'taken' WHERE id = $1", beta.project_id
         )
-        deleted = await db.execute("DELETE FROM core.projects WHERE id = $1", beta.project_id)
+        deleted = await db.execute("DELETE FROM ops.schedules WHERE id = $1", beta.schedule_id)
     assert (updated, deleted) == ("UPDATE 0", "DELETE 0")
+    async with connection(migrated) as db:
+        survivors = await db.fetchval(
+            "SELECT count(*) FROM ops.schedules WHERE id = $1", beta.schedule_id
+        )
+    assert survivors == 1
 
 
 async def test_the_api_cannot_turn_row_security_off(
@@ -218,3 +223,37 @@ async def test_backup_reads_everything_and_writes_nothing(
         assert count == 2
         with pytest.raises(asyncpg.InsufficientPrivilegeError):
             await db.execute("UPDATE core.projects SET name = 'x'")
+
+
+async def test_every_policy_says_exactly_what_was_reviewed(migrated: PostgresServer) -> None:
+    """A widened policy cannot ship unnoticed: the visible and writable predicates are pinned."""
+    async with connection(migrated) as db:
+        rows = await db.fetch(
+            "SELECT polrelid::regclass::text AS name, polcmd AS command, "
+            "pg_get_expr(polqual, polrelid) AS visible, "
+            "pg_get_expr(polwithcheck, polrelid) AS writable "
+            "FROM pg_policy WHERE polname = 'tenant_isolation'"
+        )
+    found = {
+        row["name"]: (row["command"], " ".join(row["visible"].split()), row["writable"])
+        for row in rows
+    }
+
+    def owned(column: str) -> str:
+        return f"({column} = auth.current_workspace_id())"
+
+    expected = {
+        table: (b"*", owned(column), owned(column)) for table, column in TENANT_TABLES.items()
+    }
+    expected["auth.memberships"] = (
+        b"*",
+        "((workspace_id = auth.current_workspace_id()) OR (user_id = auth.current_user_id()))",
+        owned("workspace_id"),
+    )
+    expected["auth.workspaces"] = (
+        b"*",
+        "((id = auth.current_workspace_id()) OR (id IN ( SELECT m.workspace_id "
+        "FROM auth.memberships m WHERE (m.user_id = auth.current_user_id()))))",
+        owned("id"),
+    )
+    assert found == expected

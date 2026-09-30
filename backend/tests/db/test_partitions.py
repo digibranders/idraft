@@ -1,5 +1,6 @@
 """Monthly partitions (docs/26-testing-quality.md: DB-PART-01 to 04)."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import asyncpg
@@ -133,3 +134,58 @@ async def test_the_api_cannot_maintain_partitions(migrated: PostgresServer, call
     async with scoped(migrated, "app_api") as db:
         with pytest.raises(asyncpg.InsufficientPrivilegeError):
             await db.fetchval(call)
+
+
+async def test_two_maintainers_at_once_take_turns(migrated: PostgresServer) -> None:
+    """Two workers starting their daily maintenance together must not collide."""
+    async with connection(migrated, "migrator") as db:
+        await db.execute("DROP TABLE IF EXISTS ops.race_probe")
+        await db.execute("CREATE TABLE ops.race_probe (at timestamptz) PARTITION BY RANGE (at)")
+    try:
+
+        async def maintain() -> int:
+            async with connection(migrated, "migrator") as db:
+                created: int = await db.fetchval(
+                    "SELECT ops.ensure_monthly_partitions('ops.race_probe')"
+                )
+                return created
+
+        results = await asyncio.gather(*(maintain() for _ in range(4)))
+    finally:
+        async with connection(migrated, "migrator") as db:
+            await db.execute("DROP TABLE ops.race_probe")
+    assert sorted(results) == [0, 0, 0, 5]
+
+
+async def test_a_registry_row_for_a_dropped_table_does_not_stop_maintenance(
+    migrated: PostgresServer,
+) -> None:
+    async with scoped(migrated, "superuser") as db:
+        await db.execute("SET LOCAL ROLE migrator")
+        await db.execute("CREATE TABLE ops.gone (at timestamptz) PARTITION BY RANGE (at)")
+        await db.execute("INSERT INTO ops.partitioned_tables (parent) VALUES ('ops.gone')")
+        await db.execute("DROP TABLE ops.gone")
+        assert await db.fetchval("SELECT ops.maintain_partitions()") == 0
+
+
+async def test_a_table_name_that_needs_quoting_is_partitioned(migrated: PostgresServer) -> None:
+    async with scoped(migrated, "superuser") as db:
+        await db.execute('CREATE TABLE ops."Odd Name" (at timestamptz) PARTITION BY RANGE (at)')
+        created = await db.fetchval("""SELECT ops.ensure_monthly_partitions('ops."Odd Name"')""")
+        rows = await db.fetch(PARTITIONS, 'ops."Odd Name"')
+    assert created == 5
+    assert [row["relname"] for row in rows] == ["Odd Name" + suffix for suffix in _suffixes(-1, 3)]
+
+
+async def test_partitions_belong_to_migrator_and_carry_no_grants_of_their_own(
+    migrated: PostgresServer,
+) -> None:
+    async with connection(migrated) as db:
+        rows = await db.fetch(
+            "SELECT pg_get_userbyid(c.relowner) AS owner, c.relacl IS NULL AS no_grants "
+            "FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid "
+            "WHERE i.inhparent = ANY($1::regclass[])",
+            PARENTS,
+        )
+    assert len(rows) == 10
+    assert {(row["owner"], row["no_grants"]) for row in rows} == {("migrator", True)}
