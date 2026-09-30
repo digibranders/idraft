@@ -76,3 +76,29 @@ def password_changed_email(
             f"{origin}/reset-password\n"
         ),
     )
+
+
+_TWO_FACTOR_CHANGES = {
+    "enabled": ("Two-factor sign-in was turned on", "Two-factor sign-in was just turned on"),
+    "disabled": ("Two-factor sign-in was turned off", "Two-factor sign-in was just turned off"),
+    "recovery_codes": (
+        "Your recovery codes were replaced",
+        "The recovery codes for two-factor sign-in were just replaced",
+    ),
+}
+
+
+def two_factor_changed_email(
+    *, origin: str, to: str, name: str, change: Literal["enabled", "disabled", "recovery_codes"]
+) -> EmailMessage:
+    subject, sentence = _TWO_FACTOR_CHANGES[change]
+    return EmailMessage(
+        to=to,
+        subject=subject,
+        text=(
+            f"{_greeting(name)}\n\n"
+            f"{sentence} for your Sightline account.\n\n"
+            "If this was not you, reset your password now and tell your workspace owner:\n\n"
+            f"{origin}/reset-password\n"
+        ),
+    )

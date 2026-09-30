@@ -382,9 +382,10 @@ async def consume_token(
 
 # The policy on auth.invitations hides the row from someone who is not yet a member, so the lookup
 # goes through the definer function, which returns the row whatever its state. The checks are
-# here, and the email is compared by the database as citext: the same comparison that makes
-# auth.users.email unique. Comparing in Python would call two addresses equal that PostgreSQL
-# stores as different accounts.
+# here, and the email is compared by the database: the column is citext, so this is the same
+# comparison that makes auth.users.email unique. Comparing in Python would call two addresses
+# equal that PostgreSQL stores as different accounts. The parameter is declared citext so it is
+# never sent with a text cast, which would make the comparison case-sensitive.
 _PENDING_INVITATION = text(
     "SELECT 1 FROM auth.invitation_by_token(:token_hash) "
     "WHERE email = :email AND status = 'pending' AND expires_at > :now"
@@ -585,20 +586,37 @@ async def store_unconfirmed_totp(
 
 
 async def confirm_totp(
-    db: AsyncSession, *, user_id: UUID, step: int, recovery_code_hashes: list[str], now: datetime
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    secret_encrypted: bytes,
+    step: int,
+    recovery_code_hashes: list[str],
+    now: datetime,
 ) -> bool:
-    """Turn two-factor on. The step that proved the code is recorded, so it cannot be replayed."""
+    """Turn two-factor on for the secret the code was checked against.
+
+    The secret is part of the condition: a setup that replaced it after the code was checked
+    must not be confirmed by that code. The step is recorded, so the code cannot be replayed.
+    """
     statement = (
         update(totp_secrets)
-        .where(totp_secrets.c.user_id == user_id, totp_secrets.c.confirmed_at.is_(None))
+        .where(
+            totp_secrets.c.user_id == user_id,
+            totp_secrets.c.confirmed_at.is_(None),
+            totp_secrets.c.secret_encrypted == secret_encrypted,
+        )
         .values(confirmed_at=now, last_used_step=step, recovery_code_hashes=recovery_code_hashes)
         .returning(totp_secrets.c.user_id)
     )
     return (await db.execute(statement)).scalar_one_or_none() is not None
 
 
-async def claim_totp_step(db: AsyncSession, *, user_id: UUID, step: int) -> bool:
-    """Use a time step once. One UPDATE decides, so the same code cannot be accepted twice."""
+async def claim_totp_step(db: AsyncSession, *, user_id: UUID, step: int) -> int | None:
+    """Use a time step once. One UPDATE decides, so the same code cannot be accepted twice.
+
+    Returns how many recovery codes are left, or None if the step was already used.
+    """
     statement = (
         update(totp_secrets)
         .where(
@@ -607,9 +625,10 @@ async def claim_totp_step(db: AsyncSession, *, user_id: UUID, step: int) -> bool
             or_(totp_secrets.c.last_used_step.is_(None), totp_secrets.c.last_used_step < step),
         )
         .values(last_used_step=step)
-        .returning(totp_secrets.c.user_id)
+        .returning(func.cardinality(totp_secrets.c.recovery_code_hashes))
     )
-    return (await db.execute(statement)).scalar_one_or_none() is not None
+    left: int | None = (await db.execute(statement)).scalar_one_or_none()
+    return left
 
 
 async def use_recovery_code(db: AsyncSession, *, user_id: UUID, code_hash: str) -> int | None:

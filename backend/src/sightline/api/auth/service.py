@@ -75,6 +75,9 @@ EMAIL_REQUESTS_PER_HOUR_PER_IP = 30
 # Tokens are 256 random bits, so this is about load, not guessing.
 TOKEN_ATTEMPTS_PER_HOUR_PER_IP = 60
 REGISTRATIONS_PER_HOUR_PER_IP = 10
+# Far above what people behind one address need. It bounds how many sessions and audit rows
+# someone who knows a password can create.
+SIGN_INS_PER_HOUR_PER_IP = 300
 # argon2id needs 19 MiB per hash. This bounds how much memory sign-ins can take at once.
 HASHING_CONCURRENCY = 4
 _HOUR = 3600
@@ -246,6 +249,7 @@ class AuthService:
 
     async def sign_in(self, *, email: str, password: str, info: RequestInfo) -> SignedIn:
         now = datetime.now(UTC)
+        await self._limit("sign_in:ip", info.throttle_ip, SIGN_INS_PER_HOUR_PER_IP)
         await self._refuse_if_locked(email, info)
         async with self._sessions() as db, db.begin():
             user = await repository.find_user_by_email(db, email)
@@ -478,6 +482,7 @@ class AuthService:
             confirmed = await repository.confirm_totp(
                 db,
                 user_id=user.id,
+                secret_encrypted=record.secret_encrypted,
                 step=step,
                 recovery_code_hashes=[hash_recovery_code(item) for item in codes],
                 now=now,
@@ -488,10 +493,29 @@ class AuthService:
                 )
                 await self._audit(db, "auth.totp.enabled", user.id, info, None)
         if not confirmed:
-            # Another request confirmed first. Its recovery codes are the real ones.
+            # Another request confirmed first, or replaced the secret. Its codes are the real ones.
             raise TotpAlreadyEnabledError
         await self._store.forget(revoked)
+        await self._credential_accepted(user)
         return codes
+
+    async def notify_two_factor_change(
+        self, *, user_id: UUID, change: Literal["enabled", "disabled", "recovery_codes"]
+    ) -> None:
+        """Tell the user their second factor changed. Runs after the response; never raises."""
+        await self._after_response(self._send_two_factor_notice(user_id, change))
+
+    async def _send_two_factor_notice(
+        self, user_id: UUID, change: Literal["enabled", "disabled", "recovery_codes"]
+    ) -> None:
+        async with self._sessions() as db, db.begin():
+            user = await repository.get_user(db, user_id)
+        if user is not None:
+            await self.deliver(
+                mail.two_factor_changed_email(
+                    origin=self._origin, to=user.email, name=user.name, change=change
+                )
+            )
 
     async def verify_totp(
         self,
@@ -597,8 +621,8 @@ class AuthService:
             raise TotpNotEnabledError
         return codes
 
-    async def disable_totp(self, *, session: SessionContext, info: RequestInfo) -> None:
-        """Turn two-factor off, unless a role of the user requires it."""
+    async def disable_totp(self, *, session: SessionContext, info: RequestInfo) -> bool:
+        """Turn two-factor off, unless a role of the user requires it. False if it was not on."""
         now = datetime.now(UTC)
         async with user_transaction(self._sessions, session.user_id) as db:
             required = await repository.holds_role(
@@ -608,12 +632,14 @@ class AuthService:
             raise TwoFactorRequiredForRoleError
         revoked: list[bytes] = []
         async with self._sessions() as db, db.begin():
-            if await repository.delete_totp(db, session.user_id):
+            disabled = await repository.delete_totp(db, session.user_id)
+            if disabled:
                 revoked = await self._store.revoke_all(
                     db, user_id=session.user_id, except_session_id=session.session_id, now=now
                 )
                 await self._audit(db, "auth.totp.disabled", session.user_id, info, None)
         await self._store.forget(revoked)
+        return disabled
 
     async def _use_second_factor(
         self,
@@ -647,16 +673,13 @@ class AuthService:
             async with self._sessions() as db, db.begin():
                 if step is not None:
                     # A step can be claimed once, so a replayed code stops here.
-                    if not await repository.claim_totp_step(db, user_id=user.id, step=step):
-                        return None
-                    left = record.recovery_codes_left
+                    left = await repository.claim_totp_step(db, user_id=user.id, step=step)
                 else:
-                    remaining = await repository.use_recovery_code(
+                    left = await repository.use_recovery_code(
                         db, user_id=user.id, code_hash=hash_recovery_code(recovery_code or "")
                     )
-                    if remaining is None:
-                        return None
-                    left = remaining
+                if left is None:
+                    return None
                 rotated = await self._rotate(db, session, info, now)
                 if rotated is None:
                     # The session ended meanwhile. Leaving by exception rolls the claim back.

@@ -224,9 +224,15 @@ async def setup_totp(
     description="Returns the recovery codes once and ends the user's other sessions.",
 )
 async def confirm_totp(
-    body: TotpConfirmRequest, session: CurrentSession, response: Response, auth: Auth, info: Info
+    body: TotpConfirmRequest,
+    session: CurrentSession,
+    response: Response,
+    background: BackgroundTasks,
+    auth: Auth,
+    info: Info,
 ) -> RecoveryCodesResponse:
     codes = await auth.confirm_totp(session=session, code=body.code, info=info)
+    background.add_task(auth.notify_two_factor_change, user_id=session.user_id, change="enabled")
     _secret(response)
     return RecoveryCodesResponse(recovery_codes=codes)
 
@@ -259,9 +265,16 @@ async def verify_totp(
     description="Needs a fresh session. The previous codes stop working.",
 )
 async def regenerate_recovery_codes(
-    session: FreshSession, response: Response, auth: Auth, info: Info
+    session: FreshSession,
+    response: Response,
+    background: BackgroundTasks,
+    auth: Auth,
+    info: Info,
 ) -> RecoveryCodesResponse:
     codes = await auth.regenerate_recovery_codes(session=session, info=info)
+    background.add_task(
+        auth.notify_two_factor_change, user_id=session.user_id, change="recovery_codes"
+    )
     _secret(response)
     return RecoveryCodesResponse(recovery_codes=codes)
 
@@ -271,8 +284,13 @@ async def regenerate_recovery_codes(
     summary="Turn two-factor off",
     description="Needs a fresh session. Refused for an owner or admin of any workspace.",
 )
-async def disable_totp(session: FreshSession, auth: Auth, info: Info) -> Done:
-    await auth.disable_totp(session=session, info=info)
+async def disable_totp(
+    session: FreshSession, background: BackgroundTasks, auth: Auth, info: Info
+) -> Done:
+    if await auth.disable_totp(session=session, info=info):
+        background.add_task(
+            auth.notify_two_factor_change, user_id=session.user_id, change="disabled"
+        )
     return Done()
 
 

@@ -472,3 +472,14 @@ async def test_a_user_deleted_between_verification_and_session_creation_is_refus
     monkeypatch.setattr(repository, "lock_password_hash", deleted_meanwhile)
     response = await api.post(SIGN_IN, json=_credentials(user.email))
     assert response.status_code == 401
+
+
+async def test_sign_ins_from_one_address_are_limited(
+    api: httpx.AsyncClient, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sightline.api.auth.service.SIGN_INS_PER_HOUR_PER_IP", 3)
+    user = await make_user(migrated)
+    statuses = [
+        (await api.post(SIGN_IN, json=_credentials(user.email))).status_code for _ in range(4)
+    ]
+    assert statuses == [200, 200, 200, 429]

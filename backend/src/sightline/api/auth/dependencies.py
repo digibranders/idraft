@@ -93,7 +93,7 @@ async def current_session(
 async def pending_or_active_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext]:
-    """Also accepts a session that still owes its TOTP code. Only two routes use this."""
+    """Also accepts a session that still owes its TOTP code. Only `totp/verify` uses this."""
     context = await _load(request, resources, allow_pending=True)
     with _identified(request, context):
         yield context

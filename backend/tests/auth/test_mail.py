@@ -5,6 +5,7 @@ import pytest
 from sightline.api.auth.mail import (
     password_changed_email,
     password_reset_email,
+    two_factor_changed_email,
     verification_email,
 )
 
@@ -94,3 +95,23 @@ def test_no_message_contains_a_dash_that_marks_generated_text() -> None:
         written = message.subject + message.text
         assert chr(0x2014) not in written
         assert chr(0x2013) not in written
+
+
+@pytest.mark.parametrize(
+    ("change", "subject", "sentence"),
+    [
+        ("enabled", "Two-factor sign-in was turned on", "was just turned on for your"),
+        ("disabled", "Two-factor sign-in was turned off", "was just turned off for your"),
+        ("recovery_codes", "Your recovery codes were replaced", "were just replaced for your"),
+    ],
+)
+def test_the_two_factor_notice_says_what_changed(change: str, subject: str, sentence: str) -> None:
+    message = two_factor_changed_email(
+        origin=ORIGIN,
+        to="jane@client.example",
+        name="Jane",
+        change=change,  # type: ignore[arg-type]
+    )
+    assert message.subject == subject
+    assert sentence in message.text
+    assert re.findall(r"https://\S+", message.text) == [f"{ORIGIN}/reset-password"]

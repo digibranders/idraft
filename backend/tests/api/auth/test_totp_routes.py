@@ -5,12 +5,13 @@ import asyncio
 import hashlib
 import io
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pyotp
 import pytest
 
+from sightline.api.auth import repository
 from sightline.api.auth.tokens import derive_key
 from sightline.api.auth.totp import TotpCipher, hash_recovery_code
 from sightline.api.resources import Resources
@@ -18,6 +19,7 @@ from sightline.config.logging import configure_logging
 from tests.api.auth.support import (
     COOKIE,
     PASSWORD,
+    RecordingEmailSender,
     User,
     add_member,
     audit_actions,
@@ -732,6 +734,7 @@ async def test_a_password_cannot_refresh_a_session_that_ended_meanwhile(
 async def test_a_right_code_clears_earlier_wrong_ones(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
+    """Four wrong codes, the right one, then four more wrong: no lockout. A fifth locks."""
     user = await make_user(migrated)
     _, secret, _ = await _enrol(api, resources, migrated, user)
     wrong = "000000" if _code(secret) != "000000" else "111111"
@@ -743,9 +746,23 @@ async def test_a_right_code_clears_earlier_wrong_ones(
     ).status_code == 200
 
     again = await _pending(api, user)
-    response = await api.post(VERIFY, json={"code": wrong}, headers=cookie(again))
+    statuses = [
+        (await api.post(VERIFY, json={"code": wrong}, headers=cookie(again))).status_code
+        for _ in range(4)
+    ]
+    lockouts_before = await fetchrow(
+        migrated,
+        "SELECT count(*) AS n FROM ops.audit_logs WHERE target_id = $1 AND action = 'auth.lockout'",
+        str(user.id),
+    )
+    fifth = await api.post(VERIFY, json={"code": wrong}, headers=cookie(again))
 
-    assert response.status_code == 401
+    assert statuses == [401] * 4
+    assert lockouts_before["n"] == 0
+    assert await audit_actions(migrated, fifth.headers["x-request-id"]) == [
+        "auth.totp.verify_failed",
+        "auth.lockout",
+    ]
 
 
 async def test_two_factor_routes_refuse_an_account_disabled_a_moment_ago(
@@ -797,3 +814,112 @@ async def test_with_two_factor_on_the_password_alone_cannot_make_a_session_fresh
     assert (await api.post(DISABLE, headers=cookie(stale))).status_code == 403
     accepted = await api.post(REAUTH, json={"totp_code": _code(secret)}, headers=cookie(stale))
     assert accepted.status_code == 200
+
+
+async def test_once_a_later_step_is_used_earlier_codes_are_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The next step's code is inside the drift window. Using it closes the steps before it."""
+    user = await make_user(migrated)
+    _, secret, _ = await _enrol(api, resources, migrated, user)
+    totp = pyotp.TOTP(secret)
+    now = datetime.now(UTC)
+    ahead, current, behind = (
+        totp.at(now + timedelta(seconds=30)),
+        totp.at(now),
+        totp.at(now - timedelta(seconds=30)),
+    )
+
+    first = await api.post(VERIFY, json={"code": ahead}, headers=cookie(await _pending(api, user)))
+    later = [
+        await api.post(VERIFY, json={"code": code}, headers=cookie(await _pending(api, user)))
+        for code in (behind, current, ahead)
+    ]
+
+    assert first.status_code == 200
+    assert [response.status_code for response in later] == [401, 401, 401]
+
+
+async def test_a_code_from_two_steps_ago_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    _, secret, _ = await _enrol(api, resources, migrated, user)
+    stale = pyotp.TOTP(secret).at(datetime.now(UTC) - timedelta(seconds=61))
+    response = await api.post(
+        VERIFY, json={"code": stale}, headers=cookie(await _pending(api, user))
+    )
+    assert response.status_code == 401
+
+
+async def test_a_setup_that_replaces_the_secret_cannot_be_confirmed_by_the_old_code(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The code was checked against one secret; a second setup swapped it before the write."""
+    user = await make_user(migrated)
+    token, _ = await open_session(resources, user, fresh=True)
+    first = (await api.post(SETUP, headers=cookie(token))).json()["secret"]
+    checked = await fetchrow(
+        migrated, "SELECT secret_encrypted FROM auth.totp_secrets WHERE user_id = $1", user.id
+    )
+    second = (await api.post(SETUP, headers=cookie(token))).json()["secret"]
+    step = int(datetime.now(UTC).timestamp()) // 30
+
+    async with resources.sessions() as db, db.begin():
+        confirmed = await repository.confirm_totp(
+            db,
+            user_id=user.id,
+            secret_encrypted=checked["secret_encrypted"],
+            step=step,
+            recovery_code_hashes=[],
+            now=datetime.now(UTC),
+        )
+
+    assert first != second
+    assert confirmed is False
+    row = await fetchrow(
+        migrated, "SELECT confirmed_at FROM auth.totp_secrets WHERE user_id = $1", user.id
+    )
+    assert row["confirmed_at"] is None
+
+
+async def test_enrolling_after_wrong_codes_leaves_no_failures_behind(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    token, _ = await open_session(resources, user, fresh=True)
+    secret = (await api.post(SETUP, headers=cookie(token))).json()["secret"]
+    wrong = "000000" if _code(secret) != "000000" else "111111"
+    for _ in range(4):
+        await api.post(CONFIRM, json={"code": wrong}, headers=cookie(token))
+    assert (
+        await api.post(CONFIRM, json={"code": _code(secret)}, headers=cookie(token))
+    ).status_code == 200
+
+    typo = await api.post(SIGN_IN, json={"email": user.email, "password": "one typo here!"})
+
+    assert typo.status_code == 401
+    assert await audit_actions(migrated, typo.headers["x-request-id"]) == ["auth.sign_in_failed"]
+
+
+async def test_the_user_is_told_when_their_second_factor_changes(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+) -> None:
+    user = await make_user(migrated)
+    token, _, _ = await _enrol(api, resources, migrated, user)
+    await api.post(RECOVERY, headers=cookie(token))
+    await api.post(DISABLE, headers=cookie(token))
+    await api.post(DISABLE, headers=cookie(token))  # already off: nothing to report
+
+    assert [(message.to, message.subject) for message in mailbox.messages] == [
+        (user.email, "Two-factor sign-in was turned on"),
+        (user.email, "Your recovery codes were replaced"),
+        (user.email, "Two-factor sign-in was turned off"),
+    ]
+    for message in mailbox.messages:
+        assert re.findall(r"https://\S+", message.text) == [
+            "https://app.example.com/reset-password"
+        ]
