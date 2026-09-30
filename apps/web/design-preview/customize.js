@@ -44,7 +44,7 @@ const { $, $$, icon, toast, openPopup, closePopup, openModal, closeModal, trapFo
 // Context of the preview: the project has both channels, and the person is an owner
 
 const CAPABILITIES = { channels: ['seo', 'ai'], permissions: ['layouts:manage'], integrations: [] };
-const WORKSPACE = 'Acme Agency';
+const WORKSPACE = 'Digibranders';
 const TODAY = Date.UTC(2026, 8, 30);
 const NEW_FOR_DAYS = 30;
 
