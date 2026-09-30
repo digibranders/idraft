@@ -173,7 +173,8 @@
       "empty": "No projects match \"{query}\"",
       "clear": "Clear",
       "open": "Show projects",
-      "timeZone": "Times in {timeZone}"
+      "timeZone": "Times in {timeZone}",
+      "allProjects": "All projects in {workspace}"
     },
     "theme": {
       "switch": "Dark theme",
@@ -190,7 +191,8 @@
     "shortcuts": {
       "title": "Keyboard shortcuts",
       "description": "Single-key shortcuts work while focus is not in a text field.",
-      "toggleSidebar": "Collapse or expand the sidebar"
+      "toggleSidebar": "Collapse or expand the sidebar",
+      "open": "Show the keyboard shortcuts"
     },
     "user": {
       "trigger": "Account menu, {name}",
@@ -248,15 +250,145 @@
       "retry": "Try again",
       "errorId": "Error ID {id}",
       "copyErrorId": "Copy error ID",
-      "copied": "Error ID copied"
+      "copied": "Error ID copied",
+      "projectHome": "Go to the project"
     },
     "notFound": {
       "title": "This page does not exist or you do not have access to it",
-      "reason": "Check the link, or go back to the project."
+      "reason": "Check the link, or go back to the project.",
+      "projectHome": "Go to the project"
     },
     "inline": {
       "network": "Could not reach the server. Check your connection.",
       "server": "The server returned an error. Your filters are unchanged."
+    }
+  },
+  "projects": {
+    "title": "Projects",
+    "count": "{count, plural, one {# project} other {# projects}}",
+    "noDomain": "No domain yet",
+    "timeZone": "Times in {timeZone}",
+    "empty": {
+      "title": "No projects yet",
+      "creator": "Projects created in this workspace appear here.",
+      "viewer": "Owners, admins and editors can create projects.",
+      "restricted": "You have access to no projects in this workspace. Ask an owner or admin for access."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "sections": "Settings sections",
+    "section": "Section",
+    "groups": {
+      "account": "Your account"
+    },
+    "items": {
+      "profile": "Profile",
+      "security": "Security",
+      "preferences": "Preferences"
+    }
+  },
+  "account": {
+    "discard": {
+      "title": "Discard unsaved changes?",
+      "description": "Your changes to your profile will be lost.",
+      "keepEditing": "Keep editing",
+      "discard": "Discard changes"
+    },
+    "saveBar": {
+      "summary": "{count, plural, one {# unsaved change} other {# unsaved changes}}",
+      "discard": "Discard",
+      "save": "Save changes"
+    },
+    "profile": {
+      "title": "Profile",
+      "description": "Your name, as other members see it.",
+      "name": "Name",
+      "nameRequired": "Enter your name.",
+      "nameTooLong": "Use at most {max} characters.",
+      "saved": "Name saved",
+      "email": "Email",
+      "emailHint": "You sign in with this address. It cannot be changed here.",
+      "verified": "Verified",
+      "notVerified": "Not verified",
+      "sendVerification": "Send verification email",
+      "verificationSent": "Verification email sent to {email}",
+      "workspaces": "Workspaces",
+      "workspacesDescription": "Where you are a member, and your role in each.",
+      "workspace": "Workspace",
+      "role": "Role",
+      "access": "Project access",
+      "allProjects": "All projects",
+      "someProjects": "{count, plural, =0 {No projects} one {# project} other {# projects}}",
+      "saveFailed": "Your name was not saved. Try again.",
+      "verificationFailed": "The email was not sent. Try again in a moment."
+    },
+    "security": {
+      "title": "Security",
+      "description": "How you sign in, and where you are signed in.",
+      "password": "Password",
+      "passwordHint": "Changing it signs you out everywhere else.",
+      "changePassword": "Change password",
+      "dialog": {
+        "title": "Change password",
+        "description": "Other devices are signed out once the new password is saved.",
+        "current": "Current password",
+        "new": "New password",
+        "confirm": "Confirm new password",
+        "submit": "Change password",
+        "currentRequired": "Enter your current password.",
+        "wrongCurrent": "The current password is not correct.",
+        "mismatch": "The two new passwords are not the same.",
+        "done": "Password changed. Other devices were signed out.",
+        "discardDescription": "The passwords you typed will be lost.",
+        "failed": "The password was not changed. Try again in a moment."
+      },
+      "twoFactor": "Two-factor authentication",
+      "twoFactorOn": "On",
+      "twoFactorOff": "Off",
+      "twoFactorLater": "Turning two-factor authentication on or off from here comes in a later release.",
+      "sessions": "Active sessions",
+      "sessionsDescription": "Devices signed in to your account. Sign out any you do not recognize.",
+      "signOutOthers": "Sign out other sessions",
+      "othersSignedOut": "Other sessions signed out",
+      "device": "Device",
+      "place": "IP address",
+      "lastActive": "Last active",
+      "thisDevice": "This device",
+      "unknownDevice": "Unknown device",
+      "unknownIp": "Unknown",
+      "signOut": "Sign out",
+      "signOutSession": "Sign out {device}",
+      "sessionSignedOut": "Session signed out",
+      "loadFailed": "Could not load your sessions",
+      "actionFailed": "That did not work. Try again in a moment."
+    },
+    "preferences": {
+      "title": "Preferences",
+      "description": "How the app looks and behaves for you in this browser. Each change applies at once.",
+      "theme": "Theme",
+      "themeHint": "System follows your device setting.",
+      "density": "Default table density",
+      "densityHint": "New tables start at this row height: 40 px or 32 px.",
+      "densityDefault": "Default",
+      "densityCompact": "Compact",
+      "locale": "Number and date format",
+      "example": "Example: {example}",
+      "motionAndKeys": "Motion and keyboard",
+      "reduceMotion": "Reduce motion",
+      "reduceMotionHint": "Turns off transitions, including the theme reveal.",
+      "singleKeys": "Single-key shortcuts",
+      "singleKeysHint": "Keys such as [ and ? act as shortcuts when focus is not in a text field.",
+      "locales": {
+        "enUS": "English (United States)",
+        "enGB": "English (United Kingdom)",
+        "deDE": "German (Germany)"
+      },
+      "themes": {
+        "system": "System",
+        "light": "Light",
+        "dark": "Dark"
+      }
     }
   }
 }

@@ -1,0 +1,240 @@
+import {
+  Compass,
+  FileChartColumn,
+  FileText,
+  Globe,
+  Grid2x2,
+  LayoutDashboard,
+  ListOrdered,
+  MessageSquare,
+  MessageSquareText,
+  Plug,
+  Quote,
+  Settings,
+  Tag,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
+
+import type { Route } from 'next';
+
+import type { Permission } from '@/lib/permissions/permissions';
+import { projectPath } from '@/lib/routes/paths';
+
+/**
+ * The destinations of a project (11-navigation.md section 1.1, 14 items in 3 sections), the one list the
+ * sidebar, the breadcrumb and later the command palette read. A destination whose screen is not built yet
+ * is `planned`: it is absent from navigation and its route is the 404 page (20-frontend-specification.md
+ * section 3.10, where phase gating is this registry, not a flag list from the API).
+ */
+export type NavKey =
+  | 'overview'
+  | 'matrix'
+  | 'rankings'
+  | 'keywords'
+  | 'pages'
+  | 'aiOverview'
+  | 'prompts'
+  | 'citations'
+  | 'sources'
+  | 'competitors'
+  | 'discover'
+  | 'reports'
+  | 'integrations'
+  | 'settings';
+
+/** The labelled groups inside the first section. A group label is text, never a link. */
+export type NavGroup = 'seo' | 'ai';
+export type NavSectionId = 1 | 2 | 3;
+
+export interface NavDestination {
+  key: NavKey;
+  /** Below the project root: `''` is Overview, `/seo/rankings` is Rankings. */
+  path: '' | `/${string}`;
+  /** 07-icons.md section 6. */
+  icon: LucideIcon;
+  section: NavSectionId;
+  group: NavGroup | null;
+  /** What the role needs to open it; `null` for every member. */
+  permission: Permission | null;
+  status: 'live' | 'planned';
+}
+
+export const NAVIGATION: readonly NavDestination[] = [
+  {
+    key: 'overview',
+    path: '',
+    icon: LayoutDashboard,
+    section: 1,
+    group: null,
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'matrix',
+    path: '/matrix',
+    icon: Grid2x2,
+    section: 1,
+    group: null,
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'rankings',
+    path: '/seo/rankings',
+    icon: ListOrdered,
+    section: 1,
+    group: 'seo',
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'keywords',
+    path: '/seo/keywords',
+    icon: Tag,
+    section: 1,
+    group: 'seo',
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'pages',
+    path: '/seo/pages',
+    icon: FileText,
+    section: 1,
+    group: 'seo',
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'aiOverview',
+    path: '/ai',
+    icon: MessageSquareText,
+    section: 1,
+    group: 'ai',
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'prompts',
+    path: '/ai/prompts',
+    icon: MessageSquare,
+    section: 1,
+    group: 'ai',
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'citations',
+    path: '/ai/citations',
+    icon: Quote,
+    section: 1,
+    group: 'ai',
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'sources',
+    path: '/ai/sources',
+    icon: Globe,
+    section: 1,
+    group: 'ai',
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'competitors',
+    path: '/competitors',
+    icon: Users,
+    section: 2,
+    group: null,
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'discover',
+    path: '/discover',
+    icon: Compass,
+    section: 2,
+    group: null,
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'reports',
+    path: '/reports',
+    icon: FileChartColumn,
+    section: 3,
+    group: null,
+    permission: 'data:read',
+    status: 'planned',
+  },
+  {
+    key: 'integrations',
+    path: '/integrations',
+    icon: Plug,
+    section: 3,
+    group: null,
+    permission: 'data:read',
+    status: 'planned',
+  },
+  // Your account is in Settings, and every member has one
+  { key: 'settings', path: '/settings', icon: Settings, section: 3, group: null, permission: null, status: 'live' },
+];
+
+/** The destinations that are pages now. */
+export const LIVE_NAVIGATION: readonly NavDestination[] = NAVIGATION.filter((item) => item.status === 'live');
+
+export interface NavGroupEntry {
+  group: NavGroup | null;
+  items: NavDestination[];
+}
+export interface NavSection {
+  id: NavSectionId;
+  groups: NavGroupEntry[];
+}
+
+/**
+ * What the sidebar lists for a membership: live destinations the role can open, in their sections and
+ * groups. A destination the role can never use is absent, not disabled (20 section 3.9); a group, or a
+ * section, left with nothing is dropped with its label.
+ */
+export function visibleNavigation(registry: readonly NavDestination[], permissions: readonly string[]): NavSection[] {
+  const sections: NavSection[] = [];
+  for (const item of registry) {
+    if (item.status !== 'live') continue;
+    if (item.permission !== null && !permissions.includes(item.permission)) continue;
+    let section = sections.find((candidate) => candidate.id === item.section);
+    if (!section) {
+      section = { id: item.section, groups: [] };
+      sections.push(section);
+    }
+    const last = section.groups[section.groups.length - 1];
+    if (last?.group === item.group) last.items.push(item);
+    else section.groups.push({ group: item.group, items: [item] });
+  }
+  return sections;
+}
+
+/** Where a destination is for this project. */
+export const navHref = (item: NavDestination, workspace: string, project: string): Route =>
+  projectPath(workspace, project, item.path);
+
+/**
+ * The destination a path belongs to: the one whose route is the path or an ancestor of it, the longest
+ * such (so `/settings/profile` is Settings). Overview matches only the project root itself.
+ */
+export function destinationOf(
+  registry: readonly NavDestination[],
+  pathname: string,
+  workspace: string,
+  project: string,
+): NavDestination | null {
+  const root: string = projectPath(workspace, project);
+  if (pathname !== root && !pathname.startsWith(`${root}/`)) return null;
+  const rest = pathname.slice(root.length);
+  const matches = registry.filter((item) =>
+    item.path === '' ? rest === '' || rest === '/' : rest === item.path || rest.startsWith(`${item.path}/`),
+  );
+  return matches.sort((a, b) => b.path.length - a.path.length)[0] ?? null;
+}

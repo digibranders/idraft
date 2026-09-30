@@ -3,7 +3,8 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FreshSessionProvider, useFreshSession, withFreshSession } from './fresh-session';
+import { FreshSessionProvider } from './fresh-session';
+import { useFreshSession, withFreshSession } from '@/lib/session/fresh-session';
 import { Dialog, DialogBody, DialogHeader } from '@/components/ui/dialog';
 import { ApiProblem, isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';

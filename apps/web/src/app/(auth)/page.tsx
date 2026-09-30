@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { HomeScreen } from '@/features/session';
-import { getMe, homeOutcome } from '@/features/session/server';
+import { homeOutcome } from '@/features/session/server';
+import { getMe } from '@/lib/session/server';
 import { isInvitationFailure } from '@/lib/routes/home-notices';
 import { firstParam, type SearchParams } from '@/lib/url/search-params';
 

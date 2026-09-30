@@ -779,3 +779,14 @@ None of these is a disagreement between documents; each needs a code, token or p
 |---|---|---|---|
 | 25-component-inventory.md | 3.33 | `ReauthDialog.onSubmit` takes the method and may answer `second-factor-required`, which switches the dialog to the code | The API refuses a password alone from an account with two-factor on (19 section 3.1, `second_factor_required`), and `/me` can be older than that change |
 
+
+## Application shell (2026-10-01)
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| 25-component-inventory.md | 5.3 | `Sidebar` is built as `SidebarNav` with `mode: 'page' \| 'drawer'`; the expanded sidebar and the rail are one markup switched by the `rail:` variants, so the mode is not a prop value of its own | One component for three presentations, with the width decided by CSS on the first paint |
+| 25-component-inventory.md | 5.8, 5.10 | `UserMenu` takes the theme group, an Account settings link and sign-out, and no preference controls (those are in Settings > Preferences, as 11 section 5 says); `HelpMenu` lists only destinations that exist (Keyboard shortcuts now) | The inventory entries predate 11 section 4 and the pages |
+| 25-component-inventory.md | 4.x Menu | `Menu` has a `header` slot for text above the items that is not an item | The account menu's name and email |
+| 25-component-inventory.md | 19.5 | `useShortcut(key, handler, { kind, enabled })`: one key, single-key only for now | The first two shortcuts (`[`, `?`); scopes and sequences arrive with the screens that need them |
+| 24-page-templates.md | 9.1 | Unknown or planned paths of a project render the 404 page inside the shell (a catch-all route) | 20 section 3.10: planned destinations are absent and their routes are the 404 page |
+| 11-navigation.md | 4 | Below 1680 px the workspace is reached through "All projects in {workspace}" at the foot of the project switcher, not a Workspace group in the Project menu | The switcher is a searchable list of projects (a combobox); a link at its foot works at every width |

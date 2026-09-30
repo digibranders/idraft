@@ -30,6 +30,19 @@ describe('Menu', () => {
     expect(within(menu).getAllByRole('menuitem')).toHaveLength(5);
   });
 
+  it('shows a header above the items that is not an item, then a separator', async () => {
+    const { user } = renderWithProviders(
+      <Menu trigger={<Button>More actions</Button>} items={items()} header={<p>Ana Brandt</p>} />,
+    );
+    const menu = await open(user);
+    expect(within(menu).getByText('Ana Brandt')).toBeInTheDocument();
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(5);
+    expect(within(menu).getAllByRole('separator').length).toBeGreaterThan(0);
+    expect(await axe(menu)).toHaveNoViolations();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+  });
+
   it('runs the command of the item that is chosen and closes', async () => {
     const archive = vi.fn();
     const { user } = renderWithProviders(<Menu trigger={<Button>More actions</Button>} items={items({ archive })} />);
@@ -192,8 +205,10 @@ describe('Menu', () => {
     await user.keyboard('{ArrowDown}');
     await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'Add tag' })).toHaveFocus());
     await user.keyboard('{ArrowRight}');
-    expect(await screen.findByRole('menuitem', { name: 'crm' })).toBeInTheDocument();
+    const crm = await screen.findByRole('menuitem', { name: 'crm' });
     expect(screen.getAllByRole('menu')).toHaveLength(2);
+    // Left closes the submenu only once focus is in it, which Base UI moves there after it opens
+    await waitFor(() => expect(crm).toHaveFocus());
     await user.keyboard('{ArrowLeft}');
     await waitFor(() => expect(screen.getAllByRole('menu')).toHaveLength(1));
     await user.keyboard('{ArrowRight}');

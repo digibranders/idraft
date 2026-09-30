@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import { isValidElement, type ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { meQuery } from './me-query';
+import { meQuery } from '@/lib/session/me-query';
 import { WorkspaceRoot } from './workspace-root';
 import { useMembership } from '@/lib/permissions';
 import type { Me } from '@/lib/api/types';
@@ -11,8 +11,8 @@ import { mockUser } from '@/mocks/fixtures';
 import { renderWithProviders } from '@/test/render';
 
 const session = vi.hoisted(() => ({ me: null as Me | null }));
-vi.mock('./server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./server')>()),
+vi.mock('@/lib/session/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/session/server')>()),
   getMe: () => Promise.resolve(session.me),
 }));
 const navigation = vi.hoisted(() => ({

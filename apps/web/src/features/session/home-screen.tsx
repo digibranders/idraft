@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 
-import { useSignOut } from './sign-out';
+import { useSignOut } from '@/lib/session/sign-out';
 import { AuthCard } from '@/components/app/shell/auth-card';
 import { Button } from '@/components/ui/button';
 import { FormAlert } from '@/components/ui/form-alert';

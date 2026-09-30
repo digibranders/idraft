@@ -40,6 +40,11 @@ export interface MenuProps extends Omit<MenuPrimitive.Popup.Props, 'className' |
   items: readonly MenuItemDef[];
   /** `end` for a trigger at the right edge of a region. */
   align?: 'start' | 'end' | undefined;
+  /**
+   * Text above the items that is not an item, such as the account menu's name and email. It is not
+   * focusable; a separator follows it.
+   */
+  header?: ReactNode | undefined;
   open?: boolean | undefined;
   onOpenChange?: ((open: boolean) => void) | undefined;
 }
@@ -240,7 +245,15 @@ function Items({ items, nested }: { items: readonly MenuItemDef[]; nested: boole
  * returns focus to the trigger. A menu holds commands, never a form: a value chosen from a list is a
  * `Select`.
  */
-export function Menu({ trigger, items, align = 'start', open, onOpenChange, ...props }: MenuProps): ReactElement {
+export function Menu({
+  trigger,
+  items,
+  align = 'start',
+  header,
+  open,
+  onOpenChange,
+  ...props
+}: MenuProps): ReactElement {
   return (
     <MenuPrimitive.Root
       {...(open === undefined ? {} : { open })}
@@ -256,6 +269,14 @@ export function Menu({ trigger, items, align = 'start', open, onOpenChange, ...p
           className="z-(--z-dropdown)"
         >
           <MenuPrimitive.Popup data-slot="menu" {...props} className={POPUP}>
+            {header === undefined ? null : (
+              <>
+                <div role="presentation" data-slot="menu-header" className="px-2 py-1.5">
+                  {header}
+                </div>
+                <MenuPrimitive.Separator className={SEPARATOR} />
+              </>
+            )}
             <Items items={items} nested={false} />
           </MenuPrimitive.Popup>
         </MenuPrimitive.Positioner>

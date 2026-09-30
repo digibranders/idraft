@@ -3,9 +3,10 @@ import { GeistSans } from 'geist/font/sans';
 import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getTranslations } from 'next-intl/server';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import type { ReactNode } from 'react';
 
+import { parseSidebarPreference, SIDEBAR_COOKIE } from '@/lib/navigation/sidebar-state';
 import { AppProviders } from '@/providers/app-providers';
 import '@/styles/app.css';
 
@@ -25,10 +26,17 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // The nonce the proxy made for this response. Reading a request header makes every page dynamic, which
   // a nonce needs: a page rendered at build time could not carry one.
   const nonce = (await headers()).get('x-nonce') ?? undefined;
+  // The sidebar's width comes from the person's saved choice, so it is right on the first paint
+  const sidebar = parseSidebarPreference((await cookies()).get(SIDEBAR_COOKIE)?.value);
   return (
     // The font classes define --font-geist-sans and --font-geist-mono, which tokens.css reads.
-    // suppressHydrationWarning: the theme class is set on <html> before hydration.
-    <html lang={locale} className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+    // suppressHydrationWarning: the theme script sets the class on <html> before hydration.
+    <html
+      lang={locale}
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      data-sidebar={sidebar}
+      suppressHydrationWarning
+    >
       <body>
         <NextIntlClientProvider>
           <AppProviders nonce={nonce}>{children}</AppProviders>

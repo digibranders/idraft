@@ -151,7 +151,7 @@ const FILES = [
   { category: 'api-client', pattern: ['src/lib/api/client.ts', 'src/lib/api/server.ts', 'src/lib/api/query.ts'] },
   // The message catalog, and the two files that may read it. Everything else gets text through next-intl.
   { category: 'catalog', pattern: 'messages/*.json' },
-  { category: 'catalog-reader', pattern: ['src/i18n/request.ts', 'src/i18n/types.d.ts'] },
+  { category: 'catalog-reader', pattern: ['src/i18n/request.ts', 'src/i18n/types.d.ts', 'src/i18n/fallback.ts'] },
   // Files Next.js loads by name. Nothing imports them.
   { category: 'entry', pattern: ['src/proxy.ts', 'src/instrumentation.ts', 'src/instrumentation.node.ts'] },
 ];
@@ -248,6 +248,9 @@ export default tseslint.config(
     },
   },
   { files: SOURCES, ...nextPlugin.configs['core-web-vitals'] },
+  // The primitives' tests render plain anchors on purpose (a link primitive takes any element), and the
+  // app's `[workspace]/[project]` routes make every two-segment path look like a page to this rule.
+  { files: TESTS, rules: { '@next/next/no-html-link-for-pages': 'off' } },
   {
     files: SOURCES,
     rules: {

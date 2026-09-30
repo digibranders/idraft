@@ -5,8 +5,8 @@ import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
-import { meQuery } from './me-query';
-import { getMe, membershipOf } from './server';
+import { meQuery } from '@/lib/session/me-query';
+import { getMe, membershipOf } from '@/lib/session/server';
 import { WorkspaceProviders } from './workspace-providers';
 import { makeQueryClient } from '@/lib/api/query-client';
 import { PATHNAME_HEADER, signInPath, workspacePath } from '@/lib/routes/paths';

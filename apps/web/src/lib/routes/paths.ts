@@ -19,3 +19,6 @@ export const signInPath = (path: string): Route => `/login?next=${encodeURICompo
 
 /** The request header in which the proxy hands a page render its own path and query (src/proxy.ts). */
 export const PATHNAME_HEADER = 'x-pathname';
+
+/** A path of this app read from one of its own links (a leave guard sends the person there afterwards). */
+export const linkedPath = (url: URL): Route => `${url.pathname}${url.search}${url.hash}` as Route;

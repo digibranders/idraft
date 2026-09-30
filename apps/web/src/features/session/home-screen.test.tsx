@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HomeScreen } from './home-screen';
-import { meQuery } from './me-query';
+import { meQuery } from '@/lib/session/me-query';
 import { mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { preferenceKey } from '@/lib/preferences/storage';
