@@ -1,9 +1,10 @@
 import uuid
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, async_sessionmaker
 
 from sightline.config.settings import Settings
@@ -68,21 +69,60 @@ async def test_the_setting_is_an_empty_string_not_null_after_a_tenant_transactio
     assert raw == ""
 
 
-async def _insert_then_fail(sessions: async_sessionmaker[AsyncSession]) -> None:
+@pytest.fixture
+async def scratch_table(engine: AsyncEngine) -> AsyncIterator[str]:
+    """A throwaway table, removed afterwards so the shared database stays as migrations left it."""
+    name = f"t_scratch_{uuid.uuid4().hex[:12]}"
+    async with engine.begin() as connection:
+        await connection.execute(text(f"CREATE TABLE {name} (id int PRIMARY KEY, note text)"))
+    yield name
+    async with engine.begin() as connection:
+        await connection.execute(text(f"DROP TABLE {name}"))
+
+
+async def _count(engine: AsyncEngine, table: str) -> int:
+    async with engine.connect() as connection:
+        return int(await _scalar(connection, f"SELECT count(*) FROM {table}"))
+
+
+async def test_workspace_transaction_commits_on_success(
+    engine: AsyncEngine, scratch_table: str
+) -> None:
+    sessions = create_session_factory(engine)
     async with workspace_transaction(sessions, uuid.uuid4()) as session:
-        await session.execute(text("INSERT INTO t_rollback VALUES (1)"))
+        await session.execute(text(f"INSERT INTO {scratch_table} VALUES (1, 'kept')"))
+    assert await _count(engine, scratch_table) == 1
+
+
+async def _insert_then_fail(sessions: async_sessionmaker[AsyncSession], table: str) -> None:
+    async with workspace_transaction(sessions, uuid.uuid4()) as session:
+        await session.execute(text(f"INSERT INTO {table} VALUES (1, 'lost')"))
         raise RuntimeError("abort")
 
 
-async def test_workspace_transaction_rolls_back_on_error(engine: AsyncEngine) -> None:
+async def test_workspace_transaction_rolls_back_on_error(
+    engine: AsyncEngine, scratch_table: str
+) -> None:
     sessions = create_session_factory(engine)
-    async with engine.begin() as connection:
-        await connection.execute(text("CREATE TABLE IF NOT EXISTS t_rollback (id int)"))
-        await connection.execute(text("TRUNCATE t_rollback"))
-
     with pytest.raises(RuntimeError, match="abort"):
-        await _insert_then_fail(sessions)
+        await _insert_then_fail(sessions, scratch_table)
+    assert await _count(engine, scratch_table) == 0
 
-    async with engine.connect() as connection:
-        count = await _scalar(connection, "SELECT count(*) FROM t_rollback")
-    assert count == 0
+
+async def test_database_errors_never_carry_the_bound_values(
+    engine: AsyncEngine, scratch_table: str
+) -> None:
+    insert = text(f"INSERT INTO {scratch_table} VALUES (:id, :note)")
+    async with engine.begin() as connection:
+        await connection.execute(insert, {"id": 1, "note": "first"})
+
+    with pytest.raises(IntegrityError) as error:
+        async with engine.begin() as connection:
+            await connection.execute(insert, {"id": 1, "note": "jane@client.example"})
+
+    assert "jane@client.example" not in str(error.value)
+    assert "jane@client.example" not in repr(error.value)
+
+
+async def test_waiting_for_a_pooled_connection_is_bounded(engine: AsyncEngine) -> None:
+    assert engine.pool.timeout() == 5.0  # type: ignore[attr-defined]

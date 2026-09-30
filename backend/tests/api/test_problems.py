@@ -1,6 +1,8 @@
 import io
 import json
+import uuid
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 import pytest
@@ -8,22 +10,36 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from sightline.api.problems import (
+    MAX_VALIDATION_ERRORS,
     BadRequestError,
     ConflictError,
     ForbiddenError,
     NotFoundError,
+    ProblemError,
+    RateLimitedError,
     UnauthenticatedError,
     register_problem_handlers,
 )
-from sightline.api.request_id import REQUEST_ID_PATTERN, RequestIdMiddleware
+from sightline.api.request_id import RequestIdMiddleware, is_request_id
 from sightline.config.logging import configure_logging
 
 ORIGIN = "https://app.example.com"
 
 
+EXISTING_ID = uuid.UUID("0192f3a1-7c2e-7b1a-9d4e-3f5a6b7c8d9e")
+
+
 class Item(BaseModel):
     name: str = Field(min_length=2)
     size: int = Field(le=100)
+
+
+class Batch(BaseModel):
+    sizes: list[int]
+
+
+class Count(BaseModel):
+    count: int
 
 
 def _app(*, with_request_ids: bool = True) -> FastAPI:
@@ -38,7 +54,23 @@ def _app(*, with_request_ids: bool = True) -> FastAPI:
 
     @app.get("/duplicate")
     async def duplicate() -> None:
-        raise ConflictError("Already exists.", code="duplicate", existing_id="0192")
+        raise ConflictError("Already exists.", code="duplicate", existing_id=EXISTING_ID)
+
+    @app.get("/slow-down")
+    async def slow_down() -> None:
+        raise RateLimitedError(retry_after_seconds=30, headers={"Retry-After": "30"})
+
+    @app.get("/http/{status}")
+    async def http(status: int) -> None:
+        raise HTTPException(status_code=status, headers={"Retry-After": "7"})
+
+    @app.post("/batches")
+    async def batch(payload: Batch) -> Batch:
+        return payload
+
+    @app.get("/bad-response", response_model=Count)
+    async def bad_response() -> dict[str, str]:
+        return {"count": "LEAKED-RESPONSE-VALUE"}
 
     @app.get("/bad")
     async def bad() -> None:
@@ -85,7 +117,7 @@ def _assert_problem(response: httpx.Response, status: int, code: str) -> dict[st
     assert body["status"] == status
     assert body["code"] == code
     assert body["type"] == f"{ORIGIN}/api/problems/{code}"
-    assert REQUEST_ID_PATTERN.fullmatch(str(body["request_id"]))
+    assert is_request_id(str(body["request_id"]))
     assert response.headers["X-Request-Id"] == body["request_id"]
     return body
 
@@ -99,7 +131,7 @@ async def test_problem_error_subclass(client: httpx.AsyncClient) -> None:
 
 async def test_extensions_and_code_override(client: httpx.AsyncClient) -> None:
     body = _assert_problem(await client.get("/duplicate"), 409, "duplicate")
-    assert body["existing_id"] == "0192"
+    assert body["existing_id"] == str(EXISTING_ID)
 
 
 @pytest.mark.parametrize(
@@ -188,3 +220,91 @@ async def test_unexpected_errors_are_logged_with_the_route_template(
     assert line["request_id"] == response.json()["request_id"]
     assert line["err"]["type"] == "RuntimeError"
     assert "hunter2" not in stream.getvalue()
+
+
+async def test_error_headers_are_sent(client: httpx.AsyncClient) -> None:
+    response = await client.get("/slow-down")
+    body = _assert_problem(response, 429, "rate_limited")
+    assert response.headers["Retry-After"] == "30"
+    assert body["retry_after_seconds"] == 30
+
+
+async def test_method_not_allowed_lists_the_allowed_methods(client: httpx.AsyncClient) -> None:
+    response = await client.delete("/missing")
+    assert response.headers["Allow"] == "GET"
+
+
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [
+        (401, "unauthenticated"),
+        (403, "forbidden"),
+        (409, "conflict"),
+        (413, "payload_too_large"),
+        (415, "unsupported_media_type"),
+        (429, "rate_limited"),
+        (503, "service_unavailable"),
+    ],
+)
+async def test_framework_http_errors_map_to_the_catalogue_codes(
+    client: httpx.AsyncClient, status: int, code: str
+) -> None:
+    response = await client.get(f"/http/{status}")
+    _assert_problem(response, status, code)
+    assert response.headers["Retry-After"] == "7"
+
+
+@pytest.mark.parametrize("name", ["type", "title", "status", "instance", "request_id"])
+def test_an_extension_cannot_replace_a_standard_member(name: str) -> None:
+    extensions: dict[str, Any] = {name: "forged"}
+    with pytest.raises(ValueError, match=name):
+        ProblemError("x", **extensions)
+
+
+async def test_a_json_body_with_the_wrong_content_type_is_unsupported(
+    client: httpx.AsyncClient,
+) -> None:
+    response = await client.post(
+        "/items", content=b'{"name": "ok", "size": 1}', headers={"content-type": "text/plain"}
+    )
+    _assert_problem(response, 415, "unsupported_media_type")
+
+
+async def test_a_json_array_where_an_object_is_expected_is_a_validation_error(
+    client: httpx.AsyncClient,
+) -> None:
+    response = await client.post("/items", json=[1, 2])
+    _assert_problem(response, 422, "validation_failed")
+
+
+async def test_validation_errors_never_echo_the_submitted_value(client: httpx.AsyncClient) -> None:
+    response = await client.post("/items", json={"name": "ok", "size": "SUBMITTED-SECRET"})
+    _assert_problem(response, 422, "validation_failed")
+    assert "SUBMITTED-SECRET" not in response.text
+
+
+async def test_the_error_list_is_capped(client: httpx.AsyncClient) -> None:
+    response = await client.post("/batches", json={"sizes": ["x"] * 500})
+    body = _assert_problem(response, 422, "validation_failed")
+    assert body["detail"] == "500 fields are invalid."
+    errors = body["errors"]
+    assert isinstance(errors, list)
+    assert len(errors) == MAX_VALIDATION_ERRORS
+    assert body["errors_truncated"] is True
+
+
+async def test_a_response_that_breaks_its_model_is_logged_without_the_value(
+    client: httpx.AsyncClient,
+) -> None:
+    stream = io.StringIO()
+    configure_logging(service="api", version="test", level="info", stream=stream)
+
+    response = await client.get("/bad-response")
+
+    _assert_problem(response, 500, "internal_error")
+    assert "LEAKED-RESPONSE-VALUE" not in response.text
+    assert "LEAKED-RESPONSE-VALUE" not in stream.getvalue()
+    (line,) = [json.loads(raw) for raw in stream.getvalue().splitlines()]
+    assert line["msg"] == "response did not match its model"
+    assert line["route"] == "/bad-response"
+    assert line["locations"] == ["response.count"]

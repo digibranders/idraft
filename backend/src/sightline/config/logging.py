@@ -5,36 +5,17 @@ from __future__ import annotations
 import logging
 import sys
 import traceback
-from collections.abc import Mapping, Sequence
-from typing import Any, TextIO
+from collections.abc import Mapping
+from typing import TextIO
 
 import structlog
 from structlog.typing import EventDict, Processor, WrappedLogger
 
-REDACT_KEYS: frozenset[str] = frozenset(
-    {
-        "authorization",
-        "cookie",
-        "set-cookie",
-        "x-api-key",
-        "password",
-        "token",
-        "access_token",
-        "refresh_token",
-        "id_token",
-        "api_key",
-        "apikey",
-        "secret",
-        "client_secret",
-        "totp_secret",
-        "dek",
-        "dek_wrapped",
-        "ciphertext",
-    }
-)
-_CENSOR = "[redacted]"
+from sightline.config.redaction import redact
+
 _HANDLER_NAME = "sightline-json"
 _URL_LOGGING_LIBRARIES = ("httpx", "httpcore")
+_SERVER_DUPLICATE = "Exception in ASGI application"
 _LEVELS: Mapping[str, int] = {
     "debug": logging.DEBUG,
     "info": logging.INFO,
@@ -42,22 +23,6 @@ _LEVELS: Mapping[str, int] = {
     "error": logging.ERROR,
     "critical": logging.CRITICAL,
 }
-
-
-def _redact(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {
-            key: _CENSOR if str(key).lower() in REDACT_KEYS else _redact(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [_redact(item) for item in value]
-    return value
-
-
-def _redact_processor(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
-    redacted: dict[str, Any] = _redact(event_dict)
-    return redacted
 
 
 def _exception_processor(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
@@ -80,10 +45,34 @@ def _exception_processor(_: WrappedLogger, __: str, event_dict: EventDict) -> Ev
     return event_dict
 
 
+class _SafeRenderer:
+    """Redact, then render. A value that cannot be rendered must never fail the caller's request."""
+
+    def __init__(self) -> None:
+        self._render = structlog.processors.JSONRenderer()
+
+    def __call__(self, logger: WrappedLogger, name: str, event_dict: EventDict) -> str | bytes:
+        try:
+            return self._render(logger, name, redact(event_dict))
+        except Exception as error:
+            fallback = {
+                key: event_dict.get(key)
+                for key in ("ts", "level", "msg", "service", "version", "request_id")
+                if isinstance(event_dict.get(key), str)
+            }
+            fallback["log_error"] = type(error).__name__
+            return self._render(logger, name, fallback)
+
+
 def _drop_colour_duplicate(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
     """uvicorn attaches an ANSI-coloured copy of each message; the plain one is enough."""
     event_dict.pop("color_message", None)
     return event_dict
+
+
+def _is_not_server_duplicate(record: logging.LogRecord) -> bool:
+    """uvicorn re-logs every unhandled error without the request id; the API already logged it."""
+    return not record.getMessage().startswith(_SERVER_DUPLICATE)
 
 
 def _route_standard_library_logs(
@@ -92,6 +81,7 @@ def _route_standard_library_logs(
     """Send `logging` records (uvicorn, SQLAlchemy, Alembic) through the same JSON pipeline."""
     handler = logging.StreamHandler(stream)
     handler.set_name(_HANDLER_NAME)
+    handler.addFilter(_is_not_server_duplicate)
     handler.setFormatter(
         structlog.stdlib.ProcessorFormatter(
             foreign_pre_chain=[
@@ -141,11 +131,7 @@ def configure_logging(
         add_service,
         _exception_processor,
     ]
-    final: list[Processor] = [
-        structlog.processors.EventRenamer("msg"),
-        _redact_processor,
-        structlog.processors.JSONRenderer(),
-    ]
+    final: list[Processor] = [structlog.processors.EventRenamer("msg"), _SafeRenderer()]
     structlog.configure(
         processors=[*shared, *final],
         wrapper_class=structlog.make_filtering_bound_logger(_LEVELS[level]),
@@ -153,3 +139,12 @@ def configure_logging(
         cache_logger_on_first_use=False,
     )
     _route_standard_library_logs(shared, final, _LEVELS[level], output)
+
+
+def reset_logging() -> None:
+    """Undo `configure_logging`. Tests call this so one test's stream never outlives it."""
+    structlog.reset_defaults()
+    structlog.contextvars.clear_contextvars()
+    root = logging.getLogger()
+    for existing in [h for h in root.handlers if h.get_name() == _HANDLER_NAME]:
+        root.removeHandler(existing)

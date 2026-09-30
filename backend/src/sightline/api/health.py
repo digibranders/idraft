@@ -1,25 +1,25 @@
 """Liveness and readiness (docs/19-api-specification.md section 3.12).
 
-Both reveal no versions, hostnames or error messages. Readiness reports booleans only.
+Both reveal no versions, hostnames or error messages. Readiness reports booleans only; the reason
+for a failure goes to the log.
 """
 
 from __future__ import annotations
 
 import asyncio
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Request, Response
+import structlog
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 from redis.asyncio import Redis
-from redis.exceptions import RedisError
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine
 
-from sightline.db.migrate import current_revision
+from sightline.api.resources import Resources, get_resources
+from sightline.db.probe import probe_database
 
 CHECK_TIMEOUT_SECONDS = 1.0
 router = APIRouter(prefix="/api", tags=["health"])
+_log = structlog.get_logger(__name__)
 
 
 class Health(BaseModel):
@@ -37,21 +37,13 @@ class Readiness(BaseModel):
     checks: ReadinessChecks
 
 
-async def _check_database(engine: AsyncEngine, head: str) -> tuple[bool, bool]:
-    """Whether PostgreSQL answers, and whether its schema is at the revision this build expects."""
-    try:
-        async with asyncio.timeout(CHECK_TIMEOUT_SECONDS), engine.connect() as connection:
-            await connection.execute(text("SELECT 1"))
-            return True, await current_revision(connection) == head
-    except (SQLAlchemyError, OSError, TimeoutError):
-        return False, False
-
-
-async def _check_redis(redis: Redis) -> bool:
+async def _redis_answers(redis: Redis) -> bool:
     try:
         async with asyncio.timeout(CHECK_TIMEOUT_SECONDS):
             await redis.ping()
-    except (RedisError, OSError, TimeoutError):
+    except Exception as error:
+        # As with the database probe: report, never raise, and log the type only.
+        _log.warning("redis probe failed", error_kind=type(error).__name__)
         return False
     return True
 
@@ -62,15 +54,19 @@ async def healthz() -> Health:
 
 
 @router.get("/readyz", summary="Readiness", responses={503: {"model": Readiness}})
-async def readyz(request: Request, response: Response) -> Readiness:
-    state = request.app.state
-    (postgres, migrations), redis = await asyncio.gather(
-        _check_database(state.engine, state.migration_head), _check_redis(state.redis)
+async def readyz(
+    response: Response, resources: Annotated[Resources, Depends(get_resources)]
+) -> Readiness:
+    database, redis = await asyncio.gather(
+        probe_database(resources.settings.asyncpg_dsn, within_seconds=CHECK_TIMEOUT_SECONDS),
+        _redis_answers(resources.redis),
     )
-    ready = postgres and redis and migrations
+    checks = ReadinessChecks(
+        postgres=database.reachable,
+        redis=redis,
+        migrations=database.reachable and resources.migrations.is_current(database.revision),
+    )
+    ready = checks.postgres and checks.redis and checks.migrations
     if not ready:
         response.status_code = 503
-    return Readiness(
-        status="ready" if ready else "not_ready",
-        checks=ReadinessChecks(postgres=postgres, redis=redis, migrations=migrations),
-    )
+    return Readiness(status="ready" if ready else "not_ready", checks=checks)

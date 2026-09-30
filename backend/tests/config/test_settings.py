@@ -1,30 +1,23 @@
 import pytest
 from pydantic import ValidationError
 
-from sightline.config.settings import Settings, load_settings, to_sqlalchemy_url
+from sightline.config.settings import (
+    MigratorSettings,
+    Settings,
+    load_migrator_settings,
+    load_settings,
+    to_asyncpg_dsn,
+    to_sqlalchemy_url,
+)
 
 BASE_ENV = {
     "APP_ORIGIN": "https://app.example.com",
     "DATABASE_URL": "postgresql://app_api:pw@postgres:5432/sightline",
     "REDIS_URL": "redis://app:pw@redis:6379/0",
 }
-ALL_NAMES = (
-    "APP_ORIGIN",
-    "DATABASE_URL",
-    "REDIS_URL",
-    "LOG_LEVEL",
-    "DB_POOL_SIZE",
-    "DB_STATEMENT_TIMEOUT",
-    "SENTRY_DSN",
-    "PROCESS_ROLE",
-    "RELEASE_SHA",
-    "APP_ENV",
-)
 
 
 def _set(monkeypatch: pytest.MonkeyPatch, env: dict[str, str]) -> None:
-    for name in ALL_NAMES:
-        monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
         monkeypatch.setenv(name, value)
 
@@ -35,21 +28,32 @@ def test_loads_required_values_and_defaults(monkeypatch: pytest.MonkeyPatch) -> 
     assert settings.app_origin == "https://app.example.com"
     assert settings.process_role == "api"
     assert settings.release_sha == "dev"
-    assert settings.environment == "local"
+    assert settings.app_env == "local"
     assert settings.log_level == "info"
     assert settings.db_pool_size == 10
     assert settings.db_statement_timeout == "15s"
     assert settings.sentry_dsn is None
 
 
-def test_environment_is_read_from_app_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, {**BASE_ENV, "APP_ENV": "production"})
-    assert Settings().environment == "production"
+def test_app_env_is_read_from_its_variable_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, {**BASE_ENV, "APP_ENV": "production", "ENVIRONMENT": "local"})
+    assert Settings().app_env == "production"
 
 
-def test_app_origin_has_no_trailing_slash(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, {**BASE_ENV, "APP_ORIGIN": "https://app.example.com/"})
-    assert Settings().app_origin == "https://app.example.com"
+@pytest.mark.parametrize(
+    ("origin", "expected"),
+    [
+        ("https://app.example.com/", "https://app.example.com"),
+        ("https://APP.Example.com", "https://app.example.com"),
+        ("http://localhost:3000", "http://localhost:3000"),
+        (" https://app.example.com ", "https://app.example.com"),
+    ],
+)
+def test_app_origin_is_normalised_to_scheme_and_host(
+    monkeypatch: pytest.MonkeyPatch, origin: str, expected: str
+) -> None:
+    _set(monkeypatch, {**BASE_ENV, "APP_ORIGIN": origin})
+    assert Settings().app_origin == expected
 
 
 def test_empty_sentry_dsn_means_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -57,39 +61,82 @@ def test_empty_sentry_dsn_means_disabled(monkeypatch: pytest.MonkeyPatch) -> Non
     assert Settings().sentry_dsn is None
 
 
-def test_sqlalchemy_url_uses_the_asyncpg_driver(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_connection_urls_are_exposed_per_driver(monkeypatch: pytest.MonkeyPatch) -> None:
     _set(monkeypatch, BASE_ENV)
-    assert Settings().sqlalchemy_url == "postgresql+asyncpg://app_api:pw@postgres:5432/sightline"
+    settings = Settings()
+    assert settings.sqlalchemy_url == "postgresql+asyncpg://app_api:pw@postgres:5432/sightline"
+    assert settings.asyncpg_dsn == "postgresql://app_api:pw@postgres:5432/sightline"
 
 
 @pytest.mark.parametrize(
-    ("url", "expected"),
-    [
-        ("postgresql://u:p@h/db", "postgresql+asyncpg://u:p@h/db"),
-        ("postgres://u:p@h/db", "postgresql+asyncpg://u:p@h/db"),
-        ("postgresql+asyncpg://u:p@h/db", "postgresql+asyncpg://u:p@h/db"),
-    ],
+    "url", ["postgresql://u:p@h/db", "postgres://u:p@h/db", "postgresql+asyncpg://u:p@h/db"]
 )
-def test_to_sqlalchemy_url(url: str, expected: str) -> None:
-    assert to_sqlalchemy_url(url) == expected
+def test_url_conversions(url: str) -> None:
+    assert to_sqlalchemy_url(url) == "postgresql+asyncpg://u:p@h/db"
+    assert to_asyncpg_dsn(url) == "postgresql://u:p@h/db"
+
+
+def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(
+        monkeypatch,
+        {
+            "APP_ORIGIN": "https://app.example.com",
+            "DATABASE_URL": "postgresql://app_api:LEAK1@postgres/sightline",
+            "REDIS_URL": "redis://app:LEAK2@redis:6379/0",
+            "SENTRY_DSN": "https://LEAK3@o0.ingest.sentry.io/0",
+        },
+    )
+    settings = Settings()
+    assert "LEAK" not in repr(settings)
+    assert "LEAK" not in str(settings)
+    assert "LEAK" not in settings.model_dump_json()
 
 
 @pytest.mark.parametrize(
     "override",
     [
         {"DATABASE_URL": "mysql://u:p@h/db"},
+        {"DATABASE_URL": "postgresql+psycopg://u:p@h/db"},
+        {"DATABASE_URL": "postgresql://"},
+        {"DATABASE_URL": "postgresql://u:p@h"},
+        {"DATABASE_URL": "postgresql://u:p@h:notaport/db"},
+        {"DATABASE_URL": "postgresql://u:p@ss@h/db"},
+        {"DATABASE_URL": "postgresql://u:p@h/db?sslmode=require"},
         {"REDIS_URL": "http://redis:6379"},
+        {"REDIS_URL": "redis://"},
         {"APP_ORIGIN": "app.example.com"},
+        {"APP_ORIGIN": "https://"},
+        {"APP_ORIGIN": "https://app.example.com/some/path"},
+        {"APP_ORIGIN": "https://user:pw@app.example.com"},
+        {"APP_ORIGIN": "https://app.example.com?x=1"},
+        {"APP_ORIGIN": "ftp://app.example.com"},
+        {"APP_ORIGIN": "https://app.example.com:notaport"},
+        {"APP_ORIGIN": "https://app.example.com#fragment"},
         {"DB_STATEMENT_TIMEOUT": "fast"},
+        {"DB_STATEMENT_TIMEOUT": "1٣s"},
+        {"DB_STATEMENT_TIMEOUT": "99999999999999999999s"},
         {"DB_POOL_SIZE": "0"},
         {"LOG_LEVEL": "verbose"},
         {"APP_ENV": "staging"},
+        {"APP_ENV": "production", "APP_ORIGIN": "http://app.example.com"},
     ],
 )
 def test_rejects_invalid_values(monkeypatch: pytest.MonkeyPatch, override: dict[str, str]) -> None:
     _set(monkeypatch, {**BASE_ENV, **override})
     with pytest.raises(ValidationError):
         Settings()
+
+
+def test_validation_errors_never_echo_the_rejected_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, {**BASE_ENV, "DATABASE_URL": "mysql://user:hunter2@h/db"})
+    with pytest.raises(ValidationError) as error:
+        Settings()
+    assert "hunter2" not in str(error.value)
+
+
+def test_a_percent_encoded_password_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, {**BASE_ENV, "DATABASE_URL": "postgresql://u:p%40ss%25@h:5432/db"})
+    assert Settings().asyncpg_dsn == "postgresql://u:p%40ss%25@h:5432/db"
 
 
 def test_load_settings_exits_and_names_the_field_without_its_value(
@@ -115,10 +162,17 @@ def test_load_settings_reports_missing_variables(
     assert "REDIS_URL" in err
 
 
-def test_load_settings_reports_the_environment_variable_for_an_aliased_field(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _set(monkeypatch, {**BASE_ENV, "APP_ENV": "staging"})
-    with pytest.raises(SystemExit):
-        load_settings()
-    assert "APP_ENV" in capsys.readouterr().err
+def test_the_migrator_needs_only_a_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, {"DATABASE_URL": BASE_ENV["DATABASE_URL"], "RELEASE_SHA": "abc123"})
+    settings = load_migrator_settings()
+    assert isinstance(settings, MigratorSettings)
+    assert settings.asyncpg_dsn == BASE_ENV["DATABASE_URL"]
+    assert settings.release_sha == "abc123"
+    assert settings.log_level == "info"
+
+
+def test_the_migrator_exits_without_a_database_url(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        load_migrator_settings()
+    assert exit_info.value.code == 2
+    assert "DATABASE_URL" in capsys.readouterr().err

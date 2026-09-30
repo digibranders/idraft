@@ -1,5 +1,7 @@
+from importlib import metadata
+
 import sightline
 
 
-def test_package_exposes_version() -> None:
-    assert sightline.__version__ == "0.1.0"
+def test_the_package_version_matches_its_metadata() -> None:
+    assert sightline.__version__ == metadata.version("sightline")

@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 import pytest
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 
 from sightline.api.access_log import AccessLogMiddleware
 from sightline.api.request_id import RequestIdMiddleware
@@ -28,6 +29,18 @@ def _app() -> FastAPI:
     @app.get("/boom")
     async def boom() -> None:
         raise RuntimeError("kaput")
+
+    @app.get("/api/healthz/broken")
+    async def never() -> None:
+        return None
+
+    @app.get("/stream")
+    async def stream() -> StreamingResponse:
+        async def chunks() -> AsyncIterator[bytes]:
+            yield b"first"
+            raise RuntimeError("connection to upstream lost")
+
+        return StreamingResponse(chunks())
 
     return app
 
@@ -96,3 +109,29 @@ async def test_a_crashing_handler_is_logged_as_500(client: httpx.AsyncClient) ->
     assert len(finished) == 1
     assert finished[0]["status_code"] == 500
     assert finished[0]["route"] == "/boom"
+
+
+async def test_a_failing_quiet_path_is_logged_at_info(client: httpx.AsyncClient) -> None:
+    stream = _capture(level="info")
+    response = await client.post("/api/healthz")
+
+    assert response.status_code == 405
+    (line,) = _lines(stream)
+    assert (line["route"], line["status_code"], line["level"]) == ("/api/healthz", 405, "info")
+
+
+async def test_a_stream_that_breaks_after_it_started_is_marked_aborted() -> None:
+    stream = _capture()
+    transport = httpx.ASGITransport(app=_app(), raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as test_client:
+        await test_client.get("/stream")
+
+    (line,) = [entry for entry in _lines(stream) if entry["msg"] == "request finished"]
+    assert line["status_code"] == 200
+    assert line["aborted"] is True
+
+
+async def test_a_normal_response_is_not_marked_aborted(client: httpx.AsyncClient) -> None:
+    stream = _capture()
+    await client.get("/things/1")
+    assert "aborted" not in _lines(stream)[0]

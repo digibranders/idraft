@@ -6,6 +6,7 @@ Replaces the server's own access log, which prints raw URLs (docs/25-observabili
 from __future__ import annotations
 
 import time
+from typing import Any
 
 import structlog
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -16,7 +17,7 @@ _log = structlog.get_logger(__name__)
 
 
 class AccessLogMiddleware:
-    """Pure ASGI middleware. Routes in `quiet_paths` (health probes) are logged at debug level."""
+    """Pure ASGI middleware. Successful requests to `quiet_paths` (health probes) log at debug."""
 
     def __init__(self, app: ASGIApp, quiet_paths: frozenset[str] = frozenset()) -> None:
         self.app = app
@@ -28,24 +29,33 @@ class AccessLogMiddleware:
             return
 
         started = time.perf_counter()
-        # A handler that raises never sends a response start; the server answers 500 for it.
+        # A handler that raises before it responds never sends a status; the server answers 500.
         status_code = 500
+        response_started = False
+        aborted = False
 
         async def send_capturing_status(message: Message) -> None:
-            nonlocal status_code
+            nonlocal status_code, response_started
             if message["type"] == "http.response.start":
                 status_code = message["status"]
+                response_started = True
             await send(message)
 
         try:
             await self.app(scope, receive, send_capturing_status)
+        except BaseException:
+            # The status was already sent, so the client saw it and then a broken stream.
+            aborted = response_started
+            raise
         finally:
             route = route_template(scope)
-            log = _log.debug if route in self.quiet_paths else _log.info
-            log(
-                "request finished",
-                method=scope["method"],
-                route=route,
-                status_code=status_code,
-                duration_ms=round((time.perf_counter() - started) * 1000, 1),
-            )
+            fields: dict[str, Any] = {
+                "method": scope["method"],
+                "route": route,
+                "status_code": status_code,
+                "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+            }
+            if aborted:
+                fields["aborted"] = True
+            quiet = route in self.quiet_paths and status_code < 400 and not aborted
+            (_log.debug if quiet else _log.info)("request finished", **fields)

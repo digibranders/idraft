@@ -1,10 +1,11 @@
 import io
 import json
 import logging
+from typing import Any
 
 import structlog
 
-from sightline.config.logging import REDACT_KEYS, configure_logging
+from sightline.config.logging import configure_logging
 
 
 def _capture(level: str = "info") -> io.StringIO:
@@ -13,7 +14,7 @@ def _capture(level: str = "info") -> io.StringIO:
     return stream
 
 
-def _lines(stream: io.StringIO) -> list[dict[str, object]]:
+def _lines(stream: io.StringIO) -> list[dict[str, Any]]:
     return [json.loads(line) for line in stream.getvalue().splitlines()]
 
 
@@ -38,20 +39,34 @@ def test_respects_the_minimum_level() -> None:
     assert [line["msg"] for line in _lines(stream)] == ["shown"]
 
 
-def test_redacts_every_secret_shaped_key_at_any_depth() -> None:
+def test_secrets_are_redacted_in_the_rendered_line() -> None:
     stream = _capture()
-    payload = dict.fromkeys(REDACT_KEYS, "s3cret")
     structlog.get_logger().info(
         "outbound call",
-        headers={"Authorization": "Basic s3cret", "Accept": "application/json"},
-        nested=[{"inner": payload}],
+        headers=[(b"authorization", b"Basic s3cret"), (b"accept", b"application/json")],
+        nested=[{"inner": {"new_password": "s3cret", "session_token": "s3cret"}}],
         password="s3cret",
     )
-    raw = stream.getvalue()
-    assert "s3cret" not in raw
+    assert "s3cret" not in stream.getvalue()
     (line,) = _lines(stream)
-    assert line["headers"] == {"Authorization": "[redacted]", "Accept": "application/json"}
+    assert line["headers"] == [["authorization", "[redacted]"], ["accept", "application/json"]]
     assert line["password"] == "[redacted]"
+
+
+def test_a_value_that_cannot_be_rendered_never_breaks_the_caller() -> None:
+    stream = _capture()
+
+    class Hostile:
+        def __repr__(self) -> str:
+            raise RuntimeError("no repr for you")
+
+    structlog.get_logger().info("still logged", payload=Hostile())
+
+    (line,) = _lines(stream)
+    assert line["msg"] == "still logged"
+    assert line["level"] == "info"
+    assert line["log_error"] == "RuntimeError"
+    assert "payload" not in line
 
 
 def test_context_variables_are_merged() -> None:
@@ -146,3 +161,23 @@ def test_terminal_colour_duplicates_from_the_server_are_dropped() -> None:
     (line,) = _lines(stream)
     assert line["msg"] == "Started server process [1]"
     assert "color_message" not in line
+
+
+def test_standard_library_exceptions_become_an_err_object() -> None:
+    stream = _capture()
+    try:
+        raise LookupError("not here")
+    except LookupError:
+        logging.getLogger("third.party").exception("lookup failed")
+    (line,) = _lines(stream)
+    assert line["err"]["type"] == "LookupError"
+    assert "LookupError: not here" in line["err"]["stack"]
+
+
+def test_the_server_duplicate_of_an_unhandled_error_is_dropped() -> None:
+    stream = _capture()
+    try:
+        raise RuntimeError("kaput")
+    except RuntimeError:
+        logging.getLogger("uvicorn.error").exception("Exception in ASGI application\n")
+    assert stream.getvalue() == ""

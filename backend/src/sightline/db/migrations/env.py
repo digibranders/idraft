@@ -11,7 +11,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from sightline.config.settings import to_sqlalchemy_url
-from sightline.db.migrate import VERSION_SCHEMA
+from sightline.db.migrate import ADVISORY_LOCK_KEY, VERSION_SCHEMA
 
 config = context.config
 
@@ -23,6 +23,8 @@ if not config.get_main_option("sqlalchemy.url"):
 
 
 def _run(connection: Connection) -> None:
+    # A session lock: a second migrator waits here until the first one disconnects.
+    connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": ADVISORY_LOCK_KEY})
     connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {VERSION_SCHEMA}"))
     connection.commit()
     context.configure(

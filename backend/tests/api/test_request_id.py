@@ -1,25 +1,59 @@
-import re
-import time
-
 import httpx
+import pytest
 import structlog
 from fastapi import FastAPI, Request
 
-from sightline.api.request_id import REQUEST_ID_PATTERN, RequestIdMiddleware, new_request_id
+from sightline.api.request_id import (
+    RequestIdMiddleware,
+    is_request_id,
+    new_request_id,
+)
+
+_CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
-def test_request_id_shape() -> None:
+def _decode(request_id: str) -> int:
+    number = 0
+    for character in request_id.removeprefix("req_"):
+        number = number * 32 + _CROCKFORD.index(character)
+    return number
+
+
+def test_a_new_id_is_a_uuid_version_7_in_base32() -> None:
     value = new_request_id()
-    assert REQUEST_ID_PATTERN.fullmatch(value)
-    assert re.fullmatch(r"req_[0-9A-HJKMNP-TV-Z]{26}", value)
+    assert value.startswith("req_")
+    assert len(value) == 30
+    number = _decode(value)
+    assert number < 2**128
+    assert (number >> 76) & 0xF == 7  # version
+    assert (number >> 62) & 0b11 == 0b10  # RFC 9562 variant
+    assert is_request_id(value)
 
 
-def test_request_ids_are_unique_and_sort_by_time() -> None:
-    first = new_request_id()
-    time.sleep(0.002)
-    second = new_request_id()
-    assert first != second
-    assert first < second
+def test_ids_are_unique_and_strictly_increasing_even_within_one_millisecond() -> None:
+    ids = [new_request_id() for _ in range(5000)]
+    assert len(set(ids)) == len(ids)
+    assert ids == sorted(ids)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda v: v[:-1],  # too short
+        lambda v: v + "0",  # too long
+        lambda v: v.lower(),  # wrong case
+        lambda v: v[:10] + "I" + v[11:],  # letter outside the alphabet
+        lambda v: v.replace("req_", "REQ_"),  # wrong prefix
+        lambda v: v + "\n",  # trailing junk
+        lambda v: "req_" + "Z" * 26,  # more than 128 bits
+        lambda v: "req_" + "0" * 26,  # not version 7
+        lambda v: "",  # empty
+        lambda v: "3f2b8c1e-6d4a-4b7e-9c1d-2a5f8e7b6c4d",  # a plain UUID
+    ],
+)
+def test_near_misses_are_not_request_ids(mutate: object) -> None:
+    assert callable(mutate)
+    assert not is_request_id(mutate(new_request_id()))
 
 
 def _app() -> FastAPI:
@@ -45,7 +79,7 @@ async def _get(headers: dict[str, str] | None = None) -> httpx.Response:
 async def test_generates_an_id_and_returns_it_in_the_header() -> None:
     response = await _get()
     header = response.headers["X-Request-Id"]
-    assert REQUEST_ID_PATTERN.fullmatch(header)
+    assert is_request_id(header)
     assert response.json() == {"state": header, "context": header}
 
 
@@ -55,11 +89,12 @@ async def test_keeps_a_well_formed_inbound_id() -> None:
     assert response.headers["X-Request-Id"] == inbound
 
 
-async def test_replaces_a_malformed_inbound_id() -> None:
-    response = await _get({"X-Request-Id": "not-one-of-ours"})
+@pytest.mark.parametrize("inbound", ["not-one-of-ours", "req_" + "Z" * 26, "req_" + "0" * 26])
+async def test_replaces_a_malformed_inbound_id(inbound: str) -> None:
+    response = await _get({"X-Request-Id": inbound})
     header = response.headers["X-Request-Id"]
-    assert header != "not-one-of-ours"
-    assert REQUEST_ID_PATTERN.fullmatch(header)
+    assert header != inbound
+    assert is_request_id(header)
 
 
 async def test_context_is_cleared_after_the_request() -> None:

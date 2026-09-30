@@ -21,6 +21,8 @@ from sqlalchemy.ext.asyncio import (
 
 from sightline.config.settings import Settings
 
+POOL_TIMEOUT_SECONDS = 5.0
+CONNECT_TIMEOUT_SECONDS = 5.0
 _SET_WORKSPACE = text("SELECT set_config('app.workspace_id', :workspace_id, true)")
 
 
@@ -30,11 +32,17 @@ def create_engine(settings: Settings) -> AsyncEngine:
         pool_size=settings.db_pool_size,
         max_overflow=0,
         pool_pre_ping=True,
+        # Waiting for a connection, or for the server to accept one, must end well inside the
+        # statement timeout, or a busy pool turns every request into a slow failure.
+        pool_timeout=POOL_TIMEOUT_SECONDS,
+        # Error messages name the statement but never its bound values (emails, hashes, keywords).
+        hide_parameters=True,
         connect_args={
+            "timeout": CONNECT_TIMEOUT_SECONDS,
             "server_settings": {
                 "statement_timeout": settings.db_statement_timeout,
                 "application_name": f"sightline-{settings.process_role}",
-            }
+            },
         },
     )
 

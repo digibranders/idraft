@@ -1,13 +1,19 @@
-from collections.abc import AsyncIterator
+import io
+import json
+import time
+from typing import Any
 
 import asyncpg
 import httpx
 import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
+from pydantic import SecretStr
 from sqlalchemy import text
 
 from sightline.api.main import create_app
+from sightline.api.resources import Resources
+from sightline.config.logging import configure_logging
 from sightline.config.settings import Settings
 from tests.conftest import BASE_URL
 
@@ -28,64 +34,124 @@ async def test_readyz_is_ready_when_everything_answers(client: httpx.AsyncClient
     }
 
 
-@pytest.fixture
-async def degraded_client(
-    app_settings: Settings, request: pytest.FixtureRequest
-) -> AsyncIterator[httpx.AsyncClient]:
-    overrides: dict[str, object] = request.param
-    application = create_app(app_settings.model_copy(update=overrides))
+async def _readyz(settings: Settings) -> httpx.Response:
+    application = create_app(settings)
     async with LifespanManager(application):
-        transport = httpx.ASGITransport(app=application, raise_app_exceptions=False)
+        transport = httpx.ASGITransport(app=application)
         async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as test_client:
-            yield test_client
+            return await test_client.get("/api/readyz")
 
 
 @pytest.mark.parametrize(
-    ("degraded_client", "expected"),
+    ("override", "expected"),
     [
         (
-            {"redis_url": "redis://127.0.0.1:1/0"},
+            {"redis_url": SecretStr("redis://127.0.0.1:1/0")},
             {"postgres": True, "redis": False, "migrations": True},
         ),
         (
-            {"database_url": "postgresql://nobody:x@127.0.0.1:1/none"},
+            {"database_url": SecretStr("postgresql://nobody:x@127.0.0.1:1/none")},
             {"postgres": False, "redis": True, "migrations": False},
         ),
     ],
-    indirect=["degraded_client"],
 )
 async def test_readyz_names_the_failing_checks_only(
-    degraded_client: httpx.AsyncClient, expected: dict[str, bool]
+    app_settings: Settings, override: dict[str, Any], expected: dict[str, bool]
 ) -> None:
-    response = await degraded_client.get("/api/readyz")
+    response = await _readyz(app_settings.model_copy(update=override))
     assert response.status_code == 503
     assert response.json() == {"status": "not_ready", "checks": expected}
 
 
-async def test_readyz_fails_when_the_schema_is_behind(
-    app_settings: Settings, postgres_url: str
-) -> None:
+async def _database(postgres_url: str, name: str, *, version: str | None) -> SecretStr:
     admin = await asyncpg.connect(postgres_url)
     try:
-        await admin.execute('DROP DATABASE IF EXISTS "unmigrated"')
-        await admin.execute('CREATE DATABASE "unmigrated"')
+        await admin.execute(f'DROP DATABASE IF EXISTS "{name}"')
+        await admin.execute(f'CREATE DATABASE "{name}"')
     finally:
         await admin.close()
-    url = postgres_url.rsplit("/", 1)[0] + "/unmigrated"
+    url = postgres_url.rsplit("/", 1)[0] + f"/{name}"
+    if version is not None:
+        connection = await asyncpg.connect(url)
+        try:
+            await connection.execute("CREATE SCHEMA ops")
+            await connection.execute("CREATE TABLE ops.alembic_version (version_num text)")
+            await connection.execute("INSERT INTO ops.alembic_version VALUES ($1)", version)
+        finally:
+            await connection.close()
+    return SecretStr(url)
 
-    application = create_app(app_settings.model_copy(update={"database_url": url}))
-    async with LifespanManager(application):
-        transport = httpx.ASGITransport(app=application)
-        async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as test_client:
-            response = await test_client.get("/api/readyz")
+
+async def test_readyz_fails_when_the_database_was_never_migrated(
+    app_settings: Settings, postgres_url: str
+) -> None:
+    url = await _database(postgres_url, "ready_unmigrated", version=None)
+    response = await _readyz(app_settings.model_copy(update={"database_url": url}))
     assert response.status_code == 503
     assert response.json()["checks"] == {"postgres": True, "redis": True, "migrations": False}
 
 
-async def test_the_app_holds_a_working_engine_and_redis_while_running(app: FastAPI) -> None:
-    async with app.state.engine.connect() as connection:
+async def test_readyz_stays_ready_when_a_newer_build_has_migrated_the_database(
+    app_settings: Settings, postgres_url: str
+) -> None:
+    """A rolled-back release must pass its own health gate (docs/22 section 8.5)."""
+    url = await _database(postgres_url, "ready_ahead", version="9999_from_the_future")
+    response = await _readyz(app_settings.model_copy(update={"database_url": url}))
+    assert response.status_code == 200
+    assert response.json()["checks"]["migrations"] is True
+
+
+async def test_frozen_dependencies_cannot_hold_readiness_open(
+    app_settings: Settings, black_hole: str
+) -> None:
+    settings = app_settings.model_copy(
+        update={
+            "database_url": SecretStr(f"postgresql://u:p@{black_hole}/db"),
+            "redis_url": SecretStr(f"redis://{black_hole}/0"),
+        }
+    )
+    started = time.perf_counter()
+    response = await _readyz(settings)
+    elapsed = time.perf_counter() - started
+
+    assert response.status_code == 503
+    assert response.json()["checks"] == {"postgres": False, "redis": False, "migrations": False}
+    assert elapsed < 4.0
+
+
+async def test_a_failed_check_is_explained_in_the_log_not_in_the_response(
+    app_settings: Settings,
+) -> None:
+    settings = app_settings.model_copy(
+        update={"redis_url": SecretStr("redis://127.0.0.1:1/0"), "log_level": "info"}
+    )
+    application = create_app(settings)
+    stream = io.StringIO()
+    configure_logging(service="api", version="test", level="info", stream=stream)
+    async with LifespanManager(application):
+        transport = httpx.ASGITransport(app=application)
+        async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as test_client:
+            response = await test_client.get("/api/readyz")
+
+    lines = [json.loads(raw) for raw in stream.getvalue().splitlines()]
+    (probe,) = [line for line in lines if line["msg"] == "redis probe failed"]
+    assert probe["level"] == "warning"
+    assert probe["error_kind"]
+    (request,) = [line for line in lines if line["msg"] == "request finished"]
+    assert (request["route"], request["status_code"], request["level"]) == (
+        "/api/readyz",
+        503,
+        "info",
+    )
+    assert set(response.json()) == {"status", "checks"}
+
+
+async def test_the_app_holds_typed_working_resources_while_running(app: FastAPI) -> None:
+    resources = app.state.resources
+    assert isinstance(resources, Resources)
+    async with resources.engine.connect() as connection:
         assert (await connection.execute(text("SELECT 1"))).scalar_one() == 1
-    assert await app.state.redis.ping() is True
+    assert await resources.redis.ping() is True
 
 
 async def test_unknown_api_route_is_a_problem(client: httpx.AsyncClient) -> None:
@@ -95,14 +161,8 @@ async def test_unknown_api_route_is_a_problem(client: httpx.AsyncClient) -> None
     assert response.json()["type"] == f"{BASE_URL}/api/problems/not_found"
 
 
-async def test_interactive_docs_are_not_served(client: httpx.AsyncClient) -> None:
-    assert (await client.get("/docs")).status_code == 404
-    assert (await client.get("/redoc")).status_code == 404
-
-
-async def test_openapi_document_is_served_under_the_versioned_path(
-    client: httpx.AsyncClient,
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json", "/api/v1/openapi.json"])
+async def test_the_api_contract_is_not_served_without_a_session(
+    client: httpx.AsyncClient, path: str
 ) -> None:
-    response = await client.get("/api/v1/openapi.json")
-    assert response.status_code == 200
-    assert response.json()["info"]["title"] == "Sightline API"
+    assert (await client.get(path)).status_code == 404

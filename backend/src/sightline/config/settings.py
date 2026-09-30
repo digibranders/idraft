@@ -1,65 +1,113 @@
 """Process settings, read once from the environment and validated at start.
 
 Names match the Compose file (docs/22-infrastructure-devops.md section 4.1). Nothing here reads a
-file: local development passes values with `uv run --env-file .env`.
+file: local development passes values with `uv run --env-file .env`. Connection strings are
+`SecretStr`, and validation errors never echo the rejected value.
 """
 
 from __future__ import annotations
 
 import re
 import sys
-from typing import Literal
+from typing import Literal, Self
+from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field, ValidationError, field_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
+LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 
 _POSTGRES_SCHEMES = ("postgresql+asyncpg://", "postgresql://", "postgres://")
-_TIMEOUT_PATTERN = re.compile(r"^[1-9]\d*(ms|s|min)$")
-_ENVIRONMENT_VARIABLE = "APP_ENV"
+_TIMEOUT_PATTERN = re.compile(r"[1-9][0-9]{0,8}(ms|s|min)", re.ASCII)
 
 
-def to_sqlalchemy_url(database_url: str) -> str:
-    """Return the URL with the asyncpg driver, which is the only driver the platform uses."""
+def _strip_scheme(database_url: str) -> str:
     for scheme in _POSTGRES_SCHEMES:
         if database_url.startswith(scheme):
-            return "postgresql+asyncpg://" + database_url[len(scheme) :]
+            return database_url[len(scheme) :]
     raise ValueError("must be a postgresql:// URL")
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=None, extra="ignore", frozen=True)
+def to_sqlalchemy_url(database_url: str) -> str:
+    """The URL with the asyncpg driver, which is the only driver the application uses."""
+    return "postgresql+asyncpg://" + _strip_scheme(database_url)
 
-    process_role: Literal["api", "worker", "migrator", "cli"] = "api"
-    release_sha: str = "dev"
-    environment: Literal["local", "test", "production"] = Field(
-        default="local", validation_alias=AliasChoices("environment", _ENVIRONMENT_VARIABLE)
+
+def to_asyncpg_dsn(database_url: str) -> str:
+    """The URL in the plain form asyncpg itself accepts."""
+    return "postgresql://" + _strip_scheme(database_url)
+
+
+def _validate_database_url(value: SecretStr) -> SecretStr:
+    try:
+        url = make_url(to_sqlalchemy_url(value.get_secret_value()))
+    except (ArgumentError, ValueError):
+        raise ValueError("must be postgresql://user:password@host[:port]/database") from None
+    if not url.host or "@" in url.host or not url.database:
+        raise ValueError("must name a host and a database; percent-encode @ in the password")
+    if url.query:
+        raise ValueError("must not carry query parameters; connection options are set in code")
+    return value
+
+
+def _validate_origin(value: str) -> str:
+    parts = urlsplit(value.strip())
+    try:
+        port = parts.port
+    except ValueError:
+        raise ValueError("has an invalid port") from None
+    if parts.scheme not in ("https", "http") or not parts.hostname:
+        raise ValueError("must be https://host or http://host")
+    if parts.username or parts.password or parts.path not in ("", "/") or parts.query:
+        raise ValueError("must be scheme and host only: no credentials, path or query")
+    if parts.fragment:
+        raise ValueError("must be scheme and host only: no fragment")
+    return f"{parts.scheme}://{parts.hostname}" + (f":{port}" if port else "")
+
+
+class _DatabaseSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=None, extra="ignore", frozen=True, hide_input_in_errors=True
     )
+
+    release_sha: str = "dev"
+    log_level: LogLevel = "info"
+    database_url: SecretStr
+
+    _check_database_url = field_validator("database_url")(_validate_database_url)
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        return to_sqlalchemy_url(self.database_url.get_secret_value())
+
+    @property
+    def asyncpg_dsn(self) -> str:
+        return to_asyncpg_dsn(self.database_url.get_secret_value())
+
+
+class MigratorSettings(_DatabaseSettings):
+    """All the migrator container is given: a database URL (docs/22 section 4.1)."""
+
+
+class Settings(_DatabaseSettings):
+    process_role: Literal["api", "worker", "migrator", "cli"] = "api"
+    app_env: Literal["local", "test", "production"] = "local"
     app_origin: str
-    log_level: Literal["debug", "info", "warning", "error", "critical"] = "info"
-    database_url: str
     db_pool_size: int = Field(default=10, ge=1, le=50)
     db_statement_timeout: str = "15s"
-    redis_url: str
-    sentry_dsn: str | None = None
+    redis_url: SecretStr
+    sentry_dsn: SecretStr | None = None
 
-    @field_validator("app_origin")
-    @classmethod
-    def _validate_origin(cls, value: str) -> str:
-        if not value.startswith(("https://", "http://")):
-            raise ValueError("must start with https:// or http://")
-        return value.rstrip("/")
-
-    @field_validator("database_url")
-    @classmethod
-    def _validate_database_url(cls, value: str) -> str:
-        to_sqlalchemy_url(value)
-        return value
+    _check_origin = field_validator("app_origin")(_validate_origin)
 
     @field_validator("redis_url")
     @classmethod
-    def _validate_redis_url(cls, value: str) -> str:
-        if not value.startswith(("redis://", "rediss://")):
-            raise ValueError("must be a redis:// or rediss:// URL")
+    def _validate_redis_url(cls, value: SecretStr) -> SecretStr:
+        parts = urlsplit(value.get_secret_value())
+        if parts.scheme not in ("redis", "rediss") or not parts.hostname:
+            raise ValueError("must be redis://[user:password@]host[:port][/db]")
         return value
 
     @field_validator("db_statement_timeout")
@@ -71,27 +119,36 @@ class Settings(BaseSettings):
 
     @field_validator("sentry_dsn")
     @classmethod
-    def _empty_dsn_is_none(cls, value: str | None) -> str | None:
-        return value or None
+    def _empty_dsn_is_none(cls, value: SecretStr | None) -> SecretStr | None:
+        return value if value is not None and value.get_secret_value() else None
 
-    @property
-    def sqlalchemy_url(self) -> str:
-        return to_sqlalchemy_url(self.database_url)
+    @model_validator(mode="after")
+    def _production_is_served_over_https(self) -> Self:
+        if self.app_env == "production" and not self.app_origin.startswith("https://"):
+            raise ValueError("APP_ORIGIN must be https:// when APP_ENV is production")
+        return self
 
 
-def _variable_name(location: tuple[int | str, ...]) -> str:
-    """The environment variable behind a validation error location."""
-    field = str(location[0])
-    if field in ("environment", _ENVIRONMENT_VARIABLE):
-        return _ENVIRONMENT_VARIABLE
-    return field.upper()
+def _exit_with_field_names(error: ValidationError) -> SystemExit:
+    """A message that names variables and never values, written to stderr."""
+    lines = [
+        f"  {str(item['loc'][0]).upper() if item['loc'] else 'SETTINGS'}: {item['msg']}"
+        for item in error.errors(include_input=False, include_context=False)
+    ]
+    sys.stderr.write("Invalid configuration:\n" + "\n".join(lines) + "\n")
+    return SystemExit(2)
 
 
 def load_settings() -> Settings:
-    """Build Settings, or stop the process with a message that names fields and never values."""
+    """Build Settings, or stop the process naming the variables that are wrong."""
     try:
         return Settings()
     except ValidationError as error:
-        lines = [f"  {_variable_name(item['loc'])}: {item['msg']}" for item in error.errors()]
-        sys.stderr.write("Invalid configuration:\n" + "\n".join(lines) + "\n")
-        raise SystemExit(2) from None
+        raise _exit_with_field_names(error) from None
+
+
+def load_migrator_settings() -> MigratorSettings:
+    try:
+        return MigratorSettings()
+    except ValidationError as error:
+        raise _exit_with_field_names(error) from None
