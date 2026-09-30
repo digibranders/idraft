@@ -42,7 +42,7 @@ describe('cn', () => {
   it('resolves the named container widths, which dialogs and forms use', () => {
     expect(cn('max-w-dialog-sm', 'max-w-dialog-md')).toBe('max-w-dialog-md');
     expect(cn('w-dialog-lg', 'w-dialog-sm')).toBe('w-dialog-sm');
-    expect(cn('max-w-form', 'max-w-prose')).toBe('max-w-prose');
+    expect(cn('max-w-form', 'max-w-reading')).toBe('max-w-reading');
   });
 
   it('lets the later focus ring win, and lets a ring replace an outline class before it', () => {

@@ -818,8 +818,8 @@
   .max-w-full {
     max-width: 100%;
   }
-  .max-w-prose {
-    max-width: 65ch;
+  .max-w-reading {
+    max-width: 45rem;
   }
   .max-w-tooltip-max {
     max-width: var(--size-tooltip-max);

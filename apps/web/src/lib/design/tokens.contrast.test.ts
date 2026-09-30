@@ -19,6 +19,8 @@ import {
 } from 'culori';
 import { describe, expect, it } from 'vitest';
 
+import { LABEL_PAIRS, NON_TEXT_TOKENS, TEXT_SURFACES, TEXT_TOKENS } from './contrast-requirements';
+
 const css = readFileSync(fileURLToPath(new URL('../../styles/tokens.css', import.meta.url)), 'utf8');
 
 function block(selector: ':root' | '.dark'): Record<string, string> {
@@ -42,28 +44,9 @@ function color(tokens: Record<string, string>, name: string): Color {
   return parsed;
 }
 
-const textBackgrounds = [
-  'background',
-  'surface',
-  'surface-subtle',
-  'surface-elevated',
-  'surface-hover',
-  'surface-elevated-hover',
-  'surface-selected',
-];
-const textTokens = [
-  'foreground',
-  'foreground-secondary',
-  'foreground-tertiary',
-  'link',
-  'primary-text',
-  'positive-text',
-  'negative-text',
-  'warning-text',
-  'info-text',
-  'neutral-text',
-];
-const nonTextTokens = ['border-strong', 'ring', 'foreground-muted'];
+const textBackgrounds = TEXT_SURFACES;
+const textTokens = TEXT_TOKENS;
+const nonTextTokens = NON_TEXT_TOKENS;
 
 describe.each(Object.entries(themes))('%s theme', (_name, tokens) => {
   it('keeps every color token inside the sRGB gamut', () => {
@@ -96,20 +79,12 @@ describe.each(Object.entries(themes))('%s theme', (_name, tokens) => {
     },
   );
 
-  it.each([
-    ['primary-foreground', 'primary'],
-    ['primary-foreground', 'primary-hover'],
-    ['negative-button-foreground', 'negative-button'],
-    ['negative-button-foreground', 'negative-button-hover'],
-    ['positive-text', 'positive-subtle'],
-    ['negative-text', 'negative-subtle'],
-    ['warning-text', 'warning-subtle'],
-    ['info-text', 'info-subtle'],
-    ['primary-text', 'primary-subtle'],
-    ['neutral-text', 'neutral-subtle'],
-  ])('text %s on %s meets 4.5:1', (fg, bg) => {
-    expect(wcagContrast(color(tokens, fg), color(tokens, bg))).toBeGreaterThanOrEqual(4.5);
-  });
+  it.each(LABEL_PAIRS.map((pair) => [pair.foreground, pair.background] as const))(
+    'text %s on %s meets 4.5:1',
+    (fg, bg) => {
+      expect(wcagContrast(color(tokens, fg), color(tokens, bg))).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 
   it.each([
     'positive-solid',

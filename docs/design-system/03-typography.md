@@ -44,7 +44,7 @@ Rules:
 - Heading levels are semantic (`h1` for the page title, `h2` for sections, `h3` for panels) independent of the visual utility. Every page has exactly one `h1`.
 - Uppercase text is not used for labels, headers or badges. Sentence case everywhere ([22-content-formatting.md](22-content-formatting.md) section 1).
 - Letter spacing is never set outside the composites.
-- Line length for prose is capped at 720 px (`max-w-prose`). Analytics content is not width-capped.
+- Line length for prose is capped at 720 px (`max-w-reading`). Analytics content is not width-capped.
 
 ## 3. Text color hierarchy
 

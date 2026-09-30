@@ -5,9 +5,9 @@ import { useState, type ReactNode } from 'react';
 
 import { SpecimenGroup, SpecimenRow } from './specimen';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Combobox } from '@/components/ui/combobox';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader, type DialogSize } from '@/components/ui/dialog';
 import { Drawer } from '@/components/ui/drawer';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
@@ -16,35 +16,11 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Menu } from '@/components/ui/menu';
 import { Popover } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select } from '@/components/ui/select';
-import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
+import { Tooltip } from '@/components/ui/tooltip';
 
-interface Location {
-  id: string;
-  name: string;
-  kind: 'Countries' | 'Cities';
-}
-const LOCATIONS: readonly Location[] = [
-  { id: 'de', name: 'Germany', kind: 'Countries' },
-  { id: 'nl', name: 'Netherlands', kind: 'Countries' },
-  { id: 'us', name: 'United States', kind: 'Countries' },
-  { id: 'ber', name: 'Berlin', kind: 'Cities' },
-  { id: 'bos', name: 'Boston', kind: 'Cities' },
-  { id: 'ams', name: 'Amsterdam', kind: 'Cities' },
-];
-interface Project {
-  id: string;
-  name: string;
-  workspace: string;
-}
-const PROJECTS: readonly Project[] = [
-  { id: 'fynix', name: 'fynix.digital', workspace: 'Digibranders' },
-  { id: 'cleanstart', name: 'cleanstart.com', workspace: 'Digibranders' },
-  { id: 'eventus', name: 'eventussecurity.com', workspace: 'Digibranders' },
-  { id: 'oyechats', name: 'oyechats.com', workspace: 'Digibranders' },
-  { id: 'firstfold', name: 'firstfold.io', workspace: 'Digibranders' },
-];
 const COLUMNS = [
   'Keyword',
   'Rank',
@@ -65,8 +41,7 @@ const DISCARD = {
   keepEditingLabel: 'Keep editing',
   discardLabel: 'Discard changes',
 };
-type Section = 'overview' | 'serp' | 'competitors';
-type Mode = 'rank' | 'visibility';
+const NOTIFICATIONS = Array.from({ length: 24 }, (_, index) => `Rank change on keyword ${index + 1}`);
 
 function DialogDemo({ size, long = false }: { size: DialogSize; long?: boolean }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -142,10 +117,6 @@ export function OverlaysSection(): ReactNode {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [confirm, setConfirm] = useState<'plain' | 'typed' | null>(null);
   const [drawer, setDrawer] = useState(false);
-  const [location, setLocation] = useState<Location | null>(null);
-  const [project, setProject] = useState<Project | null>(PROJECTS[0] ?? null);
-  const [section, setSection] = useState<Section>('overview');
-  const [mode, setMode] = useState<Mode>('rank');
   const [shown, setShown] = useState<readonly string[]>(COLUMNS.slice(0, 5));
   return (
     <>
@@ -331,153 +302,42 @@ export function OverlaysSection(): ReactNode {
         </SpecimenRow>
       </SpecimenGroup>
 
-      <SpecimenGroup title="Toast" note="18 section 3. Three visible at most; errors and toasts with an action stay.">
-        <SpecimenRow label="Success, info, error, action, progress">
-          <Button size="sm" onClick={() => toast({ type: 'success', title: 'Competitor added: HubSpot' })}>
-            Success
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => toast({ type: 'info', title: 'Too many requests', description: 'Retrying in 12 seconds' })}
-          >
-            Info
-          </Button>
-          <Button
-            size="sm"
-            onClick={() =>
-              toast({
-                type: 'error',
-                title: 'Import failed: file has no keyword column',
-                description: 'Choose a file with a column named keyword, then import again.',
-              })
-            }
-          >
-            Error
-          </Button>
-          <Button
-            size="sm"
-            onClick={() =>
-              toast({
-                type: 'success',
-                title: '12 keywords archived',
-                action: { label: 'Undo', onAction: () => undefined },
-              })
-            }
-          >
-            With Undo
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              toast({ id: 'export', type: 'progress', title: 'Preparing export' });
-              setTimeout(
-                () =>
-                  toast({
-                    id: 'export',
-                    type: 'success',
-                    title: 'Export ready: rankings.csv',
-                    action: { label: 'Download', onAction: () => undefined },
-                  }),
-                2500,
-              );
-            }}
-          >
-            Progress
-          </Button>
+      <SpecimenGroup title="Tooltip" note="16 section 6.1. Opens after 400 ms, on hover and on focus.">
+        <SpecimenRow label="Text, detail, shortcut, below, right, on a badge">
+          <Tooltip content="Volume-weighted visibility">
+            <Button size="sm">One line</Button>
+          </Tooltip>
+          <Tooltip content="34%" detail="612 of 1,800 responses">
+            <Button size="sm">With detail</Button>
+          </Tooltip>
+          <Tooltip content="Search" shortcut={['mod', 'k']}>
+            <Button size="sm">With shortcut</Button>
+          </Tooltip>
+          <Tooltip content="Opens below the trigger" side="bottom">
+            <Button size="sm">Below</Button>
+          </Tooltip>
+          <Tooltip content="Opens beside the trigger" side="right">
+            <Button size="sm">Right</Button>
+          </Tooltip>
+          <Tooltip content="Modeled from a sample of 40 responses">
+            <Badge tone="info">Estimate</Badge>
+          </Tooltip>
         </SpecimenRow>
       </SpecimenGroup>
 
-      <SpecimenGroup title="Tabs" note="09 section 12. Underline for pages and inspectors, segmented inside panels.">
-        <div className="flex w-full max-w-form flex-col gap-4">
-          <Tabs
-            variant="underline"
-            label="Keyword sections"
-            value={section}
-            onValueChange={setSection}
-            items={[
-              { value: 'overview', label: 'Overview' },
-              { value: 'serp', label: 'SERP history', count: '12' },
-              { value: 'competitors', label: 'Competitors', count: '4' },
-            ]}
-          >
-            <TabsPanel value="overview" className="pt-3 type-body">
-              Rank over time
-            </TabsPanel>
-            <TabsPanel value="serp" className="pt-3 type-body">
-              Twelve snapshots
-            </TabsPanel>
-            <TabsPanel value="competitors" className="pt-3 type-body">
-              Four competitors
-            </TabsPanel>
-          </Tabs>
-          <Tabs
-            variant="segmented"
-            label="Chart mode"
-            value={mode}
-            onValueChange={setMode}
-            items={[
-              { value: 'rank', label: 'Rank' },
-              { value: 'visibility', label: 'Visibility' },
-            ]}
-          >
-            <TabsPanel value="rank" className="pt-3 type-body">
-              Rank chart
-            </TabsPanel>
-            <TabsPanel value="visibility" className="pt-3 type-body">
-              Visibility chart
-            </TabsPanel>
-          </Tabs>
-        </div>
-      </SpecimenGroup>
-
-      <SpecimenGroup
-        title="Combobox"
-        note="10 section 6.3. A field with a list, or a button with the search inside the popup."
-      >
-        <SpecimenRow label="Field with groups, switcher">
-          <Field width="long">
-            <FieldLabel>Location</FieldLabel>
-            <Combobox
-              value={location}
-              onValueChange={setLocation}
-              items={LOCATIONS}
-              itemToString={(item) => item.name}
-              itemKey={(item) => item.id}
-              groupOf={(item) => item.kind}
-              emptyText={(query) => `No locations match "${query}"`}
-              placeholder="Berlin"
-              clearLabel="Clear"
-              openLabel="Show locations"
-            />
-          </Field>
-          <Combobox
-            value={project}
-            onValueChange={(next) => setProject(next ?? project)}
-            items={PROJECTS}
-            itemToString={(item) => item.name}
-            itemKey={(item) => item.id}
-            renderItem={(item) => (
-              <span className="flex flex-col">
-                <span>{item.name}</span>
-                <span className="type-meta">{item.workspace}</span>
-              </span>
-            )}
-            emptyText={(query) => `No projects match "${query}"`}
-            placeholder="Search projects"
-            clearLabel="Clear"
-            openLabel="Show projects"
-            trigger={
-              <Button>
-                {project?.name} <Icon icon={ChevronDown} size="sm" className="text-foreground-muted" />
-              </Button>
-            }
-            triggerLabel={`Project: ${project?.name ?? ''}`}
-            footer={
-              <Button variant="ghost" size="sm" className="w-full justify-start">
-                Create project
-              </Button>
-            }
-          />
+      <SpecimenGroup title="Scroll area" note="16 section 5.1. A thin scrollbar in border-strong.">
+        <SpecimenRow label="fill, 24 items">
+          <div className="h-40 w-64 rounded-lg border border-border">
+            <ScrollArea maxHeight="fill" label="Notifications">
+              <ul className="flex flex-col p-1">
+                {NOTIFICATIONS.map((text) => (
+                  <li key={text} className="flex h-control-sm items-center px-2 type-body">
+                    {text}
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
+          </div>
         </SpecimenRow>
       </SpecimenGroup>
     </>

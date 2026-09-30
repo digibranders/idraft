@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Globe, LayoutGrid, List, Monitor, Smartphone, X } from 'lucide-react';
+import { ChevronDown, Globe, LayoutGrid, List, Monitor, Smartphone, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -10,9 +10,11 @@ import { SpecimenGroup, SpecimenRow } from './specimen';
 import { FormField } from '@/components/app/forms/form-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Combobox } from '@/components/ui/combobox';
 import { ErrorSummary } from '@/components/ui/error-summary';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { FormAlert } from '@/components/ui/form-alert';
+import { Icon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { InputGroup } from '@/components/ui/input-group';
@@ -31,6 +33,31 @@ type Device = 'desktop' | 'mobile' | 'both';
 type Action = 'pause' | 'notify';
 type View = 'table' | 'cards';
 
+interface Location {
+  id: string;
+  name: string;
+  kind: 'Countries' | 'Cities';
+}
+const LOCATIONS: readonly Location[] = [
+  { id: 'de', name: 'Germany', kind: 'Countries' },
+  { id: 'nl', name: 'Netherlands', kind: 'Countries' },
+  { id: 'us', name: 'United States', kind: 'Countries' },
+  { id: 'ber', name: 'Berlin', kind: 'Cities' },
+  { id: 'bos', name: 'Boston', kind: 'Cities' },
+  { id: 'ams', name: 'Amsterdam', kind: 'Cities' },
+];
+interface Project {
+  id: string;
+  name: string;
+  workspace: string;
+}
+const PROJECTS: readonly Project[] = [
+  { id: 'fynix', name: 'fynix.digital', workspace: 'Digibranders' },
+  { id: 'cleanstart', name: 'cleanstart.com', workspace: 'Digibranders' },
+  { id: 'eventus', name: 'eventussecurity.com', workspace: 'Digibranders' },
+  { id: 'oyechats', name: 'oyechats.com', workspace: 'Digibranders' },
+  { id: 'firstfold', name: 'firstfold.io', workspace: 'Digibranders' },
+];
 const WORKLOADS = [
   { value: 'rank', label: 'Rank checks', group: 'Collection' },
   { value: 'ai', label: 'AI visibility', group: 'Collection', description: 'Prompts asked of each engine' },
@@ -140,6 +167,8 @@ export function FormsSection(): ReactNode {
   const [digest, setDigest] = useState(true);
   const [favicons, setFavicons] = useState(false);
   const [code, setCode] = useState('');
+  const [location, setLocation] = useState<Location | null>(null);
+  const [project, setProject] = useState<Project | null>(PROJECTS[0] ?? null);
   return (
     <>
       <SpecimenGroup title="Field" note="10 section 2. Label, control, then helper text or error, 6 px apart.">
@@ -224,6 +253,57 @@ export function FormsSection(): ReactNode {
             <FieldLabel>Workload</FieldLabel>
             <Select value="rank" onValueChange={setWorkload} placeholder="Select a workload" options={WORKLOADS} />
           </Field>
+        </SpecimenRow>
+      </SpecimenGroup>
+
+      <SpecimenGroup
+        title="Combobox"
+        note="10 section 6.3. A field with a list, or a button with the search inside the popup."
+      >
+        <SpecimenRow label="Field with groups, switcher">
+          <Field width="long">
+            <FieldLabel>Location</FieldLabel>
+            <Combobox
+              value={location}
+              onValueChange={setLocation}
+              items={LOCATIONS}
+              itemToString={(item) => item.name}
+              itemKey={(item) => item.id}
+              groupOf={(item) => item.kind}
+              emptyText={(query) => `No locations match "${query}"`}
+              placeholder="Berlin"
+              clearLabel="Clear"
+              openLabel="Show locations"
+            />
+          </Field>
+          <Combobox
+            value={project}
+            onValueChange={(next) => setProject(next ?? project)}
+            items={PROJECTS}
+            itemToString={(item) => item.name}
+            itemKey={(item) => item.id}
+            renderItem={(item) => (
+              <span className="flex flex-col">
+                <span>{item.name}</span>
+                <span className="type-meta">{item.workspace}</span>
+              </span>
+            )}
+            emptyText={(query) => `No projects match "${query}"`}
+            placeholder="Search projects"
+            clearLabel="Clear"
+            openLabel="Show projects"
+            trigger={
+              <Button>
+                {project?.name} <Icon icon={ChevronDown} size="sm" className="text-foreground-muted" />
+              </Button>
+            }
+            triggerLabel={`Project: ${project?.name ?? ''}`}
+            footer={
+              <Button variant="ghost" size="sm" className="w-full justify-start">
+                Create project
+              </Button>
+            }
+          />
         </SpecimenRow>
       </SpecimenGroup>
 

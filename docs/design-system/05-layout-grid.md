@@ -82,7 +82,7 @@ Overview and table pages do not use a 12-column page grid. Their layout is compo
 | Small multiples | `grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4` |
 | Metric strip | One panel, 76 px tall (`h-metric-strip`); cells in a horizontal flex split by full-height 1 px dividers, 20 px cell padding; wraps to two rows below 1024 px |
 | Settings | Left local navigation 200 px plus form column `max-w-form` (640 px) |
-| Prose (methodology, help) | `max-w-prose` (720 px) |
+| Prose (methodology, help) | `max-w-reading` (720 px) |
 | Detail page with right rail (T3) | `grid-cols-12 gap-4`: evidence (charts and tables) spans 8 columns (`col-span-8`), the right rail spans 4 (`col-span-4`) and holds stacked panels 16 px apart (Keyword Detail: AI answers, SERP features, recent changes; content per [24-page-templates.md](24-page-templates.md) section 9.4). Below 1280 px the grid becomes one column and the rail panels follow the evidence panels in the same order ([24-page-templates.md](24-page-templates.md) section 5) |
 
 Arbitrary grid templates are allowed only in the documented forms above; new ones are added here.

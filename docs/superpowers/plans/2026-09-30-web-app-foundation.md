@@ -365,12 +365,25 @@ Carried to later tasks: `Tabs.overflow` ("More tabs" below 1024 px) with the fir
 
 **Files:** create `src/app/(internal)/design-system/layout.tsx`, `src/app/(internal)/design-system/page.tsx`, `src/app/(internal)/design-system/[section]/page.tsx`, `src/components/design-system/registry.ts` and one section file per group.
 
-- [ ] **Step 1:** `registry.ts` lists the sections: `tokens` (swatches with contrast read live), `typography` (the 15 utilities), `sizes`, `icons`, `buttons`, `forms`, `badges`, `overlays`, `feedback`. `generateStaticParams` returns them; an unknown section is a 404.
-- [ ] **Step 2:** The layout renders a plain section list and, for each section, the same content twice, side by side, in a `light` and a `dark` container (the `dark` class on a wrapper, since the variant is `:where(.dark, .dark *)`).
-- [ ] **Step 3:** The route calls `notFound()` when `NEXT_PUBLIC_APP_ENV` is `production`. Access for platform operators waits for an operator flag in `/me`; record that in Task 17.
-- [ ] **Step 4:** Test: every registered section renders without axe violations in both themes (jsdom cannot judge contrast; the token contrast tests already do).
-- [ ] **Step 5:** Compare each section against the static preview in the browser, both themes, at 1440 and 390 px. Fix every difference in size, color, radius, focus ring and spacing.
-- [ ] **Step 6: Opus review, fixes, gates, commit** "Add the design-system preview route".
+- [x] **Step 1:** `registry.ts` lists the sections: `tokens` (swatches with contrast read live), `typography` (the 15 utilities), `sizes`, `icons`, `buttons`, `forms`, `badges`, `overlays`, `feedback`. `generateStaticParams` returns them; an unknown section is a 404.
+- [x] **Step 2:** The layout renders a plain section list and, for each section, the same content twice, side by side, in a `light` and a `dark` container (the `dark` class on a wrapper, since the variant is `:where(.dark, .dark *)`).
+- [x] **Step 3:** The route calls `notFound()` when `NEXT_PUBLIC_APP_ENV` is `production`. Access for platform operators waits for an operator flag in `/me`; record that in Task 17.
+- [x] **Step 4:** Test: every registered section renders without axe violations in both themes (jsdom cannot judge contrast; the token contrast tests already do).
+- [x] **Step 5:** Compare each section against the static preview in the browser, both themes, at 1440 and 390 px. Fix every difference in size, color, radius, focus ring and spacing.
+- [x] **Step 6: Opus review, fixes, gates, commit** "Add the design-system preview route".
+
+Done differently from the steps above, and why:
+
+- One theme at a time, chosen with a Light, Dark and System switch in the preview (`theme-control.tsx`), not two columns. A dialog, a menu or a toast is portalled to `<body>` and takes the theme of the page, so a dark column could not show it dark, and a section rendered twice repeats every id (25 section 23 row 115). The test of Step 4 still renders each section in a plain and in a `dark` wrapper.
+- The earlier `display` section is gone. Its content moved to `icons` (Icon, Avatar, Separator), `buttons` (LinkButton, TextLink, Kbd, and Tabs from `overlays`), `typography` (Truncate), `overlays` (Tooltip, ScrollArea) and `feedback` (Spinner, Skeleton, and Toast from `overlays`). Combobox moved from `overlays` to `forms`.
+- `buttons-section.tsx` is a Server Component that renders the client `button-specimens.tsx`, so `LinkButton` and `TextLink` are shown the way pages use them: without a client boundary.
+- The tokens section reads each token from the page with `getComputedStyle`. The build rewrites `oklch()` as hex or `lab()`, so `src/lib/design/contrast.ts` reads all three and is checked against culori for every token (25 section 23 row 116). `token-groups.test.ts` fails when a color token of `tokens.css` is in no group of the preview, and when a ratio the section states does not hold in either theme.
+- Container widths and radii are measured on an element, because Tailwind writes a theme value into the rule and leaves the variable out of `:root`.
+- Found by the sizes section: `max-w-prose` was Tailwind's 65ch, not the 720 px of the design system. The container is now `max-w-reading`, and lint refuses the old name (25 section 23 row 114).
+- `[section]/page.tsx` sets `dynamicParams = false`, so an unknown section is a 404 without rendering.
+- From the Opus review: the production gate is in the layout, the index and each section page, because a client navigation can render a page without the layout, and a production build builds no section page at all. The route's title is empty in production, so a 404 does not name it. Tables that can be wider than the page sit in `TableScroll`, a named tab stop while it overflows (lint allows `tabIndex` on `role="region"` for this). The pairs that must reach a contrast ratio are one list, `src/lib/design/contrast-requirements.ts`, read by the token contrast test and the preview. `--max-width-prose` is reset, so `max-w-prose` no longer compiles at all.
+
+Carried to later tasks: access for platform operators in production waits for the operator flag in `/me` (Task 17 records it); the sections for the shell, tables, filters, charts and application components arrive with the plans that build those components; the Playwright run of Task 16 checks contrast and landmarks on these pages in both themes.
 
 ---
 

@@ -25,6 +25,8 @@
   --ease-*: initial;
   --animate-*: initial;
   --blur-*: initial;
+  /* Tailwind's own reading width (65ch). Resetting it removes `max-w-prose`; the design system's is max-w-reading. */
+  --max-width-prose: initial;
 
   /* Spacing: 4px base. Allowed steps are enforced by lint: 0, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12. */
   --spacing: 0.25rem;
@@ -204,7 +206,8 @@
   --spacing-command: var(--size-command);
 
   /* Readable-width containers for prose and settings forms only; analytics pages are full width. */
-  --container-prose: 45rem;     /* 720px: methodology text, long help */
+  /* Not named "prose": `max-w-*` reads --max-width-prose (Tailwind's 65ch, reset above) before --container-*. */
+  --container-reading: 45rem;   /* 720px: methodology text, long help */
   --container-form: 40rem;      /* 640px: settings forms */
   --container-dialog-sm: 25rem; /* 400px */
   --container-dialog-md: 35rem; /* 560px */

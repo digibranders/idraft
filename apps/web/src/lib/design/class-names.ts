@@ -54,7 +54,7 @@ export const NAMED_SIZES = [
   'icon-md',
   'icon-lg',
 ] as const;
-export const NAMED_CONTAINERS = ['prose', 'form', 'dialog-sm', 'dialog-md', 'dialog-lg'] as const;
+export const NAMED_CONTAINERS = ['reading', 'form', 'dialog-sm', 'dialog-md', 'dialog-lg'] as const;
 export const NAMED_RADII = ['2xs', 'xs', 'sm', 'md', 'lg', 'xl', 'full'] as const;
 export const NAMED_SHADOWS = ['popover', 'switch-knob', 'dialog', 'drag', 'inspector'] as const;
 export const NAMED_EASINGS = ['standard', 'exit'] as const;

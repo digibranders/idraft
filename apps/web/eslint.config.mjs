@@ -122,7 +122,12 @@ const SIZE_AS_SPACING = {
   message:
     'Named sizes are for height, width and size. Padding, margin and gap use the spacing steps (04-spacing-density.md).',
 };
-const EVERYWHERE = [OFF_SCALE_SPACING, SIZE_AS_SPACING, RAW_Z_INDEX, ARBITRARY_BREAKPOINT];
+// Tailwind's own `prose` width is 65ch. The reading width of the design system is 720 px.
+const TAILWIND_PROSE_WIDTH = {
+  pattern: '^(.*:)?!?(w|min-w|max-w)-prose!?$',
+  message: 'Use max-w-reading (720 px, 05-layout-grid.md). max-w-prose is the 65ch built into Tailwind.',
+};
+const EVERYWHERE = [OFF_SCALE_SPACING, SIZE_AS_SPACING, RAW_Z_INDEX, ARBITRARY_BREAKPOINT, TAILWIND_PROSE_WIDTH];
 
 // -------------------------------------------------------------------------------------------------
 // Import boundaries (26 section 2). Elements are folders; the first match wins.
@@ -233,6 +238,14 @@ export default tseslint.config(
   { files: SOURCES, ...react.configs.flat['jsx-runtime'] },
   { files: SOURCES, ...reactHooks.configs.flat.recommended },
   { files: MARKUP, ...jsxA11y.flatConfigs.strict },
+  {
+    files: MARKUP,
+    rules: {
+      // A named region that scrolls takes focus, so it can be scrolled from the keyboard (WCAG 2.1.1, the
+      // axe rule scrollable-region-focusable). The strict preset allows only tabpanel.
+      'jsx-a11y/no-noninteractive-tabindex': ['error', { tags: [], roles: ['tabpanel', 'region'] }],
+    },
+  },
   { files: SOURCES, ...nextPlugin.configs['core-web-vitals'] },
   {
     files: SOURCES,
