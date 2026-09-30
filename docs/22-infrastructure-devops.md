@@ -228,7 +228,9 @@ services:
     container_name: seo-api
     command:
       - uvicorn
-      - sightline.api.main:app
+      - sightline.api.main:create_app
+      - --factory                    # settings are read when the app is built, never at import
+      - --no-access-log              # the API writes its own request line with the route template
       - --host=0.0.0.0
       - --port=8000
       - --proxy-headers
@@ -695,7 +697,7 @@ Notes:
 - Rate limiting is not done in Caddy. The official `caddy:2` image has no rate-limit module, and doc 24 section 10 requires official images only. The API enforces all limits in doc 24 section 8 with Redis-backed counters. Caddy contributes body caps and blocks internal paths.
 - Caddy's access logs redact `Authorization`, `Cookie` and `Set-Cookie` by default (`log_credentials` is off unless enabled). There is no public callback route, so no path needs a filter.
 - uvicorn trusts `X-Forwarded-For` only from `caddy` and `web` (`--forwarded-allow-ips`, section 4.1). `web` forwards the client address it received from Caddy on its server-side API calls, so rate limiting and audit logs see the real client IP.
-- `/api/healthz` stays public; Better Stack polls it. It returns 200 with the running `release` when the process is up and PostgreSQL answers `SELECT 1` within 500 ms. `/api/readyz` (used by the container healthcheck) also checks Redis and is not exposed.
+- `/api/healthz` stays public; Better Stack polls it. It is liveness only: `200 {"status":"ok"}` when the process answers, with no release, hostname or database call ([19](19-api-specification.md) section 3.12 owns both routes). `/api/readyz` (used by the container healthcheck and the deploy script) checks PostgreSQL, Redis and that the schema is at the revision the build expects, reports booleans only, and is not exposed.
 - If the optional Cloudflare proxy is turned on, add Cloudflare's published address ranges to Caddy's `trusted_proxies` in the same change, or rate limits will see Cloudflare addresses instead of clients.
 
 ## 5. Host configuration

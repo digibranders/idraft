@@ -1,6 +1,6 @@
 # Backend Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** A Python backend project that boots a FastAPI app with validated settings, structured logs, request ids, RFC 9457 errors, health and readiness endpoints, a PostgreSQL connection with the tenant transaction helper, Alembic migrations, and a test suite that runs against real PostgreSQL 18 and Redis 8 containers.
 
@@ -90,7 +90,7 @@ infra/compose/docker-compose.dev.yml   postgres:18 and redis:8 for local develop
 **Files:**
 - Create: `.gitignore`
 
-- [ ] **Step 1: Write `.gitignore`**
+- [x] **Step 1: Write `.gitignore`**
 
 ```gitignore
 # dependencies
@@ -125,7 +125,7 @@ apps/web/design-preview/vendor/
 .vscode/
 ```
 
-- [ ] **Step 2: Initialise and make the baseline commit**
+- [x] **Step 2: Initialise and make the baseline commit**
 
 ```bash
 cd "/Users/a12345/Desktop/AI/SEO Tool"
@@ -146,7 +146,7 @@ The working tree is shared with the UI session. From here on, every commit in th
 **Files:**
 - Create: `backend/.python-version`, `backend/pyproject.toml`, `backend/src/sightline/__init__.py`, `backend/src/sightline/py.typed`, the nine package `__init__.py` files, `backend/tests/test_package.py`
 
-- [ ] **Step 1: Create the project files**
+- [x] **Step 1: Create the project files**
 
 `backend/.python-version`:
 
@@ -266,7 +266,7 @@ Each of `api`, `worker`, `domain`, `extraction`, `providers`, `collectors`, `db`
 | `storage` | `"""Object storage client and raw payload reader and writer."""` |
 | `config` | `"""Settings, logging and error reporting configuration."""` |
 
-- [ ] **Step 2: Add dependencies (uv resolves and pins current versions in `uv.lock`)**
+- [x] **Step 2: Add dependencies (uv resolves and pins current versions in `uv.lock`)**
 
 ```bash
 cd "/Users/a12345/Desktop/AI/SEO Tool/backend"
@@ -276,7 +276,7 @@ uv add --dev pytest pytest-asyncio pytest-cov httpx asgi-lifespan "testcontainer
 
 Expected: `uv.lock` and `.venv/` created, no resolution errors.
 
-- [ ] **Step 3: Write the first test**
+- [x] **Step 3: Write the first test**
 
 `backend/tests/test_package.py`:
 
@@ -288,7 +288,7 @@ def test_package_exposes_version() -> None:
     assert sightline.__version__ == "0.1.0"
 ```
 
-- [ ] **Step 4: Run every check**
+- [x] **Step 4: Run every check**
 
 ```bash
 uv run pytest --no-cov -q
@@ -299,7 +299,7 @@ uv run lint-imports
 
 Expected: 1 test passes; ruff, mypy and all 4 import contracts pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd "/Users/a12345/Desktop/AI/SEO Tool"
@@ -315,7 +315,7 @@ git commit -m "Scaffold the backend project with lint, types and import contract
 - Create: `backend/src/sightline/config/settings.py`
 - Test: `backend/tests/config/test_settings.py` (and empty `backend/tests/config/__init__.py`, `backend/tests/__init__.py`)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 import pytest
@@ -413,12 +413,12 @@ def test_load_settings_reports_missing_variables(
     assert "REDIS_URL" in err
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/config/test_settings.py --no-cov -q`
 Expected: FAIL, `ModuleNotFoundError: No module named 'sightline.config.settings'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 """Process settings, read once from the environment and validated at start.
@@ -519,12 +519,12 @@ def load_settings() -> Settings:
         raise SystemExit(2) from None
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `uv run pytest tests/config/test_settings.py --no-cov -q`
 Expected: all pass. Then `uv run ruff check . && uv run mypy`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend && git commit -m "Add validated settings that fail fast without leaking values"
@@ -538,7 +538,7 @@ git add backend && git commit -m "Add validated settings that fail fast without 
 - Create: `backend/src/sightline/config/logging.py`
 - Test: `backend/tests/config/test_logging.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 import io
@@ -620,12 +620,12 @@ def test_exceptions_become_an_err_object() -> None:
     assert "exc_info" not in line
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/config/test_logging.py --no-cov -q`
 Expected: FAIL, module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 """One JSON object per line on stdout, with secrets removed (docs/25-observability.md section 3)."""
@@ -715,11 +715,11 @@ def configure_logging(
     )
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [x] **Step 4: Run to verify it passes**
 
 Run: `uv run pytest tests/config/test_logging.py --no-cov -q`, then `uv run ruff check . && uv run mypy`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend && git commit -m "Add JSON logging with secret redaction"
@@ -733,7 +733,7 @@ git add backend && git commit -m "Add JSON logging with secret redaction"
 - Create: `backend/src/sightline/api/request_id.py`
 - Test: `backend/tests/api/test_request_id.py` (and empty `backend/tests/api/__init__.py`)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 import re
@@ -803,12 +803,12 @@ async def test_context_is_cleared_after_the_request() -> None:
     assert "request_id" not in structlog.contextvars.get_contextvars()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/api/test_request_id.py --no-cov -q`
 Expected: FAIL, module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 """Request ids: `req_` plus a UUIDv7 in Crockford base32, so ids sort by time.
@@ -870,9 +870,9 @@ class RequestIdMiddleware:
             structlog.contextvars.reset_contextvars(**tokens)
 ```
 
-- [ ] **Step 4: Run to verify it passes**, then ruff and mypy.
+- [x] **Step 4: Run to verify it passes**, then ruff and mypy.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend && git commit -m "Add sortable request ids bound to the log context"
@@ -886,7 +886,7 @@ git add backend && git commit -m "Add sortable request ids bound to the log cont
 - Create: `backend/src/sightline/api/problems.py`
 - Test: `backend/tests/api/test_problems.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 import httpx
@@ -1000,12 +1000,12 @@ async def test_unexpected_errors_leak_nothing(client: httpx.AsyncClient) -> None
     assert "RuntimeError" not in response.text
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/api/test_problems.py --no-cov -q`
 Expected: FAIL, module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 """RFC 9457 problem responses (docs/19-api-specification.md section 2.7)."""
@@ -1169,9 +1169,9 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
     app.add_exception_handler(Exception, handle_unexpected)
 ```
 
-- [ ] **Step 4: Run to verify it passes**, then ruff and mypy.
+- [x] **Step 4: Run to verify it passes**, then ruff and mypy.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend && git commit -m "Add RFC 9457 problem responses for every error path"
@@ -1185,7 +1185,7 @@ git add backend && git commit -m "Add RFC 9457 problem responses for every error
 - Create: `backend/src/sightline/db/engine.py`, `backend/tests/conftest.py`
 - Test: `backend/tests/db/test_engine.py` (and empty `backend/tests/db/__init__.py`)
 
-- [ ] **Step 1: Write the container fixtures**
+- [x] **Step 1: Write the container fixtures**
 
 `backend/tests/conftest.py`:
 
@@ -1238,7 +1238,7 @@ async def engine(settings: Settings) -> AsyncIterator[AsyncEngine]:
     await engine.dispose()
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `backend/tests/db/test_engine.py`:
 
@@ -1314,7 +1314,7 @@ async def test_workspace_transaction_rolls_back_on_error(engine: AsyncEngine) ->
 
 Add to `conftest.py` so the pooled-connection test really reuses one connection: the `settings` fixture passes `db_pool_size=1`.
 
-- [ ] **Step 3: Run to verify failure**
+- [x] **Step 3: Run to verify failure**
 
 ```bash
 export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
@@ -1323,7 +1323,7 @@ uv run pytest tests/db/test_engine.py --no-cov -q
 
 Expected: FAIL, `No module named 'sightline.db.engine'`.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 `backend/src/sightline/db/engine.py`:
 
@@ -1383,9 +1383,9 @@ async def workspace_transaction(
         yield session
 ```
 
-- [ ] **Step 5: Run to verify it passes**, then ruff and mypy.
+- [x] **Step 5: Run to verify it passes**, then ruff and mypy.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend && git commit -m "Add the async engine and the tenant-scoped transaction"
@@ -1399,7 +1399,7 @@ git add backend && git commit -m "Add the async engine and the tenant-scoped tra
 - Create: `backend/src/sightline/db/migrate.py`, `backend/src/sightline/db/migrations/env.py`, `backend/src/sightline/db/migrations/script.py.mako`, `backend/src/sightline/db/migrations/versions/0001_baseline.py`, `backend/alembic.ini`
 - Test: `backend/tests/db/test_migrations.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 import asyncio
@@ -1462,12 +1462,12 @@ def test_upgrade_is_idempotent(postgres_url: str) -> None:
 
 These tests are synchronous on purpose: Alembic's environment runs its own event loop.
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/db/test_migrations.py --no-cov -q`
 Expected: FAIL, `No module named 'sightline.db.migrate'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/src/sightline/db/migrate.py`:
 
@@ -1662,9 +1662,9 @@ script_location = src/sightline/db/migrations
 file_template = %%(rev)s_%%(slug)s
 ```
 
-- [ ] **Step 4: Run to verify it passes**, then ruff and mypy.
+- [x] **Step 4: Run to verify it passes**, then ruff and mypy.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend && git commit -m "Add Alembic with the baseline migration"
@@ -1679,7 +1679,7 @@ git add backend && git commit -m "Add Alembic with the baseline migration"
 - Modify: `backend/tests/conftest.py` (add `migrated_url`, `app`, `client`)
 - Test: `backend/tests/config/test_sentry.py`, `backend/tests/api/test_health.py`
 
-- [ ] **Step 1: Extend the fixtures**
+- [x] **Step 1: Extend the fixtures**
 
 Append to `backend/tests/conftest.py` (and import `httpx`, `LifespanManager` from `asgi_lifespan`, `FastAPI`, `create_app`, `upgrade_to_head`):
 
@@ -1715,7 +1715,7 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
         yield c
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `backend/tests/config/test_sentry.py`:
 
@@ -1841,12 +1841,12 @@ async def test_unknown_api_route_is_a_problem(client: httpx.AsyncClient) -> None
     assert response.json()["type"] == "https://app.example.com/api/problems/not_found"
 ```
 
-- [ ] **Step 3: Run to verify failure**
+- [x] **Step 3: Run to verify failure**
 
 Run: `uv run pytest tests/api/test_health.py tests/config/test_sentry.py --no-cov -q`
 Expected: FAIL, modules not found.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 `backend/src/sightline/config/sentry.py`:
 
@@ -2018,7 +2018,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 ```
 
-- [ ] **Step 5: Run the whole suite with coverage**
+- [x] **Step 5: Run the whole suite with coverage**
 
 ```bash
 uv run pytest -q
@@ -2027,7 +2027,7 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run lin
 
 Expected: all tests pass, coverage at or above 90%, every check clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend && git commit -m "Add the app factory with liveness and readiness endpoints"
@@ -2041,7 +2041,7 @@ git add backend && git commit -m "Add the app factory with liveness and readines
 - Create: `backend/src/sightline/api/openapi.py`, `backend/openapi/v1.json`
 - Test: `backend/tests/api/test_openapi.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 import json
@@ -2070,12 +2070,12 @@ def test_rendered_document_is_stable_json() -> None:
     assert render_openapi().endswith("\n")
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/api/test_openapi.py --no-cov -q`
 Expected: FAIL, module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/src/sightline/api/openapi.py`:
 
@@ -2115,7 +2115,7 @@ if __name__ == "__main__":
     sys.stdout.write(render_openapi())
 ```
 
-- [ ] **Step 4: Generate the document and run the tests**
+- [x] **Step 4: Generate the document and run the tests**
 
 ```bash
 mkdir -p openapi && uv run python -m sightline.api.openapi > openapi/v1.json
@@ -2124,7 +2124,7 @@ uv run pytest tests/api/test_openapi.py --no-cov -q
 
 Expected: 3 pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend && git commit -m "Commit the OpenAPI document and fail tests when it drifts"
@@ -2137,7 +2137,7 @@ git add backend && git commit -m "Commit the OpenAPI document and fail tests whe
 **Files:**
 - Create: `infra/compose/docker-compose.dev.yml`, `backend/.env.example`, `backend/Dockerfile`, `backend/.dockerignore`, `backend/README.md`
 
-- [ ] **Step 1: Write the files**
+- [x] **Step 1: Write the files**
 
 `infra/compose/docker-compose.dev.yml`:
 
@@ -2286,7 +2286,7 @@ uv run python -m sightline.api.openapi > openapi/v1.json
 ```
 ````
 
-- [ ] **Step 2: Verify the development stack and the image**
+- [x] **Step 2: Verify the development stack and the image**
 
 ```bash
 export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
@@ -2305,7 +2305,7 @@ docker rm -f sightline-api-smoke
 
 Expected: `HTTP/1.1 200 OK` and `{"status":"ready","checks":{"postgres":true,"redis":true,"migrations":true}}`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add infra backend && git commit -m "Add the local development stack and the API image"
@@ -2318,7 +2318,7 @@ git add infra backend && git commit -m "Add the local development stack and the 
 **Files:**
 - Create: `.github/workflows/backend.yml`
 
-- [ ] **Step 1: Write the workflow**
+- [x] **Step 1: Write the workflow**
 
 ```yaml
 name: backend
@@ -2360,7 +2360,7 @@ jobs:
         run: docker build --target api -t sightline-api:ci .
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add .github && git commit -m "Add the backend CI workflow"
@@ -2373,12 +2373,12 @@ git add .github && git commit -m "Add the backend CI workflow"
 **Files:**
 - Modify: `docs/22-infrastructure-devops.md` (health route text, uvicorn command), `docs/25-observability.md` (request id format), `docs/26-testing-quality.md` (type checker), `docs/04-data-model.md` section 13 (policy expression), `docs/review-log.md` (close L5, record this plan)
 
-- [ ] **Step 1:** Doc 22: `/api/healthz` is liveness only and matches doc 19 section 3.12; the `api` command is `uvicorn sightline.api.main:create_app --factory`.
-- [ ] **Step 2:** Doc 25 section 3.1: `request_id` is `req_` plus the base32 form of a UUIDv7.
-- [ ] **Step 3:** Doc 26 section 2.2: types are checked by mypy in strict mode.
-- [ ] **Step 4:** Doc 04 section 13: the policy compares with `NULLIF(current_setting('app.workspace_id', true), '')::uuid`, with the reason.
-- [ ] **Step 5:** Review log: L5 closed for the type checker; one row per change above.
-- [ ] **Step 6: Commit**
+- [x] **Step 1:** Doc 22: `/api/healthz` is liveness only and matches doc 19 section 3.12; the `api` command is `uvicorn sightline.api.main:create_app --factory`.
+- [x] **Step 2:** Doc 25 section 3.1: `request_id` is `req_` plus the base32 form of a UUIDv7.
+- [x] **Step 3:** Doc 26 section 2.2: types are checked by mypy in strict mode.
+- [x] **Step 4:** Doc 04 section 13: the policy compares with `NULLIF(current_setting('app.workspace_id', true), '')::uuid`, with the reason.
+- [x] **Step 5:** Review log: L5 closed for the type checker; one row per change above.
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/04-data-model.md docs/22-infrastructure-devops.md docs/25-observability.md docs/26-testing-quality.md docs/review-log.md docs/superpowers
@@ -2405,3 +2405,24 @@ git commit -m "Record the backend foundation decisions in the docs"
 | CI: ruff, types, import contracts, tests (doc 31) | 11 |
 
 Not covered here, by design: tables, RLS policies and roles (plan 2); auth (plan 3); worker, queue and ledger (plan 4); provider client (plan 5); the `worker` image target arrives with plan 4.
+
+---
+
+## Execution notes (2026-09-30)
+
+All twelve tasks are complete on branch `backend/foundation`. Final state: 83 tests, 99% branch coverage, ruff, mypy strict and 4 import contracts clean, image built and smoke-tested against the development stack.
+
+What differs from the task text above (the code in the repository is authoritative):
+
+| Task | Difference | Why |
+|---|---|---|
+| 1 | `filterwarnings = ["error"]` in the pytest config; `asyncpg-stubs` added; `backend/check.sh` runs every gate | Warnings must not accumulate; mypy needs the stubs; one command for local runs and CI |
+| 2 | `environment` accepts both the field name and `APP_ENV` (`AliasChoices`) | Tests and code pass `environment=...`; the process reads `APP_ENV` |
+| 5 | Handlers re-raise on a type mismatch instead of `assert`; the 500 log line carries `route` as the template and the request id explicitly | The catch-all runs outside the middleware stack |
+| 6 | Testcontainers imports come from `testcontainers.community.*`; the engine tests go through a typed `_scalar` helper | Deprecation warnings; mypy |
+| 8 | `AccessLogMiddleware` (`api/access_log.py`), `route_template` (`api/routing.py`), standard-library log routing and quiet `httpx` loggers in `config/logging.py` | Found when the image was run: uvicorn's lines were plain text with raw URLs |
+| 10 | The image command has `--no-access-log` | Same |
+| 11 | The workflow calls `./check.sh` | One definition of the gates |
+
+Next plans, in order: 2 schema, roles and RLS for the Phase 1 tables; 3 auth module; 4 Taskiq worker, ledger and dispatcher (with the L1 smoke test); 5 DataForSEO client and the Phase 0 spikes; 6 droplet, Compose and deploy.
+

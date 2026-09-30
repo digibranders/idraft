@@ -251,6 +251,26 @@ Open after the lock (none blocks Phase 0):
 | L2 | The roadmap still assumes three engineers for its 19.5 calendar weeks | Re-estimate at the end of Phase 1 |
 | L3 | The log-ingest route and its agent need API keys, which are deferred | Phase 12 |
 | L4 | The alias test tool now calls the API and only tests saved configuration | Phase 2 |
-| L5 | mypy or pyright; Python markdown and tokenizer library choices in doc 13 | Phase 1 |
+| L5 | Python markdown and tokenizer library choices in doc 13 (the type checker is settled: mypy strict) | Phase 8 |
 | L6 | CSP keeps a per-request nonce in the Next.js proxy, not a static header | Confirm in Phase 1 |
+
+## Backend foundation (2026-09-30)
+
+Plan: [superpowers/plans/2026-09-30-backend-foundation.md](superpowers/plans/2026-09-30-backend-foundation.md). Code: `backend/`, `infra/compose/docker-compose.dev.yml`, `.github/workflows/backend.yml`.
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| 04-data-model.md | 13 | Policies compare with `NULLIF(current_setting('app.workspace_id', true), '')::uuid` | Found while building the tenant transaction: a pooled connection keeps the setting as an empty string after a tenant transaction, and `''::uuid` raises. Pinned by a test on PostgreSQL 18 |
+| 22-infrastructure-devops.md | 4.1, 4.5 | `api` runs `sightline.api.main:create_app --factory --no-access-log`; `/api/healthz` is liveness only | The app is built by a factory so nothing is read at import; doc 19 section 3.12 owns the health routes and doc 22 contradicted it |
+| 25-observability.md | 3.1 | `request_id` is `req_` plus a UUIDv7 in Crockford base32 | Doc 19 showed `req_01J9...`, doc 25 said UUIDv7; this is both |
+| 26-testing-quality.md | 2.2 | Types: mypy strict | Closes the type checker half of L5 |
+
+Built beyond the plan because the specs require it and running the image showed the gap:
+
+| Item | What | Why |
+|---|---|---|
+| Access log | `AccessLogMiddleware` writes one JSON line per request with the route template; uvicorn's access log is off | uvicorn's line is plain text and prints the raw URL, query string included (doc 25 section 3) |
+| Server and library logs | `logging` records (uvicorn, SQLAlchemy, Alembic) go through the same JSON and redaction pipeline | One JSON object per line for every process |
+| HTTP client loggers | `httpx` and `httpcore` log at warning and above only | At info they print every request URL; the provider client will use them |
+| 500 log line | The catch-all handler passes the request id explicitly | Starlette runs it outside the middleware stack, after the id is unbound from the log context |
 

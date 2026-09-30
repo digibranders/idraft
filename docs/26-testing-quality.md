@@ -47,7 +47,7 @@ Backend (`backend/`, Python 3.13, `uv`):
 | API contract | FastAPI generates OpenAPI 3.1 from the Pydantic models; a test validates every response against it, the generated document must equal the committed one, and `oasdiff` compares it with `main` |
 | Architecture | import-linter contracts: `domain` and `extraction` import nothing internal and do no I/O; `providers` never imports `db`; `collectors` owns persistence (ADR-022) |
 | Lint and format | ruff (`ruff check`, `ruff format --check`) |
-| Types | mypy in strict mode, or pyright in strict mode; one is picked in Phase 1 and gates CI |
+| Types | mypy in strict mode with the Pydantic plugin; gates CI. `backend/check.sh` runs every gate in CI order |
 | Load | k6 |
 
 Web (`apps/web/`, TypeScript, pnpm):

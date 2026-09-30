@@ -80,7 +80,7 @@ Every process logs one JSON object per line to stdout, with string levels and `t
 |---|---|
 | `ts`, `level`, `msg` | levels `debug` to `critical`, production minimum `info`; `msg` is stable text, ids go in fields |
 | `service`, `version` | `api`, `worker`, `web`, `migrator`, `cli`; git SHA |
-| `request_id` | UUIDv7; on API logs and on jobs started by a request |
+| `request_id` | `req_` plus the 26-character Crockford base32 form of a UUIDv7 (for example `req_01M3RN3BWAEXTAVZR9WHJEDSFK`), so ids sort by time; on API logs, in the `X-Request-Id` response header, in problem bodies, and on jobs started by a request. A well-formed inbound `X-Request-Id` is kept; anything else is replaced |
 | `job_id`, `queue`, `job_name` | set by the Taskiq middleware (`queue` is `collect` or `process`) |
 | `run_id`, `task_id` | collection run and `ops.collection_tasks.id` |
 | `workspace_id`, `project_id` | allowed in logs |

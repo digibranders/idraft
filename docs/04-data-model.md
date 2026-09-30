@@ -1936,7 +1936,7 @@ Defense in depth: the application always scopes queries by workspace, and RLS en
 -- table; runs Alembic), backup (read-only; used by pg_dump). No role other than migrator owns objects.
 ALTER TABLE seo.tracked_keywords ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON seo.tracked_keywords
-    USING (workspace_id = current_setting('app.workspace_id', true)::uuid);
+    USING (workspace_id = NULLIF(current_setting('app.workspace_id', true), '')::uuid);
 -- The API sets the GUC per transaction:
 --   BEGIN; SELECT set_config('app.workspace_id', $1, true); ... COMMIT;
 ```
@@ -1961,7 +1961,7 @@ The worker is different by nature. The planner's due-schedule scan, the dispatch
 | `auth.invitation_by_token(token_hash)` | `app_api` | Accepting an invitation happens before the user belongs to the workspace, so the RLS policy on `auth.invitations` would hide the row. Returns that one invitation only |
 | `ops.ensure_monthly_partitions()` | `app_worker` | Creating a partition is DDL, and no runtime role may run DDL |
 
-`current_setting(..., true)` returns NULL when unset, so a query that forgets to set the workspace returns zero rows instead of all rows. That failure mode is deliberate.
+A query that forgets to set the workspace returns zero rows instead of all rows. That failure mode is deliberate, and it is why the policy wraps the setting in `NULLIF(..., '')`: `current_setting(..., true)` is NULL on a connection that never set it, but after a transaction that used `set_config(..., true)` PostgreSQL leaves the custom setting on that pooled connection as an empty string, and `''::uuid` raises instead of matching nothing. `backend/tests/db/test_engine.py` pins both behaviours against PostgreSQL 18.
 
 ## 14. Migration strategy
 
