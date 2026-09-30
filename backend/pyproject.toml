@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "SEO and AI search visibility platform: API and worker"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "aiobotocore>=3.9.1",
     "alembic>=1.20.0",
     "argon2-cffi>=25.1.0",
     "asyncpg>=0.31.0",
@@ -21,6 +22,7 @@ dependencies = [
     "taskiq-redis>=1.2.4",
     "tzdata>=2026.4",
     "uvicorn[standard]>=0.54.0",
+    "zstandard>=0.25.0",
 ]
 
 [build-system]
@@ -127,5 +129,6 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.9",
-    "testcontainers[postgres,redis]>=4.15.0",
+    "testcontainers[minio,postgres,redis]>=4.15.0",
+    "types-aiobotocore[s3]>=3.9.1",
 ]
