@@ -78,7 +78,7 @@ One script runs every gate CI runs (ruff, format, mypy, import contracts, tests 
 
 ## The image
 
-`smoke.sh` runs a built image the way production does: it migrates a fresh PostgreSQL 18 with only `DATABASE_URL` set, starts the API, and requires `/api/readyz` to answer 200 as uid 10001. CI runs it on every change.
+`smoke.sh` runs a built image the way production does: it migrates a fresh PostgreSQL 18 with only `DATABASE_URL` set, starts the API and requires `/api/readyz` to answer 200 as uid 10001, then starts the worker as `app_worker`, requires its heartbeat to be fresh by the container's own healthcheck, and requires SIGTERM to stop it with exit code 0. CI runs it on every change.
 
 ```bash
 docker build --target api -t sightline-api:dev . && ./smoke.sh sightline-api:dev
