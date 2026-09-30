@@ -97,6 +97,7 @@ forbidden_modules = ["sightline.api", "sightline.worker"]
 [dependency-groups]
 dev = [
     "asgi-lifespan>=2.1.0",
+    "asyncpg-stubs>=0.31.3",
     "httpx>=0.28.1",
     "import-linter>=2.15",
     "mypy>=2.3.1",
