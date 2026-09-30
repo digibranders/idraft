@@ -5,7 +5,6 @@ import io
 import json
 import os
 import signal
-import threading
 from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
@@ -13,13 +12,16 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, SecretStr
 from redis.asyncio import Redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from sightline.config.logging import configure_logging
 from sightline.config.settings import Settings
+from sightline.db.engine import create_engine, create_session_factory
 from sightline.worker import __main__ as entrypoint
 from sightline.worker import app as worker_app
 from sightline.worker.app import WorkerContext, run_worker
 from sightline.worker.assembly import assemble
+from sightline.worker.queues import Queues
 from sightline.worker.ticks import Tick
 from tests.worker.conftest import eventually
 
@@ -41,7 +43,8 @@ async def test_the_worker_runs_until_asked_to_stop_and_then_ends(
     assert not running.done()
 
     stop.set()
-    await asyncio.wait_for(running, timeout=10)
+    # True: it stopped because it was asked to.
+    assert await asyncio.wait_for(running, timeout=10) is True
     # Nothing of it is left behind in Redis but its two streams.
     assert not await redis.exists("lock:taskiq-scheduler")
 
@@ -76,7 +79,6 @@ async def test_jobs_and_ticks_are_built_from_the_context_and_run(
 
     stop = asyncio.Event()
     running = asyncio.create_task(run_worker(worker_settings, parts, stop))
-    # The first tick fires before the receivers have joined their streams; a later one lands.
     await eventually(lambda: len(handled) >= 2, within=10)
     stop.set()
     await asyncio.wait_for(running, timeout=10)
@@ -117,6 +119,78 @@ async def test_stopping_waits_for_a_handler_in_flight(
 
     # A deploy must not cut a provider call in half.
     assert finished.is_set()
+
+
+async def test_from_the_moment_it_is_asked_to_stop_the_worker_takes_no_new_message(
+    worker_settings: Settings, redis: Redis
+) -> None:
+    """A deploy gives the worker a fixed time to stop. A handler started while a slow tick
+    is still finishing would eat into it."""
+    started: list[int] = []
+    in_tick, leave_tick = asyncio.Event(), asyncio.Event()
+    contexts: list[WorkerContext] = []
+
+    def parts(context: WorkerContext) -> Sequence[Tick]:
+        contexts.append(context)
+
+        async def handle(message: Note) -> None:
+            started.append(message.number)
+
+        async def slow_tick() -> None:
+            in_tick.set()
+            await leave_tick.wait()
+
+        context.queues.register("collect", "note", handle)
+        return [Tick(name="slow", interval=timedelta(seconds=30), action=slow_tick)]
+
+    stop = asyncio.Event()
+    running = asyncio.create_task(run_worker(worker_settings, parts, stop))
+    await asyncio.wait_for(in_tick.wait(), timeout=10)
+    (context,) = contexts
+    await context.queues.enqueue("note", Note(number=1), dedupe_key="note:1")
+    await eventually(lambda: started == [1], within=10)
+
+    stop.set()
+    await asyncio.sleep(0.5)
+    # The tick is still at it, and the worker is no longer taking messages.
+    await context.queues.enqueue("note", Note(number=2), dedupe_key="note:2")
+    await asyncio.sleep(2.5)
+    assert not running.done()
+    assert started == [1]
+
+    leave_tick.set()
+    assert await asyncio.wait_for(running, timeout=10) is True
+    assert started == [1]
+    # The message is there for the next worker.
+    assert await redis.xlen("collect") == 2
+
+
+async def test_a_tick_that_never_ends_does_not_hold_the_worker_for_ever(
+    worker_settings: Settings, redis: Redis, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stream = io.StringIO()
+    monkeypatch.setattr(worker_app, "STOP_TICKS_WITHIN", timedelta(milliseconds=300))
+    in_tick = asyncio.Event()
+
+    def parts(context: WorkerContext) -> Sequence[Tick]:
+        async def stuck() -> None:
+            in_tick.set()
+            await asyncio.Event().wait()
+
+        return [Tick(name="stuck", interval=timedelta(seconds=30), action=stuck)]
+
+    stop = asyncio.Event()
+    running = asyncio.create_task(run_worker(worker_settings, parts, stop))
+    configure_logging(service="worker", version="test", level="info", stream=stream)
+    await asyncio.wait_for(in_tick.wait(), timeout=10)
+
+    stop.set()
+    assert await asyncio.wait_for(running, timeout=10) is True
+
+    (line,) = [
+        json.loads(line) for line in stream.getvalue().splitlines() if "cut off at stop" in line
+    ]
+    assert line["part"] == "tick:stuck"
 
 
 async def test_the_heartbeat_is_written_while_both_stores_answer(
@@ -170,6 +244,52 @@ async def test_no_heartbeat_is_written_when_the_database_does_not_answer(
     assert {line["tick"] for line in failures} == {"heartbeat"}
 
 
+async def test_no_heartbeat_is_written_when_redis_does_not_answer(
+    worker_settings: Settings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(worker_app, "_HEALTH_TIMEOUT_SECONDS", 2.0)
+    heartbeat = tmp_path / "heartbeat"
+    settings = worker_settings.model_copy(update={"heartbeat_file": heartbeat})
+    engine = create_engine(settings)
+    unreachable = Redis.from_url("redis://127.0.0.1:1/0", socket_connect_timeout=0.2)
+    context = WorkerContext(
+        settings=settings,
+        engine=engine,
+        sessions=create_session_factory(engine),
+        redis=unreachable,
+        queues=Queues(settings.redis_url.get_secret_value(), unreachable),
+    )
+    tick = worker_app._heartbeat(context)
+    assert tick is not None
+    try:
+        # The database answers; Redis does not. A worker that cannot reach its queues is
+        # not healthy.
+        with pytest.raises(RedisConnectionError):
+            await tick.action()
+    finally:
+        await unreachable.aclose()
+        await engine.dispose()
+
+    assert not heartbeat.exists()
+
+
+def test_a_worker_with_no_heartbeat_file_says_so(
+    worker_settings: Settings, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stream = io.StringIO()
+    configure_logging(service="worker", version="test", level="info", stream=stream)
+    context = WorkerContext(
+        settings=worker_settings,
+        engine=None,  # type: ignore[arg-type]
+        sessions=None,  # type: ignore[arg-type]
+        redis=None,  # type: ignore[arg-type]
+        queues=None,  # type: ignore[arg-type]
+    )
+
+    assert worker_app._heartbeat(context) is None
+    assert "no heartbeat file is set" in stream.getvalue()
+
+
 async def test_a_part_that_ends_by_itself_stops_the_whole_worker(
     worker_settings: Settings, redis: Redis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -181,8 +301,12 @@ async def test_a_part_that_ends_by_itself_stops_the_whole_worker(
 
     monkeypatch.setattr(worker_app, "run_scheduler", broken_scheduler)
 
-    # Nobody sets `stop`: the worker ends because one of its parts did.
-    await asyncio.wait_for(run_worker(worker_settings, _nothing, asyncio.Event()), timeout=10)
+    # Nobody sets `stop`: the worker ends because one of its parts did, and says it did not
+    # stop as asked.
+    stopped_when_asked = await asyncio.wait_for(
+        run_worker(worker_settings, _nothing, asyncio.Event()), timeout=10
+    )
+    assert stopped_when_asked is False
 
     (line,) = [
         json.loads(line) for line in stream.getvalue().splitlines() if "worker part ended" in line
@@ -209,14 +333,31 @@ def test_the_entrypoint_runs_the_worker_and_stops_on_sigterm(
 
     def recording(context: WorkerContext) -> Sequence[Tick]:
         assembled.append(context)
+        # What `docker stop` sends, a moment after the worker has started. The timer is set
+        # from inside the running worker, where the signal is already being listened for:
+        # sent any earlier it would end the test run itself.
+        asyncio.get_running_loop().call_later(1.0, os.kill, os.getpid(), signal.SIGTERM)
         return assemble(context)
 
     monkeypatch.setattr(entrypoint, "assemble", recording)
     monkeypatch.setattr(entrypoint, "load_settings", lambda: worker_settings)
     monkeypatch.setattr(entrypoint, "configure_logging", lambda **_: None)
-    # What `docker stop` sends, a moment after the worker has started.
-    threading.Timer(1.0, os.kill, (os.getpid(), signal.SIGTERM)).start()
 
     assert entrypoint.main() == 0
     # It ran the real parts of the worker, built from the settings it loaded.
     assert [context.settings for context in assembled] == [worker_settings]
+
+
+def test_the_entrypoint_exits_with_an_error_when_the_worker_ended_by_itself(
+    monkeypatch: pytest.MonkeyPatch, worker_settings: Settings
+) -> None:
+    """The container is started again by its restart policy, and the exit shows in its state."""
+
+    async def ended_by_itself(*args: object) -> bool:
+        return False
+
+    monkeypatch.setattr(entrypoint, "run_worker", ended_by_itself)
+    monkeypatch.setattr(entrypoint, "load_settings", lambda: worker_settings)
+    monkeypatch.setattr(entrypoint, "configure_logging", lambda **_: None)
+
+    assert entrypoint.main() == 1

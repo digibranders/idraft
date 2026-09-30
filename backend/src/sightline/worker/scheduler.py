@@ -2,7 +2,8 @@
 
 The scheduler sends the maintenance jobs on their schedule. Every worker process tries to run
 it; the one that holds `lock:taskiq-scheduler` does, and keeps the lock alive while it runs. If
-it stops or loses Redis, the lock expires and another process takes over.
+it stops, loses Redis or its scheduler ends, the lock is given up or expires and another process
+takes over.
 """
 
 from __future__ import annotations
@@ -15,10 +16,10 @@ import structlog
 from redis.asyncio import Redis
 from taskiq import TaskiqScheduler
 from taskiq.api import run_scheduler_task
-from taskiq.schedule_sources import LabelScheduleSource
-from taskiq_redis import RedisStreamBroker
 
 from sightline.worker.locks import RedisLock
+from sightline.worker.queues import SCHEDULED_QUEUE, Queues
+from sightline.worker.ticks import wait_or_stop
 
 LOCK_NAME = "taskiq-scheduler"
 LOCK_TTL = timedelta(seconds=30)
@@ -26,19 +27,26 @@ _RENEW_EVERY = LOCK_TTL / 3
 _log = structlog.get_logger(__name__)
 
 
-async def _wait(stop: asyncio.Event, delay: timedelta) -> None:
-    with contextlib.suppress(TimeoutError):
-        await asyncio.wait_for(stop.wait(), timeout=delay.total_seconds())
-
-
-async def _stop(task: asyncio.Task[None]) -> None:
-    task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await task
+async def _end(scheduling: asyncio.Task[None]) -> None:
+    """Stop the scheduler if it still runs, and say so if it had ended by itself. Never raises:
+    the caller goes on to give the lock up and try again."""
+    ended_by_itself = scheduling.done()
+    scheduling.cancel()
+    try:
+        await scheduling
+    except asyncio.CancelledError:
+        if not scheduling.cancelled():
+            # It is this task that is being cancelled, not the scheduler.
+            raise
+    except Exception as error:
+        _log.error("scheduler ended", exc_info=error)
+    else:
+        if ended_by_itself:
+            _log.error("scheduler ended")
 
 
 async def run_scheduler(
-    broker: RedisStreamBroker,
+    queues: Queues,
     redis: Redis,
     stop: asyncio.Event,
     *,
@@ -46,22 +54,20 @@ async def run_scheduler(
     renew_every: timedelta = _RENEW_EVERY,
 ) -> None:
     """Hold the scheduler lock and run the scheduler while it is held, until `stop` is set."""
-    scheduler = TaskiqScheduler(broker, sources=[LabelScheduleSource(broker)])
+    broker = queues.broker(SCHEDULED_QUEUE)
+    scheduler = TaskiqScheduler(broker, sources=[queues.schedule_source()])
     lock = RedisLock(redis, LOCK_NAME, lock_ttl)
-    try:
-        while not stop.is_set():
+    while not stop.is_set():
+        try:
+            held = await lock.acquire()
+        except Exception as error:
+            _log.warning("scheduler lock not reachable", error_kind=type(error).__name__)
+            held = False
+        if held:
+            scheduling = asyncio.create_task(run_scheduler_task(scheduler))
             try:
-                held = await lock.acquire()
-            except Exception as error:
-                _log.warning("scheduler lock not reachable", error_kind=type(error).__name__)
-                held = False
-            if not held:
-                await _wait(stop, renew_every)
-                continue
-            running = asyncio.create_task(run_scheduler_task(scheduler))
-            try:
-                while not stop.is_set() and not running.done():
-                    await _wait(stop, renew_every)
+                while not stop.is_set() and not scheduling.done():
+                    await wait_or_stop(stop, renew_every.total_seconds())
                     if not await lock.extend():
                         # Expired while this process was stalled: another one may hold it now.
                         _log.warning("scheduler lock lost")
@@ -69,9 +75,9 @@ async def run_scheduler(
             except Exception as error:
                 _log.warning("scheduler lock not reachable", error_kind=type(error).__name__)
             finally:
-                if running.done() and not running.cancelled() and running.exception() is not None:
-                    _log.error("scheduler stopped", exc_info=running.exception())
-                await _stop(running)
-    finally:
-        with contextlib.suppress(Exception):
-            await lock.release()
+                await _end(scheduling)
+                # Given up at once, so another process need not wait for it to expire.
+                with contextlib.suppress(Exception):
+                    await lock.release()
+        # Not held, or lost, or the scheduler ended: a moment before the next try.
+        await wait_or_stop(stop, renew_every.total_seconds())

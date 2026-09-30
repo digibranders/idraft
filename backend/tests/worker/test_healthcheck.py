@@ -33,8 +33,9 @@ def test_a_worker_that_never_wrote_the_file_is_unhealthy(tmp_path: Path) -> None
 
 
 @pytest.mark.parametrize("arguments", [[], ["/tmp/heartbeat"], ["/tmp/heartbeat", "soon"]])
-def test_wrong_arguments_are_a_usage_error_not_a_verdict(
+def test_wrong_arguments_read_as_unhealthy_and_say_why(
     arguments: list[str], capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert main(arguments) == 2
+    # 0 and 1 are the codes a container healthcheck may give.
+    assert main(arguments) == 1
     assert capsys.readouterr().err != ""

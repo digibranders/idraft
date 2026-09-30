@@ -35,7 +35,7 @@ class Tick:
             raise ValueError("a tick's lock must expire before its next run is due")
 
 
-async def _wait(stop: asyncio.Event, seconds: float) -> None:
+async def wait_or_stop(stop: asyncio.Event, seconds: float) -> None:
     """Sleep, or return at once when the process is asked to stop."""
     if seconds <= 0:
         return
@@ -57,7 +57,7 @@ async def run_tick(tick: Tick, redis: Redis, stop: asyncio.Event) -> None:
                     await tick.action()
             except Exception as error:
                 _log.error("tick failed", tick=tick.name, exc_info=error)
-            await _wait(stop, tick.interval.total_seconds() - (time.monotonic() - started))
+            await wait_or_stop(stop, tick.interval.total_seconds() - (time.monotonic() - started))
     finally:
         if lock is not None:
             try:

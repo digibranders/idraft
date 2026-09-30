@@ -13,13 +13,13 @@ from sightline.worker.app import run_worker
 from sightline.worker.assembly import assemble
 
 
-async def _run(settings: Settings) -> None:
+async def _run(settings: Settings) -> bool:
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     # SIGTERM is what `docker stop` and a deploy send; SIGINT is Ctrl-C in a terminal.
     for number in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(number, stop.set)
-    await run_worker(settings, assemble, stop)
+    return await run_worker(settings, assemble, stop)
 
 
 def main() -> int:
@@ -31,8 +31,9 @@ def main() -> int:
         service=settings.process_role, version=settings.release_sha, level=settings.log_level
     )
     init_sentry(settings)
-    asyncio.run(_run(settings))
-    return 0
+    stopped_when_asked = asyncio.run(_run(settings))
+    # 1 when a part of the worker ended by itself: the container's restart policy acts on it.
+    return 0 if stopped_when_asked else 1
 
 
 if __name__ == "__main__":  # pragma: no cover

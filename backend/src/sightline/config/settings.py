@@ -131,6 +131,12 @@ class Settings(_DatabaseSettings):
     # The worker touches this file while it is healthy; the container healthcheck reads its age.
     heartbeat_file: Path | None = None
 
+    @field_validator("heartbeat_file", mode="before")
+    @classmethod
+    def _no_heartbeat_file(cls, value: object) -> object:
+        # An empty variable is "not set". As a path it would be the working directory.
+        return None if value == "" else value
+
     _check_origin = field_validator("app_origin")(_validate_origin)
 
     @field_validator("redis_url")

@@ -134,7 +134,14 @@ Why a dispatcher rather than 10,000 delayed queue messages: delayed messages wor
 
 ### 5.1 Taskiq settings
 
-The queue is Taskiq with the Redis stream broker (ADR-022). A Taskiq broker is bound to one queue, so the worker's own entrypoint (`python -m sightline.worker`) starts two receivers in one asyncio process, one per broker, through `taskiq.api.run_receiver_task`, together with the planner and dispatcher ticks and Taskiq's scheduler (`run_scheduler_task`).
+The queue is Taskiq with the Redis stream broker (ADR-022). A Taskiq broker is bound to one queue, so the worker's own entrypoint (`python -m sightline.worker`) starts two Taskiq receivers in one asyncio process, one per broker, together with the planner and dispatcher ticks and Taskiq's scheduler (`run_scheduler_task`).
+
+How a stream is read is the worker's own (`worker/queues.py`), on top of the `taskiq-redis` stream broker, because four things the queue depends on are not what that broker does by default:
+
+- **One message at a time.** The broker reads up to 100 messages per call and hands them out from memory. At a stop, the ones not yet started would sit with a consumer name that never returns and wait out the redelivery time. Read one at a time, a message is either running or still in the stream.
+- **Messages of a dead consumer are claimed on a timer** (every 30 s when busy, every read when idle), not only after a new message arrives. They are claimed once they have been idle for 10 minutes, which must stay longer than the longest handler.
+- **The consumer group is made again** when Redis comes back empty, and it starts at the beginning of the stream, so a message sent before any worker read is not skipped. Redis holds nothing that cannot be rebuilt, so wiping it must not need a worker restart.
+- **A Redis that does not answer is waited out.** The listener does not end and is not replaced, so the handlers it started keep counting against the queue's concurrency and are waited for at stop.
 
 | Setting | Value | Why |
 |---|---|---|
@@ -148,7 +155,8 @@ The queue is Taskiq with the Redis stream broker (ADR-022). A Taskiq broker is b
 | Messages | task ids and small keys only, validated with Pydantic models on enqueue and on receipt | state stays in PostgreSQL |
 | Dedupe | a Redis key per message (section 5.2), set with `SET NX` before enqueue | replaces broker-level job ids |
 | Scheduler | Taskiq's scheduler runs the maintenance cron jobs (section 10) inside the worker, under `lock:taskiq-scheduler` | no scheduler container; a second worker container does not double-fire |
-| Lost messages | a message held by a worker that crashed is redelivered by the stream after its idle timeout; a message lost with Redis itself is re-enqueued by the reconciler from the ledger (section 8.2) | nothing lives only in Redis |
+| Lost messages | a message held by a worker that crashed is claimed by another consumer once it has been idle for 10 minutes; a message lost with Redis itself is re-enqueued by the reconciler from the ledger (section 8.2) | nothing lives only in Redis |
+| Stream length | each stream is capped at about 10,000 messages; a longer backlog loses its oldest, and the reconciler sends their work again once their dedupe keys have expired | Redis has no eviction, and acknowledged messages stay in a stream until it is trimmed |
 
 No broker retries is deliberate for provider jobs. A blind retry of a `submit_batch` after a timeout could double-submit paid tasks. Retries for provider work are driven by task state in PostgreSQL (section 6), which knows whether the provider accepted the task.
 
@@ -277,7 +285,7 @@ After a full Redis loss, steps 1 to 6 restore all in-flight work within one reco
 
 ## 10. Maintenance jobs (Taskiq scheduler)
 
-All jobs below run on the `process` queue, scheduled by Taskiq's scheduler inside the worker under `lock:taskiq-scheduler`. The daily jobs ping one shared `maintenance` Healthchecks.io check on success and `ops_health` pings its own (ADR-022), so a job that stops running is reported by the missing ping.
+All jobs below run on the `process` queue, scheduled by Taskiq's scheduler inside the worker under `lock:taskiq-scheduler`. A job is registered with an interval or with a five-field cron expression in UTC. When a run is sent it claims `dedupe:scheduled:<job>` for half the job's period (half a minute for a cron time), so two schedulers at a change of the lock, or a scheduler that has just started, send a run once. The daily jobs ping one shared `maintenance` Healthchecks.io check on success and `ops_health` pings its own (ADR-022), so a job that stops running is reported by the missing ping.
 
 | Job | Schedule (UTC) | Action |
 |---|---|---|
@@ -305,7 +313,8 @@ All jobs below run on the `process` queue, scheduled by Taskiq's scheduler insid
 
 ## 12. Process lifecycle
 
-- The worker is one process. On `SIGTERM` it stops taking messages from `collect` and `process`, stops the planner and dispatcher ticks and the Taskiq scheduler, waits for in-flight tasks, releases its locks and exits. `stop_grace_period` is 150 s because `live_call` tasks take up to 120 s (doc 22 section 4.1).
+- The worker is one process. On `SIGTERM` it stops taking messages from `collect` and `process` at once, lets the planner and dispatcher ticks and the Taskiq scheduler end what they are doing (a tick still running after 30 s is cut off), waits for in-flight tasks, releases its locks and exits with code 0. `stop_grace_period` is 150 s because `live_call` tasks take up to 120 s (doc 22 section 4.1).
+- If a part of the worker ends by itself (a receiver, a tick runner, the scheduler supervisor), the whole process stops the same way and exits with code 1, so the container is started again instead of running with half its parts. Taskiq's scheduler falling over is not such a case: the supervisor logs it, gives the lock up and starts it again.
 - A deploy restarts the worker once, together with `api` and before `web` (doc 22 section 8.3). Messages wait in Redis during the restart. A task interrupted by a crash or an OOM kill is not relied on to come back from the broker: its ledger row stays in `pending` (dispatched), `submitted` or `fetched`, and the reconciler (section 8.2) re-enqueues it.
 - The ticks are stateless between runs (all state in PostgreSQL and Redis locks with TTLs), so restarting the worker is always safe and a killed worker cannot hold a lock for more than its TTL.
 

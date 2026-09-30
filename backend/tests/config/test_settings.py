@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -51,6 +53,30 @@ def test_loads_required_values_and_defaults(monkeypatch: pytest.MonkeyPatch) -> 
     assert settings.email_from == "Sightline <no-reply@localhost>"
     assert settings.breached_password_check is True
     assert settings.totp_key == bytes(range(32))
+
+
+def test_the_worker_has_its_own_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, BASE_ENV)
+    defaults = Settings()
+    assert (defaults.collect_concurrency, defaults.process_concurrency) == (8, 4)
+    assert defaults.heartbeat_file is None
+
+    _set(
+        monkeypatch,
+        {
+            **BASE_ENV,
+            "COLLECT_CONCURRENCY": "64",
+            "PROCESS_CONCURRENCY": "32",
+            "HEARTBEAT_FILE": "/tmp/heartbeat",
+        },
+    )
+    settings = Settings()
+    assert (settings.collect_concurrency, settings.process_concurrency) == (64, 32)
+    assert settings.heartbeat_file == Path("/tmp/heartbeat")
+
+    # An empty variable is "not set", not the directory the process runs in.
+    _set(monkeypatch, {**BASE_ENV, "HEARTBEAT_FILE": ""})
+    assert Settings().heartbeat_file is None
 
 
 def test_app_env_is_read_from_its_variable_only(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -145,6 +171,10 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
         {"DB_STATEMENT_TIMEOUT": "1٣s"},
         {"DB_STATEMENT_TIMEOUT": "99999999999999999999s"},
         {"DB_POOL_SIZE": "0"},
+        {"COLLECT_CONCURRENCY": "0"},
+        {"COLLECT_CONCURRENCY": "65"},
+        {"PROCESS_CONCURRENCY": "0"},
+        {"PROCESS_CONCURRENCY": "33"},
         {"LOG_LEVEL": "verbose"},
         {"APP_ENV": "staging"},
         {"APP_ENV": "production", "APP_ORIGIN": "http://app.example.com"},
