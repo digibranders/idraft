@@ -778,6 +778,56 @@ async def test_two_factor_routes_refuse_an_account_disabled_a_moment_ago(
     ).status_code == 401
 
 
+async def test_nothing_about_a_disabled_account_can_be_changed_from_a_cached_session(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The cache keeps a session for up to a minute. It is not trusted for account changes."""
+    user = await make_user(migrated, name="Jane Doe")
+    token, _, _ = await _enrol(api, resources, migrated, user)
+    assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
+    before = await fetchrow(
+        migrated, "SELECT recovery_code_hashes FROM auth.totp_secrets WHERE user_id = $1", user.id
+    )
+    await execute(migrated, "UPDATE auth.users SET disabled_at = now() WHERE id = $1", user.id)
+
+    answers = {
+        "recovery codes": await api.post(RECOVERY, headers=cookie(token)),
+        "disable": await api.post(DISABLE, headers=cookie(token)),
+        "profile": await api.patch(ME, json={"name": "Mallory"}, headers=cookie(token)),
+        "me": await api.get(ME, headers=cookie(token)),
+    }
+
+    assert {name: answer.status_code for name, answer in answers.items()} == dict.fromkeys(
+        answers, 401
+    )
+    after = await fetchrow(
+        migrated,
+        "SELECT t.recovery_code_hashes, u.name FROM auth.totp_secrets t "
+        "JOIN auth.users u ON u.id = t.user_id WHERE t.user_id = $1",
+        user.id,
+    )
+    assert after["recovery_code_hashes"] == before["recovery_code_hashes"]
+    assert after["name"] == "Jane Doe"
+
+
+async def test_re_authentication_is_limited_per_user(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sightline.api.auth.service.REAUTHENTICATIONS_PER_HOUR", 2)
+    user = await make_user(migrated)
+    token, _ = await open_session(resources, user)
+    statuses = []
+    for _ in range(3):
+        response = await api.post(REAUTH, json={"password": PASSWORD}, headers=cookie(token))
+        statuses.append(response.status_code)
+        if response.status_code == 200:
+            token = _new_cookie(response)
+    assert statuses == [200, 200, 429]
+
+
 async def test_signing_in_again_does_not_buy_more_guesses_at_the_code(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

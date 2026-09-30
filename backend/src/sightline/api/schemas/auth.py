@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import unicodedata
 from datetime import datetime
 from typing import Annotated, Literal
@@ -18,14 +17,13 @@ from pydantic import (
 )
 
 from sightline.api.permissions import Role
+from sightline.providers.email import ADDRESS_MAX, ADDRESS_PATTERN
 
 NAME_MAX = 120
-EMAIL_MAX = 254
 # Far above the policy limit: the policy answers with a reason, this only bounds the body.
 PASSWORD_BODY_MAX = 1024
 TOKEN_BODY_MAX = 128
 IMAGE_URL_MAX = 2048
-_EMAIL = re.compile(r"[^\s<>@,;\x00-\x1f\x7f]+@[^\s<>@,;\x00-\x1f\x7f]+")
 
 
 def _printable(value: str) -> str:
@@ -35,7 +33,8 @@ def _printable(value: str) -> str:
 
 
 def _email(value: str) -> str:
-    if not _EMAIL.fullmatch(value):
+    # The same shape the email sender accepts, so an address that registers can be written to.
+    if not ADDRESS_PATTERN.fullmatch(value):
         raise ValueError("must be an email address")
     return value
 
@@ -50,7 +49,7 @@ Name = Annotated[
 ]
 Email = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=3, max_length=EMAIL_MAX),
+    StringConstraints(strip_whitespace=True, min_length=3, max_length=ADDRESS_MAX),
     AfterValidator(_printable),
     AfterValidator(_email),
 ]

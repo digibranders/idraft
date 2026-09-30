@@ -935,7 +935,7 @@ ADR-022 and doc 24 section 5.1 set the policy: platform secrets are GitHub Actio
 
 | File | In git | Content |
 |---|---|---|
-| `infra/compose/config/app.env` | yes, plaintext | non-secret settings: `APP_ENV=production`, `APP_ORIGIN` (the one domain), `REGISTRATION` (`invited`, the default, or `open`), `EMAIL_PROVIDER=resend`, `EMAIL_FROM` (a sender on the verified domain), R2 bucket names and endpoint, log level, feature flags, Sentry environment. The api refuses to start in production with the console email sender, and refuses it for any origin that is not a local address even when `APP_ENV` is missing |
+| `infra/compose/config/app.env` | yes, plaintext | non-secret settings: `APP_ENV=production`, `APP_ORIGIN` (the one domain), `REGISTRATION` (`invited`, the default, or `open`), `EMAIL_PROVIDER=resend`, `EMAIL_FROM` (a sender on the verified domain), `BREACHED_PASSWORD_CHECK` (default on; off only where the host has no route to the Pwned Passwords API), R2 bucket names and endpoint, log level, feature flags, Sentry environment. The api refuses to start in production with the console email sender, and refuses it for any origin that is not a local address even when `APP_ENV` is missing |
 | `infra/compose/required-secrets.txt` | yes, plaintext | the names (never the values) of every key the platform `.env` must contain |
 | GitHub Actions `production` environment secrets | no | the values of all platform secrets (doc 24 section 5.1 list) |
 | `/etc/seo-platform/.env` | no | all platform secrets as dotenv, root 0600, written on every deploy |

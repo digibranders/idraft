@@ -78,6 +78,8 @@ REGISTRATIONS_PER_HOUR_PER_IP = 10
 # Far above what people behind one address need. It bounds how many sessions and audit rows
 # someone who knows a password can create.
 SIGN_INS_PER_HOUR_PER_IP = 300
+# Each one costs a password or code check, a new session and an audit row.
+REAUTHENTICATIONS_PER_HOUR = 30
 # argon2id needs 19 MiB per hash. This bounds how much memory sign-ins can take at once.
 HASHING_CONCURRENCY = 4
 _HOUR = 3600
@@ -267,6 +269,7 @@ class AuthService:
         new_hash = await self._hash(password) if needs_rehash(user.password_hash) else None
         signed_in = await self._open_session(user, password, new_hash, info, now)
         if signed_in is None:
+            await self._sign_in_failed(email=email, user=user, reason="password_changed", info=info)
             raise InvalidCredentialsError
         if signed_in.status == "signed_in":
             # Only a completed sign-in clears the failure count. With a second factor still
@@ -432,6 +435,7 @@ class AuthService:
                     db, "auth.password.changed", user.id, info, {"sessions_ended": len(revoked)}
                 )
         if not still_mine:
+            await self._credential_failed(user, "auth.password.change_failed", info)
             raise InvalidCredentialsError
         await self._store.forget(revoked)
         await self._credential_accepted(user)
@@ -559,6 +563,7 @@ class AuthService:
         """Prove again who is at the keyboard. Replaces the session with a fresh one."""
         now = datetime.now(UTC)
         user = await self._user(session)
+        await self._limit("reauth:user", str(user.id), REAUTHENTICATIONS_PER_HOUR)
         await self._refuse_if_locked(user.email, info)
         if password is not None:
             async with self._sessions() as db, db.begin():
@@ -607,6 +612,7 @@ class AuthService:
     async def regenerate_recovery_codes(
         self, *, session: SessionContext, info: RequestInfo
     ) -> list[str]:
+        await self._user(session)
         codes = new_recovery_codes()
         async with self._sessions() as db, db.begin():
             replaced = await repository.replace_recovery_codes(
@@ -625,6 +631,7 @@ class AuthService:
     async def disable_totp(self, *, session: SessionContext, info: RequestInfo) -> bool:
         """Turn two-factor off, unless a role of the user requires it. False if it was not on."""
         now = datetime.now(UTC)
+        await self._user(session)
         async with user_transaction(self._sessions, session.user_id) as db:
             required = await repository.holds_role(
                 db, user_id=session.user_id, roles=sorted(TOTP_REQUIRED_ROLES)
@@ -768,6 +775,7 @@ class AuthService:
     async def update_profile(
         self, *, session: SessionContext, changes: Mapping[str, str | None]
     ) -> Profile:
+        await self._user(session)
         async with self._sessions() as db, db.begin():
             await repository.update_profile(
                 db, user_id=session.user_id, changes=changes, now=datetime.now(UTC)
@@ -777,8 +785,8 @@ class AuthService:
     async def profile(self, session: SessionContext) -> Profile:
         async with user_transaction(self._sessions, session.user_id) as db:
             user = await repository.get_user(db, session.user_id)
-            if user is None:
-                # The account was removed while its session was cached.
+            if user is None or user.disabled_at is not None:
+                # The account was removed or disabled while its session was cached.
                 raise UnauthenticatedError
             return Profile(
                 user=user,

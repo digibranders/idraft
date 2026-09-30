@@ -163,7 +163,7 @@ class TotpNotEnabledError(ProblemError):
 
 
 class WeakPasswordProblemError(ProblemError):
-    """Carries `reason`: too_short, too_long, contains_email or breached."""
+    """Carries `reason`: too_short, too_long, contains_email, breached or unchanged."""
 
     status, code, title = 422, "weak_password", "Password is not strong enough"
 

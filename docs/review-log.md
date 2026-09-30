@@ -396,6 +396,8 @@ Each task was followed by an independent review (Fable model) that ran the code.
 | 7. Two-factor | A sign-in with the right password cleared the failure count before the code was given, so the second factor could be guessed without limit by anyone holding the password (found while briefing the reviewer and fixed before the review returned; the review reproduced it on the older commit); the password alone could make a session fresh and then replace the recovery codes; enrolment could confirm a secret the code was not checked against; no notice was sent when the second factor changed; a test of the failure count passed without the behaviour it named |
 | 8. Operator CLI and the served document | A password that is not UTF-8 produced a traceback; every database error read "could not connect"; the served document had no cache header; an existing account that is not an operator was reported the same way as one that is |
 
+A final review of the whole branch (Fable model) checked every changed doc sentence against the code, every revocation for its cache eviction, every credential path for lock check, audit and counting, and the merge against `main` and both frontend branches (clean). It found one thing to fix before merge and several smaller ones, all done: a disabled user with a cached session could still replace recovery codes, turn two-factor off and read `/me`; two refused-credential paths wrote no audit row; re-authentication had no limit of its own; four audit actions and two `429` answers were missing from the docs; the email address pattern was defined twice.
+
 Carried into the next plans:
 
 | Id | Item | Plan |
@@ -408,4 +410,6 @@ Carried into the next plans:
 | F17 | Purge of expired sessions and used tokens, with the `DELETE` grants it needs | maintenance plan |
 | F18 | Production Compose: `APP_ENV=production`, `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, `TOTP_ENCRYPTION_KEY` in `required-secrets.txt`; `--forwarded-allow-ips` and Caddy `trusted_proxies` verified with a test that the api sees the real client address | 6 (droplet) |
 | F19 | The frontend branch adds the permission `layouts:manage` to doc 24 section 3.2. When it merges, `sightline.api.permissions` and its test need the same row | at that merge |
+| F21 | `sightline/api/auth/service.py` is about 970 lines. Split it along its section headers: two-factor and re-authentication into their own module, the shared helpers (`_audit`, `_limit`, `_credential_*`, hashing) into a base both use | 3b, before adding to it |
+| F22 | Two tests set private attributes of the service to inject a failing email sender; give the `client_for` fixture an `email_sender` argument instead | 3b |
 | F20 | `auth.users.email` and `disabled_at` still have no route. A disable-user path must revoke the user's sessions and evict them from the cache | 3b or the admin plan |

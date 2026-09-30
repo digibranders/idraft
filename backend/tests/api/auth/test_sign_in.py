@@ -411,6 +411,15 @@ async def test_a_password_changed_between_verification_and_session_creation_stop
         migrated, "SELECT count(*) AS n FROM auth.sessions WHERE user_id = $1", user.id
     )
     assert sessions["n"] == 0
+    failure = await fetchrow(
+        migrated,
+        "SELECT action, after FROM ops.audit_logs WHERE request_id = $1",
+        response.headers["x-request-id"],
+    )
+    assert (failure["action"], failure["after"]) == (
+        "auth.sign_in_failed",
+        '{"reason": "password_changed"}',
+    )
 
 
 async def test_the_sign_in_lock_waits_for_a_password_change_in_progress(

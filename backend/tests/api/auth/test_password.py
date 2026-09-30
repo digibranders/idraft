@@ -432,6 +432,9 @@ async def test_a_change_racing_another_change_is_decided_by_the_stored_password(
     )
 
     assert response.status_code == 401
+    assert await audit_actions(migrated, response.headers["x-request-id"]) == [
+        "auth.password.change_failed"
+    ]
     row = await fetchrow(migrated, "SELECT password_hash FROM auth.users WHERE id = $1", user.id)
     assert row["password_hash"] == theirs
     assert (await api.get(CURRENT, headers=cookie(other))).status_code == 200

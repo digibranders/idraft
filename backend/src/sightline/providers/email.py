@@ -16,7 +16,7 @@ import httpx
 RESEND_URL = "https://api.resend.com/emails"
 SEND_TIMEOUT_SECONDS = 10.0
 ADDRESS_MAX = 254
-_ADDRESS = re.compile(r"[^\s<>@,;\x00-\x1f\x7f]+@[^\s<>@,;\x00-\x1f\x7f]+")
+ADDRESS_PATTERN = re.compile(r"[^\s<>@,;\x00-\x1f\x7f]+@[^\s<>@,;\x00-\x1f\x7f]+")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 
 
@@ -30,7 +30,7 @@ class EmailMessage:
 
     def __post_init__(self) -> None:
         # Both become headers. A line break in either would let the value add a header of its own.
-        if len(self.to) > ADDRESS_MAX or not _ADDRESS.fullmatch(self.to):
+        if len(self.to) > ADDRESS_MAX or not ADDRESS_PATTERN.fullmatch(self.to):
             raise ValueError("to must be one email address")
         # splitlines knows every line break Unicode has, including U+2028 and U+0085.
         one_line = len(self.subject.splitlines()) == 1 and not _CONTROL.search(self.subject)
