@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from redis.asyncio import Redis
 
 from sightline import __version__
+from sightline.api.access_log import AccessLogMiddleware
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
 from sightline.api.request_id import RequestIdMiddleware
@@ -20,6 +21,7 @@ from sightline.db.migrate import head_revision
 
 OPENAPI_URL = "/api/v1/openapi.json"
 REDIS_TIMEOUT_SECONDS = 1.0
+HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz"})
 
 
 @asynccontextmanager
@@ -58,6 +60,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
     app.state.migration_head = head_revision()
+    # Added last runs first: the request id is bound before the access log line is written.
+    app.add_middleware(AccessLogMiddleware, quiet_paths=HEALTH_PATHS)
     app.add_middleware(RequestIdMiddleware)
     register_problem_handlers(app, app_origin=settings.app_origin)
     app.include_router(health_router)

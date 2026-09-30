@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 
 import structlog
 
@@ -93,3 +94,55 @@ def test_exc_info_false_adds_nothing() -> None:
     (line,) = _lines(stream)
     assert "err" not in line
     assert "exc_info" not in line
+
+
+def test_standard_library_loggers_emit_the_same_json() -> None:
+    stream = _capture()
+    logging.getLogger("uvicorn.error").info("Application startup complete.")
+    (line,) = _lines(stream)
+    assert line["msg"] == "Application startup complete."
+    assert line["level"] == "info"
+    assert line["logger"] == "uvicorn.error"
+    assert line["service"] == "api"
+    assert str(line["ts"]).endswith("Z")
+
+
+def test_standard_library_arguments_are_interpolated_and_redacted() -> None:
+    stream = _capture()
+    logging.getLogger("third.party").warning("retry %d of %d", 2, 5, extra={"password": "s3cret"})
+    (line,) = _lines(stream)
+    assert line["msg"] == "retry 2 of 5"
+    assert "s3cret" not in stream.getvalue()
+
+
+def test_uvicorn_access_lines_are_silenced_because_the_api_logs_its_own() -> None:
+    stream = _capture()
+    logging.getLogger("uvicorn.access").info('127.0.0.1 - "GET /x?token=hunter2 HTTP/1.1" 200')
+    assert stream.getvalue() == ""
+
+
+def test_standard_library_loggers_respect_the_minimum_level() -> None:
+    stream = _capture(level="warning")
+    logging.getLogger("uvicorn.error").info("hidden")
+    logging.getLogger("uvicorn.error").warning("shown")
+    assert [line["msg"] for line in _lines(stream)] == ["shown"]
+
+
+def test_http_client_libraries_do_not_log_request_urls() -> None:
+    stream = _capture(level="debug")
+    logging.getLogger("httpx").info("HTTP Request: GET https://api.example.com/x?key=hunter2")
+    logging.getLogger("httpcore").debug("send_request_headers.started url=/x?key=hunter2")
+    assert stream.getvalue() == ""
+
+    logging.getLogger("httpx").warning("connection pool is full")
+    assert [line["msg"] for line in _lines(stream)] == ["connection pool is full"]
+
+
+def test_terminal_colour_duplicates_from_the_server_are_dropped() -> None:
+    stream = _capture()
+    logging.getLogger("uvicorn.error").info(
+        "Started server process [%d]", 1, extra={"color_message": "\x1b[36mStarted\x1b[0m"}
+    )
+    (line,) = _lines(stream)
+    assert line["msg"] == "Started server process [1]"
+    assert "color_message" not in line

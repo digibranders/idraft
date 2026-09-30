@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
 from sightline.api.request_id import HEADER, new_request_id
+from sightline.api.routing import route_template
 
 MEDIA_TYPE = "application/problem+json"
 _log = structlog.get_logger(__name__)
@@ -63,12 +64,6 @@ class ConflictError(ProblemError):
 def _request_id(request: Request) -> str:
     existing = getattr(request.state, "request_id", None)
     return existing if isinstance(existing, str) else new_request_id()
-
-
-def _route_template(request: Request) -> str:
-    """The matched route's template, so logs never carry ids or query strings."""
-    template = getattr(request.scope.get("route"), "path", None)
-    return template if isinstance(template, str) else "unmatched"
 
 
 def problem_response(
@@ -160,7 +155,7 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
         _log.error(
             "unhandled exception",
             exc_info=error,
-            route=_route_template(request),
+            route=route_template(request.scope),
             request_id=_request_id(request),
         )
         return problem_response(
