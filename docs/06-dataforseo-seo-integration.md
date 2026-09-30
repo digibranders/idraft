@@ -150,7 +150,7 @@ stateDiagram-v2
 
 1. Planner has already inserted `ops.collection_tasks` rows in `pending` with `scheduled_for` staggered over the schedule's window ([21-scheduler-workers.md](21-scheduler-workers.md) section 3).
 2. The dispatcher ([21-scheduler-workers.md](21-scheduler-workers.md) section 4) groups up to 100 due `pending` tasks for the same endpoint and priority into one `submit_batch` Taskiq task on the `collect` queue carrying their ids; the task locks them with `FOR UPDATE SKIP LOCKED`, checks the shared-fetch cache (identical fingerprint fetched today: mark `skipped_cached`, enqueue an ingest task pointing at the cached raw payload), builds the POST, and calls `task_post`.
-3. Response handling per task: `status_code 20100` means accepted; store `provider_task_id`, per-task `cost`, set `submitted`. Any other code maps through `classify_error`.
+3. Response handling per task, matched by the `tag` echoed in the task's `data`, never by position: `status_code 20100` means accepted; store `provider_task_id`, per-task `cost`, set `submitted`. Any other code maps through the table of section 9. A task the answer does not name for certain (an unknown tag, no id, a code that may mean it was created) stays `submit_unknown`.
 4. One `ops.provider_cost_events` row per accepted task with `cost_source = 'provider_reported'`.
 
 ### 4.2 Readiness: polling only
@@ -339,19 +339,21 @@ Labs SERP-derived datasets (`ranked_keywords`, `domain_intersection`, `competito
 | 40203 (own cost limit) | account_limit | Pause DataForSEO workloads, alert admins |
 | 40209 (too many simultaneous) | concurrency | Retry after 5 s |
 | 40403 (results expired) | not_found_expired | Resubmit if run window still open, else mark dead |
-| 401 | auth | Pause provider, alert |
-| 402 | payment | Pause provider, alert (balance exhausted) |
-| 50301 (third-party source unavailable) | upstream_unavailable | Retry with backoff per doc 21 section 6 (max 4 attempts), then `dead` |
+| 50301 (third-party source unavailable), HTTP 503 | upstream_unavailable | Retry with backoff per doc 21 section 6 (max 4 attempts), then `dead` |
 | 401xx (not authorized, account not activated or blocked), HTTP 401 and 403 | auth | Pause provider, alert |
-| 402xx other than the codes above (balance, payment) | payment | Pause provider, alert |
+| 402xx other than the codes above (balance, payment), HTTP 402 | payment | Pause provider, alert |
+| HTTP 429 | rate_limited | As 40202; a `Retry-After` in whole seconds is the least wait |
 | 405xx (invalid field, path or body) | invalid_request | Do not retry, mark task failed |
 | 40601, 40602 (task in queue, task being processed) | not an error | `task_get` asked too early: the task stays `submitted` |
 | 40102 (no search results) | not an error | A finished, empty result: stored and ingested like any other |
-| 504xx, HTTP 408, 425, 502, 504 | timeout when posting tasks, else provider_error | Posting: the tasks may have been created, so they become `submit_unknown`. Reading: retry |
+| 5xxxx other than 50301; HTTP 408, 425, and every 5xx but 501, 503 and 505 (a proxy's 520 to 524 among them) | timeout when posting tasks, else provider_error | Posting: the tasks may have been created and charged, so they become `submit_unknown` and are not sent again blind. Reading: retry |
+| A connection that never opened | upstream_unavailable | Nothing was sent: retry |
+| A timeout, a dropped connection or an unreadable answer after the request was sent | timeout when posting tasks; a read that timed out is also timeout, any other is provider_error | As the row above |
 | HTTP 400, 413, 422 | invalid_request | Do not retry |
-| Any other code or HTTP 5xx | provider_error | Retry with backoff: a retry costs nothing, a wrong failure cannot be undone |
+| Any other code or HTTP status | provider_error | Retry with backoff: reading again costs nothing, and a wrong failure cannot be undone |
+| No turn under our own limiter within 30 s, or the limiter not reachable | throttled | Not sent and not an attempt: retry in 30 s, without slowing the limiter |
 
-HTTP status is 200 for most errors; the real status is in `status_code` at top and task level (verified). The adapter checks both levels.
+HTTP status is 200 for most errors; the real status is in `status_code` at top and task level (verified). The adapter checks both levels. Spike S-01 checks whether any 402xx code refuses one API only (a subscription code such as 40204): if so, it must stop that workload, not pause every DataForSEO workload.
 
 ## 10. Terms and data handling
 

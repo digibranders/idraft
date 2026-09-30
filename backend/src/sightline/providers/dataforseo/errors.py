@@ -6,9 +6,11 @@ the whole call and once per task. Both are read.
 
 Two rules shape the table. A task that is refused as `invalid_request` fails for good, so only
 answers that certainly mean "this request is wrong" are that; an unknown code is the provider's
-trouble, which is tried again at no cost. And when a call was sending tasks, an answer that
-may have come after the tasks were created and charged (a gateway timeout) is `timeout`: the
-outcome is unknown, and the tasks are not sent again blind.
+trouble, which is tried again. And when a call was sending tasks, a server error may have come
+after the tasks were created and charged (a gateway gave up waiting, the service failed while
+answering): that is `timeout`, the outcome is unknown, and the tasks are not sent again blind.
+Only the errors that say the request was not taken in (503, and 501 and 505, which refuse the
+request itself) are anything else.
 """
 
 from __future__ import annotations
@@ -67,7 +69,7 @@ def _code_kind(code: int, *, sending: bool) -> ProviderErrorKind:
         return K.PAYMENT
     if family == 405:  # an invalid field, path or body: this request is wrong
         return K.INVALID_REQUEST
-    if family == 504:  # a timeout on the provider's side: tasks may have been created
+    if code // 10_000 == 5:  # the provider's own failure: tasks may have been created
         return K.TIMEOUT if sending else K.PROVIDER_ERROR
     return K.PROVIDER_ERROR
 
@@ -84,8 +86,11 @@ def read_status(code: int, message: str, *, sending: bool) -> Answer | ProviderE
     )
 
 
-# HTTP statuses that may come after the provider did the work: a gateway gave up waiting.
-_MAYBE_DONE: Final = frozenset({408, 425, 502, 504})
+# Statuses that may come after the provider did the work: a gateway gave up waiting, or the
+# request was cut off. Any server error but those in `_NOT_TAKEN` is read the same way.
+_MAYBE_DONE: Final = frozenset({408, 425})
+# Server errors that say the request was not taken in.
+_NOT_TAKEN: Final = frozenset({501, 503, 505})
 _HTTP: Final[dict[int, ProviderErrorKind]] = {
     401: K.AUTH,
     403: K.AUTH,
@@ -104,7 +109,7 @@ def read_http(
     """The error an HTTP status stands for, or None when the body should be read for one."""
     if 200 <= status < 300:
         return None
-    if status in _MAYBE_DONE:
+    if status in _MAYBE_DONE or (500 <= status < 600 and status not in _NOT_TAKEN):
         kind = K.TIMEOUT if sending else K.PROVIDER_ERROR
     else:
         kind = _HTTP.get(status, K.PROVIDER_ERROR)

@@ -155,9 +155,19 @@ def test_every_error_ends_and_never_waits_longer_than_its_cap(
         assert decision.delay is None
     if decision.delay is not None:
         assert timedelta(0) < decision.delay <= timedelta(minutes=30) * (1 + JITTER_SHARE)
-    # A task is not tried for ever, unless the provider itself is paused.
-    if attempts >= 10 and not decision.pause_provider:
+    # A task is not tried for ever, unless the provider itself is paused or the call never
+    # left: neither counts as a try, and the run's window ends the task.
+    if attempts >= 10 and decision.counts:
         assert decision.status in ("failed", "dead")
+
+
+def test_a_call_our_limiter_held_back_is_not_an_attempt_and_slows_nothing() -> None:
+    decision = decide(K.THROTTLED, attempts=6, jitter=0.0)
+
+    assert decision == RetryDecision(status="pending", delay=timedelta(seconds=30), counts=False)
+    spread = decide(K.THROTTLED, attempts=1, jitter=0.999).delay
+    assert spread is not None
+    assert timedelta(seconds=30) < spread < timedelta(seconds=30) * (1 + JITTER_SHARE)
 
 
 def test_an_empty_result_is_not_a_failure_and_the_arguments_are_checked() -> None:

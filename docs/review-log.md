@@ -498,3 +498,18 @@ Carried into the next plans:
 | F52 | The cron claim's minute is read from the process clock, the one process clock left in the worker; a run completed while a budget held it back loses `status_reason = 'budget_exceeded'` | launch hardening |
 
 The whole-branch review found one more way to break at-most-once, fixed before merge: if the commit recording an answer succeeded but its reply was lost, the retry could apply the old answer to a later attempt of the same task. Answers are now recorded only against the attempt they answer. It also fixed: a provider that cannot give its result lifetime no longer stops tasks of every provider from ending; a task accepted without a cost is charged its estimate when it dies; a row that cannot be written is logged with the provider's id and cost; runs of a project row deleted outright are stopped.
+
+### DataForSEO client, rate limiter and raw storage (2026-10-01)
+
+Plan `docs/superpowers/plans/2026-09-30-dataforseo-raw-storage.md`, branch `backend/dataforseo`. Each task was reviewed on the Opus model before its commit.
+
+| Task | Found and fixed |
+|---|---|
+| 1. Contract, errors, tags | Unknown 4xxxx codes failed tasks for good (now: the 401xx and 402xx families pause, anything unknown is retried); not-ready and no-results were errors (now answers); the tag's 8 hex digits of the run id were a timestamp shared by every run of a minute (now the whole id, with the installation and the attempt); a gateway timeout while posting tasks was retried blind (now an unknown outcome); DataForSEO credentials without raw storage were accepted |
+| 2. Rate limiter | A call our limiter held back was reported as the provider's rate limit, which slowed the limiter further and ended tasks after six tries the provider never saw (now `throttled`: not an attempt, nothing slowed); a Redis failure in the limiter left tasks `submit_unknown` although nothing was sent; any HTTP 5xx or 5xxxx while posting tasks other than 501, 503, 505 and 50301 is now an unknown outcome, since the tasks may have been created; the slow-down now halves every bucket's burst and rate, families included; a clock stepping back stalled a bucket; family names could collide with other keys; the attempt stamp was untested and defaulted to 0 (now required before an adapter sends; `make_tag` checks the installation); the limiter's tests let a wrong refill rate and unbounded idle banking pass, and two relied on 50 ms margins |
+
+Carried:
+
+| Id | Item | Plan |
+|---|---|---|
+| F53 | Spike S-01 checks whether any 402xx code refuses one API only (such as a subscription code). Today every 402xx pauses all of DataForSEO, which would let one unsubscribed API stop SERP collection | 3 (Task 7, S-01) |

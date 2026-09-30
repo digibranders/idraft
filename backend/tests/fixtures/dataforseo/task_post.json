@@ -1,0 +1,39 @@
+{
+  "version": "0.1.20260915",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.0825 sec.",
+  "cost": 0.0012,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "10011234-1535-0066-0000-5b2e1e3c3b86",
+      "status_code": 20100,
+      "status_message": "Task Created.",
+      "time": "0.0061 sec.",
+      "cost": 0.0012,
+      "result_count": 0,
+      "path": ["v3", "serp", "google", "organic", "task_post"],
+      "data": {
+        "api": "serp",
+        "function": "task_post",
+        "se": "google",
+        "se_type": "organic",
+        "keyword": "best crm for startups",
+        "location_code": 2840,
+        "language_code": "en",
+        "device": "desktop",
+        "os": "windows",
+        "depth": 20,
+        "priority": 1,
+        "load_async_ai_overview": true,
+        "people_also_ask_click_depth": 0,
+        "group_organic_results": true,
+        "calculate_rectangles": false,
+        "tag": "i:test:t:z:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"
+      },
+      "result": null
+    }
+  ]
+}

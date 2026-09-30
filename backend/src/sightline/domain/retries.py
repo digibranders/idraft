@@ -23,6 +23,9 @@ class ProviderErrorKind(StrEnum):
     TIMEOUT = "timeout"
     SCHEMA_MISMATCH = "schema_mismatch"
     EMPTY_RESULT = "empty_result"
+    # Not sent: our own limiter gave no turn in time, or could not be reached. The provider
+    # never saw the call, so it is not an attempt and says nothing about the provider's rate.
+    THROTTLED = "throttled"
 
 
 RetryStatus = Literal["pending", "failed", "dead"]
@@ -37,7 +40,8 @@ class RetryDecision:
     pause_provider: bool = False
     # The provider asked us to slow down: halve the limiter for a while.
     reduce_rate: bool = False
-    # Whether this failure counts as an attempt. A paused provider is not the task's failure.
+    # Whether this failure counts as an attempt. A paused provider, or a call our own limiter
+    # held back, is not the task's failure.
     counts: bool = True
 
 
@@ -92,6 +96,8 @@ _PAUSES_PROVIDER = frozenset(
     {ProviderErrorKind.AUTH, ProviderErrorKind.PAYMENT, ProviderErrorKind.ACCOUNT_LIMIT}
 )
 _NEVER_RETRIED = frozenset({ProviderErrorKind.INVALID_REQUEST, ProviderErrorKind.SCHEMA_MISMATCH})
+# A call held back by our limiter waits about as long as the limiter was willing to wait for it.
+THROTTLED_WAIT = timedelta(seconds=30)
 # Added to a delay so tasks that failed together do not all come back together.
 JITTER_SHARE = 0.2
 
@@ -127,6 +133,11 @@ def decide(
         raise ValueError("an empty result is a result, not a failure")
     if kind in _PAUSES_PROVIDER:
         return RetryDecision(status="pending", pause_provider=True, counts=False)
+    if kind is ProviderErrorKind.THROTTLED:
+        # Not counted, so never ended for it: a task held back for long enough is ended by
+        # its run's window like any task still waiting.
+        spread = 1 + JITTER_SHARE * jitter
+        return RetryDecision(status="pending", delay=THROTTLED_WAIT * spread, counts=False)
     if kind in _NEVER_RETRIED:
         return RetryDecision(status="failed")
     if kind is ProviderErrorKind.NOT_FOUND_EXPIRED:

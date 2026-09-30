@@ -107,6 +107,54 @@ async def test_accepted_tasks_are_submitted_with_the_providers_id_and_their_cost
     ((endpoint, requests),) = world.provider.calls
     assert endpoint == "serp"
     assert sorted(request.task_id for request in requests) == sorted(str(row["id"]) for row in rows)
+    # Each bound to this attempt, so an answer to it is never taken for a later one's.
+    assert {request.attempt for request in requests} == {1}
+
+
+async def test_a_retried_task_is_sent_as_its_next_attempt(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    world = World(worker_db)
+    world.provider.fail_with(K.PROVIDER_ERROR)
+    run_id, batch = await _one_batch(world, migrated, tasks=1)
+    await world.submit(batch)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET next_attempt_at = NULL WHERE run_id = $1",
+        run_id,
+    )
+    world.provider.answer = world.provider.accept_all
+
+    (again,) = await world.dispatch()
+    await world.submit(again)
+
+    assert [request.attempt for _, requests in world.provider.calls for request in requests] == [
+        1,
+        2,
+    ]
+
+
+async def test_a_call_our_limiter_held_back_is_not_an_attempt(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """The provider never saw it: the tasks wait a little and lose no try."""
+    world = World(worker_db)
+    world.provider.fail_with(K.THROTTLED)
+    run_id, batch = await _one_batch(world, migrated)
+
+    report = await world.submit(batch)
+
+    assert report == SubmitReport(refused=3)
+    rows = await task_rows(migrated, run_id)
+    assert {
+        (row["status"], row["attempts"], row["last_error_code"], row["last_error_message"])
+        for row in rows
+    } == {("pending", 0, "throttled", "Not sent: too many calls to the provider just now.")}
+    (clock,) = await fetch(migrated, "SELECT now() AS now")
+    for row in rows:
+        wait = row["next_attempt_at"] - clock["now"]
+        assert timedelta(seconds=25) < wait <= timedelta(seconds=30)
+    assert world.pauses.reasons == {}
 
 
 async def test_a_message_delivered_twice_submits_nothing_twice(

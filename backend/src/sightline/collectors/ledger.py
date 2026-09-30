@@ -944,7 +944,8 @@ async def record_failure(
     if decision.status != "pending":
         values["completed_at"] = _aware(now)
     if not decision.counts:
-        # The provider is paused for everyone: this was not an attempt at the task.
+        # The provider is paused for everyone, or the call never left: this was not an
+        # attempt at the task.
         values["attempts"] = _tasks.c.attempts - 1
     result = await db.execute(
         update(_tasks).where(_awaiting(ref, attempt)).values(**values).returning(_tasks.c.id)

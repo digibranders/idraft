@@ -219,11 +219,14 @@ ProviderErrorKind = Literal[
     "concurrency",           # DataForSEO 40209: retry after short delay
     "invalid_request",       # bad field, keyword too long, unsupported location: do not retry, mark task failed
     "not_found_expired",     # 40403 results expired: resubmit task if still within run window
-    "upstream_unavailable",  # 50301 third-party source unavailable: retry with backoff
-    "provider_error",        # 5xx: retry with backoff
-    "timeout",               # network timeout (httpx.TimeoutException): retry
+    "upstream_unavailable",  # 50301, HTTP 503, a connection never opened: retry with backoff
+    "provider_error",        # any other provider failure while reading: retry with backoff
+    "timeout",               # the call may have reached the provider (timeout, dropped connection, a 5xx
+                             # while posting tasks): outcome unknown when sending, else retry
     "schema_mismatch",       # Pydantic ValidationError in normalize(): do not retry fetch; raw is kept; alert parser owners
     "empty_result",          # valid response with no content (e.g. AI refused): not an error for the task
+    "throttled",             # not sent: our own limiter gave no turn in time or could not be reached;
+                             # not an attempt, retry shortly, the limiter is not slowed
 ]
 
 

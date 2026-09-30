@@ -63,7 +63,8 @@ def test_answers_that_are_not_errors(code: int, answer: Answer, sending: bool) -
         (40501, K.INVALID_REQUEST),
         (40502, K.INVALID_REQUEST),
         (40503, K.INVALID_REQUEST),
-        # Anything else is tried again, which costs nothing: a wrong failure cannot be undone.
+        # Anything else is tried again: reading again costs nothing, and a wrong failure
+        # cannot be undone.
         (40001, K.PROVIDER_ERROR),
         (40400, K.PROVIDER_ERROR),
         (40402, K.PROVIDER_ERROR),
@@ -78,10 +79,15 @@ def test_every_error_code_has_a_kind(code: int, kind: ProviderErrorKind) -> None
     assert (error.kind, error.provider_status, error.message) == (kind, code, "Some message.")
 
 
-def test_a_timeout_at_the_provider_while_sending_leaves_the_outcome_unknown() -> None:
-    """The tasks may have been created and charged before the provider gave up."""
-    assert _kind(50401, sending=True) is K.TIMEOUT
-    assert _kind(50401, sending=False) is K.PROVIDER_ERROR
+@pytest.mark.parametrize("code", [50000, 50401, 50402, 50999])
+def test_a_failure_at_the_provider_while_sending_leaves_the_outcome_unknown(code: int) -> None:
+    """The tasks may have been created and charged before the provider failed."""
+    assert _kind(code, sending=True) is K.TIMEOUT
+    assert _kind(code, sending=False) is K.PROVIDER_ERROR
+
+
+def test_a_source_that_was_down_took_nothing_in() -> None:
+    assert _kind(50301, sending=True) is K.UPSTREAM_UNAVAILABLE
 
 
 @pytest.mark.parametrize(
@@ -97,7 +103,9 @@ def test_a_timeout_at_the_provider_while_sending_leaves_the_outcome_unknown() ->
         (422, K.INVALID_REQUEST),
         (404, K.PROVIDER_ERROR),
         (409, K.PROVIDER_ERROR),
-        (500, K.PROVIDER_ERROR),
+        # A server error that refuses the request itself: it was not taken in.
+        (501, K.PROVIDER_ERROR),
+        (505, K.PROVIDER_ERROR),
     ],
 )
 def test_an_http_status_has_a_kind(status: int, kind: ProviderErrorKind) -> None:
@@ -111,8 +119,10 @@ def test_an_http_status_has_a_kind(status: int, kind: ProviderErrorKind) -> None
         )
 
 
-@pytest.mark.parametrize("status", [408, 425, 502, 504])
-def test_a_gateway_that_gave_up_while_sending_leaves_the_outcome_unknown(status: int) -> None:
+@pytest.mark.parametrize("status", [408, 425, 500, 502, 504, 507, 520, 522, 524, 599])
+def test_a_server_error_while_sending_leaves_the_outcome_unknown(status: int) -> None:
+    """A gateway gave up waiting, or the service failed while answering (a proxy's 52x
+    among them): the tasks may have been created and charged all the same."""
     sending = read_http(status, "", sending=True)
     reading = read_http(status, "", sending=False)
 

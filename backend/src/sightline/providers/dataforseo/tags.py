@@ -21,8 +21,9 @@ from uuid import UUID
 from sightline.providers.contract import Echo
 
 _DIGITS: Final = "0123456789abcdefghijklmnopqrstuvwxyz"
+INSTALLATION: Final = re.compile(r"[a-z0-9]{1,16}")
 _PATTERN: Final = re.compile(
-    r"i:([a-z0-9]{1,16}):t:([0-9a-z]{1,13}):a:([0-9]{1,5}):r:([0-9a-f]{32})"
+    rf"i:({INSTALLATION.pattern}):t:([0-9a-z]{{1,13}}):a:([0-9]{{1,5}}):r:([0-9a-f]{{32}})"
 )
 
 
@@ -38,6 +39,10 @@ def _base36(number: int) -> str:
 
 
 def make_tag(installation: str, task_id: int, attempt: int, run_id: UUID) -> str:
+    """The tag for that attempt at that task. Refuses what `read_tag` could not read back: a
+    task sent with such a tag would be paid for and never matched."""
+    if not INSTALLATION.fullmatch(installation):
+        raise ValueError("an installation is 1 to 16 lowercase letters and digits")
     if not 0 <= attempt <= 99_999:
         raise ValueError("an attempt is 0 to 99999")
     return f"i:{installation}:t:{_base36(task_id)}:a:{attempt}:r:{run_id.hex}"

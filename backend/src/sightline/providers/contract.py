@@ -27,10 +27,11 @@ class Contract(BaseModel):
 class CanonicalRequest(Contract):
     # Our task's id, its run's and which attempt at the task this is, echoed back by the
     # provider (DataForSEO: `tag`) so an answer is matched to the task, checked against its
-    # run, and never taken for a later attempt's. The attempt is set when the task is taken.
+    # run, and never taken for a later attempt's. A workload builds the request without the
+    # attempt; submission sets it, and an adapter sends no request without one.
     task_id: str = Field(min_length=1)
     run_id: UUID
-    attempt: int = Field(default=0, ge=0)
+    attempt: int | None = Field(default=None, ge=1)
     priority: Literal["standard", "high"]
     # What to ask, in the workload's own model. Serialized as that model: as the base class
     # it would be written as an empty object.
@@ -148,17 +149,26 @@ class Limit:
         return self.per_minute - self.burst
 
 
+class GateUnavailableError(Exception):
+    """The call gate could not be asked for a turn. No call may be made; nothing was sent."""
+
+
 class CallGate(Protocol):
-    """Where an adapter waits for its turn to call the provider (docs/21 section 7)."""
+    """Where an adapter waits for its turn to call the provider (docs/21 section 7).
+
+    An adapter reports a call it could not make as `throttled`, never as `rate_limited`: the
+    provider did not see it, and slowing down for it would hold back more calls still.
+    """
 
     async def enter(self, family: str | None, *, within: timedelta) -> bool:
         """Take a turn under the provider's limit on all calls and, when `family` is named,
         under that family's own. False when no turn comes within `within`: then no call may
-        be made."""
+        be made. Raises `GateUnavailableError` when the limits cannot be read."""
         ...
 
     async def slow_down(self) -> None:
-        """The provider said the calls come too fast: fewer for a while."""
+        """The provider itself said the calls come too fast (DataForSEO 40202, HTTP 429):
+        fewer for a while. Raises `GateUnavailableError` when that cannot be recorded."""
         ...
 
 

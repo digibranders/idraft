@@ -98,3 +98,6 @@ def test_a_tag_is_made_only_for_what_it_can_carry() -> None:
         make_tag("prod", -1, 1, RUN)
     with pytest.raises(ValueError, match="attempt"):
         make_tag("prod", 1, 100_000, RUN)
+    for installation in ("", "Prod", "a:b", "x" * 17):
+        with pytest.raises(ValueError, match="installation"):
+            make_tag(installation, 1, 1, RUN)
