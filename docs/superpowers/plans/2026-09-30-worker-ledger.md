@@ -37,7 +37,7 @@ No workload and no provider is registered in production by this plan, so the dep
 - **D6. The worker writes as `app_worker`**, which bypasses row-level security. Every row it writes takes `workspace_id` and `project_id` from the schedule or run it belongs to, never from a message or a provider. Tests connect as that role.
 - **D7. Locks** are Redis keys with a random token, set with `NX` and a TTL, released by a script that deletes only its own token. A tick that outlives its TTL loses the lock and the next holder runs; every tick is safe to run twice (`FOR UPDATE SKIP LOCKED`, idempotency keys).
 - **D8. Workloads and providers plug in.** A workload implements `plan` (schedule to task specs with estimates) and `build_requests` (tasks to provider requests); a provider implements the adapter contract of doc 05. Both are registered by name. The contract types needed for submission are defined now; the rest of doc 05 section 3 arrives with the first real adapter.
-- **D9. Time.** Everything stored is UTC. A schedule's window start is local time in the schedule's zone, computed with `zoneinfo`: a window that does not exist on a spring-forward day starts at the next valid instant, and one that occurs twice starts at the first.
+- **D9. Time.** Everything stored is UTC. A schedule's window start is local time in the schedule's zone, computed with `zoneinfo`: a local time that a spring-forward skips starts later by the size of the gap (02:30 becomes 03:30), and one that occurs twice starts at its first occurrence. A monthly schedule runs on one day of the month, 1 to 28: `ops.schedules` stores no day, so the day is the local day of the schedule's `next_run_at`, and a later day would have no window in some months.
 
 ## File structure
 
@@ -62,7 +62,7 @@ No workload and no provider is registered in production by this plan, so the dep
 
 ### Task 1: The rules that need no I/O
 
-- [ ] Tests first (`tests/domain/`), with Hypothesis where a property says more than examples: every task workload maps to one budget group and every cost workload to one; the next occurrence is strictly after the given instant, falls at the local window time, and is right across both DST changes and for weekly and monthly cadences (a monthly day that a month lacks falls on its last day); missed occurrences are listed oldest first; the stagger offset is stable for a subject, inside the first 80% of the window, and spread; the idempotency key changes with each identity field and the partition month is the window's month; each error kind gives the documented backoff, attempt limit and final status.
+- [ ] Tests first (`tests/domain/`), with Hypothesis where a property says more than examples: every task workload maps to one budget group and every cost workload to one; the next occurrence is strictly after the given instant, falls at the local window time, and is right across both DST changes and for weekly and monthly cadences (a monthly rule on a day later than the 28th is refused); missed occurrences are listed oldest first; the stagger offset is stable for a subject, inside the first 80% of the window, and spread; the idempotency key changes with each identity field and the partition month is the window's month; each error kind gives the documented backoff, attempt limit and final status.
 - [ ] `domain/workloads.py`, `schedules.py`, `tasks.py`, `retries.py`.
 - [ ] Gates, Opus review, fixes, commit.
 
