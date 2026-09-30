@@ -6,7 +6,13 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.domain.retries import JITTER_SHARE, ProviderErrorKind, RetryDecision, decide
+from sightline.domain.retries import (
+    JITTER_SHARE,
+    Backoff,
+    ProviderErrorKind,
+    RetryDecision,
+    decide,
+)
 
 K = ProviderErrorKind
 
@@ -28,10 +34,60 @@ def test_a_rate_limit_backs_off_from_thirty_seconds_and_gives_up_as_failed() -> 
     assert last.reduce_rate
 
 
-def test_a_rate_limit_delay_is_capped_at_fifteen_minutes() -> None:
-    # 30 s doubled five times is 16 minutes: the policy never waits that long.
-    assert decide(K.RATE_LIMITED, attempts=5, jitter=0.0).delay == timedelta(seconds=480)
-    assert all(delay is None or delay <= 900 for delay in _delays(K.RATE_LIMITED, range(1, 7)))
+def test_a_wait_doubles_from_the_first_and_stops_at_its_cap() -> None:
+    """With today's limits no wait reaches its cap, so the cap is shown on a policy that
+    allows more tries."""
+    patient = Backoff(
+        first=timedelta(seconds=30),
+        cap=timedelta(minutes=15),
+        doubles=True,
+        max_attempts=20,
+        exhausted="failed",
+    )
+    waits = [patient.wait(attempts).total_seconds() for attempts in range(1, 9)]
+    assert waits == [30, 60, 120, 240, 480, 900, 900, 900]
+    steady = Backoff(
+        first=timedelta(seconds=5),
+        cap=timedelta(seconds=5),
+        doubles=False,
+        max_attempts=10,
+        exhausted="failed",
+    )
+    assert {steady.wait(attempts) for attempts in range(1, 9)} == {timedelta(seconds=5)}
+
+
+def test_a_task_waits_at_least_as_long_as_the_provider_asks_up_to_the_cap() -> None:
+    def wait(retry_after: timedelta) -> timedelta | None:
+        return decide(K.RATE_LIMITED, attempts=1, jitter=0.0, retry_after=retry_after).delay
+
+    assert wait(timedelta(seconds=90)) == timedelta(seconds=90)
+    # A shorter wait than our own does not shorten ours.
+    assert wait(timedelta(seconds=1)) == timedelta(seconds=30)
+    assert wait(timedelta(seconds=-5)) == timedelta(seconds=30)
+    # A provider cannot park a task for a day.
+    assert wait(timedelta(days=1)) == timedelta(minutes=15)
+    # A task that is not tried again has no wait, whatever the provider said.
+    ended = decide(K.RATE_LIMITED, attempts=6, jitter=0.0, retry_after=timedelta(seconds=90))
+    assert (ended.status, ended.delay) == ("failed", None)
+
+
+def test_the_limit_is_on_the_tasks_tries_whatever_they_failed_with() -> None:
+    """The ledger keeps one count of attempts. A task that waited on concurrency four times
+    and then times out has used the four tries provider trouble allows."""
+    assert decide(K.CONCURRENCY, attempts=4, jitter=0.0).status == "pending"
+    assert decide(K.TIMEOUT, attempts=5, jitter=0.0).status == "dead"
+    assert decide(K.RATE_LIMITED, attempts=5, jitter=0.0).status == "pending"
+    # A result that expired is asked for again only after a single submission.
+    assert decide(K.NOT_FOUND_EXPIRED, attempts=3, jitter=0.0).status == "dead"
+
+
+def test_a_kind_may_be_given_by_its_name() -> None:
+    assert decide("timeout", attempts=1, jitter=0.0) == decide(K.TIMEOUT, attempts=1, jitter=0.0)  # type: ignore[arg-type]
+    assert decide("not_found_expired", attempts=1, jitter=0.0).status == "pending"  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="not a failure"):
+        decide("empty_result", attempts=1, jitter=0.0)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="not a valid ProviderErrorKind"):
+        decide("no_such_kind", attempts=1, jitter=0.0)  # type: ignore[arg-type]
 
 
 def test_a_concurrency_error_waits_five_seconds_up_to_ten_times() -> None:
@@ -75,6 +131,9 @@ def test_jitter_adds_up_to_a_fifth_so_tasks_do_not_return_together() -> None:
     assert base == timedelta(seconds=60)
     assert most is not None
     assert base < most < base * (1 + JITTER_SHARE)
+    half = decide(K.TIMEOUT, attempts=1, jitter=0.5).delay
+    assert half is not None
+    assert half.total_seconds() == pytest.approx(66)
 
 
 @given(

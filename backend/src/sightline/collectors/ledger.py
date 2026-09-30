@@ -44,6 +44,7 @@ TERMINAL_STATUSES = ("ingested", "failed", "dead", "cancelled", "skipped_cached"
 _FAILED_STATUSES = ("failed", "dead")
 
 Priority = Literal["high", "standard", "low"]
+Trigger = Literal["schedule", "manual", "backfill", "retry"]
 CostSource = Literal["provider_reported", "computed_from_tokens", "price_book_estimate"]
 
 
@@ -64,7 +65,7 @@ class NewRun:
     workload: TaskWorkload
     window_start: datetime
     window_end: datetime
-    trigger: Literal["schedule", "manual", "backfill", "retry"]
+    trigger: Trigger
     config_snapshot: Mapping[str, Any]
 
 

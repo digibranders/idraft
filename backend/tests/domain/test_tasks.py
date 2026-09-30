@@ -3,13 +3,16 @@
 from datetime import UTC, datetime, timedelta, timezone
 from itertools import pairwise
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 from sightline.domain.tasks import (
     REPLICATE_SPACING,
+    STAGGER_SHARE,
     idempotency_key,
     partition_month,
+    replicate_spacing,
     scheduled_for,
     stagger_offset,
 )
@@ -53,6 +56,15 @@ def test_a_missing_field_is_not_the_same_as_an_empty_or_zero_one() -> None:
     assert _key(engine_code=None, location_id=1) != _key(engine_code="1", location_id=None)
     assert _key(location_id=None, replicate_index=12) != _key(location_id=1, replicate_index=2)
     assert _key(depth=None) != _key(depth=0)
+    assert _key(location_id=None) != _key(location_id=0)
+    assert _key(engine_code=None) != _key(engine_code="")
+
+
+def test_a_separator_inside_a_field_does_not_make_two_tasks_one() -> None:
+    """A subject id is free text. Whatever it contains, it stays one field."""
+    assert _key(subject_id="x|y", engine_code=None) != _key(subject_id="x", engine_code="y|")
+    assert _key(subject_id="x|1:y", engine_code=None) != _key(subject_id="x", engine_code="y")
+    assert _key(subject_type="a", subject_id="bc") != _key(subject_type="ab", subject_id="c")
 
 
 @given(
@@ -79,6 +91,19 @@ def test_the_month_is_the_utc_month_at_a_boundary() -> None:
     )
 
 
+def test_a_time_without_a_zone_is_refused() -> None:
+    """It would be read in the zone of the machine, and a run's month would depend on it."""
+    with pytest.raises(ValueError, match="aware"):
+        partition_month(datetime(2026, 10, 1, 2, 0))
+    with pytest.raises(ValueError, match="aware"):
+        scheduled_for(
+            window_start=datetime(2026, 10, 1, 2, 0),
+            subject_id="keyword-1",
+            workload="seo_rank",
+            window_hours=6,
+        )
+
+
 @given(subject=st.uuids().map(str), hours=st.integers(1, 24))
 def test_a_subject_is_checked_at_the_same_place_in_every_window(subject: str, hours: int) -> None:
     offset = stagger_offset(subject_id=subject, workload="seo_rank", window_hours=hours)
@@ -98,6 +123,9 @@ def test_subjects_are_spread_over_the_window_and_workloads_differ() -> None:
     for offset in offsets:
         quarters[int(offset.total_seconds() // (span / 4))] += 1
     assert all(400 <= count <= 600 for count in quarters), quarters
+    # The spread reaches the end of the four fifths and stops there.
+    assert STAGGER_SHARE == 0.8
+    assert 0.79 * 6 * 3600 < max(offsets).total_seconds() < span
     assert stagger_offset(subject_id="k", workload="seo_rank", window_hours=6) != stagger_offset(
         subject_id="k", workload="ai_mode_keyword", window_hours=6
     )
@@ -112,14 +140,73 @@ def test_replicates_of_one_subject_are_twenty_minutes_apart() -> None:
             workload="ai_prompt",
             window_hours=8,
             replicate_index=index,
+            replicates=3,
         )
         for index in (1, 2, 3)
     ]
     assert times[0] == start + stagger_offset(
-        subject_id="prompt-1", workload="ai_prompt", window_hours=8
+        subject_id="prompt-1", workload="ai_prompt", window_hours=8, replicates=3
     )
     assert [later - earlier for earlier, later in pairwise(times)] == [
         REPLICATE_SPACING,
         REPLICATE_SPACING,
     ]
     assert timedelta(minutes=20) == REPLICATE_SPACING
+
+
+def test_replicates_move_closer_when_the_window_is_short() -> None:
+    # Six replicates 20 minutes apart need 100 minutes; an hour's window has 48 to spread over.
+    assert replicate_spacing(window_hours=1, replicates=6) == timedelta(minutes=8)
+    assert replicate_spacing(window_hours=1, replicates=2) == timedelta(minutes=20)
+    assert replicate_spacing(window_hours=8, replicates=6) == REPLICATE_SPACING
+
+
+@given(
+    subject=st.uuids().map(str),
+    hours=st.integers(1, 24),
+    replicates=st.integers(1, 12),
+)
+def test_every_replicate_is_due_inside_the_part_of_the_window_tasks_are_spread_over(
+    subject: str, hours: int, replicates: int
+) -> None:
+    start = datetime(2026, 9, 30, 1, 0, tzinfo=UTC)
+    times = [
+        scheduled_for(
+            window_start=start,
+            subject_id=subject,
+            workload="ai_prompt",
+            window_hours=hours,
+            replicate_index=index,
+            replicates=replicates,
+        )
+        for index in range(1, replicates + 1)
+    ]
+    assert times == sorted(set(times))
+    assert start <= times[0]
+    # The last fifth stays free for retries, however many replicates there are.
+    assert times[-1] < start + timedelta(hours=hours) * STAGGER_SHARE
+
+
+@pytest.mark.parametrize(
+    ("arguments", "reason"),
+    [
+        ({"window_hours": 0}, "at least one hour"),
+        ({"window_hours": -1}, "at least one hour"),
+        ({"replicates": 0}, "the replicate index is 1 to"),
+        ({"replicate_index": 0}, "the replicate index is 1 to"),
+        ({"replicate_index": 4, "replicates": 3}, "the replicate index is 1 to"),
+    ],
+)
+def test_a_window_or_a_replicate_that_cannot_be_is_refused(
+    arguments: dict[str, int], reason: str
+) -> None:
+    values: dict[str, int] = {"window_hours": 6, "replicate_index": 1, "replicates": 1}
+    with pytest.raises(ValueError, match="asked at least once"):
+        replicate_spacing(window_hours=6, replicates=0)
+    with pytest.raises(ValueError, match=reason):
+        scheduled_for(
+            window_start=datetime(2026, 9, 30, 1, 0, tzinfo=UTC),
+            subject_id="prompt-1",
+            workload="ai_prompt",
+            **{**values, **arguments},
+        )

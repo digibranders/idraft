@@ -80,8 +80,11 @@ Tasks are spread across the window so provider load, our ingest load, and databa
 ```
 offset_seconds(task) = hash32(subject_id || workload) mod (window_hours * 3600 * 0.8)
 scheduled_for        = window_start + offset_seconds + replicate_offset
-replicate_offset     = (replicate_index - 1) * 20 minutes            (AI only)
+replicate_offset     = (replicate_index - 1) * spacing               (AI only)
+spacing              = min(20 minutes, stagger span / replicates)
 ```
+
+With replicates, the first offset is taken modulo the stagger span less the room the later replicates need, so the last replicate of a subject is still due inside the first 80% of the window. In a window too short to hold the replicates 20 minutes apart they move closer together.
 
 - Using a stable hash of the subject means **a keyword is checked at about the same local time every day**, which removes time-of-day variation from its rank history.
 - The last 20% of the window is kept free for retries.
@@ -92,6 +95,8 @@ replicate_offset     = (replicate_index - 1) * 20 minutes            (AI only)
 idempotency_key = sha256( run_id | subject_type | subject_id | engine_code | location_id | replicate_index | depth )
 created_at      = date_trunc('month', run.window_start)   -- places a run's tasks in one partition
 ```
+
+Each field is written with its length in front (`7:seo_abc`) and a missing field as `-`, so a subject id that contains the separator stays one field and no engine is not the same as an empty engine code.
 
 Because `ops.collection_tasks` is partitioned by `created_at` and unique constraints on partitioned tables must include the partition key, the planner sets `created_at` deterministically from the run's window. A second planning attempt for the same run produces the same keys in the same partition and inserts nothing.
 
@@ -212,6 +217,8 @@ Retry policy is decided by the error kind returned from the adapter ([05-provide
 | `schema_mismatch` (normalize) | no fetch retry; re-ingest after parser fix | | | `failed` with raw kept; parser owners alerted |
 | `empty_result` | not an error | | | `ingested` with status `empty` |
 
+- **How attempts are counted.** `attempts` is one number per task: every try that counted, whatever it failed with. A kind's "max attempts" is the number of tries after which a task that fails with that kind is ended, not a count of failures of that kind. A task that waited on `concurrency` four times and then hits a `timeout` is `dead` at once. `auth`, `payment` and `account_limit` do not count: a paused provider is not the task's failure.
+- **Backoff.** In `2^n`, n is the number of earlier tries, so the first wait is the base: 30, 60, 120, 240, 480 seconds for `rate_limited` and 60, 120, 240 seconds for provider trouble. With these limits no wait reaches its cap; the caps are the bound that holds if a limit is raised. Jitter adds up to 20%. When the provider names a wait (`retry_after_ms`), the task waits at least that long, up to the cap.
 - Retry state lives in `ops.collection_tasks` (`attempts`, `next_attempt_at`, `last_error_*`). A retry puts the task back to `pending` with `next_attempt_at`; the dispatcher picks it up. A retried SERP task submits a **new** provider task (new provider id), and the old one is recorded in `ops.task_attempts` for cost reconciliation.
 - **Submit outcome unknown.** If a `submit_batch` call times out or the connection drops after the request was sent, the provider may have accepted (and charged for) the tasks. The tasks move to `submit_unknown`, never straight back to `pending`. The reconciler resolves them: it lists recently created provider tasks (DataForSEO `id_list` for the endpoint and time range, 10 calls per minute, or `tasks_ready` once they complete) and matches them by our `tag`. Matches become `submitted` with their provider task id; tasks still unmatched after 15 minutes return to `pending` for a new submission. Spike S-01 verifies that `id_list` returns the `tag` (if not, matching uses keyword, location, device and submission time). This rule is what makes provider submission at-most-once in practice.
 - **Dead letters** are tasks in status `dead`. They are listed in the Operations screen with error, attempts and raw error body, and can be requeued manually (`POST /v1/workspaces/{workspace_id}/tasks/{task_id}/requeue`, or in bulk `POST /v1/workspaces/{workspace_id}/tasks/requeue`; permission `tasks:requeue`; doc 19 section 3.11.4). The route is under the workspace path so the tenancy rule of doc 24 section 4 holds.

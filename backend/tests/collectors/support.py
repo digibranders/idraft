@@ -88,13 +88,15 @@ async def make_schedule(
     window_start_local: str = "02:00",
     window_hours: int = 6,
     weekday: int | None = None,
+    month_day: int | None = None,
     is_active: bool = True,
 ) -> uuid.UUID:
     row = await fetchrow(
         pg,
         "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone, "
-        "window_start_local, window_hours, weekday, priority, is_active, next_run_at) "
-        "VALUES ($1, $2, $3, 'Daily ranks', $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
+        "window_start_local, window_hours, weekday, month_day, priority, is_active, "
+        "next_run_at) "
+        "VALUES ($1, $2, $3, 'Ranks', $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id",
         project.workspace_id,
         project.id,
         workload,
@@ -103,6 +105,7 @@ async def make_schedule(
         time.fromisoformat(window_start_local),
         window_hours,
         weekday,
+        month_day,
         priority,
         is_active,
         next_run_at,

@@ -25,10 +25,13 @@ class ProviderErrorKind(StrEnum):
     EMPTY_RESULT = "empty_result"
 
 
+RetryStatus = Literal["pending", "failed", "dead"]
+
+
 @dataclass(frozen=True, slots=True)
 class RetryDecision:
     # `pending`: try again, after `delay` if there is one. `failed` and `dead` are final.
-    status: Literal["pending", "failed", "dead"]
+    status: RetryStatus
     delay: timedelta | None = None
     # The provider refuses everything (credentials, balance, account limit): stop calling it.
     pause_provider: bool = False
@@ -39,7 +42,7 @@ class RetryDecision:
 
 
 @dataclass(frozen=True, slots=True)
-class _Backoff:
+class Backoff:
     first: timedelta
     cap: timedelta
     doubles: bool
@@ -47,13 +50,21 @@ class _Backoff:
     exhausted: Literal["failed", "dead"]
     reduce_rate: bool = False
 
+    def wait(self, attempts: int) -> timedelta:
+        """The wait after the `attempts`-th try failed, before jitter: `first` after the first
+        failure, doubling from there if the policy doubles, and never more than `cap`."""
+        base = self.first * (2 ** (attempts - 1)) if self.doubles else self.first
+        return min(base, self.cap)
+
 
 _MINUTE = timedelta(minutes=1)
-_PROVIDER_TROUBLE = _Backoff(
+_PROVIDER_TROUBLE = Backoff(
     first=_MINUTE, cap=30 * _MINUTE, doubles=True, max_attempts=4, exhausted="dead"
 )
-_BACKOFF: dict[ProviderErrorKind, _Backoff] = {
-    ProviderErrorKind.RATE_LIMITED: _Backoff(
+# With these limits no wait reaches its cap (the longest are 8 and 4 minutes). The caps are the
+# bound that holds if a limit is ever raised.
+_BACKOFF: dict[ProviderErrorKind, Backoff] = {
+    ProviderErrorKind.RATE_LIMITED: Backoff(
         first=timedelta(seconds=30),
         cap=15 * _MINUTE,
         doubles=True,
@@ -61,7 +72,7 @@ _BACKOFF: dict[ProviderErrorKind, _Backoff] = {
         exhausted="failed",
         reduce_rate=True,
     ),
-    ProviderErrorKind.CONCURRENCY: _Backoff(
+    ProviderErrorKind.CONCURRENCY: Backoff(
         first=timedelta(seconds=5),
         cap=timedelta(seconds=5),
         doubles=False,
@@ -81,13 +92,28 @@ JITTER_SHARE = 0.2
 
 
 def decide(
-    kind: ProviderErrorKind, *, attempts: int, jitter: float, window_open: bool = True
+    kind: ProviderErrorKind,
+    *,
+    attempts: int,
+    jitter: float,
+    window_open: bool = True,
+    retry_after: timedelta | None = None,
 ) -> RetryDecision:
     """What to do with a task whose `attempts`-th attempt (counting this one) failed with `kind`.
 
+    `attempts` counts every try of the task that counted, whatever each one failed with: the
+    ledger keeps one number. A kind's limit is therefore the number of tries after which a task
+    that fails with that kind is ended, not the number of failures of that kind. A task that
+    waited on concurrency four times and then times out is `dead` at once, and a result that
+    expired is asked for again only if the task had been submitted once.
+
     `jitter` is a number in [0, 1) the caller draws at random; it is a parameter so the rule
     stays a pure function. `window_open` says whether the task's run can still take new work.
+    `retry_after` is the wait the provider asked for, if it named one: the task waits at least
+    that long, up to the cap of the kind's policy. What a provider says does not park a task
+    for longer than we would ever wait.
     """
+    kind = ProviderErrorKind(kind)
     if attempts < 1:
         raise ValueError("attempts counts the attempt that just failed, so it is at least 1")
     if not 0 <= jitter < 1:
@@ -106,8 +132,7 @@ def decide(
     backoff = _BACKOFF[kind]
     if attempts >= backoff.max_attempts:
         return RetryDecision(status=backoff.exhausted, reduce_rate=backoff.reduce_rate)
-    base = backoff.first * (2 ** (attempts - 1)) if backoff.doubles else backoff.first
-    delay = min(base, backoff.cap)
-    return RetryDecision(
-        status="pending", delay=delay * (1 + JITTER_SHARE * jitter), reduce_rate=backoff.reduce_rate
-    )
+    delay = backoff.wait(attempts) * (1 + JITTER_SHARE * jitter)
+    if retry_after is not None:
+        delay = max(delay, min(retry_after, backoff.cap))
+    return RetryDecision(status="pending", delay=delay, reduce_rate=backoff.reduce_rate)

@@ -255,6 +255,7 @@ schedules = Table(
     Column("window_start_local", Time, nullable=False, server_default=FetchedValue()),
     Column("window_hours", SmallInteger, nullable=False, server_default=FetchedValue()),
     Column("weekday", SmallInteger),
+    Column("month_day", SmallInteger),
     Column("priority", Text, nullable=False, server_default=FetchedValue()),
     Column("provider_mode", Text, nullable=False, server_default=FetchedValue()),
     Column("selector", JSONB, nullable=False, server_default=FetchedValue()),

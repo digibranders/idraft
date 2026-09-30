@@ -1454,13 +1454,16 @@ CREATE TABLE ops.schedules (
     window_start_local time NOT NULL DEFAULT '02:00',
     window_hours    smallint NOT NULL DEFAULT 6 CHECK (window_hours BETWEEN 1 AND 24),  -- stagger tasks across this window
     weekday         smallint CHECK (weekday BETWEEN 0 AND 6),    -- weekly cadence
+    month_day       smallint CHECK (month_day BETWEEN 1 AND 28), -- monthly cadence; every month has these days
     priority        text NOT NULL DEFAULT 'standard' CHECK (priority IN ('high','standard','low')),
     provider_mode   text NOT NULL DEFAULT 'standard_queue' CHECK (provider_mode IN ('standard_queue','priority_queue','live')),
     selector        jsonb NOT NULL DEFAULT '{}',   -- which keywords/prompts: {"groups":[...],"panels":[...],"all":true}
     is_active       boolean NOT NULL DEFAULT true,
     next_run_at     timestamptz NOT NULL,
     last_run_id     uuid,
-    created_at      timestamptz NOT NULL DEFAULT now()
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT schedules_weekly_names_its_weekday CHECK (cadence <> 'weekly' OR weekday IS NOT NULL),
+    CONSTRAINT schedules_monthly_names_its_day CHECK (cadence <> 'monthly' OR month_day IS NOT NULL)
 );
 CREATE INDEX ON ops.schedules (next_run_at) WHERE is_active;
 

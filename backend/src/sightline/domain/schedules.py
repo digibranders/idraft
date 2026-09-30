@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # A month has at least this many days, so a rule on a later day would have no window some months.
 MONTH_DAY_MAX = 28
@@ -34,6 +34,8 @@ class ScheduleRule:
     month_day: int | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.cadence, Cadence):
+            raise ValueError("the cadence is daily, weekly or monthly")
         if self.window_start_local.tzinfo is not None:
             raise ValueError("the window start is a local time and carries no zone")
         if (self.cadence is Cadence.WEEKLY) != (self.weekday is not None):
@@ -44,13 +46,21 @@ class ScheduleRule:
             raise ValueError("weekday is 0 (Sunday) to 6 (Saturday)")
         if self.month_day is not None and not 1 <= self.month_day <= MONTH_DAY_MAX:
             raise ValueError(f"the day of the month is 1 to {MONTH_DAY_MAX}")
-        ZoneInfo(self.timezone)
+        try:
+            ZoneInfo(self.timezone)
+        except (ZoneInfoNotFoundError, ValueError, OSError) as error:
+            raise ValueError(f"unknown time zone {self.timezone!r}") from error
 
 
 def _instant(rule: ScheduleRule, day: date) -> datetime:
-    """The window start on this local day, as a UTC instant."""
-    local = datetime.combine(day, rule.window_start_local, tzinfo=ZoneInfo(rule.timezone))
-    return local.astimezone(UTC)
+    """The window start on this local day, as a UTC instant.
+
+    `fold=0` is what gives the two clock-change rules: a time that does not exist is read with
+    the offset from before the change, which lands after it, and a time that occurs twice is
+    its first occurrence. A rule's own `fold` has no say in that.
+    """
+    at = rule.window_start_local.replace(fold=0)
+    return datetime.combine(day, at, tzinfo=ZoneInfo(rule.timezone)).astimezone(UTC)
 
 
 def _falls_on(rule: ScheduleRule, day: date) -> bool:
@@ -66,9 +76,12 @@ def next_occurrence(rule: ScheduleRule, after: datetime) -> datetime:
     """The first window start strictly after `after`."""
     if after.tzinfo is None:
         raise ValueError("`after` must be an aware datetime")
+    # From the day before: where clocks go forward over midnight (23:00 becomes 00:00 in
+    # Nuuk), a window late on one local day starts early on the next.
     day = after.astimezone(ZoneInfo(rule.timezone)).date() - timedelta(days=1)
-    # A rule has a window at least every 31 days; the two extra cover the day before and a gap.
-    for _ in range(34):
+    # A rule has a window at least every 31 days, so with the day before and the day of `after`
+    # itself the window is within 33 days.
+    for _ in range(33):
         if _falls_on(rule, day):
             instant = _instant(rule, day)
             if instant > after:
