@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import re
 import sys
+from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
@@ -124,6 +125,11 @@ class Settings(_DatabaseSettings):
     email_api_key: SecretStr | None = None
     email_from: str = DEFAULT_EMAIL_FROM
     breached_password_check: bool = True
+    # The worker only. How many handlers of each queue run at once (docs/22 section 4.4).
+    collect_concurrency: int = Field(default=8, ge=1, le=64)
+    process_concurrency: int = Field(default=4, ge=1, le=32)
+    # The worker touches this file while it is healthy; the container healthcheck reads its age.
+    heartbeat_file: Path | None = None
 
     _check_origin = field_validator("app_origin")(_validate_origin)
 
