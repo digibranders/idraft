@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
-from sightline.collectors.ledger import NewRun, NewTask
+from sightline.collectors.ledger import NewRun, NewTask, Trigger
 from sightline.domain.workloads import TaskWorkload
 from tests.api.auth.support import fetch, fetchrow, make_workspace
 from tests.api.workspaces.support import make_project
@@ -33,6 +33,13 @@ async def make_tenant(pg: PostgresServer) -> Project:
     return Project(workspace_id=workspace.id, id=await make_project(pg, workspace.id))
 
 
+async def another_project(pg: PostgresServer, project: Project) -> Project:
+    """A second project in the same workspace."""
+    return Project(
+        workspace_id=project.workspace_id, id=await make_project(pg, project.workspace_id)
+    )
+
+
 def new_run(
     project: Project,
     *,
@@ -40,7 +47,10 @@ def new_run(
     workload: TaskWorkload = TaskWorkload.SEO_RANK,
     window_start: datetime = NOW,
     hours: int = 6,
+    trigger: Trigger | None = None,
 ) -> NewRun:
+    if trigger is None:
+        trigger = "schedule" if schedule_id is not None else "manual"
     return NewRun(
         workspace_id=project.workspace_id,
         project_id=project.id,
@@ -48,7 +58,7 @@ def new_run(
         workload=workload,
         window_start=window_start,
         window_end=window_start + timedelta(hours=hours),
-        trigger="schedule" if schedule_id is not None else "manual",
+        trigger=trigger,
         config_snapshot={"adapter": 1},
     )
 
@@ -124,22 +134,30 @@ async def seed_run(
     window_start: datetime = NOW,
     provider: str = "fake",
     endpoint: str = "serp",
+    workload: TaskWorkload = TaskWorkload.SEO_RANK,
+    trigger: Trigger | None = None,
+    estimate: str = "0",
 ) -> uuid.UUID:
     """A running run with `tasks` pending tasks, made through the ledger itself."""
-    run = new_run(project, schedule_id=schedule_id, window_start=window_start)
+    run = new_run(
+        project,
+        schedule_id=schedule_id,
+        window_start=window_start,
+        workload=workload,
+        trigger=trigger,
+    )
     async with sessions() as db, db.begin():
         run_id = await ledger.create_run(db, run, now=window_start)
         assert run_id is not None
         await ledger.insert_tasks(
             db,
             run_id,
-            run,
             [
                 new_task(number, scheduled_for=scheduled_for, provider=provider, endpoint=endpoint)
                 for number in range(tasks)
             ],
         )
-        await ledger.start_run(db, run_id, tasks_total=tasks, estimated_cost_usd=Decimal("0"))
+        await ledger.start_run(db, run_id, tasks_total=tasks, estimated_cost_usd=Decimal(estimate))
     return run_id
 
 
@@ -161,19 +179,22 @@ async def spend(
     *,
     workload: str = "seo_rank",
     when: datetime = NOW,
+    run_id: uuid.UUID | None = None,
 ) -> None:
     """A cost event of `amount` dollars for the project."""
     await fetch(
         pg,
         "INSERT INTO ops.provider_cost_events (occurred_at, workspace_id, project_id, "
-        "provider_code, endpoint, workload, channel, cost_usd, cost_source, billing_period) "
-        "VALUES ($1, $2, $3, 'fake', 'serp', $4, 'seo', $5, 'provider_reported', $6)",
+        "provider_code, endpoint, workload, channel, cost_usd, cost_source, billing_period, "
+        "run_id) "
+        "VALUES ($1, $2, $3, 'fake', 'serp', $4, 'seo', $5, 'provider_reported', $6, $7)",
         when,
         project.workspace_id,
         project.id,
         workload,
         Decimal(amount),
-        when.date().replace(day=1),
+        when.astimezone(UTC).date().replace(day=1),
+        run_id,
     )
 
 

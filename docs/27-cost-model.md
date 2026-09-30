@@ -223,7 +223,8 @@ FROM (
 
 | Mechanism | Behavior |
 |---|---|
-| Pre-flight estimate | Every planned run gets `estimated_cost_usd` from the price book before any task is submitted |
+| Pre-flight estimate | Every planned run gets `estimated_cost_usd` from the price book before any task is submitted. The run is judged against month-to-date spend plus what the runs already under way are still expected to spend (their estimate less their cost so far) plus its own estimate, so two runs planned minutes apart cannot both take the same room. Planning in one workspace takes its turn (an advisory lock on the workspace) |
+| Dispatch check | Before tasks are sent, the budget is checked again with no estimate: a budget used up since planning holds the project's remaining tasks of that group back. They stay `pending` and go out when there is budget again, or are cancelled 24 hours after the window |
 | Soft limit (default 80%) | Notification to admins and billing role; runs continue |
 | Hard limit | New runs whose task workload maps to the exhausted budget group (`seo_rank`, `ai_prompt`, `keyword_research`, `ai_benchmark`, `extraction_llm`, `first_party`, or `all`; mapping in doc 04 section 11.4.1) are created with status `budget_blocked` and not submitted; manual runs are refused with a clear error; already-submitted tasks complete |
 | Forecast | Month-end projection = month-to-date actual + planned runs for the rest of the month (from schedules and active subjects) |

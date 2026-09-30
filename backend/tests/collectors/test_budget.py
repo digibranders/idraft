@@ -1,15 +1,26 @@
 """The budget check (docs/27-cost-model.md section 10.3). As `app_worker`."""
 
-from datetime import timedelta
+import asyncio
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import budget
-from sightline.collectors.budget import BudgetVerdict
+from sightline.collectors import budget, ledger
+from sightline.collectors.budget import BudgetVerdict, SpendMemo
 from sightline.domain.workloads import TaskWorkload
-from tests.collectors.support import NOW, Project, make_budget, make_tenant, spend
+from tests.api.auth.support import execute
+from tests.collectors.support import (
+    NOW,
+    Project,
+    another_project,
+    make_budget,
+    make_tenant,
+    new_run,
+    seed_run,
+    spend,
+)
 from tests.conftest import PostgresServer
 
 Ledger = async_sessionmaker[AsyncSession]
@@ -18,17 +29,23 @@ Ledger = async_sessionmaker[AsyncSession]
 async def _check(
     sessions: Ledger,
     project: Project,
-    estimate: str = "0",
+    estimate: str | None = None,
     workload: TaskWorkload = TaskWorkload.SEO_RANK,
+    *,
+    now: datetime = NOW,
+    memo: SpendMemo | None = None,
 ) -> BudgetVerdict:
+    """With an estimate, the question asked when a run is planned; without, when tasks are
+    about to be sent."""
     async with sessions() as db, db.begin():
         return await budget.check(
             db,
             workspace_id=project.workspace_id,
             project_id=project.id,
             workload=workload,
-            estimate=Decimal(estimate),
-            now=NOW,
+            estimate=None if estimate is None else Decimal(estimate),
+            now=now,
+            memo=memo,
         )
 
 
@@ -75,6 +92,7 @@ async def test_a_limit_of_zero_allows_nothing(worker_db: Ledger, migrated: Postg
     project = await make_tenant(migrated)
     limit = await make_budget(migrated, project, "0")
     assert (await _check(worker_db, project)).blocked_by == limit
+    assert (await _check(worker_db, project, "0")).blocked_by == limit
     assert (await _check(worker_db, project, "0.0006")).blocked_by == limit
 
 
@@ -126,7 +144,7 @@ async def test_a_workspace_budget_and_a_project_budget_both_apply(
     worker_db: Ledger, migrated: PostgresServer
 ) -> None:
     first = await make_tenant(migrated)
-    second = Project(workspace_id=first.workspace_id, id=await _another_project(migrated, first))
+    second = await another_project(migrated, first)
     workspace_wide = await make_budget(migrated, first, "10.00")
     for_first = await make_budget(migrated, first, "3.00", for_project=True)
     await spend(migrated, first, "2")
@@ -139,12 +157,6 @@ async def test_a_workspace_budget_and_a_project_budget_both_apply(
     # The second project has no budget of its own; the workspace's stops it at 10.
     assert (await _check(worker_db, second, "3")).allowed
     assert (await _check(worker_db, second, "3.01")).blocked_by == workspace_wide
-
-
-async def _another_project(pg: PostgresServer, project: Project):  # type: ignore[no-untyped-def]
-    from tests.api.workspaces.support import make_project
-
-    return await make_project(pg, project.workspace_id)
 
 
 async def test_a_budget_that_only_alerts_never_blocks(
@@ -161,10 +173,17 @@ async def test_a_budget_that_only_alerts_never_blocks(
 
 
 @pytest.mark.parametrize(
-    ("spent", "estimate", "past"), [("7", "0.99", False), ("7", "1", True), ("8", "0", True)]
+    ("spent", "estimate", "past"),
+    [
+        ("7", "0.99", False),
+        ("7", "1", True),
+        ("8", "0", True),
+        ("7.99", None, False),
+        ("8", None, True),
+    ],
 )
 async def test_the_soft_limit_is_reported_and_stops_nothing(
-    worker_db: Ledger, migrated: PostgresServer, spent: str, estimate: str, past: bool
+    worker_db: Ledger, migrated: PostgresServer, spent: str, estimate: str | None, past: bool
 ) -> None:
     project = await make_tenant(migrated)
     limit = await make_budget(migrated, project, "10.00", soft_limit_pct=80)
@@ -174,3 +193,119 @@ async def test_the_soft_limit_is_reported_and_stops_nothing(
 
     assert verdict.allowed
     assert verdict.past_soft_limit == ((limit,) if past else ())
+
+
+async def test_a_run_is_judged_with_what_the_runs_under_way_will_still_spend(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """A run planned a minute ago has sent nothing yet. Judged by spend alone, the next one
+    would find the budget almost untouched and both would be let through."""
+    project = await make_tenant(migrated)
+    limit = await make_budget(migrated, project, "10.00")
+    first = await seed_run(worker_db, project, 1, estimate="8")
+
+    # 8 is spoken for: a second run of 8 does not fit, one of 2 does.
+    assert (await _check(worker_db, project, "8")).blocked_by == limit
+    assert (await _check(worker_db, project, "2.01")).blocked_by == limit
+    assert (await _check(worker_db, project, "2")).allowed
+    # Tasks of the run under way are still sent: the limit itself is not reached.
+    assert (await _check(worker_db, project)).allowed
+
+    # As the run spends, its estimate is not counted a second time.
+    await spend(migrated, project, "5", run_id=first)
+    assert (await _check(worker_db, project, "2")).allowed
+    assert (await _check(worker_db, project, "2.01")).blocked_by == limit
+    # A run that cost more than it estimated commits nothing further.
+    await spend(migrated, project, "4", run_id=first)
+    assert (await _check(worker_db, project, "1")).allowed
+    assert (await _check(worker_db, project, "1.01")).blocked_by == limit
+
+
+async def test_only_runs_the_budget_covers_are_counted_as_under_way(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    sibling = await another_project(migrated, project)
+    await make_budget(migrated, project, "10.00", for_project=True)
+    # Another project, another group, another workspace, and a run that has ended.
+    await seed_run(worker_db, sibling, 1, estimate="9")
+    await seed_run(worker_db, project, 1, estimate="9", workload=TaskWorkload.AI_PROMPT)
+    await seed_run(worker_db, await make_tenant(migrated), 1, estimate="9")
+    ended = await seed_run(worker_db, project, 1, estimate="9")
+    await execute(
+        migrated, "UPDATE ops.collection_runs SET status = 'completed' WHERE id = $1", ended
+    )
+
+    assert (await _check(worker_db, project, "10")).allowed
+
+
+async def test_two_runs_planned_at_once_cannot_both_take_the_same_room(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """Planning in one workspace takes its turn. The second planner reads the budget after
+    the first has started its run."""
+    project = await make_tenant(migrated)
+    limit = await make_budget(migrated, project, "10.00")
+    checked = asyncio.Event()
+    verdicts: list[BudgetVerdict] = []
+
+    async def plan(*, first: bool) -> None:
+        run = new_run(project)
+        async with worker_db() as db, db.begin():
+            run_id = await ledger.create_run(db, run, now=NOW)
+            assert run_id is not None
+            verdict = await budget.check(
+                db,
+                workspace_id=project.workspace_id,
+                project_id=project.id,
+                workload=run.workload,
+                estimate=Decimal("8"),
+                now=NOW,
+            )
+            if first:
+                checked.set()
+                # Long enough for the second planner to reach the budget and have to wait.
+                await asyncio.sleep(0.5)
+            verdicts.append(verdict)
+            if verdict.allowed:
+                await ledger.start_run(db, run_id, tasks_total=0, estimated_cost_usd=Decimal("8"))
+
+    async def second() -> None:
+        await checked.wait()
+        await plan(first=False)
+
+    await asyncio.gather(plan(first=True), second())
+
+    assert [verdict.blocked_by for verdict in verdicts] == [None, limit]
+
+
+async def test_spend_is_read_once_in_a_tick_that_asks_about_many_projects(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    sibling = await another_project(migrated, project)
+    limit = await make_budget(migrated, project, "10.00")
+    await spend(migrated, project, "9")
+    memo: SpendMemo = {}
+
+    assert (await _check(worker_db, project, memo=memo)).allowed
+    # Spent since, but this tick has its answer: every project is judged on the same figure.
+    await spend(migrated, sibling, "5")
+    assert (await _check(worker_db, sibling, memo=memo)).allowed
+    assert list(memo.values()) == [Decimal("9.000000")]
+
+    assert (await _check(worker_db, sibling, memo={})).blocked_by == limit
+
+
+async def test_the_month_is_the_utc_month_whatever_zone_the_time_is_given_in(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    limit = await make_budget(migrated, project, "1.00")
+    await spend(migrated, project, "1")
+    india = timezone(timedelta(hours=5, minutes=30))
+
+    # The same instant, written in another zone where it may already be the next day.
+    assert (await _check(worker_db, project, now=NOW.astimezone(india))).blocked_by == limit
+    with pytest.raises(ValueError, match="aware"):
+        await _check(worker_db, project, now=NOW.replace(tzinfo=None))

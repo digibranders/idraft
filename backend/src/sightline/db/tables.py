@@ -279,7 +279,7 @@ collection_runs = Table(
     Column("trigger", Text, nullable=False),
     Column("status", Text, nullable=False),
     Column("status_reason", Text),
-    Column("blocked_by_budget_id", Uuid, ForeignKey(budgets.c.id)),
+    Column("blocked_by_budget_id", Uuid, ForeignKey(budgets.c.id, ondelete="SET NULL")),
     Column("created_by_type", Text),
     Column("created_by_id", Text),
     Column("origin_request_id", Text),
@@ -291,11 +291,6 @@ collection_runs = Table(
     Column("config_snapshot", JSONB, nullable=False),
     _created_at(),
     Column("completed_at", DateTime(timezone=True)),
-    UniqueConstraint(
-        "schedule_id",
-        "window_start",
-        name="collection_runs_schedule_id_window_start_key",
-    ),
     schema="ops",
 )
 

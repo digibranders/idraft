@@ -2,16 +2,21 @@
 
 Every unit of paid work is a row here before anything is sent to a provider, and every step of
 its life is a change of `status` that names the status it comes from. A step that finds the row
-elsewhere changes nothing and says so, which is what makes each step safe to run twice.
+elsewhere changes nothing, which is what makes each step safe to run twice. The steps whose
+caller has to act on that (taking tasks for a provider call, recording its answer) return what
+they changed.
 
 A task is submitted at most once. Before the provider is called the task moves from `pending`
 to `submit_unknown`, in its own short transaction, so no database transaction is held open
 across a network call. From there it becomes `submitted` with the provider's id, or goes back
-through the retry policy when the provider refused it. If the process dies in between, the task
-stays `submit_unknown`, which is the truth: the provider may have it.
+through the retry policy when the provider refused it. If the process dies in between, or the
+provider's answer is lost, the task stays `submit_unknown`, which is the truth: the provider
+may have it. Until the provider can be asked which tasks it has (docs/21 section 6, with the
+first real adapter), such a task ends as `dead` when the provider's results would have expired.
 
-The worker connects as `app_worker`, which bypasses row-level security. Every row written here
-takes its workspace and project from the run it belongs to, never from a message or a provider.
+The worker connects as `app_worker`, which bypasses row-level security. A task takes its
+workspace, project and workload from its run's row, and a cost event from its task's row, read
+in the statement that writes them: never from a message, a provider or a caller's copy.
 """
 
 from __future__ import annotations
@@ -23,29 +28,64 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import Row, Select, and_, func, or_, select, tuple_, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import (
+    DateTime,
+    Integer,
+    Interval,
+    LargeBinary,
+    Row,
+    Select,
+    SmallInteger,
+    Text,
+    and_,
+    bindparam,
+    case,
+    func,
+    literal,
+    or_,
+    select,
+    true,
+    tuple_,
+    update,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.db.tables import collection_runs, collection_tasks, provider_cost_events, schedules
+from sightline.db.tables import (
+    budgets,
+    collection_runs,
+    collection_tasks,
+    provider_cost_events,
+    schedules,
+)
 from sightline.domain.retries import ProviderErrorKind, RetryDecision
-from sightline.domain.tasks import idempotency_key, partition_month
+from sightline.domain.tasks import idempotency_key
 from sightline.domain.workloads import TaskWorkload, cost_channel
 
+# Rows in one INSERT. Each column is sent as one array, so the size of a batch is bounded by
+# memory and not by the number of parameters a statement may have.
 INSERT_BATCH = 5000
 # Tasks a dispatcher tick takes in all, and from one project (docs/21 section 4).
 DISPATCH_LIMIT = 2000
 DISPATCH_PER_PROJECT = 500
 ERROR_MESSAGE_MAX = 500
-# A run with this share of failed and dead tasks or more completed with errors (docs/21
-# section 6).
+# A run with this share of tasks that produced nothing, or more, completed with errors
+# (docs/21 section 6).
 ERROR_SHARE = Decimal("0.02")
 TERMINAL_STATUSES = ("ingested", "failed", "dead", "cancelled", "skipped_cached")
-_FAILED_STATUSES = ("failed", "dead")
+_NOTHING_COLLECTED = ("failed", "dead", "cancelled")
+_COLLECTED = ("ingested", "skipped_cached")
+_BUDGET_EXCEEDED = "budget_exceeded"
+_CHECK_VIOLATION = "23514"
 
 Priority = Literal["high", "standard", "low"]
 Trigger = Literal["schedule", "manual", "backfill", "retry"]
 CostSource = Literal["provider_reported", "computed_from_tokens", "price_book_estimate"]
+
+
+class NoPartitionError(ValueError):
+    """The run's window is in a month the ledger has no partition for."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +101,7 @@ class TaskRef:
 class NewRun:
     workspace_id: UUID
     project_id: UUID
+    # Set when, and only when, a schedule's window triggered the run.
     schedule_id: UUID | None
     workload: TaskWorkload
     window_start: datetime
@@ -102,41 +143,59 @@ class LedgerTask:
     status: str
     attempts: int
     scheduled_for: datetime
-    # From the task's run and its schedule. A run without a schedule is someone waiting.
     priority: Priority
     window_end: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class Cost:
+    usd: Decimal
+    source: CostSource
+
+
+@dataclass(frozen=True, slots=True)
+class Scope:
+    """What a budget is checked for: one project's work of one kind."""
+
+    workspace_id: UUID
+    project_id: UUID
+    workload: TaskWorkload
+
+
 _tasks = collection_tasks
 _runs = collection_runs
+_with_run = _tasks.join(_runs, _runs.c.id == _tasks.c.run_id)
+# Someone asked for a manual run and is waiting; a backfill is nobody's hurry. Any other run
+# has the priority of its schedule.
+_priority = case(
+    (_runs.c.trigger == "manual", "high"),
+    (_runs.c.trigger == "backfill", "low"),
+    else_=func.coalesce(schedules.c.priority, "standard"),
+).label("priority")
 
 
 def _task_query() -> Select[tuple[Any, ...]]:
-    return (
-        select(
-            _tasks.c.id,
-            _tasks.c.created_at,
-            _tasks.c.run_id,
-            _tasks.c.workspace_id,
-            _tasks.c.project_id,
-            _tasks.c.workload,
-            _tasks.c.subject_type,
-            _tasks.c.subject_id,
-            _tasks.c.engine_code,
-            _tasks.c.location_id,
-            _tasks.c.replicate_index,
-            _tasks.c.provider_code,
-            _tasks.c.provider_endpoint,
-            _tasks.c.provider_task_id,
-            _tasks.c.status,
-            _tasks.c.attempts,
-            _tasks.c.scheduled_for,
-            func.coalesce(schedules.c.priority, "high").label("priority"),
-            _runs.c.window_end,
-        )
-        .join(_runs, _runs.c.id == _tasks.c.run_id)
-        .outerjoin(schedules, schedules.c.id == _runs.c.schedule_id)
-    )
+    return select(
+        _tasks.c.id,
+        _tasks.c.created_at,
+        _tasks.c.run_id,
+        _tasks.c.workspace_id,
+        _tasks.c.project_id,
+        _tasks.c.workload,
+        _tasks.c.subject_type,
+        _tasks.c.subject_id,
+        _tasks.c.engine_code,
+        _tasks.c.location_id,
+        _tasks.c.replicate_index,
+        _tasks.c.provider_code,
+        _tasks.c.provider_endpoint,
+        _tasks.c.provider_task_id,
+        _tasks.c.status,
+        _tasks.c.attempts,
+        _tasks.c.scheduled_for,
+        _priority,
+        _runs.c.window_end,
+    ).select_from(_with_run.outerjoin(schedules, schedules.c.id == _runs.c.schedule_id))
 
 
 def _task(row: Row[tuple[Any, ...]]) -> LedgerTask:
@@ -167,6 +226,15 @@ def _named(refs: Collection[TaskRef]) -> Any:
     return tuple_(_tasks.c.id, _tasks.c.created_at).in_([(ref.id, ref.created_at) for ref in refs])
 
 
+def _aware(now: datetime) -> datetime:
+    if now.tzinfo is None:
+        # A naive time would be read in the zone of whatever machine runs this.
+        raise ValueError("`now` must be an aware datetime")
+    return now
+
+
+_running_runs = select(_runs.c.id).where(_runs.c.status == "running")
+
 # ---------------------------------------------------------------------------------------------
 # Runs
 
@@ -179,8 +247,11 @@ async def create_run(
     status_reason: str | None = None,
     now: datetime,
 ) -> UUID | None:
-    """Record a run. None when this schedule already has a run for this window: planning twice
-    plans once."""
+    """Record a run. None when the schedule already has a run for this window: planning a
+    window twice plans it once. A run that no schedule triggered is always recorded; what
+    makes it happen once is the request that asked for it."""
+    if (run.trigger == "schedule") != (run.schedule_id is not None):
+        raise ValueError("a run names a schedule when, and only when, the schedule triggered it")
     statement = (
         insert(_runs)
         .values(
@@ -195,59 +266,114 @@ async def create_run(
             status_reason=status_reason,
             created_by_type="system",
             config_snapshot=dict(run.config_snapshot),
-            completed_at=now if status == "cancelled" else None,
+            completed_at=_aware(now) if status == "cancelled" else None,
         )
-        .on_conflict_do_nothing(index_elements=["schedule_id", "window_start"])
+        .on_conflict_do_nothing(
+            index_elements=["schedule_id", "window_start"],
+            index_where=_runs.c.trigger == "schedule",
+        )
         .returning(_runs.c.id)
     )
     run_id: UUID | None = (await db.execute(statement)).scalar_one_or_none()
     return run_id
 
 
-async def insert_tasks(
-    db: AsyncSession, run_id: UUID, run: NewRun, tasks: Sequence[NewTask]
-) -> int:
-    """Add the run's tasks, all `pending`. A task that is already there is left as it is, so a
-    second planning of the run adds nothing. Returns how many were new."""
-    created_at = partition_month(run.window_start)
-    rows = [
-        {
-            "created_at": created_at,
-            "run_id": run_id,
-            "workspace_id": run.workspace_id,
-            "project_id": run.project_id,
-            "workload": run.workload,
-            "subject_type": task.subject_type,
-            "subject_id": task.subject_id,
-            "engine_code": task.engine_code,
-            "location_id": task.location_id,
-            "replicate_index": task.replicate_index,
-            "idempotency_key": idempotency_key(
-                run_id=str(run_id),
-                subject_type=task.subject_type,
-                subject_id=task.subject_id,
-                engine_code=task.engine_code,
-                location_id=task.location_id,
-                replicate_index=task.replicate_index,
-                depth=task.depth,
-            ),
-            "request_fingerprint": task.request_fingerprint,
-            "provider_code": task.provider_code,
-            "provider_endpoint": task.provider_endpoint,
-            "scheduled_for": task.scheduled_for,
-            "status": "pending",
-        }
+def _arrays(run_id: UUID, tasks: Sequence[NewTask]) -> Any:
+    """The tasks as one row set, each column sent as one array."""
+
+    def array(name: str, values: list[Any], element: Any) -> Any:
+        return bindparam(name, values, type_=ARRAY(element))
+
+    keys = [
+        idempotency_key(
+            run_id=str(run_id),
+            subject_type=task.subject_type,
+            subject_id=task.subject_id,
+            engine_code=task.engine_code,
+            location_id=task.location_id,
+            replicate_index=task.replicate_index,
+            depth=task.depth,
+        )
         for task in tasks
     ]
+    return (
+        func.unnest(
+            array("subject_type", [task.subject_type for task in tasks], Text),
+            array("subject_id", [task.subject_id for task in tasks], Text),
+            array("engine_code", [task.engine_code for task in tasks], Text),
+            array("location_id", [task.location_id for task in tasks], Integer),
+            array("replicate_index", [task.replicate_index for task in tasks], SmallInteger),
+            array("idempotency_key", keys, LargeBinary),
+            array("request_fingerprint", [task.request_fingerprint for task in tasks], LargeBinary),
+            array("provider_code", [task.provider_code for task in tasks], Text),
+            array("provider_endpoint", [task.provider_endpoint for task in tasks], Text),
+            array("scheduled_for", [task.scheduled_for for task in tasks], DateTime(timezone=True)),
+        )
+        .table_valued(
+            "subject_type",
+            "subject_id",
+            "engine_code",
+            "location_id",
+            "replicate_index",
+            "idempotency_key",
+            "request_fingerprint",
+            "provider_code",
+            "provider_endpoint",
+            "scheduled_for",
+            name="item",
+        )
+        .render_derived()
+    )
+
+
+async def insert_tasks(db: AsyncSession, run_id: UUID, tasks: Sequence[NewTask]) -> int:
+    """Add the run's tasks, all `pending`. A task that is already there is left as it is, so a
+    second planning of the run adds nothing. Returns how many were new.
+
+    The run's row gives every task its workspace, project and workload, and the month of its
+    window gives `created_at`: the ledger is partitioned by it and its unique constraint
+    includes it, so a run's tasks land in one partition whenever they are planned.
+    """
     added = 0
-    for start in range(0, len(rows), INSERT_BATCH):
+    for start in range(0, len(tasks), INSERT_BATCH):
+        item = _arrays(run_id, tasks[start : start + INSERT_BATCH])
         statement = (
             insert(_tasks)
-            .values(rows[start : start + INSERT_BATCH])
+            .from_select(
+                [
+                    "created_at",
+                    "run_id",
+                    "workspace_id",
+                    "project_id",
+                    "workload",
+                    *(column.name for column in item.c),
+                    "status",
+                ],
+                select(
+                    func.date_trunc("month", _runs.c.window_start, "UTC"),
+                    _runs.c.id,
+                    _runs.c.workspace_id,
+                    _runs.c.project_id,
+                    _runs.c.workload,
+                    *item.c,
+                    literal("pending"),
+                )
+                .select_from(_runs.join(item, true()))
+                .where(_runs.c.id == run_id),
+            )
             .on_conflict_do_nothing(index_elements=["idempotency_key", "created_at"])
             .returning(_tasks.c.id)
         )
-        added += len((await db.execute(statement)).all())
+        try:
+            added += len((await db.execute(statement)).all())
+        except IntegrityError as error:
+            if getattr(error.orig, "sqlstate", None) == _CHECK_VIOLATION and "partition" in str(
+                error.orig
+            ):
+                raise NoPartitionError(
+                    f"the ledger has no partition for the window of run {run_id}"
+                ) from error
+            raise
     return added
 
 
@@ -261,6 +387,15 @@ async def start_run(
     )
 
 
+def _budget_of_the_runs_workspace(budget_id: UUID) -> Any:
+    """`budget_id` if it is a budget of the run's own workspace, NULL otherwise."""
+    return (
+        select(budgets.c.id)
+        .where(budgets.c.id == budget_id, budgets.c.workspace_id == _runs.c.workspace_id)
+        .scalar_subquery()
+    )
+
+
 async def block_run(
     db: AsyncSession, run_id: UUID, *, budget_id: UUID, estimated_cost_usd: Decimal, now: datetime
 ) -> None:
@@ -270,80 +405,141 @@ async def block_run(
         .where(_runs.c.id == run_id, _runs.c.status == "planned")
         .values(
             status="budget_blocked",
-            status_reason="budget_exceeded",
-            blocked_by_budget_id=budget_id,
+            status_reason=_BUDGET_EXCEEDED,
+            blocked_by_budget_id=_budget_of_the_runs_workspace(budget_id),
             estimated_cost_usd=estimated_cost_usd,
-            completed_at=now,
+            completed_at=_aware(now),
         )
     )
 
 
-async def note_budget_hold(db: AsyncSession, run_ids: Collection[UUID], budget_id: UUID) -> None:
-    """Say on a running run that its remaining tasks are held back by a budget."""
-    if not run_ids:
-        return
+async def sync_budget_holds(db: AsyncSession, holds: Mapping[Scope, UUID]) -> None:
+    """Make the running runs say which budget holds their tasks back right now.
+
+    `holds` is every scope the dispatcher is holding back in this tick and the budget that
+    holds it. Runs in those scopes are marked; a run that was marked and is no longer held is
+    cleared, so the mark never outlives the hold.
+    """
+    held_before = and_(_runs.c.status == "running", _runs.c.status_reason == _BUDGET_EXCEEDED)
+    scope = tuple_(_runs.c.project_id, _runs.c.workload)
+    still_held = scope.in_([(held.project_id, held.workload) for held in holds])
     await db.execute(
         update(_runs)
-        .where(_runs.c.id.in_(run_ids), _runs.c.status == "running")
-        .values(status_reason="budget_exceeded", blocked_by_budget_id=budget_id)
+        .where(held_before, ~still_held if holds else true())
+        .values(status_reason=None, blocked_by_budget_id=None)
     )
+    by_budget: dict[UUID, list[tuple[UUID, TaskWorkload]]] = {}
+    for held, budget_id in holds.items():
+        by_budget.setdefault(budget_id, []).append((held.project_id, held.workload))
+    for budget_id, scopes in by_budget.items():
+        await db.execute(
+            update(_runs)
+            .where(
+                _runs.c.status == "running",
+                scope.in_(scopes),
+                _runs.c.blocked_by_budget_id.is_distinct_from(budget_id),
+            )
+            .values(
+                status_reason=_BUDGET_EXCEEDED,
+                blocked_by_budget_id=_budget_of_the_runs_workspace(budget_id),
+            )
+        )
 
 
 async def complete_finished_runs(db: AsyncSession, *, now: datetime) -> int:
-    """Close every running run whose tasks have all ended. Returns how many were closed."""
-    open_task = (
-        select(_tasks.c.id)
-        .where(_tasks.c.run_id == _runs.c.id, _tasks.c.status.not_in(TERMINAL_STATUSES))
-        .exists()
-    )
+    """Close every running run whose tasks have all ended. Returns how many were closed.
+
+    A run that was started with no tasks (its schedule selected nothing) has none still open,
+    so it closes here too. A task that produced nothing, cancelled ones included, counts
+    against the run.
+    """
+    still_open = _tasks.alias("still_open")
     finished = (
-        select(_runs.c.id)
-        .where(_runs.c.status == "running", _runs.c.tasks_total > 0, ~open_task)
-        .with_for_update(skip_locked=True)
-    )
-    closed = 0
-    for (run_id,) in (await db.execute(finished)).all():
-        counts = (
-            await db.execute(
-                select(
-                    func.count().filter(_tasks.c.status.in_(_FAILED_STATUSES)),
-                    func.count().filter(_tasks.c.status.in_(("ingested", "skipped_cached"))),
-                    func.count(),
-                    func.coalesce(func.sum(_tasks.c.cost_usd), 0),
-                ).where(_tasks.c.run_id == run_id)
-            )
-        ).one()
-        failed, succeeded, total, cost = counts
-        with_errors = total > 0 and Decimal(failed) / Decimal(total) >= ERROR_SHARE
-        await db.execute(
-            update(_runs)
-            .where(_runs.c.id == run_id)
-            .values(
-                status="completed_with_errors" if with_errors else "completed",
-                tasks_succeeded=succeeded,
-                tasks_failed=failed,
-                actual_cost_usd=cost,
-                completed_at=now,
-            )
+        select(
+            _runs.c.id.label("run_id"),
+            func.count(_tasks.c.id).label("total"),
+            func.count(_tasks.c.id)
+            .filter(_tasks.c.status.in_(_NOTHING_COLLECTED))
+            .label("nothing"),
+            func.count(_tasks.c.id).filter(_tasks.c.status.in_(_COLLECTED)).label("collected"),
+            func.coalesce(func.sum(_tasks.c.cost_usd), 0).label("cost"),
         )
-        closed += 1
-    return closed
+        .select_from(_runs.outerjoin(_tasks, _tasks.c.run_id == _runs.c.id))
+        .where(
+            _runs.c.status == "running",
+            ~select(still_open.c.id)
+            .where(
+                still_open.c.run_id == _runs.c.id,
+                still_open.c.status.not_in(TERMINAL_STATUSES),
+            )
+            .exists(),
+        )
+        .group_by(_runs.c.id)
+        .subquery("finished")
+    )
+    with_errors = and_(finished.c.total > 0, finished.c.nothing >= finished.c.total * ERROR_SHARE)
+    closed = await db.execute(
+        update(_runs)
+        .where(_runs.c.id == finished.c.run_id, _runs.c.status == "running")
+        .values(
+            status=case((with_errors, "completed_with_errors"), else_="completed"),
+            status_reason=None,
+            blocked_by_budget_id=None,
+            tasks_succeeded=finished.c.collected,
+            tasks_failed=finished.c.nothing,
+            actual_cost_usd=finished.c.cost,
+            completed_at=_aware(now),
+        )
+        .returning(_runs.c.id)
+    )
+    return len(closed.all())
 
 
 # ---------------------------------------------------------------------------------------------
 # Dispatch
 
 
-def _due(now: datetime, paused_providers: Collection[str]) -> Any:
+def _due(now: datetime, paused_providers: Collection[str], held: Collection[Scope]) -> Any:
+    """A task the dispatcher may send now. Used on tasks joined to their run."""
     conditions = [
         _tasks.c.status == "pending",
         _tasks.c.dispatched_at.is_(None),
         _tasks.c.scheduled_for <= now,
         or_(_tasks.c.next_attempt_at.is_(None), _tasks.c.next_attempt_at <= now),
+        # A run that was cancelled or blocked sends nothing more.
+        _runs.c.status == "running",
     ]
     if paused_providers:
         conditions.append(_tasks.c.provider_code.not_in(paused_providers))
+    if held:
+        conditions.append(
+            tuple_(_tasks.c.project_id, _tasks.c.workload).not_in(
+                [(scope.project_id, scope.workload) for scope in held]
+            )
+        )
     return and_(*conditions)
+
+
+async def due_scopes(
+    db: AsyncSession, *, now: datetime, paused_providers: Collection[str] = ()
+) -> list[Scope]:
+    """Every project and workload with a task due now: what the dispatcher checks budgets for
+    before it claims anything."""
+    rows = await db.execute(
+        select(_tasks.c.workspace_id, _tasks.c.project_id, _tasks.c.workload)
+        .select_from(_with_run)
+        .where(_due(_aware(now), paused_providers, ()))
+        .distinct()
+        .order_by(_tasks.c.workspace_id, _tasks.c.project_id, _tasks.c.workload)
+    )
+    return [
+        Scope(
+            workspace_id=row.workspace_id,
+            project_id=row.project_id,
+            workload=TaskWorkload(row.workload),
+        )
+        for row in rows
+    ]
 
 
 async def claim_due(
@@ -351,6 +547,7 @@ async def claim_due(
     *,
     now: datetime,
     paused_providers: Collection[str] = (),
+    held: Collection[Scope] = (),
     limit: int = DISPATCH_LIMIT,
     per_project: int = DISPATCH_PER_PROJECT,
 ) -> list[LedgerTask]:
@@ -358,47 +555,67 @@ async def claim_due(
 
     Each project with due work gets an equal share of `limit`, at most `per_project`; what is
     left over after that goes to the projects that still have more, in the same order. One
-    large project cannot use a whole tick while a small one waits. The rows stay locked until
-    the transaction ends, and rows another dispatcher holds are skipped.
+    large project cannot use a whole tick while a small one waits. Tasks of a paused provider
+    and of a scope a budget holds back are left where they are, so they take nobody's share.
+    The rows stay locked until the transaction ends, and rows another dispatcher holds are
+    skipped.
     """
-    due = _due(now, paused_providers)
-    projects = [
-        project_id
-        for (project_id,) in await db.execute(
-            select(_tasks.c.project_id)
-            .where(due)
-            .group_by(_tasks.c.project_id)
-            .order_by(func.min(_tasks.c.scheduled_for))
-        )
-    ]
+    due = _due(_aware(now), paused_providers, held)
+    oldest_first = (_tasks.c.scheduled_for, _tasks.c.id)
+    waiting = (
+        select(_tasks.c.project_id, func.min(_tasks.c.scheduled_for).label("first_due"))
+        .select_from(_with_run)
+        .where(due)
+        .group_by(_tasks.c.project_id)
+    )
+    projects: int = (
+        await db.execute(select(func.count()).select_from(waiting.subquery()))
+    ).scalar_one()
     if not projects:
         return []
-    share = max(1, min(per_project, limit // len(projects)))
-    claimed: dict[UUID, list[LedgerTask]] = {project_id: [] for project_id in projects}
-    remaining = limit
-    # Two passes: an equal share each, then the leftover to those with more to do.
-    for allowance in (share, per_project):
-        for project_id in projects:
-            held = claimed[project_id]
-            take = min(allowance - len(held), remaining)
-            if take <= 0:
-                continue
-            # SKIP LOCKED passes over rows other transactions hold, not the ones this one
-            # took in the first pass, so those are named.
-            mine = [due, _tasks.c.project_id == project_id]
-            if held:
-                mine.append(~_named([task.ref for task in held]))
-            rows = await db.execute(
-                _task_query()
-                .where(*mine)
-                .order_by(_tasks.c.scheduled_for, _tasks.c.id)
-                .limit(take)
-                .with_for_update(of=_tasks, skip_locked=True)
-            )
-            found = [_task(row) for row in rows]
-            held.extend(found)
-            remaining -= len(found)
-    tasks = [task for found in claimed.values() for task in found]
+    share = max(1, min(per_project, limit // projects))
+
+    # First an equal share each, in one statement.
+    project = waiting.subquery("project")
+    fair = (
+        _task_query()
+        .where(due, _tasks.c.project_id == project.c.project_id)
+        .order_by(*oldest_first)
+        .limit(share)
+        .with_for_update(of=_tasks, skip_locked=True)
+        .correlate(project)
+        .lateral("fair")
+    )
+    rows = await db.execute(
+        select(fair)
+        .select_from(project.join(fair, true()))
+        .order_by(project.c.first_due, project.c.project_id, fair.c.scheduled_for, fair.c.id)
+        .limit(limit)
+    )
+    claimed: dict[UUID, list[LedgerTask]] = {}
+    for row in rows:
+        task = _task(row)
+        claimed.setdefault(task.project_id, []).append(task)
+
+    # Then the leftover, to the projects that had a full share and so may have more.
+    remaining = limit - sum(len(taken) for taken in claimed.values())
+    for project_id, taken in claimed.items():
+        take = min(per_project - len(taken), remaining)
+        if take <= 0 or len(taken) < share:
+            continue
+        # SKIP LOCKED passes over rows other transactions hold, not the ones this one took
+        # above, so those are named.
+        more = await db.execute(
+            _task_query()
+            .where(due, _tasks.c.project_id == project_id, ~_named([task.ref for task in taken]))
+            .order_by(*oldest_first)
+            .limit(take)
+            .with_for_update(of=_tasks, skip_locked=True)
+        )
+        found = [_task(row) for row in more]
+        taken.extend(found)
+        remaining -= len(found)
+    tasks = [task for taken in claimed.values() for task in taken]
     return sorted(tasks, key=lambda task: (task.scheduled_for, task.ref.id))
 
 
@@ -408,7 +625,9 @@ async def mark_dispatched(db: AsyncSession, refs: Collection[TaskRef], *, now: d
     if not refs:
         return
     await db.execute(
-        update(_tasks).where(_named(refs), _tasks.c.status == "pending").values(dispatched_at=now)
+        update(_tasks)
+        .where(_named(refs), _tasks.c.status == "pending")
+        .values(dispatched_at=_aware(now))
     )
 
 
@@ -428,16 +647,24 @@ async def release(db: AsyncSession, refs: Collection[TaskRef]) -> None:
 async def begin_submission(
     db: AsyncSession, refs: Collection[TaskRef], *, now: datetime
 ) -> list[LedgerTask]:
-    """Take the tasks for one provider call. Only tasks still `pending` and dispatched are
-    taken, and they leave `pending` here, before the call: whatever happens next, no second
-    handler can take them. Returns the tasks taken, which may be fewer than named."""
+    """Take the tasks for one provider call. Only tasks still `pending` and dispatched, of a
+    run that is still running, are taken, and they leave `pending` here, before the call:
+    whatever happens next, no second handler can take them. Returns the tasks taken, which may
+    be fewer than named."""
     if not refs:
         return []
     taken = (
         await db.execute(
             update(_tasks)
-            .where(_named(refs), _tasks.c.status == "pending", _tasks.c.dispatched_at.is_not(None))
-            .values(status="submit_unknown", attempts=_tasks.c.attempts + 1, submitted_at=now)
+            .where(
+                _named(refs),
+                _tasks.c.status == "pending",
+                _tasks.c.dispatched_at.is_not(None),
+                _tasks.c.run_id.in_(_running_runs),
+            )
+            .values(
+                status="submit_unknown", attempts=_tasks.c.attempts + 1, submitted_at=_aware(now)
+            )
             .returning(_tasks.c.id, _tasks.c.created_at)
         )
     ).all()
@@ -452,24 +679,68 @@ async def begin_submission(
 
 
 async def mark_submitted(
-    db: AsyncSession, ref: TaskRef, *, provider_task_id: str, cost_usd: Decimal | None
+    db: AsyncSession, ref: TaskRef, *, provider_task_id: str, cost: Cost | None, now: datetime
 ) -> bool:
-    """The provider accepted the task. False when the task was not waiting for that answer."""
-    result = await db.execute(
-        update(_tasks)
-        .where(_named([ref]), _tasks.c.status == "submit_unknown")
-        .values(
-            status="submitted",
-            provider_task_id=provider_task_id,
-            cost_usd=cost_usd,
-            dispatched_at=None,
-            next_attempt_at=None,
-            last_error_code=None,
-            last_error_message=None,
+    """The provider accepted the task. False when the task was not waiting for that answer,
+    and then nothing is written.
+
+    What the submission cost is recorded here, in the same step, from the task's own row: a
+    message delivered twice cannot charge the budget twice, and the event cannot name another
+    workspace than the task's.
+    """
+    submitted = (
+        await db.execute(
+            update(_tasks)
+            .where(_named([ref]), _tasks.c.status == "submit_unknown")
+            .values(
+                status="submitted",
+                provider_task_id=provider_task_id,
+                cost_usd=None if cost is None else cost.usd,
+                dispatched_at=None,
+                next_attempt_at=None,
+                last_error_code=None,
+                last_error_message=None,
+            )
+            .returning(
+                _tasks.c.id,
+                _tasks.c.run_id,
+                _tasks.c.workspace_id,
+                _tasks.c.project_id,
+                _tasks.c.workload,
+                _tasks.c.subject_type,
+                _tasks.c.subject_id,
+                _tasks.c.engine_code,
+                _tasks.c.provider_code,
+                _tasks.c.provider_endpoint,
+            )
         )
-        .returning(_tasks.c.id)
-    )
-    return result.one_or_none() is not None
+    ).one_or_none()
+    if submitted is None:
+        return False
+    if cost is not None:
+        occurred = _aware(now).astimezone(UTC)
+        await db.execute(
+            provider_cost_events.insert().values(
+                occurred_at=occurred,
+                workspace_id=submitted.workspace_id,
+                project_id=submitted.project_id,
+                provider_code=submitted.provider_code,
+                endpoint=submitted.provider_endpoint,
+                workload=submitted.workload,
+                channel=cost_channel(TaskWorkload(submitted.workload)),
+                run_id=submitted.run_id,
+                task_id=submitted.id,
+                subject_type=submitted.subject_type,
+                subject_id=submitted.subject_id,
+                engine_code=submitted.engine_code,
+                units=1,
+                price_unit="task",
+                cost_usd=cost.usd,
+                cost_source=cost.source,
+                billing_period=occurred.date().replace(day=1),
+            )
+        )
+    return True
 
 
 async def record_failure(
@@ -481,21 +752,29 @@ async def record_failure(
     decision: RetryDecision,
     now: datetime,
 ) -> bool:
-    """The provider refused the task, or was never reached: apply what the retry policy decided.
+    """The provider refused the task, or was not reached: apply what the retry policy decided.
 
     `pending` puts the task back for the dispatcher, after the delay if there is one. `failed`
     and `dead` end it. False when the task was not in a provider call.
+
+    This is for a call that is known not to have submitted the task. A call that timed out
+    may have: it is not recorded here but with `note_unknown_outcome`, and the task stays
+    `submit_unknown`.
     """
+    if kind is ProviderErrorKind.TIMEOUT:
+        raise ValueError(
+            "a call that timed out may have submitted the task: its outcome is unknown"
+        )
     values: dict[str, Any] = {
         "status": decision.status,
         "dispatched_at": None,
         "submitted_at": None,
         "last_error_code": kind.value,
         "last_error_message": message[:ERROR_MESSAGE_MAX],
-        "next_attempt_at": None if decision.delay is None else now + decision.delay,
+        "next_attempt_at": None if decision.delay is None else _aware(now) + decision.delay,
     }
     if decision.status != "pending":
-        values["completed_at"] = now
+        values["completed_at"] = _aware(now)
     if not decision.counts:
         # The provider is paused for everyone: this was not an attempt at the task.
         values["attempts"] = _tasks.c.attempts - 1
@@ -523,51 +802,19 @@ async def note_unknown_outcome(db: AsyncSession, refs: Collection[TaskRef], mess
     )
 
 
-async def record_cost(
-    db: AsyncSession,
-    task: LedgerTask,
-    *,
-    cost_usd: Decimal,
-    cost_source: CostSource,
-    now: datetime,
-) -> None:
-    """One cost event for one task, attributed to the task's own workspace and project."""
-    occurred = now.astimezone(UTC)
-    await db.execute(
-        provider_cost_events.insert().values(
-            occurred_at=occurred,
-            workspace_id=task.workspace_id,
-            project_id=task.project_id,
-            provider_code=task.provider_code,
-            endpoint=task.provider_endpoint,
-            workload=task.workload,
-            channel=cost_channel(task.workload),
-            run_id=task.run_id,
-            task_id=task.ref.id,
-            subject_type=task.subject_type,
-            subject_id=task.subject_id,
-            engine_code=task.engine_code,
-            units=1,
-            price_unit="task",
-            cost_usd=cost_usd,
-            cost_source=cost_source,
-            billing_period=occurred.date().replace(day=1),
-        )
-    )
-
-
 # ---------------------------------------------------------------------------------------------
 # Reconciliation
 
 
-async def release_stale_dispatches(
+async def stale_dispatches(
     db: AsyncSession, *, older_than: timedelta, now: datetime, limit: int = DISPATCH_LIMIT
 ) -> list[LedgerTask]:
-    """Lock the tasks that were sent to the queue long ago and are still `pending`. The caller
-    decides which of them have really lost their message and releases those."""
+    """Lock and return the tasks that were sent to the queue long ago and are still `pending`.
+    Nothing is changed: the caller decides which of them have really lost their message and
+    calls `release` for those."""
     rows = await db.execute(
         _task_query()
-        .where(_tasks.c.status == "pending", _tasks.c.dispatched_at < now - older_than)
+        .where(_tasks.c.status == "pending", _tasks.c.dispatched_at < _aware(now) - older_than)
         .order_by(_tasks.c.dispatched_at)
         .limit(limit)
         .with_for_update(of=_tasks, skip_locked=True)
@@ -575,16 +822,69 @@ async def release_stale_dispatches(
     return [_task(row) for row in rows]
 
 
-async def end_old_submissions(db: AsyncSession, *, older_than: timedelta, now: datetime) -> int:
-    """A task the provider has had for this long will never come back: it is `dead`."""
+async def end_old_submissions(
+    db: AsyncSession,
+    *,
+    older_than: timedelta,
+    lifetimes: Mapping[tuple[str, str], timedelta] | None = None,
+    now: datetime,
+) -> int:
+    """End the tasks a provider has had for longer than it keeps results: they will never come
+    back. `lifetimes` gives the time per provider and endpoint where it differs from
+    `older_than`.
+
+    A task still `submit_unknown` after that time ends the same way. Whether the provider ever
+    had it is not known, and by now there is no result to fetch either way.
+    """
+    lifetime: Any = literal(older_than, Interval)
+    if lifetimes:
+        lifetime = case(
+            *(
+                (
+                    and_(_tasks.c.provider_code == code, _tasks.c.provider_endpoint == endpoint),
+                    literal(age, Interval),
+                )
+                for (code, endpoint), age in lifetimes.items()
+            ),
+            else_=lifetime,
+        )
     result = await db.execute(
         update(_tasks)
-        .where(_tasks.c.status == "submitted", _tasks.c.submitted_at < now - older_than)
+        .where(
+            _tasks.c.status.in_(("submitted", "submit_unknown")),
+            _tasks.c.submitted_at < literal(_aware(now), DateTime(timezone=True)) - lifetime,
+        )
         .values(
             status="dead",
-            completed_at=now,
-            last_error_code="provider_never_answered",
-            last_error_message="No result from the provider within the time it allows.",
+            completed_at=_aware(now),
+            last_error_code=case(
+                (_tasks.c.status == "submitted", "provider_never_answered"),
+                else_="submission_never_confirmed",
+            ),
+            last_error_message=case(
+                (
+                    _tasks.c.status == "submitted",
+                    "No result from the provider within the time it keeps results.",
+                ),
+                else_="The provider never confirmed the submission.",
+            ),
+        )
+        .returning(_tasks.c.id)
+    )
+    return len(result.all())
+
+
+async def _cancel(db: AsyncSession, runs: Any, *, code: str, message: str, now: datetime) -> int:
+    result = await db.execute(
+        update(_tasks)
+        .where(_tasks.c.status == "pending", _tasks.c.run_id.in_(runs))
+        .values(
+            status="cancelled",
+            completed_at=_aware(now),
+            dispatched_at=None,
+            next_attempt_at=None,
+            last_error_code=code,
+            last_error_message=message,
         )
         .returning(_tasks.c.id)
     )
@@ -592,22 +892,24 @@ async def end_old_submissions(db: AsyncSession, *, older_than: timedelta, now: d
 
 
 async def cancel_missed(db: AsyncSession, *, after_window: timedelta, now: datetime) -> int:
-    """A task never sent, this long after its run's window closed, belongs to the next run."""
-    closed_runs = select(_runs.c.id).where(_runs.c.window_end < now - after_window)
-    result = await db.execute(
-        update(_tasks)
-        .where(
-            _tasks.c.status == "pending",
-            _tasks.c.provider_task_id.is_(None),
-            _tasks.c.run_id.in_(closed_runs),
-        )
-        .values(
-            status="cancelled",
-            completed_at=now,
-            dispatched_at=None,
-            last_error_code="window_missed",
-            last_error_message="Not sent before its run's window had been closed for a day.",
-        )
-        .returning(_tasks.c.id)
+    """A task not sent this long after its run's window closed belongs to the next run."""
+    hours = after_window.total_seconds() / 3600
+    return await _cancel(
+        db,
+        select(_runs.c.id).where(_runs.c.window_end < _aware(now) - after_window),
+        code="window_missed",
+        message=f"Not sent within {hours:g} hours of the end of its run's window.",
+        now=now,
     )
-    return len(result.all())
+
+
+async def cancel_for_ended_runs(db: AsyncSession, *, now: datetime) -> int:
+    """A run that was cancelled leaves tasks that were never sent. They are cancelled with it,
+    so they are not counted as waiting."""
+    return await _cancel(
+        db,
+        select(_runs.c.id).where(_runs.c.status.not_in(("planned", "running"))),
+        code="run_ended",
+        message="Its run ended before it was sent.",
+        now=now,
+    )

@@ -105,18 +105,22 @@ Because `ops.collection_tasks` is partitioned by `created_at` and unique constra
 A **dispatcher tick every 15 seconds** (in the worker process, under lock `lock:dispatcher`) moves due tasks into the `collect` queue:
 
 ```sql
-SELECT id, created_at, provider_code, provider_endpoint, project_id
-FROM ops.collection_tasks
-WHERE status = 'pending' AND dispatched_at IS NULL AND scheduled_for <= now()
-  AND (next_attempt_at IS NULL OR next_attempt_at <= now())
-ORDER BY scheduled_for
-LIMIT 2000
-FOR UPDATE SKIP LOCKED;
+SELECT t.id, t.created_at, t.provider_code, t.provider_endpoint, t.project_id
+FROM ops.collection_tasks t JOIN ops.collection_runs r ON r.id = t.run_id
+WHERE t.status = 'pending' AND t.dispatched_at IS NULL AND t.scheduled_for <= now()
+  AND (t.next_attempt_at IS NULL OR t.next_attempt_at <= now())
+  AND r.status = 'running'                       -- a cancelled run sends nothing more
+  AND t.provider_code <> ALL (:paused_providers)
+  AND (t.project_id, t.workload) NOT IN (:scopes_a_budget_holds_back)
+ORDER BY t.scheduled_for
+LIMIT 2000                                       -- shared out across projects, see below
+FOR UPDATE OF t SKIP LOCKED;
 ```
 
-- Tasks are grouped by `(provider_code, provider_endpoint, priority)`, where priority is the schedule's (`run_id` to `ops.schedules.priority`), into batches of the provider's `maxTasksPerSubmit` (100 for DataForSEO task endpoints, 1 for live).
+- **Budget first.** Before it claims anything, the tick lists the projects and workloads that have a task due and checks the budget of each (the month's spend is read once per tick). Work whose budget is used up is left out of the claim, so it stays `pending`, takes nobody's share of the tick, and does not keep the same project's other workloads from being reached. The running runs of a held scope carry `status_reason = 'budget_exceeded'` and the budget's id for as long as the hold lasts.
+- Tasks are grouped by `(provider_code, provider_endpoint, priority)` into batches of the provider's `maxTasksPerSubmit` (100 for DataForSEO task endpoints, 1 for live). Priority is `high` for a manual run (someone is waiting), `low` for a backfill, and otherwise the schedule's (`standard` when there is none).
 - **Priority:** batches are enqueued in priority order (high, then standard, then discovery and backfills), so high-priority work reaches the head of `collect` first. The dispatcher is the only producer of provider jobs, so this order is the priority mechanism; the broker needs no priority support.
-- **Fairness across projects:** within a tick, at most 500 tasks per project are dispatched, so one large project cannot delay a small one by hours. Taskiq has no group fairness; this SQL-side cap gives us the property.
+- **Fairness across projects:** each project with due work gets an equal share of the tick's 2,000, and what is left over goes to the projects that have more, up to 500 per project. A large project whose tasks are the oldest cannot take the whole tick from a small one. Taskiq has no group fairness; this SQL-side sharing gives us the property.
 - Each batch becomes one `submit_batch` Taskiq message with dedupe key `submit:` + sha256(sorted task ids) (section 5.2). The budget check against `ops.budgets` runs before the message is sent.
 - Tasks stay in `status = 'pending'` with `dispatched_at` set, so they are not selected again unless the job fails or the reconciler clears a stale `dispatched_at`.
 
@@ -222,7 +226,9 @@ Retry policy is decided by the error kind returned from the adapter ([05-provide
 - Retry state lives in `ops.collection_tasks` (`attempts`, `next_attempt_at`, `last_error_*`). A retry puts the task back to `pending` with `next_attempt_at`; the dispatcher picks it up. A retried SERP task submits a **new** provider task (new provider id), and the old one is recorded in `ops.task_attempts` for cost reconciliation.
 - **Submit outcome unknown.** If a `submit_batch` call times out or the connection drops after the request was sent, the provider may have accepted (and charged for) the tasks. The tasks move to `submit_unknown`, never straight back to `pending`. The reconciler resolves them: it lists recently created provider tasks (DataForSEO `id_list` for the endpoint and time range, 10 calls per minute, or `tasks_ready` once they complete) and matches them by our `tag`. Matches become `submitted` with their provider task id; tasks still unmatched after 15 minutes return to `pending` for a new submission. Spike S-01 verifies that `id_list` returns the `tag` (if not, matching uses keyword, location, device and submission time). This rule is what makes provider submission at-most-once in practice.
 - **Dead letters** are tasks in status `dead`. They are listed in the Operations screen with error, attempts and raw error body, and can be requeued manually (`POST /v1/workspaces/{workspace_id}/tasks/{task_id}/requeue`, or in bulk `POST /v1/workspaces/{workspace_id}/tasks/requeue`; permission `tasks:requeue`; doc 19 section 3.11.4). The route is under the workspace path so the tenancy rule of doc 24 section 4 holds.
-- A run finishes when all its tasks are terminal (`ingested`, `failed`, `dead`, `cancelled`, `skipped_cached`). Status is `completed` if failed + dead is under 2% of tasks, otherwise `completed_with_errors`.
+- A run finishes when all its tasks are terminal (`ingested`, `failed`, `dead`, `cancelled`, `skipped_cached`). Status is `completed` if the tasks that collected nothing (failed, dead and cancelled) are under 2% of tasks, otherwise `completed_with_errors`. A run that was started with no tasks, because its schedule selected nothing, completes on the next sweep.
+- A task left `submit_unknown` (the process died mid-call, or the answer was lost) keeps its run open. Until the provider can be asked which tasks it has, such a task ends as `dead` with `submission_never_confirmed` once the provider's results would have expired (72 hours; 76 for LLM Responses).
+- The pending tasks of a run that is cancelled are not sent: the dispatcher and the submit handler both check that the run is still `running`, and the reconciler cancels what is left with `run_ended`.
 
 ## 7. Provider rate limiting and concurrency
 
