@@ -2572,6 +2572,12 @@
   --duration-slow: 0ms;
   --duration-reveal: 0ms;
 }
+.base-ui-disable-scrollbar {
+  scrollbar-width: none;
+}
+.base-ui-disable-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);

@@ -26,6 +26,23 @@ function apiProxyTarget(): string | undefined {
   return parseServerEnv(process.env, publicEnv.NEXT_PUBLIC_APP_ENV).API_PROXY_TARGET;
 }
 
+/**
+ * The static security headers of every response (20-frontend-specification.md section 7.3). The Content
+ * Security Policy is not here: it carries a nonce made per response, so src/proxy.ts sets it.
+ * `Strict-Transport-Security` is sent by production builds only: under `next dev --experimental-https` it
+ * would pin localhost and every subdomain of it to https for two years.
+ */
+const SECURITY_HEADERS = [
+  ...(publicEnv.NEXT_PUBLIC_APP_ENV === 'production'
+    ? [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }]
+    : []),
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'same-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+];
+
 const config: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: REPOSITORY_ROOT,
@@ -34,6 +51,7 @@ const config: NextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
   env: { ...publicEnv },
+  headers: async () => [{ source: '/:path*', headers: SECURITY_HEADERS }],
   rewrites: async () => {
     const target = apiProxyTarget();
     return target === undefined ? [] : [{ source: '/api/:path*', destination: `${target}/api/:path*` }];

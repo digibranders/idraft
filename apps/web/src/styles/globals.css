@@ -214,6 +214,12 @@
   --container-dialog-lg: 45rem; /* 720px */
 }
 
+/* Base UI hides the native scrollbar of ScrollArea and of a Select aligned to its trigger with this class.
+   It would inject the rule in a <style> tag of its own, which the CSP blocks without a nonce, so the rule
+   lives here and AppProviders turns the injected tag off (CSPProvider disableStyleElements). */
+.base-ui-disable-scrollbar { scrollbar-width: none; }
+.base-ui-disable-scrollbar::-webkit-scrollbar { display: none; }
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 @keyframes row-new { 0%, 86.7% { background-color: var(--surface-selected); } 100% { background-color: transparent; } }

@@ -1,10 +1,11 @@
 'use client';
 
+import { CSPProvider } from '@base-ui/react/csp-provider';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
 import { useTranslations } from 'next-intl';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { LiveRegions } from './live-regions';
 import { Toaster, ToastProvider } from '@/components/ui/toast';
@@ -23,34 +24,51 @@ const DEFAULT_THEME = 'system';
  * URL state, toasts, the shared tooltip delay and the live regions. The message catalog is provided by the root layout, which is a
  * Server Component and hands the messages down. With API mocking on, the page waits for the mock worker.
  */
-export function AppProviders({ children }: Readonly<{ children: ReactNode }>): ReactNode {
+export function AppProviders({
+  nonce,
+  children,
+}: Readonly<{
+  /**
+   * The CSP nonce of this response (src/proxy.ts), for the theme script, the style next-themes adds while
+   * the theme changes, and Base UI's prehydration scripts.
+   */
+  nonce: string | undefined;
+  children: ReactNode;
+}>): ReactNode {
   const t = useTranslations('common');
+  // The document keeps the policy of its first response. A refresh renders the layout again with the nonce
+  // of a new response, which that policy does not allow, so the first nonce is kept for the page's life.
+  const [documentNonce] = useState(nonce);
   return (
     // The theme changes at once: a color transition on every element would read as a flicker (21-motion.md).
     // The storage key is the app's own: the default, "theme", is shared with whatever else ran on this origin.
-    <ThemeProvider
-      attribute="class"
-      defaultTheme={DEFAULT_THEME}
-      enableSystem
-      disableTransitionOnChange
-      storageKey={THEME_STORAGE_KEY}
-      themes={THEMES}
-    >
-      <QueryClientProvider client={getQueryClient()}>
-        <NuqsAdapter>
-          <ToastProvider>
-            <TooltipProvider>
-              {publicEnv.NEXT_PUBLIC_API_MOCKING === 'off' ? (
-                children
-              ) : (
-                <MockGate mode={publicEnv.NEXT_PUBLIC_API_MOCKING}>{children}</MockGate>
-              )}
-              <Toaster label={t('notifications')} closeLabel={t('close')} />
-            </TooltipProvider>
-            <LiveRegions />
-          </ToastProvider>
-        </NuqsAdapter>
-      </QueryClientProvider>
-    </ThemeProvider>
+    // Base UI's inline <style> is off (its rule is in globals.css): React hoists that tag without the nonce
+    <CSPProvider disableStyleElements {...(documentNonce === undefined ? {} : { nonce: documentNonce })}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme={DEFAULT_THEME}
+        enableSystem
+        disableTransitionOnChange
+        storageKey={THEME_STORAGE_KEY}
+        themes={THEMES}
+        {...(documentNonce === undefined ? {} : { nonce: documentNonce })}
+      >
+        <QueryClientProvider client={getQueryClient()}>
+          <NuqsAdapter>
+            <ToastProvider>
+              <TooltipProvider>
+                {publicEnv.NEXT_PUBLIC_API_MOCKING === 'off' ? (
+                  children
+                ) : (
+                  <MockGate mode={publicEnv.NEXT_PUBLIC_API_MOCKING}>{children}</MockGate>
+                )}
+                <Toaster label={t('notifications')} closeLabel={t('close')} />
+              </TooltipProvider>
+              <LiveRegions />
+            </ToastProvider>
+          </NuqsAdapter>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </CSPProvider>
   );
 }
