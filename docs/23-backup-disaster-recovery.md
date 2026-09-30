@@ -721,7 +721,7 @@ phase checks "$t"
 log "PASS: ${TOC_ENTRIES} TOC entries, restore ${T[restore]} s, total $(( $(date +%s) - START )) s"
 ```
 
-`infra/sql/roles-restore.sql` creates the four database roles of ADR-022 as `NOLOGIN` with the same attributes (`app_api` without `BYPASSRLS`, `app_worker` with `BYPASSRLS`, `migrator` as owner, `backup` read-only with `BYPASSRLS`), so ownership and the table and column grants in the dump apply cleanly. It deliberately does not set passwords.
+`infra/sql/roles-restore.sql` (to be written with the restore drill in plan 6; its role list must match `infra/compose/postgres/initdb/10-roles.sh`) creates the four database roles of ADR-022 as `NOLOGIN` with the same attributes (`app_api` without `BYPASSRLS`, `app_worker` with `BYPASSRLS`, `migrator` as owner, `backup` read-only with `BYPASSRLS`), so ownership and the table and column grants in the dump apply cleanly. It deliberately does not set passwords.
 
 **Disk and memory.** The drill needs about 6 times the dump size free (encrypted file, decrypted file, restored data). On the droplet that fits while the dump is small; when `dump.bytes` in the manifest exceeds 2 GB, run the drill on a laptop, or on a temporary `s-4vcpu-8gb` droplet ($0.07143/hour, verified 2026-09-29) created with `doctl` and destroyed afterwards. A 90-minute drill there costs about $0.11.
 

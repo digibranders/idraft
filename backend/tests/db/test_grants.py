@@ -229,13 +229,18 @@ async def test_no_table_or_column_is_granted_to_public_or_to_a_role_that_is_not_
 
 
 async def test_partitions_and_sequences_carry_no_grants(migrated: PostgresServer) -> None:
-    """Rows are reached through the parent table; identity values come from the column default."""
+    """Rows are reached through the parent table; identity values come from the column default.
+
+    A grant on a partition, table-wide or on a column, would be a way around the parent's policy:
+    row-level security is not enabled on the partitions themselves.
+    """
     async with connection(migrated) as db:
         granted = await db.fetch(
             "SELECT c.oid::regclass::text AS name FROM pg_class c "
             "JOIN pg_namespace n ON n.oid = c.relnamespace "
             "WHERE n.nspname = ANY($1) AND (c.relispartition OR c.relkind = 'S') "
-            "AND c.relacl IS NOT NULL",
+            "AND (c.relacl IS NOT NULL OR EXISTS ("
+            "SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attacl IS NOT NULL))",
             SCHEMAS,
         )
         sequences = await db.fetchval(

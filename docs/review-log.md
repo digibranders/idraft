@@ -344,6 +344,8 @@ A second review (Fable model) of the fixes confirmed every finding above closed,
 | 23 section 13 still named three roles and `app` | Low (docs) | Four roles |
 | "Nothing is granted to `PUBLIC`" ignored the two setting functions; DB-GRANT-01 named a Phase 4 table; role `statement_timeout` read as a limit; `S608` "enforces" | Note (docs) | Reworded in 04, 24 and 26 |
 
+A third, short review (Fable model) of that fix commit reproduced the lock, grant and scope claims and found one test gap: a column grant on a partition passed every catalog query, and partitions have no row-level security of their own. The partition check now reads column privileges too. It also corrected two doc phrases ("re-point", not "rewrite", a session) and noted that `infra/sql/roles-restore.sql` does not exist yet.
+
 Accepted without change: either runtime role can create large objects (mass inserts consume storage the same way; `vacuumlo` goes in the maintenance plan), and `sightline.db.ddl.grants` accepts a repeated privilege name.
 
 Carried into later plans:
