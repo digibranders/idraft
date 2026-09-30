@@ -9,12 +9,13 @@ Normalizing a result into facts arrives with the first workload that ingests the
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Annotated, Literal, Protocol
+from typing import Annotated, Literal, Protocol, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, model_validator
 
 from sightline.domain.retries import ProviderErrorKind
 
@@ -24,10 +25,12 @@ class Contract(BaseModel):
 
 
 class CanonicalRequest(Contract):
-    # Our task's id and its run's, echoed back by the provider (DataForSEO: `tag`) so answers
-    # can be matched to the task, and checked against its run.
+    # Our task's id, its run's and which attempt at the task this is, echoed back by the
+    # provider (DataForSEO: `tag`) so an answer is matched to the task, checked against its
+    # run, and never taken for a later attempt's. The attempt is set when the task is taken.
     task_id: str = Field(min_length=1)
     run_id: UUID
+    attempt: int = Field(default=0, ge=0)
     priority: Literal["standard", "high"]
     # What to ask, in the workload's own model. Serialized as that model: as the base class
     # it would be written as an empty object.
@@ -53,20 +56,16 @@ class AcceptedTask(Contract):
 
 
 class Echo(Contract):
-    """What of our request a provider echoes back: the task's id, and as much of its run's id
-    as the provider could carry (the start of its hex digits). None when the provider sent
-    nothing we recognise."""
+    """What of our request a provider echoes back. Empty when the provider sent nothing we
+    recognise as ours, including a request of another installation."""
 
     task_id: str | None = None
-    run_prefix: str | None = Field(default=None, pattern=r"^[0-9a-f]{1,32}$")
+    run_id: UUID | None = None
+    attempt: int | None = None
 
-    def names(self, task_id: int, run_id: UUID) -> bool:
-        """Whether this echo is of that task, and of its run."""
-        return (
-            self.task_id == str(task_id)
-            and self.run_prefix is not None
-            and run_id.hex.startswith(self.run_prefix)
-        )
+    def names(self, task_id: int, run_id: UUID, attempt: int) -> bool:
+        """Whether this echo is of that attempt at that task, of that run."""
+        return self.task_id == str(task_id) and self.run_id == run_id and self.attempt == attempt
 
 
 class ReadyTask(Contract):
@@ -91,10 +90,21 @@ class FetchResult(Contract):
 
     provider_task_id: str = Field(min_length=1)
     status: Literal["ready", "pending", "expired", "failed"]
-    body: bytes | None = None
+    # Bytes only: text would be encoded again, and would no longer be what was received.
+    body: bytes | None = Field(default=None, strict=True)
     content_type: str = "application/json"
     cost_usd: CostUsd | None = None
     error: ProviderError | None = None
+
+    @model_validator(mode="after")
+    def _says_one_thing(self) -> Self:
+        if self.status == "ready" and (self.body is None or self.error is not None):
+            raise ValueError("a ready result has a body and no error")
+        if self.status in ("expired", "failed") and self.error is None:
+            raise ValueError("an expired or failed result says why")
+        if self.status == "pending" and (self.body is not None or self.error is not None):
+            raise ValueError("a pending result has neither body nor error")
+        return self
 
 
 class RejectedTask(Contract):
@@ -117,6 +127,39 @@ class ProviderCallError(Exception):
     def __init__(self, error: ProviderError) -> None:
         super().__init__(f"{error.kind}: {error.message}")
         self.error = error
+
+
+@dataclass(frozen=True, slots=True)
+class Limit:
+    """A provider's limit on calls: at most `per_minute` in any sixty seconds, of which up to
+    `burst` may come at once."""
+
+    per_minute: int
+    burst: int
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.burst < self.per_minute:
+            raise ValueError("a burst is at least one call and less than the minute's limit")
+
+    @property
+    def refill_per_minute(self) -> int:
+        # A bucket that starts full and refills at this rate lets through at most `burst`
+        # plus a minute's refill in any sixty seconds: the limit.
+        return self.per_minute - self.burst
+
+
+class CallGate(Protocol):
+    """Where an adapter waits for its turn to call the provider (docs/21 section 7)."""
+
+    async def enter(self, family: str | None, *, within: timedelta) -> bool:
+        """Take a turn under the provider's limit on all calls and, when `family` is named,
+        under that family's own. False when no turn comes within `within`: then no call may
+        be made."""
+        ...
+
+    async def slow_down(self) -> None:
+        """The provider said the calls come too fast: fewer for a while."""
+        ...
 
 
 class Provider(Protocol):

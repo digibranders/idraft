@@ -1,23 +1,43 @@
-"""DataForSEO answers in our error taxonomy (docs/06-dataforseo-seo-integration.md section 9)."""
+"""DataForSEO answers in our terms (docs/06-dataforseo-seo-integration.md section 9)."""
 
 from datetime import timedelta
 
 import pytest
 
 from sightline.domain.retries import ProviderErrorKind
+from sightline.providers.contract import ProviderError
 from sightline.providers.dataforseo.errors import (
     MESSAGE_MAX,
-    classify_http,
-    classify_status,
+    Answer,
     parse_retry_after,
+    read_http,
+    read_status,
 )
 
 K = ProviderErrorKind
 
 
-@pytest.mark.parametrize("code", [20000, 20100])
-def test_success_is_no_error(code: int) -> None:
-    assert classify_status(code, "Ok.") is None
+def _kind(code: int, *, sending: bool = False) -> ProviderErrorKind:
+    error = read_status(code, "Some message.", sending=sending)
+    assert isinstance(error, ProviderError), error
+    return error.kind
+
+
+@pytest.mark.parametrize(
+    ("code", "answer"),
+    [
+        (20000, Answer.OK),
+        (20100, Answer.OK),
+        # Still in the queue or being worked on: not a failure, and not a result yet.
+        (40601, Answer.NOT_READY),
+        (40602, Answer.NOT_READY),
+        # A finished search with no results: a result, which is kept like any other.
+        (40102, Answer.NO_RESULTS),
+    ],
+)
+@pytest.mark.parametrize("sending", [True, False])
+def test_answers_that_are_not_errors(code: int, answer: Answer, sending: bool) -> None:
+    assert read_status(code, "", sending=sending) is answer
 
 
 @pytest.mark.parametrize(
@@ -30,66 +50,105 @@ def test_success_is_no_error(code: int) -> None:
         (40209, K.CONCURRENCY),
         (40403, K.NOT_FOUND_EXPIRED),
         (50301, K.UPSTREAM_UNAVAILABLE),
-        (40102, K.EMPTY_RESULT),
-        # Any other 40xxx is a request we got wrong; any other 50xxx is the provider's trouble.
+        # The account refused, whatever the exact code: pause, never fail the tasks.
+        (40100, K.AUTH),
+        (40101, K.AUTH),
+        (40104, K.AUTH),
+        (40200, K.PAYMENT),
+        (40201, K.PAYMENT),
+        (40204, K.PAYMENT),
+        (40207, K.PAYMENT),
+        (40210, K.PAYMENT),
+        # This request is wrong: its field, its path or its body.
         (40501, K.INVALID_REQUEST),
-        (40001, K.INVALID_REQUEST),
+        (40502, K.INVALID_REQUEST),
+        (40503, K.INVALID_REQUEST),
+        # Anything else is tried again, which costs nothing: a wrong failure cannot be undone.
+        (40001, K.PROVIDER_ERROR),
+        (40400, K.PROVIDER_ERROR),
+        (40402, K.PROVIDER_ERROR),
         (50000, K.PROVIDER_ERROR),
         (50401, K.PROVIDER_ERROR),
-        # Still being worked on: not a failure of the task, but not a result either.
-        (40601, K.PROVIDER_ERROR),
-        (40602, K.PROVIDER_ERROR),
     ],
 )
-def test_every_code_has_a_kind(code: int, kind: ProviderErrorKind) -> None:
-    error = classify_status(code, "Some message.")
+def test_every_error_code_has_a_kind(code: int, kind: ProviderErrorKind) -> None:
+    error = read_status(code, "Some message.", sending=False)
 
-    assert error is not None
+    assert isinstance(error, ProviderError)
     assert (error.kind, error.provider_status, error.message) == (kind, code, "Some message.")
+
+
+def test_a_timeout_at_the_provider_while_sending_leaves_the_outcome_unknown() -> None:
+    """The tasks may have been created and charged before the provider gave up."""
+    assert _kind(50401, sending=True) is K.TIMEOUT
+    assert _kind(50401, sending=False) is K.PROVIDER_ERROR
 
 
 @pytest.mark.parametrize(
     ("status", "kind"),
     [
         (401, K.AUTH),
+        (403, K.AUTH),
         (402, K.PAYMENT),
         (429, K.RATE_LIMITED),
-        (404, K.INVALID_REQUEST),
+        (503, K.UPSTREAM_UNAVAILABLE),
         (400, K.INVALID_REQUEST),
+        (413, K.INVALID_REQUEST),
+        (422, K.INVALID_REQUEST),
+        (404, K.PROVIDER_ERROR),
+        (409, K.PROVIDER_ERROR),
         (500, K.PROVIDER_ERROR),
-        (502, K.PROVIDER_ERROR),
-        (503, K.PROVIDER_ERROR),
     ],
 )
 def test_an_http_status_has_a_kind(status: int, kind: ProviderErrorKind) -> None:
-    error = classify_http(status, "")
+    for sending in (True, False):
+        error = read_http(status, "", sending=sending)
+        assert error is not None
+        assert (error.kind, error.provider_status, error.message) == (
+            kind,
+            status,
+            f"HTTP {status}",
+        )
 
-    assert error is not None
-    assert (error.kind, error.provider_status, error.message) == (kind, status, f"HTTP {status}")
+
+@pytest.mark.parametrize("status", [408, 425, 502, 504])
+def test_a_gateway_that_gave_up_while_sending_leaves_the_outcome_unknown(status: int) -> None:
+    sending = read_http(status, "", sending=True)
+    reading = read_http(status, "", sending=False)
+
+    assert sending is not None
+    assert reading is not None
+    assert (sending.kind, reading.kind) == (K.TIMEOUT, K.PROVIDER_ERROR)
 
 
 def test_a_successful_http_status_leaves_the_body_to_say() -> None:
-    assert classify_http(200, "") is None
+    assert read_http(200, "", sending=True) is None
 
 
-def test_the_wait_asked_for_is_kept_only_for_a_rate_limit() -> None:
+def test_the_wait_asked_for_is_kept_for_a_rate_limit_and_an_outage() -> None:
     wait = timedelta(seconds=30)
 
-    limited = classify_http(429, "slow down", retry_after=wait)
-    broken = classify_http(503, "down", retry_after=wait)
+    kept = [read_http(status, "", sending=False, retry_after=wait) for status in (429, 503)]
+    dropped = read_http(500, "", sending=False, retry_after=wait)
 
-    assert limited is not None
-    assert broken is not None
-    assert (limited.retry_after, broken.retry_after) == (wait, None)
+    assert [error.retry_after for error in kept if error is not None] == [wait, wait]
+    assert dropped is not None
+    assert dropped.retry_after is None
 
 
 def test_a_long_message_is_cut_and_an_empty_one_is_named() -> None:
-    long = classify_status(40501, "x" * 5000)
-    empty = classify_status(40501, "")
+    long = read_status(40501, "x" * 5000, sending=False)
+    empty = read_status(40501, "", sending=False)
+    long_http = read_http(500, "y" * 5000, sending=False)
 
-    assert long is not None
-    assert empty is not None
-    assert (len(long.message), empty.message) == (MESSAGE_MAX, "no message")
+    assert isinstance(long, ProviderError)
+    assert isinstance(empty, ProviderError)
+    assert long_http is not None
+    assert (len(long.message), empty.message, len(long_http.message)) == (
+        MESSAGE_MAX,
+        "no message",
+        MESSAGE_MAX,
+    )
 
 
 @pytest.mark.parametrize(
@@ -100,11 +159,15 @@ def test_a_long_message_is_cut_and_an_empty_one_is_named() -> None:
         ("0", timedelta(0)),
         (None, None),
         ("-1", None),
+        ("+5", None),
+        ("1_000", None),
         ("soon", None),
+        # Too large to be a wait, and too large for a duration.
+        ("99999999999999999", None),
         ("Wed, 21 Oct 2026 07:28:00 GMT", None),
     ],
 )
-def test_a_retry_after_header_is_read_in_seconds(
+def test_a_retry_after_header_is_read_in_whole_seconds(
     header: str | None, wait: timedelta | None
 ) -> None:
     assert parse_retry_after(header) == wait

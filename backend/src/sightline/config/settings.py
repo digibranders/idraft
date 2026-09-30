@@ -144,6 +144,10 @@ class Settings(_DatabaseSettings):
     # Resolve submissions of unknown outcome by asking the provider which tasks it holds. Off
     # until spike S-01 confirms that DataForSEO's task list returns our tags.
     resolve_unknown_submissions: bool = False
+    # Names this installation in every task it sends a provider. Two installations sharing a
+    # provider account (production and a restore rehearsal, say) then never take each other's
+    # answers. Production is `prod`; a copy of its database must be started with another.
+    installation_id: str = Field(default="local", pattern=r"^[a-z0-9]{1,16}$")
 
     @field_validator("heartbeat_file", "r2_raw_endpoint", mode="before")
     @classmethod
@@ -159,25 +163,17 @@ class Settings(_DatabaseSettings):
     )
     @classmethod
     def _empty_credential_is_none(cls, value: SecretStr | None) -> SecretStr | None:
-        return value if value is not None and value.get_secret_value().strip() else None
+        # Stripped: a value read from a secrets file usually ends with a newline, and a
+        # password that keeps it is refused by the provider as a wrong one.
+        text = "" if value is None else value.get_secret_value().strip()
+        return SecretStr(text) if text else None
 
     @field_validator("r2_raw_endpoint")
     @classmethod
     def _validate_r2_endpoint(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        parts = urlsplit(value)
-        if (
-            parts.scheme not in ("https", "http")
-            or not parts.hostname
-            or parts.path
-            not in (
-                "",
-                "/",
-            )
-        ):
-            raise ValueError("must be the bucket service's origin, such as https://host")
-        return f"{parts.scheme}://{parts.netloc}"
+        # The rules of an origin: scheme, host and port only. Credentials in the URL would be
+        # kept in a plain string and shown wherever the settings are.
+        return None if value is None else _validate_origin(value)
 
     @property
     def dataforseo_credentials(self) -> tuple[str, str] | None:
@@ -281,13 +277,16 @@ class Settings(_DatabaseSettings):
                 "R2_RAW_ENDPOINT, R2_RAW_ACCESS_KEY_ID and R2_RAW_SECRET_ACCESS_KEY are set "
                 "together or not at all"
             )
-        # Credentials for the bucket go over TLS, except to a store on this machine in tests.
+        # Credentials for the bucket go over TLS, except to a store on this machine.
         if (
             self.r2_raw_endpoint is not None
             and self.r2_raw_endpoint.startswith("http://")
-            and self.app_env == "production"
+            and (self.app_env == "production" or not _is_local_origin(self.r2_raw_endpoint))
         ):
-            raise ValueError("R2_RAW_ENDPOINT must be https:// when APP_ENV is production")
+            raise ValueError("R2_RAW_ENDPOINT must be https:// unless it is on this machine")
+        # A task sent is paid for; without the bucket its result could never be kept.
+        if self.dataforseo_login is not None and self.r2_raw_endpoint is None:
+            raise ValueError("DATAFORSEO_LOGIN needs R2_RAW_ENDPOINT: results are kept in R2")
         return self
 
 

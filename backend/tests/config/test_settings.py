@@ -102,9 +102,29 @@ def test_the_worker_reads_its_provider_and_bucket(monkeypatch: pytest.MonkeyPatc
     # The origin alone: a path would be taken for part of every key.
     assert settings.r2_raw_endpoint == "https://0123abcd.r2.cloudflarestorage.com"
     assert settings.resolve_unknown_submissions
+    assert (bare.installation_id, settings.installation_id) == ("local", "local")
     for secret in ("dfs-secret", "r2-secret", "r2-key"):
         assert secret not in repr(settings)
         assert secret not in str(settings)
+
+
+def test_credentials_read_from_a_secrets_file_lose_their_newline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kept, the newline is part of the password, which the provider refuses."""
+    _set(
+        monkeypatch,
+        {
+            **BASE_ENV,
+            **PROVIDERS_ENV,
+            "DATAFORSEO_PASSWORD": "dfs-secret\n",
+            "INSTALLATION_ID": "prod",
+        },
+    )
+    settings = Settings()
+
+    assert settings.dataforseo_credentials == ("api@example.com", "dfs-secret")
+    assert settings.installation_id == "prod"
 
 
 @pytest.mark.parametrize(
@@ -113,12 +133,23 @@ def test_the_worker_reads_its_provider_and_bucket(monkeypatch: pytest.MonkeyPatc
         {"DATAFORSEO_PASSWORD": ""},
         {"DATAFORSEO_LOGIN": "   "},
         {"R2_RAW_SECRET_ACCESS_KEY": ""},
-        {"R2_RAW_ENDPOINT": ""},
+        # A task sent is paid for; without the bucket its result could never be kept.
+        {"R2_RAW_ENDPOINT": "", "R2_RAW_ACCESS_KEY_ID": "", "R2_RAW_SECRET_ACCESS_KEY": ""},
         {"R2_RAW_ENDPOINT": "r2.example.com"},
         {"R2_RAW_ENDPOINT": "https://r2.example.com/seo-raw"},
+        {"R2_RAW_ENDPOINT": "https://r2.example.com?bucket=x"},
         {"R2_RAW_ENDPOINT": "ftp://r2.example.com"},
+        # Credentials in the URL would be shown wherever the settings are.
+        {"R2_RAW_ENDPOINT": "https://AKID:topsecret@r2.example.com"},
+        {"R2_RAW_ENDPOINT": "https://r2.example.com:99999"},
+        {"R2_RAW_ENDPOINT": "https://r2.example.com:abc"},
         {"R2_RAW_BUCKET": "Seo_Raw"},
-        {"R2_RAW_ENDPOINT": "http://r2.example.com", "APP_ENV": "production"},
+        # Plain http only to this machine, and never in production.
+        {"R2_RAW_ENDPOINT": "http://r2.example.com"},
+        {"R2_RAW_ENDPOINT": "http://127.0.0.1:9000", "APP_ENV": "production"},
+        {"INSTALLATION_ID": "Prod"},
+        {"INSTALLATION_ID": "a-very-long-installation-name"},
+        {"INSTALLATION_ID": ""},
     ],
 )
 def test_a_provider_or_bucket_is_configured_whole_or_not_at_all(

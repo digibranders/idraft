@@ -281,6 +281,7 @@ services:
       R2_RAW_ACCESS_KEY_ID: ${R2_RAW_ACCESS_KEY_ID:?}
       R2_RAW_SECRET_ACCESS_KEY: ${R2_RAW_SECRET_ACCESS_KEY:?}
       RESOLVE_UNKNOWN_SUBMISSIONS: "false"         # true once spike S-01 confirms id_list returns tags
+      INSTALLATION_ID: prod                        # in every provider tag; a restored copy runs with another
       HC_PLANNER_URL: ${HC_PLANNER_URL:?}
       HC_MAINTENANCE_URL: ${HC_MAINTENANCE_URL:?}
       HC_OPS_HEALTH_URL: ${HC_OPS_HEALTH_URL:?}

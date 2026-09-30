@@ -108,7 +108,8 @@ async def _build(
                 # provider id and cost, perhaps another workspace's, on this one.
                 _log.error("request names another task", task_id=task.ref.id, workload=name)
                 continue
-            requests[task.ref] = request
+            # The attempt this submission is, so the provider's answer is bound to it.
+            requests[task.ref] = request.model_copy(update={"attempt": task.attempts})
     return requests
 
 

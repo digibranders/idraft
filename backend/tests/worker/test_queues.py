@@ -20,8 +20,10 @@ from taskiq.exceptions import ScheduledTaskCancelledError, SendTaskError
 from taskiq_redis import RedisStreamBroker
 
 from sightline.config.logging import configure_logging
+from sightline.providers.contract import Limit
 from sightline.worker import queues as queues_module
 from sightline.worker import scheduler as scheduler_module
+from sightline.worker.limiter import RedisCallGate
 from sightline.worker.locks import RedisLock
 from sightline.worker.queues import CONSUMER_GROUP, Queues
 from sightline.worker.scheduler import run_scheduler
@@ -895,6 +897,15 @@ async def test_the_queues_work_as_the_redis_user_the_deployment_gives_them(
             await eventually(lambda: scheduled >= 1, within=10)
             stop.set()
             await scheduler
+        # The rate limiter's buckets and its script, as the same user.
+        gate = RedisCallGate(
+            client,
+            "dataforseo",
+            all_calls=Limit(per_minute=1000, burst=100),
+            families={"tasks_ready": Limit(per_minute=20, burst=2)},
+        )
+        assert await gate.enter("tasks_ready", within=timedelta(0))
+        await gate.slow_down()
     finally:
         await client.aclose()
         await redis.acl_deluser("app")

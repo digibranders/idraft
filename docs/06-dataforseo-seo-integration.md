@@ -90,7 +90,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
   "people_also_ask_click_depth": 0,
   "group_organic_results": true,
   "calculate_rectangles": false,
-  "tag": "t:9f2c1a:r:3e"
+  "tag": "i:prod:t:9f2c1a:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"
 }
 ```
 
@@ -108,7 +108,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 | `people_also_ask_click_depth` | 0 on daily checks. 1 on deep checks when the project has keyword discovery enabled (adds $0.00015 per click; unperformed clicks refunded). Questions visible without clicking are still captured. |
 | `group_organic_results` | true (provider default): nested `related_result` entries are grouped under their parent result. See 5.2. |
 | `calculate_rectangles` | false. Pixel position is post-MVP (it adds one base price). |
-| `tag` | Compact reference to our task: `t:<task id base36>:r:<run id prefix>`. Max 255 chars. Echoed back in `tasks_ready` and results, used to map provider tasks to ours without a lookup table. |
+| `tag` | Reference to our task: `i:<installation>:t:<task id base36>:a:<attempt>:r:<run id, 32 hex>`. Max 255 chars. Echoed back in `tasks_ready`, `id_list` and results, used to map provider tasks to ours without a lookup table. Each part is a check: the installation (`INSTALLATION_ID`, `prod` in production) keeps two installations sharing the account from taking each other's answers; the whole run id is carried because the first digits of a version 7 id are its time, shared by every run of the same minute; the attempt keeps the answer to an earlier submission from being taken for a later one's. |
 | `pingback_url`, `postback_url` | Omitted. V1 uses polling only; see 4.2. |
 
 ### 3.2 Batching and rate limits
@@ -342,7 +342,14 @@ Labs SERP-derived datasets (`ranked_keywords`, `domain_intersection`, `competito
 | 401 | auth | Pause provider, alert |
 | 402 | payment | Pause provider, alert (balance exhausted) |
 | 50301 (third-party source unavailable) | upstream_unavailable | Retry with backoff per doc 21 section 6 (max 4 attempts), then `dead` |
-| HTTP 5xx, timeouts | provider_error / timeout | Retry with backoff |
+| 401xx (not authorized, account not activated or blocked), HTTP 401 and 403 | auth | Pause provider, alert |
+| 402xx other than the codes above (balance, payment) | payment | Pause provider, alert |
+| 405xx (invalid field, path or body) | invalid_request | Do not retry, mark task failed |
+| 40601, 40602 (task in queue, task being processed) | not an error | `task_get` asked too early: the task stays `submitted` |
+| 40102 (no search results) | not an error | A finished, empty result: stored and ingested like any other |
+| 504xx, HTTP 408, 425, 502, 504 | timeout when posting tasks, else provider_error | Posting: the tasks may have been created, so they become `submit_unknown`. Reading: retry |
+| HTTP 400, 413, 422 | invalid_request | Do not retry |
+| Any other code or HTTP 5xx | provider_error | Retry with backoff: a retry costs nothing, a wrong failure cannot be undone |
 
 HTTP status is 200 for most errors; the real status is in `status_code` at top and task level (verified). The adapter checks both levels.
 
