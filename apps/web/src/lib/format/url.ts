@@ -5,8 +5,25 @@
  */
 
 const TRACKING_PARAMS = new Set([
-  'gclid', 'gbraid', 'wbraid', 'dclid', 'fbclid', 'msclkid', 'mc_cid', 'mc_eid', '_hsenc', '_hsmi',
-  'igshid', 'srsltid', 'yclid', 'ref', 'ref_src', 'spm', '_ga', '_gl', 'mkt_tok',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'dclid',
+  'fbclid',
+  'msclkid',
+  'mc_cid',
+  'mc_eid',
+  '_hsenc',
+  '_hsmi',
+  'igshid',
+  'srsltid',
+  'yclid',
+  'ref',
+  'ref_src',
+  'spm',
+  '_ga',
+  '_gl',
+  'mkt_tok',
 ]);
 
 export interface DisplayUrl {

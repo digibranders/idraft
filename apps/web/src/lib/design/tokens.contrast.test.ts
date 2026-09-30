@@ -42,10 +42,25 @@ function color(tokens: Record<string, string>, name: string): Color {
   return parsed;
 }
 
-const textBackgrounds = ['background', 'surface', 'surface-subtle', 'surface-elevated', 'surface-hover', 'surface-selected'];
+const textBackgrounds = [
+  'background',
+  'surface',
+  'surface-subtle',
+  'surface-elevated',
+  'surface-hover',
+  'surface-selected',
+];
 const textTokens = [
-  'foreground', 'foreground-secondary', 'foreground-tertiary', 'link', 'primary-text',
-  'positive-text', 'negative-text', 'warning-text', 'info-text', 'neutral-text',
+  'foreground',
+  'foreground-secondary',
+  'foreground-tertiary',
+  'link',
+  'primary-text',
+  'positive-text',
+  'negative-text',
+  'warning-text',
+  'info-text',
+  'neutral-text',
 ];
 const nonTextTokens = ['border-strong', 'ring', 'foreground-muted'];
 
@@ -95,12 +110,21 @@ describe.each(Object.entries(themes))('%s theme', (_name, tokens) => {
     expect(wcagContrast(color(tokens, fg), color(tokens, bg))).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.each(['positive-solid', 'negative-solid', 'warning-solid', 'chart-1', 'chart-2', 'chart-3', 'chart-4', 'chart-5', 'chart-6', 'chart-other', 'chart-reference'])(
-    'graphical mark %s meets 3:1 on surface',
-    (mark) => {
-      expect(wcagContrast(color(tokens, mark), color(tokens, 'surface'))).toBeGreaterThanOrEqual(3);
-    },
-  );
+  it.each([
+    'positive-solid',
+    'negative-solid',
+    'warning-solid',
+    'chart-1',
+    'chart-2',
+    'chart-3',
+    'chart-4',
+    'chart-5',
+    'chart-6',
+    'chart-other',
+    'chart-reference',
+  ])('graphical mark %s meets 3:1 on surface', (mark) => {
+    expect(wcagContrast(color(tokens, mark), color(tokens, 'surface'))).toBeGreaterThanOrEqual(3);
+  });
 
   it.each([
     ['theme-switch-sun', 'theme-switch-day'],

@@ -8,15 +8,20 @@ import type { Availability, Capabilities, CardTypeDefinition, Channel } from './
 const CHANNEL_NAME: Record<Channel, string> = { seo: 'SEO', ai: 'AI' };
 
 export function cardAvailability(definition: CardTypeDefinition, capabilities: Capabilities): Availability {
-  if (definition.permission !== null && !capabilities.permissions.includes(definition.permission)) return { state: 'hidden' };
+  if (definition.permission !== null && !capabilities.permissions.includes(definition.permission))
+    return { state: 'hidden' };
 
   const missing = definition.channels.all.filter((channel) => !capabilities.channels.includes(channel));
   const [firstMissing] = missing;
-  if (firstMissing) return { state: 'unavailable', reason: `${CHANNEL_NAME[firstMissing]} tracking is off in this project` };
+  if (firstMissing)
+    return { state: 'unavailable', reason: `${CHANNEL_NAME[firstMissing]} tracking is off in this project` };
 
   const { any } = definition.channels;
   if (any.length > 0 && !any.some((channel) => capabilities.channels.includes(channel))) {
-    return { state: 'unavailable', reason: `${any.map((channel) => CHANNEL_NAME[channel]).join(' and ')} tracking are off in this project` };
+    return {
+      state: 'unavailable',
+      reason: `${any.map((channel) => CHANNEL_NAME[channel]).join(' and ')} tracking are off in this project`,
+    };
   }
 
   if (definition.integration !== null && !capabilities.integrations.includes(definition.integration)) {

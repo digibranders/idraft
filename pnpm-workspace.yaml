@@ -10,6 +10,9 @@ allowBuilds:
   # msw copies its worker script after install only when package.json names a directory, which ours does
   # not: `msw init` writes apps/web/public/mockServiceWorker.js once and the file is committed.
   "msw": false
+  # unrs-resolver (the resolver behind eslint-import-resolver-typescript) ships prebuilt bindings as
+  # optional packages; its postinstall only re-checks them.
+  "unrs-resolver": false
 
 # Peers that lag the versions in use. Each was run against the installed version before being allowed:
 # eslint-plugin-react works on ESLint 10 when settings.react.version is a fixed version (its "detect"

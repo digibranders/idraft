@@ -114,14 +114,24 @@ describe('ranks', () => {
 
 describe('metric deltas', () => {
   it('colors only detectable changes, by polarity', () => {
-    expect(formatMetricDelta({ value: 0.053, unit: 'points', polarity: 'higher_is_better', isDetectable: true }).tone).toBe('positive');
-    expect(formatMetricDelta({ value: -0.053, unit: 'points', polarity: 'higher_is_better', isDetectable: true }).tone).toBe('negative');
-    expect(formatMetricDelta({ value: 0.053, unit: 'points', polarity: 'higher_is_better', isDetectable: false })).toMatchObject({
+    expect(
+      formatMetricDelta({ value: 0.053, unit: 'points', polarity: 'higher_is_better', isDetectable: true }).tone,
+    ).toBe('positive');
+    expect(
+      formatMetricDelta({ value: -0.053, unit: 'points', polarity: 'higher_is_better', isDetectable: true }).tone,
+    ).toBe('negative');
+    expect(
+      formatMetricDelta({ value: 0.053, unit: 'points', polarity: 'higher_is_better', isDetectable: false }),
+    ).toMatchObject({
       tone: 'neutral',
       note: 'Within normal variation',
     });
-    expect(formatMetricDelta({ value: 0.2, unit: 'relative', polarity: 'neutral', isDetectable: true }).tone).toBe('neutral');
-    expect(formatMetricDelta({ value: 12, unit: 'count', polarity: 'lower_is_better', isDetectable: true }).tone).toBe('negative');
+    expect(formatMetricDelta({ value: 0.2, unit: 'relative', polarity: 'neutral', isDetectable: true }).tone).toBe(
+      'neutral',
+    );
+    expect(formatMetricDelta({ value: 12, unit: 'count', polarity: 'lower_is_better', isDetectable: true }).tone).toBe(
+      'negative',
+    );
   });
 });
 
@@ -150,11 +160,18 @@ describe('dates', () => {
 describe('urls', () => {
   it('strips scheme, www, tracking parameters and fragments for display', () => {
     const u = displayUrl('https://www.example.com/blog/article-title/?utm_source=chatgpt.com&srsltid=x#:~:text=crm');
-    expect(u).toMatchObject({ host: 'example.com', path: '/blog/article-title', display: 'example.com/blog/article-title', valid: true });
+    expect(u).toMatchObject({
+      host: 'example.com',
+      path: '/blog/article-title',
+      display: 'example.com/blog/article-title',
+      valid: true,
+    });
     expect(u.original).toContain('utm_source');
   });
   it('keeps meaningful query parameters and the root path', () => {
-    expect(displayUrl('https://shop.example.com/search?q=crm&utm_medium=x').display).toBe('shop.example.com/search?q=crm');
+    expect(displayUrl('https://shop.example.com/search?q=crm&utm_medium=x').display).toBe(
+      'shop.example.com/search?q=crm',
+    );
     expect(displayUrl('https://example.com/').path).toBe('/');
   });
   it('marks unparseable input as invalid', () => {

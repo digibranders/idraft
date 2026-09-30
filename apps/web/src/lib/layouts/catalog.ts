@@ -3,7 +3,16 @@
  * The catalog is code, not data, so every card is a reviewed component that keeps the data rules
  * (spec section 7.4). Adding a card type here does not add it to anyone's layout (spec section 6.4).
  */
-import type { CardTypeDefinition, Channel, EngineCode, NumberDefinition, OptionDefinition, ScreenDefinition, ScreenKey, Width } from './types';
+import type {
+  CardTypeDefinition,
+  Channel,
+  EngineCode,
+  NumberDefinition,
+  OptionDefinition,
+  ScreenDefinition,
+  ScreenKey,
+  Width,
+} from './types';
 
 export const LIMITS = { cards: 12, numbers: 6 } as const;
 
@@ -14,8 +23,19 @@ export const ENGINES: ReadonlyArray<{ code: EngineCode; label: string }> = [
   { code: 'google_ai_overview', label: 'AI Overview' },
 ];
 
-const ROWS_5_10: OptionDefinition = { label: 'Rows', values: [{ value: '5', label: '5 rows' }, { value: '10', label: '10 rows' }], default: '5' };
-const ENGINE_OPTION: OptionDefinition = { label: 'Engine', values: ENGINES.map((e) => ({ value: e.code, label: e.label })), default: 'chatgpt_web' };
+const ROWS_5_10: OptionDefinition = {
+  label: 'Rows',
+  values: [
+    { value: '5', label: '5 rows' },
+    { value: '10', label: '10 rows' },
+  ],
+  default: '5',
+};
+const ENGINE_OPTION: OptionDefinition = {
+  label: 'Engine',
+  values: ENGINES.map((e) => ({ value: e.code, label: e.label })),
+  default: 'chatgpt_web',
+};
 
 const SEO: { all: Channel[]; any: Channel[] } = { all: ['seo'], any: [] };
 const AI: { all: Channel[]; any: Channel[] } = { all: ['ai'], any: [] };
@@ -36,54 +56,249 @@ function dashboardCard(
   channels: CardTypeDefinition['channels'],
   extra: Partial<Pick<CardTypeDefinition, 'options' | 'maxInstances' | 'addedOn'>> = {},
 ): CardTypeDefinition {
-  return { key, title, description, group, screens: ['overview'], widths, maxInstances: 1, options: {}, channels, permission: null, integration: null, status: 'active', addedOn: ORIGINAL, ...extra };
+  return {
+    key,
+    title,
+    description,
+    group,
+    screens: ['overview'],
+    widths,
+    maxInstances: 1,
+    options: {},
+    channels,
+    permission: null,
+    integration: null,
+    status: 'active',
+    addedOn: ORIGINAL,
+    ...extra,
+  };
 }
 
-function drawerCard(key: string, title: string, description: string, group: CardTypeDefinition['group'], channels: CardTypeDefinition['channels'], addedOn = ORIGINAL): CardTypeDefinition {
-  return { key, title, description, group, screens: ['inspector.keyword'], widths: [], maxInstances: 1, options: {}, channels, permission: null, integration: null, status: 'active', addedOn };
+function drawerCard(
+  key: string,
+  title: string,
+  description: string,
+  group: CardTypeDefinition['group'],
+  channels: CardTypeDefinition['channels'],
+  addedOn = ORIGINAL,
+): CardTypeDefinition {
+  return {
+    key,
+    title,
+    description,
+    group,
+    screens: ['inspector.keyword'],
+    widths: [],
+    maxInstances: 1,
+    options: {},
+    channels,
+    permission: null,
+    integration: null,
+    status: 'active',
+    addedOn,
+  };
 }
 
 export const CARD_TYPES: ReadonlyArray<CardTypeDefinition> = [
-  dashboardCard('trend.visibility_mentions', 'Visibility and mention rate', 'How SEO visibility and each engine’s mention rate moved over the window.', 'cross', ['two_thirds', 'full'], EITHER),
-  dashboardCard('seo.rank_distribution', 'Rank distribution', 'How many keywords sit in each rank bucket at the latest check.', 'seo', ['third', 'half'], SEO),
-  dashboardCard('seo.top_movers', 'Top movers', 'The keywords whose rank changed most in the window.', 'seo', ['half', 'third'], SEO, {
-    addedOn: RELEASE,
-    options: {
-      direction: { label: 'Show', values: [{ value: 'all', label: 'Improved and declined' }, { value: 'improved', label: 'Improved only' }, { value: 'declined', label: 'Declined only' }], default: 'all' },
-      rows: ROWS_5_10,
+  dashboardCard(
+    'trend.visibility_mentions',
+    'Visibility and mention rate',
+    'How SEO visibility and each engine’s mention rate moved over the window.',
+    'cross',
+    ['two_thirds', 'full'],
+    EITHER,
+  ),
+  dashboardCard(
+    'seo.rank_distribution',
+    'Rank distribution',
+    'How many keywords sit in each rank bucket at the latest check.',
+    'seo',
+    ['third', 'half'],
+    SEO,
+  ),
+  dashboardCard(
+    'seo.top_movers',
+    'Top movers',
+    'The keywords whose rank changed most in the window.',
+    'seo',
+    ['half', 'third'],
+    SEO,
+    {
+      addedOn: RELEASE,
+      options: {
+        direction: {
+          label: 'Show',
+          values: [
+            { value: 'all', label: 'Improved and declined' },
+            { value: 'improved', label: 'Improved only' },
+            { value: 'declined', label: 'Declined only' },
+          ],
+          default: 'all',
+        },
+        rows: ROWS_5_10,
+      },
     },
-  }),
-  dashboardCard('seo.serp_features', 'SERP features', 'Which result features appear for your keywords, and where you appear in them.', 'seo', ['third', 'half'], SEO, { addedOn: RELEASE }),
-  dashboardCard('ai.by_engine', 'AI by engine', 'Mention, citation and recommendation rates for each engine, side by side.', 'ai', ['half', 'two_thirds', 'full'], AI),
-  dashboardCard('ai.mention_trend', 'Mention rate trend', 'One engine’s mention rate over the window, with its interval.', 'ai', ['half', 'two_thirds', 'full'], AI, {
-    addedOn: RELEASE,
-    maxInstances: 4,
-    options: { engine: ENGINE_OPTION },
-  }),
-  dashboardCard('ai.citation_share_by_domain_type', 'Citation share by domain type', 'Whose pages AI answers cite: yours, competitors, publishers and others.', 'ai', ['third', 'half'], AI, { addedOn: RELEASE }),
-  dashboardCard('cross.matrix_summary', 'SEO and AI matrix', 'Keywords grouped by whether they are strong in search, in AI answers, or both.', 'cross', ['half', 'two_thirds'], BOTH),
-  dashboardCard('cross.unclassified', 'Not classified', 'Keywords the matrix could not place, and why.', 'cross', ['third', 'half'], BOTH),
-  dashboardCard('cross.opportunities', 'Opportunities', 'Conditions worth acting on, such as ranking in the top 3 without an AI citation.', 'cross', ['half', 'third'], BOTH, {
-    options: { rows: ROWS_5_10 },
-  }),
-  dashboardCard('competitors.summary', 'Competitors', 'Your share of voice and visibility next to each tracked competitor.', 'cross', ['half', 'two_thirds', 'full'], EITHER),
-  dashboardCard('competitors.share_of_voice', 'Share of voice', 'Share of voice as bars, for search or for one AI engine.', 'cross', ['third', 'half'], EITHER, {
-    addedOn: RELEASE,
-    options: {
-      channel: { label: 'Channel', values: [{ value: 'seo', label: 'Search' }, ...ENGINES.map((e) => ({ value: e.code, label: e.label }))], default: 'seo' },
+  ),
+  dashboardCard(
+    'seo.serp_features',
+    'SERP features',
+    'Which result features appear for your keywords, and where you appear in them.',
+    'seo',
+    ['third', 'half'],
+    SEO,
+    { addedOn: RELEASE },
+  ),
+  dashboardCard(
+    'ai.by_engine',
+    'AI by engine',
+    'Mention, citation and recommendation rates for each engine, side by side.',
+    'ai',
+    ['half', 'two_thirds', 'full'],
+    AI,
+  ),
+  dashboardCard(
+    'ai.mention_trend',
+    'Mention rate trend',
+    'One engine’s mention rate over the window, with its interval.',
+    'ai',
+    ['half', 'two_thirds', 'full'],
+    AI,
+    {
+      addedOn: RELEASE,
+      maxInstances: 4,
+      options: { engine: ENGINE_OPTION },
     },
-  }),
-  dashboardCard('activity.key_changes', 'Key changes', 'Detectable changes and collection issues in the window, most urgent first.', 'activity', ['half', 'two_thirds', 'full'], NONE, {
-    options: { rows: { label: 'Rows', values: [{ value: '5', label: '5 rows' }, { value: '8', label: '8 rows' }], default: '8' } },
-  }),
-  dashboardCard('activity.collection_status', 'Collection status', 'When data was last collected, what is scheduled next, and what failed.', 'activity', ['third', 'half'], NONE, { addedOn: RELEASE }),
+  ),
+  dashboardCard(
+    'ai.citation_share_by_domain_type',
+    'Citation share by domain type',
+    'Whose pages AI answers cite: yours, competitors, publishers and others.',
+    'ai',
+    ['third', 'half'],
+    AI,
+    { addedOn: RELEASE },
+  ),
+  dashboardCard(
+    'cross.matrix_summary',
+    'SEO and AI matrix',
+    'Keywords grouped by whether they are strong in search, in AI answers, or both.',
+    'cross',
+    ['half', 'two_thirds'],
+    BOTH,
+  ),
+  dashboardCard(
+    'cross.unclassified',
+    'Not classified',
+    'Keywords the matrix could not place, and why.',
+    'cross',
+    ['third', 'half'],
+    BOTH,
+  ),
+  dashboardCard(
+    'cross.opportunities',
+    'Opportunities',
+    'Conditions worth acting on, such as ranking in the top 3 without an AI citation.',
+    'cross',
+    ['half', 'third'],
+    BOTH,
+    {
+      options: { rows: ROWS_5_10 },
+    },
+  ),
+  dashboardCard(
+    'competitors.summary',
+    'Competitors',
+    'Your share of voice and visibility next to each tracked competitor.',
+    'cross',
+    ['half', 'two_thirds', 'full'],
+    EITHER,
+  ),
+  dashboardCard(
+    'competitors.share_of_voice',
+    'Share of voice',
+    'Share of voice as bars, for search or for one AI engine.',
+    'cross',
+    ['third', 'half'],
+    EITHER,
+    {
+      addedOn: RELEASE,
+      options: {
+        channel: {
+          label: 'Channel',
+          values: [{ value: 'seo', label: 'Search' }, ...ENGINES.map((e) => ({ value: e.code, label: e.label }))],
+          default: 'seo',
+        },
+      },
+    },
+  ),
+  dashboardCard(
+    'activity.key_changes',
+    'Key changes',
+    'Detectable changes and collection issues in the window, most urgent first.',
+    'activity',
+    ['half', 'two_thirds', 'full'],
+    NONE,
+    {
+      options: {
+        rows: {
+          label: 'Rows',
+          values: [
+            { value: '5', label: '5 rows' },
+            { value: '8', label: '8 rows' },
+          ],
+          default: '8',
+        },
+      },
+    },
+  ),
+  dashboardCard(
+    'activity.collection_status',
+    'Collection status',
+    'When data was last collected, what is scheduled next, and what failed.',
+    'activity',
+    ['third', 'half'],
+    NONE,
+    { addedOn: RELEASE },
+  ),
 
   drawerCard('inspector.key_numbers', 'Key numbers', 'Rank, average rank and search volume.', 'seo', SEO),
-  drawerCard('inspector.rank_history', 'Rank history', 'This keyword’s rank over time, with two competitors.', 'seo', SEO),
-  drawerCard('inspector.ai_by_engine', 'AI mentions by engine', 'Share of responses to linked prompts that mention you, per engine.', 'ai', AI),
-  drawerCard('inspector.competing_domains', 'Competing domains', 'The domains ranking for this keyword and how they moved.', 'seo', SEO),
-  drawerCard('inspector.serp_features', 'SERP features', 'Which result features appeared for this keyword in recent checks.', 'seo', SEO, RELEASE),
-  drawerCard('inspector.url_history', 'Ranking URL history', 'Which of your pages ranked for this keyword, and when it changed.', 'seo', SEO, RELEASE),
+  drawerCard(
+    'inspector.rank_history',
+    'Rank history',
+    'This keyword’s rank over time, with two competitors.',
+    'seo',
+    SEO,
+  ),
+  drawerCard(
+    'inspector.ai_by_engine',
+    'AI mentions by engine',
+    'Share of responses to linked prompts that mention you, per engine.',
+    'ai',
+    AI,
+  ),
+  drawerCard(
+    'inspector.competing_domains',
+    'Competing domains',
+    'The domains ranking for this keyword and how they moved.',
+    'seo',
+    SEO,
+  ),
+  drawerCard(
+    'inspector.serp_features',
+    'SERP features',
+    'Which result features appeared for this keyword in recent checks.',
+    'seo',
+    SEO,
+    RELEASE,
+  ),
+  drawerCard(
+    'inspector.url_history',
+    'Ranking URL history',
+    'Which of your pages ranked for this keyword, and when it changed.',
+    'seo',
+    SEO,
+    RELEASE,
+  ),
 ];
 
 function seoNumber(metric: string, label: string): NumberDefinition {

@@ -23,7 +23,8 @@ export interface ResolvedLayout {
  * next source is used. A broken personal layout must not hide the team default behind the built-in one.
  */
 export function resolveLayout(stored: StoredLayouts, screen: ScreenKey): ResolvedLayout {
-  if (isLayoutDocument(stored.personal)) return { source: 'personal', document: sanitizeLayout(stored.personal, screen).document };
+  if (isLayoutDocument(stored.personal))
+    return { source: 'personal', document: sanitizeLayout(stored.personal, screen).document };
   if (isLayoutDocument(stored.team)) return { source: 'team', document: sanitizeLayout(stored.team, screen).document };
   return { source: 'builtin', document: structuredClone(SCREENS[screen].builtin) };
 }

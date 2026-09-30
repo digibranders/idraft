@@ -12,7 +12,8 @@ const numbersOf = (doc: LayoutDocument): NumberItem[] => doc.numbers ?? [];
 
 /** An index that is missing or not a number means "at the end". */
 function insertAt<T>(items: ReadonlyArray<T>, item: T, index: number | undefined): T[] {
-  const at = index === undefined || Number.isNaN(index) ? items.length : Math.min(Math.max(Math.trunc(index), 0), items.length);
+  const at =
+    index === undefined || Number.isNaN(index) ? items.length : Math.min(Math.max(Math.trunc(index), 0), items.length);
   return [...items.slice(0, at), item, ...items.slice(at)];
 }
 
@@ -31,7 +32,12 @@ function instanceCount(doc: LayoutDocument, typeKey: string): number {
 }
 
 function canPlace(doc: LayoutDocument, type: CardTypeDefinition | undefined): type is CardTypeDefinition {
-  return type !== undefined && type.status === 'active' && cardsOf(doc).length < LIMITS.cards && instanceCount(doc, type.key) < type.maxInstances;
+  return (
+    type !== undefined &&
+    type.status === 'active' &&
+    cardsOf(doc).length < LIMITS.cards &&
+    instanceCount(doc, type.key) < type.maxInstances
+  );
 }
 
 /** Whether the catalog may offer this card type for this screen right now. */
@@ -90,7 +96,10 @@ export function moveCard(doc: LayoutDocument, id: string, toIndex: number): Layo
 export function setCardWidth(doc: LayoutDocument, id: string, width: Width): LayoutDocument {
   const card = cardsOf(doc).find((candidate) => candidate.id === id);
   if (!card || card.width === width || !cardType(card.type)?.widths.includes(width)) return doc;
-  return { ...doc, cards: cardsOf(doc).map((candidate) => (candidate.id === id ? { ...candidate, width } : candidate)) };
+  return {
+    ...doc,
+    cards: cardsOf(doc).map((candidate) => (candidate.id === id ? { ...candidate, width } : candidate)),
+  };
 }
 
 export function setCardOption(doc: LayoutDocument, id: string, key: string, value: string): LayoutDocument {
@@ -98,9 +107,21 @@ export function setCardOption(doc: LayoutDocument, id: string, key: string, valu
   const type = card ? cardType(card.type) : undefined;
   // Only the type's own option keys count: "constructor" and the like are not options.
   const option = type && Object.hasOwn(type.options, key) ? type.options[key] : undefined;
-  if (!card || !type || !option || card.options?.[key] === value || !option.values.some((candidate) => candidate.value === value)) return doc;
+  if (
+    !card ||
+    !type ||
+    !option ||
+    card.options?.[key] === value ||
+    !option.values.some((candidate) => candidate.value === value)
+  )
+    return doc;
   if (key === identityOption(type) && takenIdentityValues(doc, type, id).has(value)) return doc;
-  return { ...doc, cards: cardsOf(doc).map((candidate) => (candidate.id === id ? { ...candidate, options: { ...candidate.options, [key]: value } } : candidate)) };
+  return {
+    ...doc,
+    cards: cardsOf(doc).map((candidate) =>
+      candidate.id === id ? { ...candidate, options: { ...candidate.options, [key]: value } } : candidate,
+    ),
+  };
 }
 
 /** Whether a number can be added: known metric, an engine exactly when the metric is per engine, not shown yet, room left. */
@@ -113,7 +134,8 @@ export function canAddNumber(doc: LayoutDocument, metric: string, engine?: Engin
 }
 
 export function addNumber(doc: LayoutDocument, number: NumberItem, index?: number): LayoutDocument {
-  if (!canAddNumber(doc, number.metric, number.engine) || numbersOf(doc).some((other) => other.id === number.id)) return doc;
+  if (!canAddNumber(doc, number.metric, number.engine) || numbersOf(doc).some((other) => other.id === number.id))
+    return doc;
   return { ...doc, numbers: insertAt(numbersOf(doc), number, index) };
 }
 
@@ -132,7 +154,12 @@ export function moveNumber(doc: LayoutDocument, id: string, toIndex: number): La
  * Items are matched by id, then the rest by kind in order. The second pass is what makes a card that was
  * hidden and added back (with a new id) count as the same card, moved or edited, not as one hidden plus one added.
  */
-function zoneChanges<T extends { id: string }>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, kindOf: (item: T) => string, differs: (a: T, b: T) => number): number {
+function zoneChanges<T extends { id: string }>(
+  before: ReadonlyArray<T>,
+  after: ReadonlyArray<T>,
+  kindOf: (item: T) => string,
+  differs: (a: T, b: T) => number,
+): number {
   const beforeById = new Map(before.map((item) => [item.id, item]));
   const unmatched = new Set(before);
   const previousOf = new Map<T, T>();

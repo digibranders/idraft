@@ -47,8 +47,8 @@ export type RankChangeKind =
   | 'improved'
   | 'declined'
   | 'unchanged'
-  | 'entered'          // beyond depth before, ranked now
-  | 'dropped'          // ranked before, beyond depth now
+  | 'entered' // beyond depth before, ranked now
+  | 'dropped' // ranked before, beyond depth now
   | 'unchanged_beyond' // beyond depth in both checks (or consistent across depths)
   | 'first_check';
 

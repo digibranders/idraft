@@ -1,0 +1,13 @@
+# Build output, scratch and generated files
+.next
+.tmp
+next-env.d.ts
+src/lib/api/schema.d.ts
+public
+pnpm-lock.yaml
+
+# The static preview is hand-formatted plain HTML and scripts; it goes away once its pages are ported.
+design-preview
+
+# Hand-aligned token tables
+src/styles

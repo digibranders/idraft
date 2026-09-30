@@ -4,7 +4,15 @@
  * Sanitizing changes only what is displayed; the stored document is rewritten when the person saves.
  */
 import { LIMITS, SCREENS, cardType, identityOption, isEngineCode, numberType } from './catalog';
-import { WIDTHS, type CardItem, type CardTypeDefinition, type LayoutDocument, type NumberItem, type ScreenKey, type Width } from './types';
+import {
+  WIDTHS,
+  type CardItem,
+  type CardTypeDefinition,
+  type LayoutDocument,
+  type NumberItem,
+  type ScreenKey,
+  type Width,
+} from './types';
 
 export interface SanitizeResult {
   document: LayoutDocument;
@@ -12,8 +20,10 @@ export interface SanitizeResult {
   changed: boolean;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
-const isWidth = (value: unknown): value is Width => typeof value === 'string' && (WIDTHS as ReadonlyArray<string>).includes(value);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isWidth = (value: unknown): value is Width =>
+  typeof value === 'string' && (WIDTHS as ReadonlyArray<string>).includes(value);
 
 /** Ids are plain tokens, so they are safe in attributes, selectors and URLs without escaping. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -105,7 +115,9 @@ function sanitizeNumbers(raw: unknown, screen: ScreenKey): NumberItem[] {
     const identity = `${type.metric}|${engine ?? ''}`;
     if (seen.has(identity)) continue;
     seen.add(identity);
-    numbers.push(engine ? { id: nextId(entry.id), metric: type.metric, engine } : { id: nextId(entry.id), metric: type.metric });
+    numbers.push(
+      engine ? { id: nextId(entry.id), metric: type.metric, engine } : { id: nextId(entry.id), metric: type.metric },
+    );
   }
   return numbers;
 }

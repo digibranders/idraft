@@ -42,7 +42,14 @@ describe('wilsonInterval', () => {
   });
 
   it('has no interval without observations or with impossible counts', () => {
-    for (const [k, n] of [[0, 0], [3, 2], [-1, 4], [1.5, 4], [Number.NaN, 4]] as const) expect(wilsonInterval(k, n)).toBeNull();
+    for (const [k, n] of [
+      [0, 0],
+      [3, 2],
+      [-1, 4],
+      [1.5, 4],
+      [Number.NaN, 4],
+    ] as const)
+      expect(wilsonInterval(k, n)).toBeNull();
   });
 });
 
@@ -58,11 +65,20 @@ describe('rates', () => {
     expect(rateState(Number.NaN)).toBe('none');
     expect(rateOf({ k: 5, n: 4 })).toBeNull();
     expect(rateOf({ k: -1, n: 4 })).toBeNull();
-    expect(promptWeightedRate([{ k: 5, n: 4 }, { k: 2, n: 4 }])).toBe(0.5);
+    expect(
+      promptWeightedRate([
+        { k: 5, n: 4 },
+        { k: 2, n: 4 },
+      ]),
+    ).toBe(0.5);
   });
 
   it('pools counts, and weights prompts equally whatever their replicate count (17 section 4.1)', () => {
-    const items = [{ k: 12, n: 12 }, { k: 0, n: 4 }, { k: 0, n: 0 }];
+    const items = [
+      { k: 12, n: 12 },
+      { k: 0, n: 4 },
+      { k: 0, n: 0 },
+    ];
     expect(pooledCounts(items)).toEqual({ k: 12, n: 16 });
     // Pooled this is 75%; each prompt counting once it is (100% + 0%) / 2
     expect(promptWeightedRate(items)).toBe(0.5);

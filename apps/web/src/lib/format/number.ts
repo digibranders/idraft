@@ -46,7 +46,11 @@ export function formatCompact(value: number | null | undefined, opts: FormatOpti
 }
 
 /** Count formatted for a display context: tables and tooltips exact, summaries and axes compact. */
-export function formatCount(value: number | null | undefined, context: NumberContext, opts: FormatOptions = {}): string {
+export function formatCount(
+  value: number | null | undefined,
+  context: NumberContext,
+  opts: FormatOptions = {},
+): string {
   return context === 'table' || context === 'tooltip' ? formatInteger(value, opts) : formatCompact(value, opts);
 }
 
@@ -73,7 +77,10 @@ export function formatPercent(
  * Change of a rate in percentage points: 0.053 -> "+5.3 pts". Zero renders "0 pts" without sign.
  * Rates always change in points, never in relative percent, to avoid "+50%" for 2% -> 3%.
  */
-export function formatPointsDelta(deltaRatio: number | null | undefined, { decimals = 1 }: { decimals?: 0 | 1 } = {}): string {
+export function formatPointsDelta(
+  deltaRatio: number | null | undefined,
+  { decimals = 1 }: { decimals?: 0 | 1 } = {},
+): string {
   if (!isFiniteNumber(deltaRatio)) return EMPTY_VALUE;
   const points = deltaRatio * 100;
   const rounded = Number(points.toFixed(decimals));
@@ -92,7 +99,10 @@ export function formatSignedInteger(value: number | null | undefined, opts: Form
 }
 
 /** Relative change for counts and money (not rates): 0.124 -> "+12.4%". */
-export function formatRelativeChange(ratio: number | null | undefined, { decimals = 1 }: { decimals?: 0 | 1 } = {}): string {
+export function formatRelativeChange(
+  ratio: number | null | undefined,
+  { decimals = 1 }: { decimals?: 0 | 1 } = {},
+): string {
   if (!isFiniteNumber(ratio)) return EMPTY_VALUE;
   const pct = Number((ratio * 100).toFixed(decimals));
   if (pct === 0) return '0%';
@@ -110,7 +120,9 @@ export function formatCurrency(
   if (!isFiniteNumber(usd)) return EMPTY_VALUE;
   const abs = Math.abs(usd);
   const fmt = (options: Intl.NumberFormatOptions) =>
-    withMinus(new Intl.NumberFormat(locale ?? DEFAULT_LOCALE, { style: 'currency', currency: 'USD', ...options }).format(usd));
+    withMinus(
+      new Intl.NumberFormat(locale ?? DEFAULT_LOCALE, { style: 'currency', currency: 'USD', ...options }).format(usd),
+    );
   if (abs > 0 && abs < 0.01) return fmt({ minimumFractionDigits: 4, maximumFractionDigits: 4 });
   if ((context === 'summary' || context === 'axis') && abs >= 100_000) {
     return fmt({ notation: 'compact', maximumSignificantDigits: 3 });
@@ -119,7 +131,11 @@ export function formatCurrency(
 }
 
 /** Decimal with fixed precision for scores and estimates: 0.0421 -> "0.042". */
-export function formatDecimal(value: number | null | undefined, digits: 1 | 2 | 3 = 3, opts: FormatOptions = {}): string {
+export function formatDecimal(
+  value: number | null | undefined,
+  digits: 1 | 2 | 3 = 3,
+  opts: FormatOptions = {},
+): string {
   if (!isFiniteNumber(value)) return EMPTY_VALUE;
   return withMinus(
     new Intl.NumberFormat(opts.locale ?? DEFAULT_LOCALE, {
@@ -130,7 +146,11 @@ export function formatDecimal(value: number | null | undefined, digits: 1 | 2 | 
 }
 
 /** Interval text for confidence intervals: (0.29, 0.39) -> "29% to 39%". Never uses a dash. */
-export function formatInterval(low: number | null | undefined, high: number | null | undefined, decimals: 0 | 1 = 0): string {
+export function formatInterval(
+  low: number | null | undefined,
+  high: number | null | undefined,
+  decimals: 0 | 1 = 0,
+): string {
   if (!isFiniteNumber(low) || !isFiniteNumber(high)) return EMPTY_VALUE;
   return `${formatPercent(low, { decimals })} to ${formatPercent(high, { decimals })}`;
 }

@@ -8,9 +8,9 @@ import type { ChangeTone } from './rank';
 import { formatPointsDelta, formatRelativeChange, formatSignedInteger, EMPTY_VALUE } from './number';
 
 export type Polarity =
-  | 'higher_is_better'  // mention rate, citation rate, visibility, top-10 count
-  | 'lower_is_better'   // failure rate, stale keyword count
-  | 'neutral';          // cost, volume, observation counts: change is information, not judgment
+  | 'higher_is_better' // mention rate, citation rate, visibility, top-10 count
+  | 'lower_is_better' // failure rate, stale keyword count
+  | 'neutral'; // cost, volume, observation counts: change is information, not judgment
 
 export type DeltaUnit = 'points' | 'relative' | 'count';
 
@@ -36,7 +36,11 @@ export function formatMetricDelta(input: MetricDeltaInput): MetricDeltaDisplay {
     return { text: EMPTY_VALUE, label: 'change not available', tone: 'neutral', note: null };
   }
   const text =
-    unit === 'points' ? formatPointsDelta(value) : unit === 'relative' ? formatRelativeChange(value) : formatSignedInteger(value);
+    unit === 'points'
+      ? formatPointsDelta(value)
+      : unit === 'relative'
+        ? formatRelativeChange(value)
+        : formatSignedInteger(value);
   const direction = value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
 
   let tone: ChangeTone = 'neutral';
@@ -45,6 +49,7 @@ export function formatMetricDelta(input: MetricDeltaInput): MetricDeltaDisplay {
     tone = good ? 'positive' : 'negative';
   }
   const note = isDetectable === false ? 'Within normal variation' : null;
-  const label = direction === 'flat' ? 'no change' : `${direction === 'up' ? 'up' : 'down'} ${text.replace(/^[+−]/, '')}`;
+  const label =
+    direction === 'flat' ? 'no change' : `${direction === 'up' ? 'up' : 'down'} ${text.replace(/^[+−]/, '')}`;
   return { text, label, tone, note };
 }

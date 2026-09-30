@@ -109,7 +109,11 @@ describe('sanitizeLayout', () => {
     const doc: LayoutDocument = {
       schema: 1,
       numbers: [],
-      cards: [card('a', 'seo.rank_distribution', { width: 'third' }), card('b', 'made.up'), card('c', 'inspector.rank_history')],
+      cards: [
+        card('a', 'seo.rank_distribution', { width: 'third' }),
+        card('b', 'made.up'),
+        card('c', 'inspector.rank_history'),
+      ],
     };
     const result = sanitizeLayout(doc, 'overview');
     expect(result.changed).toBe(true);
@@ -117,7 +121,11 @@ describe('sanitizeLayout', () => {
   });
 
   it('replaces a width the type does not allow with the type default', () => {
-    const doc: LayoutDocument = { schema: 1, numbers: [], cards: [card('a', 'seo.rank_distribution', { width: 'full' }), card('b', 'seo.rank_distribution')] };
+    const doc: LayoutDocument = {
+      schema: 1,
+      numbers: [],
+      cards: [card('a', 'seo.rank_distribution', { width: 'full' }), card('b', 'seo.rank_distribution')],
+    };
     const cards = sanitizeLayout(doc, 'overview').document.cards ?? [];
     expect(cards[0]?.width).toBe('third');
   });
@@ -143,7 +151,10 @@ describe('sanitizeLayout', () => {
     const doc: LayoutDocument = {
       schema: 1,
       numbers: [],
-      cards: [card('a', 'seo.rank_distribution', { width: 'third' }), card('b', 'seo.rank_distribution', { width: 'third' })],
+      cards: [
+        card('a', 'seo.rank_distribution', { width: 'third' }),
+        card('b', 'seo.rank_distribution', { width: 'third' }),
+      ],
     };
     expect(sanitizeLayout(doc, 'overview').document.cards?.map((c) => c.id)).toEqual(['a']);
   });
@@ -186,18 +197,33 @@ describe('sanitizeLayout', () => {
   });
 
   it('gives a card without a width the default width of its type', () => {
-    const result = sanitizeLayout({ schema: 1, numbers: [], cards: [{ id: 'a', type: 'activity.key_changes' }] }, 'overview');
+    const result = sanitizeLayout(
+      { schema: 1, numbers: [], cards: [{ id: 'a', type: 'activity.key_changes' }] },
+      'overview',
+    );
     expect(result.document.cards?.[0]?.width).toBe('half');
   });
 
   it('keeps one instance per identity value of a reusable type', () => {
-    const cards = ['gemini_web', 'gemini_web', 'chatgpt_web', 'chatgpt_web', 'google_ai_mode'].map((engine, i) => ({ id: `t${i}`, type: 'ai.mention_trend', width: 'half', options: { engine } }));
+    const cards = ['gemini_web', 'gemini_web', 'chatgpt_web', 'chatgpt_web', 'google_ai_mode'].map((engine, i) => ({
+      id: `t${i}`,
+      type: 'ai.mention_trend',
+      width: 'half',
+      options: { engine },
+    }));
     const kept = sanitizeLayout({ schema: 1, numbers: [], cards }, 'overview').document.cards ?? [];
     expect(kept.map((c) => c.options?.engine)).toEqual(['gemini_web', 'chatgpt_web', 'google_ai_mode']);
   });
 
   it('replaces ids that are not plain tokens, so they are safe in selectors', () => {
-    const doc = { schema: 1, numbers: [], cards: [{ id: 'a"] b', type: 'seo.rank_distribution', width: 'third' }, { id: 'x'.repeat(80), type: 'seo.serp_features', width: 'third' }] };
+    const doc = {
+      schema: 1,
+      numbers: [],
+      cards: [
+        { id: 'a"] b', type: 'seo.rank_distribution', width: 'third' },
+        { id: 'x'.repeat(80), type: 'seo.serp_features', width: 'third' },
+      ],
+    };
     const ids = (sanitizeLayout(doc, 'overview').document.cards ?? []).map((c) => c.id);
     expect(ids.every((id) => /^[A-Za-z0-9_-]{1,64}$/.test(id))).toBe(true);
   });
@@ -205,8 +231,15 @@ describe('sanitizeLayout', () => {
   it('does not throw on hostile input', () => {
     let deep: unknown = 'leaf';
     for (let i = 0; i < 20000; i += 1) deep = { nested: deep };
-    expect(() => sanitizeLayout({ schema: 1, numbers: [], cards: [{ id: 'a', type: 'seo.top_movers', options: deep }] }, 'overview')).not.toThrow();
-    const polluted = JSON.parse('{"schema":1,"numbers":[],"cards":[{"id":"a","type":"seo.top_movers","options":{"__proto__":{"x":1},"constructor":"y"}}]}') as unknown;
+    expect(() =>
+      sanitizeLayout(
+        { schema: 1, numbers: [], cards: [{ id: 'a', type: 'seo.top_movers', options: deep }] },
+        'overview',
+      ),
+    ).not.toThrow();
+    const polluted = JSON.parse(
+      '{"schema":1,"numbers":[],"cards":[{"id":"a","type":"seo.top_movers","options":{"__proto__":{"x":1},"constructor":"y"}}]}',
+    ) as unknown;
     expect(sanitizeLayout(polluted, 'overview').document.cards?.[0]?.options).toEqual({ direction: 'all', rows: '5' });
   });
 
@@ -228,13 +261,24 @@ describe('sanitizeLayout', () => {
 });
 
 describe('resolveLayout', () => {
-  const personal: LayoutDocument = { schema: 1, numbers: [], cards: [card('p', 'seo.rank_distribution', { width: 'half' })] };
-  const team: LayoutDocument = { schema: 1, numbers: [], cards: [card('t', 'activity.key_changes', { width: 'full', options: { rows: '8' } })] };
+  const personal: LayoutDocument = {
+    schema: 1,
+    numbers: [],
+    cards: [card('p', 'seo.rank_distribution', { width: 'half' })],
+  };
+  const team: LayoutDocument = {
+    schema: 1,
+    numbers: [],
+    cards: [card('t', 'activity.key_changes', { width: 'full', options: { rows: '8' } })],
+  };
 
   it('prefers the personal layout, then the team default, then the built-in default', () => {
     expect(resolveLayout({ personal, team }, 'overview')).toEqual({ source: 'personal', document: personal });
     expect(resolveLayout({ personal: null, team }, 'overview')).toEqual({ source: 'team', document: team });
-    expect(resolveLayout({ personal: null, team: undefined }, 'overview')).toEqual({ source: 'builtin', document: SCREENS.overview.builtin });
+    expect(resolveLayout({ personal: null, team: undefined }, 'overview')).toEqual({
+      source: 'builtin',
+      document: SCREENS.overview.builtin,
+    });
   });
 
   it('falls through when a stored value is not a layout document at all', () => {
@@ -250,14 +294,25 @@ describe('resolveLayout', () => {
   });
 
   it('compares layouts by content, whatever the key order', () => {
-    const a: LayoutDocument = { schema: 1, numbers: [], cards: [{ id: 'a', type: 'seo.top_movers', width: 'half', options: { direction: 'all', rows: '5' } }] };
-    const b: LayoutDocument = { cards: [{ options: { rows: '5', direction: 'all' }, width: 'half', type: 'seo.top_movers', id: 'a' }], numbers: [], schema: 1 };
+    const a: LayoutDocument = {
+      schema: 1,
+      numbers: [],
+      cards: [{ id: 'a', type: 'seo.top_movers', width: 'half', options: { direction: 'all', rows: '5' } }],
+    };
+    const b: LayoutDocument = {
+      cards: [{ options: { rows: '5', direction: 'all' }, width: 'half', type: 'seo.top_movers', id: 'a' }],
+      numbers: [],
+      schema: 1,
+    };
     expect(sameLayout(a, b)).toBe(true);
     expect(sameLayout(a, { ...b, cards: [] })).toBe(false);
   });
 
   it('sanitizes what it resolves instead of failing', () => {
-    const result = resolveLayout({ personal: { schema: 1, numbers: [], cards: [{ id: 'x', type: 'made.up' }] }, team }, 'overview');
+    const result = resolveLayout(
+      { personal: { schema: 1, numbers: [], cards: [{ id: 'x', type: 'made.up' }] }, team },
+      'overview',
+    );
     expect(result.source).toBe('personal');
     expect(result.document.cards).toEqual([]);
   });
@@ -274,14 +329,20 @@ describe('cardAvailability', () => {
     const matrix = cardType('cross.matrix_summary');
     expect(matrix).toBeDefined();
     if (!matrix) return;
-    expect(cardAvailability(matrix, { ...all, channels: ['seo'] })).toEqual({ state: 'unavailable', reason: 'AI tracking is off in this project' });
+    expect(cardAvailability(matrix, { ...all, channels: ['seo'] })).toEqual({
+      state: 'unavailable',
+      reason: 'AI tracking is off in this project',
+    });
   });
 
   it('accepts either channel for cards that need only one', () => {
     const competitors = cardType('competitors.summary');
     if (!competitors) throw new Error('missing card type');
     expect(cardAvailability(competitors, { ...all, channels: ['ai'] }).state).toBe('available');
-    expect(cardAvailability(competitors, { ...all, channels: [] })).toEqual({ state: 'unavailable', reason: 'SEO and AI tracking are off in this project' });
+    expect(cardAvailability(competitors, { ...all, channels: [] })).toEqual({
+      state: 'unavailable',
+      reason: 'SEO and AI tracking are off in this project',
+    });
   });
 
   it('explains a missing integration', () => {
@@ -296,7 +357,9 @@ describe('cardAvailability', () => {
     const base = cardType('seo.rank_distribution');
     if (!base) throw new Error('missing card type');
     expect(cardAvailability({ ...base, permission: 'costs:read' }, all)).toEqual({ state: 'hidden' });
-    expect(cardAvailability({ ...base, permission: 'costs:read' }, { ...all, permissions: ['costs:read'] }).state).toBe('available');
+    expect(cardAvailability({ ...base, permission: 'costs:read' }, { ...all, permissions: ['costs:read'] }).state).toBe(
+      'available',
+    );
   });
 });
 
@@ -308,9 +371,17 @@ describe('rows', () => {
   });
 
   it('flows cards in order, wraps when a card does not fit, and never stretches', () => {
-    const cards = [card('a', 'x', { width: 'two_thirds' }), card('b', 'x', { width: 'third' }), card('c', 'x', { width: 'two_thirds' }), card('d', 'x', { width: 'half' })];
+    const cards = [
+      card('a', 'x', { width: 'two_thirds' }),
+      card('b', 'x', { width: 'third' }),
+      card('c', 'x', { width: 'two_thirds' }),
+      card('d', 'x', { width: 'half' }),
+    ];
     expect(packRows(cards, 'wide')).toEqual([
-      [{ id: 'a', span: 8 }, { id: 'b', span: 4 }],
+      [
+        { id: 'a', span: 8 },
+        { id: 'b', span: 4 },
+      ],
       [{ id: 'c', span: 8 }],
       [{ id: 'd', span: 6 }],
     ]);
@@ -318,7 +389,11 @@ describe('rows', () => {
   });
 
   it('collapses at medium and stacks at narrow', () => {
-    const cards = [card('a', 'x', { width: 'third' }), card('b', 'x', { width: 'third' }), card('c', 'x', { width: 'two_thirds' })];
+    const cards = [
+      card('a', 'x', { width: 'third' }),
+      card('b', 'x', { width: 'third' }),
+      card('c', 'x', { width: 'two_thirds' }),
+    ];
     expect(packRows(cards, 'medium').map((row) => row.length)).toEqual([2, 1]);
     expect(packRows(cards, 'narrow').map((row) => row.length)).toEqual([1, 1, 1]);
   });
@@ -334,7 +409,12 @@ describe('draft edits', () => {
   it('adds a card with the type defaults, at the end or at an index', () => {
     const doc = overview();
     const added = addCard(doc, 'seo.top_movers', 'new-1');
-    expect(added.cards?.at(-1)).toEqual({ id: 'new-1', type: 'seo.top_movers', width: 'half', options: { direction: 'all', rows: '5' } });
+    expect(added.cards?.at(-1)).toEqual({
+      id: 'new-1',
+      type: 'seo.top_movers',
+      width: 'half',
+      options: { direction: 'all', rows: '5' },
+    });
     const first = addCard(doc, 'seo.serp_features', 'new-2', 0);
     expect(first.cards?.[0]?.id).toBe('new-2');
     expect(doc.cards).toHaveLength(8);
@@ -443,14 +523,25 @@ describe('draft edits', () => {
     expect(changeCount(before, setCardWidth(before, ids[1] ?? '', 'half'))).toBe(1);
     const withMovers = addCard(before, 'seo.top_movers', 'm');
     expect(changeCount(withMovers, setCardOption(withMovers, 'm', 'rows', '10'))).toBe(1);
-    const several = removeNumber(moveCard(hideCard(before, ids[7] ?? ''), ids[0] ?? '', 2), before.numbers?.[0]?.id ?? '');
+    const several = removeNumber(
+      moveCard(hideCard(before, ids[7] ?? ''), ids[0] ?? '', 2),
+      before.numbers?.[0]?.id ?? '',
+    );
     expect(changeCount(before, several)).toBe(3);
   });
 
   it('agrees with sameLayout: no changes exactly when the two layouts show the same thing', () => {
     // Same id, different card: a change, even though the id pairs them
-    const rank: LayoutDocument = { schema: 1, numbers: [], cards: [{ id: 'a', type: 'seo.rank_distribution', width: 'third' }] };
-    const serp: LayoutDocument = { schema: 1, numbers: [], cards: [{ id: 'a', type: 'seo.serp_features', width: 'third' }] };
+    const rank: LayoutDocument = {
+      schema: 1,
+      numbers: [],
+      cards: [{ id: 'a', type: 'seo.rank_distribution', width: 'third' }],
+    };
+    const serp: LayoutDocument = {
+      schema: 1,
+      numbers: [],
+      cards: [{ id: 'a', type: 'seo.serp_features', width: 'third' }],
+    };
     expect(sameLayout(rank, serp)).toBe(false);
     expect(changeCount(rank, serp)).toBeGreaterThan(0);
 
@@ -462,7 +553,10 @@ describe('draft edits', () => {
     draft = setCardOption(draft, 't2', 'engine', 'chatgpt_web');
     const index = draft.cards?.findIndex((item) => item.id === 't2') ?? -1;
     draft = moveCard(draft, 't2', index - 1);
-    expect(draft.cards?.slice(-2).map((item) => `${item.id}:${item.options?.engine}`)).toEqual(['t2:chatgpt_web', 't1:gemini_web']);
+    expect(draft.cards?.slice(-2).map((item) => `${item.id}:${item.options?.engine}`)).toEqual([
+      't2:chatgpt_web',
+      't1:gemini_web',
+    ]);
     expect(sameLayout(start, draft)).toBe(true);
     expect(changeCount(start, draft)).toBe(0);
   });
