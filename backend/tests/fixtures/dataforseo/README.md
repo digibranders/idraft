@@ -1,9 +1,10 @@
 # DataForSEO fixtures
 
-**Synthetic.** Every file here was written by hand from DataForSEO's documentation, not captured
-from the API. They have the documented shape and fields, and nothing more is claimed for them.
-Spike S-01 captures real answers with the fixture tool in `backend/spikes/`; those replace these
-files (plan `docs/superpowers/plans/2026-09-30-dataforseo-raw-storage.md`, decision D8).
+**Synthetic.** Every file in this folder was written by hand from DataForSEO's documentation, not
+captured from the API. They have the documented shape and fields, and nothing more is claimed for
+them. Spike S-01 (`backend/spikes/s01_billing_and_tags.py`, see `docs/spikes/README.md`) keeps
+real answers in `captured/`; those replace these files (plan
+`docs/superpowers/plans/2026-09-30-dataforseo-raw-storage.md`, decision D8).
 
 Points S-01 checks against the real API before anything depends on them:
 

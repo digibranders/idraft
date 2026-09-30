@@ -48,13 +48,13 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "C4", "T20", "N
 "tests/*" = ["S608"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["sightline"]
+known-first-party = ["sightline", "spikes"]
 
 [tool.mypy]
 python_version = "3.13"
 strict = true
 warn_unreachable = true
-files = ["src", "tests"]
+files = ["src", "tests", "spikes"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
