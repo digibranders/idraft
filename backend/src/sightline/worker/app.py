@@ -15,6 +15,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 
+import httpx
 import structlog
 from redis.asyncio import BlockingConnectionPool, Redis
 from sqlalchemy import text
@@ -22,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
+from sightline.storage.raw import ObjectStore, RawStore, open_raw_store
 from sightline.worker.queues import Queues
 from sightline.worker.scheduler import run_scheduler
 from sightline.worker.ticks import Tick, run_tick
@@ -33,6 +35,10 @@ REDIS_CONNECTIONS_SPARE = 20
 # timeout; one that runs longer than this at a stop is cut off, and its transaction rolls back.
 STOP_TICKS_WITHIN = timedelta(seconds=30)
 HEARTBEAT_EVERY = timedelta(seconds=10)
+# Each call names its own timeouts; this is the bound for any that does not.
+HTTP_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+# Connections beyond one per handler: the ticks that call providers (the ready poll).
+HTTP_CONNECTIONS_SPARE = 4
 _HEALTH_TIMEOUT_SECONDS = 5.0
 _log = structlog.get_logger(__name__)
 
@@ -46,6 +52,10 @@ class WorkerContext:
     sessions: async_sessionmaker[AsyncSession]
     redis: Redis
     queues: Queues
+    # One HTTP client for the process's provider calls: pooled connections, explicit timeouts.
+    http: httpx.AsyncClient | None = None
+    # The raw payload bucket, when it is configured.
+    raw_store: ObjectStore | None = None
 
 
 # Registers the worker's jobs on `context.queues` and returns its ticks.
@@ -122,16 +132,30 @@ async def run_worker(settings: Settings, assemble: Assemble, stop: asyncio.Event
         )
     )
     queues = Queues(settings.redis_url.get_secret_value(), redis)
-    context = WorkerContext(
-        settings=settings,
-        engine=engine,
-        sessions=create_session_factory(engine),
-        redis=redis,
-        queues=queues,
-    )
-    ticks = [tick for tick in (_heartbeat(context), *assemble(context)) if tick is not None]
+    resources = contextlib.AsyncExitStack()
+    handlers = settings.collect_concurrency + settings.process_concurrency
     finish = asyncio.Event()
     try:
+        http = await resources.enter_async_context(
+            httpx.AsyncClient(
+                timeout=HTTP_TIMEOUT,
+                limits=httpx.Limits(max_connections=handlers + HTTP_CONNECTIONS_SPARE),
+                follow_redirects=False,
+            )
+        )
+        raw_store = None
+        if settings.raw_storage_configured:
+            raw_store = await resources.enter_async_context(_open_raw_store(settings, handlers))
+        context = WorkerContext(
+            settings=settings,
+            engine=engine,
+            sessions=create_session_factory(engine),
+            redis=redis,
+            queues=queues,
+            http=http,
+            raw_store=raw_store,
+        )
+        ticks = [tick for tick in (_heartbeat(context), *assemble(context)) if tick is not None]
         await queues.startup()
         background = [
             asyncio.create_task(run_tick(tick, redis, stop), name=f"tick:{tick.name}")
@@ -164,6 +188,26 @@ async def run_worker(settings: Settings, assemble: Assemble, stop: asyncio.Event
         with contextlib.suppress(Exception):
             await queues.shutdown()
         with contextlib.suppress(Exception):
+            await resources.aclose()
+        with contextlib.suppress(Exception):
             # The pool was made here, so it is closed here: the client alone would leave it.
             await redis.aclose(close_connection_pool=True)
         await engine.dispose()
+
+
+def _open_raw_store(
+    settings: Settings, connections: int
+) -> contextlib.AbstractAsyncContextManager[RawStore]:
+    if (
+        settings.r2_raw_endpoint is None
+        or settings.r2_raw_access_key_id is None
+        or settings.r2_raw_secret_access_key is None
+    ):
+        raise ValueError("raw storage is not configured")
+    return open_raw_store(
+        endpoint=settings.r2_raw_endpoint,
+        bucket=settings.r2_raw_bucket,
+        access_key_id=settings.r2_raw_access_key_id.get_secret_value(),
+        secret_access_key=settings.r2_raw_secret_access_key.get_secret_value(),
+        max_connections=connections,
+    )

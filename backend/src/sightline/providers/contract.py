@@ -186,6 +186,11 @@ class Provider(Protocol):
         76 for LLM Responses standard tasks). Finished results can be fetched for longer."""
         ...
 
+    def payload_slug(self, endpoint: str) -> str:
+        """The endpoint's name in the keys of its stored results (doc 23 section 9.1), such as
+        `serp_google_organic_advanced`: lowercase letters, digits and underscores."""
+        ...
+
     async def submit(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:
         """Send the requests in one call. Raises `ProviderCallError` when the call failed."""
         ...

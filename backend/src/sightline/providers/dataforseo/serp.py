@@ -91,4 +91,5 @@ ENDPOINT: Final = TaskEndpoint(
     # A standard task is done within hours; one with no result after 72 hours is given up
     # (doc 06 section 4.2). Results themselves can be fetched for 30 days.
     result_lifetime=timedelta(hours=72),
+    payload_slug="serp_google_organic_advanced",
 )

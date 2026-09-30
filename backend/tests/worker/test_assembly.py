@@ -2,17 +2,22 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
+from pydantic import SecretStr
 from redis.asyncio import Redis
 
+from sightline.collectors.fetching import FETCH_JOB, FetchTask
 from sightline.collectors.registry import Registry
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
 from sightline.worker.app import WorkerContext
 from sightline.worker.assembly import assemble, production_registry
 from sightline.worker.queues import Queues
+from sightline.worker.ticks import Tick
 from tests.api.auth.support import fetch
 from tests.collectors.support import (
     FakeProvider,
@@ -122,6 +127,57 @@ async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(
     assert schedules["ensure_partitions"].cron == "10 0 * * *"
 
 
-def test_nothing_is_registered_yet_so_the_deployed_worker_plans_and_spends_nothing() -> None:
-    registry = production_registry()
+def test_without_credentials_nothing_is_registered_so_the_worker_spends_nothing(
+    context: WorkerContext,
+) -> None:
+    registry = production_registry(context)
     assert (registry.workloads, registry.providers) == (frozenset(), frozenset())
+
+
+async def test_dataforseo_is_registered_with_its_credentials_and_no_workload_yet(
+    context: WorkerContext,
+) -> None:
+    settings = context.settings.model_copy(
+        update={
+            "dataforseo_login": SecretStr("owner@example.com"),
+            "dataforseo_password": SecretStr("password"),
+            "installation_id": "test",
+        }
+    )
+    async with httpx.AsyncClient() as http:
+        with_credentials = replace(context, settings=settings, http=http)
+        registry = production_registry(with_credentials)
+
+    assert (registry.workloads, registry.providers) == (frozenset(), frozenset({"dataforseo"}))
+    # Registered, and with no work in flight asked nothing.
+    await ticks_of(with_credentials, registry)["ready_poll"].action()
+
+
+def ticks_of(context: WorkerContext, registry: Registry) -> dict[str, Tick]:
+    return {tick.name: tick for tick in assemble(context, registry)}
+
+
+async def test_what_providers_have_finished_is_polled_every_minute_by_one_worker(
+    context: WorkerContext,
+) -> None:
+    ticks = ticks_of(context, Registry())
+
+    assert (ticks["ready_poll"].interval, ticks["ready_poll"].lock_ttl) == (
+        timedelta(seconds=60),
+        timedelta(seconds=55),
+    )
+    await ticks["ready_poll"].action()
+
+
+async def test_a_fetch_goes_on_the_collect_queue(context: WorkerContext) -> None:
+    assemble(context, Registry())
+    order = FetchTask(
+        task_id=1,
+        created_at=datetime.now(UTC),
+        provider="fake",
+        endpoint="serp",
+        provider_task_id="p-1",
+    )
+
+    assert await context.queues.enqueue(FETCH_JOB, order, dedupe_key=order.dedupe_key)
+    assert not await context.queues.enqueue(FETCH_JOB, order, dedupe_key=order.dedupe_key)

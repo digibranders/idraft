@@ -370,15 +370,24 @@ class FakeProvider:
         self.posted: list[SubmittedTask] = []
         self.fetched: list[str] = []
         self.lists_submissions = False
+        # What was asked of it besides submissions, and a failure every such call raises.
+        self.listed: list[str] = []
+        self.looked: list[tuple[str, datetime, datetime]] = []
+        self.reading_fails: Exception | None = None
 
     def batch_size(self, endpoint: str) -> int:
         return self.size
 
     async def list_ready(self, endpoint: str) -> Sequence[ReadyTask]:
+        self.listed.append(endpoint)
+        if self.reading_fails is not None:
+            raise self.reading_fails
         return list(self.ready)
 
     async def fetch(self, endpoint: str, provider_task_id: str) -> FetchResult:
         self.fetched.append(provider_task_id)
+        if self.reading_fails is not None:
+            raise self.reading_fails
         return self.results.get(
             provider_task_id,
             FetchResult(
@@ -391,6 +400,9 @@ class FakeProvider:
     async def find_submitted(
         self, endpoint: str, since: datetime, until: datetime
     ) -> Sequence[SubmittedTask]:
+        self.looked.append((endpoint, since, until))
+        if self.reading_fails is not None:
+            raise self.reading_fails
         return [
             task
             for task in self.posted
@@ -400,6 +412,9 @@ class FakeProvider:
     def result_lifetime(self, endpoint: str) -> timedelta:
         # An endpoint named for LLM Responses keeps its results four hours longer.
         return timedelta(hours=76 if endpoint == "llm" else 72)
+
+    def payload_slug(self, endpoint: str) -> str:
+        return f"fake_{endpoint}"
 
     async def submit(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:
         self.calls.append((endpoint, list(requests)))

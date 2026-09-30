@@ -262,6 +262,7 @@ async def test_a_builder_that_breaks_refuses_its_request_before_anything_is_sent
         result="task_get/advanced",
         build=broken,
         result_lifetime=timedelta(hours=72),
+        payload_slug="broken",
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as http:
         client = DataForSeoClient(http, gate, login=LOGIN, password=PASSWORD, origin=ORIGIN)
@@ -687,6 +688,7 @@ def test_the_adapter_describes_its_endpoints(dataforseo: DataForSeo) -> None:
     assert dataforseo.code == "dataforseo"
     assert dataforseo.batch_size(SERP_ORGANIC) == 100
     assert dataforseo.result_lifetime(SERP_ORGANIC) == timedelta(hours=72)
+    assert dataforseo.payload_slug(SERP_ORGANIC) == "serp_google_organic_advanced"
     assert dataforseo.lists_submissions is True
 
 

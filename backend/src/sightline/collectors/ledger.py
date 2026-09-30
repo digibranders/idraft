@@ -11,8 +11,12 @@ to `submit_unknown`, in its own short transaction, so no database transaction is
 across a network call. From there it becomes `submitted` with the provider's id, or goes back
 through the retry policy when the provider refused it. If the process dies in between, or the
 provider's answer is lost, the task stays `submit_unknown`, which is the truth: the provider
-may have it. Until the provider can be asked which tasks it has (docs/21 section 6, with the
-first real adapter), such a task ends as `dead` when the provider's results would have expired.
+may have it. The resolver asks the provider which tasks it holds and settles such a task by its
+tag (docs/21 section 6); where the provider cannot be asked, or the resolver is off, the task
+ends as `dead` when the provider's results would have expired.
+
+From `submitted` a task becomes `ready` when the provider lists it as finished or the sweeper
+asks for it, and `fetched` once its result is stored.
 
 The worker connects as `app_worker`, which bypasses row-level security. A task takes its
 workspace, project and workload from its run's row, and a cost event from its task's row, read
@@ -88,6 +92,7 @@ _COLLECTED = ("ingested", "skipped_cached")
 _BUDGET_EXCEEDED = "budget_exceeded"
 PROJECT_NOT_COLLECTING = "project_not_collecting"
 NEVER_CONFIRMED = "submission_never_confirmed"
+SUBMISSION_NOT_FOUND = "submission_not_found"
 # What `ops.collection_tasks.cost_usd` and the cost events hold: dollars to six places.
 _COST_STEP = Decimal("0.000001")
 _CHECK_VIOLATION = "23514"
@@ -262,6 +267,12 @@ def _aware(now: datetime) -> datetime:
 
 
 _running_runs = select(_runs.c.id).where(_runs.c.status == "running")
+
+
+async def transaction_time(db: AsyncSession) -> datetime:
+    """The database's time, as of this transaction's start."""
+    now: datetime = (await db.execute(select(func.now()))).scalar_one()
+    return now
 
 
 async def database_time(sessions: async_sessionmaker[AsyncSession]) -> datetime:
@@ -1176,3 +1187,309 @@ async def cancel_for_ended_runs(db: AsyncSession, *, now: datetime) -> int:
         message="Its run ended before it was sent.",
         now=now,
     )
+
+
+# ---------------------------------------------------------------------------------------------
+# Readiness and fetching (docs/06 section 4.2 and 4.3, docs/21 section 8)
+#
+# `submitted` becomes `ready` when the provider lists the task as finished (`poll`) or when the
+# task is old enough to be asked for directly (`sweeper`); either sends one fetch. `ready`
+# becomes `fetched` once the result is stored. A fetch that finds no result yet, or fails in a
+# way that trying again may mend, puts the task back to `submitted` with a time before which
+# the sweeper leaves it alone: the provider still has the task, and sending it again would pay
+# twice.
+
+
+@dataclass(frozen=True, slots=True)
+class ReadyMatch:
+    """A task the provider lists as finished, as the tag it echoes names it."""
+
+    task_id: int
+    run_id: UUID
+    attempt: int
+    provider_task_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class FetchOrder:
+    """A task that is `ready`, and what fetching it needs."""
+
+    ref: TaskRef
+    provider_code: str
+    provider_endpoint: str
+    provider_task_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownSubmission:
+    ref: TaskRef
+    run_id: UUID
+    attempts: int
+    provider_code: str
+    provider_endpoint: str
+    submitted_at: datetime
+
+
+_ORDER_COLUMNS = (
+    _tasks.c.id,
+    _tasks.c.created_at,
+    _tasks.c.provider_code,
+    _tasks.c.provider_endpoint,
+    _tasks.c.provider_task_id,
+)
+
+
+def _order(row: Row[tuple[Any, ...]]) -> FetchOrder:
+    return FetchOrder(
+        ref=TaskRef(id=row.id, created_at=row.created_at),
+        provider_code=row.provider_code,
+        provider_endpoint=row.provider_endpoint,
+        provider_task_id=row.provider_task_id,
+    )
+
+
+async def submitted_endpoints(db: AsyncSession) -> list[tuple[str, str]]:
+    """The providers and endpoints that have tasks `submitted`: those worth asking what is
+    ready."""
+    rows = await db.execute(
+        select(_tasks.c.provider_code, _tasks.c.provider_endpoint)
+        .where(_tasks.c.status == "submitted")
+        .distinct()
+        .order_by(_tasks.c.provider_code, _tasks.c.provider_endpoint)
+    )
+    return [(row.provider_code, row.provider_endpoint) for row in rows]
+
+
+async def mark_ready(
+    db: AsyncSession, provider_code: str, found: Sequence[ReadyMatch], *, now: datetime
+) -> list[FetchOrder]:
+    """The listed tasks that were `submitted` become `ready`. A task is matched by all its tag
+    says and by the provider's id: a listing of another installation, of an earlier attempt or
+    of another run matches nothing. Returns the tasks that changed; a task listed again, or
+    already fetched, is not among them."""
+    if not found:
+        return []
+    listed = (
+        func.unnest(
+            bindparam(None, [match.task_id for match in found], type_=ARRAY(BigInteger)),
+            bindparam(None, [match.run_id for match in found], type_=ARRAY(Uuid)),
+            bindparam(None, [match.attempt for match in found], type_=ARRAY(Integer)),
+            bindparam(None, [match.provider_task_id for match in found], type_=ARRAY(Text)),
+        )
+        .table_valued("id", "run_id", "attempt", "provider_task_id", name="listed")
+        .render_derived()
+    )
+    rows = await db.execute(
+        update(_tasks)
+        .where(
+            _tasks.c.id == listed.c.id,
+            _tasks.c.run_id == listed.c.run_id,
+            _tasks.c.attempts == listed.c.attempt,
+            _tasks.c.provider_task_id == listed.c.provider_task_id,
+            _tasks.c.provider_code == provider_code,
+            _tasks.c.status == "submitted",
+        )
+        .values(status="ready", ready_at=_aware(now), ready_source="poll")
+        .returning(*_ORDER_COLUMNS)
+    )
+    return [_order(row) for row in rows]
+
+
+async def sweep_submitted(
+    db: AsyncSession, *, now: datetime, after: timedelta, limit: int
+) -> list[FetchOrder]:
+    """Tasks `submitted` for `after` without being listed as ready, or whose time to be asked
+    again has come, become `ready` to be fetched directly (the id sweeper). At most `limit`,
+    oldest first."""
+    due_at = func.coalesce(
+        _tasks.c.next_attempt_at, _tasks.c.submitted_at + literal(after, Interval)
+    )
+    due = (
+        select(_tasks.c.id, _tasks.c.created_at)
+        .where(
+            _tasks.c.status == "submitted",
+            _tasks.c.provider_task_id.is_not(None),
+            due_at <= literal(_aware(now), DateTime(timezone=True)),
+        )
+        .order_by(due_at, _tasks.c.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    rows = await db.execute(
+        update(_tasks)
+        .where(tuple_(_tasks.c.id, _tasks.c.created_at).in_(due), _tasks.c.status == "submitted")
+        .values(status="ready", ready_at=_aware(now), ready_source="sweeper")
+        .returning(*_ORDER_COLUMNS)
+    )
+    return [_order(row) for row in rows]
+
+
+async def ready_task(db: AsyncSession, ref: TaskRef, *, provider_task_id: str) -> LedgerTask | None:
+    """The task, if it is `ready` to be fetched under this provider id."""
+    row = (
+        await db.execute(
+            _task_query().where(
+                _named([ref]),
+                _tasks.c.status == "ready",
+                _tasks.c.provider_task_id == provider_task_id,
+            )
+        )
+    ).one_or_none()
+    return None if row is None else _task(row)
+
+
+def _ready(ref: TaskRef, provider_task_id: str) -> Any:
+    return and_(
+        _named([ref]), _tasks.c.status == "ready", _tasks.c.provider_task_id == provider_task_id
+    )
+
+
+async def mark_fetched(
+    db: AsyncSession, ref: TaskRef, *, provider_task_id: str, raw_payload_id: int
+) -> bool:
+    """The result is stored. False when the task was not `ready` under this id."""
+    result = await db.execute(
+        update(_tasks)
+        .where(_ready(ref, provider_task_id))
+        .values(
+            status="fetched",
+            raw_payload_id=raw_payload_id,
+            next_attempt_at=None,
+            last_error_code=None,
+            last_error_message=None,
+        )
+        .returning(_tasks.c.id)
+    )
+    return result.one_or_none() is not None
+
+
+async def not_fetched_yet(
+    db: AsyncSession,
+    ref: TaskRef,
+    *,
+    provider_task_id: str,
+    ask_again_after: timedelta,
+    now: datetime,
+    code: str | None = None,
+    message: str | None = None,
+) -> bool:
+    """No result yet, or a fetch that may work next time: back to `submitted`, to be asked
+    again by the sweeper after `ask_again_after` (or listed as ready before that). Not an
+    attempt at the task: the provider has it."""
+    result = await db.execute(
+        update(_tasks)
+        .where(_ready(ref, provider_task_id))
+        .values(
+            status="submitted",
+            ready_at=None,
+            ready_source=None,
+            next_attempt_at=_aware(now) + ask_again_after,
+            last_error_code=code,
+            last_error_message=None if message is None else message[:ERROR_MESSAGE_MAX],
+        )
+        .returning(_tasks.c.id)
+    )
+    return result.one_or_none() is not None
+
+
+async def fetch_failed(
+    db: AsyncSession,
+    ref: TaskRef,
+    *,
+    provider_task_id: str,
+    kind: ProviderErrorKind,
+    message: str,
+    decision: RetryDecision,
+    now: datetime,
+) -> bool:
+    """The result cannot be fetched: the provider dropped it, or refused the fetch for good.
+    The retry policy decides: `pending` submits the task again as a new provider task, and
+    `failed` and `dead` end it."""
+    values: dict[str, Any] = {
+        "status": decision.status,
+        "dispatched_at": None,
+        "submitted_at": None,
+        "ready_at": None,
+        "ready_source": None,
+        "last_error_code": kind.value,
+        "last_error_message": message[:ERROR_MESSAGE_MAX],
+        "next_attempt_at": None if decision.delay is None else _aware(now) + decision.delay,
+    }
+    if decision.status != "pending":
+        values["completed_at"] = _aware(now)
+    if not decision.counts:
+        values["attempts"] = _tasks.c.attempts - 1
+    result = await db.execute(
+        update(_tasks).where(_ready(ref, provider_task_id)).values(**values).returning(_tasks.c.id)
+    )
+    return result.one_or_none() is not None
+
+
+async def release_stale_ready(db: AsyncSession, *, older_than: timedelta, now: datetime) -> int:
+    """Tasks `ready` for longer than a fetch takes lost their fetch message: back to
+    `submitted`, to be swept at once."""
+    result = await db.execute(
+        update(_tasks)
+        .where(_tasks.c.status == "ready", _tasks.c.ready_at < _aware(now) - older_than)
+        .values(status="submitted", ready_at=None, ready_source=None, next_attempt_at=_aware(now))
+        .returning(_tasks.c.id)
+    )
+    return len(result.all())
+
+
+# ---------------------------------------------------------------------------------------------
+# Unknown submissions (docs/21 section 6)
+
+
+async def unknown_submissions(
+    db: AsyncSession, *, submitted_before: datetime, limit: int
+) -> list[UnknownSubmission]:
+    """Tasks still `submit_unknown` whose submission began before `submitted_before`, oldest
+    first."""
+    rows = await db.execute(
+        select(
+            _tasks.c.id,
+            _tasks.c.created_at,
+            _tasks.c.run_id,
+            _tasks.c.attempts,
+            _tasks.c.provider_code,
+            _tasks.c.provider_endpoint,
+            _tasks.c.submitted_at,
+        )
+        .where(
+            _tasks.c.status == "submit_unknown",
+            _tasks.c.submitted_at < _aware(submitted_before),
+        )
+        .order_by(_tasks.c.submitted_at, _tasks.c.id)
+        .limit(limit)
+    )
+    return [
+        UnknownSubmission(
+            ref=TaskRef(id=row.id, created_at=row.created_at),
+            run_id=row.run_id,
+            attempts=row.attempts,
+            provider_code=row.provider_code,
+            provider_endpoint=row.provider_endpoint,
+            submitted_at=row.submitted_at,
+        )
+        for row in rows
+    ]
+
+
+async def submit_again(db: AsyncSession, ref: TaskRef, *, attempt: int) -> bool:
+    """The provider, asked, has no record of the submission: the task goes back to `pending`
+    to be sent again. The submission counted as an attempt."""
+    result = await db.execute(
+        update(_tasks)
+        .where(_awaiting(ref, attempt))
+        .values(
+            status="pending",
+            dispatched_at=None,
+            submitted_at=None,
+            next_attempt_at=None,
+            last_error_code=SUBMISSION_NOT_FOUND,
+            last_error_message="The provider has no record of the submission; it is sent again.",
+        )
+        .returning(_tasks.c.id)
+    )
+    return result.one_or_none() is not None

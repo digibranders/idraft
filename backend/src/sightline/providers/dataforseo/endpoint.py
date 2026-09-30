@@ -22,3 +22,5 @@ class TaskEndpoint:
     build: TaskBuilder
     # How long a task may go without a result before it is given up.
     result_lifetime: timedelta
+    # Its name in the keys of stored results (doc 23 section 9.1).
+    payload_slug: str

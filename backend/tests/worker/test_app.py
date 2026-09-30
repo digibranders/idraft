@@ -17,12 +17,14 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from sightline.config.logging import configure_logging
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
+from sightline.storage.raw import RawStore
 from sightline.worker import __main__ as entrypoint
 from sightline.worker import app as worker_app
 from sightline.worker.app import WorkerContext, run_worker
 from sightline.worker.assembly import assemble
 from sightline.worker.queues import Queues
 from sightline.worker.ticks import Tick
+from tests.conftest import ObjectServer
 from tests.worker.conftest import eventually
 
 
@@ -87,6 +89,37 @@ async def test_jobs_and_ticks_are_built_from_the_context_and_run(
     assert context.settings is worker_settings
     # The worker connects as its own database role.
     assert "app_worker" in worker_settings.database_url.get_secret_value()
+    # One HTTP client for its provider calls, closed with the worker; no raw storage is set.
+    assert context.http is not None
+    assert context.http.is_closed
+    assert context.raw_store is None
+
+
+async def test_the_raw_store_is_opened_when_it_is_configured_and_closed_at_the_end(
+    worker_settings: Settings, object_server: ObjectServer
+) -> None:
+    settings = worker_settings.model_copy(
+        update={
+            "r2_raw_endpoint": object_server.endpoint,
+            "r2_raw_access_key_id": SecretStr(object_server.access_key_id),
+            "r2_raw_secret_access_key": SecretStr(object_server.secret_access_key),
+        }
+    )
+    stores: list[object] = []
+
+    def parts(context: WorkerContext) -> Sequence[Tick]:
+        stores.append(context.raw_store)
+        return ()
+
+    stop = asyncio.Event()
+    running = asyncio.create_task(run_worker(settings, parts, stop))
+    await eventually(lambda: bool(stores), within=10)
+    stop.set()
+    assert await asyncio.wait_for(running, timeout=10) is True
+
+    (store,) = stores
+    assert isinstance(store, RawStore)
+    assert store.bucket == "seo-raw"
 
 
 async def test_stopping_waits_for_a_handler_in_flight(

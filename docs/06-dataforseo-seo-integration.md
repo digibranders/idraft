@@ -164,7 +164,9 @@ stateDiagram-v2
 2. Validate envelope: `status_code 20000` at top level and task level.
 3. Write the exact response bytes, zstd-compressed (level 6), to R2 at `raw/v1/serp_raw/dataforseo/serp_google_organic_advanced/YYYY/MM/DD/<sha256>.json.zst` (key scheme `raw/v1/<retention_class>/<provider>/<endpoint_slug>/YYYY/MM/DD/<sha256>.json.zst`, doc 23 section 9.1); register in `ops.raw_payloads` with `retention_class = 'serp_raw'`.
 4. Task to `fetched`; insert `ops.fetch_cache` row keyed by request fingerprint and UTC date.
-5. Enqueue the `ingest_serp` Taskiq task on the `process` queue with the raw payload id. The fetching worker also writes the uncompressed body to the local spool (`/var/spool/seo/<sha256>`, the `spool` named volume capped by `SPOOL_MAX_BYTES`, 5 GiB; doc 22 sections 4.1 and 9.5) so ingest on the same host usually avoids an R2 round trip.
+5. Enqueue the `ingest_serp` Taskiq task on the `process` queue with the raw payload id (step 5 of the build order). The local spool of doc 22 is not built: ingest reads the payload from R2 (plan `docs/superpowers/plans/2026-09-30-dataforseo-raw-storage.md`, decision D5), and if R2 fails the fetch is tried again, since DataForSEO keeps results for 30 days.
+
+The task becomes `fetched` with the id of its registered payload; the `ops.fetch_cache` row of step 4 arrives with rank collection (step 5 of the build order). A result that is not ready yet, or a fetch or storage failure that may mend, puts the task back to `submitted` without counting an attempt (doc 21 section 8.1).
 
 ### 4.4 Ingest
 

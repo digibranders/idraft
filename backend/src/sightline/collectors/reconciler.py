@@ -9,16 +9,19 @@ report while the others go on.
    up after all, the ledger lets one of the two take the task and the other take nothing.
    Released in batches for up to a minute a pass, so a backlog after Redis was lost comes back
    within a few passes.
-2. A task the provider has had longer than it keeps results, or whose submission was never
+2. When the resolver is on (`RESOLVE_UNKNOWN_SUBMISSIONS`), a submission of unknown outcome is
+   looked for at its provider: found, its tasks are `submitted`; not found, sent again
+   (`resolver.py`).
+3. A task the provider has had longer than it keeps results, or whose submission was never
    confirmed within that time, is `dead`. One never confirmed is charged its share of its
    run's estimate, since the provider may have charged for it.
-3. The unsent tasks of a run that ended are `cancelled`, then any task not sent 24 hours after
+4. A task `ready` for 15 minutes lost its fetch message: back to `submitted`. Then the id
+   sweeper: a task `submitted` two hours ago and never listed as ready, or whose time to be
+   asked again has come, is fetched directly (docs/06 section 4.2).
+5. The unsent tasks of a run that ended are `cancelled`, then any task not sent 24 hours after
    its run's window closed.
-4. A running run whose tasks have all ended is completed. A cancelled run is given its totals
+6. A running run whose tasks have all ended is completed. A cancelled run is given its totals
    once the tasks the provider still had when it was cancelled have ended.
-
-Fetching what providers have finished, and resolving `submit_unknown` by asking the provider,
-come with the first real adapter.
 """
 
 from __future__ import annotations
@@ -33,7 +36,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
+from sightline.collectors.fetching import FetchSender, send_fetches
 from sightline.collectors.registry import Registry
+from sightline.collectors.resolver import resolve_unknown
 
 STALE_DISPATCH = timedelta(minutes=10)
 # How long a provider keeps a task's result when it does not say. DataForSEO: three days.
@@ -41,13 +46,23 @@ RESULT_LIFETIME = timedelta(hours=72)
 # The longest one pass spends releasing stale dispatches, and how many it releases at a time.
 RELEASE_FOR = timedelta(minutes=1)
 RELEASE_BATCH = ledger.DISPATCH_LIMIT
+# A fetch is a call and a write: one `ready` this long lost its message.
+STALE_READY = timedelta(minutes=15)
+# The id sweeper: a task not listed as ready this long after submission is asked for directly,
+# this many a pass (at most 200 fetches every 5 minutes, far under the provider's limit).
+SWEEP_AFTER = timedelta(hours=2)
+SWEEP_LIMIT = 200
 _log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
 class ReconcileReport:
     released: int = 0
+    resolved: int = 0
+    resubmitted: int = 0
     dead: int = 0
+    stale_ready: int = 0
+    swept: int = 0
     run_ended: int = 0
     missed: int = 0
     completed: int = 0
@@ -95,9 +110,15 @@ async def _lifetimes(
 
 
 async def reconcile(
-    sessions: async_sessionmaker[AsyncSession], registry: Registry, *, now: datetime
+    sessions: async_sessionmaker[AsyncSession],
+    registry: Registry,
+    *,
+    now: datetime,
+    fetches: FetchSender | None = None,
+    resolve_unknown_submissions: bool = False,
 ) -> ReconcileReport:
-    """One pass."""
+    """One pass. `fetches`: where the sweeper sends what it finds; without it nothing is
+    swept."""
     counts: dict[str, int] = {}
     failed: list[str] = []
 
@@ -125,8 +146,33 @@ async def reconcile(
     async def close_runs() -> int:
         return await in_transaction(lambda db: ledger.complete_finished_runs(db, now=now))
 
+    async def resolve() -> int:
+        report = await resolve_unknown(sessions, registry, now=now)
+        counts["resubmitted"] = report.resubmitted
+        if report.failed:
+            failed.append("resolved")
+        return report.resolved
+
+    async def sweep() -> int:
+        if fetches is None:
+            return 0
+        async with sessions() as db, db.begin():
+            orders = await ledger.sweep_submitted(db, now=now, after=SWEEP_AFTER, limit=SWEEP_LIMIT)
+        await send_fetches(sessions, fetches, orders, now=now)
+        return len(orders)
+
     await step("released", lambda: _release(sessions, now))
+    if resolve_unknown_submissions:
+        # Before the old are ended: a submission found now is not ended as never confirmed.
+        await step("resolved", resolve)
     await step("dead", end_old)
+    await step(
+        "stale_ready",
+        lambda: in_transaction(
+            lambda db: ledger.release_stale_ready(db, older_than=STALE_READY, now=now)
+        ),
+    )
+    await step("swept", sweep)
     # A run that ended says why its tasks were not sent; only then is lateness the reason.
     await step(
         "run_ended", lambda: in_transaction(lambda db: ledger.cancel_for_ended_runs(db, now=now))

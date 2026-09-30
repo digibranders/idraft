@@ -261,22 +261,25 @@ Retry policy is decided by the error kind returned from the adapter ([05-provide
 
 There is no pingback endpoint (ADR-022). A submitted task becomes ready through one of two paths:
 
-1. **`tasks_ready` poll.** The tick enqueues `poll_ready` per endpoint every 60 seconds, and every 30 seconds while any collection window is open. The job calls `tasks_ready` (20 calls per minute at the provider, within the endpoint bucket of section 7) and enqueues `fetch_task` for each ready id.
-2. **Id sweeper.** Tasks older than the window (still `submitted` 2 hours after submission) are fetched directly by provider task id with `task_get` ([06](06-dataforseo-seo-integration.md) section 4.2). This covers anything `tasks_ready` did not list. It runs as reconciler step 2 below.
+1. **`tasks_ready` poll.** The `ready_poll` tick (one worker, every 60 seconds) asks each provider endpoint that has `submitted` tasks what is finished (`tasks_ready`: 20 calls per minute at the provider, within the endpoint bucket of section 7). A listed task whose tag names it whole (installation, task, run, attempt) and whose provider id matches moves from `submitted` to `ready` with a conditional update, and `fetch_task` is enqueued for each task that moved: a task listed twice is fetched once. A 30 second poll during open windows is not built; the sweeper bounds what a slower poll could miss.
+2. **Id sweeper.** Tasks still `submitted` 2 hours after submission, or whose time to be asked again has come, are fetched directly by provider task id with `task_get` ([06](06-dataforseo-seo-integration.md) section 4.2), at most 200 a pass. This covers anything `tasks_ready` did not list, and a task whose fetch failed after the provider stopped listing it. It runs as a reconciler step below.
+
+`fetch_task` stores the exact bytes (doc 23 section 9) and moves the task to `fetched`. A result not ready yet puts the task back to `submitted`, asked again in 30 minutes; a fetch that may work next time (a rate limit, the provider's trouble, storage failing) puts it back and asks again in 5 minutes. Neither counts as an attempt: the provider has the task, and sending it again would pay twice. A result the provider dropped (`not_found_expired`) goes to the retry policy, and a fetch refused for good (`invalid_request`) fails the task.
 
 ### 8.2 Reconciler
 
 The worker runs a **reconciler every 5 minutes** (a Taskiq scheduled job on `process`, section 10):
 
 1. Tasks `pending` with `dispatched_at` older than 10 minutes: clear `dispatched_at` (the dispatcher will pick them up). Their message was lost, or is still waiting behind others; a dedupe key belongs to a batch, not a task, so the two cannot be told apart, and they need not be: a submit handler takes only tasks still `pending` and dispatched, so if the old message turns up, one of the two messages submits the task and the other takes nothing.
-2. Tasks `submitted` older than 2 hours: enqueue `fetch_task` directly (the id sweeper of section 8.1).
-3. Tasks `submitted` older than 72 hours (76 hours for DataForSEO LLM Responses standard tasks, which the provider documents as taking up to 72 hours): mark `dead`. Tasks still `submit_unknown` after the same time are `dead` too (`submission_never_confirmed`): whether the provider had them was never found out, and there is no result left to fetch.
-- Also in each pass, from the ledger alone: pending tasks 24 hours past their run's window are `cancelled` (`window_missed`), the unsent tasks of a run that ended are `cancelled` (`run_ended`), and running runs whose tasks have all ended are completed. Steps 2, 4, 5 and 6 arrive with the fetch, ingest and extraction jobs.
-4. Tasks `fetched` older than 10 minutes with no ingest message: enqueue `ingest_*`.
-5. Observations with no current facts for the project's current derivation (after 15 minutes): enqueue `extract_observation`.
-6. Dates with ingested data newer than the rollup's `computed_at`: enqueue rollups.
+2. When `RESOLVE_UNKNOWN_SUBMISSIONS` is on: submissions still `submit_unknown` 15 minutes after they began are looked for at the provider (`id_list`), one look per submission, ten a pass. A task found by its tag becomes `submitted` with the provider's id and reported cost; one not found goes back to `pending` (`submission_not_found`) and is sent again. Off until spike S-01 confirms that `id_list` returns the tag.
+3. Tasks `ready` for 15 minutes lost their fetch message: back to `submitted`, and swept at once. Then the id sweeper of section 8.1.
+4. Tasks `submitted` older than 72 hours (76 hours for DataForSEO LLM Responses standard tasks, which the provider documents as taking up to 72 hours): mark `dead`. Tasks still `submit_unknown` after the same time are `dead` too (`submission_never_confirmed`): whether the provider had them was never found out, and there is no result left to fetch.
+- Also in each pass, from the ledger alone: pending tasks 24 hours past their run's window are `cancelled` (`window_missed`), the unsent tasks of a run that ended are `cancelled` (`run_ended`), and running runs whose tasks have all ended are completed. Steps 5, 6 and 7 arrive with the ingest and extraction jobs.
+5. Tasks `fetched` older than 10 minutes with no ingest message: enqueue `ingest_*`.
+6. Observations with no current facts for the project's current derivation (after 15 minutes): enqueue `extract_observation`.
+7. Dates with ingested data newer than the rollup's `computed_at`: enqueue rollups.
 
-After a full Redis loss, steps 1 to 6 restore all in-flight work within a few reconciler passes (a pass releases stale dispatches in batches of 2,000 for up to a minute), with no duplicate provider spend: tasks already accepted by the provider have `provider_task_id` and are fetched, not resubmitted.
+After a full Redis loss, steps 1 to 7 restore all in-flight work within a few reconciler passes (a pass releases stale dispatches in batches of 2,000 for up to a minute), with no duplicate provider spend: tasks already accepted by the provider have `provider_task_id` and are fetched, not resubmitted.
 
 ## 9. Freshness and staleness
 

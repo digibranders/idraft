@@ -163,6 +163,9 @@ class DataForSeo:
     def result_lifetime(self, endpoint: str) -> timedelta:
         return self._endpoint(endpoint).result_lifetime
 
+    def payload_slug(self, endpoint: str) -> str:
+        return self._endpoint(endpoint).payload_slug
+
     def _tag(self, request: CanonicalRequest) -> str:
         if request.attempt is None:
             raise ValueError("the request is not bound to an attempt")
