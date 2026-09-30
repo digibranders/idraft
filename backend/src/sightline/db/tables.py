@@ -365,3 +365,25 @@ provider_cost_events = Table(
     Column("billing_period", Date, nullable=False),
     schema="ops",
 )
+
+raw_payloads = Table(
+    "raw_payloads",
+    metadata,
+    Column("id", BigInteger, primary_key=True, server_default=FetchedValue()),
+    Column("storage", Text, nullable=False),
+    Column("object_key", Text),
+    Column("inline_body", LargeBinary),
+    Column("sha256", LargeBinary, nullable=False),
+    Column("bytes_raw", Integer, nullable=False),
+    Column("bytes_stored", Integer, nullable=False),
+    Column("compression", Text, nullable=False),
+    Column("content_type", Text, nullable=False),
+    Column("provider_code", Text, nullable=False),
+    Column("provider_endpoint", Text, nullable=False),
+    Column("provider_schema_hint", Text),
+    Column("fetched_at", DateTime(timezone=True), nullable=False),
+    Column("retention_class", Text, nullable=False),
+    Column("expires_at", DateTime(timezone=True)),
+    UniqueConstraint("sha256", name="raw_payloads_sha256_key"),
+    schema="ops",
+)

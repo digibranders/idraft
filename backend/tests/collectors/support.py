@@ -48,12 +48,12 @@ class Project:
 
 
 async def empty_ledger(pg: PostgresServer) -> None:
-    """Remove every schedule, run, task, cost event and budget. Planning, claiming and
-    reconciling look at all of them, whoever made them."""
+    """Remove every schedule, run, task, cost event, budget and registered payload. Planning,
+    claiming and reconciling look at all of them, whoever made them."""
     await execute(
         pg,
         "TRUNCATE ops.collection_tasks, ops.provider_cost_events, ops.collection_runs, "
-        "ops.schedules, ops.budgets CASCADE",
+        "ops.schedules, ops.budgets, ops.raw_payloads CASCADE",
     )
 
 

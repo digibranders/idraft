@@ -6,7 +6,7 @@
 
 **Architecture:** Step 3 of the build order (`docs/29-phase-roadmap.md` section 1.1), specified in `docs/05-provider-integrations.md` section 3, `docs/06-dataforseo-seo-integration.md` sections 1 to 4, 6 and 9, `docs/21-scheduler-workers.md` sections 7 and 8, and `docs/23-backup-disaster-recovery.md` section 9. The DataForSEO adapter lives in `sightline.providers` (no database, no Redis). The rate limiter and the jobs live in `sightline.worker`; the ledger steps and raw payload registry in `sightline.collectors`. Normalising a SERP and writing SEO facts is step 5.
 
-**Tech stack:** httpx (one shared `AsyncClient` per provider), Redis Lua token buckets, `aiobotocore` for R2's S3 API, `zstandard` at level 6, MinIO in tests through Testcontainers.
+**Tech stack:** httpx (one shared `AsyncClient` per provider), Redis Lua token buckets, `aiobotocore` for R2's S3 API, `zstandard` at level 6, and an S3 server in tests through Testcontainers. First planned as MinIO; MinIO no longer publishes container images, so the tests use versitygw (Apache 2.0), pinned, which checks request signatures as R2 does.
 
 ---
 
@@ -74,8 +74,8 @@ No workload is registered in production by this plan, so the deployed worker sti
 
 ### Task 4: Raw payload storage
 
-- [ ] Tests first (MinIO): a payload is stored under its key, compressed, and read back byte for byte; the same bytes twice are stored once; the registry row has size, hash, class and expiry; an R2 failure raises and registers nothing; keys follow doc 23 section 9.1.
-- [ ] `storage/raw.py`, `collectors/raw_payloads.py`.
+- [x] Tests first (an S3 server in a container; see the tech stack): a payload is stored under its key, compressed, and read back byte for byte; the same bytes twice are stored once; the registry row has size, hash, class and expiry; an R2 failure raises and registers nothing; keys follow doc 23 section 9.1.
+- [x] `storage/raw.py`, `collectors/raw_payloads.py`.
 - [ ] Gates, Opus review, fixes, commit.
 
 ### Task 5: Ready, fetched, and the reconciler's provider steps
@@ -86,7 +86,7 @@ No workload is registered in production by this plan, so the deployed worker sti
 
 ### Task 6: End to end, image, docs
 
-- [ ] `tests/worker/test_dataforseo_end_to_end.py`: the real process with a fake workload against a fake DataForSEO (an httpx transport) and MinIO: a schedule becomes fetched tasks with their payloads in storage, each sent and paid once; an unknown submission is resolved.
+- [ ] `tests/worker/test_dataforseo_end_to_end.py`: the real process with a fake workload against a fake DataForSEO (an httpx transport) and the test S3 server: a schedule becomes fetched tasks with their payloads in storage, each sent and paid once; an unknown submission is resolved.
 - [ ] `backend/smoke.sh` unchanged in behaviour (no credentials in CI); docs 05, 06, 21, 22, 23, 31, review log, README.
 - [ ] Whole-branch Opus review, fixes, commit.
 

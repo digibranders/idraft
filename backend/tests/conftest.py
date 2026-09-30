@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,7 @@ from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncEngine
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.redis import RedisContainer
+from testcontainers.core.container import DockerContainer
 
 from sightline.api.main import create_app
 from sightline.config.logging import reset_logging
@@ -66,6 +68,10 @@ ROLE_PASSWORD_VARIABLES = {
     "app_worker": "PG_WORKER_PASSWORD",
 }
 REDIS_IMAGE = "redis:8"
+# MinIO no longer publishes images; versitygw serves the S3 API from a directory and checks
+# signatures as R2 does.
+OBJECT_SERVER_IMAGE = "versity/versitygw:v1.8.0"
+OBJECT_SERVER_KEYS = ("test-access-key", "test-secret-key-for-raw-storage")
 
 
 @pytest.fixture(autouse=True)
@@ -142,6 +148,41 @@ def redis_url() -> Iterator[str]:
     with RedisContainer(REDIS_IMAGE) as container:
         host = container.get_container_host_ip()
         yield f"redis://{host}:{container.get_exposed_port(6379)}/0"
+
+
+@dataclass(frozen=True)
+class ObjectServer:
+    """An S3 API that checks signatures, standing in for R2. Region `auto`, as R2's."""
+
+    endpoint: str
+    access_key_id: str
+    secret_access_key: str
+
+
+@pytest.fixture(scope="session")
+def object_server() -> Iterator[ObjectServer]:
+    container = (
+        DockerContainer(OBJECT_SERVER_IMAGE)
+        .with_env("ROOT_ACCESS_KEY", OBJECT_SERVER_KEYS[0])
+        .with_env("ROOT_SECRET_KEY", OBJECT_SERVER_KEYS[1])
+        .with_env("VGW_REGION", "auto")
+        .with_env("VGW_BACKEND", "posix")
+        .with_env("VGW_BACKEND_ARG", "/tmp")
+        .with_exposed_ports(7070)
+    )
+    with container:
+        endpoint = f"http://{container.get_container_host_ip()}:{container.get_exposed_port(7070)}"
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                # Unsigned, so refused; any answer means the server is listening.
+                httpx.get(endpoint, timeout=1)
+                break
+            except httpx.TransportError:
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(0.2)
+        yield ObjectServer(endpoint, *OBJECT_SERVER_KEYS)
 
 
 @pytest.fixture

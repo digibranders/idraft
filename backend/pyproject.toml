@@ -129,6 +129,6 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.9",
-    "testcontainers[minio,postgres,redis]>=4.15.0",
+    "testcontainers[postgres,redis]>=4.15.0",
     "types-aiobotocore[s3]>=3.9.1",
 ]

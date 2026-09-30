@@ -31,6 +31,7 @@ DECLARED = {
     "ops.collection_runs",
     "ops.collection_tasks",
     "ops.provider_cost_events",
+    "ops.raw_payloads",
 }
 # Alembic reports a difference as a tuple, or as a list of tuples for one column.
 Difference = tuple[object, ...] | list[tuple[object, ...]]
