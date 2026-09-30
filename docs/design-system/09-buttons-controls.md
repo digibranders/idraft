@@ -121,7 +121,7 @@ Cancel buttons read "Cancel". Buttons that close a dialog without consequence re
 - Buttons are native `<button>` elements through Base UI `Button`: Enter and Space activate.
 - `type="button"` is the default in our component. Only the form's submit button sets `type="submit"`, so Enter in a text field submits exactly one action.
 - A shortcut assigned to a button is exposed with `aria-keyshortcuts` and shown in its tooltip as a `Kbd` (section 11). Buttons do not show shortcut hints inline, except the command palette trigger.
-- Buttons that navigate render a link: `<Button render={<Link href="/…" />} nativeButton={false}>`. They then behave as links (Enter only, middle-click opens a tab).
+- An action that navigates is a link that looks like a button: `<LinkButton render={<Link href="/…" />}>` from `ui/link-button.tsx`, which puts `buttonVariants` on the link. It behaves as a link (Enter only, middle-click opens a tab) and is announced as one. `Button` with `nativeButton={false}` is not used for this: Base UI gives whatever it renders the button role.
 
 ### 2.8 Button groups
 
@@ -213,7 +213,7 @@ export function Button({
   type = 'button',
   ...props
 }: ButtonProps): ReactElement {
-  const iconSize = SMALL_ICON_SIZES.has(size) ? 'sm' : 'md';
+  const small = SMALL_ICON_SIZES.has(size);   // Icon sizes are 'sm' (14 px) and 'default' (16 px); Spinner sizes are 'sm' and 'md'
   const handleClick = (event: MouseEvent<HTMLButtonElement>): void => {
     if (loading) {
       event.preventDefault();
@@ -231,15 +231,17 @@ export function Button({
       {...props}
     >
       {loading ? (
-        <Spinner size={iconSize} className={icon ? undefined : 'absolute inset-0 m-auto'} />
+        <Spinner size={small ? 'sm' : 'md'} className={icon ? undefined : 'absolute inset-0 m-auto size-fit'} />
       ) : icon ? (
-        <Icon icon={icon} size={iconSize} />
+        <Icon icon={icon} size={small ? 'sm' : 'default'} />
       ) : null}
       <span className={cn(loading && !icon && 'opacity-0')}>{children}</span>
     </ButtonPrimitive>
   );
 }
 ```
+
+The sketch above shows the structure. The source of truth is `apps/web/src/components/ui/button.tsx` for the component and `ui/button-variants.ts` for `buttonVariants` (a module without `'use client'`, so a Server Component and `LinkButton` can call it). The code differs in four details found while building it: every hover and pressed class is written as `not-aria-busy:not-data-disabled:hover:…`, so a loading button keeps its resting fill under the pointer ([08-interaction-states.md](08-interaction-states.md) section 1 puts loading above hover); `aria-busy` and `aria-disabled` are written only while loading (writing them as `undefined` erased the `aria-disabled` Base UI sets on a disabled button that stays focusable); the label is wrapped in the `opacity-0` span only while loading without an icon; and the pressed state of `ghost` and `destructive` repeats the hover fill, as the variant table says.
 
 `className` on a `Button` may set layout only (margin, width, flex, grid placement). Changing color, height, padding or radius through `className` is rejected in review; lint flags color and height utilities passed to `Button` from feature code.
 

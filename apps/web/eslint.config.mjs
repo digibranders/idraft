@@ -245,6 +245,12 @@ export default tseslint.config(
     },
   },
 
+  {
+    // Tests hand an empty anchor to a `render` prop, which fills it: the rule reads the JSX and sees no content.
+    files: TESTS,
+    rules: { 'jsx-a11y/anchor-has-content': 'off' },
+  },
+
   // Tailwind: only classes the design system registers, no conflicts, no values off the scales. Class
   // strings are read in className, cn() and cva(); write them there so they are checked.
   {
@@ -306,11 +312,12 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': restrictedImports(NO_FETCHING), 'no-restricted-globals': NO_FETCH_GLOBAL },
   },
 
-  // Every visible string lives in messages/en.json (20 section 3.11). The rule reads prop types: a prop
+  // Every visible string lives in messages/en.json (20 section 3.11). The component preview and its route
+  // are for the team and never translated, so they are exempt, as tests are. The rule reads prop types: a prop
   // whose type is a set of literal values (variant, size, side) is an option, not text, and is skipped.
   {
     files: MARKUP,
-    ignores: ['src/components/design-system/**', ...TESTS],
+    ignores: ['src/components/design-system/**', 'src/app/(internal)/**', ...TESTS],
     plugins: { i18next },
     languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: ROOT } },
     rules: {

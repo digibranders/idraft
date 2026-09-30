@@ -7,6 +7,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import type { ReactNode } from 'react';
 
 import { LiveRegions } from './live-regions';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { getQueryClient } from '@/lib/api/query-client';
 
 const THEME_STORAGE_KEY = 'sightline.theme';
@@ -16,7 +17,7 @@ const DEFAULT_THEME = 'system';
 
 /**
  * Everything a client component may rely on, in one place: the theme class on <html>, the query cache,
- * URL state, toasts and the live regions. The message catalog is provided by the root layout, which is a
+ * URL state, toasts, the shared tooltip delay and the live regions. The message catalog is provided by the root layout, which is a
  * Server Component and hands the messages down.
  */
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>): ReactNode {
@@ -34,7 +35,7 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>): R
       <QueryClientProvider client={getQueryClient()}>
         <NuqsAdapter>
           <Toast.Provider>
-            {children}
+            <TooltipProvider>{children}</TooltipProvider>
             <LiveRegions />
           </Toast.Provider>
         </NuqsAdapter>

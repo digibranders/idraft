@@ -15,6 +15,7 @@ Coding agents and engineers read these before any UI work ([AI_DEVELOPMENT_UI_RU
 | `docs/design-system/*` | The specification |
 | `apps/web/src/styles/tokens.css` | Token values (both themes) |
 | `apps/web/src/styles/globals.css` | Tailwind mapping, composite type utilities |
+| `apps/web/src/styles/app.css` | The application's stylesheet entry: `globals.css` plus the source folders |
 | `apps/web/src/lib/format/` | All value formatting |
 | `apps/web/src/lib/design/` | Token contrast tests, runtime token reader |
 | `apps/web/src/components/ui/` | Design-system primitives |
@@ -161,7 +162,7 @@ The application body is 14 / 20 (`body` in `globals.css`). Do not combine `text-
 
 ## 4. shadcn/ui and Base UI
 
-- Initialize with the Base UI base (shadcn CLI 4.x): `shadcn init -t next -b base --preset base-nova` (verified command, 2026-09-29).
+- `apps/web/components.json` configures the shadcn CLI for the Base UI base (`base-nova`). `shadcn init` is not run: it would overwrite `globals.css`. The CLI is used to fetch a component's source for its Base UI wiring, into a scratch folder: `pnpm exec shadcn add tooltip --path <scratch folder>`. The component is then written in `components/ui/` to the contract in [25-component-inventory.md](25-component-inventory.md). Check `package.json` afterwards: the CLI adds the `cn` package, which this project does not use (`cn` comes from `@/lib/utils`).
 - Components are copied into `components/ui/`, then **restyled to tokens before merge**. Import checklist per component:
   1. Replace `text-sm`, `text-xs` and other size classes with the composite `type-*` utilities.
   2. Replace radius classes with the documented radius for that element ([06-surfaces-borders-radius.md](06-surfaces-borders-radius.md) section 3).
@@ -171,9 +172,14 @@ The application body is 14 / 20 (`body` in `globals.css`). Do not combine `text-
   6. Verify focus uses the global `:focus-visible` ring or `focus-ring-inset`.
   7. Add the component to the preview route with every variant and state, in both themes and both densities.
   8. Add visual regression screenshots.
-- Base UI specifics: composition uses the `render` prop (not `asChild`); state styling uses Base UI data attributes (`data-open`, `data-highlighted`, `data-selected`, `data-disabled`, `data-checked`, `data-invalid`); overlays use Portal, Positioner, Popup; transitions use `data-starting-style` and `data-ending-style`. Import `shadcn/tailwind.css` in `globals.css` when the Next app is scaffolded (Phase 1); it defines matching data-attribute variants.
+- Base UI specifics: composition uses the `render` prop (not `asChild`); state styling uses Base UI data attributes (`data-open`, `data-highlighted`, `data-selected`, `data-disabled`, `data-checked`, `data-invalid`); overlays use Portal, Positioner, Popup; transitions use `data-starting-style` and `data-ending-style`. `shadcn/tailwind.css` is not imported: Tailwind 4 already has `data-open:`, `data-disabled:` and `not-data-disabled:` as presence variants, which is how Base UI writes its state, while the shadcn file redefines `data-selected:` to match only `data-selected="true"` and would break Base UI's empty attribute.
 - Third-party pieces inside shadcn's Base style: Calendar (react-day-picker 10), and Chart (Recharts). **Recharts is not used**: charts go through ECharts ([15-data-visualization.md](15-data-visualization.md)). Command palette uses Base UI Autocomplete inside a Dialog, not cmdk (dormant since 2025-03). Toasts use the Base UI Toast component.
 - No other component framework (MUI, Ant, Chakra, Mantine) and no Radix packages alongside Base UI (lint blocks them).
+
+Three things found while building the first primitives:
+- The application's stylesheet is `src/styles/app.css`: it imports `globals.css` (the design system, which names no sources) and lists the folders Tailwind reads class names from. The static preview has its own entry, `design-preview/preview.css`, so neither bundle carries the other's classes. A folder named in an `@source` line of `app.css` should exist when the dev server starts: a folder created later is not scanned until `app.css` is saved again or the server restarts. `src/features/` therefore exists from the start. If classes are still missing in development after a restart while `pnpm build` has them, stop the server, delete `apps/web/.next/dev` and start it again.
+- A Server Component cannot hand a function to a client primitive, and an icon imported straight from `lucide-react` is one: `<Button icon={Download}>` in a Server Component fails the build ("Functions cannot be passed directly to Client Components"). Three routes work. Render the button from a client component, which is where feature code lives anyway. Use a primitive without `'use client'` (`Icon`, `Badge`, `LinkButton`, `TextLink`, `Spinner`, `Separator`, `Skeleton`, `Avatar`, `ScrollArea`), which runs on the server and takes the icon there. Or import the icon from a `'use client'` module that re-exports it (`export { Download } from 'lucide-react'`), which makes it a client reference that can cross.
+- A primitive has `'use client'` only when it uses a hook or an event handler of its own. A Base UI part without hooks on our side does not need it: Base UI's own modules carry the directive.
 
 ## 5. Variant system
 
@@ -192,6 +198,10 @@ When to add a variant versus a new component:
 | A one-off style for one screen | Not allowed; propose a system change |
 
 Variant axes are limited to: `variant` or `tone`, `size`, and for tables `density`. Boolean style props (`isBold`, `hasBorder`) are not allowed.
+
+A class string that lives in a lookup constant (`Record<Size, string>`) is wrapped in `cn('…')`, or the lookup is a `cva`. ESLint and Prettier read class names only inside `className`, `cn` and `cva`; a bare string in a constant is checked by neither, so an off-scale or unknown class would pass.
+
+Every primitive takes the attributes of its root element (`ComponentProps<'span'>`, or the Base UI part's props) and passes them on, with `ref`, before its own `className`. That is what lets `Tooltip` and Base UI's `render` prop compose with any primitive.
 
 ## 6. Server and client boundaries (Next.js 16)
 

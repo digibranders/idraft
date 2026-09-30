@@ -417,9 +417,9 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 ## 3. Foundation primitives
 
 ### 3.1 Button
-`ui/button.tsx` · V1 · [09 §2](09-buttons-controls.md) (full CVA in 09 §2.9)
+`ui/button.tsx`, `ui/button-variants.ts`, `ui/link-button.tsx` · V1 · [09 §2](09-buttons-controls.md) (full CVA in 09 §2.9)
 
-Purpose: the one clickable action element. Every other button-like component reuses `buttonVariants`.
+Purpose: the one clickable action element. Every other button-like component reuses `buttonVariants`, which lives in `ui/button-variants.ts` without `'use client'` so server code can call it.
 
 ```ts
 import type { Button as ButtonPrimitive } from '@base-ui/react/button';
@@ -436,7 +436,8 @@ interface ButtonProps extends ButtonPrimitive.Props {
 
 - **Variants:** `variant` 7 values, `size` 6 values (09 §2.2, §2.3). `destructive-solid` only as the confirm button of a `ConfirmDialog`.
 - **States:** hover, pressed, focus, disabled (`data-disabled`), disabled with reason (`focusableWhenDisabled` plus `Tooltip`), loading (`aria-busy`, width kept, label at `opacity-0`).
-- **A11y:** APG button; native `<button>`; Enter and Space; shortcut exposed with `aria-keyshortcuts`; navigation buttons render a link (`render={<Link />}`, `nativeButton={false}`).
+- **A11y:** APG button; native `<button>`; Enter and Space; shortcut exposed with `aria-keyshortcuts`. A loading button stays in the tab order, ignores click, Enter and Space, and does not submit its form again.
+- **LinkButton** (`ui/link-button.tsx`): an action that navigates. `interface LinkButtonProps { render: React.ReactElement; variant?: ButtonVariant; size?: 'sm' | 'md' | 'lg'; icon?: LucideIcon; children: Slot; className?: string }`. It puts `buttonVariants` on the link it is given (`render={<Link href="…" />}`), so it is announced and behaves as a link. `Button` with `nativeButton={false}` is not used for this: Base UI gives whatever it renders the button role. It has no `'use client'`, so a Server Component can render it with an icon.
 - **Use:** any command; at most one `primary` per region (page header, dialog, inspector, empty state, save bar). Labels: verb first, 3 words at most.
 - **Not for:** icon-only actions (use `IconButton`), on/off view options (`ToggleButton`), navigation inside running text (`TextLink`), a list of choices (`Select`).
 
@@ -450,12 +451,14 @@ interface IconButtonProps extends Omit<ButtonProps, 'size' | 'children' | 'icon'
   icon: LucideIcon;
   label: string;                    // aria-label and tooltip text; never contains "button"
   size?: 'icon-xs' | 'icon-sm' | 'icon';   // 24, 32, 36 px; default 'icon-sm'
-  shortcut?: string;                // rendered as Kbd in the tooltip, aria-keyshortcuts on the button
+  shortcut?: readonly string[];     // key ids as Kbd takes them (['mod', 'k']): rendered as Kbd in the tooltip, aria-keyshortcuts on the button
+  iconSize?: 'md';                  // 18 px, for the top bar (07 §2)
+  tooltipSide?: 'top' | 'bottom' | 'right';   // 'bottom' in the top bar and in table headers, 'right' in the collapsed sidebar
 }
 ```
 
-- **Variants:** `size` 3 values (`icon-xs` for inline info triggers; `icon-sm` for tables and inspectors; `icon` next to 36 px controls in page headers, filter bars and the top bar); `variant` default `ghost`: no border, `foreground-tertiary` icon, `foreground` on hover.
-- **States:** as `Button`; tooltip opens after 400 ms on hover and focus.
+- **Variants:** `size` 3 values (`icon-xs` for inline info triggers; `icon-sm` for tables and inspectors; `icon` next to 36 px controls in page headers, filter bars and the top bar); `variant` default `ghost`: no border, `foreground-secondary` icon (09 §3), `foreground` on hover.
+- **States:** as `Button`; tooltip opens after 400 ms on hover and at once on keyboard focus.
 - **A11y:** `aria-label` equals the tooltip text; icon `aria-hidden`; repeated row buttons include the row name ("More actions for crm pricing").
 - **Use:** only the universally understood actions in [07-icons.md](07-icons.md) §4 (close, more, copy, external link, collapse sidebar, settings, search, filter, sort direction, density, column chooser), the inspector's Expand button ("Open page", `Maximize2`; section 23, item 30) and the collapsed sidebar.
 - **Not for:** any other action; it gets a text label (`Button`).
@@ -593,15 +596,17 @@ interface ExternalLinkButtonProps {
 Purpose: a link in running text, meta lines and "View all" slots.
 
 ```ts
-interface TextLinkProps {
-  href: string;
+type TextLinkProps = (
+  | { href: string }                        // a plain anchor
+  | { render: React.ReactElement }          // <NextLink href=... /> from components/app; it carries the destination
+) & {
   children: Slot;
-  render?: React.ReactElement;      // pass <NextLink href=... /> from components/app for client navigation
-  tone?: 'link' | 'inherit';        // 'inherit' for back links and meta-line links that read as text
-}
+  variant?: 'standalone' | 'inline';        // default 'standalone'
+  tone?: 'link' | 'inherit';                // 'inherit' for back links and meta-line links that take the text color
+} & AnchorAttributes;                       // target, rel, aria-*, data-* are passed on
 ```
 
-- **Variants:** `tone` 2 values.
+- **Variants:** `variant` 2 values: `inline` inside a sentence, underlined at rest (20 §19); `standalone` for "View all", back links and meta-line links, underlined on hover and focus. `tone` 2 values.
 - **States:** hover and focus underline (instant), visited identical.
 - **A11y:** native `<a>`; repeated links ("View all") include the object ("View all 20 competitors").
 - **Use:** "Show all 20", "Methodology", back links, links inside helper text.
@@ -635,12 +640,13 @@ Purpose: shows a keyboard shortcut.
 interface KbdProps {
   keys: readonly string[];          // platform-neutral ids: ['mod', 'k'], ['/'], ['shift', 'f10']
   singleKey?: 'always' | 'respect-setting';  // 'respect-setting' hides the hint when single-key shortcuts are off
+  decorative?: boolean;             // inside an interactive element: hidden from assistive technology
 }
 ```
 
 - **Variants:** none (20 px tall, `type-kbd`, `rounded-sm` (4 px) hint box, as the "⌘K" hint in the top bar search field).
 - **States:** hidden when single-key shortcuts are off and the combination is a single character.
-- **A11y:** `<kbd>` elements; inside interactive elements `aria-hidden` (the element carries `aria-keyshortcuts`).
+- **A11y:** one `<kbd>` per key, `aria-hidden`, followed by the key names in a visually hidden element ("Command K", "Control Shift Up arrow"), so a screen reader never reads a glyph; with `decorative` the whole hint is `aria-hidden` (the element carries `aria-keyshortcuts`). `useAriaKeyShortcuts(keys)` gives that attribute's value: `Control+k`, `Meta+k` on a Mac, `Shift+F10`, `Control+Plus`, and `undefined` for a sequence of two keys, which the attribute cannot express. The server renders the words ("Ctrl"); a Mac switches to the glyphs when it hydrates.
 - **Use:** tooltips, menu items, search field hint, command palette footer, shortcuts dialog.
 - **Not for:** inline shortcut hints on buttons (only the command palette trigger shows one).
 
@@ -740,10 +746,10 @@ interface BadgeProps {
   variant?: 'subtle' | 'outline' | 'text';                           // default 'subtle'
   icon?: LucideIcon;                                                  // 12 px leading
   children: string;
-}
+}                                                                     // plus the attributes of a span, passed on to the root
 ```
 
-- **Variants:** `tone` 5 values x `variant` 3 values (the combinations in 14 §1). Neutral subtle: `neutral-subtle` fill, `neutral-text` label, optional 1 px `neutral-border`. Positive subtle: `positive-subtle` fill, `positive-text` label, optional 12 px check icon ("Cited", "Owned", "Cited · source 2 of 5").
+- **Variants:** `tone` 5 values x `variant` 3 values (the combinations in 14 §1; warning and info have no outline form, and the props type refuses it). Neutral subtle: `neutral-subtle` fill, `neutral-text` label, 1 px `neutral-border` always on, `surface` fill inside a selected row (`group-aria-selected:bg-surface`). Positive subtle: `positive-subtle` fill, `positive-text` label, optional 12 px check icon ("Cited", "Owned", "Cited · source 2 of 5").
 - **States:** none; never wraps; transparent border for forced colors.
 - **A11y:** plain text; the word carries meaning; a badge with a tooltip reaches 24 px width by padding or spacing.
 - **Use:** engine, intent, prompt type, panel, role, Estimate, Stale, New, Lost. Categorical metadata is always neutral. At most 2 per cell and 3 per row in Compact density.
@@ -767,19 +773,18 @@ interface TagProps { label: string; onRemove?: () => void; removeLabel?: string 
 ### 3.19 Truncate
 `ui/truncate.tsx` · V1 · [20 §13.4](20-accessibility.md), [22 §6](22-content-formatting.md)
 
-Purpose: single-line truncation with the full value in a tooltip on hover and focus.
+Purpose: single-line truncation with the full value in a tooltip on hover.
 
 ```ts
 interface TruncateProps {
   text: string;                     // full value
   display?: string;                 // pre-truncated display (middle truncation from truncatePath)
-  mode?: 'end' | 'middle';
-  lang?: string;                    // BCP 47 when the content is not English
-}
+  // no `mode`: passing `display` is what makes it a middle truncation
+}                                   // plus the attributes of a span; pass `lang` (BCP 47) when the content is not English
 ```
 
 - **Variants:** none.
-- **States:** fits (no tooltip), truncated (tooltip).
+- **States:** fits (no tooltip), truncated (tooltip). The width is measured when the pointer arrives, not on mount: no observer per cell, and a value that changes in place is always judged by its current width.
 - **A11y:** carries `data-truncate` for the text-spacing test; the accessible name is the full text.
 - **Use:** every single-line cell, chip value, title in lists.
 - **Not for:** titles (they wrap to 2 lines), prose.
@@ -806,16 +811,20 @@ Purpose: one or two lines that name or explain one element (truncated values, ic
 
 ```ts
 interface TooltipProps {
-  content: Slot;                    // text only: main line in type-meta foreground, optional secondary line in foreground-tertiary
-  side?: 'top' | 'bottom';          // 'bottom' for table headers and top bar
-  shortcut?: readonly string[];
-  children: React.ReactElement;     // the trigger
+  content: string;                  // main line in type-meta foreground
+  detail?: string;                  // second line in foreground-tertiary
+  side?: 'top' | 'bottom' | 'right';   // 'bottom' for table headers and top bar, 'right' for the collapsed sidebar
+  purpose?: 'description' | 'label';   // default 'description'
+  shortcut?: readonly string[];     // key caps after the text; aria-keyshortcuts on the trigger
+  disabled?: boolean;
+  shouldOpen?: () => boolean;       // asked before each opening; Truncate answers from the measured width
+  children: React.ReactElement;     // the trigger: any primitive, since all pass their props and ref on
 }
 ```
 
 - **Variants:** none (`surface-elevated`, 1 px border, `rounded-md`, `shadow-popover`, max 320 px).
-- **States:** closed, open after 400 ms, instant when moving between triggers (`data-instant`).
-- **A11y:** `role="tooltip"`; opens on hover and focus; Escape closes; hoverable; no timeout (WCAG 1.4.13); supplementary text uses `aria-describedby`; icon buttons use `aria-label` instead.
+- **States:** closed (nothing mounted), open after 400 ms of hover or at once on keyboard focus, instant when moving between triggers (`data-instant`).
+- **A11y:** opens on hover and focus; Escape closes; hoverable; no timeout (WCAG 1.4.13). With `purpose="description"` the text is in a `hidden` element next to the trigger, which `aria-describedby` points at: it is in the server HTML, is read whether the tooltip is open or not, and is added to a description the trigger already has. With `purpose="label"` (icon buttons, truncated values) nothing is attached, because the text repeats the accessible name. The popup itself is `aria-hidden` in both cases, so nothing is read twice. The hidden element is a `span` right after the trigger, which has three consequences. The trigger must sit where a `span` is valid: not directly in a `tr`, `tbody`, `ul`, `ol` or `dl` (React reports the invalid nesting in development); in a table header the trigger is the button inside the `th`. The trigger is no longer the last child, so a container that uses `space-*`, `divide-*` or `last:` would treat it as a middle item; layouts here use `gap`, which a hidden element does not affect. And on a trigger that cannot take focus (a badge, an icon) the tooltip is for pointer users only, so it never carries information that is not also elsewhere.
 - **Use:** every truncated value, abbreviated header, icon-only control, exact value behind a compact number.
 - **Not for:** interactive content or links (`Toggletip`, `Popover`), information needed to complete a task, touch-primary devices (information also lives in the inspector).
 
@@ -4876,3 +4885,15 @@ Disagreements between documents found while compiling this inventory. The resolu
 | 68 | Workspace switcher name size | [reference/visual-spec.md](reference/visual-spec.md) §4: name 15 px semibold; `globals.css` has no 15 px composite type utility | Resolved by [visual-spec §6](reference/visual-spec.md): `type-subsection-title` (14/20, 600), within the 2 px tolerance; the type scale stays at 15 utilities |
 | 69 | Bar list names | 15 §5.1 and this inventory used two names and two sections for one horizontal bar list | Resolved: one component, `BarList` (section 10.10), with a `comparison` mode (own brand against competitors or domains) and a `distribution` mode (rank buckets and other categorical distributions); the earlier name `HorizontalBarList` is retired |
 | 70 | `ChangeFeed` grouping | [reference/visual-spec.md](reference/visual-spec.md) §5 one panel per day ("Today · 7 events"); 23 §9.2 groups by severity (Needs attention, Changes, Notices) | 23 §9.2 (content rule); the v2 header row and 36 px row styling apply to each severity group |
+| 71 | Icon size names in the `Button` sketch | 09 §2.9 passed `'md'` to `Icon` for the 16 px glyph; in `Icon` (section 3.10) `'md'` is 18 px and 16 px is `'default'` | Section 3.10. 09 §2.9 corrected: `Icon` takes `'sm'` or `'default'`, `Spinner` takes `'sm'` or `'md'` |
+| 72 | Navigation buttons | 09 §2.7 and section 3.1 rendered a link through `Button` with `nativeButton={false}`; Base UI then gives the link the button role | `LinkButton` in `ui/link-button.tsx`: the link element with `buttonVariants`. It and `ui/button-variants.ts` have no `'use client'`, so server code can use both. 09 §2.7 corrected |
+| 73 | Tooltip and screen readers | Section 3.21 says `role="tooltip"` and `aria-describedby`; Base UI's tooltip sets neither | `Tooltip` has `purpose`. `'description'` (default) points `aria-describedby` at a `hidden` element beside the trigger that holds the text, so the popup mounts only while open and the server HTML already has the target. `'label'` (icon buttons, truncated values) attaches nothing, because the text repeats the accessible name. The popup is `aria-hidden` in both. `content` and `detail` are strings |
+| 74 | `IconButton.shortcut` type | Section 3.2 had `string`; `Kbd` and `Tooltip` take key ids | `readonly string[]` everywhere |
+| 75 | Neutral badge border | 14 §1 said the 1 px `neutral-border` is optional and always on in table rows; section 3.17 had no prop for it, and a boolean style prop is not allowed (section 1.4 rule 7) | The border is always on, and the fill becomes `surface` inside a selected row through `group-aria-selected`. 14 §1 corrected. Warning and info badges have no outline form, and the props type refuses that combination |
+| 76 | `Truncate` on keyboard focus | Section 3.19 promised the tooltip on hover and focus; a truncated `span` is not focusable, and making every truncated cell a tab stop would be worse | Open: the `DataTable` cell that contains a `Truncate` has to own the tooltip for its focus state. Decide with the table task; until then a keyboard-only sighted user reads a truncated value in the inspector. Section 3.19 now says hover only |
+| 77 | Tooltip delay on keyboard focus | 16 §6.1 and sections 3.2 and 3.21 said 400 ms on hover and focus; Base UI opens at once on focus (measured 6 ms) | At once on focus is kept: moving focus is deliberate. 16 §6.1 and sections 3.2 and 3.21 corrected |
+| 78 | Link underline | Section 3.9 said a text link is underlined on hover and focus; 20 §19 says "underlined in running text". Measured contrast of `link` against `foreground` is 2.92:1 in light and 1.98:1 in dark, below the 3:1 that would let color alone mark a link | 20 §19 wins. `TextLink` has `variant`: `inline` is underlined at rest, `standalone` on hover and focus |
+| 79 | Ghost icon button color | Section 3.2 said `foreground-tertiary`, 09 §3 says `foreground-secondary`; the static preview mostly uses tertiary | 09 §3 wins, as the document that owns buttons. Section 3.2 corrected; the static preview still draws its row actions in tertiary |
+| 80 | Attributes on primitives | The props in section 3 were closed lists, so a `Tooltip` around a `Badge` or an `Icon` did nothing | Every primitive takes the attributes of its root element and passes them on, with `ref`. `aria-hidden` on the purely decorative ones (`Skeleton`, the decorative `Separator`) is written after them and cannot be overridden. Section 3 lists only the props a primitive adds |
+| 81 | `Kbd` name for screen readers | 20 §19 asked for an `aria-label` on the combination | A visually hidden text beside `aria-hidden` key caps: an `aria-label` on a generic element is not read reliably. 20 §19 corrected. Known cost: a Mac sees "Ctrl" become "⌘" when the page hydrates, because the server cannot know the platform |
+| 82 | Skeleton phase | 17 §3.1 wants all skeletons to pulse together; skeletons mounted at different times are out of phase | Open: decide with the loading states of the shell (one animation clock on the region, or a negative delay from a shared start time) |

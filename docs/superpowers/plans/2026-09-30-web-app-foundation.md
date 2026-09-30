@@ -66,7 +66,7 @@ Installed in Task 1. Versions are the ones verified in [`research/09-frontend-st
 | `server-only` | runtime | Makes importing a server module from client code a build error (added in Task 3) |
 | `@tailwindcss/postcss` 4.3, `postcss` | dev | Tailwind in the Next build |
 | `@types/react`, `@types/react-dom` | dev | Types |
-| `shadcn` 4.21 | dev | CLI for `shadcn add`, and `shadcn/tailwind.css` (Base UI data-attribute variants) |
+| `shadcn` 4.21 | dev | CLI that fetches a component's source into a scratch folder as a reference. `shadcn/tailwind.css` is not imported (see Task 4) |
 | `openapi-typescript` | dev | Generates `schema.d.ts` |
 | `msw` 2 | dev | Mock layer for tests and for endpoints not built yet |
 | `@vitejs/plugin-react`, `jsdom`, `@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`, `vitest-axe` | dev | Component tests |
@@ -252,16 +252,16 @@ Every primitive in Tasks 4 to 6 follows the same steps. They are written once he
 
 1. Read its section in 25 (props, variants, states, accessibility) and the section of the owning document. Find the same element in `design-preview/index.html` for the exact classes.
 2. Write the test file: every variant and size renders the documented classes; every state (disabled, loading, invalid, open) is reachable; keyboard behavior matches the APG pattern named in 25; `expect(await axe(container)).toHaveNoViolations()`.
-3. Run `pnpm dlx shadcn@latest add <name>` where shadcn has the component (it writes to `src/components/ui` through `components.json`), then apply the eight-step import checklist of 26 section 4: `type-*` utilities, documented radius, token colors, size utilities, no arbitrary values where a token exists, the global focus ring, Base UI data attributes. Where shadcn has no equivalent, build on the Base UI primitive directly.
-4. No `forwardRef` (React 19), `data-slot` on the root, `render` prop for composition, props spread last so callers can pass `aria-*` and `data-*`.
+3. Where shadcn has the component, fetch its source into a scratch folder as a reference for the Base UI wiring (`pnpm exec shadcn add <name> --path <scratch>`; never into `src/components/ui`, where it would overwrite a finished primitive), then write the primitive by the eight-step import checklist of 26 section 4: `type-*` utilities, documented radius, token colors, size utilities, no arbitrary values where a token exists, the global focus ring, Base UI data attributes. Where shadcn has no equivalent, build on the Base UI primitive directly.
+4. No `forwardRef` (React 19), `data-slot` on the root, `render` prop for composition. Every primitive takes the attributes of its root element and passes them on with `ref`, so callers can pass `aria-*` and `data-*` and so `Tooltip` and Base UI's `render` can compose with it. `className` is merged last through `cn`. `'use client'` only when the primitive has a hook or a handler of its own.
 5. Add the component to its `/design-system` section file under `src/components/design-system/` with every variant and state (the route itself is Task 7).
 
-**Create `components.json` first** (style `base-nova`, `rsc: true`, `tsx: true`, `tailwind.css: "src/styles/globals.css"`, `tailwind.cssVariables: true`, aliases `components: "@/components"`, `ui: "@/components/ui"`, `utils: "@/lib/utils"`, `iconLibrary: "lucide"`). Do not run `shadcn init`: it would overwrite `globals.css`. Add `@import "shadcn/tailwind.css";` to `globals.css` after the Tailwind import, then confirm the build output still contains no palette classes and that `pnpm run preview` output is unchanged except for the new variants.
+**Create `components.json` first** (style `base-nova`, `rsc: true`, `tsx: true`, `tailwind.css: "src/styles/globals.css"`, `tailwind.cssVariables: true`, aliases `components: "@/components"`, `ui: "@/components/ui"`, `utils: "@/lib/utils"`, `iconLibrary: "lucide"`). Do not run `shadcn init`: it would overwrite `globals.css`. `shadcn/tailwind.css` is not imported: it defines `data-selected` and its siblings as `[data-selected="true"]`, while Base UI writes the bare attribute, which Tailwind's own `data-*` variants already match.
 
 | Component | File | Spec | Notes |
 |---|---|---|---|
-| `Icon` | `ui/icon.tsx` | 07, 25 | Wraps a Lucide component; sizes `xs` 12, `sm` 14, `md` 16 (default), `lg` 18, `xl` 20 through `size-icon-*`; stroke 1.75 non-scaling; `aria-hidden` unless `label` is given |
-| `Button` | `ui/button.tsx` | 09 section 2 | Copy `buttonVariants` from 09 section 2.9 exactly: 7 variants, sizes `sm`, `md`, `lg`, `icon-xs`, `icon-sm`, `icon`. `loading` shows `Spinner`, keeps the width and sets `aria-busy`; a disabled button with a reason uses `aria-disabled` so the tooltip stays reachable |
+| `Icon` | `ui/icon.tsx` | 07, 25 | Wraps a Lucide component; sizes `xs` 12, `sm` 14, `default` 16, `md` 18, `lg` 20 through `size-icon-*`; stroke 1.75 (1.5 at `xs` and `lg`), non-scaling; `aria-hidden` unless `label` is given |
+| `Button`, `LinkButton` | `ui/button.tsx`, `ui/button-variants.ts`, `ui/link-button.tsx` | 09 section 2 | Copy `buttonVariants` from 09 section 2.9 exactly: 7 variants, sizes `sm`, `md`, `lg`, `icon-xs`, `icon-sm`, `icon`. `loading` shows `Spinner`, keeps the width and sets `aria-busy`; a disabled button with a reason uses `aria-disabled` so the tooltip stays reachable |
 | `IconButton` | `ui/icon-button.tsx` | 09 section 3 | Requires `label`; renders the tooltip with it |
 | `Spinner` | `ui/spinner.tsx` | 21 section 8.2 | Static under reduced motion |
 | `Kbd` | `ui/kbd.tsx` | 09 section 11 | `type-kbd` |
@@ -271,10 +271,25 @@ Every primitive in Tasks 4 to 6 follows the same steps. They are written once he
 | `Badge` | `ui/badge.tsx` | 14 section 1 | Tones and the outline look from the preview's neutral badge |
 | `TextLink` | `ui/text-link.tsx` | 20 section 19 | `next/link` for internal targets |
 | `Truncate` | `ui/truncate.tsx` | 20 section 13.4 | Tooltip with the full text only when truncated |
+| `Tooltip` | `ui/tooltip.tsx` | 16 section 6.1 | Pulled forward from Task 6: `IconButton` and `Truncate` need it |
 | `ScrollArea` | `ui/scroll-area.tsx` | 16 section 5.1 | |
 
-- [ ] Steps 1 to 5 for each row, in table order (`Icon`, `Spinner` and `Tooltip`'s trigger contract come first because `Button` and `IconButton` use them; stub nothing: build `Tooltip` from Task 6 early if `IconButton` needs it).
-- [ ] Opus review, fixes, gates, commit "Add the display primitives".
+- [x] Steps 1 to 5 for each row, in table order (`Icon`, `Spinner` and `Tooltip`'s trigger contract come first because `Button` and `IconButton` use them; stub nothing: build `Tooltip` from Task 6 early if `IconButton` needs it).
+- [x] Opus review, fixes, gates, commit "Add the display primitives".
+
+Done differently from the steps above, and why:
+
+- `Tooltip` is built here, not in Task 6. Its description is a `hidden` element beside the trigger that `aria-describedby` points at, so the popup mounts only while open and nothing is read twice; `purpose="label"` is for text that repeats the accessible name (25 section 23 row 73).
+- `LinkButton` exists because Base UI gives whatever `Button` renders the button role. It and `buttonVariants` live in modules without `'use client'`, so a Server Component can use them and pass an icon.
+- `TextLink` has `variant`: `inline` is underlined at rest, because the link color is below 3:1 against body text in both themes (25 section 23 row 78).
+- `Truncate` measures when the pointer arrives instead of observing every cell.
+- The neutral badge always has its border; there is no `bordered` prop (25 section 23 row 75).
+- The stylesheet of the app is `src/styles/app.css`, which imports `globals.css` and names the source folders. `globals.css` names none, so the static preview and the app never carry each other's classes. `src/features/` exists already, because a source folder must exist when the dev server starts.
+- A minimal `/design-system` route (three sections: buttons, badges, display) exists already, to check the primitives in a browser. Task 7 completes it.
+- The test render helper sets the tooltip delay to 0, and axe runs without `color-contrast` and `region`, which jsdom cannot judge (the Playwright run of Task 16 keeps both on).
+- Lint: the literal-string rule exempts `src/app/(internal)/**`, and `jsx-a11y/anchor-has-content` is off in tests, where an empty anchor is handed to `render`.
+
+Carried to later tasks: the section list, `aria-current` in the section nav and the production 404 test of `/design-system` (Task 7); a truncated value in a table cell needs its tooltip on keyboard focus, owned by the `DataTable` cell (the tables plan; 25 section 23 row 76); skeletons mounted at different times pulse out of phase (Task 13, with the loading states of the shell; row 82); the Playwright run must keep the axe `region` and `color-contrast` rules on (Task 16).
 
 ### Task 5: Primitives, batch 2: forms
 
@@ -523,6 +538,22 @@ Ask the user before this task: it downloads a browser (about 170 MB) and the pin
 | `GET` and `POST {W}/projects`, `GET` and `PATCH {P}`: a project has `name`, `slug`, `timezone`, `deep_check_weekday`, `default_language_code`; `primary_domain` and `default_location_id` are null until the keyword system. Slugs are 3 to 40 characters, lower-case letters, digits and hyphens, and the reserved words are enums in the OpenAPI document | Tasks 9, 13 and 14 (the pending mock uses this shape) |
 | Two-factor is opt-in: no route answers `two_factor_enrollment_required` for now, and sign-in asks for a code only from a user who enrolled | Confirmed by the product owner: `/two-factor/setup`, the redirect of Task 12 step 5 and the two-factor controls of Security are removed from this plan. `/two-factor` (entering a code at sign-in) stays |
 | Invitation resend, cancel and decline, `GET /roles`, change of email, workspace and project delete are deferred on the backend | none in this plan |
+
+Later messages, from the final review of `backend/workspaces` (tip e11af45, not merged yet; the backend session says when `main` has it):
+
+| Change | Affects |
+|---|---|
+| Accept answers `{ data: { workspace: { workspace_id, name, slug }, member } }`, so the page routes to `/{slug}` at once; accepting again returns the same. One more error: 403 `workspace_suspended`. 400 `invalid_token` is one answer for unknown, withdrawn, sent to another address, or void | Task 11 |
+| Inviting an `owner` or `admin`, changing a member's role and removing a member need a fresh session (403 `fresh_session_required` with `reauth_url`). Invitation limits per hour: 20 per inviter, 50 per workspace, 3 per address (429 with `Retry-After`) | Task 12 (`withFreshSession`); member screens in a later plan |
+| `Member.two_factor_enabled` and `Member.last_active_at` are null unless the caller holds `members:manage` or the row is the caller's own. `Member.project_ids`: null is every project, `[]` is none | Task 12 (permission context) |
+| Generate the client with `--enum-values`: `ReservedWorkspaceSlug` and `ReservedProjectSlug` are then runtime lists a form can check a slug against. `design-system` and `projects` are reserved. A slug cannot be shaped like a uuid | Tasks 8 and 14 |
+| Time zones: send what `Intl.DateTimeFormat().resolvedOptions().timeZone` gives and show what the API returns (a legacy name comes back under its current name). Unknown zone: 422 with field code `timezone_unknown` | Task 14 |
+| `POST {W}/projects` needs `projects:write` and a membership not limited to some projects. The limit counts active and paused projects: 422 `quota_exceeded` with `limit`, `used`, `requested`. `PATCH {P}` always returns `meta.warnings` (`timezone_change_applies_forward`). `GET {W}/projects` takes `filter[status_in]` (default `active,paused`), `offset`, `limit` | Tasks 9, 13 and 14 |
+| Every route refuses a query parameter it does not declare (422, `extra_forbidden`): the client sends none of its own | Task 8 |
+| 409 `conflict` is safe to retry once. 403 `workspace_suspended` answers any write in a suspended workspace. A field that cannot be null and is sent null is a 422 on that field | Task 8 (`shouldRetry`, `ApiProblem`) |
+| In `WorkspaceUpdate`, `MemberUpdate` and `ProjectUpdate` the fields that refuse null are plain optional; only `logo`, `project_ids` and `default_language_code` take null. In `Problem`, `detail` and `errors` are optional and never null | Tasks 5 and 8 |
+| Error codes are not enumerated in the OpenAPI document: `Problem.code` is a string and `limit`, `used`, `requested`, `reauth_url`, `retry_after_seconds` are untyped. 19 section 2.7 is the list; `ApiProblem` types them by hand. Field codes to match on: `extra_forbidden`, `null_not_allowed`, `slug_reserved`, `slug_is_id`, `timezone_unknown`, `project_unknown`, `scope_not_allowed` | Tasks 5 and 8 |
+| `POST /api/v1/workspaces` is 403 for anyone but an operator while registration is by invitation, and limited to 5 per user per day. `/me` still lists a membership whose workspace has `status: 'deleting'` (all its routes are 404) | Tasks 12 and 13 (skip such a workspace in the switcher) |
 
 ## Self-review
 

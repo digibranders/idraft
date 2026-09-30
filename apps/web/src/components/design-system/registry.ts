@@ -1,0 +1,21 @@
+import type { ReactNode } from 'react';
+
+import { BadgesSection } from './badges-section';
+import { ButtonsSection } from './buttons-section';
+import { DisplaySection } from './display-section';
+
+export interface PreviewSection {
+  readonly slug: string;
+  readonly title: string;
+  readonly render: () => ReactNode;
+}
+
+/** The sections of the component preview, in the order the index lists them (26 section 10). */
+export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
+  { slug: 'buttons', title: 'Buttons', render: ButtonsSection },
+  { slug: 'badges', title: 'Badges', render: BadgesSection },
+  { slug: 'display', title: 'Icons and display', render: DisplaySection },
+];
+
+export const previewSection = (slug: string): PreviewSection | undefined =>
+  PREVIEW_SECTIONS.find((section) => section.slug === slug);

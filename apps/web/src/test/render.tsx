@@ -7,6 +7,7 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import type { ReactElement, ReactNode } from 'react';
 
 import messages from '../../messages/en.json';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { makeQueryClient } from '@/lib/api/query-client';
 import { LiveRegions } from '@/providers/live-regions';
 
@@ -33,7 +34,8 @@ export function renderWithProviders(
         <QueryClientProvider client={queryClient}>
           <NuqsTestingAdapter searchParams={searchParams}>
             <Toast.Provider>
-              {children}
+              {/* No hover delay: a test waits for the tooltip, never for a timer */}
+              <TooltipProvider delay={0}>{children}</TooltipProvider>
               <LiveRegions />
             </Toast.Provider>
           </NuqsTestingAdapter>

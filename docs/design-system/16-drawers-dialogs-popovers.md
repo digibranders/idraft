@@ -460,14 +460,14 @@ Keyboard follows Base UI defaults: arrows, Home and End, type-ahead, Enter and S
 | Property | Value |
 |---|---|
 | Primitive | Base UI Tooltip with one app-level Tooltip.Provider |
-| Open delay | 400 ms on hover and on keyboard focus |
+| Open delay | 400 ms on hover. At once on keyboard focus: moving focus is a deliberate act, and the delay exists to keep tooltips from flickering while the pointer crosses the page |
 | Moving between tooltips | 0 ms: once a tooltip has been shown, another trigger opens its tooltip instantly for 300 ms after the previous one closed (Provider delay grouping; the popup gets `data-instant`) |
 | Close | When pointer and focus leave both trigger and tooltip; Esc; no timeout |
 | Max width | 320 px (`--size-tooltip-max`); text wraps |
 | Padding | 6 px vertical, 8 px horizontal |
 | Surface | `surface-elevated`, 1 px `border`, `rounded-md` (6 px), `shadow-popover`, `--z-tooltip` (110) |
 | Text | `type-meta` size with `foreground` colour for the main line; a secondary line in `foreground-tertiary`; shortcut hints as `Kbd` ([09-buttons-controls.md](09-buttons-controls.md) section 11) |
-| Position | Side `top` (default), `bottom` for table headers and top-bar items; 6 px offset; collision flip |
+| Position | Side `top` (default), `bottom` for table headers and top-bar items, `right` for the collapsed sidebar; 6 px offset; collision flip |
 
 Chart tooltips ([15-data-visualization.md](15-data-visualization.md) section 10) belong to the same family: `surface-elevated`, 1 px `border`, `shadow-popover`, with an 8 px radius (`rounded-lg`) because they hold a small table. The date is the first line in `type-subsection-title` (14 / 20 px, weight 600); below it, one row per series with an 8 px dot in the series color, the series name, and the value right-aligned (`num`).
 

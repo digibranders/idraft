@@ -16,7 +16,7 @@ One `Badge` component with two properties: `tone` and `variant`.
 
 | Tone + variant | Background | Text | Border |
 |---|---|---|---|
-| neutral subtle | `neutral-subtle` | `neutral-text` | none, or an optional 1 px `neutral-border`. In table rows the border is always on, and on a selected or active row (`surface-selected`) the fill switches to `surface` so the badge keeps a visible edge against the tint |
+| neutral subtle | `neutral-subtle` | `neutral-text` | 1 px `neutral-border`, always on (the tint is close to the hover and selected fills of a row, and one look everywhere needs no prop). On a selected or active row (`surface-selected`) the fill switches to `surface` so the badge keeps a visible edge against the tint: the row is a `group` with `aria-selected`, and the badge carries `group-aria-selected:bg-surface` |
 | neutral outline | `surface` | `foreground-secondary` | `border` |
 | positive subtle | `positive-subtle` (mint) | `positive-text` | none; optional leading `Check` icon |
 | positive outline | `surface` | `positive-text` | `positive-border` |

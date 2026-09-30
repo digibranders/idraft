@@ -6,7 +6,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 
 import { AppProviders } from '@/providers/app-providers';
-import '@/styles/globals.css';
+import '@/styles/app.css';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('app');

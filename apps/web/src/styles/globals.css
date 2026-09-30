@@ -6,15 +6,11 @@
  */
 
 /* Automatic source detection is off: it would scan everything under apps/web, so the app bundle would
-   carry the static preview's classes and the preview bundle the app's. Each entry names its sources;
-   design-preview/preview.css imports this file and adds its own. */
+   carry the static preview's classes and the preview bundle the app's. This file names no sources. Each
+   entry imports it and names its own: app.css for the application, design-preview/preview.css for the
+   static preview. */
 @import "tailwindcss" source(none);
 @import "./tokens.css";
-
-@source "../app";
-@source "../components";
-@source "../features";
-@source "../providers";
 
 /* Dark mode is class-based on <html> (next-themes, attribute="class"). */
 @custom-variant dark (&:where(.dark, .dark *));

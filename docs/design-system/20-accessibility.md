@@ -772,7 +772,7 @@ For each flow the tester records whether names, roles, states, table position ("
 |---|---|---|---|---|
 | `Button` | Native `button`, `type` set | Enter, Space | Visible label is the name; loading: `aria-busy`, `aria-disabled` | Pressed style is not the only state for toggles (`aria-pressed`) |
 | `IconButton` | Native `button` | Enter, Space | `aria-label` equals tooltip; icon `aria-hidden` | 24 px minimum target; tooltip on focus |
-| `TextLink` | Native `a` with `href` | Enter | Link text describes the destination; external: "(opens in a new tab)" | Underlined in running text |
+| `TextLink` | Native `a` with `href` | Enter | Link text describes the destination; external: "(opens in a new tab)" | Underlined at rest in running text (`variant="inline"`): the link color is below 3:1 against body text in both themes, so color alone does not mark a link (WCAG 1.4.1). A link that stands alone (`standalone`) is underlined on hover and focus |
 | `Input`, `Textarea` | `Field` parts | Native | Label, description, error wired by `Field` | 16 px font in mobile layout; `autocomplete` where applicable |
 | `Select` | Base UI Select | APG select | Label via `Field.Label`; value announced | Trigger shows the chosen value, not only a placeholder |
 | `Combobox` | Base UI Combobox | APG combobox | `aria-activedescendant`, `aria-expanded`, result count announced | Popup not in Tab order |
@@ -828,7 +828,7 @@ For each flow the tester records whether names, roles, states, table position ("
 | `EmptyState`, `ErrorPage` | Heading plus text plus action | Tab | Heading level fits the region | Action names the fix ("Clear filters") |
 | `Banner` / inline alert | `role="status"` or `role="alert"` by severity | Tab to actions | Icon plus text | Not dismissed by timer |
 | `KeyValueTable` | `SimpleTable` with row headers | n/a | Caption names the group | Container query layout |
-| `Kbd` | `kbd` | n/a | Readable text ("Command K") via `aria-label` on the combination | Hidden when single-key shortcuts are off |
+| `Kbd` | `kbd` | n/a | Readable text ("Command K") in a visually hidden element beside the key caps, which are `aria-hidden` (an `aria-label` on a generic element is not read reliably) | Hidden when single-key shortcuts are off |
 | `CopyButton` | Button | Enter, Space | "Copy {thing}"; "Copied" announced | Check icon swap is not the only confirmation |
 | `DesktopOnlyNotice` | Section with heading | Tab | Names the feature | "Copy link" confirms with an announcement |
 | Skip link | First `a` in `body` | Enter | "Skip to main content" | Visible on focus |

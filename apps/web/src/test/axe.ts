@@ -11,4 +11,11 @@ import { configureAxe } from 'vitest-axe';
  * - Layout rules such as target size, and page-level rules (landmarks, one `main`) when only a container is
  *   passed. Those belong to the Playwright run too.
  */
-export const axe = configureAxe({ rules: { 'color-contrast': { enabled: false } } });
+export const axe = configureAxe({
+  rules: {
+    'color-contrast': { enabled: false },
+    // Overlays render in a portal, so their tests check the whole body, which has no landmarks in a
+    // component test. Landmarks are checked on real pages.
+    region: { enabled: false },
+  },
+});

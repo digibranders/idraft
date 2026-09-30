@@ -1,0 +1,14 @@
+/*
+ * app.css
+ * The stylesheet of the application: the design system (globals.css) plus the folders whose class names
+ * Tailwind reads. A folder named here must exist when the dev server starts, or its classes are never
+ * generated (docs/design-system/26-implementation-guidelines.md section 4).
+ */
+
+@import "./globals.css";
+
+@source "../app";
+@source "../components";
+@source "../features";
+@source "../lib";
+@source "../providers";
