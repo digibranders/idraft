@@ -287,7 +287,7 @@ Other verified points: `chat-latest` is "Latest Instant model used in ChatGPT" [
 - **Denominators.** Headline metrics exclude branded prompts and observations where no answer surface rendered (`ai.observations.status = 'empty'`, `seo.serp_snapshots.ai_overview_state = 'absent'`).
 - **Extraction** is deterministic alias matching in `packages/extraction`; LLMs only for sentiment and recommendation on already-detected entities. Our `derivation_id` (which pins `extractor_version` in `ai.derivations`) plus `is_current` on `ai.entity_mentions` implements the Cloro revision pattern.
 - **Paid calls are not retried by the queue.** BullMQ `attempts` covers only failures before the provider accepts a task; after acceptance, recovery goes through `ops.collection_tasks.status` and `webhook_resend` or `task_get`.
-- **Run guard.** `ops.collection_runs` already has `UNIQUE NULLS NOT DISTINCT (schedule_id, window_start)`, which matches the OpenSEO guard.
+- **Run guard.** `ops.collection_runs` has `UNIQUE (schedule_id, window_start)`, which matches the OpenSEO guard for scheduled runs. Runs without a schedule are not guarded by their window (migration 0006).
 - **Licensing.** Copy MIT and Apache-2.0 code only with notices; read AGPL, GPL, custom and unlicensed repos for ideas only [R06 Part D].
 
 ---

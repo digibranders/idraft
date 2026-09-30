@@ -1488,7 +1488,8 @@ CREATE TABLE ops.collection_runs (
     config_snapshot    jsonb NOT NULL,        -- versions of adapter/parser/extractor, provider mode, replicates
     created_at         timestamptz NOT NULL DEFAULT now(),
     completed_at       timestamptz,
-    UNIQUE NULLS NOT DISTINCT (schedule_id, window_start)   -- idempotent planning
+    UNIQUE (schedule_id, window_start)   -- idempotent planning of a schedule's window; runs
+                                         -- without a schedule are not guarded by their window
 );
 
 CREATE TABLE ops.collection_tasks (

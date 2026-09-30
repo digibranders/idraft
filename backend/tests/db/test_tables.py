@@ -26,6 +26,11 @@ DECLARED = {
     "core.projects",
     "core.workspace_quotas",
     "ops.audit_logs",
+    "ops.budgets",
+    "ops.schedules",
+    "ops.collection_runs",
+    "ops.collection_tasks",
+    "ops.provider_cost_events",
 }
 # Alembic reports a difference as a tuple, or as a list of tuples for one column.
 Difference = tuple[object, ...] | list[tuple[object, ...]]

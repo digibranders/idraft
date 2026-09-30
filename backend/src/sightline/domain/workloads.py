@@ -85,3 +85,29 @@ def cost_workloads(group: BudgetGroup) -> frozenset[CostWorkload]:
     if group is BudgetGroup.ALL:
         return frozenset(CostWorkload)
     return frozenset(workload for workload, mapped in _GROUP_OF.items() if mapped is group)
+
+
+class CostChannel(StrEnum):
+    """Which side of the product a cost belongs to (`ops.provider_cost_events.channel`)."""
+
+    SEO = "seo"
+    AI = "ai"
+    RESEARCH = "research"
+    INTERNAL = "internal"
+
+
+_CHANNEL_OF: Mapping[BudgetGroup, CostChannel] = MappingProxyType(
+    {
+        BudgetGroup.SEO_RANK: CostChannel.SEO,
+        BudgetGroup.AI_PROMPT: CostChannel.AI,
+        BudgetGroup.AI_BENCHMARK: CostChannel.AI,
+        BudgetGroup.KEYWORD_RESEARCH: CostChannel.RESEARCH,
+        # Our own processing, and the first-party sources that cost calls and no money.
+        BudgetGroup.EXTRACTION_LLM: CostChannel.INTERNAL,
+        BudgetGroup.FIRST_PARTY: CostChannel.INTERNAL,
+    }
+)
+
+
+def cost_channel(workload: CostWorkload | TaskWorkload) -> CostChannel:
+    return _CHANNEL_OF[budget_group(workload)]
