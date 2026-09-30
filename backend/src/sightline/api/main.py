@@ -26,6 +26,7 @@ from sightline.api.problems import register_problem_handlers
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
 from sightline.api.schema import install_openapi
+from sightline.api.workspaces.members import MemberService
 from sightline.api.workspaces.routes import router as workspaces_router
 from sightline.api.workspaces.service import WorkspaceService
 from sightline.config.logging import configure_logging
@@ -109,6 +110,7 @@ def create_app(
                     registration=settings.registration,
                 ),
                 workspaces=WorkspaceService(sessions=sessions, registration=settings.registration),
+                members=MemberService(sessions=sessions),
             )
             yield
 

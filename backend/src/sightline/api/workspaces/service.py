@@ -43,7 +43,7 @@ class WorkspaceService:
         self._sessions = sessions
         self._registration = registration
 
-    async def list(self, session: SessionContext) -> list[WorkspaceRecord]:
+    async def list_for(self, session: SessionContext) -> list[WorkspaceRecord]:
         async with user_transaction(self._sessions, session.user_id) as db:
             return await repository.list_for_user(db, session.user_id)
 

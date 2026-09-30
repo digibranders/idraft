@@ -89,7 +89,7 @@ async def workspace_member(
         yield access
 
 
-Member = Annotated[WorkspaceAccess, Depends(workspace_member)]
+MemberAccess = Annotated[WorkspaceAccess, Depends(workspace_member)]
 
 
 def require_permission(
@@ -101,7 +101,7 @@ def require_permission(
     """
 
     @declare(AccessRule("permission", permission, fresh=fresh))
-    def check(access: Member) -> WorkspaceAccess:
+    def check(access: MemberAccess) -> WorkspaceAccess:
         if not access.holds(permission):
             raise ForbiddenError
         if fresh and not access.session.is_fresh(datetime.now(UTC)):

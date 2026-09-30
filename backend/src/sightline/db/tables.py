@@ -205,8 +205,9 @@ audit_logs = Table(
     Column("action", Text, nullable=False),
     Column("target_type", Text, nullable=False),
     Column("target_id", Text, nullable=False),
-    Column("before", JSONB),
-    Column("after", JSONB),
+    # Python None is stored as SQL NULL, not as the JSON value null: "nothing before" is no value.
+    Column("before", JSONB(none_as_null=True)),
+    Column("after", JSONB(none_as_null=True)),
     Column("ip", INET),
     Column("user_agent", Text),
     Column("request_id", Text),

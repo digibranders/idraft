@@ -1,4 +1,4 @@
-"""Bodies of the workspace routes (docs/19-api-specification.md section 3.2.1)."""
+"""Bodies of the workspace and member routes (docs/19-api-specification.md section 3.2)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,17 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from sightline.api.schemas.common import Body, ImageUrl, Name, Timezone
+from sightline.api.pagination import OffsetPageInfo
+from sightline.api.permissions import Role
+from sightline.api.schemas.common import (
+    PROJECT_SCOPE_MAX,
+    Body,
+    ImageUrl,
+    Name,
+    ProjectScope,
+    Timezone,
+    UserRef,
+)
 from sightline.api.slugs import WorkspaceSlug
 
 WorkspaceStatus = Literal["active", "suspended", "deleting"]
@@ -55,4 +65,37 @@ class WorkspaceUpdate(Body):
         for field in ("name", "slug", "timezone"):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null")
+        return self
+
+
+class Member(BaseModel):
+    user: UserRef
+    role: Role
+    project_ids: list[UUID] | None = Field(description="null means every project")
+    two_factor_enabled: bool
+    joined_at: datetime
+    last_active_at: datetime | None
+
+
+class MemberResponse(BaseModel):
+    data: Member
+
+
+class MemberPage(BaseModel):
+    data: list[Member]
+    page: OffsetPageInfo
+
+
+class MemberUpdate(Body):
+    """At least one member. `project_ids: null` gives the member every project."""
+
+    role: Role | None = None
+    project_ids: ProjectScope = Field(default=None, max_length=PROJECT_SCOPE_MAX)
+
+    @model_validator(mode="after")
+    def _says_something(self) -> MemberUpdate:
+        if not self.model_fields_set:
+            raise ValueError("give role, project_ids or both")
+        if "role" in self.model_fields_set and self.role is None:
+            raise ValueError("role cannot be null")
         return self

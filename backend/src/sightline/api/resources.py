@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from sightline.api.auth.service import AuthService
 from sightline.api.auth.sessions import SessionStore
+from sightline.api.workspaces.members import MemberService
 from sightline.api.workspaces.service import WorkspaceService
 from sightline.config.settings import Settings
 from sightline.db.migrate import MigrationState
@@ -29,6 +30,7 @@ class Resources:
     session_store: SessionStore
     auth: AuthService
     workspaces: WorkspaceService
+    members: MemberService
 
 
 def get_resources(request: Request) -> Resources:

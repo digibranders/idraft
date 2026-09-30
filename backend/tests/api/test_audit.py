@@ -69,3 +69,31 @@ async def test_an_entry_cannot_be_written_into_another_workspace(
         await fetch(migrated, "SELECT 1 FROM ops.audit_logs WHERE target_id = $1", str(target))
         == []
     )
+
+
+async def test_a_missing_snapshot_is_stored_as_no_value(
+    resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, actor = await make_workspace(migrated), await make_user(migrated)
+    target = uuid.uuid4()
+
+    async with workspace_transaction(resources.sessions, workspace.id, user_id=actor.id) as db:
+        await audit.record(
+            db,
+            workspace_id=workspace.id,
+            actor_id=actor.id,
+            action="member.removed",
+            target_type="user",
+            target_id=target,
+            info=INFO,
+            before={"role": "viewer"},
+        )
+
+    (row,) = await fetch(
+        migrated,
+        "SELECT before IS NULL AS no_before, after IS NULL AS no_after FROM ops.audit_logs "
+        "WHERE target_id = $1",
+        str(target),
+    )
+    # SQL NULL, not the JSON value null: a reader filters on `after IS NULL`.
+    assert (row["no_before"], row["no_after"]) == (False, True)

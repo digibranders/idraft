@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unicodedata
 from typing import Annotated
+from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
 
@@ -13,6 +14,7 @@ NAME_MAX = 120
 TOKEN_BODY_MAX = 128
 IMAGE_URL_MAX = 2048
 TIMEZONE_MAX = 64
+PROJECT_SCOPE_MAX = 500
 
 
 def printable(value: str) -> str:
@@ -60,3 +62,17 @@ class Body(BaseModel):
     """A request body. Unknown members are refused, so a misspelt field is an error, not ignored."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+class UserRef(BaseModel):
+    user_id: UUID
+    name: str
+    email: str
+
+
+def _distinct(value: list[UUID] | None) -> list[UUID] | None:
+    return None if value is None else sorted(set(value))
+
+
+# The projects a membership is limited to. null means every project of the workspace.
+ProjectScope = Annotated[list[UUID] | None, AfterValidator(_distinct)]

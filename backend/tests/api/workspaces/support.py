@@ -12,7 +12,7 @@ from sightline.api.access import public
 from sightline.api.pagination import Offset
 from sightline.api.permissions import Permission
 from sightline.api.workspaces.access import WorkspaceAccess
-from sightline.api.workspaces.dependencies import Member, require_permission
+from sightline.api.workspaces.dependencies import MemberAccess, require_permission
 from tests.api.auth.support import fetchrow
 from tests.conftest import PostgresServer
 
@@ -36,7 +36,7 @@ def _describe(access: WorkspaceAccess) -> dict[str, object]:
 
 
 @workspace_probes.get(_WORKSPACE + "/member")
-async def probe_member(access: Member) -> dict[str, object]:
+async def probe_member(access: MemberAccess) -> dict[str, object]:
     return _describe(access)
 
 
@@ -58,7 +58,7 @@ async def probe_delete(
 
 
 @workspace_probes.get(_WORKSPACE + "/projects/{project_id}")
-async def probe_project(project_id: uuid.UUID, access: Member) -> dict[str, object]:
+async def probe_project(project_id: uuid.UUID, access: MemberAccess) -> dict[str, object]:
     return _describe(access)
 
 
@@ -71,7 +71,7 @@ async def probe_project_write(
 
 
 @workspace_probes.get(_WORKSPACE + "/boom")
-async def probe_workspace_boom(access: Member) -> None:
+async def probe_workspace_boom(access: MemberAccess) -> None:
     raise RuntimeError("kaput")
 
 
