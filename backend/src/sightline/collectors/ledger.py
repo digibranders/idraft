@@ -93,6 +93,15 @@ _BUDGET_EXCEEDED = "budget_exceeded"
 PROJECT_NOT_COLLECTING = "project_not_collecting"
 NEVER_CONFIRMED = "submission_never_confirmed"
 SUBMISSION_NOT_FOUND = "submission_not_found"
+# A fetched result that object storage refused, and a task ended with it still unstored.
+STORAGE_FAILED = "storage_failed"
+RESULT_NOT_STORED = "result_not_stored"
+# How long DataForSEO keeps a finished result to be fetched again (doc 06 section 3.2).
+RESULTS_KEPT = timedelta(days=30)
+# A fetch asked again waits at least this share of the task's age, and at most `ASK_AGAIN_MAX`:
+# a task that keeps failing is asked about less and less often.
+ASK_AGAIN_SHARE = 8
+ASK_AGAIN_MAX = timedelta(hours=6)
 # What `ops.collection_tasks.cost_usd` and the cost events hold: dollars to six places.
 _COST_STEP = Decimal("0.000001")
 _CHECK_VIOLATION = "23514"
@@ -1039,20 +1048,31 @@ async def end_old_submissions(
             ),
             else_=lifetime,
         )
+    at = literal(_aware(now), DateTime(timezone=True))
+    # A result the provider handed over and we could not store stays at the provider for its
+    # 30 days: the task is kept that long to fetch it again.
+    # `coalesce`: most tasks have no error, and a NULL would make the whole condition NULL.
+    not_stored = and_(
+        _tasks.c.status == "submitted",
+        func.coalesce(_tasks.c.last_error_code, "") == STORAGE_FAILED,
+    )
     result = await db.execute(
         update(_tasks)
         .where(
             _tasks.c.status.in_(("submitted", "submit_unknown")),
-            _tasks.c.submitted_at < literal(_aware(now), DateTime(timezone=True)) - lifetime,
+            _tasks.c.submitted_at < at - lifetime,
+            or_(~not_stored, _tasks.c.submitted_at < at - literal(RESULTS_KEPT, Interval)),
         )
         .values(
             status="dead",
             completed_at=_aware(now),
             last_error_code=case(
+                (not_stored, RESULT_NOT_STORED),
                 (_tasks.c.status == "submitted", "provider_never_answered"),
                 else_=NEVER_CONFIRMED,
             ),
             last_error_message=case(
+                (not_stored, "The result could not be stored while the provider kept it."),
                 (
                     _tasks.c.status == "submitted",
                     "No result from the provider within the time it keeps results.",
@@ -1228,6 +1248,7 @@ class UnknownSubmission:
     provider_code: str
     provider_endpoint: str
     submitted_at: datetime
+    window_end: datetime
 
 
 _ORDER_COLUMNS = (
@@ -1372,10 +1393,22 @@ async def not_fetched_yet(
     now: datetime,
     code: str | None = None,
     message: str | None = None,
+    grows: bool = True,
 ) -> bool:
     """No result yet, or a fetch that may work next time: back to `submitted`, to be asked
     again by the sweeper after `ask_again_after` (or listed as ready before that). Not an
-    attempt at the task: the provider has it."""
+    attempt at the task: the provider has it. When `grows`, the wait is at least an eighth of
+    the task's age, up to six hours, so a task that keeps failing is not asked for every few
+    minutes until it is given up."""
+    at = literal(_aware(now), DateTime(timezone=True))
+    wait: Any = literal(ask_again_after, Interval)
+    if grows:
+        age_seconds = func.extract("epoch", at - func.coalesce(_tasks.c.submitted_at, at))
+        by_age = func.least(
+            func.make_interval(0, 0, 0, 0, 0, 0, age_seconds / ASK_AGAIN_SHARE, type_=Interval),
+            literal(ASK_AGAIN_MAX, Interval),
+        )
+        wait = func.greatest(wait, by_age, type_=Interval)
     result = await db.execute(
         update(_tasks)
         .where(_ready(ref, provider_task_id))
@@ -1383,7 +1416,7 @@ async def not_fetched_yet(
             status="submitted",
             ready_at=None,
             ready_source=None,
-            next_attempt_at=_aware(now) + ask_again_after,
+            next_attempt_at=at + wait,
             last_error_code=code,
             last_error_message=None if message is None else message[:ERROR_MESSAGE_MAX],
         )
@@ -1455,7 +1488,9 @@ async def unknown_submissions(
             _tasks.c.provider_code,
             _tasks.c.provider_endpoint,
             _tasks.c.submitted_at,
+            _runs.c.window_end,
         )
+        .select_from(_with_run)
         .where(
             _tasks.c.status == "submit_unknown",
             _tasks.c.submitted_at < _aware(submitted_before),
@@ -1471,25 +1506,29 @@ async def unknown_submissions(
             provider_code=row.provider_code,
             provider_endpoint=row.provider_endpoint,
             submitted_at=row.submitted_at,
+            window_end=row.window_end,
         )
         for row in rows
     ]
 
 
-async def submit_again(db: AsyncSession, ref: TaskRef, *, attempt: int) -> bool:
-    """The provider, asked, has no record of the submission: the task goes back to `pending`
-    to be sent again. The submission counted as an attempt."""
+async def submit_again(
+    db: AsyncSession, ref: TaskRef, *, attempt: int, decision: RetryDecision, now: datetime
+) -> bool:
+    """The provider, asked, has no record of the submission. The submission counted as an
+    attempt, and the retry policy for a call that timed out decides: `pending` sends the task
+    again after its wait, and `dead` ends it. Nothing is charged: the provider never had it."""
+    values: dict[str, Any] = {
+        "status": decision.status,
+        "dispatched_at": None,
+        "submitted_at": None,
+        "next_attempt_at": None if decision.delay is None else _aware(now) + decision.delay,
+        "last_error_code": SUBMISSION_NOT_FOUND,
+        "last_error_message": "The provider has no record of the submission.",
+    }
+    if decision.status != "pending":
+        values["completed_at"] = _aware(now)
     result = await db.execute(
-        update(_tasks)
-        .where(_awaiting(ref, attempt))
-        .values(
-            status="pending",
-            dispatched_at=None,
-            submitted_at=None,
-            next_attempt_at=None,
-            last_error_code=SUBMISSION_NOT_FOUND,
-            last_error_message="The provider has no record of the submission; it is sent again.",
-        )
-        .returning(_tasks.c.id)
+        update(_tasks).where(_awaiting(ref, attempt)).values(**values).returning(_tasks.c.id)
     )
     return result.one_or_none() is not None

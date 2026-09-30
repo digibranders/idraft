@@ -41,7 +41,6 @@ FETCH_JOB: Final = "fetch_task"
 NOT_READY_WAIT: Final = timedelta(minutes=30)
 # How long a fetch that may work next time waits.
 FETCH_AGAIN_AFTER: Final = timedelta(minutes=5)
-STORAGE_FAILED: Final = "storage_failed"
 # Failures that no second fetch mends. A result the provider dropped is handled apart.
 _FOR_GOOD: Final = frozenset({K.INVALID_REQUEST, K.SCHEMA_MISMATCH})
 # How long each workload's raw results are kept (doc 23 section 9.2).
@@ -152,6 +151,7 @@ async def send_fetches(
                     provider_task_id=order.provider_task_id,
                     ask_again_after=timedelta(0),
                     now=now,
+                    grows=False,
                 )
             continue
         sent += 1
@@ -240,10 +240,15 @@ async def _keep(
     try:
         payload_id = await store_raw_payload(sessions, store, payload)
     except RawStorageError as error:
-        # The provider keeps the result for 30 days: fetched again shortly, nothing lost.
+        # DataForSEO has handed the result over and no longer lists it as ready, but keeps it
+        # for 30 days: the sweeper fetches it again, and the ledger keeps such a task that long.
         _log.warning("result not stored", task_id=order.task_id, error=str(error))
         await _again(
-            sessions, order, after=FETCH_AGAIN_AFTER, code=STORAGE_FAILED, message=str(error)
+            sessions,
+            order,
+            after=FETCH_AGAIN_AFTER,
+            code=ledger.STORAGE_FAILED,
+            message=str(error),
         )
         return "retry"
     async with sessions() as db, db.begin():

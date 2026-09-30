@@ -12,10 +12,13 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors.fetching import FetchTask, fetch_task, poll_ready
-from sightline.collectors.ledger import database_time
+from sightline.collectors import ledger, reconciler
+from sightline.collectors.fetching import RETENTION_CLASS, FetchTask, fetch_task, poll_ready
+from sightline.collectors.ledger import TaskRef, database_time
 from sightline.collectors.reconciler import reconcile
 from sightline.domain.retries import ProviderErrorKind as K
+from sightline.domain.retries import RetryDecision
+from sightline.domain.workloads import TaskWorkload
 from sightline.providers.contract import (
     Echo,
     FetchResult,
@@ -425,16 +428,284 @@ async def test_an_unknown_submission_found_by_its_tag_is_submitted_and_one_not_f
     for task in (lost, also_lost):
         assert (after[task["id"]]["status"], after[task["id"]]["attempts"]) == ("pending", 1)
         assert after[task["id"]]["last_error_code"] == "submission_not_found"
-    # Paid for once, as the provider says.
-    costs = await fetch(migrated, "SELECT task_id, cost_usd FROM ops.provider_cost_events")
+        # Sent again after the wait for a call that timed out, not at once.
+        wait = after[task["id"]]["next_attempt_at"] - await _clock(migrated)
+        assert timedelta(seconds=55) < wait <= timedelta(seconds=72)
+    # Paid for once, as the provider says, in the month it was sent.
+    costs = await fetch(
+        migrated, "SELECT task_id, cost_usd, occurred_at FROM ops.provider_cost_events"
+    )
     assert [(row["task_id"], row["cost_usd"]) for row in costs] == [
         (found["id"], Decimal("0.000600"))
     ]
-    # One look, around the batch's submission.
+    assert costs[0]["occurred_at"] == after[found["id"]]["submitted_at"]
+    # One look: from a minute before the submission to the end of its grace.
     ((endpoint, since, until),) = world.provider.looked
     submitted_at = after[found["id"]]["submitted_at"]
     assert endpoint == "serp"
-    assert since < submitted_at < until
+    assert (since, until) == (
+        submitted_at - timedelta(minutes=1),
+        submitted_at + timedelta(minutes=15),
+    )
+
+
+async def test_a_listing_of_another_attempt_is_not_this_one(
+    world: World, migrated: PostgresServer
+) -> None:
+    rows = await _unknown(world, migrated)
+    world.provider.posted = [
+        _posted({**row, "attempts": row["attempts"] + 1}, f"p-{row['id']}") for row in rows
+    ]
+
+    report = await _reconcile(world, resolve_unknown_submissions=True)
+
+    assert (report.resolved, report.resubmitted) == (0, 3)
+
+
+async def test_an_untagged_listing_stops_anything_being_sent_again(
+    world: World, migrated: PostgresServer
+) -> None:
+    """A task listed without a tag may be ours: its absence proves nothing."""
+    found, *others = await _unknown(world, migrated)
+    world.provider.posted = [
+        _posted(found, "p-found"),
+        SubmittedTask(provider_task_id="p-untagged", tagged=False),
+    ]
+
+    report = await _reconcile(world, resolve_unknown_submissions=True)
+
+    assert (report.resolved, report.resubmitted) == (1, 0)
+    assert "resolved" in report.failed
+    after = {row["id"]: row["status"] for row in await task_rows(migrated, found["run_id"])}
+    assert [after[row["id"]] for row in others] == ["submit_unknown", "submit_unknown"]
+
+
+async def test_a_submission_not_found_for_the_last_time_ends_the_task(
+    world: World, migrated: PostgresServer
+) -> None:
+    rows = await _unknown(world, migrated)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET attempts = 4 WHERE run_id = $1",
+        rows[0]["run_id"],
+    )
+
+    report = await _reconcile(world, resolve_unknown_submissions=True)
+
+    assert report.resubmitted == 3
+    after = await task_rows(migrated, rows[0]["run_id"])
+    assert {(row["status"], row["last_error_code"]) for row in after} == {
+        ("dead", "submission_not_found")
+    }
+    # Never had by the provider: nothing is charged.
+    assert await fetch(migrated, "SELECT id FROM ops.provider_cost_events") == []
+
+
+async def test_submissions_made_together_are_looked_for_together(
+    world: World, migrated: PostgresServer
+) -> None:
+    rows = await _unknown(world, migrated)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET submitted_at = submitted_at + interval '30 seconds' "
+        "WHERE id = $1",
+        rows[0]["id"],
+    )
+
+    await _reconcile(world, resolve_unknown_submissions=True)
+
+    ((_, since, until),) = world.provider.looked
+    assert until - since == timedelta(minutes=16, seconds=30)
+
+
+async def test_an_answer_for_another_attempt_changes_nothing(
+    world: World, migrated: PostgresServer
+) -> None:
+    (row, *_) = await _unknown(world, migrated)
+    decision = RetryDecision(status="pending")
+
+    async with world.sessions() as db, db.begin():
+        changed = await ledger.submit_again(
+            db,
+            TaskRef(id=row["id"], created_at=row["created_at"]),
+            attempt=row["attempts"] + 1,
+            decision=decision,
+            now=await ledger.transaction_time(db),
+        )
+
+    assert changed is False
+
+
+# Guards on each step
+
+
+async def test_a_fetch_for_an_older_provider_task_asks_nothing(
+    world: World, migrated: PostgresServer
+) -> None:
+    """The task was sent again since: the message names the old provider task."""
+    _, (row,) = await _submitted(world, migrated, tasks=1)
+    world.provider.ready = [_listed(row)]
+    fetches = Fetches()
+    await _poll(world, fetches)
+    stale = fetches.sent[0].model_copy(update={"provider_task_id": "p-old"})
+
+    assert await _fetch_all(world, MemoryStore(), [stale]) == ["skipped"]
+    assert world.provider.fetched == []
+
+
+async def test_a_listing_under_another_provider_matches_nothing(
+    world: World, migrated: PostgresServer
+) -> None:
+    _, (row,) = await _submitted(world, migrated, tasks=1)
+    match = ledger.ReadyMatch(
+        task_id=row["id"],
+        run_id=row["run_id"],
+        attempt=row["attempts"],
+        provider_task_id=row["provider_task_id"],
+    )
+
+    async with world.sessions() as db, db.begin():
+        now = await ledger.transaction_time(db)
+        assert await ledger.mark_ready(db, "another", [match], now=now) == []
+        assert len(await ledger.mark_ready(db, "fake", [match], now=now)) == 1
+
+
+async def test_only_a_fetch_lost_for_long_is_released(
+    world: World, migrated: PostgresServer
+) -> None:
+    run_id, rows = await _submitted(world, migrated, tasks=2)
+    world.provider.ready = [_listed(row) for row in rows]
+    await _poll(world, Fetches())
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET ready_at = now() - interval '20 minutes' WHERE id = $1",
+        rows[0]["id"],
+    )
+
+    report = await _reconcile(world)
+
+    assert report.stale_ready == 1
+    after = {row["id"]: row["status"] for row in await task_rows(migrated, run_id)}
+    assert (after[rows[0]["id"]], after[rows[1]["id"]]) == ("submitted", "ready")
+
+
+async def test_the_sweeper_takes_no_more_than_its_limit_a_pass(
+    world: World, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(reconciler, "SWEEP_LIMIT", 1)
+    run_id, _ = await _submitted(world, migrated, tasks=2)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET submitted_at = now() - interval '3 hours' "
+        "WHERE run_id = $1",
+        run_id,
+    )
+    fetches = Fetches()
+
+    assert (await _reconcile(world, fetches)).swept == 1
+    assert len(fetches.sent) == 1
+
+
+async def test_a_wait_the_provider_names_is_kept(world: World, migrated: PostgresServer) -> None:
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    world.provider.ready = [_listed(row)]
+    fetches = Fetches()
+    await _poll(world, fetches)
+    world.provider.reading_fails = ProviderCallError(
+        ProviderError(kind=K.RATE_LIMITED, message="slow", retry_after=timedelta(minutes=20))
+    )
+
+    await _fetch_all(world, MemoryStore(), fetches.sent)
+
+    (after,) = await task_rows(migrated, run_id)
+    wait = after["next_attempt_at"] - await _clock(migrated)
+    assert timedelta(minutes=19) < wait <= timedelta(minutes=20)
+
+
+async def test_a_result_that_does_not_parse_fails_the_task(
+    world: World, migrated: PostgresServer
+) -> None:
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    world.provider.ready = [_listed(row)]
+    world.provider.results[row["provider_task_id"]] = FetchResult(
+        provider_task_id=row["provider_task_id"],
+        status="failed",
+        error=ProviderError(kind=K.SCHEMA_MISMATCH, message="unreadable"),
+    )
+    fetches = Fetches()
+    await _poll(world, fetches)
+
+    assert await _fetch_all(world, MemoryStore(), fetches.sent) == ["failed"]
+    (after,) = await task_rows(migrated, run_id)
+    assert after["status"] == "failed"
+
+
+def test_each_workload_keeps_its_raw_results_as_long_as_its_class_says() -> None:
+    assert dict(RETENTION_CLASS) == {
+        TaskWorkload.SEO_RANK: "serp_raw",
+        TaskWorkload.KEYWORD_METRICS: "serp_raw",
+        TaskWorkload.DISCOVERY: "serp_raw",
+        TaskWorkload.AI_PROMPT: "ai_raw",
+        TaskWorkload.AI_MODE_KEYWORD: "ai_raw",
+        TaskWorkload.AI_BENCHMARK: "ai_raw",
+        TaskWorkload.GSC_SYNC: "first_party_raw",
+        TaskWorkload.BING_SYNC: "first_party_raw",
+        TaskWorkload.GA4_SYNC: "first_party_raw",
+        TaskWorkload.CLOUDFLARE_SYNC: "first_party_raw",
+    }
+
+
+async def test_a_task_asked_about_again_waits_longer_the_older_it_is(
+    world: World, migrated: PostgresServer
+) -> None:
+    """Not every few minutes for three days: an eighth of its age, up to six hours."""
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET submitted_at = now() - interval '16 hours' WHERE id = $1",
+        row["id"],
+    )
+    world.provider.ready = [_listed(row)]
+    fetches = Fetches()
+    await _poll(world, fetches)
+    world.provider.reading_fails = ProviderCallError(
+        ProviderError(kind=K.PROVIDER_ERROR, message="down")
+    )
+
+    await _fetch_all(world, MemoryStore(), fetches.sent)
+
+    (after,) = await task_rows(migrated, run_id)
+    wait = after["next_attempt_at"] - await _clock(migrated)
+    assert timedelta(hours=1, minutes=59) < wait <= timedelta(hours=2)
+
+
+async def test_a_result_not_stored_is_kept_for_as_long_as_the_provider_keeps_it(
+    world: World, migrated: PostgresServer
+) -> None:
+    run_id, (row,) = await _submitted(world, migrated, tasks=1)
+    world.provider.ready = [_listed(row)]
+    fetches = Fetches()
+    await _poll(world, fetches)
+    store = MemoryStore()
+    store.fails = True
+    await _fetch_all(world, store, fetches.sent)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET submitted_at = now() - interval '4 days', "
+        "next_attempt_at = now() + interval '1 hour' WHERE id = $1",
+        row["id"],
+    )
+
+    assert (await _reconcile(world)).dead == 0
+
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET submitted_at = now() - interval '31 days' WHERE id = $1",
+        row["id"],
+    )
+    assert (await _reconcile(world)).dead == 1
+    (after,) = await task_rows(migrated, run_id)
+    assert (after["status"], after["last_error_code"]) == ("dead", "result_not_stored")
 
 
 async def test_unknown_submissions_are_left_alone_unless_the_resolver_is_on(

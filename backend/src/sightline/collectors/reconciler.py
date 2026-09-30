@@ -149,7 +149,9 @@ async def reconcile(
     async def resolve() -> int:
         report = await resolve_unknown(sessions, registry, now=now)
         counts["resubmitted"] = report.resubmitted
-        if report.failed:
+        # A look the provider could not answer, or whose listing could not say what is
+        # absent: its tasks wait for the next pass, or end with the result lifetime.
+        if report.failed or report.undecided:
             failed.append("resolved")
         return report.resolved
 

@@ -47,7 +47,8 @@ TASK_POST = "/v3/serp/google/organic/task_post"
 TASKS_READY = "/v3/serp/google/organic/tasks_ready"
 PROVIDER_ID = "10011234-1535-0066-0000-5b2e1e3c3b86"
 TASK_GET = f"/v3/serp/google/organic/task_get/advanced/{PROVIDER_ID}"
-ID_LIST = "/v3/tasks/id_list"
+# Per API, as DataForSEO documents it.
+ID_LIST = "/v3/serp/id_list"
 USER_DATA = "/v3/appendix/user_data"
 
 
@@ -263,6 +264,7 @@ async def test_a_builder_that_breaks_refuses_its_request_before_anything_is_sent
         build=broken,
         result_lifetime=timedelta(hours=72),
         payload_slug="broken",
+        id_list="/v3/serp/id_list",
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as http:
         client = DataForSeoClient(http, gate, login=LOGIN, password=PASSWORD, origin=ORIGIN)

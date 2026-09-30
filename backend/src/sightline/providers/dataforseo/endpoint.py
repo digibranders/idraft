@@ -24,3 +24,5 @@ class TaskEndpoint:
     result_lifetime: timedelta
     # Its name in the keys of stored results (doc 23 section 9.1).
     payload_slug: str
+    # The list of posted tasks of its API: `id_list` is per API (`/v3/serp/id_list`).
+    id_list: str

@@ -80,6 +80,9 @@ class SubmittedTask(Contract):
     """A task the provider holds, as its list of posted tasks names it."""
 
     provider_task_id: str = Field(min_length=1)
+    # Whether the listing carried a tag at all. An empty echo of a tagged task is someone
+    # else's; of an untagged one, it says nothing: the task may be ours.
+    tagged: bool = True
     echo: Echo = Echo()
     posted_at: datetime | None = None
     cost_usd: CostUsd | None = None

@@ -15,7 +15,7 @@ from sightline.collectors.registry import Registry
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
 from sightline.worker.app import WorkerContext
-from sightline.worker.assembly import assemble, production_registry
+from sightline.worker.assembly import assemble, fetch_handler, production_registry
 from sightline.worker.queues import Queues
 from sightline.worker.ticks import Tick
 from tests.api.auth.support import fetch
@@ -144,13 +144,46 @@ async def test_dataforseo_is_registered_with_its_credentials_and_no_workload_yet
             "installation_id": "test",
         }
     )
-    async with httpx.AsyncClient() as http:
+    asked: list[httpx.Request] = []
+
+    def nothing_may_be_asked(request: httpx.Request) -> httpx.Response:
+        asked.append(request)
+        return httpx.Response(500)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(nothing_may_be_asked)) as http:
         with_credentials = replace(context, settings=settings, http=http)
         registry = production_registry(with_credentials)
+        assert (registry.workloads, registry.providers) == (
+            frozenset(),
+            frozenset({"dataforseo"}),
+        )
+        # Registered, and with no work in flight nothing is asked of it.
+        ticks = ticks_of(with_credentials, registry)
+        await ticks["ready_poll"].action()
+        await ticks["dispatcher"].action()
 
-    assert (registry.workloads, registry.providers) == (frozenset(), frozenset({"dataforseo"}))
-    # Registered, and with no work in flight asked nothing.
-    await ticks_of(with_credentials, registry)["ready_poll"].action()
+    assert asked == []
+    # Without the process's HTTP client there is nothing to call it with.
+    assert production_registry(replace(context, settings=settings)).providers == frozenset()
+
+
+async def test_a_fetch_without_raw_storage_is_refused_before_the_provider_is_asked(
+    context: WorkerContext,
+) -> None:
+    provider = FakeProvider()
+    registry = Registry()
+    registry.add_provider(provider)
+    order = FetchTask(
+        task_id=1,
+        created_at=datetime.now(UTC),
+        provider="fake",
+        endpoint="serp",
+        provider_task_id="p-1",
+    )
+
+    with pytest.raises(RuntimeError, match="raw storage"):
+        await fetch_handler(context, registry)(order)
+    assert provider.fetched == []
 
 
 def ticks_of(context: WorkerContext, registry: Registry) -> dict[str, Tick]:

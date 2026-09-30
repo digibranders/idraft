@@ -14,9 +14,9 @@
       "time": "0.0812 sec.",
       "cost": 0,
       "result_count": 2,
-      "path": ["v3", "tasks", "id_list"],
+      "path": ["v3", "serp", "id_list"],
       "data": {
-        "api": "tasks",
+        "api": "serp",
         "function": "id_list",
         "datetime_from": "2026-10-01 09:00:00 +00:00",
         "datetime_to": "2026-10-01 09:30:00 +00:00",

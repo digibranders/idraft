@@ -6,7 +6,7 @@ the process in `app.py` stays the same as parts are added.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
 from datetime import timedelta
 
@@ -78,6 +78,23 @@ class _FetchSender:
         return await self._queues.enqueue(FETCH_JOB, order, dedupe_key=order.dedupe_key)
 
 
+def fetch_handler(
+    context: WorkerContext, parts: Registry
+) -> Callable[[FetchTask], Awaitable[None]]:
+    """The `fetch_task` job: one result fetched and kept."""
+
+    async def fetch(order: FetchTask) -> None:
+        if context.raw_store is None:
+            # Settings refuse a provider without raw storage, so only a worker built by hand
+            # gets here. Refused before the provider is asked: a result fetched and not kept
+            # stops being listed as ready.
+            raise RuntimeError("fetching needs raw storage, and none is configured")
+        outcome = await fetch_task(context.sessions, parts, context.raw_store, order)
+        _log.info("task fetched", task_id=order.task_id, outcome=outcome)
+
+    return fetch
+
+
 def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequence[Tick]:
     """Register the jobs on `context.queues` and return the ticks."""
     parts = production_registry(context) if registry is None else registry
@@ -89,16 +106,8 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         report = await submit_batch(context.sessions, parts, pauses, batch)
         _log.info("batch submitted", provider=batch.provider, **asdict(report))
 
-    async def fetch(order: FetchTask) -> None:
-        if context.raw_store is None:
-            # Settings refuse a provider without raw storage; a test that builds one has no
-            # business sending fetches.
-            raise RuntimeError("fetching needs raw storage, and none is configured")
-        outcome = await fetch_task(context.sessions, parts, context.raw_store, order)
-        _log.info("task fetched", task_id=order.task_id, outcome=outcome)
-
     context.queues.register("collect", SUBMIT_JOB, submit)
-    context.queues.register("collect", FETCH_JOB, fetch)
+    context.queues.register("collect", FETCH_JOB, fetch_handler(context, parts))
 
     async def reconcile_ledger() -> None:
         now = await database_time(context.sessions)

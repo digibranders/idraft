@@ -289,7 +289,7 @@ class DataForSeo:
         order that holds from one call to the next). Tasks listed twice at the halves' shared
         second are kept once.
         """
-        self._endpoint_to_call(endpoint)
+        spec = self._endpoint_to_call(endpoint)
         _utc(since)
         _utc(until)
         if since >= until:
@@ -302,7 +302,7 @@ class DataForSeo:
             if calls == ID_LIST_CALLS:
                 raise _provider_fault("more tasks were posted in the period than one look reads")
             calls += 1
-            items = await self._posted_in(start, end)
+            items = await self._posted_in(spec.id_list, start, end)
             if len(items) < ID_LIST_LIMIT:
                 for item in items:
                     task = self._submitted(item)
@@ -314,7 +314,7 @@ class DataForSeo:
             periods += [(middle, end), (start, middle)]
         return list(found.values())
 
-    async def _posted_in(self, start: datetime, end: datetime) -> list[object]:
+    async def _posted_in(self, path: str, start: datetime, end: datetime) -> list[object]:
         body: dict[str, object] = {
             "datetime_from": _utc(start),
             "datetime_to": _utc(end),
@@ -323,9 +323,7 @@ class DataForSeo:
             "sort": "asc",
             "include_metadata": True,
         }
-        answered = await self._client.call(
-            "POST", "/v3/tasks/id_list", family="id_list", body=[body]
-        )
+        answered = await self._client.call("POST", path, family="id_list", body=[body])
         task = await self._only_task(answered)
         items = task.result if task.result is not None else []
         # A list that does not hold what it says it counted is not taken for the whole.
@@ -338,9 +336,11 @@ class DataForSeo:
         if not isinstance(provider_task_id, str) or not provider_task_id:
             # Not knowing a task is not knowing that it is absent.
             raise _provider_fault("a listed task could not be read")
+        tag = _field(item, "metadata", "tag")
         return SubmittedTask(
             provider_task_id=provider_task_id,
-            echo=read_tag(_field(item, "metadata", "tag"), self._installation),
+            tagged=isinstance(tag, str) and bool(tag),
+            echo=read_tag(tag, self._installation),
             posted_at=_at(_field(item, "datetime_posted")),
             cost_usd=_cost(_field(item, "cost")),
         )

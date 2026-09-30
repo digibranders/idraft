@@ -93,7 +93,7 @@ class FakeDataForSeo:
             return httpx.Response(200, json=envelope([task_answer(result=ready)]))
         if path.startswith(f"{BASE}/task_get/advanced/"):
             return self._get(path.rsplit("/", 1)[1])
-        if path == "/v3/tasks/id_list":
+        if path == "/v3/serp/id_list":
             return self._list(json.loads(request.content)[0])
         return httpx.Response(404, json={"status_code": 40400, "status_message": "Not Found."})
 

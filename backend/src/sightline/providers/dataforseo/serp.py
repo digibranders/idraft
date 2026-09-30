@@ -92,4 +92,5 @@ ENDPOINT: Final = TaskEndpoint(
     # (doc 06 section 4.2). Results themselves can be fetched for 30 days.
     result_lifetime=timedelta(hours=72),
     payload_slug="serp_google_organic_advanced",
+    id_list="/v3/serp/id_list",
 )

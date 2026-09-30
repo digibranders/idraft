@@ -14,6 +14,7 @@ Related: [05-provider-integrations.md](05-provider-integrations.md), [09-rank-tr
 | Result fetch | `GET /v3/serp/google/organic/task_get/advanced/{id}` | fetch | 4 |
 | On-demand single check ("check now") | `POST /v3/serp/google/organic/live/advanced` | Live | 5 |
 | Error reconciliation | `POST /v3/serp/google/organic/errors` (tasks errored in past 7 days) | poll, 10/min | 4 |
+| Tasks posted in a period, with their tags (resolving unknown submissions) | `POST /v3/serp/id_list` with `include_metadata` (per API; 1,000 ids a call, 10 calls/min, a month back with metadata) | reconciler, off until S-01 | 4 |
 | Webhook replay | `POST /v3/appendix/webhook_resend` (up to 100 ids, no double charge) | Not used in V1: no pingback endpoint | n/a |
 | Balance, limits, daily spend | `GET /v3/appendix/user_data` (6 calls/min) | ops, every 15 min | 4 |
 | Locations, languages | `GET /v3/serp/google/locations`, `/languages` | monthly sync, free | 3 |
