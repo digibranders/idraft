@@ -259,6 +259,7 @@ FUNCTIONS: dict[str, frozenset[str]] = {
     "auth.invitation_by_token(bytea)": frozenset({"app_api"}),
     "ops.maintain_partitions()": frozenset({"app_worker"}),
     "ops.ensure_monthly_partitions(regclass,integer,integer,boolean)": frozenset(),
+    "ops.record_auth_event(text,uuid,text,text,inet,text,text,jsonb)": frozenset({"app_api"}),
 }
 # Only the two functions that read a setting are open to everyone.
 PUBLIC_FUNCTIONS = {"auth.current_workspace_id()", "auth.current_user_id()"}

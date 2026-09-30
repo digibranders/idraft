@@ -46,7 +46,7 @@ backend/
     config/settings.py                             new settings (Task 1)
     config/sentry.py                               Redis integration off (Task 4)
     providers/email.py                             EmailSender port, EmailMessage, ConsoleEmailSender, ResendEmailSender
-    db/tables.py                                   SQLAlchemy Core metadata for auth.* and core.projects
+    db/tables.py                                   SQLAlchemy Core metadata for the seven auth tables
     db/migrations/versions/0005_auth_events.py     ops.record_auth_event
     api/
       permissions.py                               Permission StrEnum, Role, ROLE_PERMISSIONS
