@@ -1,0 +1,107 @@
+[project]
+name = "sightline"
+version = "0.1.0"
+description = "SEO and AI search visibility platform: API and worker"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.31.0",
+    "fastapi>=0.142.1",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+    "redis>=8.1.0",
+    "sentry-sdk[fastapi]>=2.71.0",
+    "sqlalchemy[asyncio]>=2.1.1",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sightline"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "C4", "T20", "N"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sightline"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*", "asgi_lifespan.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers --cov=sightline --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=90"
+
+[tool.coverage.run]
+omit = ["src/sightline/db/migrations/*"]
+
+[tool.importlinter]
+root_package = "sightline"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "domain is pure: no internal imports, no I/O libraries"
+type = "forbidden"
+source_modules = ["sightline.domain"]
+forbidden_modules = [
+  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.providers",
+  "sightline.db", "sightline.storage", "sightline.config", "sightline.extraction",
+  "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
+]
+
+[[tool.importlinter.contracts]]
+name = "extraction is pure: no internal imports, no I/O libraries"
+type = "forbidden"
+source_modules = ["sightline.extraction"]
+forbidden_modules = [
+  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.providers",
+  "sightline.db", "sightline.storage", "sightline.config", "sightline.domain",
+  "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
+]
+
+[[tool.importlinter.contracts]]
+name = "providers never touch the database"
+type = "forbidden"
+source_modules = ["sightline.providers"]
+forbidden_modules = [
+  "sightline.db", "sightline.api", "sightline.worker", "sightline.collectors",
+  "sqlalchemy", "asyncpg",
+]
+
+[[tool.importlinter.contracts]]
+name = "lower layers never import the entrypoints"
+type = "forbidden"
+source_modules = ["sightline.collectors", "sightline.db", "sightline.storage", "sightline.config"]
+forbidden_modules = ["sightline.api", "sightline.worker"]
+
+[dependency-groups]
+dev = [
+    "asgi-lifespan>=2.1.0",
+    "httpx>=0.28.1",
+    "import-linter>=2.15",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.9",
+    "testcontainers[postgres,redis]>=4.15.0",
+]
