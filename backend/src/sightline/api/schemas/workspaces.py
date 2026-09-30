@@ -13,10 +13,12 @@ from sightline.api.permissions import Role
 from sightline.api.schemas.common import (
     PROJECT_SCOPE_MAX,
     Body,
+    Email,
     ImageUrl,
     Name,
     ProjectScope,
     Timezone,
+    Token,
     UserRef,
 )
 from sightline.api.slugs import WorkspaceSlug
@@ -99,3 +101,36 @@ class MemberUpdate(Body):
         if "role" in self.model_fields_set and self.role is None:
             raise ValueError("role cannot be null")
         return self
+
+
+InvitationStatus = Literal["pending", "accepted", "declined", "cancelled", "expired"]
+
+
+class Invitation(BaseModel):
+    invitation_id: UUID
+    email: str
+    role: Role
+    project_ids: list[UUID] | None = Field(description="null means every project")
+    status: InvitationStatus
+    invited_by: UserRef
+    expires_at: datetime
+    created_at: datetime
+
+
+class InvitationResponse(BaseModel):
+    data: Invitation
+
+
+class InvitationPage(BaseModel):
+    data: list[Invitation]
+    page: OffsetPageInfo
+
+
+class InvitationCreate(Body):
+    email: Email
+    role: Role
+    project_ids: ProjectScope = Field(default=None, max_length=PROJECT_SCOPE_MAX)
+
+
+class InvitationAccept(Body):
+    token: Token = Field(description="From the invitation link.")

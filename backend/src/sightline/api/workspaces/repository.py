@@ -13,10 +13,12 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Row, Select, delete, exists, func, insert, select, text, update
+from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sightline.db.tables import (
+    invitations,
     memberships,
     projects,
     sessions,
@@ -310,3 +312,246 @@ async def unknown_projects(
         ).scalars()
     )
     return [project_id for project_id in project_ids if project_id not in known]
+
+
+# ---------------------------------------------------------------------------------------------
+# Invitations
+
+
+class InvitationPendingError(Exception):
+    """This address already has a pending invitation to the workspace. The transaction cannot be
+    used after it."""
+
+
+@dataclass(frozen=True, slots=True)
+class InvitationRecord:
+    id: UUID
+    email: str
+    role: str
+    project_ids: list[UUID] | None
+    status: str
+    invited_by_id: UUID
+    invited_by_name: str
+    invited_by_email: str
+    expires_at: datetime
+    created_at: datetime
+
+    def status_at(self, now: datetime) -> str:
+        """A pending invitation past its date is expired, whether or not a row says so yet."""
+        return "expired" if self.status == "pending" and self.expires_at <= now else self.status
+
+
+def _invitations(workspace_id: UUID) -> Select[tuple[object, ...]]:
+    return (
+        select(
+            invitations.c.id,
+            invitations.c.email,
+            invitations.c.role,
+            invitations.c.project_ids,
+            invitations.c.status,
+            invitations.c.expires_at,
+            invitations.c.created_at,
+            users.c.id.label("invited_by_id"),
+            users.c.name.label("invited_by_name"),
+            users.c.email.label("invited_by_email"),
+        )
+        .join(users, users.c.id == invitations.c.invited_by)
+        .where(invitations.c.workspace_id == workspace_id)
+    )
+
+
+def _invitation(row: Row[tuple[object, ...]]) -> InvitationRecord:
+    fields = row._mapping
+    project_ids = fields["project_ids"]
+    return InvitationRecord(
+        id=fields["id"],
+        email=str(fields["email"]),
+        role=fields["role"],
+        project_ids=None if project_ids is None else list(project_ids),
+        status=fields["status"],
+        invited_by_id=fields["invited_by_id"],
+        invited_by_name=fields["invited_by_name"],
+        invited_by_email=str(fields["invited_by_email"]),
+        expires_at=fields["expires_at"],
+        created_at=fields["created_at"],
+    )
+
+
+async def is_member_email(db: AsyncSession, workspace_id: UUID, email: str) -> bool:
+    """Whether an account with this address belongs to the workspace. The column is citext, so
+    the comparison ignores case."""
+    statement = select(
+        exists()
+        .where(memberships.c.workspace_id == workspace_id)
+        .where(memberships.c.user_id == users.c.id)
+        .where(users.c.email == email)
+    )
+    return bool((await db.execute(statement)).scalar_one())
+
+
+async def expire_stale_invitations(
+    db: AsyncSession, *, workspace_id: UUID, email: str, now: datetime
+) -> None:
+    """Mark this address's pending invitations that are past their date, so a new one can be
+    sent: only one pending invitation per address can exist."""
+    await db.execute(
+        update(invitations)
+        .where(
+            invitations.c.workspace_id == workspace_id,
+            invitations.c.email == email,
+            invitations.c.status == "pending",
+            invitations.c.expires_at <= now,
+        )
+        .values(status="expired", responded_at=now)
+    )
+
+
+async def insert_invitation(
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    email: str,
+    role: str,
+    project_ids: list[UUID] | None,
+    token_hash: bytes,
+    invited_by: UUID,
+    expires_at: datetime,
+) -> UUID:
+    statement = (
+        insert(invitations)
+        .values(
+            workspace_id=workspace_id,
+            email=email,
+            role=role,
+            project_ids=project_ids,
+            token_hash=token_hash,
+            invited_by=invited_by,
+            expires_at=expires_at,
+        )
+        .returning(invitations.c.id)
+    )
+    try:
+        invitation_id: UUID = (await db.execute(statement)).scalar_one()
+    except IntegrityError as error:
+        if getattr(error.orig, "sqlstate", None) == _UNIQUE_VIOLATION:
+            raise InvitationPendingError from None
+        raise
+    return invitation_id
+
+
+async def get_invitation(
+    db: AsyncSession, workspace_id: UUID, invitation_id: UUID
+) -> InvitationRecord | None:
+    statement = _invitations(workspace_id).where(invitations.c.id == invitation_id)
+    row = (await db.execute(statement)).one_or_none()
+    return None if row is None else _invitation(row)
+
+
+async def list_invitations(
+    db: AsyncSession, workspace_id: UUID, *, offset: int, limit: int
+) -> tuple[list[InvitationRecord], int]:
+    total: int = (
+        await db.execute(
+            select(func.count())
+            .select_from(invitations)
+            .where(invitations.c.workspace_id == workspace_id)
+        )
+    ).scalar_one()
+    page = (
+        _invitations(workspace_id)
+        .order_by(invitations.c.created_at.desc(), invitations.c.id.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return [_invitation(row) for row in await db.execute(page)], total
+
+
+async def cancel_invitation(
+    db: AsyncSession, *, workspace_id: UUID, invitation_id: UUID, now: datetime
+) -> bool:
+    """Cancel a pending invitation. False when it is not pending any more."""
+    statement = (
+        update(invitations)
+        .where(
+            invitations.c.workspace_id == workspace_id,
+            invitations.c.id == invitation_id,
+            invitations.c.status == "pending",
+        )
+        .values(status="cancelled", responded_at=now)
+        .returning(invitations.c.id)
+    )
+    return (await db.execute(statement)).one_or_none() is not None
+
+
+@dataclass(frozen=True, slots=True)
+class TokenInvitation:
+    """An invitation as its token holder sees it, before they belong to the workspace."""
+
+    id: UUID
+    workspace_id: UUID
+    role: str
+    project_ids: list[UUID] | None
+    status: str
+    expires_at: datetime
+    # Whether it was sent to the address asked about, compared as the database compares emails.
+    addressed: bool
+
+
+# The policy on auth.invitations hides the row from someone who is not yet a member, so the lookup
+# goes through the definer function, which returns the one row with this token hash.
+_BY_TOKEN = text(
+    "SELECT id, workspace_id, role, project_ids, status, expires_at, "
+    "email = CAST(:email AS citext) AS addressed "
+    "FROM auth.invitation_by_token(:token_hash)"
+)
+
+
+async def find_invitation_by_token(
+    db: AsyncSession, *, token_hash: bytes, email: str
+) -> TokenInvitation | None:
+    row = (await db.execute(_BY_TOKEN, {"token_hash": token_hash, "email": email})).one_or_none()
+    if row is None:
+        return None
+    return TokenInvitation(
+        id=row.id,
+        workspace_id=row.workspace_id,
+        role=row.role,
+        project_ids=None if row.project_ids is None else list(row.project_ids),
+        status=row.status,
+        expires_at=row.expires_at,
+        addressed=bool(row.addressed),
+    )
+
+
+async def accept_invitation(
+    db: AsyncSession, *, workspace_id: UUID, invitation_id: UUID, now: datetime
+) -> bool:
+    """Mark a pending, unexpired invitation accepted. False when it no longer is one."""
+    statement = (
+        update(invitations)
+        .where(
+            invitations.c.workspace_id == workspace_id,
+            invitations.c.id == invitation_id,
+            invitations.c.status == "pending",
+            invitations.c.expires_at > now,
+        )
+        .values(status="accepted", responded_at=now)
+        .returning(invitations.c.id)
+    )
+    return (await db.execute(statement)).one_or_none() is not None
+
+
+async def insert_membership_if_absent(
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    user_id: UUID,
+    role: str,
+    project_ids: list[UUID] | None,
+) -> None:
+    """Add the member. Someone who already belongs keeps the membership they have."""
+    await db.execute(
+        upsert(memberships)
+        .values(workspace_id=workspace_id, user_id=user_id, role=role, project_ids=project_ids)
+        .on_conflict_do_nothing(index_elements=["workspace_id", "user_id"])
+    )

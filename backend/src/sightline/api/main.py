@@ -25,6 +25,7 @@ from sightline.api.problems import register_problem_handlers
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
 from sightline.api.schema import install_openapi
+from sightline.api.workspaces.invitations import InvitationService
 from sightline.api.workspaces.members import MemberService
 from sightline.api.workspaces.routes import router as workspaces_router
 from sightline.api.workspaces.service import WorkspaceService
@@ -86,6 +87,7 @@ def create_app(
                 else settings.email_api_key.get_secret_value(),
                 sender=settings.email_from,
             )
+            throttle = LoginThrottle(redis)
             session_store = SessionStore(
                 sessions, redis, cache_key=derive_key(settings.totp_key, SESSION_CACHE_KEY_LABEL)
             )
@@ -101,7 +103,7 @@ def create_app(
                 auth=AuthService(
                     sessions=sessions,
                     store=session_store,
-                    throttle=LoginThrottle(redis),
+                    throttle=throttle,
                     breached=BreachedPasswords(http) if settings.breached_password_check else None,
                     totp=TotpCipher(derive_key(settings.totp_key, TOTP_SECRET_KEY_LABEL)),
                     email=email,
@@ -110,6 +112,12 @@ def create_app(
                 ),
                 workspaces=WorkspaceService(sessions=sessions, registration=settings.registration),
                 members=MemberService(sessions=sessions),
+                invitations=InvitationService(
+                    sessions=sessions,
+                    throttle=throttle,
+                    email=email,
+                    app_origin=settings.app_origin,
+                ),
             )
             yield
 

@@ -5,10 +5,11 @@ Thin on purpose: the dependency decides who may call, the service decides what h
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
 
 from sightline.api.auth.dependencies import CurrentSession
 from sightline.api.pagination import Offset, OffsetPageInfo
@@ -17,6 +18,11 @@ from sightline.api.request_info import Info
 from sightline.api.resources import Resources, get_resources
 from sightline.api.schemas.common import UserRef
 from sightline.api.schemas.workspaces import (
+    Invitation,
+    InvitationAccept,
+    InvitationCreate,
+    InvitationPage,
+    InvitationResponse,
     Member,
     MemberPage,
     MemberResponse,
@@ -29,8 +35,9 @@ from sightline.api.schemas.workspaces import (
 )
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.api.workspaces.dependencies import MemberAccess, require_permission
+from sightline.api.workspaces.invitations import InvitationService
 from sightline.api.workspaces.members import MemberService
-from sightline.api.workspaces.repository import MemberRecord, WorkspaceRecord
+from sightline.api.workspaces.repository import InvitationRecord, MemberRecord, WorkspaceRecord
 from sightline.api.workspaces.service import WorkspaceService
 
 router = APIRouter(prefix="/api/v1", tags=["workspaces"])
@@ -48,7 +55,16 @@ def get_member_service(resources: Annotated[Resources, Depends(get_resources)]) 
 
 
 Workspaces = Annotated[WorkspaceService, Depends(get_workspace_service)]
+
+
+def get_invitation_service(
+    resources: Annotated[Resources, Depends(get_resources)],
+) -> InvitationService:
+    return resources.invitations
+
+
 Members = Annotated[MemberService, Depends(get_member_service)]
+Invitations = Annotated[InvitationService, Depends(get_invitation_service)]
 MayUpdateWorkspace = Annotated[
     WorkspaceAccess, Depends(require_permission(Permission.WORKSPACE_UPDATE))
 ]
@@ -57,6 +73,9 @@ MayUpdateWorkspace = Annotated[
 MayManageMembers = Annotated[
     WorkspaceAccess, Depends(require_permission(Permission.MEMBERS_MANAGE, fresh=True))
 ]
+
+
+MayInvite = Annotated[WorkspaceAccess, Depends(require_permission(Permission.MEMBERS_MANAGE))]
 
 
 def _workspace(record: WorkspaceRecord) -> Workspace:
@@ -167,3 +186,84 @@ async def remove_member(
 ) -> Response:
     await members.remove(access=access, user_id=user_id, info=info)
     return Response(status_code=204)
+
+
+# -------------------------------------------------------------------------------------------------
+# Invitations
+
+
+def _invitation(record: InvitationRecord) -> Invitation:
+    return Invitation(
+        invitation_id=record.id,
+        email=record.email,
+        role=Role(record.role),
+        project_ids=record.project_ids,
+        status=record.status_at(datetime.now(UTC)),
+        invited_by=UserRef(
+            user_id=record.invited_by_id, name=record.invited_by_name, email=record.invited_by_email
+        ),
+        expires_at=record.expires_at,
+        created_at=record.created_at,
+    )
+
+
+@router.get(_W + "/invitations", summary="The invitations sent for a workspace")
+async def list_invitations(
+    access: MayInvite, page: Offset, invitations: Invitations
+) -> InvitationPage:
+    records, total = await invitations.page(access, offset=page.offset, limit=page.limit)
+    return InvitationPage(
+        data=[_invitation(record) for record in records],
+        page=OffsetPageInfo(offset=page.offset, limit=page.limit, total=total),
+    )
+
+
+@router.post(
+    _W + "/invitations",
+    status_code=201,
+    summary="Invite someone by email",
+    description=(
+        "Sends a link that works for 7 days and only for an account with this address. "
+        "Only an owner can invite an owner."
+    ),
+)
+async def create_invitation(
+    body: InvitationCreate,
+    access: MayInvite,
+    background: BackgroundTasks,
+    invitations: Invitations,
+    info: Info,
+) -> InvitationResponse:
+    record, message = await invitations.create(
+        access=access, email=body.email, role=body.role, project_ids=body.project_ids, info=info
+    )
+    background.add_task(invitations.deliver, message)
+    return InvitationResponse(data=_invitation(record))
+
+
+@router.delete(
+    _W + "/invitations/{invitation_id}",
+    status_code=204,
+    summary="Withdraw a pending invitation",
+    description="The link stops working. Withdrawing twice is not an error.",
+)
+async def cancel_invitation(
+    invitation_id: UUID, access: MayInvite, invitations: Invitations, info: Info
+) -> Response:
+    await invitations.cancel(access=access, invitation_id=invitation_id, info=info)
+    return Response(status_code=204)
+
+
+@router.post(
+    "/invitations/accept",
+    summary="Join the workspace an invitation link invites to",
+    description=(
+        "For a signed-in account whose verified address is the one the invitation was sent to. "
+        "Accepting again returns the same membership."
+    ),
+)
+async def accept_invitation(
+    body: InvitationAccept, session: CurrentSession, invitations: Invitations, info: Info
+) -> MemberResponse:
+    _, member = await invitations.accept(session=session, token=body.token, info=info)
+    return MemberResponse(data=_member(member))

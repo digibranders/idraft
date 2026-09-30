@@ -15,12 +15,12 @@ _NAME_MAX = 80
 _NAME_PUNCTUATION = frozenset("'-")
 
 
-def _greeting(name: str) -> str:
-    """A greeting that contains the name and nothing a mail client would turn into a link.
+def plain_name(name: str) -> str:
+    """The name with nothing a mail client would turn into a link. May be empty.
 
-    The name is whatever someone typed at registration, and the message goes to an address nobody
-    has verified yet. Only letters, marks, digits, apostrophes and hyphens are kept, in any
-    script; everything else, dots and slashes and colons included, becomes a space.
+    A name is whatever someone typed, and these messages go to addresses that did not ask for
+    them. Only letters, marks, digits, apostrophes and hyphens are kept, in any script;
+    everything else, dots and slashes and colons included, becomes a space.
     """
     kept = "".join(
         character
@@ -28,7 +28,11 @@ def _greeting(name: str) -> str:
         else " "
         for character in unicodedata.normalize("NFC", name)
     )
-    cleaned = " ".join(kept.split())[:_NAME_MAX].rstrip()
+    return " ".join(kept.split())[:_NAME_MAX].rstrip()
+
+
+def _greeting(name: str) -> str:
+    cleaned = plain_name(name)
     return f"Hello {cleaned}," if cleaned else "Hello,"
 
 
