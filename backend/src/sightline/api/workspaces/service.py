@@ -31,6 +31,12 @@ WORKSPACES_PER_DAY = 5
 _DAY = 86_400
 
 
+async def check_timezone(db: AsyncSession, timezone: str) -> None:
+    """Refuse a well-formed name PostgreSQL has no zone for, as a validation error on the field."""
+    if not await repository.timezone_exists(db, timezone):
+        raise invalid_field("timezone", code="timezone_unknown", message="Unknown time zone.")
+
+
 def _slug_taken() -> DuplicateError:
     # The other workspace is not named: it may belong to someone else.
     return DuplicateError("A workspace with this slug already exists.")
@@ -73,7 +79,7 @@ class WorkspaceService:
                 # An invited person joins the workspace they were invited to. A second workspace
                 # would have its own quotas and its own provider spend.
                 raise ForbiddenError("Only a platform operator can create a workspace.")
-            await self._check_timezone(db, timezone)
+            await check_timezone(db, timezone)
             workspace_id = await repository.new_id(db)
         await limits.enforce(
             self._throttle,
@@ -134,7 +140,7 @@ class WorkspaceService:
                     return current
                 timezone = differing.get("timezone")
                 if timezone is not None:
-                    await self._check_timezone(db, timezone)
+                    await check_timezone(db, timezone)
                 updated = await repository.update_workspace(db, access.workspace_id, differing)
                 await audit.record(
                     db,
@@ -150,8 +156,3 @@ class WorkspaceService:
                 return updated
         except SlugTakenError:
             raise _slug_taken() from None
-
-    @staticmethod
-    async def _check_timezone(db: AsyncSession, timezone: str) -> None:
-        if not await repository.timezone_exists(db, timezone):
-            raise invalid_field("timezone", code="timezone_unknown", message="Unknown time zone.")

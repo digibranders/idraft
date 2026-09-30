@@ -22,6 +22,8 @@ from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.document import router as document_router
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
+from sightline.api.projects.routes import router as projects_router
+from sightline.api.projects.service import ProjectService
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
 from sightline.api.schema import install_openapi
@@ -114,6 +116,7 @@ def create_app(
                     sessions=sessions, throttle=throttle, registration=settings.registration
                 ),
                 members=MemberService(sessions=sessions),
+                projects=ProjectService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -142,6 +145,7 @@ def create_app(
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(workspaces_router)
+    app.include_router(projects_router)
     app.include_router(document_router)
     install_openapi(app)
     return app
