@@ -55,7 +55,7 @@ The product owner's rule: build what makes the product show data first, and move
 
 | Step | Work | Phase | Why it sits here |
 |---|---|---|---|
-| 1 | Workspaces, projects, membership and permission checks on every route; invitations (create and accept only) | 1 | Every row of data belongs to a project, and a person joins by invitation |
+| 1 | Workspaces, projects, membership and permission checks on every route; invitations (create, withdraw and accept) | 1 | Every row of data belongs to a project, and a person joins by invitation |
 | 2 | Worker, the two queues, the task ledger, the budget check before each dispatch | 1 | Nothing is collected without it, and the budget check protects provider spend |
 | 3 | DataForSEO client and rate limiter, raw payload storage in R2, the Phase 0 test runs | 0 and 1 | Needs a funded DataForSEO account and the two R2 buckets |
 | 4 | Brands, entities, domains, locations, taxonomy | 2 | Keywords and prompts are judged against them |
@@ -70,7 +70,9 @@ The product owner's rule: build what makes the product show data first, and move
 **Deferred to step 10.** Each item keeps its specification; only its place in the order changed.
 
 - Two-factor. Enrolment, sign-in with a code and recovery codes are built and stay in the API, for any user who turns them on. Blocking an owner or admin who has not enrolled (`two_factor_enrollment_required`, [19-api-specification.md](19-api-specification.md) section 2.1 rule 6) and the enrolment screens wait. Until then a password is enough for every role.
-- Invitations beyond create and accept: resend, cancel, decline, and the public preview of an invitation.
+- Invitations beyond create, withdraw and accept: resend, decline, and the public preview of an invitation. Withdrawing was built with step 1: an invitation sent to the wrong address has to be revocable.
+- Workspace delete and restore, leaving a workspace, and project delete. A project can be archived.
+- List filters other than the project status, `If-Match` on changes, and `GET {W}/quotas`.
 - The general request limit (600 per minute per user) and `GET /api/v1/roles`. The sign-in throttle is built and stays on.
 - The email outbox in the worker, the purge of expired sessions and used tokens, and the retention jobs.
 - Change of email address and the disable-user route.

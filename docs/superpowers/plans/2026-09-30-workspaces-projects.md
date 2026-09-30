@@ -41,13 +41,13 @@ Deferred to launch hardening or to the phase that needs it (added to doc 29 sect
 - **D3. Membership is read from the database on every workspace request**, never cached, so a removed member loses access at once and a cached session never widens membership (cross-tenant case XT-05). The query also requires the user not to be disabled and the workspace not to be `deleting`.
 - **D4. Order of checks** (doc 19 section 2.2): session (401), membership (404), project scope (404), permission (403), fresh session (403), then the body (422). A dependency that raises runs before body validation, so another tenant's id never produces a 422.
 - **D5. Who may create a workspace.** Verified email always. While `REGISTRATION=invited`, platform operators only (carried item F13): an invited client must not be able to open a second workspace and spend on it. `/me` gains `user.is_platform_operator` so the web app can hide the action.
-- **D6. Owners.** Only an owner may grant `owner`, invite an owner, or change or remove an owner. The last owner cannot be demoted or removed (`409 last_owner`), checked under a row lock on the workspace's owner memberships. Owners and admins always have every project (`project_ids` must be null for them).
+- **D6. Owners.** Only an owner may grant `owner`, invite an owner, or change or remove an owner. The last owner cannot be demoted or removed (`409 last_owner`), checked under one lock per workspace (its row, `FOR NO KEY UPDATE`) that every membership change and every invitation takes first. Owners and admins always have every project (`project_ids` must be null for them).
 - **D7. Project scope.** A member limited to some projects sees only those in lists and gets 404 for the others. Creating a project needs `projects:write` and an unrestricted membership: a restricted member could not see what they created.
 - **D8. Slugs.** 3 to 40 characters, lower-case letters, digits and hyphens, starting and ending with a letter or digit. Reserved words are refused; the two lists are enums in the OpenAPI document (`ReservedWorkspaceSlug`, `ReservedProjectSlug`) so the web forms validate against the same values.
 - **D9. Time zones are validated against PostgreSQL** (`pg_timezone_names`), because PostgreSQL computes the business dates.
-- **D10. Audit.** Every change writes one row to `ops.audit_logs` in the same transaction, with the workspace, the actor, `before` and `after`. Actions: `workspace.created`, `workspace.updated`, `member.role_changed`, `member.removed`, `invitation.created`, `invitation.cancelled`, `invitation.accepted`, `project.created`, `project.updated`.
+- **D10. Audit.** Every change writes one row to `ops.audit_logs` in the same transaction, with the workspace, the actor, `before` and `after`. Actions: `workspace.created`, `workspace.updated`, `member.updated` (role or scope), `member.removed`, `invitation.created`, `invitation.cancelled`, `invitation.accepted`, `project.created`, `project.updated`.
 - **D11. Every route declares its access** through a marked dependency (`public`, `authenticated`, `member`, a permission key, optionally `fresh`). `tests/api/test_route_access.py` walks `app.routes` and compares each route with a table in the test, so a new route without a declaration, or a changed one, fails.
-- **D12. Invitation emails are limited** to 50 per workspace and 20 per inviter per hour. The email is plain text, and the workspace and inviter names are reduced to letters, digits, spaces, apostrophes and hyphens, because the message goes to a third party.
+- **D12. Invitation emails are limited** per hour to 20 per inviter, 50 per workspace and 3 per invited address. The email is plain text, and the workspace and inviter names are reduced to letters, digits, spaces, apostrophes and hyphens, because the message goes to a third party.
 
 ## File structure
 
@@ -110,3 +110,25 @@ Deferred to launch hardening or to the phase that needs it (added to doc 29 sect
 - [ ] Regenerate `backend/openapi/v1.json`.
 - [ ] Docs: 19 (accept route, what is deferred), 24 (enforcement text), 29 section 1.1 (deferred list), 31 (ticks), `review-log.md`, `backend/README.md`.
 - [ ] Whole-branch Opus review, fixes, image smoke test, commit.
+
+## Execution notes
+
+Decisions made while building, each the result of a task review (all on the Opus model):
+
+- **Unknown query parameters** are refused by the `public` and session dependencies, after the session check, not by an application-level dependency: an anonymous caller of a protected route gets 401 whatever the query says.
+- **The access label** of a route reports every requirement (each permission, `fresh`), so dropping one of two changes the table.
+- **A suspended workspace** can be read and not changed (`403 workspace_suspended`).
+- **Time zones** are `UTC` or `Area/Location`; legacy names browsers report are stored by their current name. This matters here: a browser in India reports `Asia/Calcutta`.
+- **Row locks are `FOR NO KEY UPDATE`**, so a change to a workspace or project neither waits for nor blocks inserts that reference it.
+- **Workspace creation is limited** to 5 per user per day.
+- **More words are reserved as workspace slugs**, and a slug cannot look like a uuid.
+- **Membership changes take one lock per workspace.** Locking the owner rows deadlocked when an owner was promoted while another change waited.
+- **`two_factor_enabled` and `last_active_at`** are shown to those who manage members and to the member themself.
+- **Pending invitations a member sent are withdrawn** when they are removed or demoted below admin.
+- **An empty project scope** is a member of no project.- **What an invitation grants is judged again when it is accepted**: the sender must still be a member in good standing who could grant that role. Inviting an owner or admin needs a fresh session.
+- **Accepting returns the workspace** as well as the membership, so the web app knows where to send the user.
+- **The invitation email** opens with a sentence of ours and shows the workspace, the inviter, the invited address and the role as labelled lines.
+- **An email address has one spelling**: it is normalised (NFC) when it is read from a request.
+- **A request that waits for a lock** gives up after 3 seconds and is answered `409 conflict`; a statement that runs into its timeout is `503 query_timeout`. Both were 500 before.
+- **The project limit counts active and paused projects.** Archiving frees a slot and reviving needs one, so a workspace at its limit has a way out while delete is not built.
+- **"Not limited to some projects"** is a declared requirement of the create route (`projects:write every-project`), checked before the body.

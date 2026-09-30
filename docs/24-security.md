@@ -122,7 +122,7 @@ Project-level restriction (Phase 1 schema, Phase 12 UI): a membership can be lim
 
 `api_keys:manage` and `fp:logs:write` stay in the matrix but have no routes until API keys ship (section 2.2).
 
-Enforcement: every route declares its permission as a FastAPI dependency (`Depends(require_permission("keywords:write"))`). The dependency resolves the membership for the workspace in the path and rejects with 403 before the handler runs. A pytest case walks `app.routes` and fails if any route lacks a declared permission.
+Enforcement: every route declares who may call it through a marked FastAPI dependency: `public`, a session, membership of the path workspace, or a permission (`Depends(require_permission(Permission.KEYWORDS_WRITE))`), optionally with a fresh session. The membership dependency reads the membership from the database on every request, then checks project scope, and the permission dependency rejects with 403 before the handler runs; the order is in [19-api-specification.md](19-api-specification.md) section 2.2. `backend/tests/api/test_route_access.py` walks the application's routes and compares what each one declares with a table, so a route cannot ship without a declaration and a declaration cannot change unnoticed. `backend/tests/security/test_cross_tenant.py` takes the same routes and calls each with another workspace's ids.
 
 ## 4. Tenant isolation
 
@@ -232,6 +232,8 @@ Not applicable in V1. Readiness is polling only (`tasks_ready` plus the id sweep
 | Auth endpoints | Section 2 | Redis |
 | Session API | 600 req/min per user, 1,200 per workspace | Redis sliding window in a FastAPI middleware (the same Redis limiter module the collector uses) |
 | API keys | Deferred with API keys (section 2.2); target 120 req/min default, configurable per key | Redis |
+| Invitations | Per hour: 20 per inviter, 50 per workspace, 3 per invited address (from any workspace, and however often one is withdrawn and sent again). An invitation makes the platform send mail to an address of the caller's choosing. Refused when Redis cannot count. The email's first sentence is ours; the workspace and inviter names are reduced to plain words, quoted and labelled | Redis |
+| Workspace creation | 5 per user per day (matters with `REGISTRATION=open`, where each workspace has quotas of its own) | Redis |
 | Exports | 10 concurrent per workspace; large exports async | Taskiq `process` queue |
 | On-demand collection (`runs:trigger`) | Counted against monthly quota and budget; 20 manual runs per project per day | PostgreSQL |
 
@@ -270,7 +272,7 @@ Two toolchains, each with a committed lockfile ([ADR-022](adr/ADR-022-python-bac
 
 ## 12. Audit logging
 
-`ops.audit_logs` records: authentication events (the `auth.*` actions: `register`, `email_verified`, `sign_in`, `sign_in_failed`, `lockout`, `sign_out`, `password.reset`, `password.changed`, `password.change_failed`, `email_verification.requested`, `password_reset.requested`, `totp.setup_started`, `totp.confirm_failed`, `totp.enabled`, `totp.disabled`, `totp.verified`, `totp.verify_failed`, `totp.recovery_codes_replaced`, `reauthenticated`, `reauthenticate_failed`, `session.revoked`, `operator_created`; they have no workspace and are written through `ops.record_auth_event`, and a failure is committed to the log before the error is returned and before it is counted), membership and role changes, API key lifecycle, integration connect and disconnect, provider credential changes, budget changes, schedule changes, core panel membership changes, prompt version creation, data exports, and data deletion. Audit logs are append-only for both runtime roles (no `UPDATE` or `DELETE` grants), the entry id and time come from the database and cannot be supplied by the writer, and entries are retained 2 years.
+`ops.audit_logs` records: authentication events (the `auth.*` actions: `register`, `email_verified`, `sign_in`, `sign_in_failed`, `lockout`, `sign_out`, `password.reset`, `password.changed`, `password.change_failed`, `email_verification.requested`, `password_reset.requested`, `totp.setup_started`, `totp.confirm_failed`, `totp.enabled`, `totp.disabled`, `totp.verified`, `totp.verify_failed`, `totp.recovery_codes_replaced`, `reauthenticated`, `reauthenticate_failed`, `session.revoked`, `operator_created`; they have no workspace and are written through `ops.record_auth_event`, and a failure is committed to the log before the error is returned and before it is counted), workspace, membership, invitation and project changes (`workspace.created`, `workspace.updated`, `member.updated`, `member.removed`, `invitation.created`, `invitation.cancelled`, `invitation.accepted`, `project.created`, `project.updated`; written by `sightline.api.audit` in the transaction of the change, with the fields that differ as `before` and `after`, and never for a change that changed nothing), API key lifecycle, integration connect and disconnect, provider credential changes, budget changes, schedule changes, core panel membership changes, prompt version creation, data exports, and data deletion. Audit logs are append-only for both runtime roles (no `UPDATE` or `DELETE` grants), the entry id and time come from the database and cannot be supplied by the writer, and entries are retained 2 years.
 
 ## 13. Data protection and privacy
 

@@ -422,3 +422,32 @@ After the auth branch was reviewed, the product owner asked for the main feature
 - The next backend plan (3b) is cut to workspaces, projects, membership, permission checks, and invitation create and accept. The rest of F14, and F15, F16, F17, F20, F21 and F22, move to launch hardening. F13 (who may create a workspace while registration is by invitation) stays in 3b because it limits provider spend.
 - The droplet and deploy plan moves from before the feature phases to directly after rank collection, because daily rank history only builds on a server that runs every day.
 - Nothing that protects tenant data or provider spend moved.
+
+### Workspaces, members, invitations and projects (2026-09-30)
+
+Plan `docs/superpowers/plans/2026-09-30-workspaces-projects.md`, built on branch `backend/workspaces`. Step 1 of the build order (29 section 1.1). No migration: every grant and policy the routes need was already in place. Routes: 4 for workspaces, 3 for members, 4 for invitations, 4 for projects (19 sections 3.2 and 3.3). Carried item F13 (who may create a workspace) is closed; F14 is closed for create, withdraw and accept.
+
+Each task was reviewed on the Opus model by a reviewer that ran the code, as the product owner asked on 2026-09-30 (reviews before that were on Fable). What the reviews changed:
+
+| Task | Found by review and fixed |
+|---|---|
+| 1. Access layer | An absent audit snapshot was stored as the JSON value `null`, not SQL NULL; an unknown query parameter was refused before the session check, so an anonymous caller could list a route's parameters; the access label dropped `fresh` or a second permission when two dependencies declared them; the workspace id could come from the query on a route that forgot it in its path; a suspended workspace was fully usable |
+| 2. Workspaces | A browser in India reports `Asia/Calcutta`, which PostgreSQL's time zone data does not carry, and `localtime` and `posixrules` were accepted as zones; a rename took `FOR UPDATE`, which waits for and blocks every insert that references the workspace; no limit on workspace creation with open registration; a disabled account with a cached session could list its workspaces |
+| 3. Members | Locking the owner rows deadlocked (500) when an owner was promoted while another change waited, and could refuse a legal change; the member list scanned every session once per member; a role change re-judged the scope the member already had; every role was shown who has two-factor on |
+| 4. Invitations | An invitation outlived its sender's authority: a removed or demoted owner's pending invitation still granted the owner role; inviting an owner needed no fresh session while promoting one did; the audit entry recorded the offered role for someone who already belonged and kept their own; the inviter's name opened the email as free text; no limit per invited address; the response did not say which workspace was joined |
+| 5. Projects | A request that waited for a row lock ended as a 500; archived projects counted against the limit with no way to free a slot; the "not limited to some projects" rule ran after body validation and was invisible to the access table |
+
+Decisions that changed the specification, all in doc 19: an invitation is accepted by its token (`POST /api/v1/invitations/accept`), not by its id; accepting returns the workspace as well as the membership; `two_factor_enabled` and `last_active_at` of a member are null unless the caller manages members; a suspended workspace is read-only (`403 workspace_suspended`); a lock wait is `409 conflict`; the project limit counts active and paused projects.
+
+Carried into the next plans:
+
+| Id | Item | Plan |
+|---|---|---|
+| F23 | The policies on `auth.memberships` and `auth.workspaces` widen what a `DELETE` can reach, not only what can be read (04 section 13). Split the read rule into a `SELECT`-only policy, so the database itself refuses a delete that forgets its workspace | launch hardening |
+| F24 | A deleted project's slug stays taken (`UNIQUE (workspace_id, slug)` has no condition). Decide with the delete route: free the slug on delete, or a partial unique index | the plan that builds project delete |
+| F25 | `holds_pending_invitation` lets a token register an account when its workspace is being deleted or its sender has lost the right to invite. The account joins nothing, since acceptance checks both. Tighten it when registration is next touched | launch hardening |
+| F26 | In a suspended workspace an invitation cannot be withdrawn, because every write is refused. Decide what a suspended workspace may still do when the route that suspends one is built | the plan that builds suspension |
+| F27 | A route that takes a project id in its query or body (`filter[project_id]` on workspace-level lists, `project_id` in a budget) must check `access.sees(...)` itself: the membership dependency only checks the path. Add a guard test when the first such route is built | 2 (entities) and 4 (worker: budgets) |
+| F28 | The member list shows every member's email to every role, including a viewer limited to one project (19 section 3.2.2 says `member`). Confirm with the product owner that a client stakeholder should see the agency's addresses | product owner |
+| F29 | `deep_check_weekday` and `status` of a project are stored and steer nothing yet; they take effect with the schedules of rank collection | 4 (rank collection) |
+| F30 | The disable-user route (F20), when built, must also withdraw the pending invitations the user sent. Acceptance already refuses them | launch hardening |

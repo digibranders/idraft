@@ -77,6 +77,9 @@ Rules 1 to 4 describe the planned API key behavior and apply only once API keys 
 - Tenant routes: `/api/v1/workspaces/{workspace_id}/...`; project routes: `/api/v1/workspaces/{workspace_id}/projects/{project_id}/...`.
 - The permission dependency (`require_permission`) resolves the caller's membership for `workspace_id`, then checks project scope (`auth.memberships.project_ids`, doc 24 section 3.1) for `project_id`, then the route permission.
 - **404, not 403, for anything the caller cannot see.** A workspace the caller is not a member of, a project outside the caller's project scope, and any resource id (project, tracked keyword, prompt, observation, run, export, alert) that belongs to another workspace or project all return `404 not_found` with an identical body. A 403 is returned only when the caller can see the resource but lacks the permission for the action (`403 forbidden`), so a 403 never confirms the existence of another tenant's data.
+- **Order of checks**, each answering before the next is looked at: session (`401`), membership (`404`), project scope (`404`), a suspended workspace on a write (`403 workspace_suspended`), permission (`403 forbidden`), fresh session (`403 fresh_session_required`), then the body (`422`). A well-formed request for another workspace is therefore `404` whatever its body holds. Two answers come earlier and depend on nothing about the workspace: a body that is not JSON (`400`) and, for a signed-in caller, a query parameter the route does not have (`422`, section 2.4). A `403` says nothing about the resource: a member without the permission gets it for a project that exists, one that does not and one of another workspace alike.
+- The membership is read from the database on every request and never cached, so a removed member, a disabled user and a changed role take effect on the next request. The workspace is taken from the path only. A project is checked against the member's scope when its path parameter is named `project_id`, which a test enforces for every route; a route that takes a project id in its query or body checks the scope itself.
+- **Workspace status.** A `deleting` workspace is `404` for its members. A `suspended` workspace can be read and not changed: every `POST`, `PUT`, `PATCH` and `DELETE` in it is `403 workspace_suspended`, whatever the caller's role. No route sets either status yet.
 - Child ids are always resolved together with their parent path. `GET {P}/prompts/{prompt_id}` with a prompt from a different project of the same workspace is also `404`.
 - Global dictionaries (`core.domains`, `core.urls`, `core.locations`, `ai.engines`, `seo.serp_feature_types`) are never listed without a tenant join, except the small registries under section 3.2.5.
 
@@ -133,7 +136,7 @@ Composite keys without a surrogate id are addressed by their natural key in the 
 - Taxonomy filters are subtree-aware: `filter[term]=<term_id>` matches the term and its descendants (doc 08 section 2). `filter[term_in]` is OR within the list; repeating different vocabularies is AND: `filter[term][topic]=<id>&filter[term][market]=<id>`.
 - Group filters include subgroups: `filter[group]=<group_id>`.
 - Boolean values are `true` and `false`. Dates are `YYYY-MM-DD`; timestamps RFC 3339.
-- Filters are validated per endpoint against an allowlist; unknown filters return `422 validation_failed` rather than being ignored, so a typo cannot silently widen a result.
+- Filters are validated per endpoint against an allowlist; unknown filters return `422 validation_failed` rather than being ignored, so a typo cannot silently widen a result. The same holds for every query parameter of every route: one the route does not declare is `422 validation_failed` with the error code `extra_forbidden`. A protected route answers `401` first, so an anonymous caller cannot use this to list a route's parameters.
 
 **Expansion.** `include=<a>,<b>` adds optional blocks to rows (for example `include=sparkline,competitors,features` on tracked keywords). Each expansion is documented per endpoint with its cost; unrequested blocks are absent, not null.
 
@@ -287,19 +290,22 @@ All errors use RFC 9457 `application/problem+json`. They are produced by FastAPI
 | 403 | `two_factor_enrollment_required` | Owner or admin without TOTP |
 | 403 | `two_factor_required_for_role` | Owner or admin trying to turn TOTP off |
 | 403 | `second_factor_required` | Re-authentication with the password alone by a user who has TOTP on |
+| 403 | `email_not_verified` | Creating a workspace or accepting an invitation before the email address is verified |
+| 403 | `workspace_suspended` | A write in a suspended workspace (section 2.2) |
 | 403 | `registration_closed` | Registration without a usable invitation while `REGISTRATION=invited` |
 | 403 | `origin_not_allowed` | CSRF Origin check failed |
 | 403 | `ip_not_allowed` | Planned with API keys: key IP allowlist |
 | 404 | `not_found` | Missing, deleted, or not visible to the caller (section 2.2) |
 | 405 | `method_not_allowed` | |
 | 409 | `duplicate` | Unique identity already exists; `existing_id` included |
-| 409 | `conflict` | Concurrent modification of the same resource |
+| 409 | `conflict` | Concurrent modification of the same resource: the request waited 3 seconds for a row another request holds, or two requests waited on each other. Safe to retry |
 | 409 | `invalid_state_transition` | For example confirming an import that is not `preview_ready` |
 | 409 | `idempotency_key_in_use` | Planned (section 2.8): same key still processing |
 | 409 | `cursor_stale` | Computed-sort cursor after `data_version` changed |
 | 409 | `last_owner` | Removing or demoting the only owner |
 | 409 | `entity_in_use` | Deleting an entity attached to a project (current or historical) |
 | 409 | `integration_reauth_required` | Action needs a connection in `active` status |
+| 410 | `invitation_expired` | Accepting an invitation past its 7 days; answered only to the address it was sent to |
 | 410 | `export_expired` | Download link past 24 hours |
 | 412 | `precondition_failed` | `If-Match` does not match the current ETag |
 | 413 | `payload_too_large` | Body above the route limit (JSON 1 MB default; uploads 50 MB) |
@@ -322,7 +328,7 @@ All errors use RFC 9457 `application/problem+json`. They are produced by FastAPI
 | 429 | `export_concurrency_limit` | 10 concurrent exports per workspace |
 | 500 | `internal_error` | Unexpected; Sentry event id in `request_id` correlation |
 | 503 | `service_unavailable` | A dependency the request cannot do without is down (sign-in when Redis cannot count attempts) |
-| 503 | `query_timeout` | Analytics statement exceeded its timeout; retry with a narrower window |
+| 503 | `query_timeout` | A statement exceeded its timeout (15 seconds); for analytics, retry with a narrower window |
 | 503 | `provider_paused` | Provider paused for the workspace or platform (doc 21 section 6) |
 | 503 | `maintenance` | Planned maintenance; `Retry-After` set |
 
@@ -529,7 +535,9 @@ Password change and TOTP changes revoke other sessions; password reset revokes e
 
 ```ts
 interface Me {
-  user: { user_id: Uuid; name: string; email: string; email_verified: boolean; image: string | null; two_factor_enabled: boolean; created_at: Iso };
+  user: { user_id: Uuid; name: string; email: string; email_verified: boolean; image: string | null; two_factor_enabled: boolean;
+          is_platform_operator: boolean;   // the caller's own flag; gates "create workspace" while registration is by invitation
+          created_at: Iso };
   session: { fresh_until: Iso | null; expires_at: Iso; auth_method: 'session' | 'api_key' };
   api_key?: { api_key_id: Uuid; name: string; scopes: string[]; workspace_id: Uuid };   // when called with an API key (deferred)
   memberships: Array<{
@@ -548,44 +556,61 @@ interface Me {
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
 | GET | `/api/v1/workspaces` | authenticated | none | `{ data: Workspace[] }` of the caller's memberships | no | | 1 |
-| POST | `/api/v1/workspaces` | authenticated, verified email | `{ name, slug, timezone? }` | `201 One<Workspace>`; caller becomes `owner`; default quotas row | no | `409 duplicate` (slug), `403 email_not_verified` | 1 |
+| POST | `/api/v1/workspaces` | authenticated, verified email; while `REGISTRATION=invited` a platform operator | `{ name, slug, timezone? }` (`timezone` defaults to `UTC`) | `201 One<Workspace>`; caller becomes `owner`; default quotas row | no | `409 duplicate` (slug; no `existing_id`, the other workspace may be someone else's), `403 email_not_verified`, `403 forbidden` (not an operator), `422 validation_failed` with `timezone_unknown`, `429 rate_limited` (5 per user per day) | 1 |
 | GET | `{W}` | member | none | `One<Workspace>` | no | | 1 |
 | PATCH | `{W}` | `workspace:update` | `{ name?, slug?, logo?, timezone? }` | `One<Workspace>` | no | `409 duplicate` | 1 |
-| DELETE | `{W}` | `workspace:delete` fresh | `{ confirm_slug }` | `202`; `status = 'deleting'`, access revoked, hard purge after 30 days (doc 24 section 13) | no | `422 confirmation_mismatch` | 1 |
-| POST | `{W}/restore` | `workspace:delete` fresh | none | `One<Workspace>` within the 30-day window | no | `409 invalid_state_transition` | 1 |
+| DELETE | `{W}` | `workspace:delete` fresh | `{ confirm_slug }` | `202`; `status = 'deleting'`, access revoked, hard purge after 30 days (doc 24 section 13) | no | `422 confirmation_mismatch` | deferred |
+| POST | `{W}/restore` | `workspace:delete` fresh | none | `One<Workspace>` within the 30-day window | no | `409 invalid_state_transition` | deferred |
 
 ```ts
 interface Workspace { workspace_id: Uuid; name: string; slug: string; logo: string | null; plan_code: string;
                       timezone: string; status: 'active' | 'suspended' | 'deleting'; created_at: Iso; purge_after: Iso | null }
 ```
 
+"Deferred" in the Ph column means the route is specified and not built: it waits for launch hardening or for the phase that needs it ([29-phase-roadmap.md](29-phase-roadmap.md) section 1.1).
+
+**Slugs.** A workspace or project slug is 3 to 40 characters: lower-case letters, digits and hyphens, starting and ending with a letter or digit, and not shaped like a uuid. Words that are routes of the web app are refused; the two lists are the enums `ReservedWorkspaceSlug` and `ReservedProjectSlug` in the OpenAPI document, so the forms refuse the same words.
+
+**Time zones.** A time zone is `UTC` or an IANA `Area/Location` name that PostgreSQL knows. A zone a browser still reports by an old name (`Intl` gives `Asia/Calcutta`) is stored and returned by its current name (`Asia/Kolkata`). An unknown name is `422 validation_failed` with the error code `timezone_unknown` on the field.
+
+**Partial updates.** A `PATCH` takes at least one field. A field that cannot be null and is sent as null is a validation error on that field. A change that changes nothing returns the resource, writes nothing and records nothing.
+
 #### 3.2.2 Members and invitations
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
-| GET | `{W}/members` | member | `filter[role]?`, `filter[q]?` | `Page<Member>` | offset | | 1 |
-| PATCH | `{W}/members/{user_id}` | `members:manage` fresh | `{ role?, project_ids? }` (only an owner can grant or revoke `owner`) | `One<Member>` | no | `409 last_owner` | 1 |
-| DELETE | `{W}/members/{user_id}` | `members:manage` fresh | none | `204`; access removed immediately (membership cache entry deleted) | no | `409 last_owner` | 1 |
-| DELETE | `{W}/members/me` | member | none | `204` (leave workspace) | no | `409 last_owner` | 1 |
-| GET | `{W}/invitations` | `members:manage` | `filter[status]?` | `Page<Invitation>` | offset | | 1 |
-| POST | `{W}/invitations` | `members:manage` | `{ email, role, project_ids? }` | `201 One<Invitation>`; email sent; expires in 7 days | no | `409 duplicate` (pending invitation or existing member) | 1 |
-| POST | `{W}/invitations/{invitation_id}/resend` | `members:manage` | none | `One<Invitation>` | no | `409 invalid_state_transition` | 1 |
-| DELETE | `{W}/invitations/{invitation_id}` | `members:manage` | none | `204` (cancel) | no | | 1 |
-| GET | `/api/v1/invitations/{invitation_id}` | authenticated (invitee email) | none | `One<InvitationPreview>` (workspace name, role, inviter) | no | `404` if email differs | 1 |
-| POST | `/api/v1/invitations/{invitation_id}/accept` | authenticated (invitee email, verified) | none | `One<Member>` | no | `410 invitation_expired` | 1 |
-| POST | `/api/v1/invitations/{invitation_id}/decline` | authenticated (invitee email) | none | `204` | no | | 1 |
+| GET | `{W}/members` | member | none (`filter[role]`, `filter[q]` deferred) | `Page<Member>`, by name | offset | | 1 |
+| PATCH | `{W}/members/{user_id}` | `members:manage` fresh | `{ role?, project_ids? }` (only an owner can grant `owner` or change an owner) | `One<Member>` | no | `409 last_owner`, `422 validation_failed` with `project_unknown` or `scope_not_allowed` | 1 |
+| DELETE | `{W}/members/{user_id}` | `members:manage` fresh | none | `204`; access removed with the member's next request | no | `409 last_owner` | 1 |
+| DELETE | `{W}/members/me` | member | none | `204` (leave workspace) | no | `409 last_owner` | deferred |
+| GET | `{W}/invitations` | `members:manage` | none (`filter[status]` deferred) | `Page<Invitation>`, newest first | offset | | 1 |
+| POST | `{W}/invitations` | `members:manage`; fresh when the role is `owner` or `admin` | `{ email, role, project_ids? }` (only an owner can invite an owner) | `201 One<Invitation>`; email sent; expires in 7 days | no | `409 duplicate` (pending invitation or existing member), `403 fresh_session_required`, `422 validation_failed` with `project_unknown` or `scope_not_allowed`, `429 rate_limited` (per hour: 20 per inviter, 50 per workspace, 3 per invited address; an attempt refused for another reason costs none) | 1 |
+| DELETE | `{W}/invitations/{invitation_id}` | `members:manage` | none | `204` (withdraw; the link stops working; repeating it is not an error) | no | `409 invalid_state_transition` (already accepted or declined, or past its date) | 1 |
+| POST | `/api/v1/invitations/accept` | authenticated (the invited address, verified) | `{ token }` from the link `{origin}/invite#token=<token>` | `One<AcceptedInvitation>`; accepting again returns the same | no | `400 invalid_token` (one answer for a token that is unknown, withdrawn, sent to another address, or void because its sender has since left, been disabled or lost the right to grant the role), `410 invitation_expired`, `403 email_not_verified`, `403 workspace_suspended` | 1 |
+| POST | `{W}/invitations/{invitation_id}/resend` | `members:manage` | none | `One<Invitation>` | no | `409 invalid_state_transition` | deferred |
+| GET | `/api/v1/invitations/preview` | public | `{ token }` | `One<InvitationPreview>` (workspace name, role, inviter) | no | | deferred |
+| POST | `/api/v1/invitations/decline` | authenticated (the invited address) | `{ token }` | `204` | no | | deferred |
+
+An invitation is accepted by its token, not by its id: the invited person is not yet a member, so row-level security hides the invitation row from them, and the only lookup the database offers is by token hash (doc 04 section 13). A new person opens the link, registers with `invitation_token` (their address is then verified), signs in and calls accept. The token is in the emailed link only; the database keeps its hash.
+
+- **Owners.** Only an owner grants the owner role, invites an owner, or changes or removes an owner. The last owner cannot be demoted or removed. Owners and admins always have every project: `project_ids` must be null for them, and promotion to either lifts a scope the member had.
+- **Scope.** `project_ids: null` is every project; a list limits the member to those projects, which must be live projects of the workspace; an empty list is a member of no project, who sees the workspace and none of its projects.
+- **An invitation grants nothing until it is accepted**, so what its sender may grant is judged twice: when it is sent, and again when it is accepted. When a member stops managing members (removed, or demoted below admin), the pending invitations they sent are withdrawn. Someone who already belongs and accepts an invitation keeps the membership they have.
+- **What a member sees of the others.** Name, email, role, scope and joining date. `two_factor_enabled` and `last_active_at` are null unless the caller holds `members:manage` or the row is the caller's own.
 
 ```ts
-interface Member { user: UserRef; role: Role; project_ids: Uuid[] | null; two_factor_enabled: boolean; joined_at: Iso; last_active_at: Iso | null }
+interface Member { user: UserRef; role: Role; project_ids: Uuid[] | null; two_factor_enabled: boolean | null; joined_at: Iso;
+                   last_active_at: Iso | null }   // when a signed-in session of theirs was last used; null when signed out everywhere
 interface Invitation { invitation_id: Uuid; email: string; role: Role; project_ids: Uuid[] | null;
                        status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'; invited_by: UserRef; expires_at: Iso; created_at: Iso }
+interface AcceptedInvitation { workspace: { workspace_id: Uuid; name: string; slug: string }; member: Member }   // where to send the user
 ```
 
 #### 3.2.3 Roles and permissions
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
-| GET | `/api/v1/roles` | authenticated | none | `{ data: Array<{ role, description, permissions: string[] }>, permission_keys: Array<{ key, description, api_key_scope: boolean }> }` generated from `permissions.ts` | no | | 1 |
+| GET | `/api/v1/roles` | authenticated | none | `{ data: Array<{ role, description, permissions: string[] }>, permission_keys: Array<{ key, description, api_key_scope: boolean }> }` generated from `sightline.api.permissions` | no | | deferred |
 
 Roles are fixed in V1 (doc 24 section 3.1); there are no custom roles.
 
@@ -610,9 +635,9 @@ interface ApiKey { api_key_id: Uuid; name: string; prefix: string; scopes: strin
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
-| GET | `{W}/quotas` | member | none | `One<QuotaUsage>` | no | | 1 |
-| PUT | `/api/v1/admin/workspaces/{workspace_id}/quotas` | platform_operator | `{ max_projects, max_tracked_keywords, max_active_prompts, max_ai_observations_per_month, max_serp_checks_per_month }` | `One<QuotaUsage>` | no | | 1 |
-| GET | `{W}/audit-logs` | `audit:read` | `from?`, `to?`, `filter[actor_type]?`, `filter[actor_id]?`, `filter[action]?` (prefix match, e.g. `panel.`), `filter[target_type]?`, `filter[target_id]?` | `Page<AuditLog>` sorted `-occurred_at` | cursor | | 1 |
+| GET | `{W}/quotas` | member | none | `One<QuotaUsage>` | no | | deferred |
+| PUT | `/api/v1/admin/workspaces/{workspace_id}/quotas` | platform_operator | `{ max_projects, max_tracked_keywords, max_active_prompts, max_ai_observations_per_month, max_serp_checks_per_month }` | `One<QuotaUsage>` | no | | deferred |
+| GET | `{W}/audit-logs` | `audit:read` | `from?`, `to?`, `filter[actor_type]?`, `filter[actor_id]?`, `filter[action]?` (prefix match, e.g. `panel.`), `filter[target_type]?`, `filter[target_id]?` | `Page<AuditLog>` sorted `-occurred_at` | cursor | | deferred |
 | GET | `/api/v1/locations` | authenticated | `filter[q]`, `filter[country_iso]?`, `filter[location_type]?`, `filter[supports]?` (`serp`, `ai_mode`, `llm_scraper`) | `Page<Location>` | cursor | | 2 |
 | GET | `/api/v1/engines` | authenticated | none | `{ data: Engine[] }` from `ai.engines` | no | | 6 |
 | GET | `/api/v1/serp-feature-types` | authenticated | none | `{ data: Array<{ code, label, ownable, tracked_by_default }> }` | no | | 4 |
@@ -638,13 +663,13 @@ Engine codes (the `ai.engines` registry, doc 04 section 8.1; identical in docs 0
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
-| GET | `{W}/projects` | member | `filter[status_in]?` (default `active,paused`), `filter[q]?` | `Page<Project>` limited to the caller's project scope | offset | | 1 |
-| POST | `{W}/projects` | `projects:write` | `ProjectCreate` | `201 One<Project>` | no | `409 duplicate` (slug), `422 quota_exceeded`, `422 url_not_allowed` | 1 |
+| GET | `{W}/projects` | member | `filter[status_in]?` (default `active,paused`; `filter[q]` deferred) | `Page<Project>` limited to the caller's project scope, by name; deleted projects never | offset | | 1 |
+| POST | `{W}/projects` | `projects:write`, and a membership that is not limited to some projects (`403 forbidden` otherwise, before the body is looked at) | `ProjectCreate` | `201 One<Project>` | no | `409 duplicate` (slug), `422 quota_exceeded` (`limit`, `used`, `requested`), `422 validation_failed` with `timezone_unknown` | 1 |
 | GET | `{P}` | member | none | `One<Project>` | no | | 1 |
-| PATCH | `{P}` | `projects:write` | `{ name?, slug?, primary_domain?, default_location_id?, default_language_code?, timezone?, deep_check_weekday?, status? ('active','paused','archived') }` | `One<Project>` | no | `412 precondition_failed` | 1 |
-| DELETE | `{P}` | `projects:write` fresh | `{ confirm_slug }` | `204`; soft delete (`deleted_at`), schedules deactivated | no | `422 confirmation_mismatch` | 1 |
-| GET | `{P}/settings` | `data:read` | none | `One<ProjectSettingsV1>` | no | | 1 |
-| PATCH | `{P}/settings` | `projects:write` | partial `ProjectSettingsV1` (JSON merge patch, RFC 7396) | `One<ProjectSettingsV1>` | no | | 1 |
+| PATCH | `{P}` | `projects:write` | `{ name?, slug?, primary_domain?, default_location_id?, default_language_code?, timezone?, deep_check_weekday?, status? ('active','paused','archived') }` | `One<Project>` with `meta.warnings` | no | `409 duplicate` (slug); `412 precondition_failed` once `If-Match` is built (deferred) | 1 |
+| DELETE | `{P}` | `projects:write` fresh | `{ confirm_slug }` | `204`; soft delete (`deleted_at`), schedules deactivated | no | `422 confirmation_mismatch` | deferred |
+| GET | `{P}/settings` | `data:read` | none | `One<ProjectSettingsV1>` | no | | 3 |
+| PATCH | `{P}/settings` | `projects:write` | partial `ProjectSettingsV1` (JSON merge patch, RFC 7396) | `One<ProjectSettingsV1>` | no | | 3 |
 | GET | `{P}/domains` | `data:read` | `filter[role]?` (`own`, `competitor`, `watch`) | `{ data: ProjectDomain[] }` read-only view of `core.project_domain_roles` | no | | 2 |
 
 ```ts
@@ -689,7 +714,13 @@ interface ProjectSettingsV1 {
 interface ProjectDomain { entity: EntityRef; domain: DomainRef; match_scope: 'host' | 'registrable' | 'path_prefix'; path_prefix: string | null }
 ```
 
-Changing `timezone` affects only future business dates; already computed `observed_date` values stay (doc 04 section 2). The response includes `meta.warnings: ['timezone_change_applies_forward']`. Changing `deep_check_weekday` updates the next occurrence of the project's `seo_rank` schedule.
+**The project limit** (`max_projects`) counts active and paused projects. An archived project does not count, so archiving one frees a slot, and bringing it back (`status` from `archived` to `active` or `paused`) needs a free slot and is `422 quota_exceeded` without one. A deleted project is gone for the count, and its slug stays taken until the delete route decides otherwise. `409 duplicate` for a slug carries no `existing_id`: the project that holds it may be deleted or outside the caller's scope.
+
+`filter[status_in]` takes comma-separated statuses and may be given more than once; every value counts and an unknown one is `422`.
+
+**What is accepted today.** `ProjectCreate` takes `name`, `slug`, `timezone?`, `deep_check_weekday?` and `default_language_code?`, and `PATCH {P}` takes those and `status`. `primary_domain`, `default_location_id` and `own_entity` arrive with Phase 2, which creates the tables they point at, and `settings` with Phase 3, its first reader; until then a request that sends one is `422`, and `Project.primary_domain` and `default_location_id` are null. The settings routes move to Phase 3 for the same reason.
+
+Changing `timezone` affects only future business dates; already computed `observed_date` values stay (doc 04 section 2). The response of `PATCH {P}` always has `meta.warnings`, which holds `timezone_change_applies_forward` when the zone changed and is empty otherwise. Changing `deep_check_weekday` updates the next occurrence of the project's `seo_rank` schedule.
 
 ### 3.4 Entities: brands, competitors, aliases, domains, candidates (Phase 2, candidates Phase 8)
 
