@@ -16,22 +16,16 @@ from sightline.db.migrate import (
     migration_state,
     upgrade_to_head,
 )
+from tests.conftest import PostgresServer
 
 SCHEMAS = {"auth", "core", "seo", "ai", "fp", "ops"}
 EXTENSIONS = {"citext", "pg_trgm", "pgcrypto", "btree_gist"}
 
 
-def _fresh_database(postgres_url: str, name: str) -> str:
-    async def create() -> None:
-        connection = await asyncpg.connect(postgres_url)
-        try:
-            await connection.execute(f'DROP DATABASE IF EXISTS "{name}"')
-            await connection.execute(f'CREATE DATABASE "{name}"')
-        finally:
-            await connection.close()
-
-    asyncio.run(create())
-    return postgres_url.rsplit("/", 1)[0] + f"/{name}"
+def _fresh_database(pg: PostgresServer, name: str) -> str:
+    """A new empty database owned by migrator; returns the migrator's URL for it."""
+    asyncio.run(pg.create_database(name))
+    return pg.url("migrator", name)
 
 
 def _query(url: str, sql: str) -> list[str]:
@@ -57,8 +51,8 @@ def test_the_history_is_linear_with_a_single_head() -> None:
     assert state.head in state.known
 
 
-def test_upgrade_creates_schemas_extensions_and_the_version_row(postgres_url: str) -> None:
-    url = _fresh_database(postgres_url, "migrate_fresh")
+def test_upgrade_creates_schemas_extensions_and_the_version_row(pg: PostgresServer) -> None:
+    url = _fresh_database(pg, "migrate_fresh")
     upgrade_to_head(url)
 
     schemas = set(_query(url, "SELECT schema_name FROM information_schema.schemata"))
@@ -69,16 +63,16 @@ def test_upgrade_creates_schemas_extensions_and_the_version_row(postgres_url: st
     assert _version(url) == [migration_state().head]
 
 
-def test_upgrade_is_idempotent(postgres_url: str) -> None:
-    url = _fresh_database(postgres_url, "migrate_twice")
+def test_upgrade_is_idempotent(pg: PostgresServer) -> None:
+    url = _fresh_database(pg, "migrate_twice")
     upgrade_to_head(url)
     upgrade_to_head(url)
     assert _version(url) == [migration_state().head]
 
 
-def test_concurrent_migrators_take_turns(postgres_url: str) -> None:
+def test_concurrent_migrators_take_turns(pg: PostgresServer) -> None:
     """Four migrator processes against an empty database: the advisory lock makes them queue."""
-    url = _fresh_database(postgres_url, "migrate_race")
+    url = _fresh_database(pg, "migrate_race")
     environment = {**os.environ, "DATABASE_URL": url}
     command = [sys.executable, "-m", "sightline.db.migrate"]
     processes = [
@@ -114,9 +108,9 @@ def test_a_schema_is_current_at_or_ahead_of_the_head(
 
 
 def test_main_needs_only_a_database_url_and_logs_what_it_did(
-    postgres_url: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    pg: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    url = _fresh_database(postgres_url, "migrate_main")
+    url = _fresh_database(pg, "migrate_main")
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setenv("RELEASE_SHA", "abc123")
 

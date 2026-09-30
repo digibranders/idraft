@@ -2,10 +2,13 @@ import time
 
 from sightline.db.migrate import migration_state
 from sightline.db.probe import probe_database
+from tests.conftest import PostgresServer
 
 
-async def test_reports_the_revision_of_a_migrated_database(migrated_url: str) -> None:
-    probe = await probe_database(migrated_url, within_seconds=5)
+async def test_the_api_role_can_read_the_revision_of_a_migrated_database(
+    migrated: PostgresServer,
+) -> None:
+    probe = await probe_database(migrated.url("app_api"), within_seconds=5)
     assert probe.reachable is True
     assert probe.revision == migration_state().head
 
