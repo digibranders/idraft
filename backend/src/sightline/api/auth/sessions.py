@@ -29,6 +29,8 @@ SESSION_IDLE = timedelta(days=7)
 SESSION_ABSOLUTE = timedelta(days=30)
 PENDING_TOTP_LIFETIME = timedelta(minutes=10)
 FRESH_FOR = timedelta(minutes=10)
+# Where a client sends the user to re-enter a credential when a session is not fresh enough.
+REAUTH_URL = "/api/v1/me/reauthenticate"
 TOUCH_INTERVAL = timedelta(seconds=60)
 CACHE_TTL_SECONDS = 60
 # A cached session is about 300 bytes. Anything much larger was not written by this code.

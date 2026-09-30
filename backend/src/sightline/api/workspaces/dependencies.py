@@ -27,7 +27,8 @@ from fastapi import Depends, Path, Request
 from sqlalchemy import select
 
 from sightline.api.access import AccessRule, declare
-from sightline.api.auth.dependencies import REAUTH_URL, CurrentSession
+from sightline.api.auth.dependencies import CurrentSession
+from sightline.api.auth.sessions import REAUTH_URL
 from sightline.api.permissions import Permission, Role
 from sightline.api.problems import (
     ForbiddenError,

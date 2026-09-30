@@ -20,12 +20,12 @@ from sightline.db.engine import workspace_transaction
 UNSCOPED_ROLES = frozenset({Role.OWNER, Role.ADMIN})
 
 
-def _scope(project_ids: list[UUID] | None) -> list[str] | None:
+def scope_snapshot(project_ids: list[UUID] | None) -> list[str] | None:
     """A scope as the audit log keeps it, in one order whatever order it was stored in."""
     return None if project_ids is None else sorted(str(project_id) for project_id in project_ids)
 
 
-def _manages(role: Role) -> bool:
+def manages_members(role: Role) -> bool:
     return Permission.MEMBERS_MANAGE in ROLE_PERMISSIONS[role]
 
 
@@ -93,7 +93,10 @@ class MemberService:
                 # The scope the member has is kept as it is, not judged again: a project in it
                 # may have been deleted since. Promotion to a managing role lifts it.
                 new_scope = None if new_role in UNSCOPED_ROLES else target.project_ids
-            if (new_role, _scope(new_scope)) != (old_role, _scope(target.project_ids)):
+            if (new_role, scope_snapshot(new_scope)) != (
+                old_role,
+                scope_snapshot(target.project_ids),
+            ):
                 await repository.update_member(
                     db,
                     workspace_id=access.workspace_id,
@@ -101,7 +104,7 @@ class MemberService:
                     role=new_role,
                     project_ids=new_scope,
                 )
-                if _manages(old_role) and not _manages(new_role):
+                if manages_members(old_role) and not manages_members(new_role):
                     await repository.cancel_invitations_sent_by(
                         db, workspace_id=access.workspace_id, user_id=user_id, now=datetime.now(UTC)
                     )
@@ -113,8 +116,8 @@ class MemberService:
                     target_type="user",
                     target_id=user_id,
                     info=info,
-                    before={"role": target.role, "project_ids": _scope(target.project_ids)},
-                    after={"role": new_role.value, "project_ids": _scope(new_scope)},
+                    before={"role": target.role, "project_ids": scope_snapshot(target.project_ids)},
+                    after={"role": new_role.value, "project_ids": scope_snapshot(new_scope)},
                 )
             updated = await repository.get_member(db, access.workspace_id, user_id)
         if updated is None:  # pragma: no cover - read under the lock that guards removal
@@ -142,7 +145,7 @@ class MemberService:
                 target_type="user",
                 target_id=user_id,
                 info=info,
-                before={"role": target.role, "project_ids": _scope(target.project_ids)},
+                before={"role": target.role, "project_ids": scope_snapshot(target.project_ids)},
             )
 
     @staticmethod
@@ -160,7 +163,7 @@ class MemberService:
         actor = await repository.membership(db, access.workspace_id, access.user_id)
         if actor is None:
             raise NotFoundError
-        if not _manages(Role(actor.role)):
+        if not manages_members(Role(actor.role)):
             raise ForbiddenError
         target = await repository.membership(db, access.workspace_id, user_id)
         if target is None:

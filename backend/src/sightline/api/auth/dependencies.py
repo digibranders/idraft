@@ -12,7 +12,7 @@ import structlog
 from fastapi import Depends, Request, Response
 
 from sightline.api.access import AccessRule, declare
-from sightline.api.auth.sessions import ExpiredSession, SessionContext
+from sightline.api.auth.sessions import REAUTH_URL, ExpiredSession, SessionContext
 from sightline.api.pagination import reject_unknown_query
 from sightline.api.problems import (
     FreshSessionRequiredError,
@@ -22,7 +22,6 @@ from sightline.api.problems import (
 from sightline.api.resources import Resources, get_resources
 
 SESSION_COOKIE = "__Host-session"
-REAUTH_URL = "/api/v1/me/reauthenticate"
 # What new_token() produces. Anything else is not looked up.
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}", re.ASCII)
 

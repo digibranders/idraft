@@ -504,13 +504,15 @@ async def list_invitations(
 async def cancel_invitation(
     db: AsyncSession, *, workspace_id: UUID, invitation_id: UUID, now: datetime
 ) -> bool:
-    """Cancel a pending invitation. False when it is not pending any more."""
+    """Cancel an invitation that is still open. False when it is not: answered, withdrawn or
+    past its date."""
     statement = (
         update(invitations)
         .where(
             invitations.c.workspace_id == workspace_id,
             invitations.c.id == invitation_id,
             invitations.c.status == "pending",
+            invitations.c.expires_at > now,
         )
         .values(status="cancelled", responded_at=now)
         .returning(invitations.c.id)
@@ -543,6 +545,7 @@ class TokenInvitation:
     role: str
     project_ids: list[UUID] | None
     status: str
+    invited_by: UUID
     expires_at: datetime
     # Whether it was sent to the address asked about, compared as the database compares emails.
     addressed: bool
@@ -551,7 +554,7 @@ class TokenInvitation:
 # The policy on auth.invitations hides the row from someone who is not yet a member, so the lookup
 # goes through the definer function, which returns the one row with this token hash.
 _BY_TOKEN = text(
-    "SELECT id, workspace_id, role, project_ids, status, expires_at, "
+    "SELECT id, workspace_id, role, project_ids, status, invited_by, expires_at, "
     "email = CAST(:email AS citext) AS addressed "
     "FROM auth.invitation_by_token(:token_hash)"
 )
@@ -569,6 +572,7 @@ async def find_invitation_by_token(
         role=row.role,
         project_ids=None if row.project_ids is None else list(row.project_ids),
         status=row.status,
+        invited_by=row.invited_by,
         expires_at=row.expires_at,
         addressed=bool(row.addressed),
     )
@@ -599,10 +603,28 @@ async def insert_membership_if_absent(
     user_id: UUID,
     role: str,
     project_ids: list[UUID] | None,
-) -> None:
-    """Add the member. Someone who already belongs keeps the membership they have."""
-    await db.execute(
+) -> bool:
+    """Add the member. Someone who already belongs keeps the membership they have, and the
+    answer is False."""
+    statement = (
         upsert(memberships)
         .values(workspace_id=workspace_id, user_id=user_id, role=role, project_ids=project_ids)
         .on_conflict_do_nothing(index_elements=["workspace_id", "user_id"])
+        .returning(memberships.c.user_id)
     )
+    return (await db.execute(statement)).one_or_none() is not None
+
+
+async def active_member_role(db: AsyncSession, workspace_id: UUID, user_id: UUID) -> str | None:
+    """The role of a member whose account is in use, or None: not a member, or disabled."""
+    statement = (
+        select(memberships.c.role)
+        .join(users, users.c.id == memberships.c.user_id)
+        .where(
+            memberships.c.workspace_id == workspace_id,
+            memberships.c.user_id == user_id,
+            users.c.disabled_at.is_(None),
+        )
+    )
+    role: str | None = (await db.execute(statement)).scalar_one_or_none()
+    return role

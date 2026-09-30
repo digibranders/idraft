@@ -23,6 +23,9 @@ def printable(value: str) -> str:
 
 
 def _email(value: str) -> str:
+    # One spelling per address: a composed and a decomposed "é" are different bytes, and the
+    # database would keep them as two addresses.
+    value = unicodedata.normalize("NFC", value)
     # The same shape the email sender accepts, so an address that registers can be written to.
     if not ADDRESS_PATTERN.fullmatch(value):
         raise ValueError("must be an email address")

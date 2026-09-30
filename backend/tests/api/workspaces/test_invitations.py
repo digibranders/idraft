@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import re
+import unicodedata
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -12,8 +13,12 @@ import pytest
 
 from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
 from sightline.api.auth.tokens import hash_token
+from sightline.api.permissions import Role
+from sightline.api.problems import ForbiddenError, NotFoundError
+from sightline.api.request_info import RequestInfo
 from sightline.api.resources import Resources
 from sightline.api.workspaces import invitations as invitation_rules
+from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.config.logging import configure_logging
 from sightline.providers.email import EmailMessage
 from tests.api.auth.support import (
@@ -47,11 +52,17 @@ def _problem(response: httpx.Response) -> tuple[int, str]:
 
 
 async def _member(
-    resources: Resources, pg: PostgresServer, workspace: Workspace, role: str, *, name: str = "Ann"
+    resources: Resources,
+    pg: PostgresServer,
+    workspace: Workspace,
+    role: str,
+    *,
+    name: str = "Ann",
+    fresh: bool = True,
 ) -> tuple[User, dict[str, str]]:
     user = await make_user(pg, name=name)
     await add_member(pg, workspace, user, role)
-    token, _ = await open_session(resources, user)
+    token, _ = await open_session(resources, user, fresh=fresh)
     return user, cookie(token)
 
 
@@ -124,10 +135,20 @@ async def test_an_invitation_is_emailed_as_a_link_and_stored_as_a_hash(
     match = LINK.search(message.text)
     assert match is not None
     token = match.group(1)
-    # The names are reduced to plain words: the inviter cannot put a link in the message.
-    assert 'Ann b invited you to the workspace "Acme https evil example x"' in message.text
+    # The first sentence is ours. What the inviter typed is reduced to plain words, quoted and
+    # labelled, so it cannot put a link in the message or make it say something of its own.
+    assert message.text.startswith(
+        "Hello,\n\nYou have been invited to a workspace on Sightline.\n\n"
+        'Workspace: "Acme https evil example x"\n'
+        f'Invited by: "Ann b" ({inviter.email})\n'
+        f"Invited address: {email}\n"
+        "Role: analyst\n\n"
+        "Accept the invitation:\n\n"
+    )
     assert "evil.example" not in message.text
-    assert "with the role analyst" in message.text
+    assert "The link works for 7 days, and only for an account with the invited address." in (
+        message.text
+    )
     # The token is in the email and nowhere else: not in the response, not in the database.
     assert token not in response.text
     row = await fetchrow(
@@ -454,12 +475,13 @@ async def test_a_withdrawn_invitation_stops_working(
     assert _problem(accept) == (400, "invalid_token")
     actions = await fetch(
         migrated,
-        "SELECT action, actor_id FROM ops.audit_logs WHERE workspace_id = $1 ORDER BY id",
+        "SELECT action, actor_id, target_id FROM ops.audit_logs WHERE workspace_id = $1 "
+        "ORDER BY id",
         workspace.id,
     )
-    assert [(row["action"], row["actor_id"]) for row in actions] == [
-        ("invitation.created", str(actor.id)),
-        ("invitation.cancelled", str(actor.id)),
+    assert [(row["action"], row["actor_id"], row["target_id"]) for row in actions] == [
+        ("invitation.created", str(actor.id), invitation_id),
+        ("invitation.cancelled", str(actor.id), invitation_id),
     ]
     missing = await api.delete(f"{_invitations(workspace)}/{uuid.uuid4()}", headers=headers)
     assert _problem(missing) == (404, "not_found")
@@ -526,7 +548,13 @@ async def test_accepting_joins_the_workspace_with_the_invited_role_and_scope(
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert (data["user"]["user_id"], data["role"], data["project_ids"]) == (
+    assert data["workspace"] == {
+        "workspace_id": str(workspace.id),
+        "name": workspace.name,
+        "slug": workspace.slug,
+    }
+    member = data["member"]
+    assert (member["user"]["user_id"], member["role"], member["project_ids"]) == (
         str(invitee.id),
         "analyst",
         # The project deleted since the invitation was sent is left out.
@@ -541,7 +569,9 @@ async def test_accepting_joins_the_workspace_with_the_invited_role_and_scope(
         workspace.id,
     )
     assert (entry["actor_id"], entry["target_id"]) == (str(invitee.id), invitation_id)
-    assert entry["after"] == f'{{"role": "analyst", "project_ids": ["{kept}"]}}'
+    assert entry["after"] == (
+        f'{{"role": "analyst", "project_ids": ["{kept}"], "already_member": false}}'
+    )
 
     # Accepting again is answered with the same membership and changes nothing.
     again = await api.post(ACCEPT, json={"token": token}, headers=invitee_headers)
@@ -718,7 +748,7 @@ async def test_a_new_person_registers_with_the_link_signs_in_and_joins(
 
     assert (registered.status_code, registered.json()["email_verified"]) == (201, True)
     assert signed_in.status_code == 200
-    assert (joined.status_code, joined.json()["data"]["role"]) == (200, "editor")
+    assert (joined.status_code, joined.json()["data"]["member"]["role"]) == (200, "editor")
     (membership,) = me.json()["data"]["memberships"]
     assert (membership["workspace"]["workspace_id"], membership["role"]) == (
         str(workspace.id),
@@ -745,5 +775,275 @@ async def test_someone_who_already_belongs_keeps_the_membership_they_have(
         ACCEPT, json={"token": token}, headers=await _signed_in(resources, invitee)
     )
 
-    assert (response.status_code, response.json()["data"]["role"]) == (200, "viewer")
+    assert (response.status_code, response.json()["data"]["member"]["role"]) == (200, "viewer")
     assert await _status(migrated, invitation_id) == "accepted"
+    # The record says what the member holds, not what the invitation offered.
+    entry = await fetchrow(
+        migrated,
+        "SELECT after::text FROM ops.audit_logs "
+        "WHERE workspace_id = $1 AND action = 'invitation.accepted'",
+        workspace.id,
+    )
+    assert entry["after"] == '{"role": "viewer", "project_ids": null, "already_member": true}'
+
+
+# -------------------------------------------------------------------------------------------------
+# What the review of these routes asked for
+
+
+async def test_inviting_someone_to_manage_the_workspace_needs_a_fresh_session(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+) -> None:
+    workspace = await make_workspace(migrated)
+    _, stale = await _member(resources, migrated, workspace, "owner", fresh=False)
+    url = _invitations(workspace)
+
+    for role in ("owner", "admin"):
+        refused = await api.post(url, json={"email": new_email(), "role": role}, headers=stale)
+        assert _problem(refused) == (403, "fresh_session_required")
+        assert refused.json()["reauth_url"] == "/api/v1/me/reauthenticate"
+    allowed = await api.post(url, json={"email": new_email(), "role": "editor"}, headers=stale)
+
+    assert allowed.status_code == 201
+    assert len(mailbox.messages) == 1
+
+
+@pytest.mark.parametrize(
+    ("invited", "change"),
+    [
+        ("viewer", "DELETE FROM auth.memberships WHERE user_id = $1"),
+        ("viewer", "UPDATE auth.memberships SET role = 'editor' WHERE user_id = $1"),
+        ("viewer", "UPDATE auth.users SET disabled_at = now() WHERE id = $1"),
+        # Still manages members, and can no longer grant what the invitation offers.
+        ("owner", "UPDATE auth.memberships SET role = 'admin' WHERE user_id = $1"),
+    ],
+)
+async def test_an_invitation_is_void_once_its_sender_could_no_longer_send_it(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+    invited: str,
+    change: str,
+) -> None:
+    """The grant happens when the invitation is accepted, so that is when it is judged. The
+    change is made behind the API's back: through the API it withdraws the invitation."""
+    workspace = await make_workspace(migrated)
+    inviter, headers = await _member(resources, migrated, workspace, "owner")
+    await _member(resources, migrated, workspace, "owner")
+    invitee = await make_user(migrated)
+    invitation_id, token = await _invite(
+        api, mailbox, workspace, headers, invitee.email, role=invited
+    )
+    await execute(migrated, change, inviter.id)
+
+    response = await api.post(
+        ACCEPT, json={"token": token}, headers=await _signed_in(resources, invitee)
+    )
+
+    assert _problem(response) == (400, "invalid_token")
+    assert (
+        await fetch(migrated, "SELECT 1 FROM auth.memberships WHERE user_id = $1", invitee.id) == []
+    )
+    assert await _status(migrated, invitation_id) == "pending"
+
+
+async def test_the_inviters_role_is_read_again_when_the_invitation_is_made(
+    resources: Resources, migrated: PostgresServer, mailbox: RecordingEmailSender
+) -> None:
+    """The dependency read the role in an earlier transaction; it may be out of date by now."""
+    workspace = await make_workspace(migrated)
+    inviter = await make_user(migrated)
+    await add_member(migrated, workspace, inviter, "owner")
+    await add_member(migrated, workspace, await make_user(migrated), "owner")
+    _, session = await open_session(resources, inviter, fresh=True)
+    stale = WorkspaceAccess(
+        session=session, workspace_id=workspace.id, role=Role.OWNER, project_ids=None
+    )
+    info = RequestInfo(ip=None, user_agent=None, request_id=None)
+
+    async def invite(role: Role) -> None:
+        await resources.invitations.create(
+            access=stale, email=new_email(), role=role, project_ids=None, info=info
+        )
+
+    await execute(
+        migrated, "UPDATE auth.memberships SET role = 'admin' WHERE user_id = $1", inviter.id
+    )
+    with pytest.raises(ForbiddenError, match="Only an owner"):
+        await invite(Role.OWNER)
+    await execute(
+        migrated, "UPDATE auth.memberships SET role = 'editor' WHERE user_id = $1", inviter.id
+    )
+    with pytest.raises(ForbiddenError):
+        await invite(Role.VIEWER)
+    await execute(migrated, "DELETE FROM auth.memberships WHERE user_id = $1", inviter.id)
+    with pytest.raises(NotFoundError):
+        await invite(Role.VIEWER)
+    assert mailbox.messages == []
+    assert (
+        await fetch(
+            migrated, "SELECT 1 FROM auth.invitations WHERE workspace_id = $1", workspace.id
+        )
+        == []
+    )
+
+
+async def test_one_address_gets_only_so_many_invitations_an_hour(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+) -> None:
+    """From any number of workspaces, and however often an invitation is withdrawn and sent
+    again."""
+    email = new_email()
+    statuses = []
+    for _ in range(2):
+        workspace = await make_workspace(migrated)
+        _, headers = await _member(resources, migrated, workspace, "owner")
+        for _ in range(2):
+            response = await api.post(
+                _invitations(workspace),
+                json={"email": email.upper(), "role": "viewer"},
+                headers=headers,
+            )
+            statuses.append(response.status_code)
+            if response.status_code == 201:
+                invitation_id = response.json()["data"]["invitation_id"]
+                await api.delete(f"{_invitations(workspace)}/{invitation_id}", headers=headers)
+
+    assert statuses == [201, 201, 201, 429]
+    assert len(mailbox.messages) == 3
+    # The refused invitation was not kept.
+    rows = await fetch(migrated, "SELECT status FROM auth.invitations WHERE email = $1", email)
+    assert [row["status"] for row in rows] == ["cancelled", "cancelled", "cancelled"]
+
+
+async def test_an_attempt_that_is_refused_costs_no_allowance(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(invitation_rules, "INVITATIONS_PER_HOUR_PER_INVITER", 2)
+    workspace = await make_workspace(migrated)
+    member, headers = await _member(resources, migrated, workspace, "owner")
+    url = _invitations(workspace)
+    first = new_email()
+    await _invite(api, mailbox, workspace, headers, first)
+
+    refused = [
+        await api.post(url, json={"email": first, "role": "viewer"}, headers=headers),
+        await api.post(url, json={"email": member.email, "role": "viewer"}, headers=headers),
+        await api.post(
+            url,
+            json={"email": new_email(), "role": "viewer", "project_ids": [str(uuid.uuid4())]},
+            headers=headers,
+        ),
+    ]
+    second = await api.post(url, json={"email": new_email(), "role": "viewer"}, headers=headers)
+    third = await api.post(url, json={"email": new_email(), "role": "viewer"}, headers=headers)
+
+    assert [response.status_code for response in refused] == [409, 409, 422]
+    assert (second.status_code, third.status_code) == (201, 429)
+
+
+async def test_an_empty_scope_stays_empty_when_the_invitation_is_accepted(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+) -> None:
+    workspace = await make_workspace(migrated)
+    only = await make_project(migrated, workspace.id)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    invitee = await make_user(migrated)
+    _, token = await _invite(
+        api, mailbox, workspace, headers, invitee.email, project_ids=[str(only)]
+    )
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", only)
+
+    response = await api.post(
+        ACCEPT, json={"token": token}, headers=await _signed_in(resources, invitee)
+    )
+
+    # Losing its only project must not turn a limited membership into an unlimited one.
+    assert response.json()["data"]["member"]["project_ids"] == []
+    row = await fetchrow(
+        migrated, "SELECT project_ids FROM auth.memberships WHERE user_id = $1", invitee.id
+    )
+    assert row["project_ids"] == []
+
+
+async def test_an_accepted_token_is_spent_once_the_member_has_left(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+) -> None:
+    workspace = await make_workspace(migrated)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    invitee = await make_user(migrated)
+    invitee_headers = await _signed_in(resources, invitee)
+    _, token = await _invite(api, mailbox, workspace, headers, invitee.email)
+    assert (await api.post(ACCEPT, json={"token": token}, headers=invitee_headers)).is_success
+    await execute(migrated, "DELETE FROM auth.memberships WHERE user_id = $1", invitee.id)
+
+    again = await api.post(ACCEPT, json={"token": token}, headers=invitee_headers)
+
+    assert _problem(again) == (400, "invalid_token")
+    assert (
+        await fetch(migrated, "SELECT 1 FROM auth.memberships WHERE user_id = $1", invitee.id) == []
+    )
+
+
+async def test_an_invitation_past_its_date_cannot_be_withdrawn_either(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+) -> None:
+    """It shows as expired in the list, so it is treated as expired everywhere."""
+    workspace = await make_workspace(migrated)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    invitation_id, _ = await _invite(api, mailbox, workspace, headers, new_email())
+    await execute(
+        migrated,
+        "UPDATE auth.invitations SET expires_at = now() - interval '1 minute' WHERE id = $1",
+        uuid.UUID(invitation_id),
+    )
+
+    response = await api.delete(f"{_invitations(workspace)}/{invitation_id}", headers=headers)
+
+    assert _problem(response) == (409, "invalid_state_transition")
+    assert "expired" in response.json()["detail"]
+
+
+async def test_an_address_has_one_spelling(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+) -> None:
+    """A composed and a decomposed accent are the same address."""
+    workspace = await make_workspace(migrated)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    local = f"jos\u00e9-{uuid.uuid4().hex[:8]}"
+    composed = f"{local}@client.example"
+    decomposed = unicodedata.normalize("NFD", composed)
+    assert composed != decomposed
+
+    first = await api.post(
+        _invitations(workspace), json={"email": decomposed, "role": "viewer"}, headers=headers
+    )
+    second = await api.post(
+        _invitations(workspace), json={"email": composed, "role": "viewer"}, headers=headers
+    )
+
+    assert (first.status_code, first.json()["data"]["email"]) == (201, composed)
+    assert _problem(second) == (409, "duplicate")

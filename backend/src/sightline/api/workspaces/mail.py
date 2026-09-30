@@ -7,21 +7,35 @@ from sightline.providers.email import EmailMessage
 
 
 def invitation_email(
-    *, origin: str, to: str, workspace_name: str, inviter_name: str, role: str, token: str
+    *,
+    origin: str,
+    to: str,
+    workspace_name: str,
+    inviter_name: str,
+    inviter_email: str,
+    role: str,
+    token: str,
+    days: int,
 ) -> EmailMessage:
-    """Both names were typed by someone else and the message goes to a third party, so they are
-    reduced to plain words: an invitation must not carry a link of the inviter's choosing."""
-    inviter = plain_name(inviter_name) or "Someone"
-    workspace = plain_name(workspace_name)
-    where = f'the workspace "{workspace}"' if workspace else "a workspace"
+    """The message goes to someone who did not ask for it, and two of its lines were typed by
+    someone else. Those are reduced to plain words, put in quotes and given a label, after a
+    first sentence that is ours: the inviter cannot make the message say something of its own.
+    """
+    workspace = plain_name(workspace_name) or "(no name)"
+    inviter = plain_name(inviter_name) or "(no name)"
     return EmailMessage(
         to=to,
         subject="You are invited to a Sightline workspace",
         text=(
             "Hello,\n\n"
-            f"{inviter} invited you to {where} on Sightline, with the role {role}.\n\n"
+            "You have been invited to a workspace on Sightline.\n\n"
+            f'Workspace: "{workspace}"\n'
+            f'Invited by: "{inviter}" ({inviter_email})\n'
+            f"Invited address: {to}\n"
+            f"Role: {role}\n\n"
             "Accept the invitation:\n\n"
             f"{origin}/invite#token={token}\n\n"
-            "The link expires in 7 days. If you did not expect this, ignore this message.\n"
+            f"The link works for {days} days, and only for an account with the invited address. "
+            "If you did not expect this, ignore this message.\n"
         ),
     )

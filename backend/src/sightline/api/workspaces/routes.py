@@ -18,11 +18,14 @@ from sightline.api.request_info import Info
 from sightline.api.resources import Resources, get_resources
 from sightline.api.schemas.common import UserRef
 from sightline.api.schemas.workspaces import (
+    AcceptedInvitation,
+    AcceptedInvitationResponse,
     Invitation,
     InvitationAccept,
     InvitationCreate,
     InvitationPage,
     InvitationResponse,
+    JoinedWorkspace,
     Member,
     MemberPage,
     MemberResponse,
@@ -54,27 +57,21 @@ def get_member_service(resources: Annotated[Resources, Depends(get_resources)]) 
     return resources.members
 
 
-Workspaces = Annotated[WorkspaceService, Depends(get_workspace_service)]
-
-
 def get_invitation_service(
     resources: Annotated[Resources, Depends(get_resources)],
 ) -> InvitationService:
     return resources.invitations
 
 
+Workspaces = Annotated[WorkspaceService, Depends(get_workspace_service)]
 Members = Annotated[MemberService, Depends(get_member_service)]
 Invitations = Annotated[InvitationService, Depends(get_invitation_service)]
 MayUpdateWorkspace = Annotated[
     WorkspaceAccess, Depends(require_permission(Permission.WORKSPACE_UPDATE))
 ]
-
-
 MayManageMembers = Annotated[
     WorkspaceAccess, Depends(require_permission(Permission.MEMBERS_MANAGE, fresh=True))
 ]
-
-
 MayInvite = Annotated[WorkspaceAccess, Depends(require_permission(Permission.MEMBERS_MANAGE))]
 
 
@@ -231,7 +228,7 @@ async def list_invitations(
     summary="Invite someone by email",
     description=(
         "Sends a link that works for 7 days and only for an account with this address. "
-        "Only an owner can invite an owner."
+        "Only an owner can invite an owner, and inviting an owner or admin needs a fresh session."
     ),
 )
 async def create_invitation(
@@ -271,6 +268,13 @@ async def cancel_invitation(
 )
 async def accept_invitation(
     body: InvitationAccept, session: CurrentSession, invitations: Invitations, info: Info
-) -> MemberResponse:
-    _, member = await invitations.accept(session=session, token=body.token, info=info)
-    return MemberResponse(data=_member(member, in_full=True))
+) -> AcceptedInvitationResponse:
+    workspace, member = await invitations.accept(session=session, token=body.token, info=info)
+    return AcceptedInvitationResponse(
+        data=AcceptedInvitation(
+            workspace=JoinedWorkspace(
+                workspace_id=workspace.id, name=workspace.name, slug=workspace.slug
+            ),
+            member=_member(member, in_full=True),
+        )
+    )

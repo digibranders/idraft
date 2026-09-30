@@ -14,6 +14,35 @@
         "title": "Accepted",
         "type": "object"
       },
+      "AcceptedInvitation": {
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/Member"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/JoinedWorkspace",
+            "description": "Where the invitation led, to send the user."
+          }
+        },
+        "required": [
+          "workspace",
+          "member"
+        ],
+        "title": "AcceptedInvitation",
+        "type": "object"
+      },
+      "AcceptedInvitationResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AcceptedInvitation"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AcceptedInvitationResponse",
+        "type": "object"
+      },
       "DomainRef": {
         "properties": {
           "category": {
@@ -261,6 +290,30 @@
           "data"
         ],
         "title": "InvitationResponse",
+        "type": "object"
+      },
+      "JoinedWorkspace": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "name",
+          "slug"
+        ],
+        "title": "JoinedWorkspace",
         "type": "object"
       },
       "Me": {
@@ -2453,7 +2506,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberResponse"
+                  "$ref": "#/components/schemas/AcceptedInvitationResponse"
                 }
               }
             },
@@ -2820,7 +2873,7 @@
         ]
       },
       "post": {
-        "description": "Sends a link that works for 7 days and only for an account with this address. Only an owner can invite an owner.",
+        "description": "Sends a link that works for 7 days and only for an account with this address. Only an owner can invite an owner, and inviting an owner or admin needs a fresh session.",
         "operationId": "create_invitation_api_v1_workspaces__workspace_id__invitations_post",
         "parameters": [
           {

@@ -1,4 +1,4 @@
-"""Bodies of the workspace and member routes (docs/19-api-specification.md section 3.2)."""
+"""Bodies of the workspace, member and invitation routes (docs/19 section 3.2)."""
 
 from __future__ import annotations
 
@@ -143,3 +143,18 @@ class InvitationCreate(Body):
 
 class InvitationAccept(Body):
     token: Token = Field(description="From the invitation link.")
+
+
+class JoinedWorkspace(BaseModel):
+    workspace_id: UUID
+    name: str
+    slug: str
+
+
+class AcceptedInvitation(BaseModel):
+    workspace: JoinedWorkspace = Field(description="Where the invitation led, to send the user.")
+    member: Member
+
+
+class AcceptedInvitationResponse(BaseModel):
+    data: AcceptedInvitation

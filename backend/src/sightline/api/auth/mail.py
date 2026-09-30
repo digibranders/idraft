@@ -19,16 +19,20 @@ def plain_name(name: str) -> str:
     """The name with nothing a mail client would turn into a link. May be empty.
 
     A name is whatever someone typed, and these messages go to addresses that did not ask for
-    them. Only letters, marks, digits, apostrophes and hyphens are kept, in any script;
+    them. Only letters, marks, decimal digits, apostrophes and hyphens are kept, in any script;
     everything else, dots and slashes and colons included, becomes a space.
     """
     kept = "".join(
-        character
-        if unicodedata.category(character)[0] in "LMN" or character in _NAME_PUNCTUATION
-        else " "
+        character if _is_name_character(character) else " "
         for character in unicodedata.normalize("NFC", name)
     )
     return " ".join(kept.split())[:_NAME_MAX].rstrip()
+
+
+def _is_name_character(character: str) -> bool:
+    category = unicodedata.category(character)
+    # Decimal digits only: other number characters include digits with a full stop attached.
+    return category[0] in "LM" or category == "Nd" or character in _NAME_PUNCTUATION
 
 
 def _greeting(name: str) -> str:
