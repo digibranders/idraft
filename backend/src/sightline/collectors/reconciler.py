@@ -11,7 +11,8 @@ is its own transaction, so one that fails leaves the others done.
    confirmed within that time, is `dead`.
 3. A task not sent 24 hours after its run's window closed is `cancelled`, and so are the unsent
    tasks of a run that ended.
-4. A running run whose tasks have all ended is completed.
+4. A running run whose tasks have all ended is completed. A cancelled run is given its totals
+   once the tasks the provider still had when it was cancelled have ended.
 
 Fetching what providers have finished, and resolving `submit_unknown` by asking the provider,
 come with the first real adapter.
@@ -40,6 +41,8 @@ class ReconcileReport:
     missed: int = 0
     run_ended: int = 0
     completed: int = 0
+    # Cancelled runs given their totals once their last task ended.
+    settled: int = 0
 
     @property
     def quiet(self) -> bool:
@@ -68,12 +71,14 @@ async def reconcile(
     # Last, so a run whose final tasks were ended above is completed in the same pass.
     async with sessions() as db, db.begin():
         completed = await ledger.complete_finished_runs(db, now=now)
+        settled = await ledger.settle_cancelled_runs(db)
     return ReconcileReport(
         released=len(stale),
         dead=dead,
         missed=missed,
         run_ended=run_ended,
         completed=completed,
+        settled=settled,
     )
 
 

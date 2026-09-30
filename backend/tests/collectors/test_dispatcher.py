@@ -56,6 +56,7 @@ class Outbox:
 def _registry(*providers: FakeProvider) -> Registry:
     registry = Registry()
     registry.add_workload(FakeWorkload())
+    registry.add_workload(FakeWorkload(name=TaskWorkload.AI_PROMPT))
     for provider in providers or (FakeProvider(),):
         registry.add_provider(provider)
     return registry
@@ -270,3 +271,68 @@ def test_a_batch_message_is_checked(fields: dict[str, object]) -> None:
     }
     with pytest.raises(ValidationError):
         SubmitBatch.model_validate(values)
+
+
+class _BadSize(FakeProvider):
+    def __init__(self, code: str, size: int | None) -> None:
+        super().__init__(code=code)
+        self.wrong = size
+
+    def batch_size(self, endpoint: str) -> int:
+        if self.wrong is None:
+            raise RuntimeError("the endpoint table has no entry")
+        return self.wrong
+
+
+@pytest.mark.parametrize("size", [0, -1, None])
+async def test_a_provider_that_cannot_say_its_batch_size_holds_up_only_its_own_tasks(
+    worker_db: Ledger, migrated: PostgresServer, size: int | None
+) -> None:
+    """Its tasks are claimed and left unmarked, not marked and stranded for ten minutes."""
+    project = await make_tenant(migrated)
+    broken = await seed_run(worker_db, project, 2, provider="broken")
+    fine = await seed_run(worker_db, project, 1)
+    outbox = Outbox()
+
+    report = await _dispatch(worker_db, _registry(FakeProvider(), _BadSize("broken", size)), outbox)
+
+    assert report == DispatchReport(claimed=3, batches=1)
+    assert [batch.provider for batch in outbox.sent] == ["fake"]
+    assert {row["dispatched_at"] for row in await task_rows(migrated, broken)} == {None}
+    assert {row["dispatched_at"] for row in await task_rows(migrated, fine)} == {NOW}
+
+
+async def test_work_of_a_workload_this_worker_does_not_have_is_left_alone(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    unknown = await seed_run(worker_db, project, 1, workload=TaskWorkload.KEYWORD_METRICS)
+    outbox = Outbox()
+
+    assert await _dispatch(worker_db, _registry(), outbox) == DispatchReport()
+    assert {row["dispatched_at"] for row in await task_rows(migrated, unknown)} == {None}
+
+
+async def test_the_oldest_tasks_of_a_group_go_in_its_first_batch(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """Planned in one order, due in another: the batches follow when the tasks are due."""
+    project = await make_tenant(migrated)
+    run_id = await seed_run(worker_db, project, 3)
+    for subject, minutes in (("keyword-0", 1), ("keyword-1", 2), ("keyword-2", 3)):
+        await execute(
+            migrated,
+            "UPDATE ops.collection_tasks SET scheduled_for = $3 "
+            "WHERE run_id = $1 AND subject_id = $2",
+            run_id,
+            subject,
+            NOW - minutes * MINUTE,
+        )
+    by_subject = {row["id"]: row["subject_id"] for row in await task_rows(migrated, run_id)}
+    outbox = Outbox()
+
+    await _dispatch(worker_db, _registry(FakeProvider(size=2)), outbox)
+
+    first, second = outbox.sent
+    assert [by_subject[key.id] for key in first.tasks] == ["keyword-2", "keyword-1"]
+    assert [by_subject[key.id] for key in second.tasks] == ["keyword-0"]

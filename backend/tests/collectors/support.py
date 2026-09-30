@@ -255,9 +255,14 @@ async def make_budget(
 class FakeWorkload:
     """Plans one task per subject, spread over the window, at a fixed price."""
 
-    name = TaskWorkload.SEO_RANK
-
-    def __init__(self, subjects: int = 3, *, price: str = "0.001") -> None:
+    def __init__(
+        self,
+        subjects: int = 3,
+        *,
+        price: str = "0.001",
+        name: TaskWorkload = TaskWorkload.SEO_RANK,
+    ) -> None:
+        self.name = name
         self.subjects = subjects
         self.price = Decimal(price)
         self.windows: list[ScheduleWindow] = []
@@ -272,6 +277,9 @@ class FakeWorkload:
         # Subjects it cannot build a request for, and those it has built requests for.
         self.unbuildable: set[str] = set()
         self.built: list[str] = []
+        # Subjects whose request is tagged with another task's id, and whether building fails.
+        self.mistags: set[str] = set()
+        self.fails_to_build = False
 
     async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
         if window.schedule_id in self.broken:
@@ -316,10 +324,13 @@ class FakeWorkload:
     ) -> Mapping[TaskRef, CanonicalRequest]:
         if self.writes is not None:
             await db.execute(text(self.writes))
+        if self.fails_to_build:
+            raise LookupError("the keyword row is gone")
         self.built.extend(task.subject_id for task in tasks)
         return {
             task.ref: CanonicalRequest(
-                task_id=str(task.ref.id),
+                # A mistagged request carries the id of another task.
+                task_id=str(task.ref.id + (1 if task.subject_id in self.mistags else 0)),
                 priority="high" if task.priority == "high" else "standard",
                 params=SerpParams(keyword=task.subject_id, location_id=task.location_id or 0),
             )

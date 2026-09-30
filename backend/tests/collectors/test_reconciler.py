@@ -60,7 +60,9 @@ async def test_one_pass_brings_every_kind_of_stuck_work_back_or_to_an_end(
 
     report = await reconcile(worker_db, now=NOW)
 
-    assert report == ReconcileReport(released=1, dead=2, missed=1, run_ended=1, completed=1)
+    assert report == ReconcileReport(
+        released=1, dead=2, missed=1, run_ended=1, completed=1, settled=1
+    )
     rows = {row["subject_id"]: row for row in await task_rows(migrated, current)}
     assert rows["keyword-0"]["dispatched_at"] is None
     assert rows["keyword-1"]["dispatched_at"] == NOW - 9 * MINUTE
@@ -75,6 +77,13 @@ async def test_one_pass_brings_every_kind_of_stuck_work_back_or_to_an_end(
         1,
     )
     assert {row["last_error_code"] for row in await task_rows(migrated, cancelled)} == {"run_ended"}
+    # The cancelled run stays cancelled, and now has its totals.
+    ended = await run_row(migrated, cancelled)
+    assert (ended["status"], ended["tasks_failed"], ended["actual_cost_usd"]) == (
+        "cancelled",
+        1,
+        0,
+    )
 
     # A second pass finds nothing left to do.
     assert await reconcile(worker_db, now=NOW) == ReconcileReport()

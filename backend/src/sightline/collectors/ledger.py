@@ -564,6 +564,54 @@ async def complete_finished_runs(db: AsyncSession, *, now: datetime) -> int:
     return len(closed.all())
 
 
+async def settle_cancelled_runs(db: AsyncSession) -> int:
+    """Give a cancelled run its totals once its last task has ended.
+
+    A run cancelled while the provider still had some of its tasks goes on paying for them:
+    they are fetched and ingested as usual. Its counts and cost are filled in when the last of
+    them ends, and it stays `cancelled`. Returns how many runs were settled.
+    """
+    still_open = _tasks.alias("still_open")
+    finished = (
+        select(
+            _runs.c.id.label("run_id"),
+            func.count(_tasks.c.id)
+            .filter(_tasks.c.status.in_(_NOTHING_COLLECTED))
+            .label("nothing"),
+            func.count(_tasks.c.id).filter(_tasks.c.status.in_(_COLLECTED)).label("collected"),
+            func.coalesce(func.sum(_tasks.c.cost_usd), 0).label("cost"),
+        )
+        .select_from(_runs.outerjoin(_tasks, _tasks.c.run_id == _runs.c.id))
+        .where(
+            _runs.c.status == "cancelled",
+            _runs.c.actual_cost_usd.is_(None),
+            ~select(still_open.c.id)
+            .where(
+                still_open.c.run_id == _runs.c.id,
+                still_open.c.status.not_in(TERMINAL_STATUSES),
+            )
+            .exists(),
+        )
+        .group_by(_runs.c.id)
+        .subquery("finished")
+    )
+    settled = await db.execute(
+        update(_runs)
+        .where(
+            _runs.c.id == finished.c.run_id,
+            _runs.c.status == "cancelled",
+            _runs.c.actual_cost_usd.is_(None),
+        )
+        .values(
+            tasks_succeeded=finished.c.collected,
+            tasks_failed=finished.c.nothing,
+            actual_cost_usd=finished.c.cost,
+        )
+        .returning(_runs.c.id)
+    )
+    return len(settled.all())
+
+
 # ---------------------------------------------------------------------------------------------
 # Dispatch
 
@@ -620,24 +668,28 @@ async def claim_due(
     limit: int = DISPATCH_LIMIT,
     per_project: int = DISPATCH_PER_PROJECT,
     providers: Collection[str] | None = None,
+    workloads: Collection[TaskWorkload] | None = None,
 ) -> list[LedgerTask]:
     """Lock and return the tasks that are due, oldest first, fairly across projects.
 
     Each project with due work gets an equal share of `limit`, at most `per_project`; what is
     left over after that goes to the projects that still have more, the one that has waited
     longest first. One large project cannot use a whole tick while a small one waits. Tasks
-    of a paused provider, of a provider not in `providers` (when it is given) and of a scope a
-    budget holds back are left where they are, so they take nobody's share. The rows stay
-    locked until the transaction ends, and rows another dispatcher holds are skipped.
+    of a paused provider, of a provider not in `providers` or a workload not in `workloads`
+    (when they are given), and of a scope a budget holds back are left where they are, so
+    they take nobody's share. The rows stay locked until the transaction ends, and rows
+    another dispatcher holds are skipped.
 
     Two statements, however many projects there are: one for the shares, one for the
     leftover.
     """
-    if providers is not None and not providers:
+    if (providers is not None and not providers) or (workloads is not None and not workloads):
         return []
     due = _due(_aware(now), paused_providers, held)
     if providers is not None:
         due = and_(due, _tasks.c.provider_code.in_(sorted(providers)))
+    if workloads is not None:
+        due = and_(due, _tasks.c.workload.in_(sorted(workloads)))
     oldest_first = (_tasks.c.scheduled_for, _tasks.c.id)
     waiting = (
         select(_tasks.c.project_id, func.min(_tasks.c.scheduled_for).label("first_due"))

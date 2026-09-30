@@ -116,15 +116,28 @@ def batches(tasks: Sequence[LedgerTask], registry: Registry) -> list[SubmitBatch
     made: list[tuple[int, datetime, SubmitBatch]] = []
     for (provider, endpoint, priority), grouped in groupby(sorted(tasks, key=group), key=group):
         ordered = sorted(grouped, key=lambda task: (task.scheduled_for, task.ref.id))
-        size = min(registry.provider(provider).batch_size(endpoint), BATCH_MAX)
-        for start in range(0, len(ordered), size):
-            chunk = ordered[start : start + size]
-            batch = SubmitBatch(
-                provider=provider,
-                endpoint=endpoint,
-                priority=priority,
-                tasks=[TaskKey(id=task.ref.id, created_at=task.ref.created_at) for task in chunk],
-            )
+        try:
+            size = registry.provider(provider).batch_size(endpoint)
+            if size < 1:
+                raise ValueError(f"batch size {size} for {provider} {endpoint}")
+            size = min(size, BATCH_MAX)
+            chunks = [ordered[start : start + size] for start in range(0, len(ordered), size)]
+            group_batches = [
+                SubmitBatch(
+                    provider=provider,
+                    endpoint=endpoint,
+                    priority=priority,
+                    tasks=[
+                        TaskKey(id=task.ref.id, created_at=task.ref.created_at) for task in chunk
+                    ],
+                )
+                for chunk in chunks
+            ]
+        except Exception as error:
+            # One provider's fault is not the others': its tasks are left where they are.
+            _log.error("tasks not batched", provider=provider, endpoint=endpoint, exc_info=error)
+            continue
+        for chunk, batch in zip(chunks, group_batches, strict=True):
             made.append((_PRIORITY_ORDER[priority], chunk[0].scheduled_for, batch))
     return [batch for _, _, batch in sorted(made, key=lambda item: (item[0], item[1]))]
 
@@ -175,11 +188,14 @@ async def dispatch(
             paused_providers=sorted(paused),
             held=list(holds),
             providers=registry.providers - paused,
+            workloads=registry.workloads,
             limit=limit,
             per_project=per_project,
         )
-        await ledger.mark_dispatched(db, [task.ref for task in tasks], now=now)
-    made = batches(tasks, registry)
+        # Made before anything is marked: a task that is in no batch is not marked, so it is
+        # not left waiting for a message that was never made.
+        made = batches(tasks, registry)
+        await ledger.mark_dispatched(db, [ref for batch in made for ref in batch.refs], now=now)
 
     sent = 0
     unsent: list[TaskRef] = []

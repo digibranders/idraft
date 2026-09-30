@@ -14,7 +14,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny
 
 from sightline.domain.retries import ProviderErrorKind
 
@@ -25,10 +25,11 @@ class Contract(BaseModel):
 
 class CanonicalRequest(Contract):
     # Our task's id, echoed back by the provider (DataForSEO: `tag`) so answers can be matched.
-    task_id: str
+    task_id: str = Field(min_length=1)
     priority: Literal["standard", "high"]
-    # What to ask, in the workload's own model.
-    params: Contract
+    # What to ask, in the workload's own model. Serialized as that model: as the base class
+    # it would be written as an empty object.
+    params: SerializeAsAny[Contract]
 
 
 class ProviderError(Contract):
@@ -36,17 +37,18 @@ class ProviderError(Contract):
     message: str
     provider_status: str | int | None = None
     # The wait the provider asked for, when it named one.
-    retry_after: timedelta | None = None
+    retry_after: timedelta | None = Field(default=None, ge=timedelta(0))
 
 
 class AcceptedTask(Contract):
-    task_id: str
+    task_id: str = Field(min_length=1)
     provider_task_id: str = Field(min_length=1)
-    cost_usd: Decimal | None = None
+    # What `ops.collection_tasks.cost_usd` can hold. A negative cost would loosen a budget.
+    cost_usd: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=6)
 
 
 class RejectedTask(Contract):
-    task_id: str
+    task_id: str = Field(min_length=1)
     error: ProviderError
 
 
@@ -54,8 +56,8 @@ class SubmitResult(Contract):
     """What became of each request of one call. A request named in neither list is one the
     provider may or may not have: its outcome is unknown."""
 
-    accepted: list[AcceptedTask] = []
-    rejected: list[RejectedTask] = []
+    accepted: tuple[AcceptedTask, ...] = ()
+    rejected: tuple[RejectedTask, ...] = ()
 
 
 class ProviderCallError(Exception):
