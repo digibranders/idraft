@@ -6,12 +6,13 @@ import { FeedbackSection } from './feedback-section';
 import { FormsSection } from './forms-section';
 import { IconsSection } from './icons-section';
 import { OverlaysSection } from './overlays-section';
+import type { PreviewSectionSlug } from './section-slugs';
 import { SizesSection } from './sizes-section';
 import { TokensSection } from './tokens-section';
 import { TypographySection } from './typography-section';
 
 export interface PreviewSection {
-  readonly slug: string;
+  readonly slug: PreviewSectionSlug;
   readonly title: string;
   readonly render: () => ReactNode;
 }

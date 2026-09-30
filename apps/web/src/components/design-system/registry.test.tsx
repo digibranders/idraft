@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { PREVIEW_SECTIONS, previewSection } from './registry';
+import { PREVIEW_SECTION_SLUGS } from './section-slugs';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
@@ -21,6 +22,8 @@ describe('the preview registry', () => {
       'feedback',
     ]);
     expect(new Set(PREVIEW_SECTIONS.map((section) => section.title)).size).toBe(PREVIEW_SECTIONS.length);
+    // The end-to-end and visual tests visit the sections by this list
+    expect(PREVIEW_SECTIONS.map((section) => section.slug)).toEqual([...PREVIEW_SECTION_SLUGS]);
   });
 
   it('finds a section by its slug and nothing for an unknown one', () => {

@@ -36,22 +36,22 @@ importers:
         version: 6.1.0
       geist:
         specifier: ^1.7.2
-        version: 1.7.2(next@16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
+        version: 1.7.2(next@16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
       lucide-react:
         specifier: 1.48.0
         version: 1.48.0(react@19.3.0)
       next:
         specifier: ^16.3.7
-        version: 16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next-intl:
         specifier: ^4.14.8
-        version: 4.14.8(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
+        version: 4.14.8(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       nuqs:
         specifier: ^2.10.1
-        version: 2.10.1(next@16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
+        version: 2.10.1(next@16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
       openapi-fetch:
         specifier: ^0.17.0
         version: 0.17.0
@@ -74,6 +74,9 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
+      '@axe-core/playwright':
+        specifier: 4.13.0
+        version: 4.13.0(playwright-core@1.63.0)
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.11.0(jiti@2.7.0))
@@ -83,6 +86,9 @@ importers:
       '@next/eslint-plugin-next':
         specifier: ^16.3.7
         version: 16.3.7(eslint@10.11.0(jiti@2.7.0))
+      '@playwright/test':
+        specifier: 1.63.0
+        version: 1.63.0
       '@tailwindcss/cli':
         specifier: ^4.3.3
         version: 4.3.3
@@ -199,6 +205,11 @@ packages:
   '@asamuzakjp/dom-selector@9.2.2':
     resolution: {integrity: sha512-lSWTBMjAcmu2xn5yEDU7jh6QDV+C8GEKtdJ4pIQhXh26RkKQ7S3FuQlt+zZkUbTdJ4d3XyV1kPI/G0zWXxqaqw==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
+
+  '@axe-core/playwright@4.13.0':
+    resolution: {integrity: sha512-6YLx+kxXu5GJceG4ozFg+33a2EMTdjYwWGloJ3sb9Kta5pp+ZNS53uxGVog5JetIY8s++P5UrtX+cri+u0VAVg==}
+    peerDependencies:
+      playwright-core: '>= 1.0.0'
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -1058,6 +1069,11 @@ packages:
   '@pkgr/core@0.3.6':
     resolution: {integrity: sha512-SEeaJLb3qBNF/OaXnaR1NmmBbFYk1zC0ZH/52fATcRPLFg/p791YrcyFFy44Bo9sLaGuSuLp5Q6axbb/O+v/RA==}
     engines: {node: ^14.18.0 || >=16.0.0}
+
+  '@playwright/test@1.63.0':
+    resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@redocly/ajv@8.11.2':
     resolution: {integrity: sha512-io1JpnwtIcvojV7QKDUSIuMN/ikdOUd1ReEnUnMKGfDVridQZ31J0MmIuqwuRjWDZfmvr+Q0MqCcfHM2gTivOg==}
@@ -3554,6 +3570,16 @@ packages:
     resolution: {integrity: sha512-nDywThFk1i4BQK4twPQ6TA4RT8bDY96yeuCVBWL3ePARCiEKDRSrNGbFIgUJpLp+XeIR65v8ra7WuJOFUBtkMA==}
     engines: {node: '>=8'}
 
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.63.0:
+    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
@@ -4478,6 +4504,11 @@ snapshots:
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.5.3
 
+  '@axe-core/playwright@4.13.0(playwright-core@1.63.0)':
+    dependencies:
+      axe-core: 4.13.0
+      playwright-core: 1.63.0
+
   '@babel/code-frame@7.29.7':
     dependencies:
       '@babel/helper-validator-identifier': 7.29.7
@@ -5232,6 +5263,10 @@ snapshots:
       '@parcel/watcher-win32-x64': 2.5.1
 
   '@pkgr/core@0.3.6': {}
+
+  '@playwright/test@1.63.0':
+    dependencies:
+      playwright: 1.63.0
 
   '@redocly/ajv@8.11.2':
     dependencies:
@@ -6710,9 +6745,9 @@ snapshots:
 
   fuzzysort@3.1.0: {}
 
-  geist@1.7.2(next@16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)):
+  geist@1.7.2(next@16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)):
     dependencies:
-      next: 16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      next: 16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
 
   generator-function@2.0.1: {}
 
@@ -7397,7 +7432,7 @@ snapshots:
 
   next-intl-swc-plugin-extractor@4.14.8: {}
 
-  next-intl@4.14.8(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0):
+  next-intl@4.14.8(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0):
     dependencies:
       '@eloqnt/config': 0.1.1
       '@eloqnt/format-json': 0.1.0
@@ -7407,7 +7442,7 @@ snapshots:
       '@swc/core': 1.16.12(@swc/helpers@0.5.23)
       icu-minify: 4.14.8
       negotiator: 1.1.0
-      next: 16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      next: 16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next-intl-swc-plugin-extractor: 4.14.8
       react: 19.3.0
       use-intl: 4.14.8(@types/react@19.3.0)(react@19.3.0)
@@ -7421,7 +7456,7 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
-  next@16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  next@16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@next/env': 16.3.7
       '@swc/helpers': 0.5.23
@@ -7440,6 +7475,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 16.3.7
       '@next/swc-win32-arm64-msvc': 16.3.7
       '@next/swc-win32-x64-msvc': 16.3.7
+      '@playwright/test': 1.63.0
       sharp: 0.35.5(@types/node@24.19.0)
     transitivePeerDependencies:
       - '@babel/core'
@@ -7466,12 +7502,12 @@ snapshots:
       path-key: 4.0.0
       unicorn-magic: 0.3.0
 
-  nuqs@2.10.1(next@16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0):
+  nuqs@2.10.1(next@16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0):
     dependencies:
       '@standard-schema/spec': 1.1.0
       react: 19.3.0
     optionalDependencies:
-      next: 16.3.7(@babel/core@7.29.7)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      next: 16.3.7(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.19.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
 
   object-assign@4.1.1: {}
 
@@ -7660,6 +7696,12 @@ snapshots:
   pkg-up@3.1.0:
     dependencies:
       find-up: 3.0.0
+
+  playwright-core@1.63.0: {}
+
+  playwright@1.63.0:
+    dependencies:
+      playwright-core: 1.63.0
 
   pluralize@8.0.0: {}
 

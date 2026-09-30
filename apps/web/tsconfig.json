@@ -35,7 +35,8 @@
     "src/**/*.tsx",
     "*.ts",
     "*.mts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "e2e/**/*.ts"
   ],
   "exclude": ["node_modules", "design-preview"]
 }

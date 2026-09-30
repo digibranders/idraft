@@ -1,0 +1,4 @@
+# Playwright output (pnpm e2e); the committed baselines live in e2e/__screenshots__
+/test-results/
+/playwright-report/
+/blob-report/

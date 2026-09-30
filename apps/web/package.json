@@ -16,12 +16,16 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "gen:api": "openapi-typescript ../../backend/openapi/v1.json --enum-values -o src/lib/api/schema.ts",
-    "preview": "node design-preview/icons.mjs && node design-preview/vendor.mjs && node design-preview/core-modules.mjs && tailwindcss -i design-preview/preview.css -o design-preview/preview.compiled.css"
+    "preview": "node design-preview/icons.mjs && node design-preview/vendor.mjs && node design-preview/core-modules.mjs && tailwindcss -i design-preview/preview.css -o design-preview/preview.compiled.css",
+    "e2e": "playwright test --project=e2e",
+    "e2e:visual": "playwright test --project=visual-desktop --project=visual-mobile"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "^10.0.1",
     "@lobehub/icons-static-svg": "1.95.1",
     "@next/eslint-plugin-next": "^16.3.7",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/cli": "^4.3.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",

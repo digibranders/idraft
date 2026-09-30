@@ -1,0 +1,18 @@
+# The web image's build context is the repository root; it needs the workspace manifests and apps/web.
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/web/**
+apps/web/node_modules
+apps/web/.next
+apps/web/.tmp
+apps/web/**/*.tsbuildinfo
+apps/web/**/.env*
+!apps/web/.env.example
+**/.DS_Store
+apps/web/test-results
+apps/web/playwright-report
+apps/web/blob-report
+apps/web/design-preview
+apps/web/e2e

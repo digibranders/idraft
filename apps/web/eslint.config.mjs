@@ -388,4 +388,11 @@ export default tseslint.config(
       ],
     },
   },
+
+  // A Playwright assertion or action without `await` passes before it has checked anything.
+  {
+    files: ['e2e/**/*.ts'],
+    languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: ROOT } },
+    rules: { '@typescript-eslint/no-floating-promises': 'error' },
+  },
 );
