@@ -298,7 +298,7 @@ Carried to later tasks: the section list, `aria-current` in the section nav and 
 | `Field`, `FieldLabel`, `FieldHelp`, `FieldError` | `ui/field.tsx` | 10 sections 2 and 18 | Label above, error replaces helper text, `aria-describedby` wiring, optional marker |
 | `Input` | `ui/input.tsx` | 10 section 4 | Sizes `sm`, `md`, `lg` (`lg` only in auth and onboarding) |
 | `InputGroup` | `ui/input-group.tsx` | 10 section 4 | Leading and trailing addons |
-| `PasswordInput` | `ui/secret-input.tsx` | 10 section 14, 20 section 11 | Show and hide button named by state; allows paste; `autocomplete` passed by the caller |
+| `PasswordInput` | `ui/password-input.tsx` | 10 section 21, 20 section 11 | Show and hide button named by state; allows paste; `autocomplete` passed by the caller |
 | `OtpField` | `ui/otp-field.tsx` | 10 section 21, 20 section 11.5 | Base UI OTP Field, 6 digits, `autocomplete="one-time-code"`, `inputMode="numeric"`, paste fills all cells |
 | `Checkbox` | `ui/checkbox.tsx` | 10 section 7 | |
 | `Switch` | `ui/switch.tsx` | 10 section 8 | |
@@ -309,10 +309,24 @@ Carried to later tasks: the section list, `aria-current` in the section nav and 
 | `SettingRow` | `ui/setting-row.tsx` | 10 section 13.3 | |
 | `SaveBar` | `ui/save-bar.tsx` | 10 section 13.2 | `h-save-bar`; count of changed fields passed as a display string |
 | `FormField` | `app/forms/form-field.tsx` | 10 section 22 | Binds a `Field` to react-hook-form's `Controller`; the only place outside features that imports react-hook-form |
-| `applyServerErrors` | `lib/forms/apply-server-errors.ts` | 10 section 23 | Maps `ApiProblem.errors[]` (`location`, `path`, `message`) onto form fields; returns the items that matched no field so the form can show them in `FormAlert` |
+| `applyServerErrors` | `lib/forms/apply-server-errors.ts` | 10 section 23 | Maps `ApiProblem.errors[]` (`location`, `path`, `code`, `message`) onto form fields; returns the items that matched no field so the form can show them in `FormAlert` |
 
-- [ ] Steps 1 to 5 for each row. `applyServerErrors` tests: a body path `email` sets the `email` field error; a nested path `profile.name` sets `profile.name`; an item for an unknown path is returned, not dropped; `location` other than `body` is returned.
-- [ ] Opus review, fixes, gates, commit "Add the form primitives".
+- [x] Steps 1 to 5 for each row. `applyServerErrors` tests: a body path `email` sets the `email` field error; a nested path `profile.name` sets `profile.name`; an item for an unknown path is returned, not dropped; `location` other than `body` is returned.
+- [x] Opus review, fixes, gates, commit "Add the form primitives".
+
+Done differently from the steps above, and why:
+
+- `PasswordInput` has its own file, `ui/password-input.tsx`. `SecretInput` (provider tokens, never pre-filled, with verification) stays a later component; a password of the user's own account needs password managers and `autocomplete`, which a secret field must refuse.
+- `RadioGroup` (list and cards) is built with `SegmentedControl`, in `ui/radio-group.tsx`, because both are Base UI radio groups and account settings needs one of them.
+- The field parts are `Field`, `FieldLabel`, `FieldDescription`, `FieldError` and `Fieldset` (the names of 25 section 4.1; the table's `FieldHelp` is `FieldDescription`). `FieldLabel.optional` is the marker text, because a primitive cannot read the catalog. `common.optional` is the first form string in `messages/en.json`.
+- `Input` has a `bare` variant for use inside `InputGroup`, and `inputVariants` lives in `ui/input-variants.ts` so the `Select` trigger shares it.
+- `SaveBar` has no `onSave`: "Save changes" is the submit button of the form, so Enter in a field saves too.
+- `FormField` shows an error once the user has changed the field since the last reset, or the form was submitted. `isDirty` alone misses a field that was typed into and emptied again.
+- `applyServerErrors(form, items, { fields, messages })` takes the list of field names the form renders, because react-hook-form has no public way to ask which fields are mounted. It declares `ValidationItem` locally; Task 8 replaces that with the generated type and adds the handling by problem `code` (10 section 23, step 2).
+- Lint: `src/components/design-system/**` may import react-hook-form, so the preview can show a live form. It still may not fetch.
+- A `forms` section is added to the `/design-system` route.
+
+Carried to later tasks: `disabledReason` on the selection controls, added together by the first screen that needs it (25 section 23 row 83); `ReadOnlyField.copyValue` with `CopyButton` (row 89); the 16 px input font on phones needs the `type-input-touch` utility that 19-responsive-behavior asks for (its touch targets section) before the auth screens (Task 11); `Select` as a bottom sheet on phones (mobile layout); a settings form reserves the bar's height with `pb-save-bar`, which the named-size lint rule refuses today, so the first settings form (Task 14) adds the exception or a utility; `Textarea`, `Combobox`, `CheckboxGroup`, `NumberInput` and the date pickers belong to the plans of the screens that use them.
 
 ### Task 6: Primitives, batch 3: overlays and feedback
 
@@ -554,6 +568,8 @@ Later messages, from the final review of `backend/workspaces` (tip e11af45, not 
 | In `WorkspaceUpdate`, `MemberUpdate` and `ProjectUpdate` the fields that refuse null are plain optional; only `logo`, `project_ids` and `default_language_code` take null. In `Problem`, `detail` and `errors` are optional and never null | Tasks 5 and 8 |
 | Error codes are not enumerated in the OpenAPI document: `Problem.code` is a string and `limit`, `used`, `requested`, `reauth_url`, `retry_after_seconds` are untyped. 19 section 2.7 is the list; `ApiProblem` types them by hand. Field codes to match on: `extra_forbidden`, `null_not_allowed`, `slug_reserved`, `slug_is_id`, `timezone_unknown`, `project_unknown`, `scope_not_allowed` | Tasks 5 and 8 |
 | `POST /api/v1/workspaces` is 403 for anyone but an operator while registration is by invitation, and limited to 5 per user per day. `/me` still lists a membership whose workspace has `status: 'deleting'` (all its routes are 404) | Tasks 12 and 13 (skip such a workspace in the switcher) |
+
+`main` has these routes since 4201599 (the backend session's message of 2026-09-30). Merge `main` into this branch at the start of Task 8, after the user agrees, and generate the client from `backend/openapi/v1.json` with `--enum-values`. Changes since the table above: `ProfileUpdate.name` is optional and not nullable, like the other update models; the three invitation allowances are counted together, so a refused invitation costs none. Local sign-in steps are in `backend/README.md` under "Signing in locally". Open on the backend side: whether every member sees every member's email.
 
 ## Self-review
 

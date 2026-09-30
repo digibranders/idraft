@@ -199,11 +199,13 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | Toaster, toast() | Foundation | `ui/toast.tsx` | V1 | 18 §3 |
 | LiveIndicator | Foundation | `ui/live-indicator.tsx` | V1 | 21 §8.4 |
 | CountTabs | Foundation | `ui/count-tabs.tsx` | V1 | 23 §9.3, 18 §7, visual-spec §5 |
-| Field parts (FieldLabel, FieldDescription) | Forms | `ui/field.tsx` | V1 | 10 §2 |
+| Field parts (Field, FieldLabel, FieldDescription, Fieldset) | Forms | `ui/field.tsx` | V1 | 10 §2 |
 | FieldError | Forms | `ui/field.tsx` | V1 | 10 §2, 17 §5.1 |
 | FormField | Forms | `app/forms/form-field.tsx` | V1 | 10 §2 |
 | Input | Forms | `ui/input.tsx` | V1 | 10 §4 |
 | InputGroup | Forms | `ui/input-group.tsx` | V1 | 10 §4 |
+| PasswordInput | Forms | `ui/password-input.tsx` | V1 | 10 §21 |
+| OtpField | Forms | `ui/otp-field.tsx` | V1 | 10 §21 |
 | Textarea | Forms | `ui/textarea.tsx` | V1 | 10 §5 |
 | Select | Forms | `ui/select.tsx` | V1 | 10 §6.2 |
 | Combobox | Forms | `ui/combobox.tsx` | V1 | 10 §6.3 |
@@ -511,7 +513,7 @@ interface ToggleButtonProps {
 - **Not for:** settings with immediate saved effect (`Switch`), choosing one of several views (`SegmentedControl`), form booleans (`Checkbox`).
 
 ### 3.5 SegmentedControl
-`ui/segmented-control.tsx` on Base UI `RadioGroup` (`ui/radio-group.tsx`) · V1 · [09 §6](09-buttons-controls.md). `ui/toggle-group.tsx` remains for independent toggles only
+`ui/segmented-control.tsx` on Base UI `RadioGroup` (the same primitive `ui/radio-group.tsx` builds on; they share `useRadioFocus`) · V1 · [09 §6](09-buttons-controls.md). `ui/toggle-group.tsx` remains for independent toggles only
 
 Purpose: one visual control, 2 to 5 short options side by side, with three semantic implementations chosen by purpose.
 
@@ -521,8 +523,9 @@ interface SegmentedControlProps<TValue extends string> {
   label: string;                    // group name (legend for 'radio', aria-label for 'view')
   value: TValue;
   onValueChange: (value: TValue) => void;   // empty value is rejected
-  items: ReadonlyArray<{ value: TValue; label: string; icon?: LucideIcon; count?: string; disabledReason?: string }>;
+  items: ReadonlyArray<{ value: TValue; label: string; icon?: LucideIcon; count?: string; disabled?: boolean }>;
   size?: 'sm' | 'md';               // 32 or 36 px track
+  focusRef?: React.Ref<{ focus(): void }>;   // a form passes field.ref: a failed submit focuses the chosen segment
 }
 ```
 
@@ -1318,21 +1321,21 @@ interface CountTabsProps<TValue extends string> {
 
 Layout, validation timing, error copy and server error mapping are in [10-forms.md](10-forms.md) §3, §18, §19 and §23. Every field control below is rendered inside `FormField` (react-hook-form) or, for inline and non-form uses, inside the Field parts directly.
 
-### 4.1 Field parts (FieldLabel, FieldDescription)
+### 4.1 Field parts (Field, FieldLabel, FieldDescription, Fieldset)
 `ui/field.tsx` · V1 · [10 §2](10-forms.md)
 
-Purpose: thin wrappers over Base UI `Field.Root`, `Field.Label`, `Field.Control`, `Field.Description` and `Fieldset` that apply the anatomy (label 6 px control 6 px helper).
+Purpose: thin wrappers over Base UI `Field.Root`, `Field.Label`, `Field.Description` and `Fieldset` that apply the anatomy (label 6 px control 6 px helper).
 
 ```ts
-interface FieldRootProps { invalid: boolean; disabled?: boolean; width?: 'short' | 'date' | 'medium' | 'long' | 'full'; children: Slot }
-interface FieldLabelProps { children: string; optional?: boolean; display?: 'visible' | 'visually-hidden' }   // "(optional)" appended in type-meta
-interface FieldDescriptionProps { children: Slot }                                              // hidden while an error shows
+interface FieldProps { invalid?: boolean; disabled?: boolean; width?: 'short' | 'date' | 'medium' | 'long' | 'full'; children: Slot }   // default width 'full'
+interface FieldLabelProps { children: string; optional?: string; display?: 'visible' | 'visually-hidden' }   // optional: the marker text "(optional)" from the catalog, shown in type-meta
+interface FieldDescriptionProps { children: Slot }                                              // not rendered while an error shows (the caller renders FieldError instead)
 interface FieldsetProps { legend: string; children: Slot }
 ```
 
 - **Variants:** `width` 5 values (`w-30`, `w-40`, `w-60`, `w-90`, `w-full`, full below 640 px).
 - **States:** default, invalid, disabled.
-- **A11y:** Base UI wires ids, `htmlFor`, `aria-describedby`, `aria-invalid`; required state becomes `aria-required`; groups use `fieldset` and `legend`.
+- **A11y:** Base UI wires ids, `htmlFor`, `aria-describedby`, `aria-invalid`; the control carries `aria-required`; groups use `fieldset` and `legend`. `optional` is the text itself, not a boolean: a primitive cannot read the catalog, so `FormField` passes it.
 - **Use:** every labeled control.
 - **Not for:** filters (filter editors are not forms), read-only facts (`ReadOnlyField`).
 
@@ -1346,7 +1349,7 @@ interface FieldErrorProps { message: string }   // says what to do and states th
 ```
 
 - **Variants:** none: `flex items-start gap-1 type-meta text-negative-text`, leading `CircleX` 12 px (section 23, item 17).
-- **States:** shown only when the field is dirty or the form was submitted.
+- **States:** rendered by `FormField` only when the user has changed the field or the form was submitted; it shows whenever it is rendered (`Field.Error match`).
 - **A11y:** `Field.Error`, referenced by `aria-describedby`; read on refocus, not announced on blur.
 - **Use:** every field-level validation and mapped server error.
 - **Not for:** errors without a field (`FormAlert`), region load errors (`InlineError`).
@@ -1354,43 +1357,55 @@ interface FieldErrorProps { message: string }   // says what to do and states th
 ### 4.3 FormField
 `app/forms/form-field.tsx` · V1 · [10 §2](10-forms.md), [10 §22](10-forms.md)
 
-Purpose: binds one react-hook-form field (`useController`) to the Field parts and a control, and derives `aria-required` from the schema.
+Purpose: binds one react-hook-form field (`useController`) to the Field parts and a control.
 
 ```ts
-import type { Control, FieldPath, FieldValues } from 'react-hook-form';
+import type { Control, FieldPath, FieldPathValue, FieldValues, RefCallBack } from 'react-hook-form';
+interface FormFieldControl<TValue> {
+  name: string; value: TValue; onChange: (value: TValue) => void; onBlur: () => void;
+  ref: RefCallBack;                 // on the element that takes focus
+  invalid: boolean; disabled: boolean;
+  required: boolean;                // true unless `optional`; the control passes it as aria-required
+  controlProps: { name; ref; onBlur; disabled; 'aria-required' };   // spread on the control: <Input {...field.controlProps} />
+  label: string;                    // for a group control, which shows it as its legend
+}
 interface FormFieldProps<TValues extends FieldValues, TName extends FieldPath<TValues>> {
   control: Control<TValues>;
   name: TName;                      // equals the API body path (limit_usd)
   label: string;                    // at most 4 words, no colon
-  optional?: boolean;
+  optional?: boolean;               // adds "(optional)" from the catalog
   description?: string;
-  width?: FieldRootProps['width'];
-  render: (field: { value: TValues[TName]; onChange: (value: TValues[TName]) => void; onBlur: () => void; ref: React.Ref<HTMLElement>; invalid: boolean; disabled: boolean }) => React.ReactElement;
+  width?: FieldProps['width'];
+  labelDisplay?: 'visible' | 'visually-hidden';
+  kind?: 'control' | 'group';       // 'group' for RadioGroup, SegmentedControl, a single Checkbox: no FieldLabel, the control shows the label
+  render: (field: FormFieldControl<FieldPathValue<TValues, TName>>) => React.ReactElement;
 }
 ```
 
 - **Variants:** none.
-- **States:** pristine, touched, invalid (after first blur or submit), revalidating on change, submitting, server error (`type: 'server'`, cleared on change).
-- **A11y:** as Field parts; every control forwards `ref` so `shouldFocusError` works.
+- **States:** pristine, touched, invalid (shown from the first blur after a change, or from a submit), revalidating on change, submitting, server error (`type: 'server'`, shown at once, cleared on change). A reset starts the field over.
+- **A11y:** as Field parts; every control takes the field's `ref` so `shouldFocusError` works, and a group control (`RadioGroup`, `SegmentedControl`) takes it as `focusRef`. With `kind="group"` the field renders no label: the control shows it (a legend, or the label of a single `Checkbox`).
 - **Use:** every field of a react-hook-form form (dialogs and save-bar settings).
 - **Not for:** switches (they save immediately and never belong to a form), filter editors, inline table cell editors (validate on submit only).
 
 ### 4.4 Input
-`ui/input.tsx` · V1 · [10 §4](10-forms.md)
+`ui/input.tsx`, `ui/input-variants.ts` · V1 · [10 §4](10-forms.md)
 
 Purpose: single-line text entry.
 
 ```ts
 interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   size?: 'sm' | 'md' | 'lg';        // 32, 36 (default), 40 px (auth and onboarding only)
+  variant?: 'outline' | 'bare';     // 'bare' inside an InputGroup, which draws the border
+  onValueChange?: (value: string) => void;   // from Base UI; react-hook-form's onChange takes it directly
 }
 ```
 
-- **Variants:** `size` 3 values.
+- **Variants:** `size` 3 values, `variant` 2 values. `inputVariants` (in `ui/input-variants.ts`, no `'use client'`) is shared with the `Select` trigger.
 - **States:** default (no hover change), focus (ring, border unchanged), invalid (`data-invalid:border-negative-solid`), disabled, read-only (use `ReadOnlyField`).
 - **A11y:** labeled through Field; `autoComplete` per 10 §21 (`off` for keywords, domains, prompts); 16 px font in the mobile layout.
 - **Use:** names, short identifiers, emails.
-- **Not for:** URLs and domains (`UrlInput`, `DomainInput`), numbers (`NumberInput`), dates (`DateRangePicker`), search (`SearchInput`), secrets (`SecretInput`).
+- **Not for:** URLs and domains (`UrlInput`, `DomainInput`), numbers (`NumberInput`), dates (`DateRangePicker`), search (`SearchInput`), secrets (`SecretInput`), passwords (`PasswordInput`).
 
 ### 4.5 InputGroup
 `ui/input-group.tsx` · V1 · [10 §4](10-forms.md)
@@ -1403,14 +1418,14 @@ interface InputGroupProps {
   suffix?: string;                  // "%", "days", "keywords"
   leadingIcon?: LucideIcon;
   trailing?: Slot;                  // IconButton size="icon-xs", 4 px from the edge
-  size?: 'sm' | 'md';
-  children: React.ReactElement;     // borderless Input or NumberField input
+  size?: 'sm' | 'md' | 'lg';
+  children: React.ReactElement;     // <Input variant="bare" /> or a NumberField input
 }
 ```
 
-- **Variants:** `size` 2 values.
-- **States:** `focus-within:focus-ring`, invalid, disabled.
-- **A11y:** adornment text is `aria-hidden` when the label already names the unit; trailing buttons have their own names.
+- **Variants:** `size` 3 values.
+- **States:** focus ring while the input has focus (`has-[input:focus-visible]:focus-ring`; a focused trailing button shows its own ring), invalid and disabled read from the input inside (`has-data-invalid`, `has-data-disabled`).
+- **A11y:** prefix and suffix text is `aria-hidden` (the label names the unit); trailing buttons have their own names.
 - **Use:** units, clear and reveal buttons, date input with calendar button.
 - **Not for:** composite values of two fields (two fields in a row).
 
@@ -1443,15 +1458,15 @@ interface SelectProps<TValue extends string> {
   value: TValue | null;
   onValueChange: (value: TValue) => void;
   placeholder: string;              // "Select a workload"
-  options: ReadonlyArray<{ value: TValue; label: string; description?: string; group?: string; disabledReason?: string }>;
-  size?: 'sm' | 'md';
-  width?: FieldRootProps['width'];
-}
+  options: ReadonlyArray<{ value: TValue; label: string; description?: string; group?: string; disabled?: boolean }>;
+  size?: 'sm' | 'md' | 'lg';
+  name?: string; required?: boolean; disabled?: boolean;
+}                                   // plus the attributes of the trigger button; the width is set on Field
 ```
 
-- **Variants:** `size` 2 values.
-- **States:** closed, open below the trigger (`alignItemWithTrigger={false}`), highlighted, selected (`Check`), disabled, invalid; bottom sheet above 8 options on phones.
-- **A11y:** APG select-only combobox; Enter, Space, arrows open; type-ahead; Escape closes without change; trigger shows the chosen value.
+- **Variants:** `size` 3 values.
+- **States:** closed, open below the trigger (`alignItemWithTrigger={false}`, 4 px offset), highlighted, selected (`Check`), disabled, invalid; bottom sheet above 8 options on phones (arrives with the mobile layout).
+- **A11y:** APG select-only combobox; Enter, Space, arrows open; type-ahead; Escape closes without change; trigger shows the chosen value. Consecutive options with the same `group` are listed under that name.
 - **Use:** workload, language, engine, page size, column mapping.
 - **Not for:** 2 to 4 options worth seeing (`SegmentedControl` or `RadioGroup`), more than 15 or server-loaded options (`Combobox`), commands (`Menu`); native `<select>` is not used.
 
@@ -1513,16 +1528,17 @@ Purpose: a boolean that takes effect on save, "I agree", or row selection.
 ```ts
 interface CheckboxProps {
   checked: boolean | 'indeterminate';
-  onCheckedChange: (checked: boolean) => void;
-  label: string;                    // visible, or visually hidden in table cells ("Select crm pricing")
-  description?: string;
-  disabledReason?: string;
-}
+  onCheckedChange?: (checked: boolean) => void;
+  label: string;                    // the visible label, or the name in a table cell ("Select crm pricing")
+  labelDisplay?: 'visible' | 'visually-hidden';
+  description?: string;             // describes the box; not part of its name
+  disabled?: boolean;
+}                                   // plus the attributes and the ref of the box
 ```
 
 - **Variants:** none (16 px box, `rounded-sm` (4 px), in a 24 px hit area; unchecked 1 px `border-strong`; checked solid `primary` with a white check).
 - **States:** unchecked, checked, indeterminate (parents only), hover, focus (inset in cells), disabled, invalid.
-- **A11y:** APG checkbox; `aria-checked` true, false or mixed; Space.
+- **A11y:** APG checkbox; `aria-checked` true, false or mixed; Space; clicking the label toggles.
 - **Use:** booleans saved with a form, table selection, filter enum lists.
 - **Not for:** immediate settings (`Switch`), one of several (`RadioGroup`).
 
@@ -1557,14 +1573,16 @@ interface RadioGroupProps<TValue extends string> {
   legend: string;
   value: TValue | null;             // null only when "no choice" is valid in the schema
   onValueChange: (value: TValue) => void;
-  options: ReadonlyArray<{ value: TValue; label: string; description?: string; disabledReason?: string }>;
+  options: ReadonlyArray<{ value: TValue; label: string; description?: string; disabled?: boolean }>;
   presentation?: 'list' | 'cards';
+  disabled?: boolean;
+  focusRef?: React.Ref<{ focus(): void }>;   // a form passes field.ref
 }
 ```
 
 - **Variants:** none; `presentation` is structural (radio: 16 px circle, the same size as the checkbox, 1 px `border-strong`, checked solid `primary` with a 6 px white dot, in a 24 px hit area; cards: `rounded-md border p-3`, checked `border-primary-border bg-surface-selected`).
-- **States:** unchecked, checked, hover, focus (on the card via `has-[:focus-visible]`), disabled, invalid.
-- **A11y:** APG radio group; `fieldset` and `legend`; arrows move and select; Tab leaves.
+- **States:** unchecked, checked, hover, focus (on the card via `has-focus-visible`), disabled, invalid.
+- **A11y:** APG radio group named by the legend (`role="radiogroup"`); each radio is named by its label and described by its description; arrows move and select; Tab leaves.
 - **Use:** action on hard budget limit, depth profile, filter enum single.
 - **Not for:** short options users should see side by side in a row (`SegmentedControl semantics="radio"`), more than 6 options (`Select`).
 
@@ -1576,16 +1594,15 @@ Purpose: a setting that takes effect and is saved the moment it flips.
 ```ts
 interface SwitchProps {
   checked: boolean;
-  onCheckedChange: (checked: boolean) => void;   // starts the mutation; optimistic
-  label: string;                    // the setting name, never "On"
+  onCheckedChange?: (checked: boolean) => void;   // starts the mutation; optimistic
   busy?: boolean;                   // after 400 ms pending: aria-busy, further toggles ignored
-  disabledReason?: string;
-}
+  disabled?: boolean;
+}                                   // named by its SettingRow; on its own it needs aria-label
 ```
 
 - **Variants:** none (36 x 20 px track, `primary` when on, white thumb, 24 px hit area).
 - **States:** off, on, hover, focus, busy, disabled, failed (reverted, error line under the row).
-- **A11y:** `role="switch"`, `aria-checked`; Space and Enter; failure announced politely.
+- **A11y:** `role="switch"`, `aria-checked`; Space and Enter; failure announced politely by the caller.
 - **Use:** notification preferences, "Pause collection", "Show favicons", inside `SettingRow`.
 - **Not for:** any form with a save bar, filters, booleans saved with other fields (`Checkbox`) (section 23, item 41).
 
@@ -1598,7 +1615,7 @@ Purpose: the row that hosts an immediate `Switch`: label and description left, s
 interface SettingRowProps { label: string; description?: string; control: React.ReactElement; error?: string | null }
 ```
 
-- **Variants:** none. **States:** default, busy, error. **A11y:** the switch is labeled by `label` and described by `description`.
+- **Variants:** none. **States:** default, busy, error. **A11y:** the row is a Base UI `Field`, so the switch is labeled by `label` and described by `description` and by `error` when there is one, and a click on the label flips it.
 - **Use:** sections that contain only immediate switches. **Not for:** save-bar forms (a section is either all switches or a form, never mixed).
 
 ### 4.15 Slider
@@ -1824,15 +1841,17 @@ interface SaveBarProps {
   visible: boolean;                 // formState.isDirty
   summary: string;                  // "2 unsaved changes" or "2 errors" (caller formats)
   estimate?: string | null;         // "+$42.10 per month, estimate"
-  saving: boolean;
+  saving?: boolean;
   onDiscard: () => void;            // resets immediately, no confirmation
-  onSave: () => void;
+  discardLabel: string;             // "Discard"
+  saveLabel: string;                // "Save changes"; the button is the submit button of the form
+  form?: string;                    // the id of the form, when the bar is rendered outside it
 }
 ```
 
-- **Variants:** none (56 px `h-save-bar`, token `--size-save-bar`; `bg-surface border-t`, contents aligned to the 640 px form column).
-- **States:** hidden, visible, saving (primary loading after 400 ms), failed (stays; focus to first error or summary), saved (hidden; polite "Changes saved"; no toast).
-- **A11y:** the form reserves the bar's height (`pb-save-bar`) and the scroll container sets `scroll-padding-bottom` to `var(--size-save-bar)` (56 px) ([10-forms.md](10-forms.md) §13.2); buttons "Discard" (ghost) and "Save changes" (primary).
+- **Variants:** none (56 px `min-h-save-bar`, token `--size-save-bar`, taller only when the summary wraps; `bg-surface border-t`, contents aligned to the 640 px form column).
+- **States:** hidden, visible, saving (primary loading after 400 ms; Discard disabled), failed (stays; focus to first error or summary), saved (hidden; polite "Changes saved"; no toast).
+- **A11y:** the form reserves the bar's height (`pb-save-bar`) and the scroll container sets `scroll-padding-bottom` to `var(--size-save-bar)` (56 px) ([10-forms.md](10-forms.md) §13.2); buttons "Discard" (ghost) and "Save changes" (primary, `type="submit"`); a group named by its summary; when it leaves with focus on one of its buttons, focus moves to the first field of the form.
 - **Use:** settings and integration configuration forms. **Not for:** dialogs (footer holds actions), sections with switches.
 
 ### 4.27 ErrorSummary
@@ -1841,11 +1860,11 @@ interface SaveBarProps {
 Purpose: lists every error of a long form at its top after a failed submit and takes focus.
 
 ```ts
-interface ErrorSummaryProps { errors: ReadonlyArray<{ fieldId: string; label: string; message: string }>; title: string }   // "Fix 2 fields to save"
+interface ErrorSummaryProps { errors: ReadonlyArray<{ fieldId: string; label: string; message: string }>; title: string; headingRef?: React.Ref<HTMLHeadingElement> }   // "Fix 2 fields to save"; the form focuses the heading
 ```
 
 - **Variants:** none (negative banner surface, `CircleX` 16 px). **States:** hidden, shown, shrinking as errors are fixed.
-- **A11y:** heading with `tabIndex={-1}` receives focus; not a live region; each error is a link that focuses its field.
+- **A11y:** heading with `tabIndex={-1}` receives focus; not a live region; each error is one link (label in `type-body-strong`, then the message) that focuses its field. `fieldId` is the id of what takes focus: the input, the `Select` trigger, the first OTP cell. A group control has no single element to focus, so its link scrolls to the group.
 - **Use:** forms with more than 6 fields or more than one section. **Not for:** short forms (focus moves to the first invalid field).
 
 ### 4.28 FormAlert
@@ -1858,7 +1877,7 @@ interface FormAlertProps { message: string; tone?: 'negative' | 'warning' }   //
 ```
 
 - **Variants:** `tone` 2 values (region `Banner` styling). **States:** hidden, shown.
-- **A11y:** `role="alert"` when it appears after submit.
+- **A11y:** `role="alert"` for `negative` and `role="status"` for `warning`: it appears after a submit, so it is announced.
 - **Use:** `422 quota_exceeded`, `competitor_limit`, `budget_exceeded`. **Not for:** field errors (`FieldError`), conflicts (`ConflictDialog`).
 
 ### 4.29 ReadOnlyField
@@ -1867,12 +1886,47 @@ interface FormAlertProps { message: string; tone?: 'negative' | 'warning' }   //
 Purpose: a fact shown for reference and not editable here (keyword text after creation, workspace id, sync time).
 
 ```ts
-interface ReadOnlyFieldProps { label: string; value: string; copyValue?: string; font?: 'sans' | 'mono'; reason?: string }
+interface ReadOnlyFieldProps { label: string; value: string; font?: 'sans' | 'mono'; reason?: string }   // inside <ReadOnlyList>, the dl; copyValue arrives with CopyButton
 ```
 
 - **Variants:** none (`dt` `type-label`, `dd` `type-body` on `bg-surface-subtle rounded-md px-3 min-h-control`). **States:** plain, with copy.
 - **A11y:** description list; not a tab stop unless it has a copy button.
 - **Use:** immutable identity, settings for users without write permission (instead of disabled controls). **Not for:** values that become editable later in the same form (disabled control with reason).
+
+### 4.30 PasswordInput
+`ui/password-input.tsx` · V1 · [10 §21](10-forms.md)
+
+Purpose: a password of the user's own account, with a button that shows it.
+
+```ts
+interface PasswordInputProps extends Omit<InputProps, 'type' | 'variant' | 'autoComplete'> {
+  autoComplete: 'current-password' | 'new-password';   // required
+  showLabel: string;                // "Show password"
+  hideLabel: string;                // "Hide password"
+}
+```
+
+- **Variants:** `size` as `Input`. **States:** hidden, shown, invalid, disabled (input and button together).
+- **A11y:** the button is named by what it will do and has no pressed state; paste and password managers work (WCAG 3.3.8); a shown password is not spell-checked or capitalized; `ref` goes to the input.
+- **Use:** sign in, sign up, reset and change password, the re-authentication dialog. **Not for:** provider tokens (`SecretInput`).
+
+### 4.31 OtpField
+`ui/otp-field.tsx` · V1 · [10 §21](10-forms.md)
+
+Purpose: a one-time code, one digit per cell.
+
+```ts
+interface OtpFieldProps {
+  value?: string; onValueChange?: (value: string) => void; onValueComplete?: (value: string) => void;
+  length?: number;                  // default 6
+  inputRef?: React.Ref<HTMLInputElement>;   // the first cell, for focus after a failed submit
+  disabled?: boolean;
+}
+```
+
+- **Variants:** none (40 px cells, `gap-2`, tabular figures). **States:** empty, filling, complete, invalid, disabled.
+- **A11y:** Base UI `OTPField`: a group named by the `FieldLabel`; `autocomplete="one-time-code"` and the numeric keyboard; a pasted code fills every cell; digits only.
+- **Use:** the code step of sign-in, the re-authentication dialog. **Not for:** recovery codes (a plain `Input` in `type-mono`).
 
 ## 5. Shell and navigation
 
@@ -4673,7 +4727,7 @@ declare function announce(message: string, options?: { politeness?: 'polite' | '
 
 Writes to the two shell live regions (polite and assertive), replaces messages with the same key, clears after 1 s. Used by: result counts, sort changes, selection counts, copy, job completion, column moves, saved view applied. Components never create ad hoc live regions (exceptions: the Toast viewport and form error summaries).
 
-Other helpers referenced above: `applyServerErrors(form, error): boolean` in `lib/forms/server-errors.ts` ([10 §23](10-forms.md)); `useAutoGrow` in `ui/textarea.tsx` for browsers without `field-sizing`.
+Other helpers referenced above: `applyServerErrors(form, items, { fields, messages }): ValidationItem[]` in `lib/forms/apply-server-errors.ts` ([10 §23](10-forms.md)); `useAutoGrow` in `ui/textarea.tsx` for browsers without `field-sizing`.
 
 ## 20. Utilities
 
@@ -4897,3 +4951,18 @@ Disagreements between documents found while compiling this inventory. The resolu
 | 80 | Attributes on primitives | The props in section 3 were closed lists, so a `Tooltip` around a `Badge` or an `Icon` did nothing | Every primitive takes the attributes of its root element and passes them on, with `ref`. `aria-hidden` on the purely decorative ones (`Skeleton`, the decorative `Separator`) is written after them and cannot be overridden. Section 3 lists only the props a primitive adds |
 | 81 | `Kbd` name for screen readers | 20 §19 asked for an `aria-label` on the combination | A visually hidden text beside `aria-hidden` key caps: an `aria-label` on a generic element is not read reliably. 20 §19 corrected. Known cost: a Mac sees "Ctrl" become "⌘" when the page hydrates, because the server cannot know the platform |
 | 82 | Skeleton phase | 17 §3.1 wants all skeletons to pulse together; skeletons mounted at different times are out of phase | Open: decide with the loading states of the shell (one animation clock on the region, or a negative delay from a shared start time) |
+| 83 | `disabledReason` on form controls | Sections 3.5, 4.7, 4.10, 4.12 and 4.13 give `Checkbox`, `Switch`, `RadioGroup`, `Select` options and `SegmentedControl` items a `disabledReason`; none of the first screens has a control that is disabled with a reason | The primitives take `disabled`. `disabledReason` (focusable, with the reason in a tooltip) is added to all of them together by the first screen that needs it. Sections updated |
+| 84 | `FieldLabel.optional` | Section 4.1 had `optional?: boolean`; a primitive cannot read the catalog for the word | `optional` is the marker text; `FormField` keeps the boolean and passes the text |
+| 85 | Helper text while an error shows | Section 4.1 said the description is hidden while an error shows; a hidden element that `aria-describedby` points at is still read | The description is not rendered then. `FormField` renders one or the other |
+| 86 | `SaveBar` save action | Section 4.26 had `onSave`; with a button of type `button`, Enter in a field of a multi-field form would not save | "Save changes" is the form's submit button; `onSave` is gone and `form` names a form the bar sits outside of. Labels are props |
+| 87 | Server error helper | 10 §23 had `applyServerErrors(form, error): boolean` for the whole problem, in `lib/forms/server-errors.ts` | Two steps: `applyServerErrors(form, items, { fields, messages })` maps `errors[]` and returns what matched no field; handling by problem `code` is the form's, typed with `ApiProblem`. 10 §23 rewritten |
+| 88 | Password and one-time code fields | The inventory had `SecretInput` (Later, for provider tokens) and no field for the user's own password or for a TOTP code | `PasswordInput` (4.30) and `OtpField` (4.31) added. The reveal button is named by its action instead of carrying `aria-pressed` |
+| 89 | `ReadOnlyField.copyValue` | Section 4.29 offers a copy button for identifiers; `CopyButton` (3.7) is not built yet | `copyValue` is left out until `CopyButton` exists. `ReadOnlyList` is the `dl` the fields sit in |
+| 90 | Required state | 10 §2.1 said `aria-required` is derived from the schema by `FormField` | `FormField` hands the control `required` (true unless `optional`), and the control sets `aria-required`. Marking optional fields is already the rule, so the schema is not read a second time |
+| 91 | When a field error appears | 10 §18 said "first blur, if the field has been changed (`isDirty`)"; read literally, a field typed into, blurred and emptied again hides its "enter a value" error, and a field only tabbed through showed its error while the user was still typing later | `FormField` reveals the error at the first blur after a change and keeps following changes until the form is reset. 10 §18 rewritten |
+| 92 | Focus after a failed submit on a group control | Section 4.3 said every control forwards `ref`; a radio group has no single element to focus | `RadioGroup` and `SegmentedControl` take `focusRef` (`useRadioFocus`), which focuses the chosen or first enabled option |
+| 93 | Segmented control corners | 09 §6 gives the first and last item the outer radius; Base UI puts a hidden input after every radio, so `last:` never matched and the right end was square | Corners use `first-of-type` and `last-of-type`. 09 §6 unchanged |
+| 94 | Ids of radios inside a `Field` | Base UI gives every hidden radio input inside one `Field` the id of the field's control, unless each radio sits in a `Field.Item`, which in turn needs a `Field.Root` around every use | Open. The inputs are `aria-hidden` and nothing refers to their id, so nothing breaks today. Revisit when Base UI lets a labelable item exist without a field root |
+| 95 | Off switch on hover | 09 §8.3 gives the off track `border-strong` and `foreground-muted` on hover; in the light theme the two are almost the same color, so the hover shows nothing | Open: a token question for 02-color-system (a hover step for `border-strong`). The code follows 09 §8.3 |
+| 96 | Names of the one-time code cells | Every cell is named by the field label; Base UI ignores `aria-label` on the first cell and offers no position | Kept as Base UI does it. A screen reader hears the label on each cell and the group once |
+| 97 | `ErrorSummary` line | 10 §18 joined label and message with a colon inside the component | The label is heavier and the whole line is the link, so no punctuation is built into a primitive |

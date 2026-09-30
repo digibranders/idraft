@@ -299,15 +299,16 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': restrictedImports(PRIMITIVE_IMPORTS), 'no-restricted-globals': NO_FETCH_GLOBAL },
   },
   {
-    files: ['src/components/app/**/*.{ts,tsx}', 'src/components/design-system/**/*.{ts,tsx}'],
+    files: ['src/components/app/**/*.{ts,tsx}'],
     ignores: [...TESTS, 'src/components/app/forms/**'],
     rules: {
       'no-restricted-imports': restrictedImports(NO_FETCHING, FORMS_ONLY),
       'no-restricted-globals': NO_FETCH_GLOBAL,
     },
   },
+  // The form components hold form state, and the component preview shows them in a live form. Neither fetches.
   {
-    files: ['src/components/app/forms/**/*.{ts,tsx}'],
+    files: ['src/components/app/forms/**/*.{ts,tsx}', 'src/components/design-system/**/*.{ts,tsx}'],
     ignores: TESTS,
     rules: { 'no-restricted-imports': restrictedImports(NO_FETCHING), 'no-restricted-globals': NO_FETCH_GLOBAL },
   },

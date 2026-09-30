@@ -2,7 +2,7 @@
 
 Status: Accepted (design-system v2)
 Last updated: 2026-09-29
-Implementation: primitives in `apps/web/src/components/ui/` (`field.tsx`, `input.tsx`, `input-group.tsx`, `textarea.tsx`, `select.tsx`, `combobox.tsx`, `multi-select.tsx`, `checkbox-group.tsx`, `radio-group.tsx`, `segmented-control.tsx`, `date-picker.tsx`, `calendar.tsx`, `number-field.tsx`, `secret-input.tsx`, `file-dropzone.tsx`, `search-input.tsx`, `save-bar.tsx`, `error-summary.tsx`); form components in `apps/web/src/components/app/forms/` (`form-field.tsx`, `url-input.tsx`, `domain-input.tsx`); `DateRangePicker` in `apps/web/src/components/app/filters/date-range-picker.tsx`; `apps/web/src/lib/forms/` (server error mapping, error copy); shared schemas in `packages/contracts/src/forms/`. Primitives in `components/ui` never import react-hook-form, `packages/contracts` or `@/lib/format`: they receive display strings and Intl options from their caller ([26-implementation-guidelines.md](26-implementation-guidelines.md) section 2, rule 1).
+Implementation: primitives in `apps/web/src/components/ui/` (`field.tsx`, `input.tsx`, `input-variants.ts`, `input-group.tsx`, `password-input.tsx`, `otp-field.tsx`, `textarea.tsx`, `select.tsx`, `combobox.tsx`, `multi-select.tsx`, `checkbox-group.tsx`, `radio-group.tsx`, `segmented-control.tsx`, `date-picker.tsx`, `calendar.tsx`, `number-field.tsx`, `secret-input.tsx`, `file-dropzone.tsx`, `search-input.tsx`, `save-bar.tsx`, `error-summary.tsx`); form components in `apps/web/src/components/app/forms/` (`form-field.tsx`, `url-input.tsx`, `domain-input.tsx`); `DateRangePicker` in `apps/web/src/components/app/filters/date-range-picker.tsx`; `apps/web/src/lib/forms/` (server error mapping, error copy); shared schemas in `packages/contracts/src/forms/`. Primitives in `components/ui` never import react-hook-form, `packages/contracts` or `@/lib/format`: they receive display strings and Intl options from their caller ([26-implementation-guidelines.md](26-implementation-guidelines.md) section 2, rule 1).
 Depends on: [04-spacing-density.md](04-spacing-density.md), [06-surfaces-borders-radius.md](06-surfaces-borders-radius.md), [08-interaction-states.md](08-interaction-states.md), [09-buttons-controls.md](09-buttons-controls.md).
 
 ## 1. Scope and decisions at a glance
@@ -37,9 +37,9 @@ Every field is a `FormField` (`components/app/forms/form-field.tsx`), which comp
 |---|---|
 | Field root | `flex flex-col gap-1.5` plus the width class (section 3) |
 | Label | `type-label` (12 / 16 px, weight 400, `foreground-tertiary`). Sentence case, no colon, at most 4 words. It names the value, not the action: "Monthly limit", not "Enter your monthly limit" |
-| Optional marker | `<span className="type-meta"> (optional)</span>` inside the label |
+| Optional marker | A space, then `<span className="type-meta">(optional)</span>`, inside the label. The space is a text node of the label, so the accessible name reads "Job title (optional)" |
 | Control | Per control type below |
-| Helper text | `Field.Description`, `type-meta` (13 / 20 px, `foreground-tertiary`). One line preferred, two maximum. States a format, a constraint or a consequence ("Both adds two tracked keywords for each keyword") |
+| Helper text | `FieldDescription` (`Field.Description`), `type-meta` (13 / 20 px, `foreground-tertiary`). One line preferred, two maximum. States a format, a constraint or a consequence ("Both adds two tracked keywords for each keyword") |
 | Error text | `Field.Error`, `flex items-start gap-1 type-meta text-negative-text`, leading `CircleX` at 12 px (`size-icon-xs`) with `mt-1`, which centers it on the 20 px first line. Shown in place of the helper text. This document owns field anatomy; other documents use the same 12 px icon |
 | Placeholder | `placeholder:text-foreground-tertiary`. Only an example of the expected format ("example.com", "YYYY-MM-DD"). Never the label, never an instruction the user must remember |
 
@@ -52,11 +52,11 @@ Rationale:
 2. An asterisk needs a legend ("* required") and is read inconsistently by screen readers ("star"). A word needs neither.
 3. Users decide whether to skip a field by reading its label; "(optional)" answers that question where it is asked.
 
-Implementation: required controls carry `aria-required="true"` (derived from the schema by `FormField`), so assistive technology announces "required" without a visual asterisk. Forms set `noValidate` so the browser never shows its own validation bubbles. A form in which every field is optional (rare; for example an export options dialog) shows no markers at all.
+Implementation: required controls carry `aria-required="true"`, so assistive technology announces "required" without a visual asterisk. `FormField` hands the control `required` (true unless the field is marked `optional`), and the control puts it on `aria-required`. The native `required` attribute is not used: it would start the browser's and Base UI's own validation beside the schema. Forms set `noValidate` so the browser never shows its own validation bubbles. A form in which every field is optional (rare; for example an export options dialog) shows no markers at all.
 
 ### 2.2 Error replaces helper text
 
-When a field shows an error, the helper text is hidden and the error takes its place. Error messages must therefore contain the constraint that the helper text stated (section 19). This keeps the field one line tall in both states and gives `aria-describedby` a single, current description.
+When a field shows an error, the helper text is not rendered and the error takes its place (`FormField` renders `FieldError` or `FieldDescription`, never both; a description that is only hidden would still be read, because `aria-describedby` reads hidden targets). Error messages must therefore contain the constraint that the helper text stated (section 19). This keeps the field one line tall in both states and gives `aria-describedby` a single, current description.
 
 ## 3. Layout and widths
 
@@ -104,7 +104,7 @@ Shared classes: `w-full rounded-md border border-border bg-surface placeholder:t
 | Disabled | `data-disabled:bg-surface-disabled data-disabled:text-foreground-disabled data-disabled:border-border`, `cursor-not-allowed` |
 | Autofill | `color-scheme` per theme keeps browser autofill colors legible ([01-foundations.md](01-foundations.md) section 3) |
 
-**Adornments** (prefix text, units, icons, buttons) use `InputGroup`: the group draws the border, radius and `focus-within:focus-ring`; the inner input has no border and `min-w-0 flex-1`. Prefix and suffix text is `type-body text-foreground-tertiary` with 8 px between it and the value, and is not part of the value. Buttons inside a group are `icon-xs` (24 px) at 4 px from the edge.
+**Adornments** (prefix text, units, icons, buttons) use `InputGroup`: the group draws the border, the radius and the focus ring while its input has focus (`has-[input:focus-visible]:focus-ring`; a focused button inside shows its own ring); the invalid border and the disabled fill are read from the input only (`has-[input[data-invalid]]`, `has-[input[data-disabled]]`), so a disabled button beside an enabled input changes nothing; a press on the padding, the icon or the unit puts the caret in the input; the inner input has no border and `min-w-0 flex-1`. Prefix and suffix text is `type-body text-foreground-tertiary` with 8 px between it and the value, and is not part of the value. Buttons inside a group are `icon-xs` (24 px) at 4 px from the edge.
 
 ## 5. Textarea
 
@@ -183,13 +183,13 @@ Summary presentation: the trigger is a `Select`-styled button; the popup has a s
 
 ## 7. Checkbox group and radio group
 
-Both are `Fieldset.Root` with `Fieldset.Legend` styled `type-label`, so the group has a programmatic name (`<fieldset>` and `<legend>`).
+Both are named by a `Fieldset.Legend` styled `type-label`, so the group has a programmatic name. A checkbox group is a `<fieldset>`; a radio group renders the Base UI `RadioGroup` as the fieldset element, so it is a `role="radiogroup"` named by the legend.
 
 | Aspect | Checkbox group (`CheckboxGroup`) | Radio group (`RadioGroup`) |
 |---|---|---|
 | Use | Zero or more independent choices | Exactly one choice from 2 to 6 |
-| Layout | Vertical, `gap-2`; horizontal (`gap-4`) only for 3 or fewer options of 2 words or less | Same |
-| Option | Control plus label `type-body`; optional description `type-meta` under the label, aligned to the label's left edge (`grid grid-cols-[auto_1fr] gap-x-2`) | Same |
+| Layout | Vertical, `gap-2`; horizontal (`gap-4`) only for 3 or fewer options of 2 words or less | Vertical, `gap-2`. Short options that belong side by side are a `SegmentedControl` |
+| Option | Control plus label `type-body`; optional description `type-meta` under the label, aligned to the label's left edge (the 24 px target plus the 8 px gap: `pl-8`). The description describes the control (`aria-describedby`) and is not part of its name | Same |
 | Parent | "Select all" parent checkbox with indeterminate state when there are more than 5 options | n/a |
 | Error | Below the whole group, not per option ("Select at least one engine") | Below the group |
 | Default | Schema default; never all checked "to be safe" | Always one selected unless "none" is a valid answer |
@@ -332,14 +332,15 @@ A settings page whose fields are saved together uses one react-hook-form form an
 |---|---|
 | Visibility | Rendered while `formState.isDirty` is true. Reverting every edit hides it again |
 | Position | `sticky bottom-0` inside the content scroll container, `z-(--z-sticky)`, spanning the content area; its contents align to the 640 px form column |
-| Surface | `h-save-bar` (56 px, `--size-save-bar`), `bg-surface border-t border-border px-5` (the 20 px page gutter) |
+| Surface | `min-h-save-bar` (56 px, `--size-save-bar`; taller only when the summary wraps on a narrow screen), `bg-surface border-t border-border px-5` (the 20 px page gutter). It is a `role="group"` named by its summary |
 | Left | "{n} unsaved changes" (count of dirty fields, `formatInteger`) in `type-body text-foreground-secondary` |
-| Right | "Discard" (`ghost`) then "Save changes" (`primary`), `md` (36 px), `gap-2` |
-| Motion | Opacity over 150 ms; instant under reduced motion |
+| Right | "Discard" (`ghost`) then "Save changes" (`primary`), `md` (36 px), `gap-2`. "Save changes" is the submit button of the form (`type="submit"`, with the `form` attribute when the bar is rendered outside the `<form>`), so Enter in a field and a click on it do the same thing |
+| Motion | Fades in over 150 ms (`starting:opacity-0`); leaves at once; instant under reduced motion |
 | Space | The form reserves the bar's height (`pb-save-bar`, 56 px) and the scroll container sets `scroll-padding-bottom` to `var(--size-save-bar)`, so the bar never hides the focused field (WCAG 2.4.11) |
 | Save | Validates everything (section 18). On success, `reset()` with the saved values hides the bar and a polite live region says "Changes saved". No toast |
 | Failure | The bar stays; field errors are mapped (section 23); focus moves to the first error or the error summary |
 | Discard | Resets to the last saved values immediately, without confirmation |
+| Focus | When the bar leaves while one of its buttons has focus (after a save or a discard), focus moves to the first field of the form, so it is never lost to the page |
 | Leaving | In-app navigation while dirty opens a dialog: "Discard unsaved changes?", body "Your changes to Budgets will be lost.", buttons "Keep editing" (`secondary`, initial focus) and "Discard changes" (`destructive-solid`). Closing the tab triggers the browser's `beforeunload` prompt |
 
 Dialog forms (sections 25.1 and 25.2) do not use a save bar; their footer holds the actions.
@@ -443,19 +444,19 @@ Short edits inside a table toolbar or a table cell: bulk "Set priority", "Add ta
 | Submit | Every field | All errors; focus moves (below) |
 | Server response | Server rules | Field and form errors (section 23) |
 
-Configuration: `useForm({ mode: 'onTouched', reValidateMode: 'onChange', shouldFocusError: true })`. `FormField` displays an error only when `fieldState.error` exists and the field is dirty or the form has been submitted, so tabbing through an empty required field does not produce "Enter a keyword" before the user has tried.
+Configuration: `useForm({ mode: 'onTouched', reValidateMode: 'onChange', shouldFocusError: true })`. `FormField` decides what is shown: an error appears when the field loses focus after the user changed it (`isDirty` at that blur), and from then on it follows every change, also when the field is emptied again; a submit shows every error; an error set by the server shows at once. So tabbing through an empty required field shows nothing, and nothing appears while the user is still typing, also in a field that was only tabbed through before. A reset (`reset()` or `reset(values)`) starts every field over. A step of a multi-step dialog validates with the `handleSubmit` of that step: errors set by `trigger()` alone are shown only on fields the user has edited.
 
-**Focus on failed submit.** Forms with up to 6 fields and one section move focus to the first invalid field (react-hook-form `shouldFocusError`; every control forwards its `ref`). Longer forms render an `ErrorSummary` at the top of the form and move focus to it:
+**Focus on failed submit.** Forms with up to 6 fields and one section move focus to the first invalid field (react-hook-form `shouldFocusError`; every control takes the field's `ref`, and a group control takes it as `focusRef`, which focuses its chosen or first option). Longer forms render an `ErrorSummary` at the top of the form and move focus to it:
 
 ```
  +------------------------------------------------------------+
  | (x) Fix 2 fields to save                                   |
- |     Monthly limit: Enter an amount from $1.00 to $100,000.00|
- |     Soft limit: Enter a percentage from 1 to 100           |
+ |     Monthly limit  Enter an amount from $1.00 to $100,000.00|
+ |     Soft limit  Enter a percentage from 1 to 100            |
  +------------------------------------------------------------+
 ```
 
-The summary is a region banner ([18-notifications-alerts.md](18-notifications-alerts.md) section 4: `rounded-md border border-negative-border bg-negative-subtle py-2 px-3`, `CircleX` 16 px `text-negative-text`), heading `type-subsection-title` with `tabIndex={-1}`, and one link per error (`text-link`) that focuses its field. It is not a live region, because moving focus to it already causes it to be read; announcing it twice is noise. It disappears once all listed errors are fixed.
+The summary is a region banner ([18-notifications-alerts.md](18-notifications-alerts.md) section 4: `rounded-md border border-negative-border bg-negative-subtle py-2 px-3`, `CircleX` 16 px `text-negative-text`), heading `type-subsection-title` with `tabIndex={-1}`, and one link per error that focuses its field: the whole line is the link, with the field's label in `type-body-strong text-link`, underlined, followed by the message. No punctuation joins the two, so the line needs no translation rule. If the target cannot take focus the link still scrolls to it. It is not a live region, because moving focus to it already causes it to be read; announcing it twice is noise. It disappears once all listed errors are fixed.
 
 **Asynchronous checks** (uniqueness of a name or domain) run on blur, never per keystroke; the server check on submit remains authoritative.
 
@@ -506,6 +507,10 @@ WCAG 1.3.5 requires the purpose of fields about the user to be programmatically 
 
 Password fields allow paste and password managers (WCAG 3.3.8).
 
+**`PasswordInput`** (`ui/password-input.tsx`) is the field for a password of the user's own account: an `InputGroup` with a trailing `icon-xs` button that shows or hides the password. The button is named by what it will do ("Show password", then "Hide password"), so it has no pressed state; `autoComplete` is a required prop (`current-password` or `new-password`). A shown password is never spell-checked or capitalized. A provider token is not a password and uses `SecretInput` (section 14).
+
+**`OtpField`** (`ui/otp-field.tsx`, Base UI `OTPField`) is the field for a one-time code: six 40 px cells (`size-control-lg`, `gap-2`, tabular figures), digits only. Typing moves to the next cell, Backspace to the previous one, and a pasted code fills every cell, spaces ignored. The first cell carries `autocomplete="one-time-code"`; the group is named by the `FieldLabel` of its `Field`.
+
 ## 22. react-hook-form and zod integration
 
 1. **One schema, two consumers.** Form schemas live in `packages/contracts/src/forms/` and are built from the API request schemas with `.pick`, `.extend` and `.transform`. The web app never redeclares a constraint (length, range, regex) that the contract already has.
@@ -543,7 +548,8 @@ export type BudgetCreateBody = z.output<typeof BudgetForm>;
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { BudgetForm, type BudgetCreateBody, type BudgetFormValues } from '@contracts/forms/budget';
-import { applyServerErrors } from '@/lib/forms/server-errors';
+import { applyServerErrors } from '@/lib/forms';
+import { isApiProblem } from '@/lib/api';
 import { toBudgetFormValues, useCreateBudget } from './budget-api';
 
 export function BudgetFormView({ defaultValues }: { defaultValues: BudgetFormValues }): React.ReactElement {
@@ -561,7 +567,9 @@ export function BudgetFormView({ defaultValues }: { defaultValues: BudgetFormVal
       const saved = await createBudget.mutateAsync(body);
       form.reset(toBudgetFormValues(saved));
     } catch (error: unknown) {
-      if (!applyServerErrors(form, error)) throw error;
+      if (!isApiProblem(error) || error.code !== 'validation_failed') throw error;
+      const rest = applyServerErrors(form, error.errors ?? [], { fields: ['workload', 'limit_usd', 'soft_limit_pct', 'action_on_hard'] });
+      setFormError(rest[0]?.message ?? null);   // shown in a FormAlert
     }
   });
 
@@ -577,19 +585,28 @@ Rules: `'use client'` only on the form component; data fetching for defaults sta
 
 ## 23. Server errors mapped to fields
 
-`applyServerErrors(form, error)` in `lib/forms/server-errors.ts` handles RFC 9457 problems ([19-api-specification.md](../19-api-specification.md) section 2.7) and returns `true` when it has shown the error:
+RFC 9457 problems ([19-api-specification.md](../19-api-specification.md) section 2.7) reach a form in two steps.
+
+**Step 1, field errors.** `applyServerErrors(form, items, { fields, messages })` in `lib/forms/apply-server-errors.ts` takes the `errors[]` of a `422 validation_failed` and returns the items that belong to no field of the form:
+
+| Item | Handling |
+|---|---|
+| `location: "body"` and a path that is one of `fields` or lies under one (`items.3.keyword` under `items`) | `form.setError(field, { type: 'server', message })` on the field with that exact path, or else on the longest listed field the path lies under, because that is what the form renders. A field keeps the first error it gets. The message is the client copy for the item's `code` when `messages` has one, else the server `message`. The first such field takes focus |
+| A body path the form does not render, or `location` `query`, `path` or `header` | Returned, in order. The form shows these in a `FormAlert` above the footer or save bar; nothing is dropped |
+
+`fields` is the list of field names the form renders. It is passed explicitly, because react-hook-form has no public way to ask which fields are mounted.
+
+**Step 2, the problem as a whole.** The form's submit handler decides by `code` before or after step 1. This part is typed with `ApiProblem` and arrives with the API client:
 
 | Response | Handling |
 |---|---|
-| `422 validation_failed` with `errors[]` | For each item with `location: "body"`, `form.setError(path, { type: 'server', message })`. Array paths match react-hook-form's dot notation (`items.3.keyword`). The message comes from the client copy map for `code` when one exists, else the server `message` |
-| Error for a path with no field in the form | Collected into a form-level error (`form.setError('root.server', { type: 'server', message })`), shown as a `FormAlert` banner above the footer or save bar |
-| Code tied to one field (`409 duplicate`, `422 url_not_allowed`, `422 keyword_too_long`) | Mapped to its field through a per-form `codeToField` map |
+| Code tied to one field (`409 duplicate`, `422 url_not_allowed`, `422 keyword_too_long`, `422` with `slug_reserved`) | Mapped to its field through a per-form `codeToField` map, then as step 1 |
 | Form-level codes (`422 quota_exceeded`, `422 competitor_limit`, `422 budget_exceeded`) | `FormAlert` with the limit and the way out (section 19) |
 | `409 conflict`, `412 precondition_failed` | Not a form error: the conflict dialog with "Reload" ([20-frontend-specification.md](../20-frontend-specification.md) section 3.7) |
 | `403 fresh_session_required` | Re-authentication dialog, then one automatic retry |
-| Anything else | Returns `false`; the caller rethrows |
+| Anything else | The caller rethrows to the route's error boundary |
 
-After mapping, focus moves to the first field with a server error (or to the error summary in long forms). A server error clears when the user changes that field.
+After mapping, focus is on the first field with a server error (or on the error summary in long forms). A server error clears when the user changes that field, because the schema is checked again on every change.
 
 ## 24. Accessibility
 

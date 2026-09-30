@@ -35,7 +35,8 @@ apps/web/src/
       tooltip.tsx  toggletip.tsx  popover.tsx  preview-card.tsx  menu.tsx  context-menu.tsx
       dialog.tsx  alert-dialog.tsx  stepper-dialog.tsx  drawer.tsx  tabs.tsx  pagination.tsx
       progress.tsx  meter.tsx  toast.tsx
-      field.tsx  input.tsx  input-group.tsx  textarea.tsx  select.tsx  combobox.tsx
+      field.tsx  input.tsx  input-variants.ts  input-group.tsx  password-input.tsx  otp-field.tsx
+      textarea.tsx  select.tsx  combobox.tsx
       multi-select.tsx  checkbox.tsx  checkbox-group.tsx  radio-group.tsx  switch.tsx
       setting-row.tsx  slider.tsx  calendar.tsx  date-picker.tsx  number-field.tsx
       secret-input.tsx  secret-reveal.tsx  file-dropzone.tsx  search-input.tsx  save-bar.tsx
@@ -73,7 +74,7 @@ apps/web/src/
     filters/                        nuqs parsers and filter field registry
     metrics/                        Metric definitions registry (labels, definitions, polarity)
     a11y/                           announce() live-region announcer, useShortcut
-    forms/                          applyServerErrors (RFC 9457 problems to fields), input normalizers (display preview only; the API normalizes)
+    forms/                          applyServerErrors (validation items of a problem to fields), input normalizers (display preview only; the API normalizes)
     api/                            Generated OpenAPI types (schema.d.ts), openapi-fetch clients, query keys
   styles/
     tokens.css  globals.css
@@ -237,7 +238,7 @@ All shareable state lives in the URL through `nuqs` 2 (`NuqsAdapter` from `nuqs/
 | Class ordering and formatting | Prettier (`pnpm format:check`) with the Tailwind plugin, `tailwindFunctions: ["cn", "cva"]` (ESLint ordering rule off) | all except `design-preview` and `src/styles` | Implemented |
 | No `dangerouslySetInnerHTML` | ESLint `react/no-danger` | all | Implemented |
 | No literal text in JSX | `eslint-plugin-i18next` `no-literal-string`, type-aware: JSX text, template literals, conditional text and every string prop are checked, except props typed as a set of literal values (`variant`, `size`) and a short list of technical attributes. Literals in `aria-description`, `aria-valuetext`, `aria-roledescription`, `aria-placeholder` and `label` on native elements are caught by `no-restricted-syntax` | `src/**/*.tsx` except the preview sections and tests | Implemented |
-| Components do not fetch; form state only in features and `components/app/forms`; primitives import only React, Base UI, Lucide, cva, cn and each other | `no-restricted-imports`, `no-restricted-globals` (`fetch`), and a boundaries file category for the API clients | `src/components/**` | Implemented |
+| Components do not fetch; form state only in features, `components/app/forms` and the component preview (`components/design-system`, which shows a live form); primitives import only React, Base UI, Lucide, cva, cn and each other | `no-restricted-imports`, `no-restricted-globals` (`fetch`), and a boundaries file category for the API clients | `src/components/**` | Implemented |
 | Warnings fail the run | `eslint . --max-warnings 0` | all | Implemented |
 | No em-dash or en-dash in any source text, comments included | Vitest `src/test/source-text.test.ts` | every source file of `apps/web` | Implemented |
 | Import boundaries | `eslint-plugin-boundaries` (`dependencies` with the rules of section 2, `no-unknown-files`, `no-unknown-dependencies`), resolving `@/` through `eslint-import-resolver-typescript`. A file in a folder that has no layer is an error, so a new folder cannot escape the rules | `src/**` except tests | Implemented |
