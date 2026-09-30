@@ -68,5 +68,35 @@ export function pendingSessionCookie(user: MockUserSeed, now: number = Date.now(
 
 export const clearedSessionCookie = `${SESSION_COOKIE}=; Path=/; Secure; SameSite=Lax; Max-Age=0`;
 
-export const nameCookie = (name: string): string =>
-  `${NAME_COOKIE}=${encodeURIComponent(name)}; Path=/; Secure; SameSite=Lax; Max-Age=${String(ACTIVE_MAX_AGE_SECONDS)}`;
+/** A cookie of the mocks' memory: it outlives a page load, and the server's MSW sees it too. */
+const memoryCookie = (name: string, value: string): string =>
+  `${name}=${encodeURIComponent(value)}; Path=/; Secure; SameSite=Lax; Max-Age=${String(ACTIVE_MAX_AGE_SECONDS)}`;
+
+export const nameCookie = (name: string): string => memoryCookie(NAME_COOKIE, name);
+
+/**
+ * The password the invited person chose when they registered with the invitation token. A development
+ * fixture, readable on purpose like the session cookie: the page loads between registering and signing in,
+ * and memory does not survive that.
+ */
+export const INVITEE_COOKIE = 'mock-invitee';
+export const inviteeCookie = (password: string): string => memoryCookie(INVITEE_COOKIE, password);
+/** Set once the invited person accepted the invitation; until then they belong to no workspace. */
+export const JOINED_COOKIE = 'mock-joined';
+export const joinedCookie = memoryCookie(JOINED_COOKIE, 'yes');
+
+/** Every cookie of the mocks: a test expires them all, so it starts from the fixtures, signed out. */
+export const MOCK_COOKIES: readonly string[] = [SESSION_COOKIE, NAME_COOKIE, INVITEE_COOKIE, JOINED_COOKIE];
+
+/** The `Set-Cookie` that expires cookie `name`. */
+export const expiredCookie = (name: string): string => `${name}=; Path=/; Secure; SameSite=Lax; Max-Age=0`;
+
+/** The password the invited person registered with, if they did. */
+export function inviteePassword(cookies: Readonly<Record<string, string>>): string | undefined {
+  const saved = cookieOf(cookies, INVITEE_COOKIE);
+  return saved === undefined || saved === '' ? undefined : decodeURIComponent(saved);
+}
+
+/** Whether the invited person has joined the workspace. */
+export const hasJoined = (cookies: Readonly<Record<string, string>>): boolean =>
+  cookieOf(cookies, JOINED_COOKIE) === 'yes';

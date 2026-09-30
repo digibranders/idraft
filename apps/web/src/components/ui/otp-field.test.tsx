@@ -25,6 +25,19 @@ describe('OtpField', () => {
     for (const cell of cells()) expect(cell).toHaveAccessibleName(/Authentication code/);
   });
 
+  it('names each cell after the first by its position when given the words', () => {
+    renderWithProviders(
+      <Field>
+        <FieldLabel>Authentication code</FieldLabel>
+        <OtpField digitLabel={(position, length) => `Digit ${String(position)} of ${String(length)}`} />
+      </Field>,
+    );
+    const [first, second, , , , last] = cells();
+    expect(first).toHaveAccessibleName(/Authentication code/);
+    expect(second).toHaveAccessibleName('Digit 2 of 6');
+    expect(last).toHaveAccessibleName('Digit 6 of 6');
+  });
+
   it('lets the browser offer a code from a message and asks for the numeric keyboard', () => {
     renderWithProviders(
       <Field>

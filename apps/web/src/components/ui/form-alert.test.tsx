@@ -42,6 +42,12 @@ describe('FormAlert', () => {
     expect(screen.getByRole('alert')).toHaveClass('mt-4');
   });
 
+  it('is no live region when it takes focus instead, so it is read once', () => {
+    render(<FormAlert message={QUOTA} live={false} tabIndex={-1} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText(QUOTA)).toBeInTheDocument();
+  });
+
   it('has no accessibility violations', async () => {
     const { container } = render(<FormAlert message={QUOTA} />);
     expect(await axe(container)).toHaveNoViolations();

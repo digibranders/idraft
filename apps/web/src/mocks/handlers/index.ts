@@ -1,6 +1,7 @@
 import type { HttpHandler } from 'msw';
 
 import { authHandlers } from './auth';
+import { invitationHandlers } from './invitations';
 import { meHandlers } from './me';
 import { pendingHandlers } from './pending';
 import { projectHandlers } from './projects';
@@ -14,6 +15,7 @@ export type MockMode = 'pending' | 'all';
 export const handlers: readonly HttpHandler[] = [
   ...authHandlers,
   ...meHandlers,
+  ...invitationHandlers,
   ...projectHandlers,
   ...pendingHandlers,
 ];

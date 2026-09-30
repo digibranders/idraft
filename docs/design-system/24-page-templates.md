@@ -4,7 +4,7 @@ Status: Accepted (design-system v2)
 Last updated: 2026-09-29
 Depends on: [05-layout-grid.md](05-layout-grid.md), [11-navigation.md](11-navigation.md), [12-tables.md](12-tables.md), [13-filters-search.md](13-filters-search.md), [15-data-visualization.md](15-data-visualization.md), [23-application-patterns.md](23-application-patterns.md). Product sources: [20-frontend-specification.md](../20-frontend-specification.md) section 5, [15-seo-ai-correlation.md](../15-seo-ai-correlation.md), [27-cost-model.md](../27-cost-model.md).
 
-Every screen is built from one of six templates. A template fixes the regions, their order, their sizes and their scroll behavior; the screen fills them with content. A screen that needs a region no template has is a design-system change ([00-design-principles.md](00-design-principles.md) section 7).
+Every screen is built from one of seven templates. A template fixes the regions, their order, their sizes and their scroll behavior; the screen fills them with content. A screen that needs a region no template has is a design-system change ([00-design-principles.md](00-design-principles.md) section 7).
 
 ## 1. Reading the wireframes
 
@@ -26,6 +26,7 @@ Every screen is built from one of six templates. A template fixes the regions, t
 | T4 Settings | Configure a project or workspace | Project and workspace settings, alert rule editor, entity editor |
 | T5 Integration | Connect and monitor one external data source | Search Console, Bing, GA4, Cloudflare, file imports |
 | T6 Discovery | Triage candidates into tracked objects | Discover: Keywords, Prompts, Opportunities; Competitor candidates |
+| T7 Auth | Get a person into the product, or back in | Sign in, second factor, password reset, email verification, invitation (section 11) |
 
 The SEO and AI Matrix is a T2 variant with a chart region between the header and the table (section 9.9).
 
@@ -1045,5 +1046,57 @@ Components first named in this document. Components introduced in [23-applicatio
 | `ScopeList` | Plain-language list of an integration's access scopes, raw scope strings in tooltips | T5 |
 | `TopBar` | 52 px top bar on `surface` with a bottom hairline: breadcrumb (`House` root, `ChevronRight` separators) with workspace and project menus, search field with `⌘K` hint, date range and location scope buttons, notifications, theme menu, help menu, 32 px avatar for the user menu | 9.1 |
 | `Banner` | Inline notice (info, warning, negative) with icon, one or two sentences and up to 2 actions ([18-notifications-alerts.md](18-notifications-alerts.md) section 4); used for consequences, partial data, re-auth | T1, T4, T5 |
+| `AuthCard` | The one panel of an auth screen: product name, title, one sentence, the form, links below | T7 |
 
 `Banner`, `TopBar` and `Toaster` may already be specified in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md), [17-empty-loading-error-states.md](17-empty-loading-error-states.md) or [18-notifications-alerts.md](18-notifications-alerts.md); if so, those definitions win and this table only records the usage. The inspector header opens the full page with the expand icon button ("Open page", `Maximize2`, [23-application-patterns.md](23-application-patterns.md) section 4.1).
+
+## 11. T7 Auth
+
+**Purpose.** Get a person into the product, or back in, with one task per screen and nothing else to read: sign in, enter the second-factor code, reset a password, verify an email address, accept an invitation. No product chrome: the person has no session yet, so there is no sidebar, top bar or navigation.
+
+```text
++-------------------------------------------------------------------------------------------+
+|                                     background                                            |
+|                                                                                           |
+|                                  Sightline (type-section-title)                           |
+|                     +-----------------------------------------------+                    |
+|                     | Sign in (type-page-title)                     |  400 px            |
+|                     | One sentence (type-body, foreground-secondary)|  surface, 1 px     |
+|                     |                                               |  border, rounded-lg|
+|                     | [FormAlert, only after a failed submit]       |  32 px padding     |
+|                     | Email                                         |                    |
+|                     | [Input 40 px                                ] |                    |
+|                     | Password                                      |                    |
+|                     | [PasswordInput 40 px                        ] |                    |
+|                     | [Sign in (primary, lg, full width)          ] |                    |
+|                     +-----------------------------------------------+                    |
+|                        Forgot your password? (TextLink, standalone)                       |
++-------------------------------------------------------------------------------------------+
+```
+
+| Region | Component | Size | Behavior |
+|---|---|---|---|
+| Page | `(auth)/layout.tsx` | Full viewport, `background` | One column centered horizontally; the column starts 48 px from the top (`pt-12`) from 640 px wide, 24 px (`pt-6`) below that, so a phone keyboard never hides the first field |
+| Product name | Text, `type-section-title`, `foreground` | 24 px line | Above the panel, 24 px apart. Not a link: there is nowhere to go without a session |
+| Panel | `AuthCard` | 400 px wide (`max-w-dialog-sm`), 32 px padding (`p-8`), `surface`, 1 px `border`, `rounded-lg`, no shadow | Holds the heading, one sentence and the form. 24 px between the sentence and the form |
+| Heading | `h1`, `type-page-title`, focusable (`tabindex="-1"`) | | One per step: "Sign in", "Enter your code", "Reset your password", "Choose a new password", "Your email address is verified", "Join Digibranders" (or "Create your account" when the invitation cannot be described). The page title follows it |
+| Sentence | `type-body`, `foreground-secondary` | At most two lines | Says what happens next, never marketing |
+| Form | `FormField` groups, 16 px apart; controls at `h-control-lg` (40 px) | | One primary button, `size="lg"`, full width, last in the panel. The problem of the whole form is a `FormAlert` at the top of the panel; field problems are on the fields ([10-forms.md](10-forms.md) section 23) |
+| Secondary links | `TextLink` (standalone), `type-body`; a `Button` `variant="link"` for an action on the same page ("Use a recovery code") | Below the panel, 16 px apart, centered | At most two ("Forgot your password?", "Use a recovery code", "Back to sign in", "Sign in to accept") |
+
+**Rules.**
+
+- One task per screen: no second column, no illustration, no marketing copy, no social sign-in buttons.
+- Every screen works with the keyboard alone: the first field has focus on load; Enter submits; a failed submit moves focus to the `FormAlert`, or to the first invalid field when the problem belongs to one ([10-forms.md](10-forms.md) section 18).
+- Passwords: `PasswordInput` with the show and hide button, paste allowed, `autocomplete="current-password"` to sign in and `"new-password"` to choose one. The email of an account: `type="email"`, `autocomplete="username"`, so a password manager saves the password with it; an email that only asks for a link keeps `"email"`. Codes: `OtpField` with `autocomplete="one-time-code"`, each cell after the first named "Digit n of 6". Text fields use `type-input-touch` (16 px) below 768 px so iOS does not zoom.
+- When a step replaces the panel's content and has no field to focus, focus moves to the heading so the change is read ([20-accessibility.md](20-accessibility.md) section 4.3). A `FormAlert` that takes focus is not also a live region.
+- A confirmation replaces the form inside the same panel (heading, one sentence, one link or button), so the person stays where they looked.
+- Tokens from emailed links arrive in the URL fragment and are removed from the address bar once read ([20-frontend-specification.md](../20-frontend-specification.md) section 3.2).
+
+**Components used:** `AuthCard`, `FormField`, `Input`, `PasswordInput`, `OtpField`, `Button`, `FormAlert`, `TextLink`.
+
+**States:** idle; submitting (the button shows `loading` and the form cannot be sent twice, also while the next page loads); failed (form alert or field errors, the typed values kept); confirmation (the panel's content is replaced); link not valid (an `invalid_token` answer: the heading says so and offers a new link).
+
+**URL state:** `next` on sign-in and on the second factor, passed on unchanged and checked by `safeNextPath` before it is followed.
+
+**Responsive:** below 640 px (the `sm` breakpoint) the panel loses its border, fill and padding and fills the width inside the 16 px page gutter; the product name stays above it. Controls keep 40 px.

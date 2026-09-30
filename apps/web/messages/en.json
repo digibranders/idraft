@@ -9,7 +9,123 @@
     "retry": "Try again",
     "loading": "Loading",
     "optional": "(optional)",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "analyst": "Analyst",
+      "viewer": "Viewer",
+      "billing": "Billing"
+    }
+  },
+  "auth": {
+    "fields": {
+      "name": "Your name",
+      "email": "Email",
+      "password": "Password",
+      "newPassword": "New password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password"
+    },
+    "validation": {
+      "nameRequired": "Enter your name.",
+      "emailRequired": "Enter your email address.",
+      "emailInvalid": "Enter an email address, like name@example.com.",
+      "passwordRequired": "Enter your password.",
+      "passwordTooShort": "Use at least {min} characters.",
+      "codeIncomplete": "Enter all 6 digits of the code.",
+      "recoveryCodeRequired": "Enter a recovery code.",
+      "nameTooLong": "Use at most {max} characters.",
+      "recoveryCodeTooLong": "A recovery code is at most {max} characters. Check what you typed."
+    },
+    "weakPassword": {
+      "tooShort": "Use at least {min} characters.",
+      "tooLong": "Use at most 128 characters.",
+      "containsEmail": "Do not use your email address in the password.",
+      "breached": "This password appears in known data breaches. Choose another one.",
+      "unchanged": "Choose a password that is different from the current one.",
+      "other": "Choose a stronger password."
+    },
+    "problems": {
+      "rateLimited": "Too many attempts. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+      "serviceUnavailable": "This is not available right now. Try again in a minute.",
+      "unexpected": "The request did not go through. Try again, and contact support if it keeps happening.",
+      "tooManyEmails": "Too many emails were requested for this address. Try again in {minutes, plural, one {# minute} other {# minutes}}."
+    },
+    "links": {
+      "backToSignIn": "Back to sign in",
+      "forgotPassword": "Forgot your password?"
+    },
+    "login": {
+      "title": "Sign in",
+      "description": "Use the email address and password of your account.",
+      "submit": "Sign in",
+      "invalidCredentials": "The email or password is not correct.",
+      "notices": {
+        "passwordReset": "Your password was changed. Sign in with the new one.",
+        "accountCreated": "Your account is ready. Sign in to continue.",
+        "sessionExpired": "Signing in took too long. Enter your email and password again."
+      }
+    },
+    "twoFactor": {
+      "title": "Enter your code",
+      "description": "Open your authenticator app and enter the 6-digit code it shows for {product}.",
+      "code": "Authentication code",
+      "recoveryTitle": "Enter a recovery code",
+      "recoveryDescription": "Enter one of the recovery codes you saved when you turned on two-factor authentication.",
+      "recoveryCode": "Recovery code",
+      "submit": "Continue",
+      "useRecoveryCode": "Use a recovery code",
+      "useAuthenticator": "Use your authenticator app",
+      "invalidCode": "The code is not correct. Check the time on your device, then try the new code.",
+      "invalidRecoveryCode": "The recovery code is not correct, or it was used before.",
+      "digit": "Digit {position} of {length}"
+    },
+    "resetRequest": {
+      "title": "Reset your password",
+      "description": "Enter the email address of your account. We will send it a link to choose a new password.",
+      "submit": "Send link",
+      "sentTitle": "Check your email",
+      "sentDescription": "If an account uses {email}, we sent it a link to choose a new password."
+    },
+    "resetConfirm": {
+      "title": "Choose a new password",
+      "description": "Use at least {min} characters. A few unrelated words are easy to remember and hard to guess.",
+      "submit": "Save password"
+    },
+    "invalidLink": {
+      "title": "This link does not work",
+      "description": "It was used already, or it has expired.",
+      "newResetLink": "Send new link"
+    },
+    "verifyEmail": {
+      "checkingTitle": "Checking your link",
+      "checkingDescription": "This takes a moment.",
+      "doneTitle": "Your email address is verified",
+      "doneDescription": "You can now use every part of {product}.",
+      "continue": "Continue",
+      "invalidDescription": "It was used already, or it has expired. Enter your email address to get a new link.",
+      "missingTitle": "This link is not complete",
+      "missingDescription": "Open the link in your email again, or enter your email address to get a new one.",
+      "failedTitle": "Your link could not be checked",
+      "submit": "Send new link",
+      "sentTitle": "Check your email",
+      "sentDescription": "If {email} has an account that is not verified yet, a new link is on its way."
+    },
+    "invite": {
+      "title": "Join {workspace}",
+      "description": "{inviter} invited you as {role, select, owner {an owner} admin {an admin} editor {an editor} analyst {an analyst} viewer {a viewer} billing {a billing contact} other {a member}}. Create your account to accept.",
+      "genericTitle": "Create your account",
+      "genericDescription": "Use the email address your invitation was sent to. You join the workspace when you sign in.",
+      "loadingTitle": "Opening your invitation",
+      "submit": "Create account",
+      "registrationClosed": "This invitation cannot be used. Ask the person who invited you for a new one.",
+      "duplicate": "An account already uses this email address. Sign in to accept the invitation.",
+      "signInToAccept": "Sign in to accept",
+      "missingTitle": "This invitation link is not complete",
+      "missingDescription": "Open the link in your invitation email again, or ask for a new invitation."
+    }
   },
   "errors": {
     "notFound": {
@@ -19,6 +135,43 @@
     "generic": {
       "title": "Something went wrong",
       "description": "The page could not be shown. Try again, and contact support if it keeps happening."
+    }
+  },
+  "shell": {
+    "reauth": {
+      "title": "Confirm it is you",
+      "passwordDescription": "Enter your password to continue.",
+      "codeDescription": "Enter the 6-digit code from your authenticator app to continue.",
+      "password": "Password",
+      "code": "Authentication code",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "submit": "Confirm",
+      "passwordRequired": "Enter your password.",
+      "codeIncomplete": "Enter all 6 digits of the code.",
+      "invalidPassword": "The password is not correct.",
+      "invalidCode": "The code is not correct. Check the time on your device, then try the new code.",
+      "secondFactorRequired": "Your account uses two-factor authentication, so confirm with a code instead.",
+      "rateLimited": "Too many attempts. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+      "failed": "Something went wrong. Try again, and contact support if it keeps happening."
+    }
+  },
+  "session": {
+    "noWorkspace": {
+      "title": "You are not in a workspace yet",
+      "description": "Ask an owner or admin of your team's workspace to invite you, then open the link in the invitation email.",
+      "signedInAs": "Signed in as {email}",
+      "signOut": "Sign out"
+    },
+    "signOutFailed": "You could not be signed out. Check your connection and try again.",
+    "invitation": {
+      "title": "The invitation could not be accepted",
+      "expired": "It has expired. Ask the person who invited you for a new one.",
+      "invalid": "It was withdrawn, or it was sent to another email address. Ask the person who invited you for a new one.",
+      "suspended": "The workspace it is for is suspended. Ask the person who invited you.",
+      "unverified": "Your email address is not verified yet. Open the verification link we sent you, then open the invitation link again.",
+      "failed": "The request did not go through. Open the invitation link again to retry.",
+      "continueTo": "Continue to {workspace}"
     }
   }
 }

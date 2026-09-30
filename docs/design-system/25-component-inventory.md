@@ -260,6 +260,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | NotificationItem | Shell | `app/shell/notification-item.tsx` | V1 | 18 §5.3 |
 | NotificationGroup | Shell | `app/shell/notification-item.tsx` | V1 | 18 §5.4 |
 | DesktopOnlyNotice | Shell | `app/shell/desktop-only-notice.tsx` | V1 | 19 §11 |
+| AuthCard | Shell | `app/shell/auth-card.tsx` | V1 | 24 §11 |
 | FilterBar | Filters | `app/filters/filter-bar.tsx` | V1 | 13 §2 |
 | ScopeControl | Filters | `app/filters/scope-control.tsx` | V1 | 13 §2 |
 | CompareSelect | Filters | `app/filters/compare-select.tsx` | V1 | 13 §2, 23 §6.4 |
@@ -1906,11 +1907,11 @@ interface ErrorSummaryProps { errors: ReadonlyArray<{ fieldId: string; label: st
 Purpose: a form-level error that has no field (quota, permission, limit), shown above the footer or save bar.
 
 ```ts
-interface FormAlertProps { message: string; tone?: 'negative' | 'warning' }   // names the limit and the way out
+interface FormAlertProps { message: string; tone?: 'negative' | 'warning' | 'positive'; live?: boolean }   // names the limit and the way out
 ```
 
-- **Variants:** `tone` 2 values (region `Banner` styling). **States:** hidden, shown.
-- **A11y:** `role="alert"` for `negative` and `role="status"` for `warning`: it appears after a submit, so it is announced.
+- **Variants:** `tone` 3 values (region `Banner` styling). `positive` reports the outcome of the step before, such as "Your password was changed" on the sign-in page. **States:** hidden, shown.
+- **A11y:** `role="alert"` for `negative` and `role="status"` for `warning` and `positive`: it appears after a submit or a redirect, so it is announced. An alert that takes focus when it appears passes `live={false}` and has no role: focus has it read, and a live region would read it twice ([10-forms.md](10-forms.md) section 18).
 - **Use:** `422 quota_exceeded`, `competitor_limit`, `budget_exceeded`. **Not for:** field errors (`FieldError`), conflicts (`ConflictDialog`).
 
 ### 4.29 ReadOnlyField
@@ -1953,12 +1954,13 @@ interface OtpFieldProps {
   value?: string; onValueChange?: (value: string) => void; onValueComplete?: (value: string) => void;
   length?: number;                  // default 6
   inputRef?: React.Ref<HTMLInputElement>;   // the first cell, for focus after a failed submit
+  digitLabel?: (position: number, length: number) => string;   // "Digit 2 of 6", for cells after the first
   disabled?: boolean;
 }
 ```
 
-- **Variants:** none (40 px cells, `gap-2`, tabular figures). **States:** empty, filling, complete, invalid, disabled.
-- **A11y:** Base UI `OTPField`: a group named by the `FieldLabel`; `autocomplete="one-time-code"` and the numeric keyboard; a pasted code fills every cell; digits only.
+- **Variants:** none (40 px cells, `gap-2`, tabular figures; digits at 16 px below 768 px). **States:** empty, filling, complete, invalid, disabled.
+- **A11y:** Base UI `OTPField`: a group named by the `FieldLabel`; the first cell carries that name and every other cell its position from `digitLabel`; `autocomplete="one-time-code"` and the numeric keyboard; a pasted code fills every cell; digits only.
 - **Use:** the code step of sign-in, the re-authentication dialog. **Not for:** recovery codes (a plain `Input` in `type-mono`).
 
 ## 5. Shell and navigation
@@ -2349,6 +2351,26 @@ interface CustomizeButtonProps { presentation: 'button' | 'menu-item' }
 - **A11y:** `CardFrame` toolbar is `role="toolbar"`; the handle is a toggle button with the pick-up keys of [20 §7](20-accessibility.md); card content is `inert` in customize mode; one polite live region for changes.
 - **Drag:** `@dnd-kit/core` and `@dnd-kit/sortable`, imported only by `LayoutGrid` and `NumberStrip`.
 - **Not for:** table columns (`ColumnChooser`), saved table views (`SavedViewMenu`), the sidebar.
+
+### 5.21 AuthCard
+`app/shell/auth-card.tsx` · V1 · [24 §11](24-page-templates.md)
+
+Purpose: the one panel of an auth screen (T7): the product name above it, a heading, one sentence, the form or a confirmation, and up to two links below it.
+
+```ts
+interface AuthCardProps extends ComponentProps<'section'> {
+  productName: string;     // shown above the panel, not a link
+  title: string;           // the h1 of the page
+  description: ReactNode;  // one sentence, at most two lines
+  links?: ReactNode;       // at most two standalone TextLinks, below the panel
+  children: ReactNode;     // the form, or the confirmation that replaces it
+}
+```
+
+- **Variants:** none (400 px; below 640 px the border, fill and padding go and the panel fills the width).
+- **States:** the form's own (idle, submitting, failed); confirmation replaces `children`.
+- **A11y:** the page's only `h1`; the panel is a `section` named by the heading; `main` is the page layout's.
+- **Use:** every T7 screen. **Not for:** dialogs, settings forms, empty states.
 
 ## 6. Filters and search
 

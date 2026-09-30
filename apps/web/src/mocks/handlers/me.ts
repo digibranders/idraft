@@ -1,12 +1,13 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { meFactory } from '../factories/identity';
-import { MOCK_PASSWORD, MOCK_TOTP_CODE } from '../fixtures';
+import { MOCK_INVITED_USER, MOCK_PASSWORD, MOCK_TOTP_CODE } from '../fixtures';
 import { checkBody, invalidField, mock, problem } from '../respond';
 import {
   activeSessionCookie,
   cookieOf,
   FRESH_MS,
+  hasJoined,
   isFresh,
   NAME_COOKIE,
   nameCookie,
@@ -20,13 +21,16 @@ const MAX_NAME_LENGTH = 120;
 
 /**
  * `/me` for the signed-in fixture user, with the name they last saved (kept in a cookie, so the server's
- * MSW sees it as well as the browser's) and the freshness of their session.
+ * MSW sees it as well as the browser's) and the freshness of their session. The invited person belongs to
+ * no workspace until they accept the invitation.
  */
 export function currentMe(session: MockSession, cookies: Readonly<Record<string, string>>): Me {
   const saved = cookieOf(cookies, NAME_COOKIE);
+  const outside = session.user.user_id === MOCK_INVITED_USER.user_id && !hasJoined(cookies);
   return meFactory(session.user, {
     user: saved === undefined || saved === '' ? {} : { name: decodeURIComponent(saved) },
     session: { fresh_until: isFresh(session) ? new Date(session.until).toISOString() : null },
+    ...(outside ? { memberships: [] } : {}),
   });
 }
 

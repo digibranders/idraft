@@ -762,3 +762,13 @@ None of these is a disagreement between documents; each needs a code, token or p
 | apps/web/eslint.config.mjs | ignores | `design-preview/vendor/**` ignored | Vendored minified ECharts bundle |
 | 09-buttons-controls.md | 6 | Segmented control construction: per-item borders with 1 px overlap, outer items rounded, selected item positioned above neighbours | The selected outline showed square corners at the rounded end of the group |
 | apps/web/design-preview | index.html, charts.js | Window and density segmented controls rebuilt that way; segments are selectable | Same |
+
+## Auth template (2026-09-30)
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| 24-page-templates.md | 2, 10, 11 | New template T7 Auth: one 400 px panel on `background` with the product name above it, one heading, one sentence, the form with 40 px controls and one full-width primary button, up to two links below; below 640 px the panel fills the width | The auth screens of the web app foundation plan had no template ("specify, then build") |
+| 25-component-inventory.md | 2, 5.21 | `AuthCard` added | The panel of T7 |
+| 25-component-inventory.md | 4.28 | `FormAlert` gains a `positive` tone (the outcome of the step before, such as "Your password was changed") and `live={false}` for an alert that takes focus | The sign-in notices, and one announcement per alert (10-forms section 18) |
+| 19-responsive-behavior.md, globals.css | 10 | `type-input-touch` (16 / 24 px) exists and text fields and OTP cells use it below 768 px | Named there as a new utility; the auth screens are the first phone forms |
+| 24-page-templates.md | 11 | T7: the heading takes focus when a step without a field replaces the panel, the page title follows the step, the account email is `autocomplete="username"`, OTP cells are named by position | Review of the auth screens |

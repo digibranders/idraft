@@ -167,18 +167,54 @@ describe('registration and emailed links', () => {
 
   it('registers the invited address with the token once, and the new account can sign in', async () => {
     const body = { ...invited, invitation_token: MOCK_TOKENS.invitation };
-    expect(await call('POST', '/api/v1/auth/register', { body })).toMatchObject({
-      status: 201,
-      body: { email_verified: true },
-    });
-    expect(await call('POST', '/api/v1/auth/register', { body })).toMatchObject({
+    const registered = await call('POST', '/api/v1/auth/register', { body });
+    expect(registered).toMatchObject({ status: 201, body: { email_verified: true } });
+    // The registration is remembered in a cookie, which the browser sends back from then on
+    const account = registered.cookie;
+    expect(await call('POST', '/api/v1/auth/register', { body, cookie: account })).toMatchObject({
       status: 409,
       body: { code: 'duplicate' },
     });
-    const cookie = await signIn(invited.email, invited.password);
-    expect((await call('GET', '/api/v1/me', { cookie })).body).toMatchObject({
-      data: { user: { name: 'Lena Vogel' } },
+    const signedIn = await call('POST', '/api/v1/auth/sign-in', {
+      body: { email: invited.email, password: invited.password },
+      cookie: account,
     });
+    const cookie = [account, signedIn.cookie].join('; ');
+    expect((await call('GET', '/api/v1/me', { cookie })).body).toMatchObject({
+      data: { user: { name: 'Lena Vogel' }, memberships: [] },
+    });
+  });
+
+  it('lets the invited person join once signed in, and refuses the token to anyone else', async () => {
+    const account = (
+      await call('POST', '/api/v1/auth/register', { body: { ...invited, invitation_token: MOCK_TOKENS.invitation } })
+    ).cookie;
+    const session = (
+      await call('POST', '/api/v1/auth/sign-in', {
+        body: { email: invited.email, password: invited.password },
+        cookie: account,
+      })
+    ).cookie;
+    const cookie = [account, session].join('; ');
+    expect(await call('POST', '/api/v1/invitations/accept', { body: { token: 'unknown' }, cookie })).toMatchObject({
+      status: 400,
+      body: { code: 'invalid_token' },
+    });
+    const accepted = await call('POST', '/api/v1/invitations/accept', {
+      body: { token: MOCK_TOKENS.invitation },
+      cookie,
+    });
+    expect(accepted).toMatchObject({ status: 200, body: { data: { workspace: { slug: 'digibranders' } } } });
+    const me = await call('GET', '/api/v1/me', { cookie: [cookie, accepted.cookie].join('; ') });
+    expect(me.body).toMatchObject({ data: { memberships: [{ workspace: { slug: 'digibranders' }, role: 'editor' }] } });
+
+    const admin = await signIn(mockUser('admin').email);
+    expect(
+      await call('POST', '/api/v1/invitations/accept', { body: { token: MOCK_TOKENS.invitation }, cookie: admin }),
+    ).toMatchObject({ status: 400, body: { code: 'invalid_token' } });
+    expect(await call('POST', '/api/v1/invitations/accept', { body: { token: MOCK_TOKENS.invitation } })).toMatchObject(
+      { status: 401 },
+    );
   });
 
   it('gives one answer for every unusable invitation, another address included', async () => {
@@ -227,9 +263,10 @@ describe('registration and emailed links', () => {
   });
 
   it('describes the fixture invitation through the pending endpoint', async () => {
-    const answer = await call('GET', `/api/v1/invitations/preview?token=${MOCK_TOKENS.invitation}`);
-    expect(answer.body).toEqual({ data: MOCK_INVITATION });
-    expect((await call('GET', '/api/v1/invitations/preview?token=nope')).status).toBe(400);
+    const preview = (token: string): Promise<Answer> =>
+      call('POST', '/api/v1/invitations/preview', { body: { token } });
+    expect((await preview(MOCK_TOKENS.invitation)).body).toEqual({ data: MOCK_INVITATION });
+    expect((await preview('nope')).status).toBe(400);
   });
 });
 

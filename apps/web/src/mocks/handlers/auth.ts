@@ -13,6 +13,8 @@ import { checkBody, freshSessionRequired, invalidField, mock, noContent, problem
 import {
   activeSessionCookie,
   clearedSessionCookie,
+  inviteeCookie,
+  inviteePassword,
   isFresh,
   pendingSessionCookie,
   readSession,
@@ -72,17 +74,17 @@ const weakPassword = (request: Request, reason: string): HttpResponse<Problem> =
 const isEmail = (value: string): boolean => /^[^@\s]+@[^@\s]+$/.test(value);
 
 /** The fixture user with this address and password, or the invited person once they registered. */
-function userFor(email: string, password: string): MockUserSeed | null {
+function userFor(email: string, password: string, cookies: Readonly<Record<string, string>>): MockUserSeed | null {
   const fixture = MOCK_USERS.find((user) => user.email === email);
   if (fixture) return password === MOCK_PASSWORD ? fixture : null;
-  const chosen = mockState.registered.get(email);
+  const chosen = inviteePassword(cookies);
   return email === MOCK_INVITED_USER.email && chosen !== undefined && password === chosen ? MOCK_INVITED_USER : null;
 }
 
 const signedIn = (session: MockSession | null): session is MockSession => session?.state === 'active';
 
 export const authHandlers: HttpHandler[] = [
-  mock('post', '/api/v1/auth/sign-in', async ({ request }) => {
+  mock('post', '/api/v1/auth/sign-in', async ({ request, cookies }) => {
     const body = await request.json();
     const refused = checkBody(request, body, { required: ['email', 'password'] });
     if (refused) return refused;
@@ -90,7 +92,7 @@ export const authHandlers: HttpHandler[] = [
     const address = body.email.toLowerCase();
     const lock = lockOf(address);
     if (lock !== null) return lockedOut(request, lock);
-    const user = userFor(address, body.password);
+    const user = userFor(address, body.password, cookies);
     if (!user) {
       recordFailure(address);
       return problem(request, 'invalid_credentials');
@@ -154,7 +156,7 @@ export const authHandlers: HttpHandler[] = [
     return refused ?? HttpResponse.json({ status: 'accepted' }, { status: 202 });
   }),
 
-  mock('post', '/api/v1/auth/register', async ({ request }) => {
+  mock('post', '/api/v1/auth/register', async ({ request, cookies }) => {
     const body = await request.json();
     const refused = checkBody(request, body, {
       required: ['name', 'email', 'password'],
@@ -170,11 +172,13 @@ export const authHandlers: HttpHandler[] = [
     }
     const reason = weakPasswordReason(body.password, address);
     if (reason) return weakPassword(request, reason);
-    if (mockState.registered.has(address)) {
+    if (inviteePassword(cookies) !== undefined) {
       return problem(request, 'duplicate', { detail: 'An account with this email exists.' });
     }
-    mockState.registered.set(address, body.password);
-    return HttpResponse.json({ user_id: MOCK_INVITED_USER.user_id, email_verified: true }, { status: 201 });
+    return HttpResponse.json(
+      { user_id: MOCK_INVITED_USER.user_id, email_verified: true },
+      { status: 201, headers: { 'set-cookie': inviteeCookie(body.password) } },
+    );
   }),
 
   mock('post', '/api/v1/auth/password/change', async ({ request, cookies }) => {

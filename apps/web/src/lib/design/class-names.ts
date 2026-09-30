@@ -9,6 +9,7 @@ export const TYPE_STYLES = [
   'section-title',
   'subsection-title',
   'body',
+  'input-touch',
   'body-strong',
   'prose',
   'table',

@@ -50,7 +50,8 @@ describe('Select', () => {
       'rounded-md',
       'border',
       'bg-surface',
-      'type-body',
+      'type-input-touch',
+      'md:type-body',
       'justify-between',
     );
     expect(trigger().querySelector('svg')).toHaveClass('size-icon-sm');

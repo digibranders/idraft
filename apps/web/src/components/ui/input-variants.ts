@@ -6,7 +6,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
  * where focus is.
  */
 export const inputVariants = cva(
-  'min-w-0 type-body text-foreground placeholder:text-foreground-tertiary data-disabled:cursor-not-allowed data-disabled:text-foreground-disabled',
+  'min-w-0 type-input-touch text-foreground placeholder:text-foreground-tertiary data-disabled:cursor-not-allowed data-disabled:text-foreground-disabled md:type-body',
   {
     variants: {
       variant: {

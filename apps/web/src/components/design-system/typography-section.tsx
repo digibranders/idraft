@@ -20,6 +20,11 @@ const SAMPLES: Readonly<Record<TypeStyle, { className: string; sample: string; u
   'section-title': { className: 'type-section-title', sample: 'Visibility and mention rate', use: 'Panels, dialogs' },
   'subsection-title': { className: 'type-subsection-title', sample: 'Fix 2 fields to save', use: 'Inside a panel' },
   body: { className: 'type-body', sample: 'Tracked for SEO rank and AI share of voice.', use: 'Text and controls' },
+  'input-touch': {
+    className: 'type-input-touch',
+    sample: 'ana@digibranders.test',
+    use: 'Text fields below 768 px, so iOS does not zoom on focus',
+  },
   'body-strong': { className: 'type-body-strong', sample: 'Add keywords', use: 'Button labels, the chosen option' },
   prose: {
     className: 'type-prose',

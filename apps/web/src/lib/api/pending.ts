@@ -11,9 +11,9 @@ import type { Problem, Role } from './types';
  */
 
 /**
- * `GET /api/v1/invitations/preview` (19 section 3.2.2, deferred on the backend): what an invitation token is
- * for, shown above the registration form. Workspace, role and inviter are the document's; the invited
- * address is the one the form needs as well.
+ * `POST /api/v1/invitations/preview` with `{ token }` (19 section 3.2.2, deferred on the backend): what an
+ * invitation token is for, shown above the registration form. A `POST`, agreed with the backend session on
+ * 2026-09-30, so the token stays out of access logs; the invited address is in the answer for the form.
  */
 export interface InvitationPreview {
   workspace: { name: string; slug: string };
@@ -37,16 +37,16 @@ interface ProblemResponse {
 export interface PendingPaths {
   '/api/v1/invitations/preview': {
     parameters: NoParameters;
-    get: {
-      parameters: { query: { token: string }; header?: never; path?: never; cookie?: never };
-      requestBody?: never;
+    get?: never;
+    put?: never;
+    post: {
+      parameters: NoParameters;
+      requestBody: { content: { 'application/json': { token: string } } };
       responses: {
         200: { headers: { [name: string]: unknown }; content: { 'application/json': { data: InvitationPreview } } };
         default: ProblemResponse;
       };
     };
-    put?: never;
-    post?: never;
     delete?: never;
     options?: never;
     head?: never;

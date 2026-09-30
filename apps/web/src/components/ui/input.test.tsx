@@ -7,7 +7,7 @@ import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
 describe('Input', () => {
-  it('is a 36 px text box on the surface with the body style', () => {
+  it('is a 36 px text box on the surface with the body style, 16 px on phones', () => {
     renderWithProviders(<Input aria-label="Project name" />);
     expect(screen.getByRole('textbox', { name: 'Project name' })).toHaveClass(
       'h-control',
@@ -17,7 +17,9 @@ describe('Input', () => {
       'border',
       'border-border',
       'bg-surface',
-      'type-body',
+      // 16 px in the mobile layout, so iOS does not zoom on focus (19 section 10)
+      'type-input-touch',
+      'md:type-body',
       'focus-visible:focus-ring',
     );
   });
