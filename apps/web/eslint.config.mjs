@@ -245,6 +245,9 @@ export default tseslint.config(
       // A named region that scrolls takes focus, so it can be scrolled from the keyboard (WCAG 2.1.1, the
       // axe rule scrollable-region-focusable). The strict preset allows only tabpanel.
       'jsx-a11y/no-noninteractive-tabindex': ['error', { tags: [], roles: ['tabpanel', 'region'] }],
+      // Safari drops the list role of a list without bullets (Tailwind's reset removes them), so a list
+      // that should be announced as one says so
+      'jsx-a11y/no-redundant-roles': ['error', { nav: ['navigation'], ul: ['list'], ol: ['list'] }],
     },
   },
   { files: SOURCES, ...nextPlugin.configs['core-web-vitals'] },

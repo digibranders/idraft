@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import type { ReactElement } from 'react';
 
+import { ProjectMonogram } from './project-monogram';
 import { Combobox } from '@/components/ui/combobox';
 import { Icon } from '@/components/ui/icon';
 import { TextLink } from '@/components/ui/text-link';
@@ -35,8 +36,6 @@ export interface ProjectSwitcherProps {
   allProjects: { href: Route; label: string };
 }
 
-const initialOf = (name: string): string => [...name.trim()][0]?.toUpperCase() ?? '';
-
 /**
  * Switches project (11-navigation.md section 8, 25 section 5.6): a button with the current project that
  * opens a searchable list, with the project's timezone below it. Creating a project belongs to onboarding,
@@ -57,12 +56,7 @@ export function ProjectSwitcher({
         type="button"
         className="flex h-control w-full min-w-0 items-center gap-2 rounded-md px-2 hover:bg-surface-hover focus-visible:focus-ring rail:justify-center"
       >
-        <span
-          aria-hidden="true"
-          className="flex size-7 shrink-0 items-center justify-center rounded-md bg-foreground type-subsection-title text-foreground-inverse dark:bg-primary dark:text-primary-foreground"
-        >
-          {initialOf(current.name)}
-        </span>
+        <ProjectMonogram name={current.name} />
         <span className="truncate type-subsection-title rail:hidden">{current.name}</span>
         <Icon icon={ChevronDown} size="sm" className="ml-auto shrink-0 text-foreground-tertiary rail:hidden" />
       </button>

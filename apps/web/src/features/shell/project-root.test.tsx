@@ -3,17 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { firstDestination } from './destinations';
 import { ProjectRoot } from './project-root';
-import type { Me } from '@/lib/api/types';
-import { meFactory, membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { TEST_API_ORIGIN } from '@/test/api-server';
 
-const state = vi.hoisted(() => ({ me: null as Me | null, cookie: '', path: null as string | null }));
-vi.mock('@/lib/session/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/session/server')>()),
-  getMe: () => Promise.resolve(state.me),
-}));
+const state = vi.hoisted(() => ({ cookie: '', path: null as string | null }));
 vi.mock('@/lib/api/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api/server')>();
   return {
@@ -34,11 +28,9 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-/** Signed in as `role`, limited to `projectIds` when given, as the API and `/me` both see it. */
+/** Signed in as `role`: `/me` and the project list come from the mocks for that session. */
 function as(role: 'editor' | 'analyst' | 'billing'): void {
-  const seed = mockUser(role);
-  state.cookie = `${SESSION_COOKIE}=mock.active.${seed.user_id}.0`;
-  state.me = meFactory(seed, { memberships: [membershipFactory(role, { projectIds: seed.project_ids })] });
+  state.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.0`;
 }
 const render = (project: string, workspace = 'digibranders'): Promise<unknown> =>
   ProjectRoot({ workspace, project, children: null });
@@ -70,7 +62,7 @@ describe('ProjectRoot', () => {
   });
 
   it('sends an ended session to sign in, back to the page asked for', async () => {
-    state.me = null;
+    state.cookie = '';
     state.path = '/digibranders/fynix/settings/security';
     await expect(render('fynix')).rejects.toThrow('REDIRECT /login?next=%2Fdigibranders%2Ffynix%2Fsettings%2Fsecurity');
   });
@@ -81,7 +73,7 @@ describe('firstDestination', () => {
     as('editor');
     await expect(firstDestination('digibranders', 'fynix')).resolves.toBe('/digibranders/fynix/settings');
     await expect(firstDestination('another-tenant', 'fynix')).resolves.toBeNull();
-    state.me = null;
+    state.cookie = '';
     await expect(firstDestination('digibranders', 'fynix')).resolves.toBeNull();
   });
 });

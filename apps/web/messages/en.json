@@ -265,14 +265,20 @@
   },
   "projects": {
     "title": "Projects",
+    "pageTitle": "Projects in {workspace}",
     "count": "{count, plural, one {# project} other {# projects}}",
     "noDomain": "No domain yet",
     "timeZone": "Times in {timeZone}",
+    "paused": "Paused",
     "empty": {
       "title": "No projects yet",
       "creator": "Projects created in this workspace appear here.",
       "viewer": "Owners, admins and editors can create projects.",
-      "restricted": "You have access to no projects in this workspace. Ask an owner or admin for access."
+      "restricted": "Owners and admins can give you access to this workspace's projects."
+    },
+    "error": {
+      "title": "Could not load the projects",
+      "reason": "The server returned an error. Nothing in the workspace changed."
     }
   },
   "settings": {

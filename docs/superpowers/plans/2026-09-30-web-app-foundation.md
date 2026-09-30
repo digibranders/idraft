@@ -624,11 +624,19 @@ Done differently from the steps above, and why:
 
 ### Task 14: Workspace page
 
-**Files:** create `src/app/[workspace]/page.tsx`, `src/features/projects/*`.
+**Files:** create `src/app/[workspace]/page.tsx`, `src/features/projects/*` (`project-list`, `project-list-error`, `workspace-projects`, `server`), `src/features/shell/{workspace-shell,top-bar-controls}.tsx`, `src/lib/projects/server.ts`, `src/components/app/shell/project-monogram.tsx`; modify `src/lib/session/server.ts` (`requireMembership`), `features/shell/project-root.tsx`, `features/session/workspace-root.tsx`.
 
-- [ ] **Step 1:** The workspace root lists the projects the member can open (name, domain, a link to each) under a `PageHeader`, with the documented empty state when there are none ("No projects yet", with who can create one when the viewer cannot). It uses the top bar without the sidebar. Project creation belongs to the onboarding plan; the button is absent, not disabled.
-- [ ] **Step 2:** Tests: restricted membership sees only its projects; empty state for both roles; axe.
-- [ ] **Step 3: Opus review, fixes, gates, commit** "Add the workspace project list".
+- [x] **Step 1:** The workspace root lists the projects the member can open (name, domain, a link to each) under a `PageHeader`, with the documented empty state when there are none ("No projects yet", with who can create one when the viewer cannot). It uses the top bar without the sidebar. Project creation belongs to the onboarding plan; the button is absent, not disabled.
+- [x] **Step 2:** Tests: restricted membership sees only its projects; empty state for both roles; axe.
+- [x] **Step 3: Opus review, fixes, gates, commit** "Add the workspace project list".
+
+Done differently from the steps above, and why:
+
+- `[workspace]/page.tsx` renders `WorkspaceShell` (`features/shell`: the skip link and the top bar without the sidebar or its menu button, the workspace name as the breadcrumb) at once, and the list inside Suspense (`ProjectListSkeleton`: the header and three rows). `WorkspaceProjects` awaits the list; a failure stays in the list's place (`ProjectListError`: `InlineError` with the API's request id, Try again runs `router.refresh()`), and a session that ended meanwhile goes to sign in. The top bar's right side is `TopBarControls`, shared with the project shell. The page title names the workspace ("Projects in Digibranders").
+- Account settings live under a project until they have a route of their own, so the workspace page's account menu links to Settings > Profile of the first listed project, and has no item while the list loads, when it is empty or when it failed. The page passes that link to the shell as a promise, resolved in an effect, so the shell does not wait for the list. Open point for the settings plan: an account route that needs no project (`/account/...`), after which the item is always there.
+- `lib/projects/server.ts` (`projectsOfMembership`) reads the real `GET {W}/projects` page by page (200 a page, at most 50 pages, until `total`) and applies the membership's `project_ids`; the project layout and the workspace page both use it. `lib/session/server.ts` has `requireMembership(slug)` (sign in for an ended session, back to the page asked for; 404 for a workspace the caller is not in), used by both layouts and the page, since Next.js renders them in parallel.
+- Each row links to the project root, named by the project's name alone (`aria-labelledby`), with the shared `ProjectMonogram`, a Paused badge, the domain ("No domain yet" while `primary_domain` is null, which it is until the keyword system) and, from 640 px, the time zone's abbreviation today ("Times in EDT"). Rows are sorted by name, ignoring case, then slug; links do not prefetch (a workspace can have many projects); the list keeps `role="list"` (Safari drops it for an unstyled list; `jsx-a11y/no-redundant-roles` allows it for `ul` and `ol`). The empty state names who can change it: `creator`, `viewer` or `restricted` ("Owners and admins can give you access to this workspace's projects.").
+- Checked on the production test build: `/digibranders` lists the five fixture projects for an editor at 1440 and 390 px, and the account menu has Account settings. With mocking on, an unknown workspace answers 200 with the 404 page: `MockGate` renders nothing on the server, so the response starts before the layout decides. A build with mocking off, against the local API, answers as it should: 200 for a workspace and project of the member, 404 for another workspace and for an unknown project, and 307 to `/login?next=...` without a session; the list shows the API's project and the title names the workspace.
 
 ### Task 15: Account settings
 

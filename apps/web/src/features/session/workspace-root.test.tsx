@@ -5,16 +5,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { meQuery } from '@/lib/session/me-query';
 import { WorkspaceRoot } from './workspace-root';
 import { useMembership } from '@/lib/permissions';
-import type { Me } from '@/lib/api/types';
-import { meFactory } from '@/mocks/factories/identity';
 import { mockUser } from '@/mocks/fixtures';
+import { SESSION_COOKIE } from '@/mocks/session';
+import { TEST_API_ORIGIN } from '@/test/api-server';
 import { renderWithProviders } from '@/test/render';
 
-const session = vi.hoisted(() => ({ me: null as Me | null }));
-vi.mock('@/lib/session/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/session/server')>()),
-  getMe: () => Promise.resolve(session.me),
-}));
+const session = vi.hoisted(() => ({ cookie: '' }));
+// `/me` comes from the mocks, as the API would answer it for the session cookie
+vi.mock('@/lib/api/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api/server')>();
+  return {
+    ...actual,
+    serverApi: () => Promise.resolve(actual.createServerApi(new Headers({ cookie: session.cookie }), TEST_API_ORIGIN)),
+  };
+});
 const navigation = vi.hoisted(() => ({
   notFound: vi.fn(() => {
     throw new Error('NOT_FOUND');
@@ -33,7 +37,7 @@ function Role(): ReactElement {
 
 describe('WorkspaceRoot', () => {
   beforeEach(() => {
-    session.me = meFactory(mockUser('analyst'));
+    session.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('analyst').user_id}.0`;
   });
 
   it('gives the pages below the caller membership of the workspace', async () => {
@@ -48,7 +52,7 @@ describe('WorkspaceRoot', () => {
   });
 
   it('sends a caller whose session has ended to sign in, and back to the page asked for afterwards', async () => {
-    session.me = null;
+    session.cookie = '';
     request.headers = new Headers({ 'x-pathname': '/digibranders/fynix/settings/profile?tab=a' });
     await expect(WorkspaceRoot({ slug: 'digibranders', children: null })).rejects.toThrow(
       'REDIRECT /login?next=%2Fdigibranders%2Ffynix%2Fsettings%2Fprofile%3Ftab%3Da',

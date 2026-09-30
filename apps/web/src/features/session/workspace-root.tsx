@@ -1,15 +1,12 @@
 import 'server-only';
 
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
-import { headers } from 'next/headers';
-import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
-import { meQuery } from '@/lib/session/me-query';
-import { getMe, membershipOf } from '@/lib/session/server';
 import { WorkspaceProviders } from './workspace-providers';
 import { makeQueryClient } from '@/lib/api/query-client';
-import { PATHNAME_HEADER, signInPath, workspacePath } from '@/lib/routes/paths';
+import { meQuery } from '@/lib/session/me-query';
+import { requireMembership } from '@/lib/session/server';
 
 /**
  * The root of every page of the workspace `slug` (the `[workspace]` layout). It reads `/me` on the server
@@ -23,11 +20,7 @@ export async function WorkspaceRoot({
   slug,
   children,
 }: Readonly<{ slug: string; children: ReactNode }>): Promise<ReactNode> {
-  const me = await getMe();
-  // Back to the page asked for; sign-in checks it with safeNextPath before following it
-  if (me === null) redirect(signInPath((await headers()).get(PATHNAME_HEADER) ?? workspacePath(slug)));
-  const membership = membershipOf(me, slug);
-  if (membership === null) notFound();
+  const { me, membership } = await requireMembership(slug);
   const queryClient = makeQueryClient();
   queryClient.setQueryData(meQuery().queryKey, { data: me });
   return (
