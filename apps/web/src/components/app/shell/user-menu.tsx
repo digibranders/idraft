@@ -6,8 +6,7 @@ import type { ComponentProps, ReactElement } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { Tooltip } from '@/components/ui/tooltip';
-
-export type ThemeChoice = 'system' | 'light' | 'dark';
+import type { ThemeChoice } from '@/lib/preferences/theme';
 
 export interface UserMenuLabels {
   /** "Account menu, Ana Brandt": the button's name. */

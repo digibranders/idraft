@@ -790,3 +790,38 @@ None of these is a disagreement between documents; each needs a code, token or p
 | 25-component-inventory.md | 19.5 | `useShortcut(key, handler, { kind, enabled })`: one key, single-key only for now | The first two shortcuts (`[`, `?`); scopes and sequences arrive with the screens that need them |
 | 24-page-templates.md | 9.1 | Unknown or planned paths of a project render the 404 page inside the shell (a catch-all route) | 20 section 3.10: planned destinations are absent and their routes are the 404 page |
 | 11-navigation.md | 4 | Below 1680 px the workspace is reached through "All projects in {workspace}" at the foot of the project switcher, not a Workspace group in the Project menu | The switcher is a searchable list of projects (a combobox); a link at its foot works at every width |
+
+## Web app foundation (2026-10-01)
+
+Scope: `apps/web` on branch `frontend/app-foundation`, built from `docs/superpowers/plans/2026-09-30-web-app-foundation.md`, Tasks 1 to 16.
+
+Built:
+1. Tasks 1 to 3: the Next.js 16 app (standalone output), lint with the rules of 26 section 9, Prettier, Vitest in a `unit` and a `dom` project, the environment schema (`src/lib/env/`), `cn` with the design system's class names, the message catalog and its copy test, the providers.
+2. Tasks 4 to 7: the primitives in `src/components/ui` (display, forms, overlays and feedback), each with unit and axe tests, and the `/design-system` route with nine sections (tokens, typography, sizes, icons, buttons, forms, badges, overlays, feedback), a 404 in production builds.
+3. Tasks 8 to 10: the client generated from `backend/openapi/v1.json` (`src/lib/api/schema.ts`), `ApiProblem`, query keys and the retry policy; the MSW mock layer (`off`, `pending`, `all`); the request proxy with the session check, the per-request CSP nonce and the static headers.
+4. Tasks 11 to 15: sign in, the code prompt at sign-in, password reset, email verification and registration by invitation (tokens in the URL fragment), invitation acceptance after sign-in; the home redirect, the workspace layout, permissions and the fresh-session dialog; the shell (sidebar, rail, drawer, top bar, project switcher, theme switch, help and user menus, error and 404 pages) with the navigation registry of 14 destinations, only Settings live; the workspace project list; account settings (Profile, Security, Preferences).
+5. Task 16: Playwright flows with axe on every visited page and a CSP check (`e2e/flows/`), visual regression specs (`e2e/visual/`), and `apps/web/Dockerfile`.
+
+Deferred: the flag context (no API field, and none planned); workspace, member and project settings; onboarding and project creation; two-factor setup, recovery codes and turning it off (the code prompt at sign-in stays); the profile photo and "Leave workspace" (the API has neither); `size-limit`; the CSP report endpoint; the first visual baselines, which must be made in `mcr.microsoft.com/playwright:v1.63.0-noble` (no Docker on the build machine); building the image, the CI workflow (`web.yml`), the Compose `web` service and the Caddy routes, which the backend session builds in its deploy plan; Sentry.
+
+Open points:
+
+| Point | Who | State |
+|---|---|---|
+| The public route that describes an invitation token: `POST /api/v1/invitations/preview` with `{ token }`, answering workspace, role and invited email | backend session | Agreed, deferred on the backend. `/invite` works without it and uses it for the heading when it answers |
+| Platform operators in the `/design-system` route in production | frontend, after the backend | `/me` now has `user.is_platform_operator`; the route does not read it yet, so it is a 404 in production for everyone |
+| `/me` has no `features` list, and the backend does not plan one | frontend | Settled: phase gating is the navigation registry; 20 section 3.10 is corrected |
+| `GET {W}/projects` and the project summary | backend session | `GET {W}/projects` and `GET {P}` shipped, and the app reads the list; the engines and entities of 20 section 3.3 arrive with their plans |
+| Playwright browser and pinned Docker image | user | The browser is installed; the image is needed for the baselines |
+| Compose `web` service, Caddy routes, `web.yml` | backend session | The job steps and the image were sent for its deploy plan |
+| Re-authentication rotates the session and revokes the old one at once, so a request still carrying the old cookie gets 401 and signs the person out | backend session | A short grace period for the replaced session would close it |
+| An account route that needs no project (`/account/...`) | settings plan | Account settings live under a project, so the workspace page's account menu links to Settings > Profile of the first listed project, and has no item while the list loads, is empty or failed |
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| 26-implementation-guidelines.md | 2, 5, 9, 10 | `cn` knows the design system's class names; `schema.ts`; the copy, accessibility and visual regression rows are implemented, with where each check lives; the preview route as built and its production gate | The app exists |
+| 24-page-templates.md | 9.1 | The shell has 14 items, no separate Topics item | `src/lib/navigation/registry.ts`, 11 section 1.1 |
+| 10-forms.md | 23 | 409 `conflict` is a lock timeout, safe to retry once; stale edits are 412; step 2 is `applyProblem`, for the resource forms of later plans (the account and auth forms map their few codes themselves) | 19 section 2.7 |
+| ../20-frontend-specification.md | 3.1 to 3.5, 3.7, 3.10, 7.3, 7.4, 8.1, 8.3, 9.1, 9.2 | Routes as built and tokens in the fragment; metadata `noindex, nofollow`; `API_INTERNAL_ORIGIN` and the browser's page origin; 409 and 412; no `features` list; the CSP as built with `style-src-attr 'unsafe-inline'`; the theme per device and preferences per user; factories in `src/mocks/factories` and the mock modes; the image; the environment variables | Same |
+| ../24-security.md | 7.1 | `blob:` and the `gstatic.com` redirect host in `img-src`, `style-src-attr`, the development additions | `buildCsp` |
+| DESIGN_SYSTEM.md, AI_DEVELOPMENT_UI_RULES.md | Code, rules 3, 14, 19, 20 | Paths and commands of the real app; `type-input-touch`; single-key shortcuts are turned off in Settings > Preferences | Same |

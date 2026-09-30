@@ -51,6 +51,13 @@ describe('WorkspaceRoot', () => {
     await expect(WorkspaceRoot({ slug: 'another-tenant', children: null })).rejects.toThrow('NOT_FOUND');
   });
 
+  it('answers 404 for a path that cannot be a slug, before it reads the session or the headers', async () => {
+    session.cookie = '';
+    request.headers = new Headers({ 'x-pathname': '/evil' });
+    await expect(WorkspaceRoot({ slug: 'favicon.ico', children: null })).rejects.toThrow('NOT_FOUND');
+    request.headers = new Headers();
+  });
+
   it('sends a caller whose session has ended to sign in, and back to the page asked for afterwards', async () => {
     session.cookie = '';
     request.headers = new Headers({ 'x-pathname': '/digibranders/fynix/settings/profile?tab=a' });

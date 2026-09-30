@@ -113,6 +113,13 @@ export function problemFrom(response: Response, body: unknown, now: number = Dat
   });
 }
 
+const SECONDS_PER_MINUTE = 60;
+
+/** The wait of a `429 rate_limited` in whole minutes, at least one, for a sentence that says when to retry. */
+export function retryMinutes(problem: Pick<ApiProblem, 'retryAfterSeconds'>): number {
+  return Math.max(1, Math.ceil((problem.retryAfterSeconds ?? SECONDS_PER_MINUTE) / SECONDS_PER_MINUTE));
+}
+
 /** Whether `error` is an `ApiProblem`, and when `code` is given, one with that code. */
 export function isApiProblem(error: unknown, code?: string): error is ApiProblem {
   return error instanceof ApiProblem && (code === undefined || error.code === code);

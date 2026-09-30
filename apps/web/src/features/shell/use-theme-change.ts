@@ -3,7 +3,7 @@
 import { useTheme } from 'next-themes';
 import { flushSync } from 'react-dom';
 
-import type { ThemeChoice } from '@/components/app/shell/user-menu';
+import { isThemeChoice, type ThemeChoice } from '@/lib/preferences/theme';
 import { useHydrated } from '@/lib/dom/use-hydrated';
 
 export interface ThemeChange {
@@ -23,9 +23,6 @@ const tokenOf = (name: string): string =>
   getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
 const durationOf = (name: string): number => Number.parseFloat(tokenOf(`duration-${name}`)) || 0;
 
-const isChoice = (value: string | undefined): value is ThemeChoice =>
-  value === 'system' || value === 'light' || value === 'dark';
-
 /**
  * The theme through next-themes, with the reveal of 21-motion.md section 5.1: the new theme grows as a
  * circle from the control that asked for it, through the View Transitions API. Without that API, under
@@ -34,7 +31,7 @@ const isChoice = (value: string | undefined): value is ThemeChoice =>
 export function useThemeChange(): ThemeChange {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const hydrated = useHydrated();
-  const choice: ThemeChoice = isChoice(theme) ? theme : 'system';
+  const choice: ThemeChoice = isThemeChoice(theme) ? theme : 'system';
   const resolved = hydrated ? (resolvedTheme === 'dark' ? 'dark' : 'light') : null;
 
   const change = (next: ThemeChoice, origin?: { x: number; y: number }): void => {

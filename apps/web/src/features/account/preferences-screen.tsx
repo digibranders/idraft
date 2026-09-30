@@ -9,14 +9,11 @@ import { Select } from '@/components/ui/select';
 import { SettingRow } from '@/components/ui/setting-row';
 import { Switch } from '@/components/ui/switch';
 import { useHydrated } from '@/lib/dom/use-hydrated';
+import { isThemeChoice, type ThemeChoice } from '@/lib/preferences/theme';
 import { formatLocaleDate } from '@/lib/format/date';
 import { formatDecimal } from '@/lib/format/number';
 import { PREFERENCE_LOCALES, usePreferences, type PreferenceLocale } from '@/lib/preferences/preferences';
 import { useMe } from '@/lib/session/use-me';
-
-type ThemeChoice = 'system' | 'light' | 'dark';
-const THEMES: readonly ThemeChoice[] = ['system', 'light', 'dark'];
-const isTheme = (value: string | undefined): value is ThemeChoice => THEMES.some((theme) => theme === value);
 
 /** The catalog key of each format's name (catalog keys are camelCase). */
 const LOCALE_KEYS: Readonly<Record<PreferenceLocale, 'enUS' | 'enGB' | 'deDE'>> = {
@@ -29,7 +26,6 @@ const LOCALE_KEYS: Readonly<Record<PreferenceLocale, 'enUS' | 'enGB' | 'deDE'>> 
 const EXAMPLE_NUMBER = 1234.5;
 const EXAMPLE_DATE = new Date(Date.UTC(2026, 8, 30));
 
-/** The example of a format: a number and a date written the way `locale` writes them. */
 /** The example number and date in `locale`, which the catalog puts into its sentence. */
 function exampleOf(locale: PreferenceLocale): { number: string; date: string } {
   return {
@@ -63,7 +59,7 @@ export function PreferencesScreen(): ReactNode {
         <SegmentedControl<ThemeChoice>
           semantics="radio"
           label={t('theme')}
-          value={hydrated && isTheme(theme) ? theme : 'system'}
+          value={hydrated && isThemeChoice(theme) ? theme : 'system'}
           onValueChange={setTheme}
           items={[
             { value: 'system', label: t('themes.system') },

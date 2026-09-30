@@ -2,11 +2,11 @@ import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 
 import { isApiProblem } from './problem';
 import { retryDelay, shouldRetry, shouldRetryMutation } from './retry';
+import { signInPath } from '@/lib/routes/paths';
 import { isPublicPath } from '@/lib/routes/public-paths';
 
 /** Configuration data goes stale after 30 seconds; analytics queries set their own 5 minutes (20 section 3.5). */
 const CONFIGURATION_STALE_MS = 30_000;
-const LOGIN_PATH = '/login';
 
 /**
  * Marks the sign-out mutation (`meta: { [SIGN_OUT_META]: true }`): a 401 it gets means the person is
@@ -23,7 +23,7 @@ export function isSignedOut(error: unknown): boolean {
 
 /** The sign-in page, told to come back to `location` afterwards. */
 export function loginUrl(location: Pick<Location, 'pathname' | 'search'>): string {
-  return `${LOGIN_PATH}?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
+  return signInPath(`${location.pathname}${location.search}`);
 }
 
 /**

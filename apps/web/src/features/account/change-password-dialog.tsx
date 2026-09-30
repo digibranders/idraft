@@ -13,13 +13,11 @@ import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/c
 import { FormAlert } from '@/components/ui/form-alert';
 import { PasswordInput } from '@/components/ui/password-input';
 import { toast } from '@/components/ui/toast';
-import { isApiProblem } from '@/lib/api/problem';
+import { isApiProblem, retryMinutes } from '@/lib/api/problem';
 import { apiMutation, apiQuery } from '@/lib/api/query';
+import { MIN_PASSWORD_LENGTH, weakPasswordKey } from '@/lib/auth/password';
 import { useFreshSession } from '@/lib/session/fresh-session';
 
-/** A new password has at least this many characters (19 section 3.1, `weak_password` `too_short`). */
-const MIN_PASSWORD_LENGTH = 12;
-const SECONDS_PER_MINUTE = 60;
 const CHANGE = apiMutation('post', '/api/v1/auth/password/change');
 /** The sessions list, which the change empties of every other session. */
 const SESSIONS = apiQuery('/api/v1/auth/sessions');
@@ -29,22 +27,6 @@ interface PasswordValues {
   next: string;
   confirm: string;
 }
-
-const WEAK_REASONS = ['too_short', 'too_long', 'contains_email', 'breached', 'unchanged'] as const;
-type WeakReason = (typeof WEAK_REASONS)[number];
-type WeakKey =
-  | 'weakPassword.tooShort'
-  | 'weakPassword.tooLong'
-  | 'weakPassword.containsEmail'
-  | 'weakPassword.breached'
-  | 'weakPassword.unchanged';
-const WEAK_KEYS: Readonly<Record<WeakReason, WeakKey>> = {
-  too_short: 'weakPassword.tooShort',
-  too_long: 'weakPassword.tooLong',
-  contains_email: 'weakPassword.containsEmail',
-  breached: 'weakPassword.breached',
-  unchanged: 'weakPassword.unchanged',
-};
 
 /**
  * "Change password" (11-navigation.md section 5): the current password, a new one of at least 12
@@ -110,16 +92,21 @@ export function ChangePasswordDialog({
         form.setError('current', { type: 'server', message: t('wrongCurrent') }, { shouldFocus: true });
         return;
       }
-      if (isApiProblem(error, 'weak_password')) {
-        const reason = WEAK_REASONS.find((candidate) => candidate === error.string('reason'));
-        const message =
-          reason === undefined ? auth('weakPassword.other') : auth(WEAK_KEYS[reason], { min: MIN_PASSWORD_LENGTH });
-        form.setError('next', { type: 'server', message }, { shouldFocus: true });
+      const weak = weakPasswordKey(error);
+      if (weak !== null) {
+        form.setError(
+          'next',
+          { type: 'server', message: auth(weak, { min: MIN_PASSWORD_LENGTH }) },
+          { shouldFocus: true },
+        );
         return;
       }
       if (isApiProblem(error, 'rate_limited')) {
-        const minutes = Math.max(1, Math.ceil((error.retryAfterSeconds ?? SECONDS_PER_MINUTE) / SECONDS_PER_MINUTE));
-        setAlert(auth('problems.rateLimited', { minutes }));
+        setAlert(auth('problems.rateLimited', { minutes: retryMinutes(error) }));
+        return;
+      }
+      if (isApiProblem(error, 'service_unavailable')) {
+        setAlert(auth('problems.serviceUnavailable'));
         return;
       }
       setAlert(t('failed'));

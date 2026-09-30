@@ -7,10 +7,11 @@ import { useThemeChange } from './use-theme-change';
 import { HelpMenu } from '@/components/app/shell/help-menu';
 import { KeyboardShortcutsDialog, type ShortcutEntry } from '@/components/app/shell/keyboard-shortcuts-dialog';
 import { ThemeSwitch } from '@/components/app/shell/theme-switch';
-import { UserMenu, type ThemeChoice } from '@/components/app/shell/user-menu';
+import { UserMenu } from '@/components/app/shell/user-menu';
 import { toast } from '@/components/ui/toast';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
 import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
+import type { ThemeChoice } from '@/lib/preferences/theme';
 import { useSignOut } from '@/lib/session/sign-out';
 import { useMe } from '@/lib/session/use-me';
 

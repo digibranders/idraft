@@ -1,27 +1,12 @@
-import { MIN_PASSWORD_LENGTH } from './rules';
-import { isApiProblem } from '@/lib/api/problem';
+import { isApiProblem, retryMinutes } from '@/lib/api/problem';
+import { MIN_PASSWORD_LENGTH, weakPasswordKey, type WeakPasswordKey } from '@/lib/auth/password';
 
 /** The translator of the `auth` namespace, as the auth forms receive it from `useTranslations('auth')`. */
 export type AuthTranslator = (key: AuthMessageKey, values?: Record<string, string | number>) => string;
 
 /** The keys the helpers here read. */
 export type AuthMessageKey =
-  | 'problems.rateLimited'
-  | 'problems.serviceUnavailable'
-  | 'problems.unexpected'
-  | 'weakPassword.tooShort'
-  | 'weakPassword.tooLong'
-  | 'weakPassword.containsEmail'
-  | 'weakPassword.breached'
-  | 'weakPassword.unchanged'
-  | 'weakPassword.other';
-
-const SECONDS_PER_MINUTE = 60;
-
-/** The wait of a `429 rate_limited`, in whole minutes, at least one. */
-export function retryMinutes(error: { retryAfterSeconds: number | null }): number {
-  return Math.max(1, Math.ceil((error.retryAfterSeconds ?? SECONDS_PER_MINUTE) / SECONDS_PER_MINUTE));
-}
+  'problems.rateLimited' | 'problems.serviceUnavailable' | 'problems.unexpected' | WeakPasswordKey;
 
 /**
  * The sentence a form shows in its `FormAlert` for a failed request (19 section 2.7). `known` maps the codes
@@ -38,16 +23,8 @@ export function alertMessage(error: unknown, t: AuthTranslator, known: Readonly<
   return t('problems.unexpected');
 }
 
-const WEAK_PASSWORD_KEYS: Readonly<Record<string, AuthMessageKey>> = {
-  too_short: 'weakPassword.tooShort',
-  too_long: 'weakPassword.tooLong',
-  contains_email: 'weakPassword.containsEmail',
-  breached: 'weakPassword.breached',
-  unchanged: 'weakPassword.unchanged',
-};
-
 /** The message for a `422 weak_password` on the password field, by its `reason`, or `null` for another problem. */
 export function weakPasswordMessage(error: unknown, t: AuthTranslator): string | null {
-  if (!isApiProblem(error, 'weak_password')) return null;
-  return t(WEAK_PASSWORD_KEYS[error.string('reason') ?? ''] ?? 'weakPassword.other', { min: MIN_PASSWORD_LENGTH });
+  const key = weakPasswordKey(error);
+  return key === null ? null : t(key, { min: MIN_PASSWORD_LENGTH });
 }

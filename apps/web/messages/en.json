@@ -154,6 +154,7 @@
       "invalidCode": "The code is not correct. Check the time on your device, then try the new code.",
       "secondFactorRequired": "Your account uses two-factor authentication, so confirm with a code instead.",
       "rateLimited": "Too many attempts. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+      "serviceUnavailable": "This is not available right now. Try again in a minute.",
       "failed": "The request did not go through. Try again, and contact support if it keeps happening."
     },
     "skipToMain": "Skip to main content",

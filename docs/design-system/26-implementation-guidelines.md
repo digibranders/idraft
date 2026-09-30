@@ -68,24 +68,27 @@ apps/web/src/
     matrix/  pages/  discover/  integrations/  settings/  costs/  alerts/  overview/
       components/  hooks/  queries.ts  columns.tsx  filters.ts
   lib/
-    utils.ts                        cn() class merge helper (clsx plus tailwind-merge, shadcn convention)
+    utils.ts                        cn() class merge helper: clsx plus tailwind-merge, extended with the design
+                                    system's named sizes, containers, radii, shadows, easings, animations,
+                                    type styles and focus rings (lists in lib/design/class-names.ts,
+                                    tested against globals.css)
     format/                         Formatters (tested)
     design/                         Token reader, contrast tests
     filters/                        nuqs parsers and filter field registry
     metrics/                        Metric definitions registry (labels, definitions, polarity)
     a11y/                           announce() live-region announcer, useShortcut
     forms/                          applyServerErrors (validation items of a problem to fields), input normalizers (display preview only; the API normalizes)
-    api/                            Generated OpenAPI types (schema.d.ts), openapi-fetch clients, query keys
+    api/                            Generated OpenAPI types (schema.ts), openapi-fetch clients, query keys
   styles/
     tokens.css  globals.css
 ```
 
 Rules:
 1. `components/ui` imports only Base UI, Lucide, `cn`, `cva` and tokens (react-day-picker only inside `calendar.tsx`). It knows nothing about SEO or AI and never formats values: primitives receive display strings computed by the caller with `@/lib/format`. `NumberInput` stays in `ui/number-field.tsx` and receives its format from the caller (`numberInputFormat` in `@/lib/format`, to be added, [25-component-inventory.md](25-component-inventory.md) section 23, item 54; [10-forms.md](10-forms.md) section 11).
-2. `components/app` may import `components/ui`, `lib/format`, `lib/metrics`, `lib/design`, `lib/a11y`, API schema types from `@/lib/api/types` (re-exported from the generated `schema.d.ts`, types only) and `next/link`. It never fetches data. Only `components/app/forms/` may also import react-hook-form and the `@/lib/forms` normalizers. The API schema type `MetricCell` is re-exported as `MetricCellValue`, because `MetricCell` is also a component name ([25-component-inventory.md](25-component-inventory.md) section 1.5).
+2. `components/app` may import `components/ui`, `lib` (for example `lib/format`, `lib/metrics`, `lib/design`, `lib/a11y`, `lib/routes`), API schema types from `@/lib/api/types` (re-exported from the generated `schema.ts`, types only) and `next/link`. It never fetches data: lint refuses TanStack Query, openapi-fetch, `fetch`, the API clients (`lib/api/client.ts`, `server.ts`, `query.ts`) and the lib modules that call them (`lib/session/**`, `lib/projects/**`). Only `components/app/forms/` may also import react-hook-form and the `@/lib/forms` normalizers. The API schema type `MetricCell` is re-exported as `MetricCellValue`, because `MetricCell` is also a component name ([25-component-inventory.md](25-component-inventory.md) section 1.5).
 3. `features/*` fetch data (TanStack Query), compose `components/app`, and own screen state. Features never import other features; shared pieces move to `components/app`.
-4. `app/` routes import features only.
-5. Enforced with `eslint-plugin-boundaries` (or `dependency-cruiser`) in CI.
+4. `app/` routes are thin: they import features, providers and server-side lib (for example `requireMembership` from `lib/session/server.ts`, path builders from `lib/routes`), never `components/ui` or `components/app` directly; the internal preview route also imports `components/design-system`.
+5. Enforced with `eslint-plugin-boundaries` (`apps/web/eslint.config.mjs`, the `POLICIES` list), run by `pnpm lint`.
 
 ## 3. Naming conventions
 
@@ -184,7 +187,7 @@ Three things found while building the first primitives:
 
 ## 5. Variant system
 
-Use `class-variance-authority` (CVA) with shadcn's `cn` helper (`@/lib/utils`), matching shadcn upstream so future diffs stay readable.
+Use `class-variance-authority` (CVA) with the `cn` helper (`@/lib/utils`), named as in shadcn upstream so future diffs stay readable. Unlike shadcn's, it knows the design system's own class names: without them tailwind-merge keeps both of `h-control h-control-sm`, and a `type-*` style would not replace another.
 
 The canonical `buttonVariants` definition (7 variants including `destructive-solid`, sizes `sm`, `md`, `lg`, `icon-xs`, `icon-sm`, `icon`, and a base class with `border`) is in [09-buttons-controls.md](09-buttons-controls.md) section 2.9. It is not repeated here so the two cannot drift; copy it from there.
 
@@ -244,9 +247,11 @@ All shareable state lives in the URL through `nuqs` 2 (`NuqsAdapter` from `nuqs/
 | Import boundaries | `eslint-plugin-boundaries` (`dependencies` with the rules of section 2, `no-unknown-files`, `no-unknown-dependencies`), resolving `@/` through `eslint-import-resolver-typescript`. A file in a folder that has no layer is an error, so a new folder cannot escape the rules | `src/**` except tests | Implemented |
 | Token contrast and CVD separation | Vitest `tokens.contrast.test.ts` | tokens | Implemented (220 tests passing with the v2 tokens) |
 | Formatter behavior | Vitest `format.test.ts` | formatters | Implemented |
-| Copy: no U+2013/U+2014 in `messages/en.json` | Vitest | message catalog | Phase 1 |
-| Accessibility | `@axe-core/playwright` on every preview section and page template | CI | Phase 1 |
-| Visual regression | Playwright screenshots (section 11) | CI | Phase 1 |
+| Copy: no U+2012 to U+2015, no spaced hyphen, no `!`, no empty or padded message, camelCase keys in `messages/en.json` | Vitest `src/i18n/messages.test.ts` (the `unit` project) | message catalog | Implemented |
+| Accessibility | `vitest-axe` in the `dom` project for every primitive and every preview section in both themes (without `color-contrast` and `region`, which jsdom cannot judge); `@axe-core/playwright` with the WCAG 2.2 AA tags, all rules on, on every page the flows in `e2e/flows/` visit (`expectAccessible` in `e2e/support.ts`, `pnpm e2e`) | components, preview, auth, shell and settings pages | Implemented. Playwright axe over the preview sections is not written yet |
+| Visual regression | Playwright `toHaveScreenshot` (section 11) in `e2e/visual/pages.spec.ts`, projects `visual-desktop` and `visual-mobile` (`pnpm e2e:visual`) | every preview section, sign in, reset, workspace page, the three settings sections, both themes | Implemented; baselines pending: they are made in the pinned image only, and none are committed yet |
+
+Where the rows live (verified 2026-10-01): every ESLint row is in `apps/web/eslint.config.mjs` and runs with `pnpm lint`; class order is Prettier (`prettier.config.mjs`, `pnpm format:check`); the Vitest rows run with `pnpm test`, split by `vitest.config.ts` into a `unit` project (`src/**/*.test.ts`, Node) and a `dom` project (`src/**/*.test.tsx`, jsdom); Playwright is `playwright.config.ts` with `e2e/` (flows at 1440 x 900; visual at 1440 x 900 and 390 x 844), run against a test build with every API route mocked. CI runs none of them yet: the `web.yml` workflow belongs to the backend session's deploy plan.
 
 Note (verified 2026-09-29): typescript-eslint 8.x does not support TypeScript 7 yet; the workspace pins TypeScript 6.0 for type-aware linting until typescript-eslint supports 7.x. Next 16 removed `next lint`; ESLint runs directly.
 
@@ -260,9 +265,9 @@ Note (verified 2026-09-29): typescript-eslint 8.x does not support TypeScript 7 
 | Ladle | Barely maintained (no release since 2025-11), no Next integration |
 | **Custom `/design-system` route** | Uses the real app build, fonts, tokens, providers and theme. Zero extra toolchain. Screenshots use the same Playwright setup as E2E |
 
-The route (`app/(internal)/design-system/[section]/page.tsx`) is available in development and in the CI build used for screenshots, and in production only to platform operators (there are no preview deployments, [ADR-022](../adr/ADR-022-python-backend-simplified-platform.md)). Sections: shell (sidebar and top bar), tokens (color swatches with contrast values read live), typography (the 15 type utilities), spacing and size utilities, icons, buttons and controls (including `SegmentedControl` and `CountTabs`), forms, badges and filter chips, metric strip, tables (header row, 40 px and 32 px rows, selected row; with a 10,000-row fixture), filters, charts (each chart type with fixture data, including `BarList`, `StackedBar100` and `ChartTooltip`), overlays, states, application components (SEO, AI including `EngineStatusGlyph` and `EnginePresenceSquare`, cross-channel, feeds and `RuleList`). Each section renders every variant, in Default and Compact density once density exists. The theme is chosen with a Light, Dark and System switch in the preview and applies to the whole page: an overlay is portalled to `<body>` and takes the page's theme, so two themes side by side could not show a dark dialog beside a light one, and a section rendered twice would repeat every id.
+The route (`src/app/(internal)/design-system/`: the index at `/design-system`, each section at `/design-system/[section]`) is available in development and in the test build used for screenshots, and is meant to open in production to platform operators only (there are no preview deployments, [ADR-022](../adr/ADR-022-python-backend-simplified-platform.md)). Sections: shell (sidebar and top bar), tokens (color swatches with contrast values read live), typography (the 15 type utilities), spacing and size utilities, icons, buttons and controls (including `SegmentedControl` and `CountTabs`), forms, badges and filter chips, metric strip, tables (header row, 40 px and 32 px rows, selected row; with a 10,000-row fixture), filters, charts (each chart type with fixture data, including `BarList`, `StackedBar100` and `ChartTooltip`), overlays, states, application components (SEO, AI including `EngineStatusGlyph` and `EnginePresenceSquare`, cross-channel, feeds and `RuleList`). Each section renders every variant, in Default and Compact density once density exists. The theme is chosen with a Light, Dark and System switch in the preview and applies to the whole page: an overlay is portalled to `<body>` and takes the page's theme, so two themes side by side could not show a dark dialog beside a light one, and a section rendered twice would repeat every id.
 
-Built so far (`src/components/design-system/registry.ts`): `tokens`, `typography`, `sizes`, `icons`, `buttons`, `forms`, `badges`, `overlays` and `feedback`. `feedback` holds the spinner, skeletons and toasts; the `states` section above (empty, error and permission states) arrives with those components, and so do the other sections. Until the operator flag exists in `/me`, the route is a 404 in production for everyone: the layout, the index and each section page check it, and no section page is built. Rules for a section file:
+Built so far (`src/components/design-system/registry.ts`): `tokens`, `typography`, `sizes`, `icons`, `buttons`, `forms`, `badges`, `overlays` and `feedback`. `feedback` holds the spinner, skeletons and toasts; the `states` section above (empty, error and permission states) arrives with those components, and so do the other sections. An unknown section is a 404 (`dynamicParams = false`). In a production build (`NEXT_PUBLIC_APP_ENV=production`) the route is a 404 for everyone: the layout, the index and each section page check it, no section page is built, and the page title is empty so the 404 does not name the route. Access for platform operators in production waits on `user.is_platform_operator` from `/me`: the generated schema has the field, and the route does not read it yet. Rules for a section file:
 
 - A new section is one entry in the registry; `generateStaticParams` and the section list read it, and the registry test renders it in both themes through axe.
 - The tokens section lists every color token of `tokens.css` by role (`token-groups.ts`). A test fails when a token is in no group, and when a contrast ratio the section states does not hold in either theme. The pairs that must reach a ratio are one list, `src/lib/design/contrast-requirements.ts`, which the token contrast test reads too.
@@ -278,11 +283,11 @@ A static Phase 0 version exists at `apps/web/design-preview/index.html`. It has 
 
 | Setting | Value |
 |---|---|
-| Viewports | 1440 x 900 (primary), 1280 x 800, 390 x 844 (mobile templates only) |
+| Viewports | 1440 x 900 and 390 x 844 (the `visual-desktop` and `visual-mobile` projects of `apps/web/playwright.config.ts`); 1280 x 800 when a template needs it |
 | Themes | light and dark for every section |
 | Density | Default (40 px rows) and Compact (32 px rows) for table sections |
 | Determinism | `await document.fonts.ready`; `page.clock.setFixedTime('2026-09-29T12:00:00Z')`; timezone `UTC`; `deviceScaleFactor: 1`; animations disabled (Playwright default for screenshots); fixture data only, no network |
-| Threshold | `maxDiffPixelRatio: 0.001` for primitives, `0.002` for page templates |
+| Threshold | `maxDiffPixelRatio: 0.002` (the config's default for every screenshot); a primitive's own test may set `0.001` |
 | Scope | Every `components/ui` primitive state, every `components/app` component, the six page templates |
 | Updating baselines | Only in a pull request that also changes the corresponding design-system document; reviewers see the diff images as CI artifacts |
 

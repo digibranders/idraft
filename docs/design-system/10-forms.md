@@ -596,13 +596,14 @@ RFC 9457 problems ([19-api-specification.md](../19-api-specification.md) section
 
 `fields` is the list of field names the form renders. It is passed explicitly, because react-hook-form has no public way to ask which fields are mounted.
 
-**Step 2, the problem as a whole.** The form's submit handler decides by `code` before or after step 1. This part is typed with `ApiProblem` and arrives with the API client:
+**Step 2, the problem as a whole.** The form's submit handler decides by `code` before or after step 1. This part is `applyProblem(form, error, { fields, messages, codeToField, alertCodes })` in `lib/forms/apply-problem.ts`, typed with `ApiProblem`; it returns `fields`, `alert`, `conflict` or `fresh-session` and rethrows anything else. It is built and tested for the resource forms of the later plans (projects, members, workspace settings), which have form-level codes and the conflict dialog. The account and auth forms of the foundation do not use it: they have neither, a failed save there keeps the form and shows its own sentence instead of reaching the route's error boundary, and `useFreshSession` handles `fresh_session_required` before the form sees it:
 
 | Response | Handling |
 |---|---|
 | Code tied to one field (`409 duplicate`, `422 url_not_allowed`, `422 keyword_too_long`, `422` with `slug_reserved`) | Mapped to its field through a per-form `codeToField` map, then as step 1 |
 | Form-level codes (`422 quota_exceeded`, `422 competitor_limit`, `422 budget_exceeded`) | `FormAlert` with the limit and the way out (section 19) |
-| `409 conflict`, `412 precondition_failed` | Not a form error: the conflict dialog with "Reload" ([20-frontend-specification.md](../20-frontend-specification.md) section 3.7) |
+| `409 conflict` | A lock timeout: nothing was written, and one retry is safe ([19-api-specification.md](../19-api-specification.md) section 2.7). The query client has already retried once when the wait was short; if it still fails, the form treats it as the row below |
+| `412 precondition_failed` | A stale edit, once the API sends `If-Match`. Not a form error: the conflict dialog with "Reload" ([20-frontend-specification.md](../20-frontend-specification.md) section 3.7) |
 | `403 fresh_session_required` | Re-authentication dialog, then one automatic retry |
 | Anything else | The caller rethrows to the route's error boundary |
 

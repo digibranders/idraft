@@ -9,7 +9,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { FormAlert } from '@/components/ui/form-alert';
 import { OtpField } from '@/components/ui/otp-field';
 import { PasswordInput } from '@/components/ui/password-input';
-import { isApiProblem } from '@/lib/api/problem';
+import { isApiProblem, retryMinutes } from '@/lib/api/problem';
 
 /** How the person confirms: their password, or a code when they have a second factor. */
 export type ReauthMethod = 'password' | 'totp';
@@ -29,7 +29,6 @@ export interface ReauthDialogProps {
 }
 
 const CODE_LENGTH = 6;
-const SECONDS_PER_MINUTE = 60;
 
 /**
  * "Confirm it is you" (16 section 4.4, 25 section 3.33): opened on `403 fresh_session_required`, then the
@@ -174,9 +173,7 @@ function ReauthForm({
 
 /** The alert for a request that failed for another reason than the secret: a lock, or no answer. */
 function failureMessage(error: unknown, t: Translate): string {
-  if (isApiProblem(error, 'rate_limited')) {
-    const minutes = Math.max(1, Math.ceil((error.retryAfterSeconds ?? SECONDS_PER_MINUTE) / SECONDS_PER_MINUTE));
-    return t('rateLimited', { minutes });
-  }
+  if (isApiProblem(error, 'rate_limited')) return t('rateLimited', { minutes: retryMinutes(error) });
+  if (isApiProblem(error, 'service_unavailable')) return t('serviceUnavailable');
   return t('failed');
 }

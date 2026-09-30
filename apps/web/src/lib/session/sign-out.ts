@@ -7,8 +7,7 @@ import { isSignedOut, SIGN_OUT_META } from '@/lib/api/query-client';
 import { apiMutation } from '@/lib/api/query';
 import { hardNavigate } from '@/lib/navigation/hard-navigate';
 import { clearPreferences } from '@/lib/preferences/storage';
-
-const SIGN_IN = '/login';
+import { SIGN_IN_PATH } from '@/lib/routes/paths';
 
 export interface SignOut {
   /** Ends the session, forgets what this browser kept of it, and loads the sign-in page. Rejects when the API could not be reached. */
@@ -36,7 +35,7 @@ export function useSignOut(): SignOut {
     }
     setLeaving(true);
     clearPreferences();
-    hardNavigate(SIGN_IN);
+    hardNavigate(SIGN_IN_PATH);
   };
   return { signOut, pending: request.isPending || leaving };
 }

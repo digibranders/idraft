@@ -64,7 +64,7 @@ The hardest charts (depth bands, CI bands, markers, heatmaps, large scatters) ar
 
 Directory layout: superseded by [design-system/26-implementation-guidelines.md](design-system/26-implementation-guidelines.md) section 2 (`src/components/ui`, `src/components/app`, `src/features`, `src/lib`). The listing below is kept for the dependency rules.
 
-The app lives in `apps/web/` ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md): the repository holds `apps/web/`, `backend/`, `data/fixtures/`, `infra/` and `docs/`; pnpm for `apps/web`, no Turborepo). `apps/web` imports nothing from `backend/`. Its only link to the API is the committed OpenAPI document (`backend/openapi/v1.json`), from which `src/lib/api/schema.d.ts` is generated; enums, the permission list and the reserved slug list reach the app through those generated types. A dependency-cruiser rule forbids imports from outside `apps/web`.
+The app lives in `apps/web/` ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md): the repository holds `apps/web/`, `backend/`, `data/fixtures/`, `infra/` and `docs/`; pnpm for `apps/web`, no Turborepo). `apps/web` imports nothing from `backend/`. Its only link to the API is the committed OpenAPI document (`backend/openapi/v1.json`), from which `src/lib/api/schema.ts` is generated (a `.ts` file, because `--enum-values` writes runtime lists); enums, the permission list and the reserved slug list reach the app through those generated types. A dependency-cruiser rule forbids imports from outside `apps/web`.
 
 ```
 apps/web/
@@ -90,9 +90,9 @@ apps/web/
 ```
 app/
   layout.tsx                         root html, fonts, theme, providers (no data)
-  page.tsx                           redirect: last project, else /login
+  (auth)/page.tsx                    home: a member goes to their first workspace; signed out, /login
   (auth)/layout.tsx                  centered card layout, no app shell
-  (auth)/login, signup, verify-email, reset-password, two-factor, invite/[token]
+  (auth)/login, verify-email, reset-password, two-factor, invite
   [workspace]/layout.tsx             RSC: /api/v1/me, workspace resolution, permissions, flags
   [workspace]/page.tsx               project list for the workspace
   [workspace]/onboarding/            new project wizard (5.1)
@@ -121,6 +121,23 @@ app/
 
 > Superseded by design system: project routes and their page tabs are owned by the navigation spec (for example `/seo/rankings`, `/seo/keywords/[tkId]`, `/ai/prompts/[promptId]`, `/ai/citations`, `/ai/sources`, `/discover/keywords`, `/integrations`), and the `@drawer` slots are not built. See [11-navigation.md](design-system/11-navigation.md) §1.1.
 
+Built so far (web app foundation, 2026-10-01; `apps/web/src/app`):
+
+| Route | What it is |
+|---|---|
+| `/` (`(auth)/page.tsx`) | Sends a member to their first workspace; signed out, to `/login`. Without a workspace, or after an invitation that could not be accepted (`?invitation=<reason>`), it shows that screen in the auth layout, with Sign out |
+| `/login`, `/two-factor` | Sign in, then the code prompt for a user with two-factor on |
+| `/reset-password` | Request a link; with `#token=` in the address, set the new password |
+| `/verify-email` | Confirms the address from `#token=`; offers a new link |
+| `/invite` | Registration by invitation from `#token=`. There is no sign-up without an invitation |
+| `/[workspace]` | The workspace's project list (top bar, no sidebar) |
+| `/[workspace]/[project]` | The project shell. Redirects to the first live destination the member can open (Settings for now) |
+| `/[workspace]/[project]/settings/profile`, `security`, `preferences` | Your account; `settings` redirects to Profile |
+| `/[workspace]/[project]/[...rest]` | Catch-all for planned destinations: the 404 page inside the shell |
+| `/design-system`, `/design-system/[section]` (`(internal)`) | The component preview; a 404 in production builds ([26-implementation-guidelines.md](design-system/26-implementation-guidelines.md) section 10) |
+
+Tokens from emails arrive in the URL fragment (`/verify-email#token=`, `/reset-password#token=`, `/invite#token=`), so they never reach a server log. `useFragmentParam` (`src/lib/url/use-fragment-param.ts`) reads the fragment once after mount and removes it from the address bar with `history.replaceState`. `invite/[token]` is not a route. An invitation is accepted with `POST /api/v1/invitations/accept` (`{ token }`) after the person has registered and signed in: the token follows them to sign in in the fragment (`/login#invitation=<token>`), and acceptance opens `/{slug}` of the workspace.
+
 - URL segments use workspace and project **slugs**. `/api/v1/me` returns memberships with `{id, slug}` pairs, so the layout resolves slugs to ids without an extra request. API calls always use ids ([24-security.md](24-security.md) section 4).
 - Static segments (`onboarding`, `costs`, `ops`, `settings`) win over `[project]` in Next routing, so project slugs must not use them. The reserved list is an enum in the API's OpenAPI document (so it is in the generated types), and the project create form validates against it.
 - Intercepting routes give a drawer quick view when a user clicks a row in a table; opening the same URL directly loads the full page. Closing the drawer restores table scroll position and filters because they live in the URL.
@@ -138,9 +155,11 @@ app/
 
 > Superseded by design system: sidebar groups and items (Overview, Matrix; SEO; AI Visibility; Competitors, Topics, Discover; Reports, Integrations, Settings) follow the navigation spec, the project switcher sits at the top of the sidebar and the workspace in the top bar breadcrumb, and `SetupChecklist` appears only on Overview (other pages name the missing step in their empty states), not as a banner on every project page. See [11-navigation.md](design-system/11-navigation.md) §1.1 and [23-application-patterns.md](design-system/23-application-patterns.md) §13.
 
+Metadata: the root layout sets the title template (`%s · Sightline`, the product name from the catalog) and `robots: noindex, nofollow` for every page, because everything sits behind sign-in and shows tenant data. The sign-in pages carry the same tag.
+
 ### 3.4 Server and client component policy
 
-1. **The shell is RSC.** Layouts and page frames render on the server and fetch only identity and configuration (`/api/v1/me`, project summary, flags) from the API over the Docker network (`API_INTERNAL_BASE_URL`, the `api` service) with the incoming `cookie` header forwarded and `cache: 'no-store'`. `web` and `api` run on the same droplet, so this call never leaves the host (section 9, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)).
+1. **The shell is RSC.** Layouts and page frames render on the server and fetch only identity and configuration (`/api/v1/me`, project summary, flags) from the API over the Docker network (`API_INTERNAL_ORIGIN`, the `api` service) with the incoming `cookie` header forwarded and `cache: 'no-store'`. `web` and `api` run on the same droplet, so this call never leaves the host (section 9, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)).
 2. **Analytics data is client-side.** Tables, charts and tiles fetch through TanStack Query from the browser as same-origin requests to `/api/v1` (the session cookie is sent automatically): instant filter changes, cached back-navigation, no extra server hop ([03-system-architecture.md](03-system-architecture.md) section 7.4).
 3. **Server prefetch where first paint matters.** Overview tiles and the Keyword Detail header are prefetched with `queryClient.prefetchQuery` and handed over through `HydrationBoundary` under the same query key. Tables are never server-prefetched.
 4. **No server actions for mutations.** Mutations go from the browser to the API so its Origin check applies ([24-security.md](24-security.md) section 2.1); a server action would call the API from the `web` container instead, outside the browser's Origin check.
@@ -148,7 +167,7 @@ app/
 
 ### 3.5 API client and data layer
 
-- **Generated client.** `openapi-typescript` generates `src/lib/api/schema.d.ts` from the committed OpenAPI document that FastAPI produces ([19-api-specification.md](19-api-specification.md) sections 1.3 and 1.4); CI regenerates it and fails on a difference. `openapi-fetch` (`createClient<paths>()`) is the only HTTP client. The browser instance uses the relative base URL `/api/v1`, so every call is same-origin and carries the `__Host-session` cookie without CORS. The server instance, used only by server components, uses `API_INTERNAL_BASE_URL` (the `api` service on the Docker network), forwards the incoming `cookie` header and `x-request-id`, and forwards nothing else.
+- **Generated client.** `openapi-typescript` generates `src/lib/api/schema.ts` (with `--enum-values`) from the committed OpenAPI document that FastAPI produces ([19-api-specification.md](19-api-specification.md) sections 1.3 and 1.4); `schema.test.ts` regenerates it with the `gen:api` script and fails on a difference, so a stale client fails the test run. `openapi-fetch` (`createClient<paths>()`) is the only HTTP client. The generated paths already start with `/api/v1`, so both clients take an origin, not a base URL ending in `/api/v1`. The browser instance uses the page's own origin, so every call is a same-origin request to a relative `/api/v1/...` path and carries the `__Host-session` cookie without CORS. The server instance (`serverApi()`, `server-only`), used only by server components, uses `API_INTERNAL_ORIGIN` (origin only; the `api` service on the Docker network), forwards the incoming `cookie` header and the render's `x-request-id`, and forwards nothing else.
 - **TanStack Query wrapper.** `lib/api/query.ts` turns a path template and its typed params into `queryOptions` (`apiQuery('/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords', { params })`) and mutations into `mutationOptions`. The wrapper derives the query key, unwraps `data`, and throws a typed `ApiProblem` for any `application/problem+json` response so section 3.7 can branch on `code`.
 - **Validation.** Request bodies are typed by the generated types and forms validate with zod before sending; the API validates every request and every response against its Pydantic models and is the authority. Responses are therefore not re-parsed at runtime. Principle 2 is still enforced at render time: a `MetricValue` without `denominator` or `n_observations` renders the contract error state.
 - **Query keys** are hierarchical: `['ws', wsId, 'p', projectId, domain, resource, normalizedFilters]`, with filters key-sorted and defaults dropped so equivalent URLs share a cache entry.
@@ -168,10 +187,11 @@ All filters, sort, visible columns (when not default), selected tab, compare mod
 |---|---|
 | 401 `unauthenticated` | Clear query cache, redirect to `/login?next=<path>` |
 | 403 `fresh_session_required` (sensitive action within 10 min rule, [24-security.md](24-security.md) section 2; doc 19 section 2.7) | Open re-authentication dialog (password or TOTP), then retry the original mutation once |
-| 403 `two_factor_enrollment_required` (owner or admin without TOTP) | Redirect to 2FA setup |
+| 403 `two_factor_enrollment_required` (owner or admin without TOTP) | Not sent for now: two-factor is opt-in and its setup screen is deferred (the product owner's decision of 2026-09-30). When enforcement arrives, redirect to the setup screen |
 | 403 | Inline "You do not have permission" panel naming the required permission; no retry |
 | 404 | Route-level `not-found.tsx`. Cross-tenant ids return 404 by design, so the copy never implies the object exists |
-| 409 conflict (stale edit, version changed) | Dialog showing the server version with "Reload" and "Overwrite" where the API allows overwrite |
+| 409 `conflict` (a lock timeout: nothing was written, doc 19 section 2.7) | Safe to retry once: the query client repeats queries and writes once, a write only when the wait is short (`src/lib/api/retry.ts`). If it fails again, a resource form gets the `conflict` outcome of `applyProblem` (`src/lib/forms/apply-problem.ts`), the same as a 412; the account forms, which do not use it, show their failed-save sentence |
+| 412 `precondition_failed` (stale edit: `If-Match` no longer matches, once the API sends ETags) | Dialog showing the server version with "Reload" and "Overwrite" where the API allows overwrite |
 | 422 validation | Field errors mapped onto react-hook-form by path |
 | 429 | Toast with retry-after countdown; queries back off automatically |
 | `budget_blocked` on a triggered run | Inline notice with estimate, budget name and a link to Budgets |
@@ -207,6 +227,8 @@ Permissions come from `/api/v1/me` as a flat list per workspace, drawn from the 
 ### 3.10 Feature flags and phase gating
 
 Flags come from the API in `/api/v1/me` (`features: string[]` per workspace), backed by the API's own configuration (`sightline.config`, platform defaults plus per-workspace overrides). There is no Vercel or edge flag service; server components read flags from the same `/api/v1/me` call as the rest of the shell. The frontend uses them for two purposes: phase gating (a screen whose API is not live yet is absent from navigation) and gradual rollout. Navigation items, routes and columns check flags; a route visited while its flag is off renders the 404 page. Flags are never used for authorization.
+
+> Superseded (web app foundation, 2026-10-01): `/api/v1/me` has no `features` list, and the backend does not plan one. Phase gating is the navigation registry, `src/lib/navigation/registry.ts`: the 14 destinations of [11-navigation.md](design-system/11-navigation.md) §1.1, each `live` or `planned`. Only Settings is live. A planned destination is absent from the sidebar, the breadcrumb and the project switch, and its path renders the 404 page inside the shell. There is no flag context and no gradual rollout; if one is needed later, it comes from a new API field.
 
 ### 3.11 Formatting and i18n readiness
 
@@ -1125,26 +1147,35 @@ The Content Security Policy needs a per-request nonce (`script-src 'self' 'nonce
 default-src 'self';
 script-src 'self' 'nonce-{n}' 'strict-dynamic';                 (strict-dynamic added)
 style-src 'self' 'nonce-{n}';                                    (added; doc 24 omits style-src)
-img-src 'self' data: blob:;                                      (tightened from https:, see 7.1)
+style-src-attr 'unsafe-inline';                                  (added, see below)
+img-src 'self' data: blob: https://www.google.com/s2/favicons https://*.gstatic.com;
+                                                                 (tightened from https:, see 7.1)
 font-src 'self';                                                 (added)
 connect-src 'self' https://*.ingest.sentry.io;                  (the API is same-origin under /api)
 worker-src 'self' blob:;                                         (added: CSV export worker)
 object-src 'none';                                               (added)
 frame-ancestors 'none'; base-uri 'self'; form-action 'self';
-upgrade-insecure-requests
+upgrade-insecure-requests                                        (only when the page was requested over https)
 ```
 
 > Superseded by design system: `img-src` also allows the single allowlisted favicon endpoint used for 16 px favicons in domain-first tables. See [07-icons.md](design-system/07-icons.md) §5.
 
-Development adds `'unsafe-eval'` for React refresh, controlled by `NODE_ENV`, never in production. There are no preview deployments and no staging API ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). A Playwright test asserts the CSP header on every route and that no CSP violation is reported during E2E runs (report-only endpoint in CI).
+As built (`buildCsp` in `apps/web/src/lib/security/csp.ts`, set by `src/proxy.ts`; the policy above is the production one):
+
+- `style-src-attr 'unsafe-inline'`: the server-rendered HTML carries `style` attributes (Base UI's visually hidden inputs of radio groups and selects, sizes read from tokens in the preview). A nonce cannot cover an attribute, and a nonce-only `style-src` blocks them in Chrome. An attribute styles one element and cannot run code or load anything. Inline `<style>` and `<script>` elements still need the nonce. Base UI gets the nonce through `CSPProvider`, with `disableStyleElements` set, because React hoists its scrollbar `<style>` into `<head>` without the nonce; those two rules are in `globals.css`.
+- `img-src`: the favicon endpoint answers with a redirect to a `gstatic.com` host, and a browser checks the host it is redirected to, so that host is allowed too.
+- `upgrade-insecure-requests` is sent only when the request came over https (the URL's scheme, or `x-forwarded-proto` from Caddy). On plain http (a test run against `http://web:3000`, WebKit on localhost) it would send the page's own requests to an https origin that does not answer.
+- The static headers of the table above are set in `next.config.ts`; `Strict-Transport-Security` only in production builds. The proxy adds `Cache-Control: private, no-store` to every page that needs a session.
+
+Development (`NODE_ENV=development`) adds `'unsafe-eval'` to `script-src` (React rebuilds server error stacks with it), `ws:` to `connect-src` for hot reload, and uses `style-src 'self' 'unsafe-inline'` without the nonce, since the dev overlay's styles carry none and a nonce makes browsers ignore `'unsafe-inline'`. Production never has any of these. There are no preview deployments and no staging API ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). A Playwright test (`e2e/flows/`) asserts the CSP header on every visited page and that the browser reports no violation. The report endpoint is not built yet.
 
 ### 7.4 Session, tokens and CSRF
 
 - The session cookie is `__Host-session`: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain` attribute (web and API share one origin); JavaScript never reads it. `proxy.ts` only checks its presence to redirect anonymous users to `/login` before rendering; validity is decided by the API.
-- No tokens, keys or tenant data in `localStorage`, `sessionStorage` or IndexedDB. TanStack Query persistence is not used. `localStorage` holds only non-sensitive preferences (theme, column widths, collapsed navigation), keyed by user id and cleared on logout.
+- No tokens, keys or tenant data in `localStorage`, `sessionStorage` or IndexedDB. TanStack Query persistence is not used. `localStorage` holds only non-sensitive preferences. The theme is per device, not per user: next-themes keeps it under `sightline.theme`, and it stays after sign out. Every other preference (density, number and date format, reduced motion, single-key shortcuts; later column widths) is per user in this browser, under `sightline.pref.<user id>.settings` (`src/lib/preferences/`), and signing out removes every `sightline.pref.*` key. The collapsed sidebar is a cookie (`sightline-sidebar`), so the server renders the right width.
 - API key secrets (when API keys ship, 5.19.3) exist only in component state of the one-time dialog.
 - CSRF: the API relies on `SameSite=Lax` plus an Origin check (the app's own origin) for state-changing methods ([24-security.md](24-security.md) section 2.1). The frontend's obligations: all mutations are same-origin `fetch` calls to `/api/v1` with `Content-Type: application/json` (a cross-origin attempt would need a preflight, which the API never grants), no state change on GET, no HTML forms posting to `/api` (`form-action 'self'` plus the Origin check), and no server actions for mutations (3.4).
-- Logout calls the API sign-out, clears the query cache, clears preference keys for the user, and hard-navigates to `/login`.
+- Logout calls the API sign-out, clears the preference keys, and hard-navigates to `/login`, which drops the query cache with the page. The cache is not emptied first: a query still on screen would ask again, hear 401 and send the next person to sign in with this person's page in `next`.
 - OAuth connect flows are top-level navigations to `/api/v1/...` on the same origin; `state` and PKCE are handled by the API.
 
 ### 7.5 Error reporting hygiene
@@ -1164,7 +1195,7 @@ Sentry `beforeSend` strips query strings from URLs (filters can contain keyword 
 - Evidence viewer: span placement at exact offsets across block boundaries, overlapping via-product spans, uncertain styling, citation marker focus linking, `lang` attribute.
 - Permission rendering: every screen rendered with each role fixture; snapshot of visible actions.
 - Filter URL parsers: round trip, defaults omitted, invalid values ignored.
-- MSW handlers are typed against the generated `paths` types and built from fixture factories in `apps/web/src/test/factories/`, so a changed API schema fails type checking in the mocks.
+- MSW 2 handlers are typed against the generated `paths` types and built from fixture factories in `apps/web/src/mocks/factories/`, so a changed API schema fails type checking in the mocks. `NEXT_PUBLIC_API_MOCKING` picks the mode: `off` starts nothing, `pending` mocks only the endpoints the API does not have yet (`src/lib/api/pending.ts`) and sends the rest to the API, `all` mocks every route so no backend is needed. Tests use the same handlers.
 - Accessibility at component level with `vitest-axe`.
 
 ### 8.2 XSS fixture tests (every CI run, required by [24-security.md](24-security.md) section 14)
@@ -1182,7 +1213,7 @@ Assertions: no element with `on*` attributes in the rendered DOM, no `href` or `
 
 ### 8.3 Contract tests
 
-The client is generated from the API's committed OpenAPI document in CI: the job regenerates `schema.d.ts`, fails if it differs from the committed file, and runs `tsc --noEmit`, so any drift between API and client fails CI at client generation ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Recorded API responses (sanitized fixtures from the backend's API tests) are validated against the document's response schemas with a JSON Schema validator, which backs the decision not to re-parse responses at runtime (3.5).
+The client is generated from the API's committed OpenAPI document in CI: the job regenerates `schema.ts`, fails if it differs from the committed file, and runs `tsc --noEmit`, so any drift between API and client fails CI at client generation ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Recorded API responses (sanitized fixtures from the backend's API tests) are validated against the document's response schemas with a JSON Schema validator, which backs the decision not to re-parse responses at runtime (3.5).
 
 ### 8.4 End-to-end (Playwright)
 
@@ -1213,20 +1244,23 @@ Unit test over `messages/en.json` and a Playwright check over rendered text fail
 ### 9.1 Build and hosting
 
 - `apps/web` builds with pnpm (committed lockfile) and `next build` with `output: 'standalone'`. CI builds the `web` image (multi-stage: dependencies, build, then a slim runtime holding `.next/standalone`, `.next/static` and `public`), pushes it to GHCR by digest, and the deploy workflow pulls it on the droplet ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [22-infrastructure-devops.md](22-infrastructure-devops.md)). Runtime is one Node process (`node server.js`), 150 to 250 MB steady RAM.
+- As built: the image is `apps/web/Dockerfile`, built from the repository root (`docker build -f apps/web/Dockerfile .`, context trimmed by `apps/web/Dockerfile.dockerignore`), since the lockfile and the pnpm workspace live there. Base `node:24-bookworm-slim` pinned by digest; `pnpm install --frozen-lockfile`; a production build (`NEXT_PUBLIC_APP_ENV=production` and `NEXT_PUBLIC_RELEASE` as build arguments, mocking off); a runtime of the standalone tree, `.next/static` and `public`, running `node apps/web/server.js` as user `node` on port 3000. The CI job, the push to GHCR and the Compose `web` service belong to the backend session's deploy plan and are not written yet.
 - Caddy on the droplet terminates TLS for the single domain and routes `/api/*` to `api` and everything else to `web`. There is no Vercel project, no Turborepo and no function region.
 - Production domain `<domain>`; the API is `/api/v1` on the same origin ([24-security.md](24-security.md) section 2.1).
 
 ### 9.2 Environment variables
 
-Validated by a zod schema in `apps/web/env.ts` at build and at server start; a missing or malformed value fails the build.
+Validated by a zod schema in `apps/web/src/lib/env/schema.ts`: the public values when `next.config.ts` loads (so a bad value fails the build), the server values at server start (`src/instrumentation.node.ts` ends the process and names the variable). `apps/web/.env.example` lists them.
 
 | Variable | Scope | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_APP_ENV` | all | `production`, `development`, `test` |
-| `NEXT_PUBLIC_SENTRY_DSN` | all | Browser and server error reporting |
-| `NEXT_PUBLIC_RELEASE` | all | Image tag (git SHA) passed as a build argument, for Sentry releases |
-| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | build only | Source map upload; source maps are not served publicly |
-| `API_INTERNAL_BASE_URL` | server | Server component fetches to the `api` service on the Compose network (for example `http://api:8000/api/v1`) |
+| `NEXT_PUBLIC_APP_ENV` | all | `production`, `development`, `test`; default `development`. A build without it is a development build, so the image passes `production` |
+| `NEXT_PUBLIC_API_MOCKING` | all | `off`, `pending` or `all` (8.1); default `off`. Must be `off` in production: the schema refuses anything else |
+| `NEXT_PUBLIC_RELEASE` | all | Image tag (git SHA) passed as a build argument, for Sentry releases; default `dev` |
+| `NEXT_PUBLIC_SENTRY_DSN` | all | Browser and server error reporting. Not wired yet |
+| `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | build only | Source map upload; source maps are not served publicly. Not wired yet |
+| `API_INTERNAL_ORIGIN` | server | Origin of the `api` service for server component fetches: scheme, host and port, no path (`http://api:8000` on the Compose network), since the generated paths carry `/api/v1`. Replaces `API_INTERNAL_BASE_URL`. Required in production; defaults to `http://127.0.0.1:8000` elsewhere |
+| `API_PROXY_TARGET` | server, development only | When set, the dev server rewrites `/api/*` to this origin, so the browser reaches the real API on the app's own origin. Refused in production, where Caddy routes `/api` |
 
 The browser needs no API URL: it calls the relative `/api/v1`. `NEXT_PUBLIC_*` values are inlined at build time, so the image is built for its environment; V1 has one environment (production) plus local development. No secret that grants API access exists in the frontend environment. The frontend authenticates only with the user's session.
 

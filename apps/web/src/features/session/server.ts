@@ -5,7 +5,7 @@ import type { Route } from 'next';
 import type { HomeScreenProps } from './home-screen';
 import type { Me } from '@/lib/api/types';
 import { isInvitationFailure } from '@/lib/routes/home-notices';
-import { workspacePath } from '@/lib/routes/paths';
+import { SIGN_IN_PATH, workspacePath } from '@/lib/routes/paths';
 import { openMemberships } from '@/lib/session/server';
 
 export type HomeOutcome = { kind: 'redirect'; to: Route } | { kind: 'screen'; props: HomeScreenProps };
@@ -17,7 +17,7 @@ export type HomeOutcome = { kind: 'redirect'; to: Route } | { kind: 'screen'; pr
  * ignored.
  */
 export function homeOutcome(me: Me | null, invitation: string | null): HomeOutcome {
-  if (me === null) return { kind: 'redirect', to: '/login' };
+  if (me === null) return { kind: 'redirect', to: SIGN_IN_PATH };
   const failure = isInvitationFailure(invitation) ? invitation : null;
   const [first] = openMemberships(me);
   if (failure === null && first !== undefined) return { kind: 'redirect', to: workspacePath(first.workspace.slug) };

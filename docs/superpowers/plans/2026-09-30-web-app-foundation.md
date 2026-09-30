@@ -685,12 +685,18 @@ Done differently from the steps above, and why:
 
 ### Task 17: Documents and the final review
 
-- [ ] 26: mark the Phase 1 rows of section 9 as implemented; section 10: the route exists and which sections it has; the `cn` note.
-- [ ] 20: section 9.2 (`API_INTERNAL_ORIGIN`, `API_PROXY_TARGET`, `NEXT_PUBLIC_API_MOCKING`), section 3.2 (the auth routes as built, tokens in the fragment), a note that `/me` has no `features` list and no operator flag yet.
-- [ ] 24 section 9.1: the shell wireframe still shows a Topics item and says 15 items; correct it to 14.
-- [ ] `DESIGN_SYSTEM.md` and `AI_DEVELOPMENT_UI_RULES.md`: commands and paths for the real app.
-- [ ] `docs/design-system/review-log.md`: what was built, what was deferred, every open point below.
-- [ ] A whole-branch Opus review (cross-task issues: boundaries, duplicated helpers, strings outside the catalog, unused packages), fixes, gates.
+- [x] 26: mark the Phase 1 rows of section 9 as implemented; section 10: the route exists and which sections it has; the `cn` note.
+- [x] 20: section 9.2 (`API_INTERNAL_ORIGIN`, `API_PROXY_TARGET`, `NEXT_PUBLIC_API_MOCKING`), section 3.2 (the auth routes as built, tokens in the fragment), a note that `/me` has no `features` list and no operator flag yet.
+- [x] 24 section 9.1: the shell wireframe still shows a Topics item and says 15 items; correct it to 14.
+- [x] `DESIGN_SYSTEM.md` and `AI_DEVELOPMENT_UI_RULES.md`: commands and paths for the real app.
+- [x] `docs/design-system/review-log.md`: what was built, what was deferred, every open point below.
+- [x] A whole-branch Opus review (cross-task issues: boundaries, duplicated helpers, strings outside the catalog, unused packages), fixes, gates.
+
+Done differently, and why:
+
+- The docs were brought in line with the code in one pass: 20 (routes as built, fragment tokens, `API_INTERNAL_ORIGIN` and the other variables, `/me` without `features`, 409 and 412, CSP with `style-src-attr` and `blob:`, the theme per device, factories, the image), 24 (the policy as built), 10-forms section 23 and 03-typography (`type-input-touch`), 24-page-templates 9.1 (14 destinations), 26 sections 2, 9, 10 and 11, `DESIGN_SYSTEM.md`, `AI_DEVELOPMENT_UI_RULES.md` and the review log.
+- Whole-branch review fixes: `lib/session/**` and `lib/projects/**` join the API clients that components may not import (lint); the password rules (`MIN_PASSWORD_LENGTH`, the weak-password reasons) are one module, `lib/auth/password.ts`, and the wait of a rate limit is `retryMinutes` in `lib/api/problem.ts`, used by the auth forms, the change of password and "Confirm it is you", which now also say when the service is unavailable; `applyProblem` stays for the resource forms of later plans, and the docs say the account and auth forms map their few codes themselves; the theme choice is one list in `lib/preferences/theme.ts`, and the preview's theme switch uses `useHydrated`; every sign-in URL is built from `SIGN_IN_PATH` and `signInPath` in `lib/routes/paths.ts` (the proxy too); a slug that cannot be one (`favicon.ico`) is a 404 before the session or the headers are read; the sidebar cookie is `Secure`.
+- Left as they are, and why: two contexts carry the single-key setting (`SingleKeyShortcutsContext` in `components/ui/kbd.tsx` for the key hints, `SingleKeysContext` in `lib/a11y` for the shortcuts), because a primitive may not import lib; `ApplyPreferences` sets both from one value. `nuqs` (its adapter is mounted; the filters of the analytics plans use it) and `echarts` (pinned for the chart wrapper) stay in `dependencies`: nothing imports `echarts` yet, so the build and the standalone image do not carry it. The literal-string lint reads JSX only, so a `toast({ title: '...' })` literal would pass; none exists, and the rule for it waits for the first screen with many toasts. A sign-out that fails says so in a toast from the shell and inline on the home screen (which has no shell).
 - [ ] Tell the user the branch is ready to merge; merge only on their word.
 
 ---

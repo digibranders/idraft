@@ -147,8 +147,18 @@ const ELEMENTS = [
 const FILES = [
   // cn() is the one piece of lib a primitive may use (shadcn convention), so it is named as a file.
   { category: 'class-helper', pattern: 'src/lib/utils.ts' },
-  // The clients that talk to the API. Components never reach them, by alias or by relative path.
-  { category: 'api-client', pattern: ['src/lib/api/client.ts', 'src/lib/api/server.ts', 'src/lib/api/query.ts'] },
+  // The clients that talk to the API, and the lib modules that call them (the session and the project list).
+  // Components never reach them, by alias or by relative path.
+  {
+    category: 'api-client',
+    pattern: [
+      'src/lib/api/client.ts',
+      'src/lib/api/server.ts',
+      'src/lib/api/query.ts',
+      'src/lib/session/**',
+      'src/lib/projects/**',
+    ],
+  },
   // The message catalog, and the two files that may read it. Everything else gets text through next-intl.
   { category: 'catalog', pattern: 'messages/*.json' },
   { category: 'catalog-reader', pattern: ['src/i18n/request.ts', 'src/i18n/types.d.ts', 'src/i18n/fallback.ts'] },

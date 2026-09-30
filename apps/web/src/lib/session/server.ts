@@ -8,7 +8,7 @@ import { unwrap } from '@/lib/api/client';
 import { isSignedOut } from '@/lib/api/query-client';
 import { serverApi } from '@/lib/api/server';
 import type { Me, MeMembership } from '@/lib/api/types';
-import { PATHNAME_HEADER, signInPath, workspacePath } from '@/lib/routes/paths';
+import { isSlugShaped, PATHNAME_HEADER, signInPath, workspacePath } from '@/lib/routes/paths';
 
 /**
  * `/me` for the request being rendered, or `null` when the session is gone (a stale cookie: the proxy only
@@ -45,6 +45,7 @@ export function membershipOf(me: Me, slug: string): MeMembership | null {
  * workspace layout, the project layout and the pages all ask, since Next.js renders them in parallel.
  */
 export async function requireMembership(slug: string): Promise<{ me: Me; membership: MeMembership }> {
+  if (!isSlugShaped(slug)) notFound();
   const me = await getMe();
   if (me === null) redirect(signInPath((await headers()).get(PATHNAME_HEADER) ?? workspacePath(slug)));
   const membership = membershipOf(me, slug);

@@ -46,10 +46,15 @@ The UI source of truth for the SEO + AI Visibility application. All frontend imp
 | [`apps/web/src/styles/tokens.css`](apps/web/src/styles/tokens.css) | All tokens, light and dark | 220 contrast, gamut and colorblind tests pass (v2 tokens) |
 | [`apps/web/src/styles/globals.css`](apps/web/src/styles/globals.css) | Tailwind v4 mapping, default theme reset, `type-*`, `num`, `focus-ring` | Compiles with Tailwind 4.3.3; forbidden defaults generate nothing |
 | [`apps/web/src/lib/format/`](apps/web/src/lib/format/) | Number, rank, delta, date, URL formatters | Unit tested |
-| [`apps/web/eslint.config.mjs`](apps/web/eslint.config.mjs) | Enforcement rules available before the app exists | Catches hex colors, dashes, raw formatting, banned libraries |
-| [`apps/web/design-preview/index.html`](apps/web/design-preview/index.html) | Static Phase 0 preview of the v2 shell and components: sidebar, top bar, metric strip, buttons, segmented control, `CountTabs`, filter chips, badges, table, `EngineStatusGlyph`, `BarList` (becomes the `/design-system` route) | Built from token utilities only; compiled with the Tailwind CLI to `preview.compiled.css` |
+| [`apps/web/src/components/ui/`](apps/web/src/components/ui/) | Primitives on Base UI (shadcn `base-nova`, restyled to the tokens) | Unit and `vitest-axe` tests per primitive |
+| [`apps/web/src/components/app/`](apps/web/src/components/app/) | Application components: the shell (`shell/`), states (`status/`), `FormField` (`forms/`) | Unit and `vitest-axe` tests |
+| [`apps/web/src/features/`](apps/web/src/features/) | Screens: data fetching and composition (auth, session, shell, projects, account) | Unit and `vitest-axe` tests; Playwright flows in `apps/web/e2e/flows/` |
+| [`apps/web/messages/en.json`](apps/web/messages/en.json) | Every visible string | `src/i18n/messages.test.ts` fails on dashes, `!`, empty or padded messages |
+| [`apps/web/eslint.config.mjs`](apps/web/eslint.config.mjs) | Enforcement rules ([26](docs/design-system/26-implementation-guidelines.md) section 9) | Catches hex colors, dashes, raw formatting, banned libraries, unknown or off-scale classes, literal strings in JSX, import boundaries |
+| `/design-system` route ([`apps/web/src/components/design-system/`](apps/web/src/components/design-system/)) | The component preview inside the app: tokens, typography, sizes, icons, buttons, forms, badges, overlays, feedback. A 404 in production builds | Every section rendered through axe in both themes |
+| [`apps/web/design-preview/index.html`](apps/web/design-preview/index.html) | Static Phase 0 preview of the v2 shell and screens: sidebar, top bar, metric strip, buttons, segmented control, `CountTabs`, filter chips, badges, table, `EngineStatusGlyph`, `BarList`. It stays as the visual reference until every page it shows is ported | Built from token utilities only; compiled with the Tailwind CLI to `preview.compiled.css` |
 
-Commands (in `apps/web`): `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` (Tailwind compile of `globals.css`).
+Commands (in `apps/web`): `pnpm dev` (development server), `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `pnpm build` (production build, standalone output), `pnpm e2e` (Playwright flows with axe), `pnpm e2e:visual` (screenshots; baselines are made in the pinned Playwright image only), `pnpm run preview` (rebuilds the static preview in `design-preview/`). [`apps/web/README.md`](apps/web/README.md) has the three ways to run the app.
 
 ## Ten decisions to remember
 

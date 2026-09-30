@@ -17,7 +17,7 @@ Weights: **400** (regular text and labels), **500** (badges, emphasized values, 
 
 ## 2. Type scale
 
-Every text element uses exactly one composite utility. Composites set size, line height, weight and letter spacing together, so they cannot drift apart. There are 15 composites. The base body size is 14 px (`body` in `globals.css` is 14 / 20). Table cells stay at 13 / 20 (`type-table`) so dense tables keep their column capacity. Values follow [reference/visual-spec.md](reference/visual-spec.md) section 3.
+Every text element uses exactly one composite utility. Composites set size, line height, weight and letter spacing together, so they cannot drift apart. There are 15 composites, and one more for a single case: `type-input-touch` (16 / 24 px, 400) is the text of fields and one-time code cells below 768 px, so iOS Safari does not zoom the page on focus ([19-responsive-behavior.md](19-responsive-behavior.md) section 10). The base body size is 14 px (`body` in `globals.css` is 14 / 20). Table cells stay at 13 / 20 (`type-table`) so dense tables keep their column capacity. Values follow [reference/visual-spec.md](reference/visual-spec.md) section 3.
 
 | Utility | Size / line height | Weight | Tracking | Default color | Use |
 |---|---|---|---|---|---|

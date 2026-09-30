@@ -6,13 +6,13 @@ import { useEffect, useMemo, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { alertMessage, retryMinutes } from './problems';
+import { alertMessage } from './problems';
 import { useFormAlert } from './use-alert';
 import { FormField } from '@/components/app/forms/form-field';
 import { Button } from '@/components/ui/button';
 import { FormAlert } from '@/components/ui/form-alert';
 import { Input } from '@/components/ui/input';
-import { isApiProblem } from '@/lib/api/problem';
+import { isApiProblem, retryMinutes } from '@/lib/api/problem';
 import { applyServerErrors } from '@/lib/forms';
 
 interface EmailValues {

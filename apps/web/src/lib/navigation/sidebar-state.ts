@@ -14,6 +14,9 @@ export const parseSidebarPreference = (value: string | undefined): SidebarPrefer
 /** One year: a preference, not a session. */
 const MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
-/** The `document.cookie` assignment that remembers `preference`. */
+/**
+ * The `document.cookie` assignment that remembers `preference`. `Secure` like every cookie of the app:
+ * browsers treat `localhost` as a secure origin, so development over plain http keeps it too.
+ */
 export const sidebarCookie = (preference: SidebarPreference): string =>
-  `${SIDEBAR_COOKIE}=${preference}; Path=/; Max-Age=${String(MAX_AGE_SECONDS)}; SameSite=Lax`;
+  `${SIDEBAR_COOKIE}=${preference}; Path=/; Max-Age=${String(MAX_AGE_SECONDS)}; SameSite=Lax; Secure`;

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { publicEnv } from '@/lib/env/public';
 import { isPublicPath } from '@/lib/routes/public-paths';
-import { PATHNAME_HEADER } from '@/lib/routes/paths';
+import { PATHNAME_HEADER, signInPath } from '@/lib/routes/paths';
 import { buildCsp, createNonce } from '@/lib/security/csp';
 import { SESSION_COOKIE } from '@/lib/security/session-cookie';
 
@@ -32,8 +32,7 @@ export function proxy(request: NextRequest): NextResponse {
   const privatePage = needsSession(pathname);
 
   if (privatePage && !request.cookies.has(SESSION_COOKIE)) {
-    const login = new URL('/login', request.url);
-    login.searchParams.set('next', `${pathname}${search}`);
+    const login = new URL(signInPath(`${pathname}${search}`), request.url);
     const redirect = NextResponse.redirect(login);
     redirect.headers.set('Content-Security-Policy', policy);
     return redirect;

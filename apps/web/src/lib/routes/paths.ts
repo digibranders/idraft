@@ -7,6 +7,13 @@ import type { Route } from 'next';
  * refuses anything else), and are encoded all the same.
  */
 
+/**
+ * Whether `value` can be a workspace or project slug at all: lower-case letters, digits and hyphens, as the
+ * API allows (19-api-specification.md, Slugs). Anything else (`favicon.ico`, a path the proxy does not see) is a 404 before
+ * the page reads its session or its headers.
+ */
+export const isSlugShaped = (value: string): boolean => /^[a-z0-9-]+$/.test(value);
+
 /** The root of a workspace. */
 export const workspacePath = (slug: string): Route => `/${encodeURIComponent(slug)}` as Route;
 
@@ -14,8 +21,11 @@ export const workspacePath = (slug: string): Route => `/${encodeURIComponent(slu
 export const projectPath = (workspace: string, project: string, rest: '' | `/${string}` = ''): Route =>
   `/${encodeURIComponent(workspace)}/${encodeURIComponent(project)}${rest}` as Route;
 
+/** The sign-in page. */
+export const SIGN_IN_PATH: Route = '/login';
+
 /** The sign-in page, told to come back to `path` (a path of this app, from the request being rendered). */
-export const signInPath = (path: string): Route => `/login?next=${encodeURIComponent(path)}` as Route;
+export const signInPath = (path: string): Route => `${SIGN_IN_PATH}?next=${encodeURIComponent(path)}` as Route;
 
 /** The request header in which the proxy hands a page render its own path and query (src/proxy.ts). */
 export const PATHNAME_HEADER = 'x-pathname';
