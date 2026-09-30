@@ -1,11 +1,13 @@
 """Table metadata the application builds its statements from.
 
 Migrations are the source of truth and are written as SQL. This module restates the columns so
-queries are composed and typed instead of written as strings, and a test compares it with the
-migrated schema (tests/db/test_tables.py), so the two cannot drift apart.
+queries are composed and typed instead of written as strings. tests/db/test_tables.py compares it
+with the migrated schema: column names, types, nullability, primary keys, unique constraints,
+foreign keys, and which columns have a database default.
 
 Columns with a database default are marked `FetchedValue()`: inserts leave them out and the
-database fills them in. Indexes and CHECK constraints are not restated here.
+database fills them in. Default expressions, indexes and CHECK constraints are not restated here,
+and `auth.api_keys` is not declared because nothing reads it yet.
 """
 
 from __future__ import annotations

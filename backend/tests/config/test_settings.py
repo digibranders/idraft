@@ -16,8 +16,16 @@ BASE_ENV = {
     "DATABASE_URL": "postgresql://app_api:pw@postgres:5432/sightline",
     "REDIS_URL": "redis://app:pw@redis:6379/0",
     "TOTP_ENCRYPTION_KEY": TOTP_KEY,
+    "EMAIL_PROVIDER": "resend",
+    "EMAIL_API_KEY": "re_123",
 }
-PRODUCTION_EMAIL = {"EMAIL_PROVIDER": "resend", "EMAIL_API_KEY": "re_123"}
+# What a developer's machine has: a local origin and no email provider.
+LOCAL_ENV = {
+    "APP_ORIGIN": "http://localhost:3000",
+    "DATABASE_URL": BASE_ENV["DATABASE_URL"],
+    "REDIS_URL": BASE_ENV["REDIS_URL"],
+    "TOTP_ENCRYPTION_KEY": TOTP_KEY,
+}
 
 
 def _set(monkeypatch: pytest.MonkeyPatch, env: dict[str, str]) -> None:
@@ -26,9 +34,9 @@ def _set(monkeypatch: pytest.MonkeyPatch, env: dict[str, str]) -> None:
 
 
 def test_loads_required_values_and_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, BASE_ENV)
+    _set(monkeypatch, LOCAL_ENV)
     settings = Settings()
-    assert settings.app_origin == "https://app.example.com"
+    assert settings.app_origin == "http://localhost:3000"
     assert settings.process_role == "api"
     assert settings.release_sha == "dev"
     assert settings.app_env == "local"
@@ -45,7 +53,7 @@ def test_loads_required_values_and_defaults(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_app_env_is_read_from_its_variable_only(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, {**BASE_ENV, **PRODUCTION_EMAIL, "APP_ENV": "production", "ENVIRONMENT": "x"})
+    _set(monkeypatch, {**BASE_ENV, "APP_ENV": "production", "ENVIRONMENT": "local"})
     assert Settings().app_env == "production"
 
 
@@ -55,6 +63,8 @@ def test_app_env_is_read_from_its_variable_only(monkeypatch: pytest.MonkeyPatch)
         ("https://app.example.com/", "https://app.example.com"),
         ("https://APP.Example.com", "https://app.example.com"),
         ("http://localhost:3000", "http://localhost:3000"),
+        ("http://[::1]:3000", "http://[::1]:3000"),
+        ("https://[2001:DB8::1]", "https://[2001:db8::1]"),
         (" https://app.example.com ", "https://app.example.com"),
     ],
 )
@@ -138,8 +148,8 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
         {"TOTP_ENCRYPTION_KEY": "AAECAwQFBgcICQoLDA0ODw=="},
         {"TOTP_ENCRYPTION_KEY": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gIQ=="},
         {"EMAIL_PROVIDER": "sendgrid"},
-        {"EMAIL_PROVIDER": "resend"},
-        {"EMAIL_PROVIDER": "resend", "EMAIL_API_KEY": ""},
+        {"EMAIL_API_KEY": ""},
+        {"EMAIL_PROVIDER": "console"},
         {"EMAIL_FROM": "Sightline"},
         {"EMAIL_FROM": "Sightline <a@b.example>\r\nBcc: x@y.example"},
         {"APP_ENV": "production", "EMAIL_PROVIDER": "console"},
@@ -256,5 +266,40 @@ def test_whitespace_around_the_totp_key_is_ignored(
 def test_the_worker_may_run_in_production_without_an_email_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _set(monkeypatch, {**BASE_ENV, "APP_ENV": "production", "PROCESS_ROLE": "worker"})
+    env = {**LOCAL_ENV, "APP_ORIGIN": "https://app.example.com"}
+    _set(monkeypatch, {**env, "APP_ENV": "production", "PROCESS_ROLE": "worker"})
+    assert Settings().email_provider == "console"
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://[::1]:3000",
+        "http://app.localhost:3000",
+        "https://sightline.test",
+    ],
+)
+def test_the_console_sender_is_allowed_for_a_local_origin(
+    monkeypatch: pytest.MonkeyPatch, origin: str
+) -> None:
+    _set(monkeypatch, {**LOCAL_ENV, "APP_ORIGIN": origin})
+    assert Settings().email_provider == "console"
+
+
+@pytest.mark.parametrize(
+    "origin",
+    ["https://app.example.com", "http://10.0.0.5:3000", "https://localhost.evil.example"],
+)
+def test_a_host_that_forgot_app_env_still_cannot_print_emails(
+    monkeypatch: pytest.MonkeyPatch, origin: str
+) -> None:
+    _set(monkeypatch, {**LOCAL_ENV, "APP_ORIGIN": origin})
+    with pytest.raises(ValidationError, match="unless APP_ORIGIN is local"):
+        Settings()
+
+
+def test_tests_may_use_the_console_sender_with_any_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, {**LOCAL_ENV, "APP_ORIGIN": "https://app.example.com", "APP_ENV": "test"})
     assert Settings().email_provider == "console"

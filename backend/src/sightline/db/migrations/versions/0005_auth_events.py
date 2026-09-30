@@ -5,6 +5,9 @@ the policy on ops.audit_logs rejects a row without one when app_api writes it. T
 the one way to write such a row. It fixes what the caller must not choose: the workspace is always
 NULL, the action must be an auth action, and the id and time come from the table defaults.
 
+The function inserts as its owner, which row-level security does not apply to. It would stop
+working if FORCE ROW LEVEL SECURITY were ever set on ops.audit_logs.
+
 Revision ID: 0005
 Revises: 0004
 """
@@ -34,9 +37,14 @@ CREATE FUNCTION ops.record_auth_event(
     p_details jsonb)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$
 BEGIN
-    IF p_action IS NULL OR p_action !~ '^auth\\.[a-z_.]{{1,60}}$' THEN
+    IF p_action IS NULL
+       OR length(p_action) > 64
+       OR p_action !~ '^auth(\\.[a-z]+(_[a-z]+)*)+$' THEN
         RAISE EXCEPTION 'auth event action must be auth. followed by lower-case words'
             USING ERRCODE = 'check_violation';
+    END IF;
+    IF p_target_type IS NULL OR p_target_id IS NULL THEN
+        RAISE EXCEPTION 'auth event target must be given' USING ERRCODE = 'check_violation';
     END IF;
     INSERT INTO ops.audit_logs
         (workspace_id, actor_type, actor_id, action, target_type, target_id, after, ip,

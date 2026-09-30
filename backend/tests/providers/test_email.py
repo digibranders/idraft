@@ -103,7 +103,15 @@ async def test_the_console_sender_writes_the_whole_message_to_stderr(
         ("to", ""),
         ("subject", "Hello\r\nBcc: spy@evil.example"),
         ("subject", "Hello\x00"),
+        ("subject", "Hello\u2028Bcc: spy@evil.example"),
+        ("subject", "Hello\u0085Bcc: spy@evil.example"),
+        ("subject", "Hello\x9bx"),
         ("subject", ""),
+        ("subject", "   "),
+        ("to", "jane@client\x00.example"),
+        ("to", "jane@client\x07.example"),
+        ("to", "jane@client.example, spy@evil.example"),
+        ("to", "a" * 250 + "@b.example"),
     ],
 )
 def test_a_message_cannot_carry_a_second_header(field: str, value: str) -> None:
@@ -113,13 +121,70 @@ def test_a_message_cannot_carry_a_second_header(field: str, value: str) -> None:
         EmailMessage(**values)
 
 
+async def test_a_redirect_is_a_failure_and_is_never_followed() -> None:
+    seen: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(307, headers={"Location": "https://evil.example/collect"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(respond), follow_redirects=True)
+    sender = ResendEmailSender(client, api_key=API_KEY, sender="a@b.example")
+    async with client:
+        with pytest.raises(EmailSendError, match="answered 307"):
+            await sender.send(MESSAGE)
+
+    assert [str(request.url) for request in seen] == ["https://api.resend.com/emails"]
+
+
+async def test_a_failure_renders_without_the_key_the_recipient_or_the_text() -> None:
+    import traceback
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError(f"refused for Bearer {API_KEY}", request=request)
+
+    sender, client = _sender(httpx.MockTransport(respond))
+    async with client:
+        with pytest.raises(EmailSendError) as error:
+            await sender.send(MESSAGE)
+
+    rendered = "".join(traceback.format_exception(error.value, chain=True))
+    assert API_KEY not in rendered
+    assert MESSAGE.to not in rendered
+    assert "Open the link" not in rendered
+
+
+async def test_the_send_is_bounded_by_a_timeout() -> None:
+    seen: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"id": "x"})
+
+    sender, client = _sender(httpx.MockTransport(respond))
+    async with client:
+        await sender.send(MESSAGE)
+
+    assert seen[0].extensions["timeout"] == dict.fromkeys(
+        ("connect", "read", "write", "pool"), 10.0
+    )
+
+
 async def test_the_sender_is_chosen_by_the_provider_name() -> None:
     async with httpx.AsyncClient() as client:
         console = build_email_sender(client, provider="console", api_key=None, sender="a@b.example")
         resend = build_email_sender(
-            client, provider="resend", api_key=API_KEY, sender="Sightline <login@mail.example.com>"
+            client, provider="resend", api_key=f" {API_KEY}\n", sender="Sightline <a@b.example>"
         )
-        with pytest.raises(ValueError, match="needs an API key"):
-            build_email_sender(client, provider="resend", api_key=None, sender="a@b.example")
+        for missing in (None, "", "   "):
+            with pytest.raises(ValueError, match="needs an API key"):
+                build_email_sender(client, provider="resend", api_key=missing, sender="a@b.example")
+        with pytest.raises(ValueError, match="unknown email provider"):
+            build_email_sender(
+                client,
+                provider="sendgrid",  # type: ignore[arg-type]
+                api_key="k",
+                sender="a@b.example",
+            )
     assert isinstance(console, ConsoleEmailSender)
     assert isinstance(resend, ResendEmailSender)

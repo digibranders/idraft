@@ -83,7 +83,24 @@ async def test_an_event_without_a_user_is_recorded_as_anonymous(migrated: Postgr
 
 @pytest.mark.parametrize(
     "action",
-    ["project.delete", "auth", "auth.", "AUTH.sign_in", "auth.sign in", "auth." + "a" * 61, ""],
+    [
+        "project.delete",
+        "auth",
+        "auth.",
+        "authxsign_in",
+        "auth_sign_in",
+        "AUTH.sign_in",
+        "auth.sign in",
+        "auth.sign_in\n",
+        "auth.x\nproject.delete",
+        "auth.\u00e9",
+        "auth....",
+        "auth._",
+        "auth.sign__in",
+        "auth.sign_in.",
+        "auth." + "a" * 61,
+        "",
+    ],
 )
 async def test_only_auth_actions_are_accepted(migrated: PostgresServer, action: str) -> None:
     async with scoped(migrated, "app_api") as db:
@@ -129,3 +146,32 @@ async def test_the_worker_cannot_call_it(migrated: PostgresServer) -> None:
     async with scoped(migrated, "app_worker") as db:
         with pytest.raises(asyncpg.InsufficientPrivilegeError, match="permission denied"):
             await db.execute(CALL, "auth.sign_in", None, "user", "x", None, None, None, None)
+
+
+@pytest.mark.parametrize(
+    "action", ["auth.sign_in", "auth.totp.enabled", "auth.a", "auth." + "a" * 59]
+)
+async def test_well_formed_auth_actions_are_accepted(migrated: PostgresServer, action: str) -> None:
+    async with scoped(migrated, "app_api") as db:
+        await db.execute(CALL, action, None, "user", "x", None, None, _request_id(), None)
+
+
+@pytest.mark.parametrize(("target_type", "target_id"), [(None, "x"), ("user", None), (None, None)])
+async def test_a_missing_target_is_refused_without_echoing_the_row(
+    migrated: PostgresServer, target_type: str | None, target_id: str | None
+) -> None:
+    async with scoped(migrated, "app_api") as db:
+        with pytest.raises(asyncpg.CheckViolationError) as error:
+            await db.execute(
+                CALL,
+                "auth.sign_in",
+                None,
+                target_type,
+                target_id,
+                None,
+                None,
+                _request_id(),
+                '{"note": "SENSITIVE"}',
+            )
+    assert "auth event target must be given" in str(error.value)
+    assert "SENSITIVE" not in str(error.value) + str(error.value.as_dict())

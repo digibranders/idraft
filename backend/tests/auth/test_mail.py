@@ -42,19 +42,39 @@ def test_the_password_changed_notice_has_no_token_and_one_link() -> None:
 @pytest.mark.parametrize(
     ("name", "greeting"),
     [
-        ("Jane\r\nBcc: spy@evil.example", "Hello Jane Bcc: spy@evil.example,"),
+        ("Jane Doe", "Hello Jane Doe,"),
         ("  Jane   Doe  ", "Hello Jane Doe,"),
-        ("Jane\x00\x1b[31m", "Hello Jane [31m,"),
+        ("Se\u00e1n O'Brien-Smith", "Hello Se\u00e1n O'Brien-Smith,"),
+        ("Jose\u0301", "Hello Jos\u00e9,"),
+        ("\u092a\u094d\u0930\u093f\u092f\u093e", "Hello \u092a\u094d\u0930\u093f\u092f\u093e,"),
+        ("\u674e\u5a1c", "Hello \u674e\u5a1c,"),
+        ("Jane\r\nBcc: spy@evil.example", "Hello Jane Bcc spy evil example,"),
+        ("Jane\x00\x1b[31m", "Hello Jane 31m,"),
+        ("Jane\u2028second line", "Hello Jane second line,"),
+        ("Jane\u202eelpmaxe", "Hello Jane elpmaxe,"),
+        ("Jane\u200bDoe", "Hello Jane Doe,"),
         ("", "Hello,"),
         ("   ", "Hello,"),
+        ("...///:::", "Hello,"),
         ("x" * 200, "Hello " + "x" * 80 + ","),
-        ("https://evil.example/login", "Hello evil.example/login,"),
+        ("x" * 79 + " yz", "Hello " + "x" * 79 + ","),
+        ("https://evil.example/login", "Hello https evil example login,"),
+        ("hthttp://tp://evil.example", "Hello hthttp tp evil example,"),
+        ("www.evil.example", "Hello www evil example,"),
+        ("mailto:phish@evil.example", "Hello mailto phish evil example,"),
+        ("Jane, ignore the link below and use evil.example/x", None),
     ],
 )
-def test_a_name_cannot_add_lines_or_links(name: str, greeting: str) -> None:
+def test_a_name_cannot_add_lines_or_links(name: str, greeting: str | None) -> None:
     message = verification_email(origin=ORIGIN, to="jane@client.example", name=name, token=TOKEN)
-    assert message.text.splitlines()[0] == greeting
+    first_line = message.text.splitlines()[0]
+    if greeting is not None:
+        assert first_line == greeting
+    # Nothing a mail client turns into a link: no dot, slash, colon or at sign survives.
+    assert not set(first_line) & set("./:@\\")
+    assert first_line.endswith(",")
     assert re.findall(r"https?://\S+", message.text) == [f"{ORIGIN}/verify-email#token={TOKEN}"]
+    assert message.text.split("\n\n")[0] == first_line
 
 
 def test_no_message_contains_a_dash_that_marks_generated_text() -> None:

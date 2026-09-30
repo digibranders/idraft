@@ -15,8 +15,9 @@ import httpx
 
 RESEND_URL = "https://api.resend.com/emails"
 SEND_TIMEOUT_SECONDS = 10.0
-_ADDRESS = re.compile(r"[^\s<>@,;]+@[^\s<>@,;]+")
-_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+ADDRESS_MAX = 254
+_ADDRESS = re.compile(r"[^\s<>@,;\x00-\x1f\x7f]+@[^\s<>@,;\x00-\x1f\x7f]+")
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,9 +30,11 @@ class EmailMessage:
 
     def __post_init__(self) -> None:
         # Both become headers. A line break in either would let the value add a header of its own.
-        if not _ADDRESS.fullmatch(self.to):
+        if len(self.to) > ADDRESS_MAX or not _ADDRESS.fullmatch(self.to):
             raise ValueError("to must be one email address")
-        if not self.subject or _CONTROL.search(self.subject):
+        # splitlines knows every line break Unicode has, including U+2028 and U+0085.
+        one_line = len(self.subject.splitlines()) == 1 and not _CONTROL.search(self.subject)
+        if not self.subject.strip() or not one_line:
             raise ValueError("subject must be one non-empty line")
 
 
@@ -71,6 +74,9 @@ class ResendEmailSender:
                     "text": message.text,
                 },
                 timeout=SEND_TIMEOUT_SECONDS,
+                # Whatever the client's default: a redirect would replay the recipient and the
+                # token link to another host.
+                follow_redirects=False,
             )
         except httpx.HTTPError as error:
             # `from None`: the original may quote request details.
@@ -89,8 +95,12 @@ def build_email_sender(
     sender: str,
 ) -> EmailSender:
     """The sender for a process. Takes plain values so this package stays free of settings."""
+    if provider == "console":
+        return ConsoleEmailSender()
     if provider == "resend":
-        if not api_key:
+        key = (api_key or "").strip()
+        if not key:
             raise ValueError("the resend email provider needs an API key")
-        return ResendEmailSender(client, api_key=api_key, sender=sender)
-    return ConsoleEmailSender()
+        return ResendEmailSender(client, api_key=key, sender=sender)
+    # Reached only if a provider is added to the settings and not here.
+    raise ValueError("unknown email provider")

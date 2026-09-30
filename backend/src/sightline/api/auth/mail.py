@@ -6,19 +6,28 @@ out of proxy and application access logs; the web page reads it and posts it to 
 
 from __future__ import annotations
 
-import re
+import unicodedata
 
 from sightline.providers.email import EmailMessage
 
 _NAME_MAX = 80
-_CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
-_SPACES = re.compile(r"\s+")
-# A name is shown in a greeting. Anything that mail clients turn into a link is taken out of it.
-_SCHEME = re.compile(r"[a-z][a-z0-9+.-]*://", re.IGNORECASE)
+_NAME_PUNCTUATION = frozenset("'-")
 
 
 def _greeting(name: str) -> str:
-    cleaned = _SPACES.sub(" ", _CONTROL.sub(" ", _SCHEME.sub("", name))).strip()[:_NAME_MAX]
+    """A greeting that contains the name and nothing a mail client would turn into a link.
+
+    The name is whatever someone typed at registration, and the message goes to an address nobody
+    has verified yet. Only letters, marks, digits, apostrophes and hyphens are kept, in any
+    script; everything else, dots and slashes and colons included, becomes a space.
+    """
+    kept = "".join(
+        character
+        if unicodedata.category(character)[0] in "LMN" or character in _NAME_PUNCTUATION
+        else " "
+        for character in unicodedata.normalize("NFC", name)
+    )
+    cleaned = " ".join(kept.split())[:_NAME_MAX].rstrip()
     return f"Hello {cleaned}," if cleaned else "Hello,"
 
 

@@ -55,6 +55,12 @@ def _validate_database_url(value: SecretStr) -> SecretStr:
     return value
 
 
+def _is_local_origin(origin: str) -> bool:
+    """Whether the origin is this machine or a name reserved for testing (RFC 6761)."""
+    host = urlsplit(origin).hostname or ""
+    return host in ("localhost", "127.0.0.1", "::1") or host.endswith((".localhost", ".test"))
+
+
 def _validate_origin(value: str) -> str:
     parts = urlsplit(value.strip())
     try:
@@ -67,7 +73,9 @@ def _validate_origin(value: str) -> str:
         raise ValueError("must be scheme and host only: no credentials, path or query")
     if parts.fragment:
         raise ValueError("must be scheme and host only: no fragment")
-    return f"{parts.scheme}://{parts.hostname}" + (f":{port}" if port else "")
+    # urlsplit strips the brackets of an IPv6 literal; an origin needs them back.
+    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
+    return f"{parts.scheme}://{host}" + (f":{port}" if port else "")
 
 
 class _DatabaseSettings(BaseSettings):
@@ -174,13 +182,14 @@ class Settings(_DatabaseSettings):
             raise ValueError("TOTP_ENCRYPTION_KEY is required for the api process")
         if self.email_provider == "resend" and self.email_api_key is None:
             raise ValueError("EMAIL_API_KEY is required when EMAIL_PROVIDER is resend")
-        # Only the api sends mail so far. The console sender prints tokens, so never in production.
-        if (
-            self.process_role == "api"
-            and self.app_env == "production"
-            and self.email_provider == "console"
-        ):
-            raise ValueError("EMAIL_PROVIDER must not be console when APP_ENV is production")
+        # Only the api sends mail so far. The console sender prints tokens, so it is for a local
+        # origin only. The origin is checked as well as APP_ENV, so a host that forgot to set
+        # APP_ENV still cannot start with it.
+        if self.process_role == "api" and self.email_provider == "console":
+            if self.app_env == "production":
+                raise ValueError("EMAIL_PROVIDER must not be console when APP_ENV is production")
+            if self.app_env != "test" and not _is_local_origin(self.app_origin):
+                raise ValueError("EMAIL_PROVIDER must not be console unless APP_ORIGIN is local")
         return self
 
 
