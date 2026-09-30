@@ -36,6 +36,23 @@ uv run --env-file .env uvicorn sightline.api.main:create_app --factory --reload 
 
 `http://127.0.0.1:8000/api/readyz` returns `200` when PostgreSQL, Redis and the schema are in place.
 
+### Signing in locally
+
+Registration is by invitation (`REGISTRATION=invited`, the default), so the first account is made by hand. The command connects as `migrator` and asks for a password of at least 12 characters:
+
+```bash
+uv run --env-file .env.migrator python -m sightline.cli create-operator --email you@example.com --name "Your Name"
+```
+
+That account is a verified platform operator and can sign in at `POST /api/v1/auth/sign-in`. To let anyone register instead, start the API with `REGISTRATION=open`.
+
+Emails are not sent in local development. The console sender prints each message, link included, to the API's stderr. It is refused unless `APP_ORIGIN` is a local address, so it cannot be left on by accident on a server.
+
+Two things to know when calling the API by hand:
+
+- Every `POST`, `PUT`, `PATCH` and `DELETE` needs the header `Origin: http://localhost:3000` (the value of `APP_ORIGIN`). Without it the answer is `403 origin_not_allowed`.
+- The session cookie is `Secure`. Chrome and Firefox accept it over `http://localhost`; Safari does not, so use one of those two or put HTTPS in front.
+
 ## Checks
 
 One script runs every gate CI runs (ruff, format, mypy, import contracts, tests with coverage) and stops at the first failure:

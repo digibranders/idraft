@@ -19,6 +19,7 @@ from sightline.api.auth.throttle import LoginThrottle
 from sightline.api.auth.tokens import derive_key
 from sightline.api.auth.totp import TotpCipher
 from sightline.api.csrf import OriginCheckMiddleware
+from sightline.api.document import router as document_router
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
 from sightline.api.request_id import RequestIdMiddleware
@@ -110,8 +111,8 @@ def create_app(
     app = FastAPI(
         title="Sightline API",
         version=__version__,
-        # The document is committed in backend/openapi/v1.json. It is served over HTTP only behind
-        # a session (docs/19-api-specification.md section 1.1), which arrives with the auth module.
+        # The document is committed in backend/openapi/v1.json. Over HTTP it is served only to a
+        # signed-in user, by sightline.api.document (docs/19-api-specification.md section 1.1).
         openapi_url=None,
         docs_url=None,
         redoc_url=None,
@@ -125,5 +126,6 @@ def create_app(
     register_problem_handlers(app, app_origin=settings.app_origin)
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(document_router)
     install_openapi(app)
     return app

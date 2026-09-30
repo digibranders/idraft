@@ -158,8 +158,14 @@ async def test_unknown_api_route_is_a_problem(client: httpx.AsyncClient) -> None
     assert response.json()["type"] == f"{BASE_URL}/api/problems/not_found"
 
 
-@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json", "/api/v1/openapi.json"])
+@pytest.mark.parametrize(
+    ("path", "status"),
+    [("/docs", 404), ("/redoc", 404), ("/openapi.json", 404), ("/api/v1/openapi.json", 401)],
+)
 async def test_the_api_contract_is_not_served_without_a_session(
-    client: httpx.AsyncClient, path: str
+    client: httpx.AsyncClient, path: str, status: int
 ) -> None:
-    assert (await client.get(path)).status_code == 404
+    """The interactive pages do not exist; the document itself needs a signed-in user."""
+    response = await client.get(path)
+    assert response.status_code == status
+    assert response.headers["content-type"] == "application/problem+json"
