@@ -10,7 +10,7 @@ import asyncio
 import hashlib
 import ipaddress
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -32,6 +32,7 @@ from sightline.api.auth.passwords import (
 from sightline.api.auth.repository import (
     EmailTakenError,
     MembershipRecord,
+    SessionRecord,
     TokenPurpose,
     UserRecord,
 )
@@ -42,6 +43,7 @@ from sightline.api.problems import (
     DuplicateError,
     InvalidCredentialsError,
     InvalidTokenError,
+    NotFoundError,
     RateLimitedError,
     RegistrationClosedError,
     ServiceUnavailableError,
@@ -208,13 +210,7 @@ class AuthService:
 
     async def sign_in(self, *, email: str, password: str, info: RequestInfo) -> SignedIn:
         now = datetime.now(UTC)
-        wait = await self._guard(self._throttle.check(email=email, ip=info.throttle_ip))
-        if wait is not None:
-            raise RateLimitedError(
-                "Too many failed attempts. Try again later.",
-                headers={"Retry-After": str(wait)},
-                retry_after_seconds=wait,
-            )
+        await self._refuse_if_locked(email, info)
         async with self._sessions() as db, db.begin():
             user = await repository.find_user_by_email(db, email)
 
@@ -293,7 +289,155 @@ class AuthService:
             await self._store.forget([revoked])
 
     # -----------------------------------------------------------------------------------------
+    # Passwords
+
+    async def request_password_reset(self, *, email: str, info: RequestInfo) -> None:
+        """Send a reset link if the address has an enabled account. Runs after the response."""
+        await self._after_response(self._send_token_email(email, "password_reset", info))
+
+    async def confirm_password_reset(
+        self, *, token: str, new_password: str, info: RequestInfo
+    ) -> EmailMessage:
+        """Set a new password with an emailed token, and end every session of the user.
+
+        Returns the notice to send. The token is used only once the new password is acceptable,
+        so a refused password does not cost the user their link.
+        """
+        now = datetime.now(UTC)
+        token_hash = hash_token(token)
+        async with self._sessions() as db, db.begin():
+            user_id = await repository.find_token_user(
+                db, token_hash=token_hash, purpose="password_reset", now=now
+            )
+            user = None if user_id is None else await repository.get_user(db, user_id)
+        if user is None or user.disabled_at is not None:
+            raise InvalidTokenError
+        await self._check_password(new_password, email=user.email)
+        password_hash = await self._hash(new_password)
+
+        revoked: list[bytes] = []
+        async with self._sessions() as db, db.begin():
+            consumed = await repository.consume_token(
+                db, token_hash=token_hash, purpose="password_reset", now=now
+            )
+            if consumed is not None:
+                # Writing the user row first orders this against a sign-in in progress.
+                await repository.set_password_hash(
+                    db, user_id=user.id, password_hash=password_hash, now=now
+                )
+                # The token arrived by email, so it also proves the mailbox.
+                await repository.mark_email_verified(db, user_id=user.id, now=now)
+                revoked = await self._store.revoke_all(
+                    db, user_id=user.id, except_session_id=None, now=now
+                )
+                await self._audit(
+                    db, "auth.password.reset", user.id, info, {"sessions_ended": len(revoked)}
+                )
+        if consumed is None:
+            raise InvalidTokenError
+        await self._store.forget(revoked)
+        try:
+            # Whoever holds the mailbox may sign in again, even if someone locked the account.
+            await self._throttle.clear(email=user.email)
+        except ThrottleUnavailableError:
+            _log.warning("account lock not cleared after a password reset")
+        return mail.password_changed_email(
+            origin=self._origin, to=user.email, name=user.name, signed_out="all"
+        )
+
+    async def change_password(
+        self,
+        *,
+        session: SessionContext,
+        current_password: str,
+        new_password: str,
+        info: RequestInfo,
+    ) -> EmailMessage:
+        """Change the password of the signed-in user and end their other sessions."""
+        now = datetime.now(UTC)
+        async with self._sessions() as db, db.begin():
+            user = await repository.get_user(db, session.user_id)
+        if user is None:
+            raise UnauthenticatedError
+        await self._refuse_if_locked(user.email, info)
+        if not await self._verify(user.password_hash, current_password):
+            await self._credential_failed(user, "auth.password.change_failed", info)
+            raise InvalidCredentialsError
+        if new_password == current_password:
+            raise WeakPasswordProblemError(reason="unchanged")
+        await self._check_password(new_password, email=user.email)
+        password_hash = await self._hash(new_password)
+
+        revoked: list[bytes] = []
+        async with self._sessions() as db, db.begin():
+            current = await repository.lock_password_hash(db, user.id, exclusive=True)
+            # Changed since it was verified a moment ago: only the stored hash decides.
+            still_mine = current == user.password_hash or (
+                current is not None and await self._verify(current, current_password)
+            )
+            if still_mine:
+                await repository.set_password_hash(
+                    db, user_id=user.id, password_hash=password_hash, now=now
+                )
+                revoked = await self._store.revoke_all(
+                    db, user_id=user.id, except_session_id=session.session_id, now=now
+                )
+                await self._audit(
+                    db, "auth.password.changed", user.id, info, {"sessions_ended": len(revoked)}
+                )
+        if not still_mine:
+            raise InvalidCredentialsError
+        await self._store.forget(revoked)
+        return mail.password_changed_email(
+            origin=self._origin, to=user.email, name=user.name, signed_out="others"
+        )
+
+    # -----------------------------------------------------------------------------------------
+    # Sessions
+
+    async def list_sessions(self, session: SessionContext) -> list[SessionRecord]:
+        async with self._sessions() as db, db.begin():
+            return await repository.list_live_sessions(
+                db, user_id=session.user_id, now=datetime.now(UTC)
+            )
+
+    async def revoke_session(
+        self, *, session: SessionContext, session_id: UUID, info: RequestInfo
+    ) -> None:
+        """End one of the caller's sessions. A session of someone else does not exist for them."""
+        now = datetime.now(UTC)
+        async with self._sessions() as db, db.begin():
+            revoked = await self._store.revoke(
+                db, session_id=session_id, user_id=session.user_id, now=now
+            )
+            if revoked is not None:
+                await self._audit(db, "auth.session.revoked", session.user_id, info, {"count": 1})
+        if revoked is None:
+            raise NotFoundError
+        await self._store.forget([revoked])
+
+    async def revoke_other_sessions(self, *, session: SessionContext, info: RequestInfo) -> None:
+        now = datetime.now(UTC)
+        async with self._sessions() as db, db.begin():
+            revoked = await self._store.revoke_all(
+                db, user_id=session.user_id, except_session_id=session.session_id, now=now
+            )
+            await self._audit(
+                db, "auth.session.revoked", session.user_id, info, {"count": len(revoked)}
+            )
+        await self._store.forget(revoked)
+
+    # -----------------------------------------------------------------------------------------
     # The current user
+
+    async def update_profile(
+        self, *, session: SessionContext, changes: Mapping[str, str | None]
+    ) -> Profile:
+        async with self._sessions() as db, db.begin():
+            await repository.update_profile(
+                db, user_id=session.user_id, changes=changes, now=datetime.now(UTC)
+            )
+        return await self.profile(session)
 
     async def profile(self, session: SessionContext) -> Profile:
         async with user_transaction(self._sessions, session.user_id) as db:
@@ -380,6 +524,23 @@ class AuthService:
             raise WeakPasswordProblemError(reason=error.reason) from None
         if self._breached is not None and await self._breached.is_breached(password):
             raise WeakPasswordProblemError(reason="breached")
+
+    async def _refuse_if_locked(self, email: str, info: RequestInfo) -> None:
+        wait = await self._guard(self._throttle.check(email=email, ip=info.throttle_ip))
+        if wait is not None:
+            raise RateLimitedError(
+                "Too many failed attempts. Try again later.",
+                headers={"Retry-After": str(wait)},
+                retry_after_seconds=wait,
+            )
+
+    async def _credential_failed(self, user: UserRecord, action: str, info: RequestInfo) -> None:
+        """Count a wrong credential from a signed-in user and record it, committed at once."""
+        locked = await self._guard(self._throttle.failure(email=user.email, ip=info.throttle_ip))
+        async with self._sessions() as db, db.begin():
+            await self._audit(db, action, user.id, info, None)
+            if locked:
+                await self._audit(db, "auth.lockout", user.id, info, None)
 
     async def _sign_in_failed(
         self, *, email: str, user: UserRecord | None, reason: str, info: RequestInfo

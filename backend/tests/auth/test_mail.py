@@ -33,8 +33,15 @@ def test_the_reset_link_carries_the_token_in_the_fragment() -> None:
 
 
 def test_the_password_changed_notice_has_no_token_and_one_link() -> None:
-    message = password_changed_email(origin=ORIGIN, to="jane@client.example", name="Jane")
+    message = password_changed_email(
+        origin=ORIGIN, to="jane@client.example", name="Jane", signed_out="others"
+    )
     assert message.subject == "Your password was changed"
+    assert "every other session was signed out" in message.text
+    after_reset = password_changed_email(
+        origin=ORIGIN, to="jane@client.example", name="Jane", signed_out="all"
+    )
+    assert "every session was signed out" in after_reset.text
     assert re.findall(r"https://\S+", message.text) == [f"{ORIGIN}/reset-password"]
     assert "token" not in message.text
 
@@ -81,7 +88,7 @@ def test_no_message_contains_a_dash_that_marks_generated_text() -> None:
     messages = [
         verification_email(origin=ORIGIN, to="a@b.example", name="Jane", token=TOKEN),
         password_reset_email(origin=ORIGIN, to="a@b.example", name="Jane", token=TOKEN),
-        password_changed_email(origin=ORIGIN, to="a@b.example", name="Jane"),
+        password_changed_email(origin=ORIGIN, to="a@b.example", name="Jane", signed_out="all"),
     ]
     for message in messages:
         written = message.subject + message.text

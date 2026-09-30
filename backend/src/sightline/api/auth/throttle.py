@@ -114,6 +114,13 @@ class LoginThrottle:
         except _REDIS_ERRORS:
             raise ThrottleUnavailableError from None
 
+    async def clear(self, *, email: str) -> None:
+        """Lift an account lockout. For a user who has just proved they own the mailbox."""
+        try:
+            await self._redis.delete(_failures_key("acct", email), _lock_key("acct", email))
+        except _REDIS_ERRORS:
+            raise ThrottleUnavailableError from None
+
     async def allow(self, scope: str, subject: str, *, limit: int, window_seconds: int) -> bool:
         """Count one action by `subject` and say whether it is within `limit` per window."""
         try:

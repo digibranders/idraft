@@ -7,16 +7,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 
 from sightline.api.auth.dependencies import (
     CurrentSession,
+    FreshSession,
     OptionalSession,
     clear_session_cookie,
     set_session_cookie,
 )
-from sightline.api.auth.service import AuthService, RequestInfo, request_info
+from sightline.api.auth.service import AuthService, Profile, RequestInfo, request_info
 from sightline.api.auth.sessions import SessionContext
 from sightline.api.permissions import Role, permissions_for
 from sightline.api.resources import Resources, get_resources
@@ -30,8 +32,13 @@ from sightline.api.schemas.auth import (
     MeSession,
     MeUser,
     MeWorkspace,
+    PasswordChangeRequest,
+    PasswordResetConfirmRequest,
+    ProfileUpdate,
     RegisterRequest,
     RegisterResponse,
+    SessionItem,
+    SessionList,
     SignInRequest,
     SignInResponse,
     VerifyEmailRequest,
@@ -135,9 +142,103 @@ async def sign_out(session: OptionalSession, auth: Auth, info: Info) -> Response
     return response
 
 
-@router.get("/me", summary="The signed-in user, this session and their workspaces")
-async def me(session: CurrentSession, auth: Auth) -> MeResponse:
-    profile = await auth.profile(session)
+@router.post(
+    "/auth/password-reset/request",
+    status_code=202,
+    summary="Send a password reset email",
+    description="Answers 202 whether or not the address has an account.",
+)
+async def request_password_reset(
+    body: EmailRequest, background: BackgroundTasks, auth: Auth, info: Info
+) -> Accepted:
+    await auth.limit_email_requests(info)
+    background.add_task(auth.request_password_reset, email=body.email, info=info)
+    return Accepted()
+
+
+@router.post(
+    "/auth/password-reset/confirm",
+    summary="Set a new password with the emailed token",
+    description="Ends every session of the user. It does not sign anyone in.",
+)
+async def confirm_password_reset(
+    body: PasswordResetConfirmRequest, background: BackgroundTasks, auth: Auth, info: Info
+) -> Done:
+    notice = await auth.confirm_password_reset(
+        token=body.token, new_password=body.new_password, info=info
+    )
+    background.add_task(auth.deliver, notice)
+    return Done()
+
+
+@router.post(
+    "/auth/password/change",
+    summary="Change the password",
+    description="Needs a fresh session. Ends the user's other sessions.",
+)
+async def change_password(
+    body: PasswordChangeRequest,
+    session: FreshSession,
+    background: BackgroundTasks,
+    auth: Auth,
+    info: Info,
+) -> Done:
+    notice = await auth.change_password(
+        session=session,
+        current_password=body.current_password,
+        new_password=body.new_password,
+        info=info,
+    )
+    background.add_task(auth.deliver, notice)
+    return Done()
+
+
+@router.get("/auth/sessions", summary="The caller's signed-in sessions")
+async def list_sessions(session: CurrentSession, auth: Auth) -> SessionList:
+    return SessionList(
+        data=[
+            SessionItem(
+                session_id=item.id,
+                created_at=item.created_at,
+                last_seen_at=item.last_seen_at,
+                ip=item.ip,
+                user_agent=item.user_agent,
+                is_current=item.id == session.session_id,
+            )
+            for item in await auth.list_sessions(session)
+        ]
+    )
+
+
+@router.post(
+    "/auth/sessions/revoke-others",
+    status_code=204,
+    summary="End every session of the caller except this one",
+)
+async def revoke_other_sessions(session: CurrentSession, auth: Auth, info: Info) -> Response:
+    await auth.revoke_other_sessions(session=session, info=info)
+    return Response(status_code=204)
+
+
+@router.delete(
+    "/auth/sessions/{session_id}",
+    status_code=204,
+    summary="End one of the caller's sessions",
+    description=(
+        "404 for a session that is not the caller's. Ending the current one clears the cookie."
+    ),
+)
+async def revoke_session(
+    session_id: UUID, session: CurrentSession, auth: Auth, info: Info
+) -> Response:
+    await auth.revoke_session(session=session, session_id=session_id, info=info)
+    response = Response(status_code=204)
+    if session_id == session.session_id:
+        clear_session_cookie(response)
+    return response
+
+
+def _me(profile: Profile, session: SessionContext) -> MeResponse:
     return MeResponse(
         data=Me(
             user=MeUser(
@@ -166,3 +267,14 @@ async def me(session: CurrentSession, auth: Auth) -> MeResponse:
             ],
         )
     )
+
+
+@router.get("/me", summary="The signed-in user, this session and their workspaces")
+async def me(session: CurrentSession, auth: Auth) -> MeResponse:
+    return _me(await auth.profile(session), session)
+
+
+@router.patch("/me", summary="Change the caller's name or picture")
+async def update_me(body: ProfileUpdate, session: CurrentSession, auth: Auth) -> MeResponse:
+    changes = body.model_dump(include=body.model_fields_set)
+    return _me(await auth.update_profile(session=session, changes=changes), session)

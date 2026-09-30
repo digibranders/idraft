@@ -166,6 +166,20 @@ async def test_a_redis_outage_is_reported_not_ignored(black_hole: str) -> None:
         with pytest.raises(ThrottleUnavailableError):
             await throttle.success(email=EMAIL)
         with pytest.raises(ThrottleUnavailableError):
+            await throttle.clear(email=EMAIL)
+        with pytest.raises(ThrottleUnavailableError):
             await throttle.allow("x", "y", limit=1, window_seconds=1)
     finally:
         await client.aclose()
+
+
+async def test_clearing_lifts_the_account_lock_and_keeps_the_address_lock(redis: Redis) -> None:
+    throttle = LoginThrottle(redis)
+    for index in range(20):
+        await throttle.failure(email=EMAIL if index < 5 else f"u{index}@client.example", ip=IP)
+    assert await throttle.check(email=EMAIL, ip="198.51.100.9") is not None
+
+    await throttle.clear(email=EMAIL)
+
+    assert await throttle.check(email=EMAIL, ip="198.51.100.9") is None
+    assert await throttle.check(email=EMAIL, ip=IP) is not None

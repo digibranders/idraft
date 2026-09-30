@@ -8,7 +8,14 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 from sightline.api.permissions import Role
 
@@ -17,6 +24,7 @@ EMAIL_MAX = 254
 # Far above the policy limit: the policy answers with a reason, this only bounds the body.
 PASSWORD_BODY_MAX = 1024
 TOKEN_BODY_MAX = 128
+IMAGE_URL_MAX = 2048
 _EMAIL = re.compile(r"[^\s<>@,;\x00-\x1f\x7f]+@[^\s<>@,;\x00-\x1f\x7f]+")
 
 
@@ -46,6 +54,10 @@ Email = Annotated[
     AfterValidator(_email),
 ]
 Password = Annotated[str, StringConstraints(max_length=PASSWORD_BODY_MAX)]
+# Shown in an <img>. https only, and nothing a browser would treat as a second attribute.
+ImageUrl = Annotated[
+    str, StringConstraints(max_length=IMAGE_URL_MAX, pattern=r"^https://[^\s<>\"'`\\]+$")
+]
 Token = Annotated[
     str,
     StringConstraints(min_length=1, max_length=TOKEN_BODY_MAX),
@@ -138,3 +150,41 @@ class Me(BaseModel):
 
 class MeResponse(BaseModel):
     data: Me
+
+
+class PasswordResetConfirmRequest(_Body):
+    token: Token
+    new_password: Password
+
+
+class PasswordChangeRequest(_Body):
+    current_password: Password
+    new_password: Password
+
+
+class SessionItem(BaseModel):
+    session_id: UUID
+    created_at: datetime
+    last_seen_at: datetime
+    ip: str | None
+    user_agent: str | None
+    is_current: bool
+
+
+class SessionList(BaseModel):
+    data: list[SessionItem]
+
+
+class ProfileUpdate(_Body):
+    """At least one member. `image: null` removes the picture; `name` cannot be null."""
+
+    name: Name | None = None
+    image: ImageUrl | None = None
+
+    @model_validator(mode="after")
+    def _says_something(self) -> ProfileUpdate:
+        if not self.model_fields_set:
+            raise ValueError("give name, image or both")
+        if "name" in self.model_fields_set and self.name is None:
+            raise ValueError("name cannot be null")
+        return self

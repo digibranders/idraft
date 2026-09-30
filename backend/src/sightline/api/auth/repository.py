@@ -5,6 +5,7 @@ Functions take the caller's session so a use case stays in one transaction. Noth
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -466,3 +467,47 @@ async def record_auth_event(
             "details": details,
         },
     )
+
+
+# ---------------------------------------------------------------------------------------------
+# Password reset, the session list, the profile
+
+
+async def find_token_user(
+    db: AsyncSession, *, token_hash: bytes, purpose: TokenPurpose, now: datetime
+) -> UUID | None:
+    """Whose token this is, if it could be used now. Does not use it."""
+    statement = select(verification_tokens.c.user_id).where(
+        verification_tokens.c.token_hash == token_hash,
+        verification_tokens.c.purpose == purpose,
+        verification_tokens.c.consumed_at.is_(None),
+        verification_tokens.c.expires_at > now,
+    )
+    user_id: UUID | None = (await db.execute(statement)).scalar_one_or_none()
+    return user_id
+
+
+async def list_live_sessions(
+    db: AsyncSession, *, user_id: UUID, now: datetime
+) -> list[SessionRecord]:
+    """The user's signed-in sessions that still work, most recently used first."""
+    statement = (
+        select(*_SESSION_COLUMNS)
+        .where(
+            sessions.c.user_id == user_id,
+            sessions.c.state == "active",
+            sessions.c.revoked_at.is_(None),
+            sessions.c.idle_expires_at > now,
+            sessions.c.absolute_expires_at > now,
+        )
+        .order_by(sessions.c.last_seen_at.desc(), sessions.c.id.desc())
+    )
+    return [_session_record(row) for row in await db.execute(statement)]
+
+
+async def update_profile(
+    db: AsyncSession, *, user_id: UUID, changes: Mapping[str, str | None], now: datetime
+) -> None:
+    """Set `name` and `image`, whichever are given. The caller has validated both."""
+    allowed = {key: value for key, value in changes.items() if key in ("name", "image")}
+    await db.execute(update(users).where(users.c.id == user_id).values(**allowed, updated_at=now))

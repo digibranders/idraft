@@ -29,7 +29,7 @@ _HASHER = PasswordHasher(
 )
 _log = structlog.get_logger(__name__)
 
-WeakPasswordReason = Literal["too_short", "too_long", "contains_email", "breached"]
+WeakPasswordReason = Literal["too_short", "too_long", "contains_email", "breached", "unchanged"]
 
 
 class WeakPasswordError(Exception):

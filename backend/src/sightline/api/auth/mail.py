@@ -7,6 +7,7 @@ out of proxy and application access logs; the web page reads it and posts it to 
 from __future__ import annotations
 
 import unicodedata
+from typing import Literal
 
 from sightline.providers.email import EmailMessage
 
@@ -59,14 +60,18 @@ def password_reset_email(*, origin: str, to: str, name: str, token: str) -> Emai
     )
 
 
-def password_changed_email(*, origin: str, to: str, name: str) -> EmailMessage:
+def password_changed_email(
+    *, origin: str, to: str, name: str, signed_out: Literal["others", "all"]
+) -> EmailMessage:
+    """`signed_out`: a change keeps the session that made it, a reset keeps none."""
+    sessions = "every other session" if signed_out == "others" else "every session"
     return EmailMessage(
         to=to,
         subject="Your password was changed",
         text=(
             f"{_greeting(name)}\n\n"
-            "The password of your Sightline account was just changed, and every other session "
-            "was signed out.\n\n"
+            f"The password of your Sightline account was just changed, and {sessions} was "
+            "signed out.\n\n"
             "If this was not you, reset your password now and tell your workspace owner:\n\n"
             f"{origin}/reset-password\n"
         ),
