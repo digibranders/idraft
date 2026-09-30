@@ -27,7 +27,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 1 
 
 ## Phase 1: Platform foundation
 
-Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.5 engineer-weeks.
+Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.5 engineer-weeks. The order of work is [29](29-phase-roadmap.md) section 1.1; items deferred there are ticked under Launch readiness, not here.
 
 ### Repository and tooling
 
@@ -54,7 +54,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 ### API
 
 - [ ] FastAPI on uvicorn, Pydantic v2 models as the contract, OpenAPI 3.1 generation, base path `/api/v1`
-- [ ] Own auth module at `/api/v1/auth/*`: argon2id passwords, opaque session ids in `auth.sessions` with a 60 s Redis read-through cache, email verification and password reset with hashed tokens, invitations, TOTP (pyotp) required for owner and admin ([24](24-security.md) section 3 for roles)
+- [ ] Own auth module at `/api/v1/auth/*`: argon2id passwords, opaque session ids in `auth.sessions` with a 60 s Redis read-through cache, email verification and password reset with hashed tokens, invitations, TOTP (pyotp) as an opt-in ([24](24-security.md) section 3 for roles)
 - [ ] Cookie `__Host-session` (HttpOnly, Secure, SameSite=Lax, Path=/); Origin check on state-changing requests; same origin, so no CORS allowlist ([24](24-security.md) section 2.1)
 - [ ] Tenancy dependency (workspace in path, membership lookup, 404 for foreign ids)
 - [ ] Permission dependency on every route; route permission coverage test
@@ -104,7 +104,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 - [ ] Postgres and Redis have no published ports; external port scan shows only 80 and 443
 - [ ] Redis ACL user for the api and worker (queue, rate limiter, locks, session cache); dangerous commands disabled
 - [ ] Cross-tenant test suite running in CI
-- [ ] Auth module reviewed: argon2id, hashed verification, reset and invitation tokens, TOTP enforced for owner and admin, `__Host-session` cookie flags, Origin check, rate limiting on sign-in
+- [ ] Auth module reviewed: argon2id, hashed verification, reset and invitation tokens, TOTP enrolment and sign-in, `__Host-session` cookie flags, Origin check, rate limiting on sign-in
 - [ ] `/etc/seo-platform/.env` root-owned with mode 0600; platform secrets exist only there and in GitHub Actions environment secrets
 - [ ] Secret scanning and push protection enabled; Renovate with minimum release age
 - [ ] Audit log entries for auth and membership events verified
@@ -193,6 +193,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 - [ ] Methodology pages published in-app for every metric shown
 - [ ] Runbooks for top 12 alerts reviewed by on-call engineer ([25](25-observability.md))
 - [ ] Data retention jobs verified on staging data
+- [ ] Every item deferred by [29](29-phase-roadmap.md) section 1.1 is built or dropped by a recorded decision, including TOTP enforced for owner and admin
 
 ## External SaaS readiness (post-MVP)
 

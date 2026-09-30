@@ -49,6 +49,37 @@ gantt
     Hardening + launch        :h, after p10, 1w
 ```
 
+### 1.1 Build order (set 2026-09-30)
+
+The product owner's rule: build what makes the product show data first, and move everything that is optional at the start into one hardening step before launch. The table above gives scope, dependencies and estimates. This section gives the order of work, and it wins where the two differ. The chart above still shows the dependencies; with one backend builder the two tracks run one after the other.
+
+| Step | Work | Phase | Why it sits here |
+|---|---|---|---|
+| 1 | Workspaces, projects, membership and permission checks on every route; invitations (create and accept only) | 1 | Every row of data belongs to a project, and a person joins by invitation |
+| 2 | Worker, the two queues, the task ledger, the budget check before each dispatch | 1 | Nothing is collected without it, and the budget check protects provider spend |
+| 3 | DataForSEO client and rate limiter, raw payload storage in R2, the Phase 0 test runs | 0 and 1 | Needs a funded DataForSEO account and the two R2 buckets |
+| 4 | Brands, entities, domains, locations, taxonomy | 2 | Keywords and prompts are judged against them |
+| 5 | Keywords, then rank collection | 3 and 4 | First real data |
+| 6 | Droplet, Compose stack, deploy workflow, nightly backups | 1 (infra) | Rank history only builds on a server that runs every day, so the deploy comes as soon as collection works |
+| 7 | SEO analytics | 5 | Internal alpha at the end of this step |
+| 8 | Prompts, AI collection, extraction, AI analytics | 6 to 9 | AI alpha at the end of this step |
+| 9 | The SEO and AI matrix | 10a | Joins both tracks |
+| 10 | Launch hardening: the deferred list below | 1 and launch | Optional while the users are the internal team |
+| 11 | Discovery, first-party integrations, source intelligence, advanced statistics | 11 to 15 | Post-MVP, unchanged |
+
+**Deferred to step 10.** Each item keeps its specification; only its place in the order changed.
+
+- Two-factor. Enrolment, sign-in with a code and recovery codes are built and stay in the API, for any user who turns them on. Blocking an owner or admin who has not enrolled (`two_factor_enrollment_required`, [19-api-specification.md](19-api-specification.md) section 2.1 rule 6) and the enrolment screens wait. Until then a password is enough for every role.
+- Invitations beyond create and accept: resend, cancel, decline, and the public preview of an invitation.
+- The general request limit (600 per minute per user) and `GET /api/v1/roles`. The sign-in throttle is built and stays on.
+- The email outbox in the worker, the purge of expired sessions and used tokens, and the retention jobs.
+- Change of email address and the disable-user route.
+- Routes to read the audit log and to manage quotas and budgets. Audit rows are written from the start, and the budget check is part of step 2.
+- Heartbeats, the uptime check, runbooks, the monthly restore drill, Renovate and secret scanning. Sentry and the nightly backup arrive with step 6.
+- Refactors with no change in behaviour (review log items F21 and F22).
+
+**Never deferred.** Tenant isolation (row-level security and the cross-tenant test suite), the sign-in throttle, the session and cookie rules, secret handling, and the budget check. At the deploy: the firewall, no published database or Redis port, and encrypted nightly backups.
+
 ## 2. Definition of Done (applies to every phase)
 
 - Migrations applied in CI on an empty database and on the synthetic fixture database; no lock over 2 s on large tables.
@@ -85,14 +116,14 @@ gantt
 
 | Area | Content |
 |---|---|
-| Features | Sign-up, sign-in, email verification, password reset, TOTP 2FA (required for owner and admin), workspaces, invitations, roles, projects CRUD, audit log. Google sign-in, API keys and the Idempotency-Key header are deferred |
+| Features | Sign-up, sign-in, email verification, password reset, TOTP 2FA (opt-in; enforcement for owner and admin is deferred, section 1.1), workspaces, invitations, roles, projects CRUD, audit log. Google sign-in, API keys and the Idempotency-Key header are deferred |
 | Dependencies | Phase 0 |
 | Database | PostgreSQL 18 through SQLAlchemy 2 (async, asyncpg) with Alembic migrations (SQL in `op.execute` allowed); schemas `auth`, `core`, `ops`; `auth` tables for users, sessions, verification and reset tokens, workspaces, memberships and invitations (`auth.api_keys` may exist without routes); `core.projects`, `core.workspace_quotas`, `ops.budgets`, `ops.audit_logs`, `ops.component_versions`, `ops.providers`, `ops.provider_price_book`, `ops.raw_payloads`, `ops.schedules`, `ops.collection_runs`, `ops.collection_tasks`, `ops.provider_cost_events`, `ops.cost_daily`; `ops.ensure_monthly_partitions`; RLS helper and policies; roles `app_api` (api, subject to RLS), `app_worker` (worker, bypasses RLS, never reachable from a request), `migrator` (owner), `backup` (read-only). `ops.secrets` waits for Phase 12 and `ops.fetch_cache` for Phase 11 or later |
 | Backend | One Python 3.13 project in `backend/` (FastAPI, Pydantic v2, uvicorn, `uv`) with two entrypoints, api and worker; layout `backend/src/sightline/{api, worker, domain, extraction, providers, collectors, db, storage, config}` with purity rules enforced by import-linter; settings validated at start; structured JSON logs; Sentry. API at `/api/v1`: own auth module (argon2id passwords, opaque session ids in `auth.sessions` with a 60 s Redis read-through cache, `__Host-session` cookie, email verification and password reset with hashed tokens, invitations, roles per doc 24 section 3, TOTP with pyotp), tenancy dependency with `set_config('app.workspace_id', ...)` per transaction, permission checks, problem+json errors, rate limiting, request ids, SameSite=Lax plus an Origin check on state-changing requests; OpenAPI 3.1 generated by FastAPI. Worker: Taskiq with the Redis broker, queues `collect` (concurrency 8, shared rate limiter) and `process` (concurrency 4) in one process; planner tick under a Redis lock; dispatcher with budget check; reconciler; Taskiq scheduler for maintenance cron jobs (no workloads yet). Storage (R2 client, zstd, raw payload writer and reader); provider adapter contract; DataForSEO HTTP client with rate limiter and error taxonomy (no workloads yet) |
 | Frontend | Next.js (App Router, TypeScript, pnpm) in `apps/web/`, `output: 'standalone'`, self-hosted as the `web` container; server components call the API over the Docker network. Auth screens (including TOTP enrolment), workspace/project switcher, settings (members, roles, projects), empty Overview shell, design system setup (shadcn/ui on Tailwind v4); typed client generated from the OpenAPI document with `openapi-typescript` plus `openapi-fetch`, regenerated in CI and committed (doc 19) |
 | Infra | Production droplet (2 vCPU, 4 GB, 80 GB, Ubuntu 26.04), bootstrap script, 2 GB swap; Docker Compose with `caddy`, `web`, `api`, `worker`, `postgres` (`postgres:18`), `redis` (`redis:8`) and a one-off `migrator` running `alembic upgrade head`; Caddy routes `/api/*` to `api` and everything else to `web` on one domain (no CORS); DO Cloud Firewall, SSH hardening, unattended upgrades; platform secrets in `/etc/seo-platform/.env` (root-owned, 0600) written by the deploy workflow from GitHub Actions environment secrets; GitHub Actions CI/CD (lint, typecheck, tests, build the three images, push to GHCR by digest, SSH deploy: pull, run `migrator`, restart `api` and `worker`, then `web`; rollback to the previous tag); backups (nightly `pg_dump -Fc`, zstd, age, `rclone` to R2 `seo-backups/daily/` with a 30-day lifecycle rule), DigitalOcean weekly droplet backups enabled, monthly scripted restore drill (`restore-verify.sh`, S-10); Sentry (Python and Next.js SDKs, 10% performance sampling), Healthchecks.io heartbeats (planner tick, backups, maintenance, `ops_health`), one Better Stack uptime check; Docker json-file log rotation |
 | Tests | pytest with Testcontainers (`postgres:18`, `redis:8`): auth flows, permission coverage test, cross-tenant suite, RLS tests, Alembic migration check in CI, import-linter contracts, Taskiq smoke test (enqueue on both queues, retry by error class, worker restart, reconciler after a Redis flush), generated-client drift check; Vitest and Playwright scaffolding in `apps/web`; first restore drill run and recorded |
-| Acceptance criteria | A user can sign up, verify email, sign in with TOTP (owner and admin), create a workspace and project, invite a member with a role and call `GET /api/v1/me`; a second workspace cannot read the first's project (404); the nightly backup lands in R2 encrypted and the first restore drill passes and is recorded; deploy from main to production in under 10 minutes with migrations; a forced failure reaches Sentry and a missed heartbeat alerts from Healthchecks; Taskiq passes its smoke test or Celery is adopted; steady RAM within 2.1 to 2.8 GB |
+| Acceptance criteria | A user can sign up, verify email, sign in, create a workspace and project, invite a member with a role and call `GET /api/v1/me`; a second workspace cannot read the first's project (404); the nightly backup lands in R2 encrypted and the first restore drill passes and is recorded; deploy from main to production in under 10 minutes with migrations; a forced failure reaches Sentry and a missed heartbeat alerts from Healthchecks; Taskiq passes its smoke test or Celery is adopted; steady RAM within 2.1 to 2.8 GB |
 | Risks | Taskiq maturity (fallback: Celery, decided by the smoke test); own auth module is security-critical code (security checklist, tests for token hashing, session revocation and TOTP); two toolchains in one repo; no preview deployments with self-hosted Next.js (Playwright against the Compose stack in CI instead) |
 | DoD | Section 2 plus: security checklist items for Phase 1 in doc 31 ticked |
 

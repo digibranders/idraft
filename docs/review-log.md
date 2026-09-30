@@ -402,14 +402,23 @@ Carried into the next plans:
 
 | Id | Item | Plan |
 |---|---|---|
-| F12 | `two_factor_enrollment_required`: an owner or admin without TOTP is blocked from workspace routes. Needs `require_permission` and the workspace routes | 3b (workspaces, members, projects) |
+| F12 | `two_factor_enrollment_required`: an owner or admin without TOTP is blocked from workspace routes. Needs `require_permission` and the workspace routes | launch hardening |
 | F13 | While `REGISTRATION=invited`, creating a workspace should be limited to platform operators, or an invited client could create a second workspace and spend on it | 3b |
-| F14 | Invitation routes: create, resend, cancel, accept, decline. Accepting must mark the invitation `accepted`; registration only reads it. The invitation email reuses the email port and the fragment token | 3b |
-| F15 | The general request limit (600 per minute per user) and `GET /api/v1/roles` | 3b |
-| F16 | Verification and reset emails are sent from a background task in the api process. Move them to the worker outbox, which also removes the keep-alive timing difference between known and unknown addresses | 4 (worker) |
-| F17 | Purge of expired sessions and used tokens, with the `DELETE` grants it needs | maintenance plan |
+| F14 | Invitation routes: create, resend, cancel, accept, decline. Accepting must mark the invitation `accepted`; registration only reads it. The invitation email reuses the email port and the fragment token | create and accept in 3b; resend, cancel and decline at launch hardening |
+| F15 | The general request limit (600 per minute per user) and `GET /api/v1/roles` | launch hardening |
+| F16 | Verification and reset emails are sent from a background task in the api process. Move them to the worker outbox, which also removes the keep-alive timing difference between known and unknown addresses | launch hardening |
+| F17 | Purge of expired sessions and used tokens, with the `DELETE` grants it needs | launch hardening |
 | F18 | Production Compose: `APP_ENV=production`, `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, `TOTP_ENCRYPTION_KEY` in `required-secrets.txt`; `--forwarded-allow-ips` and Caddy `trusted_proxies` verified with a test that the api sees the real client address | 6 (droplet) |
 | F19 | The frontend branch adds the permission `layouts:manage` to doc 24 section 3.2. When it merges, `sightline.api.permissions` and its test need the same row | at that merge |
-| F21 | `sightline/api/auth/service.py` is about 970 lines. Split it along its section headers: two-factor and re-authentication into their own module, the shared helpers (`_audit`, `_limit`, `_credential_*`, hashing) into a base both use | 3b, before adding to it |
-| F22 | Two tests set private attributes of the service to inject a failing email sender; give the `client_for` fixture an `email_sender` argument instead | 3b |
-| F20 | `auth.users.email` and `disabled_at` still have no route. A disable-user path must revoke the user's sessions and evict them from the cache | 3b or the admin plan |
+| F21 | `sightline/api/auth/service.py` is about 970 lines. Split it along its section headers: two-factor and re-authentication into their own module, the shared helpers (`_audit`, `_limit`, `_credential_*`, hashing) into a base both use | launch hardening, or earlier if a plan has to add to the file |
+| F22 | Two tests set private attributes of the service to inject a failing email sender; give the `client_for` fixture an `email_sender` argument instead | launch hardening |
+| F20 | `auth.users.email` and `disabled_at` still have no route. A disable-user path must revoke the user's sessions and evict them from the cache | launch hardening |
+
+### Build order set by the product owner (2026-09-30)
+
+After the auth branch was reviewed, the product owner asked for the main features first and for everything optional at the start, two-factor named as the example, to move to the end. The order is [29-phase-roadmap.md](29-phase-roadmap.md) section 1.1. What changed:
+
+- Two-factor stays in the API as built and reviewed, as an opt-in. Blocking owners and admins who have not enrolled (F12) moves to launch hardening. Docs 00, 03, 19, 24, 29 and 31 now say so.
+- The next backend plan (3b) is cut to workspaces, projects, membership, permission checks, and invitation create and accept. The rest of F14, and F15, F16, F17, F20, F21 and F22, move to launch hardening. F13 (who may create a workspace while registration is by invitation) stays in 3b because it limits provider spend.
+- The droplet and deploy plan moves from before the feature phases to directly after rank collection, because daily rank history only builds on a server that runs every day.
+- Nothing that protects tenant data or provider spend moved.
