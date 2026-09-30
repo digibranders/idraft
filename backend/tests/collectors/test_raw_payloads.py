@@ -14,10 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors.raw_payloads import RawPayload, store_raw_payload
 from sightline.storage.raw import RawStorageError, RawStore, RetentionClass, decompress, digest
-from tests.api.auth.support import fetch
+from tests.api.auth.support import execute, fetch
 from tests.conftest import ObjectServer, PostgresServer
 from tests.providers.dataforseo.support import fixture_bytes
-from tests.storage.support import fresh_store, object_keys
+from tests.storage.support import delete_object, fresh_store, object_keys
 
 Ledger = async_sessionmaker[AsyncSession]
 BODY = fixture_bytes("task_get_advanced")
@@ -118,6 +118,61 @@ async def test_the_same_bytes_are_stored_and_registered_once(
     assert len(await _rows(migrated)) == 1
     assert len(store.puts) == 1
     assert len(await object_keys(object_server, store.inner.bucket)) == 1
+
+
+async def test_the_same_bytes_in_two_classes_are_kept_as_long_as_each_class_says(
+    worker_db: Ledger,
+    migrated: PostgresServer,
+    store: CountingStore,
+    object_server: ObjectServer,
+) -> None:
+    body = b'{"rows": []}'
+    kept_for_a_month = await store_raw_payload(worker_db, store, _payload(body, "error"))
+    kept_for_ever = await store_raw_payload(worker_db, store, _payload(body, "ai_raw"))
+
+    assert kept_for_a_month != kept_for_ever
+    rows = {row["retention_class"]: row for row in await _rows(migrated)}
+    assert rows["ai_raw"]["expires_at"] is None
+    assert rows["ai_raw"]["object_key"].startswith("raw/v1/ai_raw/")
+    assert rows["error"]["object_key"].startswith("raw/v1/error/")
+    assert len(await object_keys(object_server, store.inner.bucket)) == 2
+
+
+async def test_bytes_that_come_again_late_are_written_anew_and_kept_longer(
+    worker_db: Ledger,
+    migrated: PostgresServer,
+    store: CountingStore,
+    object_server: ObjectServer,
+) -> None:
+    """The bucket counts an object's life from when it was written: an old object may be
+    about to go, or gone, when the same bytes are wanted again."""
+    first = await store_raw_payload(worker_db, store, _payload())
+    (row,) = await _rows(migrated)
+    await execute(
+        migrated,
+        "UPDATE ops.raw_payloads SET expires_at = now() + interval '3 days' WHERE id = $1",
+        first,
+    )
+    await delete_object(object_server, store.inner.bucket, row["object_key"])
+
+    again = await store_raw_payload(worker_db, store, _payload())
+
+    assert again == first
+    assert store.puts == [row["object_key"], row["object_key"]]
+    assert decompress(await store.get(row["object_key"])) == BODY
+    (renewed,) = await _rows(migrated)
+    assert renewed["expires_at"] - renewed["now"] > timedelta(days=399)
+
+
+async def test_bytes_that_come_again_soon_are_not_written_again(
+    worker_db: Ledger, store: CountingStore
+) -> None:
+    await store_raw_payload(worker_db, store, _payload())
+    await store_raw_payload(worker_db, store, _payload())
+    await store_raw_payload(worker_db, store, _payload(b'{"answer": 1}', "ai_raw"))
+    await store_raw_payload(worker_db, store, _payload(b'{"answer": 1}', "ai_raw"))
+
+    assert len(store.puts) == 2
 
 
 async def test_two_workers_keeping_the_same_bytes_at_once_agree_on_one_row(

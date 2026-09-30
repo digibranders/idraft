@@ -768,7 +768,7 @@ Why not move `serp_raw` to Infrequent Access: IA saves $0.005 per GB-month (veri
 }
 ```
 
-No rule touches `raw/v1/ai_raw/`. There is no `canary/` prefix: the nightly contract-drift canary was dropped (doc 26 section 3.3). The ingest code sets `ops.raw_payloads.expires_at` to `fetched_at` plus the class retention, so the API can say "raw payload expired on <date>" instead of returning a storage error, and the maintenance job can reconcile registry rows with R2.
+No rule touches `raw/v1/ai_raw/`. There is no `canary/` prefix: the nightly contract-drift canary was dropped (doc 26 section 3.3). The ingest code sets `ops.raw_payloads.expires_at` to `fetched_at` plus the class retention, so the API can say "raw payload expired on <date>" instead of returning a storage error, and the maintenance job can reconcile registry rows with R2. A payload is registered once per class and hash. When the same bytes come again and their object has used more than a day of its life, the object is written again under its key (the lifecycle rule counts from the last write) and `expires_at` moves to the new end. Objects are zstd frames with a content checksum, and a read is checked against the registered sha256. The reconciliation also removes objects no row names: two workers storing the same new bytes across midnight each write one, and in `ai_raw` nothing else would remove the second.
 
 ### 9.3 Workspace purge interaction
 

@@ -14,7 +14,9 @@ from structlog.typing import EventDict, Processor, WrappedLogger
 from sightline.config.redaction import redact
 
 _HANDLER_NAME = "sightline-json"
-_URL_LOGGING_LIBRARIES = ("httpx", "httpcore")
+# Client libraries that log request URLs, headers or signing details below WARNING. botocore at
+# debug level logs the access key id and each request's signature.
+_URL_LOGGING_LIBRARIES = ("httpx", "httpcore", "botocore", "aiobotocore", "urllib3")
 _SERVER_DUPLICATE = "Exception in ASGI application"
 _LEVELS: Mapping[str, int] = {
     "debug": logging.DEBUG,
@@ -109,8 +111,9 @@ def _route_standard_library_logs(
     access.handlers.clear()
     access.propagate = False
 
-    # HTTP client libraries log every request URL at info level, query string included. Provider
-    # calls are logged by our own client with the endpoint family name instead.
+    # HTTP client libraries log every request URL at info level, query string included, and
+    # the S3 client its credentials and signatures at debug level. Provider calls are logged
+    # by our own client with the endpoint family name instead.
     for name in _URL_LOGGING_LIBRARIES:
         logging.getLogger(name).setLevel(logging.WARNING)
 

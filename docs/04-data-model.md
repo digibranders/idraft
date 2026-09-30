@@ -1566,7 +1566,7 @@ CREATE TABLE ops.raw_payloads (
     fetched_at      timestamptz NOT NULL,
     retention_class text NOT NULL CHECK (retention_class IN ('serp_raw','ai_raw','first_party_raw','error')),
     expires_at      timestamptz,             -- set by retention policy; NULL = keep
-    UNIQUE (sha256)
+    UNIQUE (retention_class, sha256)         -- once per class: the class is in the key and sets the object's life (migration 0009)
 );
 
 CREATE TABLE ops.fetch_cache (

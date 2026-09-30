@@ -28,6 +28,16 @@ async def fresh_store(server: ObjectServer) -> AsyncIterator[RawStore]:
         yield store
 
 
+async def delete_object(server: ObjectServer, bucket: str, key: str) -> None:
+    """As the bucket's lifecycle rule does when an object's time is up."""
+    async with s3_client(
+        endpoint=server.endpoint,
+        access_key_id=server.access_key_id,
+        secret_access_key=server.secret_access_key,
+    ) as client:
+        await client.delete_object(Bucket=bucket, Key=key)
+
+
 async def object_keys(server: ObjectServer, bucket: str) -> list[str]:
     async with s3_client(
         endpoint=server.endpoint,

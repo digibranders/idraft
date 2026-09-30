@@ -11,6 +11,7 @@ R2 speaks the S3 API; any server that does, and checks signatures, stands in for
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import re
@@ -20,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, Literal, Protocol
 
+import aiohttp
 import zstandard
 from aiobotocore.config import AioConfig
 from aiobotocore.session import get_session
@@ -42,19 +44,26 @@ ZSTD_LEVEL: Final = 6
 # The most a stored payload may unpack to. The largest answer the DataForSEO client keeps is
 # 64 MiB; this is room above it, and a bound on what a bad object can cost to read.
 UNPACKED_MAX: Final = 256 * 1024 * 1024
+# A stored object is compressed, so never larger than what it unpacks to.
+STORED_MAX: Final = UNPACKED_MAX
 CONTENT_TYPE: Final = "application/zstd"
+DEFAULT_CONNECTIONS: Final = 10
 _PART: Final = re.compile(r"[a-z0-9_]{1,64}")
-_CLIENT_CONFIG: Final = AioConfig(
-    connect_timeout=5,
-    read_timeout=30,
-    retries={"max_attempts": 3, "mode": "standard"},
-    signature_version="s3v4",
-    s3={"addressing_style": "path"},
-    # Checksums only where the API requires them. Each upload carries its MD5 instead, which
-    # every S3 server checks.
-    request_checksum_calculation="when_required",
-    response_checksum_validation="when_required",
-)
+
+
+def _client_config(max_connections: int) -> AioConfig:
+    return AioConfig(
+        connect_timeout=5,
+        read_timeout=30,
+        retries={"max_attempts": 3, "mode": "standard"},
+        signature_version="s3v4",
+        s3={"addressing_style": "path"},
+        # Checksums only where the API requires them. Each upload carries its MD5 instead,
+        # which every S3 server checks.
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_required",
+        max_pool_connections=max_connections,
+    )
 
 
 class RawStorageError(Exception):
@@ -66,21 +75,33 @@ def digest(body: bytes) -> bytes:
 
 
 def compress(body: bytes) -> bytes:
-    # The frame records the payload's size, so reading it back needs no guess.
-    return zstandard.ZstdCompressor(level=ZSTD_LEVEL).compress(body)
+    # The frame records the payload's size, so reading it back needs no guess, and a checksum
+    # of its content, so damage is found when it is read.
+    return zstandard.ZstdCompressor(level=ZSTD_LEVEL, write_checksum=True).compress(body)
 
 
 def decompress(data: bytes) -> bytes:
+    """The payload a stored object holds: one whole frame, and nothing after it."""
     try:
         size = zstandard.frame_content_size(data)
     except zstandard.ZstdError:
         raise RawStorageError("not a compressed payload") from None
-    if size < 0 or size > UNPACKED_MAX:
+    if size < 0:
+        raise RawStorageError("the compressed payload does not say its size")
+    if size > UNPACKED_MAX:
         raise RawStorageError(f"the payload would be larger than {UNPACKED_MAX} bytes")
+    reader = zstandard.ZstdDecompressor().decompressobj()
     try:
-        return zstandard.ZstdDecompressor().decompress(data, max_output_size=size)
+        body = reader.decompress(data)
     except zstandard.ZstdError:
         raise RawStorageError("not a compressed payload") from None
+    if not reader.eof or reader.unused_data or len(body) != size:
+        raise RawStorageError("the compressed payload is not one whole frame")
+    return body
+
+
+def _md5(data: bytes) -> str:
+    return base64.b64encode(hashlib.md5(data, usedforsecurity=False).digest()).decode()
 
 
 def object_key(
@@ -106,6 +127,10 @@ def object_key(
     )
 
 
+# botocore's errors, and aiohttp's for a body cut off while it is read.
+_FAILURES: Final = (ClientError, BotoCoreError, aiohttp.ClientError)
+
+
 def _failure(action: str, error: Exception) -> RawStorageError:
     """What went wrong, by the server's error code or the client's error type only."""
     if isinstance(error, ClientError):
@@ -128,27 +153,48 @@ class RawStore:
         self.bucket = bucket
 
     async def put(self, key: str, data: bytes) -> None:
-        md5 = base64.b64encode(hashlib.md5(data, usedforsecurity=False).digest()).decode()
+        # Hashing megabytes takes milliseconds: off the event loop.
+        md5 = await asyncio.to_thread(_md5, data)
         try:
             await self._client.put_object(
                 Bucket=self.bucket, Key=key, Body=data, ContentType=CONTENT_TYPE, ContentMD5=md5
             )
-        except (ClientError, BotoCoreError) as error:
+        except _FAILURES as error:
             raise _failure("storing a payload", error) from None
 
     async def get(self, key: str) -> bytes:
         try:
             response = await self._client.get_object(Bucket=self.bucket, Key=key)
             async with response["Body"] as stream:
+                if response["ContentLength"] > STORED_MAX:
+                    raise RawStorageError(f"the object is larger than {STORED_MAX} bytes")
                 data: bytes = await stream.read()
-        except (ClientError, BotoCoreError) as error:
+        except _FAILURES as error:
             raise _failure("reading a payload", error) from None
         return data
 
 
+async def read_payload(store: ObjectStore, key: str, sha256: bytes) -> bytes:
+    """The payload stored under `key`, checked against the hash it was registered with."""
+    data = await store.get(key)
+    body, found = await asyncio.to_thread(_unpack, data)
+    if found != sha256:
+        raise RawStorageError("the payload read back is not the one that was stored")
+    return body
+
+
+def _unpack(data: bytes) -> tuple[bytes, bytes]:
+    body = decompress(data)
+    return body, digest(body)
+
+
 @asynccontextmanager
 async def s3_client(
-    *, endpoint: str, access_key_id: str, secret_access_key: str
+    *,
+    endpoint: str,
+    access_key_id: str,
+    secret_access_key: str,
+    max_connections: int = DEFAULT_CONNECTIONS,
 ) -> AsyncIterator[S3Client]:
     session = get_session()
     async with session.create_client(
@@ -157,16 +203,26 @@ async def s3_client(
         region_name="auto",
         aws_access_key_id=access_key_id,
         aws_secret_access_key=secret_access_key,
-        config=_CLIENT_CONFIG,
+        config=_client_config(max_connections),
     ) as client:
         yield client
 
 
 @asynccontextmanager
 async def open_raw_store(
-    *, endpoint: str, bucket: str, access_key_id: str, secret_access_key: str
+    *,
+    endpoint: str,
+    bucket: str,
+    access_key_id: str,
+    secret_access_key: str,
+    max_connections: int = DEFAULT_CONNECTIONS,
 ) -> AsyncIterator[RawStore]:
+    """One store for a process, with a connection for each handler that may use it at once:
+    the worker passes its concurrency."""
     async with s3_client(
-        endpoint=endpoint, access_key_id=access_key_id, secret_access_key=secret_access_key
+        endpoint=endpoint,
+        access_key_id=access_key_id,
+        secret_access_key=secret_access_key,
+        max_connections=max_connections,
     ) as client:
         yield RawStore(client, bucket)

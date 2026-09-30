@@ -384,6 +384,6 @@ raw_payloads = Table(
     Column("fetched_at", DateTime(timezone=True), nullable=False),
     Column("retention_class", Text, nullable=False),
     Column("expires_at", DateTime(timezone=True)),
-    UniqueConstraint("sha256", name="raw_payloads_sha256_key"),
+    UniqueConstraint("retention_class", "sha256", name="raw_payloads_retention_class_sha256_key"),
     schema="ops",
 )
