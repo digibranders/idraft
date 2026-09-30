@@ -244,6 +244,14 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | SettingsNav | Shell | `app/shell/settings-nav.tsx` | V1 | 24 §6 |
 | CommandPalette | Shell | `app/shell/command-palette.tsx` | V1 | 16 §7 |
 | KeyboardShortcutsDialog | Shell | `app/shell/keyboard-shortcuts-dialog.tsx` | V1 | 20 §14 |
+| LayoutProvider | Layouts | `features/layouts/layout-provider.tsx` | V1 | 23 §18 |
+| LayoutGrid | Layouts | `features/layouts/layout-grid.tsx` | V1 | 23 §18.4 |
+| CardFrame | Layouts | `features/layouts/card-frame.tsx` | V1 | 23 §18.2 |
+| NumberStrip | Layouts | `features/layouts/number-strip.tsx` | V1 | 23 §18.2 |
+| CardCatalogDialog | Layouts | `features/layouts/card-catalog-dialog.tsx` | V1 | 23 §18.3 |
+| CardOptionsPopover | Layouts | `features/layouts/card-options-popover.tsx` | V1 | 23 §18.2 |
+| LayoutSaveBar | Layouts | `features/layouts/layout-save-bar.tsx` | V1 | 23 §18.2 |
+| CustomizeButton | Layouts | `features/layouts/customize-button.tsx` | V1 | 23 §18.2 |
 | NotificationBell | Shell | `app/shell/notification-bell.tsx` | V1 | 18 §5.1 |
 | NotificationCenter | Shell | `app/shell/notification-center.tsx` | V1 | 18 §5.2 |
 | NotificationItem | Shell | `app/shell/notification-item.tsx` | V1 | 18 §5.3 |
@@ -2223,6 +2231,28 @@ interface DesktopOnlyNoticeProps { feature: string; presentation: 'sheet' | 'pag
 
 - **Variants:** none. **States:** shown, link copied ("Link copied" announced).
 - **A11y:** section with a heading naming the feature. **Use:** only for the features in 19 §11, only when mobile layout and touch-primary both hold. **Not for:** hiding features on narrow fine-pointer windows.
+
+### 5.20 Layout customization components
+`features/layouts/*` · V1 · [23 §18](23-application-patterns.md), [layout customization spec](../superpowers/specs/2026-09-30-layout-customization-design.md)
+
+Purpose: let a person choose the cards and headline numbers of a screen. The rules (catalog, sanitizing, resolution, row packing, draft edits) are pure functions in `lib/layouts` (destined for `packages/contracts`), covered by unit tests; these components are only the interface.
+
+```ts
+interface LayoutProviderProps { screen: ScreenKey; children: ReactNode }   // effective layout, mode, draft and actions for one screen
+interface LayoutGridProps { zone: 'cards' }                                 // renders CardFrame per card, in either mode
+interface CardFrameProps { item: CardItem; mode: 'view' | 'customize'; children: ReactNode }
+interface NumberStripProps { zone: 'numbers' }                              // MetricStrip fed from the layout
+interface CardCatalogDialogProps { open: boolean; onOpenChange: (open: boolean) => void; insertAt?: number }
+interface CardOptionsPopoverProps { item: CardItem }                        // radio groups generated from the card type's OptionDefinition
+interface LayoutSaveBarProps { canManageTeamDefault: boolean }
+interface CustomizeButtonProps { presentation: 'button' | 'menu-item' }
+```
+
+- **Card components** receive `{ options, width, mode }` and the page scope from context. They know nothing about layouts; an existing panel becomes a card by being registered in `features/layouts/registry.tsx`.
+- **States:** view, customize, customize with a picked-up card, saving (Save loading after 400 ms), save failed (the bar reads "Could not save. Try again."), layout failed to load (built-in default shown, Customize disabled, region `Banner` with Retry), conflict (`412`: dialog "This layout was changed somewhere else." with "Keep mine" and "Load the other version").
+- **A11y:** `CardFrame` toolbar is `role="toolbar"`; the handle is a toggle button with the pick-up keys of [20 §7](20-accessibility.md); card content is `inert` in customize mode; one polite live region for changes.
+- **Drag:** `@dnd-kit/core` and `@dnd-kit/sortable`, imported only by `LayoutGrid` and `NumberStrip`.
+- **Not for:** table columns (`ColumnChooser`), saved table views (`SavedViewMenu`), the sidebar.
 
 ## 6. Filters and search
 

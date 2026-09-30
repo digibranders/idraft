@@ -575,6 +575,37 @@ Open points for account settings: no API route changes the sign-in email; the re
 
 Open point: vendor brand guidelines are not yet checked; this is needed before public launch.
 
+## Customizable layouts (2026-09-30)
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| superpowers/specs/2026-09-30-layout-customization-design.md | new | Design: who owns a layout, zones, the catalog, the layout document, resolution and sanitizing, customize mode, storage and API, testing | Product owner request for per-account customization; five decisions taken with the owner |
+| superpowers/plans/2026-09-30-layout-customization-preview.md | new | Implementation plan for the rules, the preview and the documents | Same |
+| adr/ADR-DS-021 | new | Customizable layouts from a catalog of cards | Same |
+| 23-application-patterns.md | §18 (new) | What is customizable, customize mode, the card catalog, layout rules, announcements | Same |
+| 24-page-templates.md | §3 | T1 describes the built-in default; its section rules bind defaults, not customized pages | Same |
+| 16-drawers-dialogs-popovers.md | §2.4 | Drawer cards can be hidden, reordered and added per record type | Same |
+| 20-accessibility.md | §7 | Card and headline number reordering added to the drag alternatives | WCAG 2.5.7 |
+| 25-component-inventory.md | §2, §5.20 (new) | Eight layout components | Same |
+| 04-data-model.md, 19-api-specification.md, 24-security.md, 20-frontend-specification.md | 04 §11.6a; 19 §3.11.5c; 24 §3.2; 20 §5.2 | `core.layouts`, five routes, the `layouts:manage` key, Overview points to the layout system | Same |
+| apps/web/src/lib/layouts | new | Types, catalog, sanitize, resolve, availability, rows, draft edits; 32 unit tests | The rules are shared by the preview and, later, the app and the API's key list |
+| apps/web/design-preview | index.html, customize.js, layouts-core.mjs, interactions.js, charts.js | Overview and keyword drawer render from a layout; customize mode, catalog, options, numbers, save bar, team default; six new dashboard cards and two drawer cards | Same |
+| apps/web/design-preview/index.html | Overview cards | Column and quadrant breakpoints follow the card (`@container`), not the viewport | A half-width card on a wide screen is narrow |
+
+### Code review fixes (2026-09-30)
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| apps/web/src/lib/layouts | sanitize, resolve, draft, catalog | A stored value that is not a layout document falls through to the next source; retired card types still render; reusable cards keep distinct identity values; ids are plain tokens; hostile input (deep nesting, inherited keys, `NaN` indexes, duplicate ids, a non-engine string on an SEO number) is refused; a card hidden and added back is not counted as two changes; `sameLayout` ignores ids. 47 tests (was 32) | Independent code review of the build |
+| apps/web/design-preview | customize.js, interactions.js, index.html, layouts-core.mjs | A team default can no longer be written from a draft that is gone; dialogs close with the mode; leave guards cover links, Back and Forward and every way of closing the inspector; a narrowed window keeps unsaved changes; removing the team default keeps the draft; focus is managed on enter, exit and after the last item is removed; a keyboard pick-up ends when focus leaves; numbers get a Move menu and 32 px controls; a small drag over the card's own place moves nothing; `aria-disabled="true"`; the numbers strip is valid HTML; the transpile step clears its output and reports errors | Same |
+| superpowers/specs/2026-09-30-layout-customization-design.md | 5.1, 5.2, 5.3, 5.6, 6.3, 9.1, 13, 15 | Behavior above written down; per-member privacy of personal layouts is enforced by the API, not by a row policy | Same, and a note from the backend schema work |
+| 23-application-patterns.md | 18.2 | Card toolbar is a group; number controls; drop indicator; leaving; keyboard pick-up | Same |
+| 04-data-model.md | 11.6a | Standard workspace policy, API-enforced ownership, grants to `app_api` only | Backend schema work (carried item F10) |
+| apps/web/src/lib/layouts, apps/web/design-preview | draft.ts, customize.js, interactions.js | The change count is zero exactly when two layouts show the same thing; focus returns to the Save menu after a cancelled team-default confirmation; a discard question closes with the mode that asked it; a keyboard move at either end is announced; archiving the keyword open in the inspector waits for the inspector to close | Second review, of the fixes |
+| superpowers/specs/2026-09-30-layout-customization-design.md, 23-application-patterns.md | 5.2, 5.6, 11, 15; 18.5 | "Add card" slot size, what Save stores when the draft equals the default, focus after Hide | Same |
+
+Open points for customizable layouts: the five that the preview cannot show (conflict dialog, load-failure banner, save states, unavailable cards, team default in the drawer) are listed in the spec, section 15.
+
 ## Unresolved (9)
 
 None of these is a disagreement between documents; each needs a code, token or product decision outside the documents.

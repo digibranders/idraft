@@ -928,3 +928,54 @@ Each row records an earlier statement that no longer applies; the Resolution col
 | Earlier: the date window and location were controls in the filter bar | [13-filters-search.md](13-filters-search.md) sections 1 and 2 (now corrected there) | Project-wide scope controls in the top bar, hidden where they do not apply; screen-specific scope and filters stay in the filter bar; URL keys unchanged ([11-navigation.md](11-navigation.md) section 4, [reference/visual-spec.md](reference/visual-spec.md) section 6) |
 | Earlier: "Open page" was a text button in the inspector header | [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.1 | 32 px expand icon button (`Maximize2`, tooltip "Open page") next to Close (section 4.1) |
 | Earlier: the metric strip had no frame, 72 px (`md`) or 64 px (`sm`) | [04-spacing-density.md](04-spacing-density.md) section 2, [00-design-principles.md](00-design-principles.md) section 3 | One 76 px panel with full-height dividers (`md`) and a key-value grid in the inspector (`sm`) (section 2) |
+
+## 18. Customizable layouts
+
+People choose which cards and headline numbers they see. The full design is the [layout customization spec](../superpowers/specs/2026-09-30-layout-customization-design.md); the decision is [ADR-DS-021](adr/ADR-DS-021-customizable-layouts.md). This section is the interface contract.
+
+### 18.1 What is customizable
+
+| Place | Zone | What a person can do |
+|---|---|---|
+| Dashboard pages (T1: Overview, AI Visibility Overview) | `cards` | Hide, add from the catalog, reorder, set a width (one third, half, two thirds, full), set a card's options. Up to 12 cards |
+| Dashboard and table pages | `numbers` (the `MetricStrip`) | Remove, add, reorder. 0 to 6. An AI number is always for one engine |
+| Record inspector, Overview tab | `cards` | Hide, add, reorder. One column, no widths |
+
+Not customizable: the sidebar, the top bar, page headers, filter bars, the inspector's header and tabs, the Costs page. Table columns have their own chooser ([12-tables.md](12-tables.md) section 10).
+
+A layout belongs to a person and a workspace, and is the same in every project. An owner or admin can save a team default; people who have not customized see it. The order is: personal layout, else team default, else the built-in default of [24-page-templates.md](24-page-templates.md).
+
+### 18.2 Customize mode
+
+| Part | Spec |
+|---|---|
+| Entry | `CustomizeButton`: `secondary` with `SlidersHorizontal`, in the page header actions of a dashboard page; "Customize numbers" in the More menu of a table page; "Customize cards" in the inspector's More menu. Shown from 768 px. The button is a toggle (`aria-pressed`); pressed it uses `primary-subtle`, `primary-border` and `primary-text` |
+| Page state | A "Customizing" badge (`primary-subtle`, `primary-text`) beside the page title. Cards keep their real data; their content is `inert` |
+| Card frame | In customize mode each card sits in a frame: 4 px padding, `surface-subtle` fill, 1 px dashed `border-strong` outline, radius 8 px. A picked-up card has a 2 px `primary` ring |
+| Card toolbar | 36 px row above the card, a labelled `role="group"` (each control is a tab stop): drag handle (`GripVertical`, 32 px ghost, named "Reorder {card}" with the keyboard instructions as its description), then right-aligned: Width (`Select` `sm`, only the widths the card type allows; not in the inspector), Options (`Settings2`, only on card types with options; opens a popover of radio groups that apply at once), Hide (`EyeOff`, tooltip "Hide card. Add it back from the catalog"), More (`EllipsisVertical`: Move earlier, Move later, Move to start, Move to end) |
+| Drop indicator | A 2 px `primary` line, midway in the gap, on the side of the card the dragged card will land; the dragged card is at 50% opacity. No line shows, and nothing moves, while the pointer is over the dragged card's own place |
+| Add slot | After the last card: a dashed `border-strong` box, 120 px tall (64 px in the inspector), "Add card" in `primary-text` with `Plus`, and "Opens the card catalog" in `type-meta`. It takes the free third of the last row when there is one, otherwise half a row. Not shown at 12 cards |
+| Numbers | Each number gets a 32 px control row above it, like a card: drag handle at the left, then Remove (`X`) and More (`EllipsisVertical`: Move earlier, Move later, Move to start, Move to end) at the right. The number is not a link while customizing. After the last number, an "Add number" cell opens a popover: SEO numbers as chips, then each AI metric with one chip per engine (with its `EngineLogo`). Chips already shown are disabled. The strip draws its stronger divider wherever SEO and AI numbers meet |
+| Save bar | `SaveBar`, pinned to the bottom: the change count ("3 changes", "No changes"), the scope sentence "Applies to your view, in every project" (from 1024 px), then "Reset to default" (`ghost`), "Cancel" (`secondary`) and "Save layout" (`primary`), which is disabled with no changes. Owners and admins get a menu on the Save button: "Save as team default" and, when one exists, "Remove team default"; both confirm in an AlertDialog |
+| Leaving | Cancel, Escape, the Customize button, navigation (links, Back and Forward) and closing the inspector (button, scrim, Escape) all leave the mode; with unsaved changes they first open "Discard unsaved changes?" ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 4.3). Focus returns to the control that started the mode. Saving shows no toast: the page is the confirmation. Below 768 px the mode ends when there is nothing to save; unsaved changes keep it open with its save bar |
+| Keyboard pick-up | Space on a handle picks the item up (2 px `primary` ring, `aria-pressed`), arrows move it, Space drops it, Escape puts it back. Focus leaving the handle, or any pointer edit, drops it in place and announces the position |
+
+### 18.3 Card catalog
+
+`CardCatalogDialog`: a 720 px dialog titled "Add card" with a search field and the card types grouped SEO, AI, Cross-channel and Activity. Each entry is a 40 px icon tile (`neutral-subtle`), the card's name with a "New" badge for 30 days after release, one sentence on what the card answers, and a 32 px button: "Add", "Add another" (reusable types), "Added" (disabled), "Page is full" (disabled at 12 cards) or "Unavailable" (disabled, with the reason in `warning-text` under the description). Card types the person has no permission for are not listed. Adding closes the dialog, appends the card, scrolls it into view and focuses its handle.
+
+### 18.4 Layout rules
+
+| Rule | Spec |
+|---|---|
+| Grid | 12 columns from 768 px. One third is 4 columns (6 at 768 to 1279 px), half is 6, two thirds is 8 (12 at 768 to 1279 px), full is 12. Below 768 px every card is full width |
+| Flow | Cards flow in order and wrap when they do not fit. A row that is not full stays not full: the page never stretches a card past the width the person chose |
+| Heights | Set by the card type, never by the person. Cards in one row share the tallest height |
+| Container queries | A card adapts to its own width, not the viewport's: columns and secondary text hide by `@container` size, because a half-width card on a wide screen is still narrow |
+| Unavailable cards | A card the project cannot show (a channel is off) is skipped in normal view and the grid closes up. In customize mode it shows as a placeholder with the reason. The layout is not changed |
+| New card types | Appear in the catalog. They are never inserted into a team default or a personal layout |
+
+### 18.5 Announcements
+
+One polite live region reports each change: "Top movers added, position 9 of 9", "Rank distribution hidden. Add it back from the catalog", "Top movers, position 2 of 10", "Top movers picked up. Use the arrow keys to move, Space to drop, Escape to put it back", "Layout saved". After a move, focus stays on the moved card's handle. After hide, focus goes to the next card's handle, to the previous card's when the hidden one was last, or to "Add card" when none is left. A keyboard move at either end is answered too: "Rank distribution is already first".
+

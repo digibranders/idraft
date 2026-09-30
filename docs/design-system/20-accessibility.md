@@ -381,6 +381,8 @@ Every drag has a single-pointer alternative that does not require dragging. Keyb
 | Inspector resize (drag the left edge) | Inspector header menu: "Width: Default, Wide, Maximum" | Focusable window splitter (section 5) |
 | Chart brush to zoom a date range | Date range inputs and presets in the filter bar; "Reset zoom" button in the chart toolbar | Same controls |
 | Matrix threshold slider | Click on the slider track sets the value; numeric input beside the slider | Slider keys, numeric input |
+| Card reorder in customize mode (drag the card's handle) | The card toolbar's More menu: "Move earlier", "Move later", "Move to start", "Move to end" | The handle is a button: Space picks the card up, arrow keys move it, Space drops it, Escape puts it back. Announces "Rank distribution, position 2 of 8" |
+| Headline number reorder in customize mode | Remove the number and add it again at the end; the strip has at most 6 | Same handle keys as cards |
 | Swipe to dismiss toasts and sheets | Close button | Escape (sheets), Close button (toasts) |
 
 During a pointer drag, Escape cancels and restores the previous state. The resize handle itself is 8 px wide visually and in hit area; it relies on the "Equivalent" exception of 2.5.8 because the menu alternative exists.

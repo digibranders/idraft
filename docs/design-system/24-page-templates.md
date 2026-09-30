@@ -67,6 +67,8 @@ The SEO and AI Matrix is a T2 variant with a chart region between the header and
 
 Rules: at most 5 major sections (S1 to S5). Sections and side-by-side panels are separated by 16 px (`gap-4`, the gap between page blocks); each panel is a `surface` panel with a 1 px `border`, 8 px radius, 16 px padding and a 48 px title row (`type-section-title`); panels are never nested. No section repeats a metric shown in S1.
 
+**Customization.** T1 pages are customizable ([23-application-patterns.md](23-application-patterns.md) section 18, [ADR-DS-021](adr/ADR-DS-021-customizable-layouts.md)). This template and the wireframes in section 9 describe the **built-in default**: what a person sees until they, or an admin through a team default, change it. S1 is the `numbers` zone (0 to 6 headline numbers) and S2 to S5 are the `cards` zone (up to 12 cards on a 12-column grid with preset widths). The two rules above ("at most 5 major sections", "no section repeats a metric shown in S1") bind built-in defaults; a customized page is bound by the limits of the zones instead. The header, the notice region and the filter bar are not customizable.
+
 **Components used:** `PageHeader`, `FilterBar`, `MetricStrip`, `ChartFrame`, `QuadrantSummary`, `ChangeFeed`, `OpportunityStatus`, `SimpleTable`, `DataTable` (capped), `FreshnessIndicator`, `SetupChecklist`, `CollectionProgress`, `EmptyState`.
 
 **States.**
