@@ -8,6 +8,8 @@ any cached copy, including one written by a request that read the row just befor
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -29,6 +31,9 @@ PENDING_TOTP_LIFETIME = timedelta(minutes=10)
 FRESH_FOR = timedelta(minutes=10)
 TOUCH_INTERVAL = timedelta(seconds=60)
 CACHE_TTL_SECONDS = 60
+# A cached session is about 300 bytes. Anything much larger was not written by this code.
+CACHE_VALUE_MAX = 2048
+_MAC_HEX = 64
 # Longer than the cache: a copy written after the revocation expires before its tombstone does.
 TOMBSTONE_TTL_SECONDS = 2 * CACHE_TTL_SECONDS
 # What Redis failing looks like from here: its own errors, a closed socket, a timeout.
@@ -86,10 +91,17 @@ def _encode(context: SessionContext) -> str:
     )
 
 
-def _decode(raw: bytes | str) -> SessionContext | None:
+def _instant(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.utcoffset() is None:
+        raise ValueError("a cached time must carry its zone")
+    return parsed
+
+
+def _decode(payload: str) -> SessionContext | None:
     """The cached session, or None when the entry is not one we wrote."""
     try:
-        fields = json.loads(raw)
+        fields = json.loads(payload)
         fresh_until = fields["fresh_until"]
         state = fields["state"]
         if state not in ("pending_totp", "active"):
@@ -98,12 +110,12 @@ def _decode(raw: bytes | str) -> SessionContext | None:
             session_id=UUID(fields["session_id"]),
             user_id=UUID(fields["user_id"]),
             state=state,
-            fresh_until=None if fresh_until is None else datetime.fromisoformat(fresh_until),
-            idle_expires_at=datetime.fromisoformat(fields["idle_expires_at"]),
-            absolute_expires_at=datetime.fromisoformat(fields["absolute_expires_at"]),
-            last_seen_at=datetime.fromisoformat(fields["last_seen_at"]),
+            fresh_until=None if fresh_until is None else _instant(fresh_until),
+            idle_expires_at=_instant(fields["idle_expires_at"]),
+            absolute_expires_at=_instant(fields["absolute_expires_at"]),
+            last_seen_at=_instant(fields["last_seen_at"]),
         )
-    except (ValueError, KeyError, TypeError, AttributeError):
+    except (ValueError, KeyError, TypeError, AttributeError, RecursionError):
         return None
 
 
@@ -116,9 +128,13 @@ def _tombstone_key(token_hash: bytes) -> str:
 
 
 class SessionStore:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession], redis: Redis) -> None:
+    def __init__(
+        self, sessions: async_sessionmaker[AsyncSession], redis: Redis, *, cache_key: bytes
+    ) -> None:
+        """`cache_key` authenticates cached entries: writing to Redis is not enough to forge one."""
         self._sessions = sessions
         self._redis = redis
+        self._cache_key = cache_key
 
     async def create(
         self,
@@ -138,7 +154,8 @@ class SessionStore:
         the one it replaces, so rotating never extends the absolute lifetime.
         """
         token = new_token()
-        absolute = absolute_expires_at or now + SESSION_ABSOLUTE
+        longest = now + SESSION_ABSOLUTE
+        absolute = longest if absolute_expires_at is None else min(absolute_expires_at, longest)
         lifetime = PENDING_TOTP_LIFETIME if state == "pending_totp" else SESSION_IDLE
         record = await repository.insert_session(
             db,
@@ -165,7 +182,9 @@ class SessionStore:
             return None
         if context.is_expired(now):
             raise ExpiredSession
-        if context.state == "active" and now - context.last_seen_at >= TOUCH_INTERVAL:
+        # A last-seen time in the future is never ours: treat it as stale, so the database decides.
+        stale = now - context.last_seen_at >= TOUCH_INTERVAL or context.last_seen_at > now
+        if context.state == "active" and stale:
             context = await self._touch(context, now)
             if context is None:
                 return None
@@ -219,13 +238,36 @@ class SessionStore:
             return None, False
         if tombstone is not None:
             return None, True
-        return (None if cached is None else _decode(cached)), False
+        return (None if cached is None else self._open(token_hash, cached)), False
 
     async def _write_cache(self, token_hash: bytes, context: SessionContext) -> None:
         try:
-            await self._redis.set(_cache_key(token_hash), _encode(context), ex=CACHE_TTL_SECONDS)
+            await self._redis.set(
+                _cache_key(token_hash), self._seal(token_hash, context), ex=CACHE_TTL_SECONDS
+            )
         except _CACHE_ERRORS as error:
             _log.warning("session cache unavailable", error_kind=type(error).__name__)
+
+    def _mac(self, token_hash: bytes, payload: str) -> str:
+        # Bound to the token hash, so an entry copied under another key does not verify.
+        return hmac.new(self._cache_key, token_hash + payload.encode(), hashlib.sha256).hexdigest()
+
+    def _seal(self, token_hash: bytes, context: SessionContext) -> str:
+        payload = _encode(context)
+        return self._mac(token_hash, payload) + payload
+
+    def _open(self, token_hash: bytes, raw: bytes | str) -> SessionContext | None:
+        """The cached session if the entry is ours and intact, else None (a cache miss)."""
+        if len(raw) > CACHE_VALUE_MAX:
+            return None
+        try:
+            text = raw.decode() if isinstance(raw, bytes) else raw
+        except UnicodeDecodeError:
+            return None
+        mac, payload = text[:_MAC_HEX], text[_MAC_HEX:]
+        if not hmac.compare_digest(mac.encode(), self._mac(token_hash, payload).encode()):
+            return None
+        return _decode(payload)
 
     async def _read_database(self, token_hash: bytes) -> SessionContext | None:
         async with self._sessions() as db, db.begin():

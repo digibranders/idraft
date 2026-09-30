@@ -1,15 +1,20 @@
 """Sign-in, throttling and sign-out (docs/19 section 3.1, docs/24 section 2; SEC-AUTH-01)."""
 
+import asyncio
 import hashlib
 import io
+import uuid
 
+import asyncpg
 import httpx
 import pytest
 from argon2 import PasswordHasher
 from asgi_lifespan import LifespanManager
 from pydantic import SecretStr
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.api.auth import passwords
+from sightline.api.auth import passwords, repository
+from sightline.api.auth.passwords import hash_password
 from sightline.api.auth.service import request_info
 from sightline.api.main import create_app
 from sightline.api.resources import Resources
@@ -374,3 +379,56 @@ def test_an_address_that_is_not_an_ip_is_not_recorded() -> None:
     assert (unknown.ip, unknown.throttle_ip) == (None, "unknown")
     assert (missing.ip, missing.throttle_ip) == (None, "unknown")
     assert v6.ip == "2001:db8::1"
+
+
+async def test_a_password_changed_between_verification_and_session_creation_stops_the_sign_in(
+    api: httpx.AsyncClient, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ordering that keeps "revoke every session" complete (a reset racing a sign-in)."""
+    user = await make_user(migrated)
+    real = repository.lock_password_hash
+
+    async def changed_meanwhile(db: AsyncSession, user_id: uuid.UUID) -> str | None:
+        await execute(
+            migrated,
+            "UPDATE auth.users SET password_hash = $1 WHERE id = $2",
+            hash_password("a completely different password"),
+            user_id,
+        )
+        return await real(db, user_id)
+
+    monkeypatch.setattr(repository, "lock_password_hash", changed_meanwhile)
+
+    response = await api.post(SIGN_IN, json=_credentials(user.email))
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "invalid_credentials"
+    assert "set-cookie" not in response.headers
+    sessions = await fetchrow(
+        migrated, "SELECT count(*) AS n FROM auth.sessions WHERE user_id = $1", user.id
+    )
+    assert sessions["n"] == 0
+
+
+async def test_the_sign_in_lock_waits_for_a_password_change_in_progress(
+    api: httpx.AsyncClient, migrated: PostgresServer
+) -> None:
+    """A change holds the user row; the sign-in blocks on it, then sees the new hash and stops."""
+    user = await make_user(migrated)
+    changer = await asyncpg.connect(migrated.url())
+    try:
+        transaction = changer.transaction()
+        await transaction.start()
+        await changer.execute(
+            "UPDATE auth.users SET password_hash = $1 WHERE id = $2",
+            hash_password("a completely different password"),
+            user.id,
+        )
+        pending = asyncio.ensure_future(api.post(SIGN_IN, json=_credentials(user.email)))
+        await asyncio.sleep(0.5)
+        assert not pending.done(), "the sign-in must wait for the row lock"
+        await transaction.commit()
+        response = await pending
+    finally:
+        await changer.close()
+    assert response.status_code == 401

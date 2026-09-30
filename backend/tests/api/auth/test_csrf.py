@@ -2,6 +2,7 @@
 
 import io
 import json
+from collections.abc import AsyncIterator
 
 import httpx
 import pytest
@@ -15,10 +16,11 @@ STATE_CHANGING = ["POST", "PUT", "PATCH", "DELETE"]
 
 
 @pytest.fixture
-async def bare(auth_app: FastAPI) -> httpx.AsyncClient:
+async def bare(auth_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     """A client that sends no Origin header unless the test adds one."""
     transport = httpx.ASGITransport(app=auth_app, raise_app_exceptions=False)
-    return httpx.AsyncClient(transport=transport, base_url=BASE_URL)
+    async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as client:
+        yield client
 
 
 @pytest.mark.parametrize("method", STATE_CHANGING)
@@ -96,3 +98,31 @@ async def test_a_refusal_is_in_the_access_log(bare: httpx.AsyncClient) -> None:
     lines = [json.loads(raw) for raw in stream.getvalue().splitlines()]
     finished = [line for line in lines if line["msg"] == "request finished"]
     assert [(line["method"], line["status_code"]) for line in finished] == [("POST", 403)]
+
+
+@pytest.mark.parametrize("method", ["post", "Post", "pAtCh", "delete"])
+async def test_the_method_is_compared_whatever_its_case(auth_app: FastAPI, method: str) -> None:
+    """A server passes the method as written; the check must not depend on the router's 405."""
+    sent: list[dict[str, object]] = []
+
+    async def receive() -> dict[str, object]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, object]) -> None:
+        sent.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "https",
+        "path": OPEN,
+        "raw_path": OPEN.encode(),
+        "query_string": b"",
+        "headers": [(b"host", b"app.example.com")],
+        "client": ("203.0.113.7", 1234),
+        "server": ("app.example.com", 443),
+    }
+    await auth_app(scope, receive, send)  # type: ignore[arg-type]
+    assert sent[0]["status"] == 403

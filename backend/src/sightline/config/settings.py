@@ -21,6 +21,7 @@ from sqlalchemy.exc import ArgumentError
 LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 
 TOTP_KEY_BYTES = 32
+_DEFAULT_PORTS = {"https": 443, "http": 80}
 _POSTGRES_SCHEMES = ("postgresql+asyncpg://", "postgresql://", "postgres://")
 _EMAIL_FROM_PATTERN = re.compile(r"[^\r\n<>]*<[^\s<>@]+@[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+")
 _TIMEOUT_PATTERN = re.compile(r"[1-9][0-9]{0,8}(ms|s|min)", re.ASCII)
@@ -75,6 +76,9 @@ def _validate_origin(value: str) -> str:
         raise ValueError("must be scheme and host only: no fragment")
     # urlsplit strips the brackets of an IPv6 literal; an origin needs them back.
     host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
+    # Browsers leave the default port out of the Origin header, so it is left out here too.
+    if port == _DEFAULT_PORTS[parts.scheme]:
+        port = None
     return f"{parts.scheme}://{host}" + (f":{port}" if port else "")
 
 

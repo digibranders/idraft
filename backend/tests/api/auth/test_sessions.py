@@ -1,5 +1,6 @@
 """Sessions: the cookie, the store, the dependencies (docs/24-security.md sections 2 and 2.1)."""
 
+import dataclasses
 import hashlib
 import io
 import json
@@ -7,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI, Response
 from pydantic import SecretStr
@@ -60,6 +62,20 @@ async def _cached(resources: Resources, key: str) -> bytes:
     return value
 
 
+async def _cached_fields(resources: Resources, key: str) -> dict[str, Any]:
+    """What a cache entry says, without its leading 64-character authentication code."""
+    fields: dict[str, Any] = json.loads((await _cached(resources, key)).decode()[64:])
+    return fields
+
+
+async def _rewrite_cache(resources: Resources, token: str, fields: dict[str, Any]) -> None:
+    """Replace a cache entry with different content, authenticated as the store would."""
+    token_hash = hashlib.sha256(token.encode()).digest()
+    text = json.dumps(fields)
+    sealed = resources.session_store._mac(token_hash, text) + text
+    await resources.redis.set(f"session:{token_hash.hex()}", sealed, ex=60)
+
+
 async def test_no_cookie_is_unauthenticated(api: httpx.AsyncClient) -> None:
     response = await api.get(CURRENT)
     assert response.status_code == 401
@@ -102,7 +118,7 @@ async def test_only_the_hash_of_the_token_is_stored(
     assert keys == [f"session:{hashlib.sha256(token.encode()).hexdigest()}"]
     stored = (await _cached(resources, keys[0])).decode()
     assert token not in stored
-    assert set(json.loads(stored)) == {
+    assert set(await _cached_fields(resources, keys[0])) == {
         "session_id",
         "user_id",
         "state",
@@ -172,9 +188,9 @@ async def test_a_session_that_expires_while_cached_stops_working(
     assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
 
     (key,) = await _cache_keys(resources)
-    cached = json.loads(await _cached(resources, key))
+    cached = await _cached_fields(resources, key)
     cached["idle_expires_at"] = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
-    await resources.redis.set(key, json.dumps(cached), ex=60)
+    await _rewrite_cache(resources, token, cached)
 
     response = await api.get(CURRENT, headers=cookie(token))
     assert response.json()["code"] == "session_expired"
@@ -310,9 +326,9 @@ async def test_a_session_revoked_while_its_cached_copy_is_due_a_touch_is_refused
     token, session = await open_session(resources, user)
     assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
     (key,) = await _cache_keys(resources)
-    cached = json.loads(await _cached(resources, key))
+    cached = await _cached_fields(resources, key)
     cached["last_seen_at"] = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
-    await resources.redis.set(key, json.dumps(cached), ex=60)
+    await _rewrite_cache(resources, token, cached)
     await execute(
         migrated, "UPDATE auth.sessions SET revoked_at = now() WHERE id = $1", session.session_id
     )
@@ -413,13 +429,15 @@ async def test_a_corrupt_cache_entry_falls_back_to_the_database(
     token, _ = await open_session(resources, user)
     key = f"session:{hashlib.sha256(token.encode()).hexdigest()}"
     assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
-    forged_state = json.loads(await _cached(resources, key)) | {"state": "superuser"}
+    fields = await _cached_fields(resources, key)
+    await _rewrite_cache(resources, token, fields | {"state": "superuser"})
+    assert (await api.get(CURRENT, headers=cookie(token))).json()["state"] == "active"
     for garbage in [
         b"not json",
         b"{}",
         b'{"session_id": "nope"}',
         b"[]",
-        json.dumps(forged_state).encode(),
+        json.dumps(fields).encode(),
     ]:
         await resources.redis.set(key, garbage, ex=60)
         response = await api.get(CURRENT, headers=cookie(token))
@@ -514,3 +532,143 @@ async def test_the_probe_routes_are_not_part_of_the_real_application(app: FastAP
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
     async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as client:
         assert (await client.get(CURRENT)).status_code == 404
+
+
+async def test_touching_the_session_of_a_user_disabled_meanwhile_ends_it(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """The cached copy is due a touch; the write finds the user disabled."""
+    user = await make_user(migrated)
+    token, session = await open_session(resources, user)
+    await execute(
+        migrated,
+        "UPDATE auth.sessions SET last_seen_at = now() - interval '5 minutes' WHERE id = $1",
+        session.session_id,
+    )
+    assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
+    await execute(migrated, "UPDATE auth.users SET disabled_at = now() WHERE id = $1", user.id)
+    await execute(
+        migrated,
+        "UPDATE auth.sessions SET last_seen_at = now() - interval '5 minutes' WHERE id = $1",
+        session.session_id,
+    )
+    (key,) = await _cache_keys(resources)
+    await resources.redis.delete(key)
+    assert (await api.get(CURRENT, headers=cookie(token))).status_code == 401
+
+
+async def test_a_cached_entry_written_by_someone_else_is_ignored(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Writing to Redis is not enough to become another user: entries are authenticated."""
+    victim, attacker = await make_user(migrated), await make_user(migrated)
+    token, _ = await open_session(resources, attacker)
+    assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
+    (key,) = await _cache_keys(resources)
+    sealed = (await _cached(resources, key)).decode()
+    mac, payload = sealed[:64], sealed[64:]
+    forged = json.dumps(json.loads(payload) | {"user_id": str(victim.id)})
+
+    for value in (mac + forged, forged, "0" * 64 + forged, mac + payload + " "):
+        await resources.redis.set(key, value)  # no expiry, as an attacker would write it
+        response = await api.get(CURRENT, headers=cookie(token))
+        assert response.json()["user_id"] == str(attacker.id), value
+
+
+async def test_a_cached_entry_cannot_be_moved_to_another_token(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    owner = await make_user(migrated)
+    token, _ = await open_session(resources, owner)
+    assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
+    (key,) = await _cache_keys(resources)
+    sealed = await _cached(resources, key)
+    made_up = "m" * 43
+    await resources.redis.set(f"session:{hashlib.sha256(made_up.encode()).hexdigest()}", sealed)
+
+    assert (await api.get(CURRENT, headers=cookie(made_up))).status_code == 401
+
+
+async def test_a_cached_entry_dated_in_the_future_is_checked_against_the_database(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Without this, a replayed copy with a far-future last-seen time would never be re-checked."""
+    user = await make_user(migrated)
+    token, session = await open_session(resources, user)
+    store = resources.session_store
+    token_hash = hashlib.sha256(token.encode()).digest()
+    future = dataclasses.replace(
+        (await store.load(token, now=datetime.now(UTC))) or session,
+        last_seen_at=datetime.now(UTC) + timedelta(days=365),
+    )
+    await execute(
+        migrated, "UPDATE auth.sessions SET revoked_at = now() WHERE id = $1", session.session_id
+    )
+    await resources.redis.set(f"session:{token_hash.hex()}", store._seal(token_hash, future))
+
+    assert (await api.get(CURRENT, headers=cookie(token))).status_code == 401
+
+
+async def test_cached_times_without_a_zone_are_a_cache_miss_not_a_crash(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    token, session = await open_session(resources, user)
+    store = resources.session_store
+    token_hash = hashlib.sha256(token.encode()).digest()
+    assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
+    (key,) = await _cache_keys(resources)
+    payload = json.loads((await _cached(resources, key)).decode()[64:])
+    for damage in (
+        {"idle_expires_at": "2099-01-01T00:00:00"},
+        {"absolute_expires_at": "2099-01-01"},
+        {"last_seen_at": "yesterday"},
+        {"fresh_until": "2099-01-01T00:00:00"},
+    ):
+        text = json.dumps(payload | damage)
+        await resources.redis.set(key, store._mac(token_hash, text) + text, ex=60)
+        response = await api.get(CURRENT, headers=cookie(token))
+        assert response.status_code == 200, damage
+    for junk in (b"[" * 200_000, b"\xff\xfe" * 40, b"x" * 5000):
+        await resources.redis.set(key, junk, ex=60)
+        assert (await api.get(CURRENT, headers=cookie(token))).status_code == 200
+    assert session.user_id == user.id
+
+
+async def test_a_rotated_session_cannot_outlive_the_policy(
+    resources: Resources, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    now = datetime.now(UTC)
+    async with resources.sessions() as db, db.begin():
+        _, inherited = await resources.session_store.create(
+            db,
+            user_id=user.id,
+            state="active",
+            fresh=True,
+            ip=None,
+            user_agent=None,
+            now=now,
+            absolute_expires_at=now + timedelta(days=3),
+        )
+        _, capped = await resources.session_store.create(
+            db,
+            user_id=user.id,
+            state="active",
+            fresh=True,
+            ip=None,
+            user_agent=None,
+            now=now,
+            absolute_expires_at=now + timedelta(days=400),
+        )
+    assert inherited.absolute_expires_at == now + timedelta(days=3)
+    assert inherited.idle_expires_at == now + timedelta(days=3)
+    assert capped.absolute_expires_at == now + timedelta(days=30)
+
+
+def test_a_session_state_the_code_does_not_know_is_an_error() -> None:
+    from sightline.api.auth.repository import _state
+
+    assert (_state("active"), _state("pending_totp")) == ("active", "pending_totp")
+    with pytest.raises(ValueError, match="unexpected session state"):
+        _state("superuser")

@@ -230,7 +230,23 @@ class AuthService:
 
         await self._guard(self._throttle.success(email=email))
         new_hash = await self._hash(password) if needs_rehash(user.password_hash) else None
+        signed_in = await self._open_session(user, new_hash, info, now)
+        if signed_in is None:
+            raise InvalidCredentialsError
+        return signed_in
+
+    async def _open_session(
+        self, user: UserRecord, new_hash: str | None, info: RequestInfo, now: datetime
+    ) -> SignedIn | None:
+        """Create the session for a verified password. None if the password changed meanwhile.
+
+        The row lock orders this against a password change or reset, which updates the same row
+        before it revokes sessions: either this session exists by then and is revoked with the
+        rest, or the change came first and this sign-in, verified against the old hash, stops.
+        """
         async with self._sessions() as db, db.begin():
+            if await repository.lock_password_hash(db, user.id) != user.password_hash:
+                return None
             if new_hash is not None:
                 await repository.set_password_hash(
                     db, user_id=user.id, password_hash=new_hash, now=now

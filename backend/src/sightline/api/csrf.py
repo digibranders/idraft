@@ -41,7 +41,8 @@ class OriginCheckMiddleware:
     def _allowed(self, scope: Scope) -> bool:
         if not scope["path"].startswith(API_PREFIX):
             return True
-        method = scope["method"]
+        # The server passes the method as the client wrote it.
+        method = scope["method"].upper()
         if method == "OPTIONS":
             return False
         if method not in _STATE_CHANGING:

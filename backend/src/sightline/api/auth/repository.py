@@ -56,13 +56,21 @@ _SESSION_COLUMNS = (
 )
 
 
+def _state(value: object) -> SessionState:
+    if value == "pending_totp":
+        return "pending_totp"
+    if value == "active":
+        return "active"
+    raise ValueError("unexpected session state in the database")
+
+
 def _session_record(row: Row[tuple[object, ...]]) -> SessionRecord:
     fields = row._mapping
     return SessionRecord(
         id=fields["id"],
         token_hash=bytes(fields["token_hash"]),
         user_id=fields["user_id"],
-        state="pending_totp" if fields["state"] == "pending_totp" else "active",
+        state=_state(fields["state"]),
         fresh_until=fields["fresh_until"],
         idle_expires_at=fields["idle_expires_at"],
         absolute_expires_at=fields["absolute_expires_at"],
@@ -125,10 +133,19 @@ async def find_live_session(db: AsyncSession, token_hash: bytes) -> SessionRecor
 async def touch_session(
     db: AsyncSession, *, session_id: UUID, last_seen_at: datetime, idle_expires_at: datetime
 ) -> SessionRecord | None:
-    """Record activity and slide the idle lifetime. None when the session was revoked meanwhile."""
+    """Record activity and slide the idle lifetime.
+
+    None when the session was revoked or its user disabled meanwhile: this write is the moment a
+    cached copy is checked against the database again.
+    """
     statement = (
         update(sessions)
-        .where(sessions.c.id == session_id, sessions.c.revoked_at.is_(None))
+        .where(
+            sessions.c.id == session_id,
+            sessions.c.revoked_at.is_(None),
+            users.c.id == sessions.c.user_id,
+            users.c.disabled_at.is_(None),
+        )
         .values(last_seen_at=last_seen_at, idle_expires_at=idle_expires_at)
         .returning(*_SESSION_COLUMNS)
     )
@@ -252,6 +269,20 @@ async def mark_email_verified(db: AsyncSession, *, user_id: UUID, now: datetime)
         .where(users.c.id == user_id, users.c.email_verified_at.is_(None))
         .values(email_verified_at=now, updated_at=now)
     )
+
+
+async def lock_password_hash(db: AsyncSession, user_id: UUID) -> str | None:
+    """The user's current password hash, holding a share lock on the row until commit.
+
+    Sign-in takes this lock before it creates a session, and a password change updates the same
+    row before it revokes sessions. So the two cannot interleave: either the new session exists
+    when the revocation runs and is revoked, or the sign-in sees the new hash and is refused.
+    """
+    statement = (
+        select(users.c.password_hash).where(users.c.id == user_id).with_for_update(read=True)
+    )
+    password_hash: str | None = (await db.execute(statement)).scalar_one_or_none()
+    return password_hash
 
 
 async def set_password_hash(

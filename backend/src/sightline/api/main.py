@@ -16,6 +16,7 @@ from sightline.api.auth.routes import router as auth_router
 from sightline.api.auth.service import AuthService
 from sightline.api.auth.sessions import SessionStore
 from sightline.api.auth.throttle import LoginThrottle
+from sightline.api.auth.tokens import derive_key
 from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
@@ -31,6 +32,7 @@ from sightline.providers.email import EmailSender, build_email_sender
 
 REDIS_TIMEOUT_SECONDS = 1.0
 HTTP_TIMEOUT_SECONDS = 10.0
+SESSION_CACHE_KEY_LABEL = b"sightline session cache v1"
 HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz"})
 
 
@@ -78,7 +80,9 @@ def create_app(
                 else settings.email_api_key.get_secret_value(),
                 sender=settings.email_from,
             )
-            session_store = SessionStore(sessions, redis)
+            session_store = SessionStore(
+                sessions, redis, cache_key=derive_key(settings.totp_key, SESSION_CACHE_KEY_LABEL)
+            )
             app.state.resources = Resources(
                 settings=settings,
                 engine=engine,
