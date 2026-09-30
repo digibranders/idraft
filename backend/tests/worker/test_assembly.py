@@ -45,10 +45,13 @@ async def test_the_planner_tick_plans_what_is_due_now(
     assert (planner.interval, planner.lock_ttl) == (timedelta(seconds=60), timedelta(seconds=55))
     (run,) = await fetch(
         migrated,
-        "SELECT status, tasks_total FROM ops.collection_runs WHERE schedule_id = $1",
+        "SELECT status, tasks_total FROM ops.collection_runs "
+        "WHERE schedule_id = $1 AND status = 'running'",
         schedule_id,
     )
-    assert (run["status"], run["tasks_total"]) == ("running", 2)
+    # One run whatever the hour: a window that began between these lines would only add a
+    # missed one.
+    assert run["tasks_total"] == 2
 
 
 def test_no_workload_is_registered_yet_so_the_deployed_worker_plans_nothing() -> None:

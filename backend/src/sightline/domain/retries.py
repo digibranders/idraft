@@ -55,14 +55,14 @@ class Backoff:
         failure, doubling from there if the policy doubles, and never more than `cap`."""
         if not self.doubles:
             return min(self.first, self.cap)
-        # Doubling stops at the cap; the exponent is bounded so a huge count cannot overflow.
-        doubled: int = 2 ** min(attempts - 1, _DOUBLINGS_MAX)
-        return min(self.first * doubled, self.cap)
+        # In seconds, as a float: doubled often enough a duration itself would overflow.
+        doubled = self.first.total_seconds() * 2.0 ** min(attempts - 1, _DOUBLINGS_MAX)
+        return timedelta(seconds=min(doubled, self.cap.total_seconds()))
 
 
 _MINUTE = timedelta(minutes=1)
-# 2 to this power times any first wait is past any cap.
-_DOUBLINGS_MAX = 32
+# 2 to this power times any first wait is past any cap, and still a number.
+_DOUBLINGS_MAX = 64
 _PROVIDER_TROUBLE = Backoff(
     first=_MINUTE, cap=30 * _MINUTE, doubles=True, max_attempts=4, exhausted="dead"
 )
@@ -115,8 +115,8 @@ def decide(
     `jitter` is a number in [0, 1) the caller draws at random; it is a parameter so the rule
     stays a pure function. `window_open` says whether the task's run can still take new work.
     `retry_after` is the wait the provider asked for, if it named one: the task waits at least
-    that long, up to the cap of the kind's policy. What a provider says does not park a task
-    for longer than we would ever wait.
+    that long, up to the cap of the kind's policy, and spread by the same jitter. What a
+    provider says does not park a task for longer than we would ever wait.
     """
     kind = ProviderErrorKind(kind)
     if attempts < 1:

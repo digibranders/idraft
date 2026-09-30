@@ -52,7 +52,9 @@ class Workload(Protocol):
     def name(self) -> TaskWorkload: ...
 
     async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
-        """The tasks of this window. Reads only; the planner writes."""
+        """The tasks of this window, each one once. The database is read-only while this
+        runs: the planner writes. Every read must name the window's workspace, because the
+        session bypasses row-level security."""
         ...
 
 

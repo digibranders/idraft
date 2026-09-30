@@ -113,7 +113,11 @@ async def _committed(
     """
     cost_so_far = (
         select(func.coalesce(func.sum(_tasks.c.cost_usd), 0))
-        .where(_tasks.c.run_id == _runs.c.id)
+        .where(
+            _tasks.c.run_id == _runs.c.id,
+            # A run's tasks are all in the partition of its window's month.
+            _tasks.c.created_at == func.date_trunc("month", _runs.c.window_start, "UTC"),
+        )
         .scalar_subquery()
     )
     unspent = func.greatest(func.coalesce(_runs.c.estimated_cost_usd, 0) - cost_so_far, 0)

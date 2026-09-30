@@ -29,6 +29,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import (
+    BigInteger,
     DateTime,
     Integer,
     Interval,
@@ -53,7 +54,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.db.tables import (
     budgets,
@@ -69,6 +70,9 @@ from sightline.domain.workloads import TaskWorkload, cost_channel
 # Rows in one INSERT. Each column is sent as one array, so the size of a batch is bounded by
 # memory and not by the number of parameters a statement may have.
 INSERT_BATCH = 5000
+# A task not sent this long after its run's window closed belongs to the next run: it is
+# cancelled, and a window that is this far gone when it is found is not planned at all.
+SEND_WITHIN = timedelta(hours=24)
 # Tasks a dispatcher tick takes in all, and from one project (docs/21 section 4).
 DISPATCH_LIMIT = 2000
 DISPATCH_PER_PROJECT = 500
@@ -229,6 +233,21 @@ def _named(refs: Collection[TaskRef]) -> Any:
     return tuple_(_tasks.c.id, _tasks.c.created_at).in_([(ref.id, ref.created_at) for ref in refs])
 
 
+def _not_among(refs: Collection[TaskRef]) -> Any:
+    """None of these tasks, however many they are. The keys go as two arrays: written into
+    the statement as a list, a tick's two thousand took PostgreSQL seconds to plan, more with
+    every partition."""
+    taken = (
+        func.unnest(
+            bindparam(None, [ref.id for ref in refs], type_=ARRAY(BigInteger)),
+            bindparam(None, [ref.created_at for ref in refs], type_=ARRAY(DateTime(timezone=True))),
+        )
+        .table_valued("id", "created_at", name="taken")
+        .render_derived()
+    )
+    return ~exists().where(taken.c.id == _tasks.c.id, taken.c.created_at == _tasks.c.created_at)
+
+
 def _aware(now: datetime) -> datetime:
     if now.tzinfo is None:
         # A naive time would be read in the zone of whatever machine runs this.
@@ -237,6 +256,17 @@ def _aware(now: datetime) -> datetime:
 
 
 _running_runs = select(_runs.c.id).where(_runs.c.status == "running")
+
+
+async def database_time(sessions: async_sessionmaker[AsyncSession]) -> datetime:
+    """The time by the database's clock, which is the one clock every worker shares. A worker
+    whose own clock is wrong would otherwise plan windows that have not come, or record ones
+    that have as missed."""
+    async with sessions() as db:
+        now: datetime = (await db.execute(select(func.now()))).scalar_one()
+    return now
+
+
 # Predicates of partial indexes, written out. As a bound parameter PostgreSQL cannot match one
 # to its index once the statement runs on a generic plan: the insert of a run then fails with
 # "no unique or exclusion constraint matching the ON CONFLICT specification", and the claim of
@@ -614,7 +644,8 @@ async def claim_due(
         return []
     share = max(1, min(per_project, limit // projects))
 
-    # No more projects than the tick has room for, so no row is locked and then left out.
+    # No more projects than the tick has room for, so this statement locks no row that it
+    # does not return.
     project = waiting.order_by("first_due", _tasks.c.project_id).limit(limit).subquery("project")
     fair = (
         _task_query()
@@ -640,6 +671,7 @@ async def claim_due(
     remaining = limit - len(tasks)
     more_for = [project_id for project_id, taken in claimed.items() if len(taken) == share]
     if remaining > 0 and more_for and per_project > share:
+        task_refs = [task.ref for task in tasks]
         turn = (
             func.unnest(bindparam(None, more_for, type_=ARRAY(Uuid)))
             .table_valued("project_id", with_ordinality="position", name="turn")
@@ -649,13 +681,12 @@ async def claim_due(
             _task_query()
             # SKIP LOCKED passes over rows other transactions hold, not the ones this one
             # took above, so those are named.
-            .where(
-                due,
-                _tasks.c.project_id == turn.c.project_id,
-                ~_named([task.ref for task in tasks]),
-            )
+            .where(due, _tasks.c.project_id == turn.c.project_id, _not_among(task_refs))
             .order_by(*oldest_first)
-            .limit(per_project - share)
+            # No project is looked at for more than the tick still has room for. The outer
+            # limit then cuts the total: a few rows may be locked and not returned, until
+            # this transaction ends.
+            .limit(min(per_project - share, remaining))
             .with_for_update(of=_tasks, skip_locked=True)
             .correlate(turn)
             .lateral("more")
@@ -945,7 +976,9 @@ async def _cancel(db: AsyncSession, runs: Any, *, code: str, message: str, now: 
     return len(result.all())
 
 
-async def cancel_missed(db: AsyncSession, *, after_window: timedelta, now: datetime) -> int:
+async def cancel_missed(
+    db: AsyncSession, *, now: datetime, after_window: timedelta = SEND_WITHIN
+) -> int:
     """A task not sent this long after its run's window closed belongs to the next run."""
     hours = after_window.total_seconds() / 3600
     return await _cancel(

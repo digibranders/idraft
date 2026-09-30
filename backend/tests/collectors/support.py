@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
@@ -112,13 +115,15 @@ async def make_schedule(
     weekday: int | None = None,
     month_day: int | None = None,
     is_active: bool = True,
+    selector: dict[str, Any] | None = None,
 ) -> uuid.UUID:
     row = await fetchrow(
         pg,
         "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone, "
         "window_start_local, window_hours, weekday, month_day, priority, is_active, "
-        "next_run_at) "
-        "VALUES ($1, $2, $3, 'Ranks', $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id",
+        "next_run_at, selector) "
+        "VALUES ($1, $2, $3, 'Ranks', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb) "
+        "RETURNING id",
         project.workspace_id,
         project.id,
         workload,
@@ -131,6 +136,7 @@ async def make_schedule(
         priority,
         is_active,
         next_run_at,
+        json.dumps(selector or {}),
     )
     schedule_id: uuid.UUID = row["id"]
     return schedule_id
@@ -246,10 +252,22 @@ class FakeWorkload:
         self.windows: list[ScheduleWindow] = []
         # Schedules this workload cannot plan.
         self.broken: set[uuid.UUID] = set()
+        # Schedules whose planning waits: set when it has begun, goes on when released.
+        self.gates: dict[uuid.UUID, tuple[asyncio.Event, asyncio.Event]] = {}
+        # A statement this workload runs while it plans, which it has no business running.
+        self.writes: str | None = None
+        # Whether it plans its first task twice.
+        self.repeats = False
 
     async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
         if window.schedule_id in self.broken:
             raise RuntimeError("the selector names a group that is gone")
+        if window.schedule_id in self.gates:
+            begun, go_on = self.gates[window.schedule_id]
+            begun.set()
+            await go_on.wait()
+        if self.writes is not None:
+            await db.execute(text(self.writes))
         self.windows.append(window)
         tasks = [
             NewTask(
@@ -271,6 +289,8 @@ class FakeWorkload:
             )
             for number in range(self.subjects)
         ]
+        if self.repeats:
+            tasks.append(tasks[0])
         return Plan(
             tasks=tasks,
             estimated_cost_usd=self.price * len(tasks),

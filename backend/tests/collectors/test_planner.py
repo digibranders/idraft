@@ -1,6 +1,7 @@
 """The planner (docs/21-scheduler-workers.md section 3.1). As `app_worker`, with a fake workload."""
 
 import asyncio
+import io
 import json
 import uuid
 from datetime import datetime, time, timedelta
@@ -13,11 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sightline.collectors import planner
 from sightline.collectors.planner import PlannerReport, plan_due
 from sightline.collectors.registry import Registry
+from sightline.config.logging import configure_logging
 from sightline.domain.schedules import Cadence, ScheduleRule, next_occurrence
 from sightline.domain.tasks import STAGGER_SHARE, partition_month
 from tests.api.auth.support import execute, fetch, fetchrow
+from tests.collectors.support import NOW as TODAY
 from tests.collectors.support import (
-    NOW,
     FakeWorkload,
     Project,
     another_project,
@@ -31,9 +33,15 @@ from tests.db.support import connection
 
 Ledger = async_sessionmaker[AsyncSession]
 DAY = timedelta(days=1)
+HOUR = timedelta(hours=1)
+_SECOND = timedelta(seconds=1)
 DAILY = ScheduleRule(cadence=Cadence.DAILY, timezone="UTC", window_start_local=time(2, 0))
-# The window of today's schedule that has most recently started: within the last day.
-LATEST = next_occurrence(DAILY, NOW - DAY)
+# The planner is told the time, so these tests have their own: 03:00 UTC on the 15th of this
+# month, whatever today is. The ledger has partitions for this month and the one before.
+NOW = partition_month(TODAY) + timedelta(days=14, hours=3)
+# The window of a daily 02:00 schedule that began an hour before.
+LATEST = NOW - HOUR
+assert next_occurrence(DAILY, NOW - DAY) == LATEST
 
 
 def _registry(workload: FakeWorkload | None = None) -> Registry:
@@ -63,7 +71,8 @@ async def test_a_due_schedule_becomes_a_run_with_its_tasks_spread_over_the_windo
     worker_db: Ledger, migrated: PostgresServer
 ) -> None:
     project = await make_tenant(migrated)
-    schedule_id = await _due_schedule(migrated, project)
+    # A weekday on a daily schedule is allowed by the schema and means nothing.
+    schedule_id = await _due_schedule(migrated, project, selector={"groups": ["brand"]}, weekday=3)
     workload = FakeWorkload(subjects=3)
 
     report = await plan_due(worker_db, _registry(workload), now=NOW)
@@ -96,7 +105,9 @@ async def test_a_due_schedule_becomes_a_run_with_its_tasks_spread_over_the_windo
         LATEST,
         6,
     )
-    assert (window.selector, window.provider_mode) == ({}, "standard_queue")
+    assert window.window_end == LATEST + 6 * HOUR
+    assert (window.selector, window.provider_mode) == ({"groups": ["brand"]}, "standard_queue")
+    assert (window.workspace_id, window.project_id) == (project.workspace_id, project.id)
     # The schedule has moved on to tomorrow's window and remembers its run.
     schedule = await _schedule(migrated, schedule_id)
     assert (schedule["next_run_at"], schedule["last_run_id"]) == (LATEST + DAY, run["id"])
@@ -150,8 +161,9 @@ async def test_windows_missed_are_recorded_and_only_the_latest_is_planned(
         (LATEST - DAY, "cancelled", "missed_window"),
         (LATEST, "running", None),
     ]
-    # A run that never ran has no tasks and is closed.
+    # A run that never ran has no tasks, was planned with nothing, and is closed.
     assert {run["completed_at"] for run in runs[:3]} == {NOW}
+    assert {run["config_snapshot"] for run in runs[:3]} == {"{}"}
     assert [len(await task_rows(migrated, run["id"])) for run in runs] == [0, 0, 0, 3]
     schedule = await _schedule(migrated, schedule_id)
     assert (schedule["next_run_at"], schedule["last_run_id"]) == (LATEST + DAY, runs[-1]["id"])
@@ -210,7 +222,7 @@ async def test_two_runs_planned_in_one_tick_cannot_both_take_the_budget(
     report = await plan_due(worker_db, _registry(FakeWorkload(subjects=3, price="1")), now=NOW)
 
     assert report == PlannerReport(planned=1, blocked=1)
-    assert [run["status"] for run in await _runs(migrated, first)] == ["cancelled", "running"]
+    assert [run["status"] for run in await _runs(migrated, first)] == ["running"]
     assert [run["status"] for run in await _runs(migrated, second)] == ["budget_blocked"]
 
 
@@ -325,7 +337,7 @@ async def test_a_schedule_that_cannot_be_planned_does_not_hold_up_the_others(
 
     assert report == PlannerReport(planned=1, failed=2)
     assert [run["status"] for run in await _runs(migrated, fine)] == ["running"]
-    # Nothing of the failed attempt is left, the missed window it had recorded included.
+    # Nothing of the failed attempt is left.
     for failed in (broken, no_zone):
         assert await _runs(migrated, failed) == []
     assert await _schedule(migrated, broken) == before
@@ -334,7 +346,8 @@ async def test_a_schedule_that_cannot_be_planned_does_not_hold_up_the_others(
     workload.broken.clear()
     later = await plan_due(worker_db, _registry(workload), now=NOW)
     assert later == PlannerReport(planned=1, failed=1)
-    assert [run["status"] for run in await _runs(migrated, broken)] == ["cancelled", "running"]
+    # Its stored instant, two minutes before the window, was no window of its own.
+    assert [run["status"] for run in await _runs(migrated, broken)] == ["running"]
 
 
 async def test_a_workspace_another_planner_is_at_work_in_is_left_for_the_next_tick(
@@ -411,7 +424,7 @@ async def test_a_tick_plans_the_schedules_that_have_waited_longest_up_to_its_lim
     ("cadence", "days", "fields"),
     [
         ("weekly", 7, {"weekday": (LATEST.isoweekday() % 7)}),
-        ("monthly", None, {"month_day": min(LATEST.day, 28)}),
+        ("monthly", None, {"month_day": 15}),
     ],
 )
 async def test_a_weekly_or_monthly_schedule_moves_on_by_its_own_period(
@@ -432,5 +445,207 @@ async def test_a_weekly_or_monthly_schedule_moves_on_by_its_own_period(
     if days is not None:
         assert following - LATEST == timedelta(days=days)
     else:
-        assert following.day == fields["month_day"]
+        assert following.day == 15
         assert 28 <= (following - LATEST).days <= 31
+
+
+async def test_a_schedule_is_due_at_the_instant_its_window_starts(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    schedule_id = await _due_schedule(migrated, project)
+
+    assert await plan_due(worker_db, _registry(), now=LATEST - _SECOND) == PlannerReport()
+    assert await plan_due(worker_db, _registry(), now=LATEST) == PlannerReport(planned=1)
+    assert len(await _runs(migrated, schedule_id)) == 1
+
+
+async def test_a_planner_does_not_wait_for_a_schedule_another_one_holds(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """The schedule's row is locked while it is planned. A second planner passes it over:
+    it neither waits for it nor plans it as well."""
+    project = await make_tenant(migrated)
+    held = await _due_schedule(migrated, project, next_run_at=LATEST - DAY)
+    others = [await _due_schedule(migrated, project) for _ in range(2)]
+    workload = FakeWorkload()
+    begun, go_on = asyncio.Event(), asyncio.Event()
+    workload.gates[held] = (begun, go_on)
+    registry = _registry(workload)
+
+    first = asyncio.create_task(plan_due(worker_db, registry, now=NOW))
+    await asyncio.wait_for(begun.wait(), timeout=10)
+    try:
+        second = await asyncio.wait_for(plan_due(worker_db, registry, now=NOW), timeout=2)
+    finally:
+        go_on.set()
+    report = await first
+
+    assert second == PlannerReport(planned=2)
+    assert report == PlannerReport(planned=1)
+    assert [run["status"] for run in await _runs(migrated, held)] == ["cancelled", "running"]
+    for schedule_id in others:
+        assert [run["status"] for run in await _runs(migrated, schedule_id)] == ["running"]
+
+
+@pytest.mark.parametrize(
+    ("late_by", "planned"),
+    [
+        # The window closed 24 hours ago to the second: its tasks would be cancelled unsent.
+        (timedelta(hours=6 + 24), False),
+        (timedelta(hours=6 + 24) - _SECOND, True),
+        (timedelta(days=5), False),
+    ],
+)
+async def test_a_window_found_too_late_to_send_is_recorded_as_missed_and_not_planned(
+    worker_db: Ledger, migrated: PostgresServer, late_by: timedelta, planned: bool
+) -> None:
+    """A weekly schedule found five days late would send a week-old check, have the rest
+    cancelled, and run again two days later."""
+    project = await make_tenant(migrated)
+    start = NOW - late_by
+    weekly = {"cadence": "weekly", "weekday": start.isoweekday() % 7}
+    schedule_id = await _due_schedule(
+        migrated,
+        project,
+        next_run_at=start,
+        window_start_local=start.strftime("%H:%M:%S"),
+        **weekly,
+    )
+    workload = FakeWorkload()
+
+    report = await plan_due(worker_db, _registry(workload), now=NOW)
+
+    (run,) = await _runs(migrated, schedule_id)
+    if planned:
+        assert report == PlannerReport(planned=1)
+        assert run["status"] == "running"
+    else:
+        assert report == PlannerReport(missed=1)
+        assert (run["status"], run["status_reason"]) == ("cancelled", "missed_window")
+        assert await task_rows(migrated, run["id"]) == []
+        assert workload.windows == []
+    schedule = await _schedule(migrated, schedule_id)
+    assert schedule["next_run_at"] == start + 7 * DAY
+
+
+@pytest.mark.parametrize(
+    ("now", "report", "statuses"),
+    [
+        # Half an hour before the real window: nothing is due, and the schedule is put right.
+        (LATEST - timedelta(minutes=30), PlannerReport(), []),
+        # After it: the window is planned, and the instant that was no window is not
+        # recorded as one that was missed.
+        (NOW, PlannerReport(planned=1), ["running"]),
+    ],
+)
+async def test_a_stored_instant_that_is_no_window_of_the_rule_is_not_planned_as_one(
+    worker_db: Ledger,
+    migrated: PostgresServer,
+    now: datetime,
+    report: PlannerReport,
+    statuses: list[str],
+) -> None:
+    """The schedule's time was changed, or its next run set by hand."""
+    project = await make_tenant(migrated)
+    schedule_id = await _due_schedule(migrated, project, next_run_at=LATEST - HOUR)
+
+    assert await plan_due(worker_db, _registry(), now=now) == report
+
+    runs = await _runs(migrated, schedule_id)
+    assert [run["status"] for run in runs] == statuses
+    assert {run["window_start"] for run in runs} <= {LATEST}
+    following = (await _schedule(migrated, schedule_id))["next_run_at"]
+    assert following == (LATEST if not statuses else LATEST + DAY)
+
+
+async def test_a_workload_cannot_write_while_it_plans(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """The session is the planner's, as the role that bypasses row-level security. What a
+    workload wrote through it would commit with the run, in any workspace."""
+    project = await make_tenant(migrated)
+    victim = await make_tenant(migrated)
+    target = await _due_schedule(migrated, victim, is_active=False)
+    schedule_id = await _due_schedule(migrated, project)
+    before = await _schedule(migrated, target)
+    workload = FakeWorkload()
+    workload.writes = "UPDATE ops.schedules SET next_run_at = next_run_at + interval '10 years'"
+
+    report = await plan_due(worker_db, _registry(workload), now=NOW)
+
+    assert report == PlannerReport(failed=1)
+    assert await _schedule(migrated, target) == before
+    assert await _runs(migrated, schedule_id) == []
+
+    # A workload that only reads is planned, and the planner's own writes go through.
+    workload.writes = "SELECT count(*) FROM ops.schedules"
+    assert await plan_due(worker_db, _registry(workload), now=NOW) == PlannerReport(planned=1)
+
+
+async def test_a_plan_that_names_a_task_twice_is_refused(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """One of the two would be dropped, and the estimate would hold budget for both."""
+    project = await make_tenant(migrated)
+    schedule_id = await _due_schedule(migrated, project)
+    workload = FakeWorkload()
+    workload.repeats = True
+
+    assert await plan_due(worker_db, _registry(workload), now=NOW) == PlannerReport(failed=1)
+    assert await _runs(migrated, schedule_id) == []
+
+
+async def test_schedules_that_fail_do_not_use_up_the_tick(
+    worker_db: Ledger, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A schedule that fails is found first on every tick. Counted against the tick's limit,
+    a few of them would be all the planner ever looked at."""
+    project = await make_tenant(migrated)
+    for minutes in (3, 2):
+        await _due_schedule(
+            migrated, project, next_run_at=LATEST - DAY * minutes, timezone="Mars/Olympus"
+        )
+    fine = await _due_schedule(migrated, project)
+
+    report = await plan_due(worker_db, _registry(), now=NOW, limit=1)
+
+    assert report == PlannerReport(planned=1, failed=2)
+    assert len(await _runs(migrated, fine)) == 1
+
+    # There is an end to it all the same: a tick gives up on so many and no more.
+    monkeypatch.setattr(planner, "FAILURES_MAX", 2)
+    another = await _due_schedule(migrated, project)
+    assert await plan_due(worker_db, _registry(), now=NOW) == PlannerReport(failed=2)
+    assert await _runs(migrated, another) == []
+
+
+async def test_a_tick_that_cannot_read_the_schedules_fails_as_a_whole(
+    worker_db: Ledger, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def unreachable(*arguments: object) -> None:
+        raise ConnectionError("the database is gone")
+
+    monkeypatch.setattr(planner, "_next_due", unreachable)
+
+    with pytest.raises(ConnectionError):
+        await plan_due(worker_db, _registry(), now=NOW)
+
+
+async def test_a_run_that_takes_its_budget_past_the_soft_limit_is_planned_and_reported(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    stream = io.StringIO()
+    configure_logging(service="worker", version="test", level="info", stream=stream)
+    project = await make_tenant(migrated)
+    budget_id = await make_budget(migrated, project, "3.50", soft_limit_pct=80)
+    schedule_id = await _due_schedule(migrated, project)
+
+    report = await plan_due(worker_db, _registry(FakeWorkload(subjects=3, price="1")), now=NOW)
+
+    assert report == PlannerReport(planned=1)
+    lines = [json.loads(line) for line in stream.getvalue().splitlines()]
+    (warning,) = [line for line in lines if line["msg"] == "budget past its soft limit"]
+    assert (warning["budget_ids"], warning["schedule_id"]) == ([str(budget_id)], str(schedule_id))
+    (planned,) = [line for line in lines if line["msg"] == "run planned"]
+    assert (planned["tasks"], planned["estimate"], planned["missed"]) == (3, "3", 0)
