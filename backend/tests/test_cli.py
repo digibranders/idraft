@@ -1,6 +1,9 @@
 """`python -m sightline.cli create-operator`: the way the first account comes to exist."""
 
+import asyncio
 import io
+import subprocess
+import sys
 import uuid
 
 import httpx
@@ -8,7 +11,7 @@ import pytest
 
 from sightline import cli
 from sightline.api.auth.passwords import verify_password
-from tests.api.auth.support import fetch, fetchrow
+from tests.api.auth.support import execute, fetch, fetchrow
 from tests.conftest import BASE_URL, PostgresServer
 
 PASSWORD = "an operator passphrase 9"
@@ -24,13 +27,14 @@ def _run(
     arguments: list[str],
     *,
     database_url: str | None,
-    typed: str = PASSWORD + "\n",
+    typed: str | bytes = PASSWORD + "\n",
 ) -> tuple[int, str, str]:
     if database_url is None:
         monkeypatch.delenv("DATABASE_URL", raising=False)
     else:
         monkeypatch.setenv("DATABASE_URL", database_url)
-    monkeypatch.setattr("sys.stdin", io.StringIO(typed))
+    raw = typed if isinstance(typed, bytes) else typed.encode()
+    monkeypatch.setattr("sys.stdin", io.TextIOWrapper(io.BytesIO(raw), encoding="utf-8"))
     code = cli.main(arguments)
     captured = capsys.readouterr()
     return code, captured.out, captured.err
@@ -95,7 +99,7 @@ async def test_an_existing_email_is_left_alone(migrated: PostgresServer) -> None
         dsn, email=email.upper(), name="Second", password="a different passphrase"
     )
 
-    assert again == cli.Outcome.EXISTS
+    assert again == cli.Outcome.EXISTS_AS_OPERATOR
     row = await fetchrow(
         migrated, "SELECT name, password_hash FROM auth.users WHERE email = $1", email
     )
@@ -113,7 +117,10 @@ def test_a_second_run_for_the_same_email_exits_with_a_reason(
     code, out, err = _run(monkeypatch, capsys, arguments, database_url=migrated.url("migrator"))
 
     assert (code, out) == (1, "")
-    assert err == f"An account with the email {email} already exists. Nothing was changed.\n"
+    assert err == (
+        f"An account with the email {email} already exists and is a platform operator. "
+        "Nothing was changed.\n"
+    )
 
 
 @pytest.mark.parametrize("role", ["app_api", "app_worker", "superuser"])
@@ -131,8 +138,7 @@ def test_it_refuses_to_run_as_any_role_but_migrator(
         database_url=migrated.url(role),
     )
     assert (code, out) == (1, "")
-    assert "must connect as migrator" in err
-    assert "pw" not in err, "the connection string must not be echoed"
+    assert err == "This command must connect as migrator. Check DATABASE_URL.\n"
 
 
 @pytest.mark.parametrize(
@@ -229,3 +235,166 @@ def test_no_command_prints_usage(capsys: pytest.CaptureFixture[str]) -> None:
         cli.main([])
     assert stopped.value.code == 2
     assert "create-operator" in capsys.readouterr().err
+
+
+def test_an_existing_account_that_is_not_an_operator_is_not_promoted(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    email = _email()
+    asyncio.run(
+        execute(
+            migrated,
+            "INSERT INTO auth.users (email, name, password_hash) VALUES ($1, 'Member', 'x')",
+            email,
+        )
+    )
+
+    code, out, err = _run(
+        monkeypatch,
+        capsys,
+        ["create-operator", "--email", email, "--name", "Asha"],
+        database_url=migrated.url("migrator"),
+    )
+
+    assert (code, out) == (1, "")
+    assert "is not a platform operator" in err
+    assert "does not promote accounts" in err
+    row = asyncio.run(
+        fetchrow(
+            migrated, "SELECT is_platform_operator, name FROM auth.users WHERE email = $1", email
+        )
+    )
+    assert (row["is_platform_operator"], row["name"]) == (False, "Member")
+
+
+@pytest.mark.parametrize(
+    "typed", [b"\xff\xfe invalid bytes passphrase\n", b"caf\xe9 au lait please\n"]
+)
+def test_a_password_that_is_not_utf8_is_refused_without_a_traceback(
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    typed: bytes,
+) -> None:
+    code, out, err = _run(
+        monkeypatch,
+        capsys,
+        ["create-operator", "--email", _email(), "--name", "Asha"],
+        database_url=migrated.url("migrator"),
+        typed=typed,
+    )
+    assert (code, out, err) == (1, "", "The password must be UTF-8 text.\n")
+
+
+def test_closed_standard_input_is_reported(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", migrated.url("migrator"))
+    monkeypatch.setattr("sys.stdin", None)
+    code = cli.main(["create-operator", "--email", _email(), "--name", "Asha"])
+    assert code == 1
+    assert capsys.readouterr().err == "No password was given: standard input is closed.\n"
+
+
+def test_spaces_in_a_password_are_kept(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    email = _email()
+    typed = "  spaces around the phrase  "
+    code, _, _ = _run(
+        monkeypatch,
+        capsys,
+        ["create-operator", "--email", email, "--name", "Asha"],
+        database_url=migrated.url("migrator"),
+        typed=typed + "\r\nan ignored second line\n",
+    )
+    row = asyncio.run(fetchrow(migrated, "SELECT * FROM auth.users WHERE email = $1", email))
+    assert code == 0
+    assert verify_password(row["password_hash"], typed)
+    assert not verify_password(row["password_hash"], typed.strip())
+
+
+def test_the_stored_email_keeps_its_case_and_the_audit_row_has_no_workspace(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    email = "Ops." + _email()
+    _run(
+        monkeypatch,
+        capsys,
+        ["create-operator", "--email", email, "--name", "Asha"],
+        database_url=migrated.url("migrator"),
+    )
+    row = asyncio.run(
+        fetchrow(
+            migrated,
+            "SELECT u.email, a.workspace_id FROM auth.users u "
+            "JOIN ops.audit_logs a ON a.target_id = u.id::text WHERE u.email = $1",
+            email.lower(),
+        )
+    )
+    assert (row["email"], row["workspace_id"]) == (email, None)
+
+
+@pytest.mark.parametrize(
+    ("database", "role", "message"),
+    [
+        ("sightline_not_there", "migrator", "The database named in DATABASE_URL does not exist.\n"),
+        (
+            "unmigrated",
+            "migrator",
+            "The schema is not migrated. Run python -m sightline.db.migrate first.\n",
+        ),
+    ],
+)
+def test_a_database_problem_is_named_without_the_connection_string(
+    pg: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    database: str,
+    role: str,
+    message: str,
+) -> None:
+    if database == "unmigrated":
+        asyncio.run(pg.create_database("cli_unmigrated"))
+        database = "cli_unmigrated"
+    code, out, err = _run(
+        monkeypatch,
+        capsys,
+        ["create-operator", "--email", _email(), "--name", "Asha"],
+        database_url=pg.url(role, database),
+    )
+    assert (code, out, err) == (1, "", message)
+
+
+def test_wrong_credentials_are_named_as_such(
+    pg: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    url = pg.url("migrator").replace("migrator-pw", "WRONG-SECRET")
+    code, out, err = _run(
+        monkeypatch,
+        capsys,
+        ["create-operator", "--email", _email(), "--name", "Asha"],
+        database_url=url,
+    )
+    assert (code, out, err) == (1, "", "The database refused the credentials in DATABASE_URL.\n")
+
+
+def test_help_exits_cleanly_and_an_unknown_command_does_not(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as helped:
+        cli.main(["--help"])
+    with pytest.raises(SystemExit) as unknown:
+        cli.main(["promote-everyone"])
+    assert (helped.value.code, unknown.value.code) == (0, 2)
+
+
+def test_importing_the_cli_does_not_build_the_api() -> None:
+    script = (
+        "import sys, sightline.cli; "
+        "print('fastapi' in sys.modules, 'sightline.api.main' in sys.modules)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, check=True, timeout=60
+    )
+    assert result.stdout.strip() == "False False"

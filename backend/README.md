@@ -44,7 +44,7 @@ Registration is by invitation (`REGISTRATION=invited`, the default), so the firs
 uv run --env-file .env.migrator python -m sightline.cli create-operator --email you@example.com --name "Your Name"
 ```
 
-That account is a verified platform operator and can sign in at `POST /api/v1/auth/sign-in`. To let anyone register instead, start the API with `REGISTRATION=open`.
+That account is a verified platform operator and can sign in at `POST /api/v1/auth/sign-in`. The command checks the password's length but not the breached-password list (it makes no network calls), and it never changes an account that already exists. To let anyone register instead, start the API with `REGISTRATION=open`.
 
 Emails are not sent in local development. The console sender prints each message, link included, to the API's stderr. It is refused unless `APP_ORIGIN` is a local address, so it cannot be left on by accident on a server.
 

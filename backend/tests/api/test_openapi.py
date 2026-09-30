@@ -87,3 +87,12 @@ async def test_a_signed_in_user_gets_the_committed_document(
 
 def test_the_document_does_not_list_the_route_that_serves_it() -> None:
     assert SERVED not in build_openapi()["paths"]
+
+
+async def test_the_served_document_is_never_cached(
+    app: FastAPI, client: httpx.AsyncClient, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    token, _ = await open_session(app.state.resources, user)
+    response = await client.get(SERVED, headers=cookie(token))
+    assert response.headers["cache-control"] == "no-store"

@@ -378,7 +378,7 @@ Decisions the specs left open, now written into the docs:
 | Email is a port with a console sender (local origins only) and a Resend sender; tokens travel in the URL fragment | 24 section 2, 22 section 7.1 | One POST to swap the provider; a fragment is never sent to a server, so tokens stay out of access logs |
 | The Origin check covers every state-changing request under `/api/`, public routes included | 19 section 2.1, 24 section 2.1 | It also stops login CSRF |
 | The failure count is cleared only when a sign-in completes | 24 section 2 | Otherwise someone who knows the password could start over after every few wrong codes and guess the second factor without limit |
-| A user with two-factor on must re-authenticate with a code | 19 section 3.1, 24 section 2 | Otherwise a stolen cookie plus the password would be enough to replace the recovery codes |
+| A user with two-factor on must re-authenticate with a code | 19 section 3.1, 24 section 2 | Otherwise a stolen cookie plus the password would be enough to replace the recovery codes. What remains: a cookie stolen within 10 minutes of sign-in is already fresh (accepted, and the user is emailed on every change to the second factor or the password) |
 | Sign-in locks the user row; a password change or reset writes it before revoking | 24 section 2 | A revocation of every session must not miss one created at the same moment |
 | The 60 s cache is not trusted for anything that changes an account | 24 section 2 | A disabled user's session can stay cached for a minute |
 | Log lines carry `user_id`, never the session | 25 section 3.1, 24 section 11 | The redaction treats a session id as a credential; the user is what an operator needs |
@@ -393,7 +393,8 @@ Each task was followed by an independent review (Fable model) that ran the code.
 | 4. Sessions | Sliding a session did not check that the user was still enabled; a cache entry with a time lacking its zone was a 500; anyone able to write to Redis could forge a session; a rotated session could be given a longer life than the policy; a configured origin with `:443` never matched a browser |
 | 5. Registration and sign-in | An invitation verified a different address that folded to the same text; two sign-ins that both rewrote an old hash deadlocked; the invitation was not re-checked inside the insert; emails accepted invisible characters; token routes had no limit |
 | 6. Passwords and sessions | An image URL with a NUL was a 500; a just-disabled user could still change their password; a right change did not clear the failure count; a reset could complete for a user disabled meanwhile; a Redis outage lost the audit row of a wrong password |
-| 7 and 8 | Recorded below when the reviews return |
+| 7. Two-factor | A sign-in with the right password cleared the failure count before the code was given, so the second factor could be guessed without limit by anyone holding the password (found while briefing the reviewer and fixed before the review returned; the review reproduced it on the older commit); the password alone could make a session fresh and then replace the recovery codes; enrolment could confirm a secret the code was not checked against; no notice was sent when the second factor changed; a test of the failure count passed without the behaviour it named |
+| 8. Operator CLI and the served document | A password that is not UTF-8 produced a traceback; every database error read "could not connect"; the served document had no cache header; an existing account that is not an operator was reported the same way as one that is |
 
 Carried into the next plans:
 

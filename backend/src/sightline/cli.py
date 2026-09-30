@@ -43,6 +43,7 @@ _INSERT_USER = """
     ON CONFLICT (email) DO NOTHING
     RETURNING id
 """
+_IS_OPERATOR = "SELECT is_platform_operator FROM auth.users WHERE email = $1"
 _INSERT_AUDIT = """
     INSERT INTO ops.audit_logs (actor_type, actor_id, action, target_type, target_id)
     VALUES ('system', 'cli', 'auth.operator_created', 'user', $1)
@@ -51,8 +52,13 @@ _INSERT_AUDIT = """
 
 class Outcome(StrEnum):
     CREATED = "created"
-    EXISTS = "exists"
+    EXISTS_AS_OPERATOR = "exists_as_operator"
+    EXISTS_AS_MEMBER = "exists_as_member"
     NOT_OWNER = "not_owner"
+
+
+class _InputError(Exception):
+    """The password could not be read. The message is for the person at the terminal."""
 
 
 async def create_operator(database_url: str, *, email: str, name: str, password: str) -> Outcome:
@@ -65,28 +71,48 @@ async def create_operator(database_url: str, *, email: str, name: str, password:
         async with connection.transaction():
             user_id = await connection.fetchval(_INSERT_USER, email, name, password_hash)
             if user_id is None:
-                return Outcome.EXISTS
+                is_operator = await connection.fetchval(_IS_OPERATOR, email)
+                return Outcome.EXISTS_AS_OPERATOR if is_operator else Outcome.EXISTS_AS_MEMBER
             await connection.execute(_INSERT_AUDIT, str(user_id))
         return Outcome.CREATED
     finally:
         await connection.close()
 
 
-def _read_password() -> str | None:
+def _read_password() -> str:
     """The password, from a prompt that does not echo, or from stdin when it is not a terminal.
 
-    None when the two entries at the prompt differ.
+    Read as bytes and decoded here, so input that is not UTF-8 is an answer, not a traceback.
     """
-    if not sys.stdin.isatty():
-        return sys.stdin.readline().rstrip("\r\n")
-    first = getpass.getpass("Password: ")  # pragma: no cover - needs a terminal
-    second = getpass.getpass("Again: ")  # pragma: no cover
-    return first if first == second else None  # pragma: no cover
+    if sys.stdin is None:
+        raise _InputError("No password was given: standard input is closed.")
+    if sys.stdin.isatty():  # pragma: no cover - needs a terminal
+        first = getpass.getpass("Password: ")
+        if first != getpass.getpass("Again: "):
+            raise _InputError("The two passwords differ.")
+        return first
+    try:
+        return sys.stdin.buffer.readline().decode("utf-8").rstrip("\r\n")
+    except UnicodeDecodeError:
+        raise _InputError("The password must be UTF-8 text.") from None
 
 
 def _fail(message: str) -> int:
     sys.stderr.write(message + "\n")
     return 1
+
+
+def _database_problem(error: Exception) -> str:
+    """What went wrong, in words. Nothing from the exception is printed: it can quote the DSN."""
+    if isinstance(error, asyncpg.InvalidAuthorizationSpecificationError):
+        return "The database refused the credentials in DATABASE_URL."
+    if isinstance(error, asyncpg.InvalidCatalogNameError):
+        return "The database named in DATABASE_URL does not exist."
+    if isinstance(error, asyncpg.UndefinedTableError | asyncpg.InvalidSchemaNameError):
+        return "The schema is not migrated. Run python -m sightline.db.migrate first."
+    if isinstance(error, asyncpg.PostgresError):
+        return f"The database reported an error ({type(error).__name__})."
+    return "Could not connect to the database."
 
 
 def _create_operator(arguments: argparse.Namespace) -> int:
@@ -100,11 +126,11 @@ def _create_operator(arguments: argparse.Namespace) -> int:
     except ValidationError:
         return _fail("The name must be 1 to 120 characters, without hidden characters.")
 
-    password = _read_password()
-    if password is None:  # pragma: no cover - needs a terminal
-        return _fail("The two passwords differ.")
     try:
+        password = _read_password()
         check_policy(password, email=email)
+    except _InputError as error:
+        return _fail(str(error))
     except WeakPasswordError as error:
         return _fail(_WEAK[error.reason])
 
@@ -112,13 +138,20 @@ def _create_operator(arguments: argparse.Namespace) -> int:
         outcome = asyncio.run(
             create_operator(settings.asyncpg_dsn, email=email, name=name, password=password)
         )
-    except (OSError, TimeoutError, asyncpg.PostgresError):
-        # Nothing from the exception is printed: it can quote the connection string.
-        return _fail("Could not connect to the database.")
+    except (OSError, TimeoutError, asyncpg.PostgresError) as error:
+        return _fail(_database_problem(error))
     if outcome is Outcome.NOT_OWNER:
         return _fail(f"This command must connect as {OWNER_ROLE}. Check DATABASE_URL.")
-    if outcome is Outcome.EXISTS:
-        return _fail(f"An account with the email {email} already exists. Nothing was changed.")
+    if outcome is Outcome.EXISTS_AS_OPERATOR:
+        return _fail(
+            f"An account with the email {email} already exists and is a platform operator. "
+            "Nothing was changed."
+        )
+    if outcome is Outcome.EXISTS_AS_MEMBER:
+        return _fail(
+            f"An account with the email {email} already exists and is not a platform operator. "
+            "This command does not promote accounts. Nothing was changed."
+        )
     sys.stdout.write(f"Created platform operator {email}.\n")
     return 0
 

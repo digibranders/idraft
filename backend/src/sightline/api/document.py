@@ -16,4 +16,5 @@ router = APIRouter()
 
 @router.get("/api/v1/openapi.json", include_in_schema=False)
 async def openapi_document(request: Request, _: CurrentSession) -> JSONResponse:
-    return JSONResponse(request.app.openapi())
+    # The description of a private API: no shared cache may keep it.
+    return JSONResponse(request.app.openapi(), headers={"Cache-Control": "no-store"})

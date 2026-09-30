@@ -271,8 +271,9 @@ class AuthService:
         if signed_in.status == "signed_in":
             # Only a completed sign-in clears the failure count. With a second factor still
             # owed, clearing it here would let someone who knows the password start over after
-            # every few wrong codes and guess the code without limit.
-            await self._guard(self._throttle.success(email=email))
+            # every few wrong codes and guess the code without limit. The session exists by
+            # now, so a Redis outage here is logged and does not fail the sign-in.
+            await self._credential_accepted(user)
         return signed_in
 
     async def _open_session(
