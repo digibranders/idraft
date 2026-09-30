@@ -395,7 +395,7 @@
     const high = Math.ceil(Math.max(...m.values.map((v, i) => v + m.half[i])));
     return {
       animation: false,
-      grid: { left: 40, right: 8, top: 6, bottom: showAxis ? 24 : 6, outerBoundsMode: 'none' },
+      grid: { left: 40, right: 8, top: 8, bottom: showAxis ? 24 : 8, outerBoundsMode: 'none' },
       xAxis: {
         type: 'category',
         data: dates,
@@ -636,7 +636,53 @@
   echarts.connect(OVERVIEW_GROUP);
 
   /** Shared with interactions.js (inspector chart, legend and interval toggles, selection sync). */
+  // Mention rate trend cards (layout customization): one chart per card instance, mounted when the card is
+  // placed and disposed when it is hidden. AI Overview has no row in the small multiples, so it gets its own series.
+  const aioValues = walk(overviewRandom, 28, 14.6, 16.1, 1.4);
+  aioValues[aioValues.length - 1] = 16.1;
+  const TREND_SERIES = {
+    chatgpt_web: MULTIPLES[1],
+    gemini_web: MULTIPLES[2],
+    google_ai_mode: MULTIPLES[3],
+    google_ai_overview: { key: 'aio', token: 'chart-5', values: aioValues, half: aioValues.map(() => 3.2 + overviewRandom() * 0.8), ci: 3.2 },
+  };
+
+  function trendOption(id, engine) {
+    const series = TREND_SERIES[engine];
+    const axes = axisTheme();
+    const dates = overviewDays.map(shortDate);
+    const low = Math.floor(Math.min(...series.values.map((v, i) => v - series.half[i])));
+    const high = Math.ceil(Math.max(...series.values.map((v, i) => v + series.half[i])));
+    return {
+      animation: false,
+      grid: { left: 40, right: 8, top: 8, bottom: 24, outerBoundsMode: 'none' },
+      xAxis: { type: 'category', data: dates, boundaryGap: false, ...axes.x, axisLabel: { ...axes.x.axisLabel, interval: labelInterval(id, dates.length, 48), alignMaxLabel: 'right' } },
+      yAxis: { type: 'value', min: low, max: high, interval: high - low, ...axes.y, axisLabel: { ...axes.y.axisLabel, formatter: (v) => `${v}%` } },
+      tooltip: tooltipTheme((list) => list.filter((p) => p.seriesId === 'value').map((p) => ({ color: p.color, name: 'Mention rate', value: percent(p.value) }))),
+      series: [
+        { id: 'ci-low', type: 'line', stack: 'ci', data: series.values.map((v, i) => v - series.half[i]), lineStyle: { opacity: 0 }, symbol: 'none', silent: true, tooltip: { show: false } },
+        { id: 'ci-band', type: 'line', stack: 'ci', data: series.half.map((w) => w * 2), lineStyle: { opacity: 0 }, areaStyle: { color: token(series.token, 0.14) }, symbol: 'none', silent: true, tooltip: { show: false } },
+        { id: 'value', type: 'line', data: series.values, color: token(series.token), lineStyle: { width: 2, join: 'round' }, symbol: 'circle', symbolSize: 6, showSymbol: false, emphasis: { disabled: true } },
+      ],
+    };
+  }
+
   window.PreviewCharts = {
+    /** Re-renders every chart, legend swatch and stacked bar; call after cards are added or moved. */
+    refresh: () => renderAll(),
+    /** Mounts a mention rate trend chart in `el` (which needs an id). Returns a function that disposes it. */
+    mountTrend: (el, engine) => {
+      const entry = { id: el.id, option: () => trendOption(el.id, engine) };
+      charts.push(entry);
+      observer.observe(el);
+      renderCharts();
+      return () => {
+        charts.splice(charts.indexOf(entry), 1);
+        observer.unobserve(el);
+        instances.get(entry.id)?.dispose();
+        instances.delete(entry.id);
+      };
+    },
     token,
     fontFamily,
     axisTheme,

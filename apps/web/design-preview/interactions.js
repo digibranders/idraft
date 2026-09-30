@@ -127,7 +127,10 @@
       if (panel.hasAttribute('data-editor')) {
         options.focus = panel.querySelector('[data-editor-search]') ?? panel.querySelector('input[type="checkbox"]');
       }
-      if (trigger.dataset.popup === 'menu-row') setRowMenuTarget(inspectorId);
+      if (trigger.dataset.popup === 'menu-row') {
+        setRowMenuTarget(inspectorId);
+        setInspectorOnlyItems(true);
+      }
       return openPopup(panel, trigger, options);
     }
     // A click on the popup's own anchor (a combobox field, a select trigger) is handled by that control. The event
@@ -838,7 +841,7 @@
 
   function renderInspectorChart(k) {
     const el = $('#chart-inspector');
-    if (!el || !charts) return;
+    if (!el || !charts || el.clientWidth === 0) return;
     inspectorChart ??= echarts.init(el, null, { renderer: 'canvas' });
     const axes = charts.axisTheme();
     const points = Number($('#inspector-window').dataset.value) / 2;
@@ -925,8 +928,16 @@
     }
   }
 
-  function closeInspector() {
+  /**
+   * Closes the inspector. Unsaved work in it (a customized card layout) is asked about first, unless forced.
+   * `then` runs once it really closes, so a caller's follow-up does not happen when the person keeps editing.
+   */
+  function closeInspector(force, then) {
     if (inspector.hidden) return;
+    const after = typeof then === 'function' ? then : null;
+    if (force !== true && blockedByGuard('inspector', () => closeInspector(true, after))) return;
+    after?.();
+    window.dispatchEvent(new window.Event('inspector-close'));
     const mode = inspector.dataset.mode;
     const done = () => {
       inspector.hidden = true;
@@ -947,6 +958,29 @@
     const rows = $$('[data-selectable] tbody tr').map((r) => r.dataset.id);
     const next = rows[(rows.indexOf(inspectorId) + delta + rows.length) % rows.length];
     openInspector(next);
+  }
+
+  /**
+   * Leave guards (10 section 13.2). A guard is asked before the page navigates ('route') or the inspector
+   * closes ('inspector'). It returns null, or what to say and do: { message, onKeep, onDiscard }.
+   */
+  const leaveGuards = [];
+  function blockedByGuard(kind, proceed) {
+    let pending = null;
+    for (const guard of leaveGuards) {
+      pending = guard(kind);
+      if (pending) break;
+    }
+    if (!pending) return false;
+    askDiscard(pending.message, {
+      owner: pending.owner,
+      onKeep: pending.onKeep,
+      onDiscard: () => {
+        pending.onDiscard();
+        proceed();
+      },
+    });
+    return true;
   }
 
   function selectTab(name) {
@@ -997,6 +1031,10 @@
 
   // Row menus: the More button and right-click (16 section 5.4)
   let rowMenuId = null;
+  // "Customize cards" belongs to the drawer's More menu, not to a table row's menu
+  function setInspectorOnlyItems(fromInspector) {
+    $$('#menu-row [data-inspector-only]').forEach((el) => (el.hidden = !fromInspector));
+  }
   function setRowMenuTarget(id) {
     rowMenuId = id;
     const label = $('[data-row-menu-label]');
@@ -1008,6 +1046,7 @@
     event.stopPropagation();
     const row = button.closest('tr');
     setRowMenuTarget(row.dataset.id);
+    setInspectorOnlyItems(false);
     openPopup($('#menu-row'), button, { align: 'end' });
   }, true);
   $('[data-selectable] tbody')?.addEventListener('contextmenu', (event) => {
@@ -1016,6 +1055,7 @@
     if (!row) return;
     event.preventDefault();
     setRowMenuTarget(row.dataset.id);
+    setInspectorOnlyItems(false);
     openPopup($('#menu-row'), row, { point: { x: event.clientX, y: event.clientY } });
   });
   $('[data-row-open]')?.addEventListener('click', () => {
@@ -1028,13 +1068,18 @@
     const id = rowMenuId;
     if (!id) return;
     const rows = [...$$(`tr[data-id="${id}"]`), ...$$(`[data-open-id="${id}"]`).map((a) => a.closest('li') ?? a)];
-    if (inspectorId === id) closeInspector();
-    rows.forEach((el) => (el.hidden = true));
-    toast({
-      title: 'Keyword archived',
-      description: 'Its history is kept for 90 days.',
-      action: { label: 'Undo', run: () => { rows.forEach((el) => (el.hidden = false)); toast({ title: 'Keyword restored' }); } },
-    });
+    const archive = () => {
+      rows.forEach((el) => (el.hidden = true));
+      toast({
+        title: 'Keyword archived',
+        description: 'Its history is kept for 90 days.',
+        action: { label: 'Undo', run: () => { rows.forEach((el) => (el.hidden = false)); toast({ title: 'Keyword restored' }); } },
+      });
+    };
+    // The keyword open in the inspector is archived only once the inspector has closed: with unsaved card
+    // changes the person is asked first, and "Keep editing" archives nothing
+    if (inspectorId === id && !inspector.hidden) closeInspector(false, archive);
+    else archive();
   });
 
   // ---------------------------------------------------------------------------------------------
@@ -1134,6 +1179,8 @@
   function openSelect(trigger) {
     const listbox = selectListbox(trigger);
     selectOwner = trigger;
+    // Lets the owner adjust the shared listbox first (a card's Width select offers only the widths it allows)
+    trigger.dispatchEvent(new window.Event('select-open', { bubbles: true }));
     selectOption(listbox, trigger.dataset.value);
     openListbox(listbox, trigger, trigger, $('[aria-selected="true"]', listbox) ?? $('[role="option"]', listbox));
   }
@@ -1317,15 +1364,23 @@
     resetAdd();
     toast({ title: `${number.format(n)} keyword${n === 1 ? '' : 's'} added`, description: 'First checks finish in about 10 minutes.', action: { label: 'Undo', run: () => toast({ title: 'Keywords removed', tone: 'info' }) } });
   });
-  // "Discard unsaved changes?" (10 section 13.2): shared by the Add keywords dialog and the settings forms
+  // "Discard unsaved changes?" (10 section 13.2): shared by the Add keywords dialog, the settings forms and
+  // layout customization
   let discardRequest = null;
   function askDiscard(message, request) {
+    // `request.owner` lets whoever asked withdraw the question (dismissDiscard) when its subject goes away
     discardRequest = request;
     $('[data-discard-desc]', discard).textContent = message;
     openModal(discard);
     $('[data-keep-editing]', discard).focus();
   }
   const keepEditing = () => closeModal(discard, () => discardRequest?.onKeep?.());
+  /** Closes the question without running either answer, when it was asked by `owner`. */
+  function dismissDiscard(owner) {
+    if (!discardRequest || discardRequest.owner !== owner) return;
+    discardRequest = null;
+    if (!discard.hidden) closeModal(discard);
+  }
   $('[data-keep-editing]', discard)?.addEventListener('click', keepEditing);
   $('[data-discard]', discard)?.addEventListener('click', () => {
     discard.hidden = true;
@@ -2106,7 +2161,8 @@
     const viewChanged = next.view !== route.view;
     route = next;
     closePopup({ restoreFocus: false });
-    if (viewChanged && !inspector.hidden) closeInspector();
+    // Route guards have already asked about unsaved work, so the inspector closes without asking again
+    if (viewChanged && !inspector.hidden) closeInspector(true);
     if ($('#sidebar').hasAttribute('data-open')) $('#nav-close').click();
     $$('[data-view]').forEach((view) => (view.hidden = view.dataset.view !== next.view));
     $$('#sidebar [data-nav]').forEach((link) => setNavState(link, link.dataset.nav === next.view));
@@ -2124,22 +2180,29 @@
   window.addEventListener('hashchange', () => {
     const next = parseRoute(location.hash);
     if (!next || routeHash(next) === routeHash(route)) return;
-    // Leaving a dirty settings form asks first (10 section 13.2); "Keep editing" restores the address
-    if (route.view === 'settings' && settingsDirty()) {
-      const stay = routeHash(route);
+    // Leaving unsaved work asks first (10 section 13.2). The address is put back while the question is open,
+    // so "Keep editing" leaves everything as it was, including after Back and Forward.
+    const stay = routeHash(route);
+    const proceed = () => {
+      history.replaceState(null, '', routeHash(next));
+      showRoute(next);
+    };
+    if (blockedByGuard('route', proceed)) {
       history.replaceState(null, '', stay);
-      askDiscard('Your unsaved settings changes will be lost.', {
-        onKeep: () => (BUILT_SECTIONS.has(route.section) ? $(`[data-settings-section="${route.section}"] input, [data-settings-section="${route.section}"] button`)?.focus() : undefined),
-        onDiscard: () => {
-          discardSettings();
-          history.replaceState(null, '', routeHash(next));
-          showRoute(next);
-        },
-      });
       return;
     }
     showRoute(next);
   });
+
+  leaveGuards.push((kind) =>
+    kind === 'route' && route.view === 'settings' && settingsDirty()
+      ? {
+          message: 'Your unsaved settings changes will be lost.',
+          onKeep: () => (BUILT_SECTIONS.has(route.section) ? $(`[data-settings-section="${route.section}"] input, [data-settings-section="${route.section}"] button`)?.focus() : undefined),
+          onDiscard: discardSettings,
+        }
+      : null,
+  );
 
   function previewNote(name) {
     toast({ title: `${name} is not in this preview`, description: 'Overview, Rankings and Settings are built so far.', tone: 'info' });
@@ -2167,6 +2230,8 @@
     const modalOpen = !palette.hidden || $$('[aria-modal="true"]').some((dialog) => !dialog.hidden);
     if (typing || modalOpen || current) return;
     if (!inspector.hidden) {
+      // While the drawer's cards are being customized, Escape leaves customize mode first (customize.js)
+      if (event.key === 'Escape' && $('#inspector [data-layout-save-bar]:not([hidden])')) return;
       if (event.key === 'Escape') closeInspector();
       else if (root.dataset.singleKeys === 'off') return;
       else if (event.key === 'j') step(1);
@@ -2177,4 +2242,24 @@
   // Restore an inspector from the URL (?inspect=keyword:k2), as a shared link would
   const fromUrl = new URL(location.href).searchParams.get('inspect');
   if (fromUrl?.startsWith('keyword:')) openInspector(fromUrl.slice(8));
+
+  /** Helpers shared with customize.js (layout customization), which is a separate ES module. */
+  window.PreviewUI = {
+    $,
+    $$,
+    icon,
+    toast,
+    openPopup,
+    closePopup,
+    popupOpen: () => current !== null,
+    openModal,
+    closeModal,
+    trapFocus,
+    askDiscard,
+    setSelectValue,
+    addLeaveGuard: (guard) => leaveGuards.push(guard),
+    dismissDiscard,
+    selectInspectorTab: selectTab,
+    refreshInspectorChart: () => inspectorId && renderInspectorChart(KEYWORDS[inspectorId]),
+  };
 })();

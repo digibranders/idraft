@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tailwindcss -i src/styles/globals.css -o .tmp/globals.compiled.css",
-    "preview": "node design-preview/icons.mjs && node design-preview/vendor.mjs && tailwindcss -i design-preview/preview.css -o design-preview/preview.compiled.css"
+    "preview": "node design-preview/icons.mjs && node design-preview/vendor.mjs && node design-preview/layouts-core.mjs && tailwindcss -i design-preview/preview.css -o design-preview/preview.compiled.css"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
