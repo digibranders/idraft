@@ -649,6 +649,8 @@ Data: `GET .../pages?filters`, `GET .../pages/{urlId}`, `.../pages/{urlId}/keywo
 
 ### 5.6 Prompt Explorer
 
+> Superseded by design system: the page is "Topics & Prompts" and opens on a Topics tab, with the prompts of each topic grouped under it and a topic drawer; the list below is its Prompts tab. See [24-page-templates.md](design-system/24-page-templates.md) section 9.5 and [ADR-DS-022](design-system/adr/ADR-DS-022-topics-and-prompts.md).
+
 Routes `prompts` (list) and `prompts/[promptId]` (detail). Permissions: `data:read`; `prompts:write` to add and edit; `runs:trigger` for "Run now"; `panels:core:modify` for core changes. Phase 6 (list, editor, versions), Phase 9 (metrics), Phase 10a (fan-out links), Phase 14 (statistics drawer extras).
 
 **List:**
@@ -821,6 +823,8 @@ Route `competitors`. Permission `data:read`; `entities:write` to track candidate
 Data: `GET .../competitors`, `.../competitors/{entityId}`, `.../competitors/candidates`.
 
 ### 5.11 Topic Explorer
+
+> Superseded by design system: there is no separate Topics destination. Topics are listed on the Topics tab of "Topics & Prompts" ([ADR-DS-022](design-system/adr/ADR-DS-022-topics-and-prompts.md)). Its SEO visibility and Top 10 columns are columns of that tab. Term editing and influencing pages have no home yet: see the consequences in that ADR.
 
 Route `topics`. Permission `data:read`; `taxonomy:write` to edit terms. Phase 2 (taxonomy tree), Phase 10b (metrics), Phase 13 (influencing pages).
 

@@ -84,7 +84,7 @@ RETURNS double precision LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
   END $$;
 ```
 
-TypeScript mirror lives in `packages/domain/src/stats/wilson.ts` and is tested against the SQL function and against published reference values.
+TypeScript mirror lives in `packages/domain/src/stats/wilson.ts` and is tested against the SQL function and against published reference values. Until that package exists it is `apps/web/src/lib/stats/` (Wilson interval, rates from counts, the detectable change rule of section 6.2, panel sizing of section 7.2), tested against the values in this document.
 
 ### 3.3 How wide is the interval? (Fact, computed)
 
