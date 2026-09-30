@@ -5,7 +5,7 @@ Last updated: 2026-09-29
 
 ## 1. Navigation architecture
 
-Primary navigation stays concise: 15 sidebar items in 3 sections separated by 16 px of space (no divider lines). The first section holds Overview, Matrix and two labelled groups, SEO (3 items) and AI Visibility (4 items); the second holds Competitors, Topics and Discover; the third holds Reports, Integrations and Settings. Subpages use local tabs in the page header, never extra sidebar entries.
+Primary navigation stays concise: 14 sidebar items in 3 sections separated by 16 px of space (no divider lines). The first section holds Overview, Matrix and two labelled groups, SEO (3 items) and AI Visibility (4 items); the second holds Competitors and Discover (topics are reached through Topics & Prompts, [ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md)); the third holds Reports, Integrations and Settings. Subpages use local tabs in the page header, never extra sidebar entries.
 
 ```mermaid
 flowchart TB
@@ -17,11 +17,10 @@ flowchart TB
     SEO --> PG[Pages]
     P --> AI[AI Visibility]
     AI --> AO[Overview]
-    AI --> PR[Prompts]
+    AI --> PR[Topics & Prompts]
     AI --> CI[Citations]
     AI --> SO[Sources]
     P --> CO[Competitors]
-    P --> TO[Topics]
     P --> DI[Discover]
     DI --> DK[Keywords]
     DI --> DP[Prompts]
@@ -44,12 +43,11 @@ SEO
   Pages
 AI Visibility
   Overview
-  Prompts
+  Topics & Prompts
   Citations
   Sources
 
   Competitors
-  Topics
   Discover                 24     <- count of new candidates
 
   Reports
@@ -68,11 +66,10 @@ Last run 06:12 · 1,284 keywords   <- collection status line
 | SEO > Keywords | `/seo/keywords` | Inventory, Groups, Metrics history, Imports |
 | SEO > Pages | `/seo/pages` | Landing pages, Cannibalization |
 | AI Visibility > Overview | `/ai` | none |
-| AI Visibility > Prompts | `/ai/prompts` | Explorer, Panels, Versions |
+| AI Visibility > Topics & Prompts | `/ai/prompts` | Topics, Prompts, Panels, Versions ([ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md)) |
 | AI Visibility > Citations | `/ai/citations` | Domains, Pages, New and lost |
 | AI Visibility > Sources | `/ai/sources` | Publishers, Categories, Opportunities |
 | Competitors | `/competitors` | Comparison, SEO, AI, Candidates |
-| Topics | `/topics` | none |
 | Discover | `/discover` | Keywords, Prompts, Opportunities |
 | Reports | `/reports` | Scheduled, Exports, Saved views |
 | Integrations | `/integrations` | one tab per connected source (at most 6, section 6) |
@@ -175,7 +172,7 @@ Inspector tabs use the same 44 px underline style ([16-drawers-dialogs-popovers.
 | `Cmd/Ctrl+K` | Command palette (includes every navigation destination) |
 | `g` then `o` | Go to Overview |
 | `g` then `r` | Go to Rankings |
-| `g` then `p` | Go to Prompts |
+| `g` then `p` | Go to Topics & Prompts |
 | `g` then `c` | Go to Citations |
 | `g` then `m` | Go to Matrix |
 | `[` | Collapse or expand sidebar |

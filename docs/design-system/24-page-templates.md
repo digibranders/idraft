@@ -576,9 +576,35 @@ Competitor ranks, SERP features, AI Overview history, related prompts, GSC and e
 | GSC | Evidence column. `ChartFrame` 180 px, own axis, labeled "Google-reported" | Low-data rule applies |
 | Events | Right rail, last panel. `EventTimeline` (latest 50) with the feed rows of [23-application-patterns.md](23-application-patterns.md) section 9.3 | "Show older events" loads 50 more ([18-notifications-alerts.md](18-notifications-alerts.md) section 7) |
 
-### 9.5 Prompt Explorer (T2)
+### 9.5 Topics & Prompts (T2)
 
-Route `/ai/prompts` (tab Explorer). Shown with the prompt inspector open. Its default width is 440 px; at 1440 with the sidebar expanded it docks at its full width (the main column keeps 792 px: 1440 minus 208 minus 440, above the 720 px minimum), per the docking rule in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6. The drawing is schematic.
+Route `/ai/prompts`. Tabs: Topics (the default), Prompts, Panels, Versions ([ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md)). Topics and Prompts share the filter bar, the saved view and the strip. The search field of each table finds rows; it is not a filter and does not change the strip.
+
+**Topics tab.** One row per topic with prompts in scope. The chevron opens a topic in place: its prompts, most mentioned first, eight at most, then "Show all 17 prompts", which opens the topic inspector on its Prompts tab. The row opens the topic inspector; a prompt row opens the prompt inspector, and J and K then step inside that topic.
+
+| # | Column | Type | Width | Priority | Notes |
+|---|---|---|---|---|---|
+| 0 | (select) | `select` | 40 | always | Topic rows only |
+| 1 | Topic | text | flex, min 240 | 1 (pinned) | Chevron (24 px, `aria-expanded`), then the name in `type-body-strong` over "Category · 17 prompts" in `type-label`. Prompt rows are indented 44 px on `surface-subtle` and use `PromptCell` |
+| 2 | Prompts | `count` | 96 | 2 | Prompts of the topic in scope |
+| 3 | Mention rate | `rate` | 128 | 1 | Per engine prompt-weighted, then the equal-weight average; header note "avg of 3". With its change and sample |
+| 4 | Citation rate | `rate` | 128 | 2 | Same rule, without the change |
+| 5 | Top engine | engine | 160 | 2 | `EngineLogo`, name and rate of the engine with the highest mention rate; all engines in the tooltip |
+| 6 | Trend | `sparkline` | 96 | 3 | Weekly mention rate: the mean of the prompts' trends |
+| 7 | SEO visibility | value | 128 | 3 | Volume-weighted visibility of the topic's tracked keywords, with the keyword count below. Header note "volume-weighted" |
+| 8 | Top 10 | value | 112 | 3 | Tracked keywords of the topic ranking in the top 10, "of 77 checked" below. Header note "keywords" |
+| 9 | Updated | `date` | 144 | 4 | Latest observation in the topic |
+| 10 | (actions) | `actions` | 40 | always | Open, Show in Prompts, Add prompt, Run now, Export |
+
+The two search columns make this the one table that shows a topic on both channels. They describe the topic's tracked keywords, so the prompt filters do not change them (the tooltip says so), and they are empty on prompt rows. Every column except Topic and Mention rate can be switched off in the column chooser.
+
+Toolbar: topic search, the count, "Expand all", Columns. Bulk bar: Run now, Export. Footer: "13 topics · 250 prompts · Updated ...". Below 768 px the rows become two-line list rows that open the topic inspector.
+
+**Strip.** Topics, Prompts, then one item per engine for the metric of the engine columns (five items with three engines). With one engine in scope: prompts on that engine and its four rates.
+
+**Topic inspector** (440 px). Header: topic name, category, prompt count and scope badges, "Add prompt". Tabs: Overview (Mention rate, Citation rate and Share of voice as three cards; "Visibility trend", the own brand against the three most mentioned competitors over eight weeks; "By engine", a bar and `k of n` per engine; "In search", the topic's keyword count, SEO visibility and Top 10 with a link to Rankings; "Top prompts in this topic", five rows with "View all"), Prompts (every prompt of the topic in scope), Competitors (mention rate per entity per engine), Related (the other topics of the category, related keywords). Content in [23-application-patterns.md](23-application-patterns.md) section 4.2.
+
+**Prompts tab** (the Prompt Explorer, `/ai/prompts/explorer`). Shown with the prompt inspector open. Its default width is 440 px; at 1440 with the sidebar expanded it docks at its full width (the main column keeps 792 px: 1440 minus 208 minus 440, above the 720 px minimum), per the docking rule in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6. The drawing is schematic.
 
 ```text
 | Prompts [View: Default v]   [Import] [...] [Add] | "What is the best CRM for a     [^][v][...][⤢][x] |
@@ -610,16 +636,16 @@ The drawing narrows the table to fit; at 1440 all columns below except Top compe
 | # | Column | Type | Default / min width | Priority | Notes |
 |---|---|---|---|---|---|
 | 0 | (select) | `select` | 40 / 40 | always | |
-| 1 | Prompt | `prompt` | 360 / 240, flex | 1 (pinned) | One line; `PromptTypeBadge` hidden in Compact density; lock icon for locked core panel |
-| 2 | Topic | `badge` | 140 / 88 | 3 | Deepest term; path in tooltip |
-| 3 | ChatGPT | `engineGroup` | 72 | 2 | Value of the engine-column metric (default Mention rate A1) |
-| 4 | Gemini | `engineGroup` | 72 | 2 | Same |
-| 5 | AI Mode | `engineGroup` | 72 | 2 | Same |
+| 1 | Prompt | `prompt` | 360 / 240, flex | 1 (pinned) | One line; `PromptTypeBadge` hidden in Compact density and while the cell is narrower than 384 px (a container query, so it also goes when the inspector docks); lock icon for locked core panel |
+| 2 | Topic | `badge` | 144 / 88 | 3 | Deepest term; path in tooltip |
+| 3 | ChatGPT | `engineGroup` | 88 | 2 | Value of the engine-column metric (default Mention rate A1). 88 px, not 72: the header holds the engine name and its sort control |
+| 4 | Gemini | `engineGroup` | 88 | 2 | Same |
+| 5 | AI Mode | `engineGroup` | 88 | 2 | Same |
 | 6 | Mention rate | `rate` | 112 / 72 | 1 | Equal-weight average of the engines in scope; header "Mention rate (avg of 3)" with tooltip naming the engines. When one engine is in scope this column shows that engine and the engine group collapses |
 | 7 | Citation rate | `rate` | 112 / 72 | 2 | Same rule (A2) |
 | 8 | Top competitor | `competitor` | 140 / 120 | 4 | Entity with the highest mention rate on this prompt, with its rate |
 | 9 | Trend | `sparkline` | 96 / 88 | 3 | Weekly mention rate (equal-weight); gaps where insufficient |
-| 10 | Updated | `date` | 104 / 104 | 4 | Last valid observation; stale badge |
+| 10 | Updated | `date` | 144 / 104 | 4 | Last valid observation; stale badge |
 | 11 | (actions) | `actions` | 40 / 40 | always | Run now, Edit, Open page |
 
 Priorities follow [19-responsive-behavior.md](19-responsive-behavior.md) section 6.3: 1280 shows Prompt, the three engine columns, Mention rate and Citation rate; 1440 adds Topic and Trend; 1680 adds Top competitor and Updated. Default widths of all columns total 1,360 px, so all fit at 1680 (1,424 px table region). Docking the inspector never changes the set; the table scrolls horizontally with Prompt pinned. Column chooser extras: Recommendation rate, SOV, Change (per engine, colored only when detectable), Volatility, Linked keywords (count and primary keyword rank), Versions, Panel.
@@ -633,7 +659,7 @@ The toolbar "Engine columns" `MetricSwitcher` sets which metric the engine group
 | Header | `PageHeader`, tabs Explorer, Panels, Versions | Primary "Add prompts" |
 | Filter bar | Compare and Engine scopes; `Panel: Core` and `Branded: Excluded` default chips. The date range and location are in the top bar (location filters prompts by market, [13-filters-search.md](13-filters-search.md) section 4) | Device hidden on AI screens |
 | Strip | `MetricStrip` `md` for the filtered scope: Mention, Citation, Recommendation, SOV (per selected engine; with 3 engines the strip shows per-engine mention items instead) | Never a silently pooled value |
-| Table | `DataTable`, engine column group header "ChatGPT · Gemini · AI Mode" | Default sort Mention rate descending |
+| Table | `DataTable`. The header has two rows while several engines are in scope: a group cell that names the metric ("Mention rate by engine") over one sortable column per engine. With one engine the group is gone and Mention rate is that engine's | Default sort Mention rate descending. The change shows on Mention rate only |
 | Inspector | 440 px prompt inspector | `j`/`k` stepping |
 
 ### 9.6 Prompt Detail (T3)

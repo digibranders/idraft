@@ -23,3 +23,4 @@
 | [ADR-DS-019](ADR-DS-019-card-drawer-inspector.md) | The inspector is a floating card drawer with card sections; the top bar always spans the full width |
 | [ADR-DS-020](ADR-DS-020-engine-logos.md) | Engine logos beside engine names, from one pinned package |
 | [ADR-DS-021](ADR-DS-021-customizable-layouts.md) | Customizable layouts: a catalog of cards, snapshot documents, personal over team over built-in |
+| [ADR-DS-022](ADR-DS-022-topics-and-prompts.md) | Topics first on the prompts page: topic rows with their prompts grouped under them, and a topic drawer |

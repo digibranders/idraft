@@ -210,6 +210,7 @@ The matrix compares organic ranking strength with AI visibility for keywords (or
 | Last point | 3 px dot in the stroke color |
 | Baseline | Optional 1 px dashed `chart-grid` at zero (rates, counts) |
 | Ranks | Inverted (better is up); scale fixed per table (1 to 20 by default) so rows are comparable; beyond-depth points break the line |
+| Rates | Drawn in a window of at least 20 points around the row's own values, so a move of a point or two stays flat and a real move shows. A week without a usable rate breaks the line, and a series that ends in a gap has no last point |
 | Direction color | The line is never red or green. The adjacent delta cell carries color when warranted |
 | Empty | 1 px dashed `border` line across the full width |
 | Tooltip | On hover or cell focus: last 7 values with dates in a mini table |

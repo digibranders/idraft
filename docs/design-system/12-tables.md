@@ -180,7 +180,7 @@ Defined in [17-empty-loading-error-states.md](17-empty-loading-error-states.md).
 | State | Cell display |
 |---|---|
 | Beyond depth | Text `>20` from `formatRankCell` in `foreground-tertiary` (rank cells; not a chip). Tiles, the inspector and speech use "not in top 20" (`formatRankInline`, `describeRank`) |
-| Insufficient data | Hatching: 1 px diagonal lines in `border-subtle` at 45 degrees, 4 px apart, on `surface-subtle` (no opacity color). Text `Insufficient` in `foreground-tertiary`, or the observation count ("3 obs") in cells narrower than 88 px; tooltip with counts. Tiles and the inspector say "Insufficient data" |
+| Insufficient data | Hatching (the `bg-insufficient` utility): 1 px diagonal lines in `border-subtle` at 45 degrees, 4 px apart, on `surface-subtle` (no opacity color). Text `Insufficient` in `foreground-tertiary`, or the observation count ("3 obs") in cells narrower than 88 px; tooltip with counts. Tiles and the inspector say "Insufficient data" |
 | Not applicable | Short text in `foreground-tertiary` naming the reason (for example `No AIO`), tooltip with the full reason ("No AI Overview in window"). Never an empty cell |
 | Not yet collected | `Pending` tertiary with tooltip "First check scheduled for 02:00 CEST" |
 | Error for this row | 14 px `TriangleAlert` in `warning-text` with tooltip, value if any still shown |

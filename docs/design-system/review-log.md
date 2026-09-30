@@ -606,6 +606,33 @@ Open point: vendor brand guidelines are not yet checked; this is needed before p
 
 Open points for customizable layouts: the five that the preview cannot show (conflict dialog, load-failure banner, save states, unavailable cards, team default in the drawer) are listed in the spec, section 15.
 
+## Topics & Prompts page (2026-09-30)
+
+| Doc | Section | Change | Reason |
+|---|---|---|---|
+| adr/ADR-DS-022 | new | Topics first on the prompts page: topic rows with prompts grouped under them, a topic drawer, shared filters, the flat list as the Prompts tab | Product owner's reference screen |
+| 24-page-templates.md | 9.5 | Renamed "Topics & Prompts"; Topics tab columns, strip and topic inspector; engine columns 88 px under a two-row header; type badge by container width; change on Mention rate only | Same, and what the build settled |
+| 23-application-patterns.md | 4.2 | Topic inspector content | Same |
+| 11-navigation.md | 1, 2, 3, 9 | Navigation item "Topics & Prompts" and its tabs | Same |
+| 15-data-visualization.md | 9 | Rate sparklines draw in a window around their own values; gaps break the line | Topic trends were flat lines on a fixed 0 to 100 scale |
+| 12-tables.md | 7.3 | `bg-insufficient` utility named | The hatching now exists as a utility in `globals.css` |
+| 26-implementation-guidelines.md | 11 | Fourth screen, its modules, `core-modules.mjs` (was `layouts-core.mjs`) | Documentation |
+| 20-frontend-specification.md | 5.6 | Superseded note | Same |
+| apps/web/src/lib/stats | new | Wilson interval, rates from counts, the detectable change rule (Newcombe), panel sizing (McNemar). 12 tests against the values published in 17-statistical-methodology.md | The page shows intervals, colors changes only when detectable, and sizes the panel: those rules are tested code, not preview code |
+| apps/web/src/styles/globals.css | utilities | `bg-insufficient` | InsufficientData cells |
+| apps/web/design-preview | prompts*.js, index.html, interactions.js, charts.js, customize.js, core-modules.mjs | The Topics & Prompts screen. The inspector shell takes record types (keyword, prompt, topic) with their own width, tabs and order; page tabs are part of the route; sparklines take gaps; AI headline numbers on the Overview link to the page | Same |
+
+| 11-navigation.md, adr/ADR-DS-022, 20-frontend-specification.md | 1, 2, 3; decision 10; 5.11 | The separate "Topics" sidebar item is removed: 14 items. The Topic Explorer has no destination | Product owner: one place for topics |
+
+| 24-page-templates.md, adr/ADR-DS-022 | 9.5; decision 4 | Topics tab gains SEO visibility and Top 10 (the topic's tracked keywords), a column chooser, and an "In search" card in the topic drawer | Product owner, after the Topics item was removed |
+| apps/web/design-preview | index.html, interactions.js | The project switcher lists the owner's projects (fynix.digital, cleanstart.com, eventussecurity.com, oyechats.com, firstfold.io). The sample data is still the CRM demo: keywords, prompts, competitors and the brand "Northwind" are not theirs | Product owner |
+
+Open point from the removal of the Topics item: taxonomy term editing and influencing pages (20 section 5.11) have no home. Proposed: term editing in Settings.
+
+Review of the page (independent, before commit), all fixed: recommendation rate now matches the Overview (18%, 15%, and "n/a" on AI Mode, where it is not classified); a fixture target that cannot be reached throws instead of leaving wrong numbers; entity rates in the topic drawer are prompt-weighted like every other topic rate; "Show in Prompts" and the "Show" action work from either tab; the drawers, Panels and Versions follow archive, undo, add and move; version dates come from the prompt, so the Versions tab, the drawer's events and the chart boundary agree; lint messages keep the line numbers of the field; rows in the topic drawer keep their cells for assistive technology; a change says in text whether it is detectable. The statistics tests now pin the Newcombe interval to exact values and to a small sample where the textbook interval gives the opposite answer.
+
+What the preview does not show for this page: the evidence viewer, the prompt page (Prompt Detail), the prompt editor, import, the prompt generator, the statistics panel, and "Save view as". The mobile filter sheet is not built for this page: below 1024 px the filter bar keeps its chips and "+ Filter". Detectable changes use the unpaired interval on pooled counts; the paired bootstrap and the false discovery control of 17 sections 6.1 and 6.4 are the API's.
+
 ## Unresolved (9)
 
 None of these is a disagreement between documents; each needs a code, token or product decision outside the documents.
