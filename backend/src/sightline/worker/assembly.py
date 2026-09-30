@@ -15,6 +15,7 @@ import structlog
 from sightline.collectors.dispatcher import SubmitBatch, dispatch
 from sightline.collectors.ledger import database_time
 from sightline.collectors.planner import plan_due
+from sightline.collectors.reconciler import ensure_partitions, reconcile
 from sightline.collectors.registry import Registry
 from sightline.collectors.submission import submit_batch
 from sightline.worker.app import WorkerContext
@@ -29,6 +30,9 @@ PLANNER_LOCK = timedelta(seconds=55)
 DISPATCHER_EVERY = timedelta(seconds=15)
 DISPATCHER_LOCK = timedelta(seconds=14)
 SUBMIT_JOB = "submit_batch"
+# docs/21-scheduler-workers.md section 10.
+RECONCILE_EVERY = timedelta(minutes=5)
+PARTITIONS_AT = "10 0 * * *"
 _log = structlog.get_logger(__name__)
 
 
@@ -60,6 +64,20 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         _log.info("batch submitted", provider=batch.provider, **asdict(report))
 
     context.queues.register("collect", SUBMIT_JOB, submit)
+
+    async def reconcile_ledger() -> None:
+        now = await database_time(context.sessions)
+        report = await reconcile(context.sessions, now=now)
+        if not report.quiet:
+            _log.info("ledger reconciled", **asdict(report))
+
+    async def partitions() -> None:
+        made = await ensure_partitions(context.sessions)
+        if made:
+            _log.info("partitions made", partitions=made)
+
+    context.queues.register_scheduled("reconcile", reconcile_ledger, every=RECONCILE_EVERY)
+    context.queues.register_scheduled("ensure_partitions", partitions, cron=PARTITIONS_AT)
 
     async def plan() -> None:
         now = await database_time(context.sessions)

@@ -267,9 +267,10 @@ There is no pingback endpoint (ADR-022). A submitted task becomes ready through 
 
 The worker runs a **reconciler every 5 minutes** (a Taskiq scheduled job on `process`, section 10):
 
-1. Tasks `pending` with `dispatched_at` older than 10 minutes and no live dedupe key: clear `dispatched_at` (the dispatcher will pick them up).
+1. Tasks `pending` with `dispatched_at` older than 10 minutes: clear `dispatched_at` (the dispatcher will pick them up). Their message was lost, or is still waiting behind others; a dedupe key belongs to a batch, not a task, so the two cannot be told apart, and they need not be: a submit handler takes only tasks still `pending` and dispatched, so if the old message turns up, one of the two messages submits the task and the other takes nothing.
 2. Tasks `submitted` older than 2 hours: enqueue `fetch_task` directly (the id sweeper of section 8.1).
-3. Tasks `submitted` older than 72 hours (76 hours for DataForSEO LLM Responses standard tasks, which the provider documents as taking up to 72 hours): mark `dead`.
+3. Tasks `submitted` older than 72 hours (76 hours for DataForSEO LLM Responses standard tasks, which the provider documents as taking up to 72 hours): mark `dead`. Tasks still `submit_unknown` after the same time are `dead` too (`submission_never_confirmed`): whether the provider had them was never found out, and there is no result left to fetch.
+- Also in each pass, from the ledger alone: pending tasks 24 hours past their run's window are `cancelled` (`window_missed`), the unsent tasks of a run that ended are `cancelled` (`run_ended`), and running runs whose tasks have all ended are completed. Steps 2, 4, 5 and 6 arrive with the fetch, ingest and extraction jobs.
 4. Tasks `fetched` older than 10 minutes with no ingest message: enqueue `ingest_*`.
 5. Observations with no current facts for the project's current derivation (after 15 minutes): enqueue `extract_observation`.
 6. Dates with ingested data newer than the rollup's `computed_at`: enqueue rollups.

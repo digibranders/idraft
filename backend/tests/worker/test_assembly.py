@@ -108,6 +108,20 @@ async def test_the_ticks_run_on_their_intervals_one_worker_at_a_time(
     await ticks["dispatcher"].action()
 
 
+async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(
+    context: WorkerContext,
+) -> None:
+    assemble(context)
+    source = context.queues.schedule_source()
+
+    await source.startup()
+    schedules = {task.task_name: task for task in await source.get_schedules()}
+
+    # Every five minutes, and at ten past midnight UTC (docs/21 section 10).
+    assert (schedules["reconcile"].interval, schedules["reconcile"].cron) == (300, None)
+    assert schedules["ensure_partitions"].cron == "10 0 * * *"
+
+
 def test_nothing_is_registered_yet_so_the_deployed_worker_plans_and_spends_nothing() -> None:
     registry = production_registry()
     assert (registry.workloads, registry.providers) == (frozenset(), frozenset())
