@@ -301,3 +301,124 @@ Carried into the next plans, because they need tables, roles or auth to exist:
 | F3 | The catch-all error handler runs outside the middleware stack: workspace and user ids bound by the auth middleware must be passed to the 500 log line the way the request id is | 3 |
 | F4 | Check what Sentry's Redis integration records before session ids become cache keys | 3 |
 
+### Schema, roles and tenant isolation (2026-09-30)
+
+Plan `docs/superpowers/plans/2026-09-30-schema-roles-rls.md`, built on branch `backend/schema`. Revisions `0002` (runtime role access), `0003` (identity and tenancy) and `0004` (operations). Carried items F1 and F2 above are closed: the test suite, the development stack and the image smoke test all connect as the real roles, created by the same init script production uses, and `/api/readyz` answers 200 as `app_api`.
+
+| Doc | Section | Change | Why |
+|---|---|---|---|
+| 04-data-model.md | 4 | Real DDL for `auth.workspaces`, `auth.memberships` and `auth.api_keys` | They were comments left from the Better Auth era |
+| 04-data-model.md | 4 | `core.projects.primary_domain_id` gets its foreign key in Phase 2 | `core.domains` does not exist yet |
+| 04-data-model.md | 12.2 | `ops.partitioned_tables` registry; `ops.maintain_partitions()` is the definer entry point; `ops.ensure_monthly_partitions` is owner-only, returns a count, serialises callers with a table lock, bounds its lock wait, quotes names and sets the autovacuum options | A definer function that accepts any table name would let the worker create tables anywhere; two workers must not race; names must survive quoting |
+| 04-data-model.md | 13 | Policies call `auth.current_workspace_id()` and have `WITH CHECK`; own-membership and own-workspace visibility through `auth.current_user_id()`; what RLS does and does not protect against | One definition of the setting; "list my workspaces" runs before a workspace is chosen; the old text implied RLS also guards against injection |
+| 04-data-model.md | 13.1 (new) | The grant matrix, per table and per column | It is the contract the tests check |
+| 21-scheduler-workers.md | maintenance jobs | `ensure_partitions` calls `ops.maintain_partitions()` | The function it named is not callable by the worker |
+| 22-infrastructure-devops.md | 4.2.2 | The init script as built; migrations never create roles; revision `0002` fails fast when roles are missing; `pg_hba.conf` and the password rotation row name the real roles | The text said the first migration keeps roles in sync, which a non-superuser `migrator` cannot do |
+| 24-security.md | 3.1, 4, 12 | RLS bounds a request to the workspace the application chose, and nothing more; `app_worker` is listed among the roles that bypass RLS; grants as the containment for injection; audit id and time come from the database | Section 4 said only `migrator` and `backup` bypass RLS and overstated what RLS proves |
+| 26-testing-quality.md | 5 | DB-RLS-01 to 03 and DB-GRANT-01 name the real roles; new DB-GRANT-02 (catalog equals the matrix) and DB-GRANT-03 (the refused statements); DB-PART-01 covers the registry function | The cases still said `app` |
+| 31-implementation-checklist.md | Phase 1 | Partition item names the function as built | Same |
+| backend/pyproject.toml | ruff | Rule `S608` on for application code | Doc 24 section 4 relies on "no string-built SQL"; now the build enforces it |
+
+An independent review (Fable model) ran SQL as each role against the migrated development database. It reported the isolation itself sound (no cross-workspace read or write as `app_api`) and these findings, all fixed on the branch with a test that fails without the fix:
+
+| Finding | Severity | Fix |
+|---|---|---|
+| `app_api` could set `auth.users.is_platform_operator`, change any email, and update or delete any row in the auth tables | High | Column grants: the API inserts and updates named columns only; no `DELETE` on users, sessions or tokens |
+| `app_api` could read `ops.raw_payloads`, a cache shared by all workspaces, and every secret column in `auth` was reachable by both roles | High | No API grant on `ops.raw_payloads`; the worker reads four columns of `auth.users` and nothing else in the secret-bearing tables |
+| `app_worker`, which bypasses RLS, could move any row to another workspace | Medium | `UPDATE` on named columns only, never `workspace_id`, `project_id` or an identity column |
+| Two concurrent `ensure_monthly_partitions` calls could collide; a registry row for a dropped table stopped all maintenance; names were concatenated | Medium | Callers serialised by a lock (first an advisory lock, replaced after the second review, below); stale rows skipped; `format('%I.%I')` |
+| Audit `id` and `occurred_at` could be supplied by the writer | Medium | `INSERT` granted per column, excluding both |
+| Docs overstated RLS (24 section 4), named the wrong partition entry point, and said migrations keep roles in sync | Medium, low | Rows above |
+| `auth.invitation_by_token` returns a row whatever its status | Low | Kept (the API must answer "expired", not "unknown"); the contract is documented on the function and pinned by a test |
+
+A second review (Fable model) of the fixes confirmed every finding above closed, listed about 90 attacks as correctly refused, and found no new escalation path. It reported three more things to fix before merge and several smaller ones, all done:
+
+| Finding | Severity | Fix |
+|---|---|---|
+| The docs listed only what injected SQL as `app_api` cannot do. It can still reset any password and create a session for any user, so it can sign in as an existing operator | Medium (docs) | Stated plainly in 04 section 13.1 ("What the grants cannot prevent") and 24 section 4. Inherent: the API is the authenticator |
+| The grant test read tables and columns for our two roles only: a column grant to `PUBLIC` or a third role, a sequence or function grant, or schema `CREATE` would have passed | Medium (tests) | The test now reads column grantees, sequences, partitions, function callers (including `PUBLIC`) and schema privileges |
+| `app_api` could block partition maintenance by holding the advisory lock, whose key is public | Medium | `LOCK TABLE ops.partitioned_tables`, a table no runtime role has any privilege on; `lock_timeout = '5s'` on the function bounds the wait for the parent's lock |
+| A session-level setting left on a pooled connection scoped later transactions | Low | `workspace_transaction` and `user_transaction` write both settings every time |
+| `app_worker` could read invitation token hashes | Low | Column `SELECT`, every column except `token_hash` |
+| `app_api` could insert a run with forged counters and cost | Low | Column `INSERT` on what a manual run asks for |
+| 23 section 13 still named three roles and `app` | Low (docs) | Four roles |
+| "Nothing is granted to `PUBLIC`" ignored the two setting functions; DB-GRANT-01 named a Phase 4 table; role `statement_timeout` read as a limit; `S608` "enforces" | Note (docs) | Reworded in 04, 24 and 26 |
+
+A third, short review (Fable model) of that fix commit reproduced the lock, grant and scope claims and found one test gap: a column grant on a partition passed every catalog query, and partitions have no row-level security of their own. The partition check now reads column privileges too. It also corrected two doc phrases ("re-point", not "rewrite", a session) and noted that `infra/sql/roles-restore.sql` does not exist yet.
+
+Accepted without change: either runtime role can create large objects (mass inserts consume storage the same way; `vacuumlo` goes in the maintenance plan), and `sightline.db.ddl.grants` accepts a repeated privilege name.
+
+Carried into later plans:
+
+| Id | Item | Plan |
+|---|---|---|
+| F5 | `ops.collection_runs.schedule_id` and `blocked_by_budget_id` have no `ON DELETE` action, so deleting a schedule or budget with history fails. Decide `SET NULL` versus soft delete when the purge and schedule routes are designed | 4 (worker) and the purge plan |
+| F6 | The purge and retention jobs need `DELETE` grants that do not exist yet (sessions, verification tokens, tasks, cost events, raw payload registry rows). Each grant ships with the job that uses it | maintenance plan |
+| F7 | `auth.users.email` and `disabled_at` are not writable by the API. The change-email and disable-user routes add their column grant, or a definer function, when they are built | 3 (auth) |
+| F8 | The raw payload routes need a definer function joining `ops.raw_payloads` to a row of the current workspace | Phases 4 and 7 |
+| F9 | Doc 22 uses the database name `seo` in `pg_hba.conf`; the development stack uses `sightline`. Pick one when the production Compose file is written | 6 (droplet) |
+| F10 | `core.layouts` (04 section 11.6a, specified by the frontend session) has a `workspace_id`: its migration needs `tenant_isolation`, grants for `app_api` only, a row in 13.1, and a decision on how the per-user rows are kept private inside a workspace (application check or a policy on `auth.current_user_id()`) | the plan that builds layouts |
+| F11 | `vacuumlo` or a revoke of the large object functions in the init script | maintenance plan |
+
+### Auth: accounts, sessions and two-factor (2026-09-30)
+
+Plan `docs/superpowers/plans/2026-09-30-auth-accounts-sessions.md`, built on branch `backend/auth`. Revision `0005` (the auth audit function). Routes: the 16 auth routes and 3 current-user routes of doc 19 section 3.1, and `GET /api/v1/openapi.json` behind a session. Carried items F3 (ids on the 500 log line) and F4 (Sentry and Redis) are closed.
+
+Decisions the specs left open, now written into the docs:
+
+| Decision | Doc | Why |
+|---|---|---|
+| Registration is by invitation unless `REGISTRATION=open`; the first account comes from `python -m sightline.cli create-operator` | 24 section 2, 19 section 3.1, 22 section 7.1 | The first users are the agency and its clients. Open registration would let anyone create a workspace and spend the provider budget |
+| A registration with a valid invitation token is verified at once; the address is compared by the database as `citext` | 24 section 2 | The token was sent to that mailbox. A comparison in Python called two addresses equal that PostgreSQL stores as different accounts |
+| Revocation sets `revoked_at` and writes a Redis tombstone; the API never deletes a session row | 24 section 2 | Doc 24 said "deletes the row"; `app_api` has no `DELETE` on sessions, and a delete of the cache key alone can be undone by a slow reader |
+| Cached sessions carry an HMAC bound to the token hash | 24 section 2 | Without it, anyone who could write to Redis could become any user |
+| The breached-password check is the Pwned Passwords range API, failing open | 24 section 2 | No bundled list to keep current; only 5 hex characters of a SHA-1 leave the server |
+| Recovery codes are 80-bit random values stored as `sha256` | 04 section 4, 24 section 2 | They are random like session tokens. Ten argon2 verifications per attempt would be a cheap way to exhaust the API |
+| Auth events go to `ops.audit_logs` through `ops.record_auth_event`; a failure is committed before the error is returned and before it is counted | 04 section 13, 24 section 12 | The events have no workspace, which the row-level policy rejects for `app_api`; a row written in a transaction that then fails would be lost |
+| Email is a port with a console sender (local origins only) and a Resend sender; tokens travel in the URL fragment | 24 section 2, 22 section 7.1 | One POST to swap the provider; a fragment is never sent to a server, so tokens stay out of access logs |
+| The Origin check covers every state-changing request under `/api/`, public routes included | 19 section 2.1, 24 section 2.1 | It also stops login CSRF |
+| The failure count is cleared only when a sign-in completes | 24 section 2 | Otherwise someone who knows the password could start over after every few wrong codes and guess the second factor without limit |
+| A user with two-factor on must re-authenticate with a code | 19 section 3.1, 24 section 2 | Otherwise a stolen cookie plus the password would be enough to replace the recovery codes. What remains: a cookie stolen within 10 minutes of sign-in is already fresh (accepted, and the user is emailed on every change to the second factor or the password) |
+| Sign-in locks the user row; a password change or reset writes it before revoking | 24 section 2 | A revocation of every session must not miss one created at the same moment |
+| The 60 s cache is not trusted for anything that changes an account | 24 section 2 | A disabled user's session can stay cached for a minute |
+| Log lines carry `user_id`, never the session | 25 section 3.1, 24 section 11 | The redaction treats a session id as a credential; the user is what an operator needs |
+
+Each task was followed by an independent review (Fable model) that ran the code. What the reviews found and what was done:
+
+| Task | Findings fixed |
+|---|---|
+| 1. Primitives and settings | Hashing and lookups raised on text UTF-8 cannot carry; a time without a zone was read as local time; the range listing was read without a size limit; the production email rule also stopped the worker |
+| 2. Audit function and metadata | The action pattern was looser than its message; a `NULL` target echoed the row in the error; the drift check missed primary keys, which columns have defaults, and undeclared tables |
+| 3. Email | A name could still become a link (bare domains, `mailto:`); the Resend post followed redirects if the client did; a subject could carry a Unicode line break; the console sender could run on a server that forgot `APP_ENV` |
+| 4. Sessions | Sliding a session did not check that the user was still enabled; a cache entry with a time lacking its zone was a 500; anyone able to write to Redis could forge a session; a rotated session could be given a longer life than the policy; a configured origin with `:443` never matched a browser |
+| 5. Registration and sign-in | An invitation verified a different address that folded to the same text; two sign-ins that both rewrote an old hash deadlocked; the invitation was not re-checked inside the insert; emails accepted invisible characters; token routes had no limit |
+| 6. Passwords and sessions | An image URL with a NUL was a 500; a just-disabled user could still change their password; a right change did not clear the failure count; a reset could complete for a user disabled meanwhile; a Redis outage lost the audit row of a wrong password |
+| 7. Two-factor | A sign-in with the right password cleared the failure count before the code was given, so the second factor could be guessed without limit by anyone holding the password (found while briefing the reviewer and fixed before the review returned; the review reproduced it on the older commit); the password alone could make a session fresh and then replace the recovery codes; enrolment could confirm a secret the code was not checked against; no notice was sent when the second factor changed; a test of the failure count passed without the behaviour it named |
+| 8. Operator CLI and the served document | A password that is not UTF-8 produced a traceback; every database error read "could not connect"; the served document had no cache header; an existing account that is not an operator was reported the same way as one that is |
+
+A final review of the whole branch (Fable model) checked every changed doc sentence against the code, every revocation for its cache eviction, every credential path for lock check, audit and counting, and the merge against `main` and both frontend branches (clean). It found one thing to fix before merge and several smaller ones, all done: a disabled user with a cached session could still replace recovery codes, turn two-factor off and read `/me`; two refused-credential paths wrote no audit row; re-authentication had no limit of its own; four audit actions and two `429` answers were missing from the docs; the email address pattern was defined twice.
+
+Carried into the next plans:
+
+| Id | Item | Plan |
+|---|---|---|
+| F12 | `two_factor_enrollment_required`: an owner or admin without TOTP is blocked from workspace routes. Needs `require_permission` and the workspace routes | launch hardening |
+| F13 | While `REGISTRATION=invited`, creating a workspace should be limited to platform operators, or an invited client could create a second workspace and spend on it | 3b |
+| F14 | Invitation routes: create, resend, cancel, accept, decline. Accepting must mark the invitation `accepted`; registration only reads it. The invitation email reuses the email port and the fragment token | create and accept in 3b; resend, cancel and decline at launch hardening |
+| F15 | The general request limit (600 per minute per user) and `GET /api/v1/roles` | launch hardening |
+| F16 | Verification and reset emails are sent from a background task in the api process. Move them to the worker outbox, which also removes the keep-alive timing difference between known and unknown addresses | launch hardening |
+| F17 | Purge of expired sessions and used tokens, with the `DELETE` grants it needs | launch hardening |
+| F18 | Production Compose: `APP_ENV=production`, `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, `TOTP_ENCRYPTION_KEY` in `required-secrets.txt`; `--forwarded-allow-ips` and Caddy `trusted_proxies` verified with a test that the api sees the real client address | 6 (droplet) |
+| F19 | The frontend branch adds the permission `layouts:manage` to doc 24 section 3.2. When it merges, `sightline.api.permissions` and its test need the same row | at that merge |
+| F21 | `sightline/api/auth/service.py` is about 970 lines. Split it along its section headers: two-factor and re-authentication into their own module, the shared helpers (`_audit`, `_limit`, `_credential_*`, hashing) into a base both use | launch hardening, or earlier if a plan has to add to the file |
+| F22 | Two tests set private attributes of the service to inject a failing email sender; give the `client_for` fixture an `email_sender` argument instead | launch hardening |
+| F20 | `auth.users.email` and `disabled_at` still have no route. A disable-user path must revoke the user's sessions and evict them from the cache | launch hardening |
+
+### Build order set by the product owner (2026-09-30)
+
+After the auth branch was reviewed, the product owner asked for the main features first and for everything optional at the start, two-factor named as the example, to move to the end. The order is [29-phase-roadmap.md](29-phase-roadmap.md) section 1.1. What changed:
+
+- Two-factor stays in the API as built and reviewed, as an opt-in. Blocking owners and admins who have not enrolled (F12) moves to launch hardening. Docs 00, 03, 19, 24, 29 and 31 now say so.
+- The next backend plan (3b) is cut to workspaces, projects, membership, permission checks, and invitation create and accept. The rest of F14, and F15, F16, F17, F20, F21 and F22, move to launch hardening. F13 (who may create a workspace while registration is by invitation) stays in 3b because it limits provider spend.
+- The droplet and deploy plan moves from before the feature phases to directly after rank collection, because daily rank history only builds on a server that runs every day.
+- Nothing that protects tenant data or provider spend moved.

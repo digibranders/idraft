@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from collections.abc import Iterator
 from typing import Any, cast
 
@@ -24,6 +26,7 @@ def _settings(sentry_dsn: str | None = None) -> Settings:
         release_sha="abc123",
         app_env="test",
         sentry_dsn=SecretStr(sentry_dsn) if sentry_dsn else None,
+        totp_encryption_key=SecretStr("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="),
     )
 
 
@@ -97,3 +100,30 @@ def test_breadcrumbs_are_scrubbed_with_the_same_rules() -> None:
     scrubbed = cast("dict[str, Any]", scrub_breadcrumb(cast(Breadcrumb, crumb), {}))
     assert "LEAK8" not in repr(scrubbed)
     assert scrubbed["data"]["url"] == "https://x/y"
+
+
+def test_redis_commands_are_never_reported() -> None:
+    """Session cache keys and throttle keys stay out of breadcrumbs and spans.
+
+    Run in a fresh interpreter: Sentry decides once per process which integrations to install.
+    """
+    script = (
+        "import sentry_sdk\n"
+        "from pydantic import SecretStr\n"
+        "from sentry_sdk.integrations.redis import RedisIntegration\n"
+        "from sightline.config.sentry import init_sentry\n"
+        "from sightline.config.settings import Settings\n"
+        "settings = Settings(app_origin='https://app.example.com', app_env='test',\n"
+        "    database_url=SecretStr('postgresql://u:p@h/db'), redis_url=SecretStr('redis://h/0'),\n"
+        "    process_role='worker', sentry_dsn=SecretStr('https://public@o0.ingest.sentry.io/0'))\n"
+        "assert init_sentry(settings) is True\n"
+        "client = sentry_sdk.get_client()\n"
+        "assert client.get_integration(RedisIntegration) is None\n"
+        "assert 'redis' not in client.integrations\n"
+        "assert 'fastapi' in client.integrations\n"
+        "print('ok')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, check=False, timeout=60
+    )
+    assert (result.returncode, result.stdout.strip()) == (0, "ok"), result.stderr

@@ -88,12 +88,58 @@ class BadRequestError(ProblemError):
     status, code, title = 400, "bad_request", "Bad request"
 
 
+class InvalidTokenError(ProblemError):
+    """An emailed token that is unknown, used, expired or meant for something else."""
+
+    status, code, title = 400, "invalid_token", "Link is not valid"
+
+
 class UnauthenticatedError(ProblemError):
     status, code, title = 401, "unauthenticated", "Authentication required"
 
 
+class SessionExpiredError(ProblemError):
+    status, code, title = 401, "session_expired", "Session expired"
+
+
+class InvalidCredentialsError(ProblemError):
+    """One answer for an unknown email, a wrong password and a disabled account."""
+
+    status, code, title = 401, "invalid_credentials", "Email or password is not correct"
+
+
+class InvalidCodeError(ProblemError):
+    """A two-factor code or recovery code that is wrong, already used or not set up."""
+
+    status, code, title = 401, "invalid_code", "Code is not correct"
+
+
 class ForbiddenError(ProblemError):
     status, code, title = 403, "forbidden", "Not allowed"
+
+
+class FreshSessionRequiredError(ProblemError):
+    """Carries `reauth_url`: where the client sends the user to re-enter a credential."""
+
+    status, code, title = 403, "fresh_session_required", "Recent sign-in required"
+
+
+class OriginNotAllowedError(ProblemError):
+    status, code, title = 403, "origin_not_allowed", "Origin not allowed"
+
+
+class TwoFactorRequiredForRoleError(ProblemError):
+    status, code, title = 403, "two_factor_required_for_role", "This role must keep two-factor on"
+
+
+class SecondFactorRequiredError(ProblemError):
+    """Re-authentication with the password alone, by a user who has two-factor on."""
+
+    status, code, title = 403, "second_factor_required", "A two-factor code is required"
+
+
+class RegistrationClosedError(ProblemError):
+    status, code, title = 403, "registration_closed", "Registration is by invitation"
 
 
 class NotFoundError(ProblemError):
@@ -104,8 +150,30 @@ class ConflictError(ProblemError):
     status, code, title = 409, "conflict", "Conflict"
 
 
+class DuplicateError(ProblemError):
+    status, code, title = 409, "duplicate", "Already exists"
+
+
+class TotpAlreadyEnabledError(ProblemError):
+    status, code, title = 409, "totp_already_enabled", "Two-factor is already on"
+
+
+class TotpNotEnabledError(ProblemError):
+    status, code, title = 409, "totp_not_enabled", "Two-factor is not on"
+
+
+class WeakPasswordProblemError(ProblemError):
+    """Carries `reason`: too_short, too_long, contains_email, breached or unchanged."""
+
+    status, code, title = 422, "weak_password", "Password is not strong enough"
+
+
 class RateLimitedError(ProblemError):
     status, code, title = 429, "rate_limited", "Too many requests"
+
+
+class ServiceUnavailableError(ProblemError):
+    status, code, title = 503, "service_unavailable", "Service unavailable"
 
 
 def _request_id(request: Request) -> str:
@@ -229,9 +297,12 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
         )
 
     async def handle_unexpected(request: Request, error: Exception) -> JSONResponse:
-        # Starlette runs this handler outside the middleware stack, after the request id has been
-        # unbound from the log context, so it is passed explicitly.
+        # Starlette runs this handler outside the middleware stack, after the request id and the
+        # caller's id have been unbound from the log context, so they are passed explicitly.
         context = {"route": route_template(request.scope), "request_id": _request_id(request)}
+        user_id = getattr(request.state, "user_id", None)
+        if isinstance(user_id, str):
+            context["user_id"] = user_id
         if isinstance(error, ResponseValidationError):
             # Its message quotes the value the handler returned, which may be tenant content.
             _log.error(

@@ -2,7 +2,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+import httpx
+from fastapi import FastAPI
+
 from sightline.api.openapi import build_openapi, render_openapi
+from tests.api.auth.support import cookie, make_user, open_session
+from tests.conftest import PostgresServer
 
 COMMITTED = Path(__file__).parents[2] / "openapi" / "v1.json"
 PROBLEM_REF = {"$ref": "#/components/schemas/Problem"}
@@ -56,3 +61,38 @@ def test_the_document_does_not_depend_on_the_environment(monkeypatch: Any) -> No
 def test_rendered_document_is_stable_json() -> None:
     assert json.loads(render_openapi()) == build_openapi()
     assert render_openapi().endswith("\n")
+
+
+SERVED = "/api/v1/openapi.json"
+
+
+async def test_the_document_is_not_served_without_a_session(client: httpx.AsyncClient) -> None:
+    response = await client.get(SERVED)
+    assert response.status_code == 401
+    assert response.json()["code"] == "unauthenticated"
+
+
+async def test_a_signed_in_user_gets_the_committed_document(
+    app: FastAPI, client: httpx.AsyncClient, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    token, _ = await open_session(app.state.resources, user)
+
+    response = await client.get(SERVED, headers=cookie(token))
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == json.loads(COMMITTED.read_text())
+
+
+def test_the_document_does_not_list_the_route_that_serves_it() -> None:
+    assert SERVED not in build_openapi()["paths"]
+
+
+async def test_the_served_document_is_never_cached(
+    app: FastAPI, client: httpx.AsyncClient, migrated: PostgresServer
+) -> None:
+    user = await make_user(migrated)
+    token, _ = await open_session(app.state.resources, user)
+    response = await client.get(SERVED, headers=cookie(token))
+    assert response.headers["cache-control"] == "no-store"

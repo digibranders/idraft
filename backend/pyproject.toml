@@ -5,10 +5,14 @@ description = "SEO and AI search visibility platform: API and worker"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "alembic>=1.20.0",
+    "argon2-cffi>=25.1.0",
     "asyncpg>=0.31.0",
+    "cryptography>=50.0.1",
     "fastapi>=0.142.1",
+    "httpx>=0.28.1",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
+    "pyotp>=2.10.0",
     "redis>=8.1.0",
     "sentry-sdk[fastapi]>=2.71.0",
     "sqlalchemy[asyncio]>=2.1.1",
@@ -29,7 +33,13 @@ target-version = "py313"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "C4", "T20", "N"]
+# S608: no SQL built from strings in application code (docs/24-security.md section 4).
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "C4", "T20", "N", "S608"]
+
+[tool.ruff.lint.per-file-ignores]
+# Revisions and tests build statements from constants in the same file, never from input.
+"src/sightline/db/migrations/versions/*" = ["S608"]
+"tests/*" = ["S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sightline"]
@@ -54,6 +64,9 @@ addopts = "-ra --strict-markers --cov=sightline --cov-branch --cov-report=term-m
 
 [tool.coverage.run]
 omit = ["src/sightline/db/migrations/*"]
+# SQLAlchemy's async layer runs on greenlets; without this, lines after an awaited query are
+# reported as missed.
+concurrency = ["greenlet", "thread"]
 
 [tool.importlinter]
 root_package = "sightline"
@@ -98,7 +111,6 @@ forbidden_modules = ["sightline.api", "sightline.worker"]
 dev = [
     "asgi-lifespan>=2.1.0",
     "asyncpg-stubs>=0.31.3",
-    "httpx>=0.28.1",
     "import-linter>=2.15",
     "mypy>=2.3.1",
     "pytest>=9.1.1",

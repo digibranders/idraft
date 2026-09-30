@@ -57,5 +57,9 @@ class AccessLogMiddleware:
             }
             if aborted:
                 fields["aborted"] = True
+            # Set by the session dependency, whose own log context has ended by now.
+            user_id = scope.get("state", {}).get("user_id")
+            if isinstance(user_id, str):
+                fields["user_id"] = user_id
             quiet = route in self.quiet_paths and status_code < 400 and not aborted
             (_log.debug if quiet else _log.info)("request finished", **fields)

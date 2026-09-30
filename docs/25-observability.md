@@ -83,7 +83,7 @@ Every process logs one JSON object per line to stdout, with string levels and `t
 | `request_id` | `req_` plus the 26-character Crockford base32 form of a UUIDv7 (for example `req_01M3RN3BWAEXTAVZR9WHJEDSFK`), so ids sort by time; on API logs, in the `X-Request-Id` response header, in problem bodies, and on jobs started by a request. A well-formed inbound `X-Request-Id` is kept; anything else is replaced |
 | `job_id`, `queue`, `job_name` | set by the Taskiq middleware (`queue` is `collect` or `process`) |
 | `run_id`, `task_id` | collection run and `ops.collection_tasks.id` |
-| `workspace_id`, `project_id` | allowed in logs |
+| `workspace_id`, `project_id`, `user_id` | allowed in logs. `user_id` is on every line of an authenticated request, including the access line and the 500 line. A session is never named |
 | `provider`, `endpoint`, `engine_code` | endpoint is a family name, for example `serp_organic_task_get` |
 | `duration_ms`, `status_code`, `attempt` | request, job, provider call or query |
 | `error_kind` | taxonomy of [05](05-provider-integrations.md) section 3.3 (`rate_limited`, `auth`, `schema_mismatch`, ...) or `internal` |

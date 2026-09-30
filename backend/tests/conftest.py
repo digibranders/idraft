@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Iterator
+from dataclasses import dataclass
+from pathlib import Path
 
+import asyncpg
 import httpx
 import pytest
 from asgi_lifespan import LifespanManager
@@ -25,17 +28,32 @@ BASE_URL = "https://app.example.com"
 SETTINGS_VARIABLES = (
     "APP_ENV",
     "APP_ORIGIN",
+    "BREACHED_PASSWORD_CHECK",
     "DATABASE_URL",
     "DB_POOL_SIZE",
     "DB_STATEMENT_TIMEOUT",
+    "EMAIL_API_KEY",
+    "EMAIL_FROM",
+    "EMAIL_PROVIDER",
     "ENVIRONMENT",
     "LOG_LEVEL",
     "PROCESS_ROLE",
     "REDIS_URL",
+    "REGISTRATION",
     "RELEASE_SHA",
     "SENTRY_DSN",
+    "TOTP_ENCRYPTION_KEY",
 )
+# A fixed key for tests only: base64 of bytes 0 to 31.
+TEST_TOTP_KEY = SecretStr("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
 POSTGRES_IMAGE = "postgres:18"
+INITDB_DIR = Path(__file__).parents[2] / "infra" / "compose" / "postgres" / "initdb"
+ROLE_PASSWORDS = {"migrator": "migrator-pw", "app_api": "api-pw", "app_worker": "worker-pw"}
+ROLE_PASSWORD_VARIABLES = {
+    "migrator": "PG_MIGRATOR_PASSWORD",
+    "app_api": "PG_API_PASSWORD",
+    "app_worker": "PG_WORKER_PASSWORD",
+}
 REDIS_IMAGE = "redis:8"
 
 
@@ -53,10 +71,59 @@ def _restore_logging() -> Iterator[None]:
     reset_logging()
 
 
+@dataclass(frozen=True)
+class PostgresServer:
+    """The test PostgreSQL 18, initialised by the same role script as production."""
+
+    host: str
+    port: int
+    database: str
+    superuser: str
+    superuser_password: str
+
+    def url(self, role: str = "superuser", database: str | None = None) -> str:
+        if role == "superuser":
+            user, password = self.superuser, self.superuser_password
+        else:
+            user, password = role, ROLE_PASSWORDS[role]
+        return f"postgresql://{user}:{password}@{self.host}:{self.port}/{database or self.database}"
+
+    async def create_database(self, name: str) -> str:
+        """Drop and create `name` the way the role script leaves the main database."""
+        admin = await asyncpg.connect(self.url())
+        try:
+            await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+            await admin.execute(f'CREATE DATABASE "{name}" OWNER migrator')
+            await admin.execute(f'REVOKE ALL ON DATABASE "{name}" FROM PUBLIC')
+            await admin.execute(
+                f'GRANT CONNECT ON DATABASE "{name}" TO app_api, app_worker, backup'
+            )
+        finally:
+            await admin.close()
+        return name
+
+
 @pytest.fixture(scope="session")
-def postgres_url() -> Iterator[str]:
-    with PostgresContainer(POSTGRES_IMAGE, driver=None) as container:
-        yield container.get_connection_url()
+def pg() -> Iterator[PostgresServer]:
+    container = PostgresContainer(POSTGRES_IMAGE, driver=None).with_volume_mapping(
+        str(INITDB_DIR), "/docker-entrypoint-initdb.d", "ro"
+    )
+    for role, variable in ROLE_PASSWORD_VARIABLES.items():
+        container = container.with_env(variable, ROLE_PASSWORDS[role])
+    with container:
+        yield PostgresServer(
+            host=container.get_container_host_ip(),
+            port=int(container.get_exposed_port(5432)),
+            database=container.dbname,
+            superuser=container.username,
+            superuser_password=container.password,
+        )
+
+
+@pytest.fixture(scope="session")
+def postgres_url(pg: PostgresServer) -> str:
+    """The superuser, for tests about the engine itself that create scratch tables."""
+    return pg.url()
 
 
 @pytest.fixture(scope="session")
@@ -75,6 +142,7 @@ def settings(postgres_url: str, redis_url: str) -> Settings:
         redis_url=SecretStr(redis_url),
         db_pool_size=1,
         app_env="test",
+        totp_encryption_key=TEST_TOTP_KEY,
     )
 
 
@@ -86,20 +154,23 @@ async def engine(settings: Settings) -> AsyncIterator[AsyncEngine]:
 
 
 @pytest.fixture(scope="session")
-def migrated_url(postgres_url: str) -> str:
-    upgrade_to_head(postgres_url)
-    return postgres_url
+def migrated(pg: PostgresServer) -> PostgresServer:
+    """The main test database at the head revision, migrated by the non-superuser owner."""
+    upgrade_to_head(pg.url("migrator"))
+    return pg
 
 
 @pytest.fixture
-def app_settings(migrated_url: str, redis_url: str) -> Settings:
+def app_settings(migrated: PostgresServer, redis_url: str) -> Settings:
     return Settings(
         app_origin=BASE_URL,
-        database_url=SecretStr(migrated_url),
+        database_url=SecretStr(migrated.url("app_api")),
         redis_url=SecretStr(redis_url),
         db_pool_size=2,
         log_level="critical",
         app_env="test",
+        totp_encryption_key=TEST_TOTP_KEY,
+        breached_password_check=False,
     )
 
 

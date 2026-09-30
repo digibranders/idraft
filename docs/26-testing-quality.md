@@ -391,11 +391,13 @@ Time comes from an injected `Clock`; tests run against container PostgreSQL and 
 | DB-MIG-01 | `alembic upgrade head` on an empty database | success; `alembic check` finds no difference between the SQLAlchemy models and the schema; one head revision |
 | DB-MIG-02 | Migrations on the anonymized fixture (50 MB slice on PRs; 1 GB nightly and when migrations change) | success with `lock_timeout = '2s'`; no `ACCESS EXCLUSIVE` over 2 s on tables over 10 MB (doc 04 section 14, item 6) |
 | DB-MIG-03 | Backfill `UPDATE` inside a migration file | rejected by the migration linter |
-| DB-RLS-01 | Catalog | every table with `workspace_id` has RLS enabled and `tenant_isolation` |
-| DB-RLS-02 | `app` without `app.workspace_id`; with A's id | zero rows; zero B rows and B inserts rejected |
-| DB-RLS-03 | `app` runs `SET row_security = off` | error |
-| DB-GRANT-01 | `app` updates `seo.serp_snapshots.depth_returned`; `ops.audit_logs` update or delete by `app`; any DDL by `app` | permission denied |
-| DB-PART-01 | `ops.ensure_monthly_partitions` | `_pYYYYMM` for 1 month back to 3 ahead; second call no-op |
+| DB-RLS-01 | Catalog | every table with `workspace_id` has RLS enabled and `tenant_isolation`; every policy's `USING` and `WITH CHECK` text equals the reviewed text |
+| DB-RLS-02 | `app_api` without `app.workspace_id`; with A's id | zero rows; zero B rows; inserts for B or with a NULL workspace rejected; updates and deletes of B rows affect nothing |
+| DB-RLS-03 | `app_api` runs `SET row_security = off` | error |
+| DB-GRANT-01 | `app_api` or `app_worker` updates or deletes `ops.audit_logs`; runs any DDL, `CREATE TEMP TABLE` or `SET ROLE`; from Phase 4, updates `seo.serp_snapshots.depth_returned` | permission denied |
+| DB-GRANT-02 | Table, column, sequence, function and schema privileges, read from the catalog for our roles and `PUBLIC` | equal to the matrix in doc 04 section 13.1; a table or function missing from the matrix fails the test; no table, column or sequence grant to `PUBLIC` or to a role that is not ours; partitions and sequences carry no table or column grants; no `CREATE` on any schema |
+| DB-GRANT-03 | Each statement the matrix is meant to refuse (set `is_platform_operator`, re-point a session, read `ops.raw_payloads` as the API, move a row to another workspace as the worker, supply an audit `id` or `occurred_at`, query a partition directly) | permission denied; the statements each role needs still succeed |
+| DB-PART-01 | `ops.maintain_partitions` | `_pYYYYMM` for 1 month back to 3 ahead; second call creates 0; concurrent calls take turns; a runtime role holding an advisory lock cannot delay it; a registry row for a dropped table is skipped; only `app_worker` may call it, and neither runtime role may call `ops.ensure_monthly_partitions` |
 | DB-PART-02 | `2026-10-31 23:59:59.999+00` and `2026-11-01 00:00+00` | `_p202610` and `_p202611` |
 | DB-PART-03 | Same call with session `TimeZone = 'America/New_York'` | bounds still UTC month starts |
 | DB-PART-04 | Insert beyond created range | fails (no default partition) |
@@ -470,9 +472,9 @@ A lint rule bans `dangerouslySetInnerHTML`; its allowlist is empty in V1.
 | SEC-SSRF-02 | DNS rebinding (public, then private); private address at redirect hop 3; 6 hops | connection pinned to first IP; rejected; rejected |
 | SEC-WEB-01 | Mutation with `Origin: https://evil.example`; mutation with no `Origin`; cross-origin preflight; cookie attributes | 403; 403; no `Access-Control-Allow-*` headers; cookie named `__Host-session` with `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` and no `Domain` |
 | SEC-LOG-01 | Python logger and Sentry `before_send` (and the Next.js `beforeSend`) with password, token, refresh_token, cookie at several nesting depths | redacted |
-| SEC-AUTH-01 | 6 failed logins in 15 min | lockout and audit row |
-| SEC-AUTH-02 | Stored credentials after signup, reset request and invitation | password is an argon2id hash; session, verification, reset and invitation tokens are stored only as `sha256`; a used or expired token is rejected |
-| SEC-AUTH-03 | `owner` or `admin` without TOTP enrolled; replayed TOTP code; password change | blocked from workspace routes until enrolled; second use rejected; every other session revoked and its Redis cache key deleted |
+| SEC-AUTH-01 | 6 failed logins in 15 min; wrong TOTP codes across repeated sign-ins | the sixth attempt is refused with 429 even with the right password; `auth.sign_in_failed` rows and one `auth.lockout` row; five wrong codes lock the account however many times the password step is repeated (`tests/api/auth/test_sign_in.py`, `test_totp_routes.py`, `tests/auth/test_throttle.py`) |
+| SEC-AUTH-02 | Stored credentials after signup, reset request and invitation | password is an argon2id hash; session, verification, reset and invitation tokens are stored only as `sha256`; a used or expired token is rejected, and two concurrent uses of one token cannot both succeed; none of them appears in a response or a log line (`tests/api/auth/test_register.py`, `test_password.py`, `test_sessions.py`) |
+| SEC-AUTH-03 | `owner` or `admin` without TOTP enrolled; replayed TOTP code; password change | blocked from workspace routes until enrolled (arrives with the workspace routes); second use rejected, including two posts at the same moment and the code that confirmed enrolment; every other session revoked and its Redis cache key deleted (`tests/api/auth/test_totp_routes.py`, `test_password.py`) |
 | SEC-DEP-01 | `pip-audit` or `pnpm audit --prod` high or critical; monthly `nmap` of the droplet | build fails; only 80 and 443 open |
 | SEC-KEY-01 (with API keys, deferred) | API key creation | only prefix and `sha256(secret)` stored |
 | SEC-ENC-01 (Phase 12, with envelope encryption) | Ciphertext copied to another workspace row; `sightline secrets-rewrap --to 2` | decrypt fails (AAD); DEKs rewrapped, ciphertext unchanged |

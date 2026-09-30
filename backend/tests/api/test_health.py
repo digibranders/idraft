@@ -15,7 +15,7 @@ from sightline.api.main import create_app
 from sightline.api.resources import Resources
 from sightline.config.logging import configure_logging
 from sightline.config.settings import Settings
-from tests.conftest import BASE_URL
+from tests.conftest import BASE_URL, PostgresServer
 
 
 async def test_healthz_is_alive_and_reveals_nothing(client: httpx.AsyncClient) -> None:
@@ -63,39 +63,36 @@ async def test_readyz_names_the_failing_checks_only(
     assert response.json() == {"status": "not_ready", "checks": expected}
 
 
-async def _database(postgres_url: str, name: str, *, version: str | None) -> SecretStr:
-    admin = await asyncpg.connect(postgres_url)
-    try:
-        await admin.execute(f'DROP DATABASE IF EXISTS "{name}"')
-        await admin.execute(f'CREATE DATABASE "{name}"')
-    finally:
-        await admin.close()
-    url = postgres_url.rsplit("/", 1)[0] + f"/{name}"
+async def _database(pg: PostgresServer, name: str, *, version: str | None) -> SecretStr:
+    """A database the api role can connect to, optionally claiming a schema revision."""
+    await pg.create_database(name)
     if version is not None:
-        connection = await asyncpg.connect(url)
+        owner = await asyncpg.connect(pg.url("migrator", name))
         try:
-            await connection.execute("CREATE SCHEMA ops")
-            await connection.execute("CREATE TABLE ops.alembic_version (version_num text)")
-            await connection.execute("INSERT INTO ops.alembic_version VALUES ($1)", version)
+            await owner.execute("CREATE SCHEMA ops")
+            await owner.execute("CREATE TABLE ops.alembic_version (version_num text)")
+            await owner.execute("INSERT INTO ops.alembic_version VALUES ($1)", version)
+            await owner.execute("GRANT USAGE ON SCHEMA ops TO app_api")
+            await owner.execute("GRANT SELECT ON ops.alembic_version TO app_api")
         finally:
-            await connection.close()
-    return SecretStr(url)
+            await owner.close()
+    return SecretStr(pg.url("app_api", name))
 
 
 async def test_readyz_fails_when_the_database_was_never_migrated(
-    app_settings: Settings, postgres_url: str
+    app_settings: Settings, pg: PostgresServer
 ) -> None:
-    url = await _database(postgres_url, "ready_unmigrated", version=None)
+    url = await _database(pg, "ready_unmigrated", version=None)
     response = await _readyz(app_settings.model_copy(update={"database_url": url}))
     assert response.status_code == 503
     assert response.json()["checks"] == {"postgres": True, "redis": True, "migrations": False}
 
 
 async def test_readyz_stays_ready_when_a_newer_build_has_migrated_the_database(
-    app_settings: Settings, postgres_url: str
+    app_settings: Settings, pg: PostgresServer
 ) -> None:
     """A rolled-back release must pass its own health gate (docs/22 section 8.5)."""
-    url = await _database(postgres_url, "ready_ahead", version="9999_from_the_future")
+    url = await _database(pg, "ready_ahead", version="9999_from_the_future")
     response = await _readyz(app_settings.model_copy(update={"database_url": url}))
     assert response.status_code == 200
     assert response.json()["checks"]["migrations"] is True
@@ -161,8 +158,14 @@ async def test_unknown_api_route_is_a_problem(client: httpx.AsyncClient) -> None
     assert response.json()["type"] == f"{BASE_URL}/api/problems/not_found"
 
 
-@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json", "/api/v1/openapi.json"])
+@pytest.mark.parametrize(
+    ("path", "status"),
+    [("/docs", 404), ("/redoc", 404), ("/openapi.json", 404), ("/api/v1/openapi.json", 401)],
+)
 async def test_the_api_contract_is_not_served_without_a_session(
-    client: httpx.AsyncClient, path: str
+    client: httpx.AsyncClient, path: str, status: int
 ) -> None:
-    assert (await client.get(path)).status_code == 404
+    """The interactive pages do not exist; the document itself needs a signed-in user."""
+    response = await client.get(path)
+    assert response.status_code == status
+    assert response.headers["content-type"] == "application/problem+json"
