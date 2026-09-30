@@ -27,7 +27,8 @@ export function renderWithProviders(
   ui: ReactElement,
   { searchParams = '', ...options }: ProvidedRenderOptions = {},
 ): ProvidedRender {
-  const queryClient = makeQueryClient({ retry: false });
+  // jsdom cannot navigate, so a signed-out answer only empties the cache here
+  const queryClient = makeQueryClient({ retry: false, onSignedOut: () => false });
   function TestProviders({ children }: { children: ReactNode }): ReactNode {
     return (
       <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">

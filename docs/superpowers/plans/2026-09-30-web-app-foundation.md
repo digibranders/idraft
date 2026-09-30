@@ -395,8 +395,8 @@ Carried to later tasks: access for platform operators in production waits for th
 
 **Files:** create `src/lib/api/schema.d.ts` (generated), `types.ts`, `problem.ts`, `client.ts`, `server.ts`, `keys.ts`, `query.ts` and their tests.
 
-- [ ] **Step 1: Generate.** `pnpm gen:api`. Commit `schema.d.ts`. `types.ts` re-exports the component schemas the app names (`Me`, `MeMembership`, `Role`, `Problem`, `ValidationItem`, `SessionItem`).
-- [ ] **Step 2: `problem.ts`.**
+- [x] **Step 1: Generate.** `pnpm gen:api`. Commit `schema.d.ts`. `types.ts` re-exports the component schemas the app names (`Me`, `MeMembership`, `Role`, `Problem`, `ValidationItem`, `SessionItem`).
+- [x] **Step 2: `problem.ts`.**
 
 ```ts
 export class ApiProblem extends Error {
@@ -413,11 +413,38 @@ export function isApiProblem(error: unknown, code?: string): error is ApiProblem
 
 `problemFrom` accepts a body that is not problem JSON (a proxy's HTML 502) and produces `code: 'http_error'` with the response status; it reads `Retry-After` as seconds or as an HTTP date; it never throws. Tests cover a full problem body, a body with extra members (kept in `body`), a non-JSON body, both `Retry-After` forms, and a missing `errors`.
 
-- [ ] **Step 3: Clients.** `client.ts`: `createClient<paths>({ baseUrl: '' , credentials: 'same-origin' })` for the browser. `server.ts` (`import 'server-only'`): `serverApi()` builds a client on `env.API_INTERNAL_ORIGIN` that forwards only the incoming `cookie` and `x-request-id` headers and sets `cache: 'no-store'`. Both go through one `unwrap` helper that returns `data` or throws `problemFrom(...)`. Test with MSW: the server client forwards the cookie and the request id and nothing else (an incoming `authorization` header is not forwarded).
-- [ ] **Step 4: Keys.** `keys.ts`: `queryKey(scope, resource, filters)` returns `['ws', workspaceId, 'p', projectId, domain, resource, normalized]` (20 section 3.5). `normalizeFilters` sorts keys, drops `undefined`, `null`, empty arrays and values equal to a given default. Tests: two filter objects that differ only in key order produce the same key; a default value is dropped.
-- [ ] **Step 5: `query.ts`.** `apiQuery(path, init)` returns TanStack `queryOptions` for a GET path with typed params, the derived key and `unwrap`. `apiMutation(method, path)` returns `mutationOptions` whose variables are the typed params and body. Tests (type level with `expectTypeOf`, runtime with MSW): a wrong path or a missing path param is a type error; a problem response rejects with an `ApiProblem` carrying its `code`.
-- [ ] **Step 6: Global error policy** in the query client of Task 3: a `401` with code `unauthenticated` or `session_expired` clears the cache and hard-navigates to `/login?next=<current path>`; a `429` waits `retryAfterSeconds` before one retry; an `ApiProblem` below 500 is never retried. Test each with MSW.
-- [ ] **Step 7: Opus review, fixes, gates, commit** "Add the generated API client and the query helpers".
+- [x] **Step 3: Clients.** `client.ts`: `createClient<paths>({ baseUrl: '' , credentials: 'same-origin' })` for the browser. `server.ts` (`import 'server-only'`): `serverApi()` builds a client on `env.API_INTERNAL_ORIGIN` that forwards only the incoming `cookie` and `x-request-id` headers and sets `cache: 'no-store'`. Both go through one `unwrap` helper that returns `data` or throws `problemFrom(...)`. Test with MSW: the server client forwards the cookie and the request id and nothing else (an incoming `authorization` header is not forwarded).
+- [x] **Step 4: Keys.** `keys.ts`: `queryKey(scope, resource, filters)` returns `['ws', workspaceId, 'p', projectId, domain, resource, normalized]` (20 section 3.5). `normalizeFilters` sorts keys, drops `undefined`, `null`, empty arrays and values equal to a given default. Tests: two filter objects that differ only in key order produce the same key; a default value is dropped.
+- [x] **Step 5: `query.ts`.** `apiQuery(path, init)` returns TanStack `queryOptions` for a GET path with typed params, the derived key and `unwrap`. `apiMutation(method, path)` returns `mutationOptions` whose variables are the typed params and body. Tests (type level with `expectTypeOf`, runtime with MSW): a wrong path or a missing path param is a type error; a problem response rejects with an `ApiProblem` carrying its `code`.
+- [x] **Step 6: Global error policy** in the query client of Task 3: a `401` with code `unauthenticated` or `session_expired` clears the cache and hard-navigates to `/login?next=<current path>`; a `429` waits `retryAfterSeconds` before one retry; an `ApiProblem` below 500 is never retried. Test each with MSW.
+- [x] **Step 7: Opus review, fixes, gates, commit** "Add the generated API client and the query helpers".
+
+Done differently from the steps above, and why:
+
+- The generated file is `src/lib/api/schema.ts`, not `schema.d.ts`: `--enum-values` writes runtime lists (`reservedWorkspaceSlugValues`, `reservedProjectSlugValues`, `roleValues`), which a declaration file cannot hold. `--immutable` is not used: openapi-fetch's `Readable` turns a readonly array into `never[]`, which erased `Me.memberships`. `schema.test.ts` regenerates the file with the `gen:api` script and fails when it differs, so a stale client fails the test run without a CI step of its own.
+- `queryKey(path, pathParams, query, defaults)` derives the key from the path template: `workspaces/{W}` becomes `'ws', W`, `projects/{P}` becomes `'p', P`, other segments stay, and the normalized query comes last. That is the shape of 20 section 3.5 without a hand-written domain per call. `workspaceKey(W)` and `projectKey(W, P)` are the prefixes to invalidate.
+- `apiQuery(path, init)` takes two extras in `init`: `defaults` (dropped from the key) and `client` (the server client when a page prefetches). The init is optional exactly when the path needs no parameter.
+- Both clients look up `fetch` at each call. openapi-fetch keeps the function it finds when the client is made, which misses a fetch wrapped later (Next.js on the server, MSW in tests).
+- A list parameter is sent once, comma-separated (`filter[status_in]=active,paused`), the form 19 documents.
+- `ApiProblem` also has `detail`, and `number(name)` and `string(name)` for the extension members that the OpenAPI document leaves untyped (`limit`, `used`, `requested`, `reauth_url`). A body that is not problem JSON gives `code: 'http_error'` (`HTTP_ERROR`).
+- Retries: a 409 `conflict` is retried once, queries and mutations alike, because the API wrote nothing; no other write is ever repeated. A wait longer than 60 seconds (maintenance) is not spent inside a query. `retryDelay` waits `Retry-After`, otherwise backs off from 1 second to 30.
+- `ValidationItem` in `lib/forms` is now the generated type.
+- Tests reach MSW through `setupApiServer()` and `testApi()` in `src/test/api-server.ts`. The shared handlers and the mock modes are Task 9.
+- From the Opus review:
+  - The browser client's base is `window.location.origin` (under jsdom, `http://localhost:3000`), so component tests reach MSW with the client the app ships. `apiQuery` and `apiMutation` refuse the browser client on the server with a message that names `serverApi()`.
+  - `newRequestId()` is `src/lib/request-id.ts`, the name 25 section 3.3 gives it, with `isRequestId()`. The browser client sends a new id with every request. The server client sends the page render's id when it is valid, otherwise one id of its own for all the calls of that render; it forwards the cookie and that id, nothing else.
+  - A 2xx that is not JSON (a captive portal) becomes an `http_error` problem, not a `SyntaxError` that looks like a lost connection.
+  - Query inits and mutation variables accept only `params` and `body`: `parseAs`, `baseUrl` and `headers` would change a request without changing its type or key. Defaults are left out of the request as well as the key. `ApiPath` is limited to `/api/v1/...`; `ApiResponse` of a 204 is `undefined`; `ApiQueryOptions` has a non-optional `queryFn`, so it also suits `useSuspenseQuery`.
+  - Sign-out: a 401 on a public page (`src/lib/routes/public-paths.ts`, the list Task 10's proxy will use) empties the cache but does not navigate, and the policy stays on, so a lost session after moving on without a reload still signs out. Once the page is being left, further 401s change nothing.
+  - Retries: `query_timeout`, `provider_paused` and `maintenance` are final; no retry waits more than 10 seconds and the backoff stays under 4, so a query reaches its error state within seconds; a write is repeated after a `conflict` only when the wait is short.
+  - Step 2 of 10-forms.md section 23 is `applyProblem(form, error, { fields, messages, codeToField, alertCodes })` in `lib/forms`: it returns `fields` (with the unmatched items), `alert`, `conflict` or `fresh-session`, and rethrows anything else.
+  - `source-text.test.ts` skips generated files by path, so `src/lib/env/schema.ts` is still read. `schema.test.ts` refuses a `gen:api` script without `-o src/lib/api/schema.ts` before it runs.
+
+Carried to later tasks:
+- Task 9: `vitest.setup.ts` starts one MSW server for every `dom` test; fold `setupApiServer()` into it so no file starts a second one.
+- Task 12: prefetching needs one query client per server request (React `cache` around `makeQueryClient`), and the workspace layout must turn a signed-out `ApiProblem` into `redirect(loginUrl(...))` itself, because the query cache's policy runs only in the browser. `withFreshSession` handles the `fresh-session` outcome of `applyProblem` and reads `problem.string('reauth_url')`.
+- Task 13: an `ApiProblem` thrown in a Server Component reaches `error.tsx` as a plain `Error`, so the request id shown there must travel in the digest. The 429 toast with its countdown and the query error states belong here.
+- Task 17: 20 section 3.5 still names `API_INTERNAL_BASE_URL` and a browser base of `/api/v1` (the generated paths carry `/api/v1`, so the base is the origin); 20 section 3.7 and 10-forms.md section 23 still describe 409 `conflict` as a stale edit, while 19 section 2.7 says a lock timeout with nothing written, and puts stale edits on 412.
 
 ### Task 9: The mock layer
 

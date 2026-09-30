@@ -1,14 +1,14 @@
 import type { FieldPath, FieldValues, UseFormSetError } from 'react-hook-form';
 
-/** One entry of `errors[]` in a `422 validation_failed` problem (19-api-specification.md section 2.7). */
-export interface ValidationItem {
-  location: 'body' | 'query' | 'path' | 'header';
-  /** A dot path into that location: `email`, `profile.name`, `items.3.keyword`. */
-  path: string;
-  /** The type of the validation error, such as `string_too_long` or `slug_reserved`. */
-  code: string;
-  message: string;
-}
+import type { ValidationItem } from '@/lib/api/types';
+
+/**
+ * One entry of `errors[]` in a `422 validation_failed` problem (19-api-specification.md section 2.7), as
+ * generated from the OpenAPI document. `location` is `body`, `query`, `path` or `header`; `path` is a dot
+ * path into it (`email`, `profile.name`, `items.3.keyword`); `code` is the error type, such as
+ * `string_too_long` or `slug_reserved`.
+ */
+export type { ValidationItem };
 
 export interface ApplyServerErrorsOptions<TValues extends FieldValues> {
   /**

@@ -2,7 +2,7 @@
 .next
 .tmp
 next-env.d.ts
-src/lib/api/schema.d.ts
+src/lib/api/schema.ts
 public
 pnpm-lock.yaml
 

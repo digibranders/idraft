@@ -9,7 +9,12 @@ import { describe, expect, it } from 'vitest';
 const APP_ROOT = path.join(import.meta.dirname, '../..');
 const SKIPPED_DIRECTORIES = new Set(['node_modules', '.next', '.tmp', 'vendor', 'public']);
 const READ_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.css', '.json', '.html', '.md']);
-const GENERATED_FILES = new Set(['preview.compiled.css', 'schema.d.ts', 'tsconfig.tsbuildinfo']);
+/** Paths from the app root, so a hand-written file that shares a generated file's name is still read. */
+const GENERATED_FILES = new Set([
+  'design-preview/preview.compiled.css',
+  'src/lib/api/schema.ts',
+  'tsconfig.tsbuildinfo',
+]);
 // Built from code points, so this file does not contain the characters it looks for.
 const DASHES = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
 
@@ -17,7 +22,8 @@ function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) return SKIPPED_DIRECTORIES.has(entry.name) ? [] : sourceFiles(entryPath);
-    return READ_EXTENSIONS.has(path.extname(entry.name)) && !GENERATED_FILES.has(entry.name) ? [entryPath] : [];
+    const generated = GENERATED_FILES.has(path.relative(APP_ROOT, entryPath).split(path.sep).join('/'));
+    return READ_EXTENSIONS.has(path.extname(entry.name)) && !generated ? [entryPath] : [];
   });
 }
 
@@ -29,6 +35,9 @@ describe('source text', () => {
     expect(names).toContain('src/app/layout.tsx');
     expect(names).toContain('eslint.config.mjs');
     expect(names).toContain('design-preview/index.html');
+    // Only the generated schema is skipped, not every file with its name
+    expect(names).toContain('src/lib/env/schema.ts');
+    expect(names).not.toContain('src/lib/api/schema.ts');
     expect(names.some((name) => name.includes('node_modules'))).toBe(false);
   });
 
