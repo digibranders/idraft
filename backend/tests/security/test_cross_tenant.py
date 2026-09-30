@@ -33,6 +33,7 @@ from tests.api.auth.support import (
     make_workspace,
     open_session,
 )
+from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
 from tests.security.cross_tenant_exceptions import NOT_PATH_SCOPED
@@ -56,7 +57,7 @@ WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "{workspace
 CHILD_ROUTES = [
     (method, path)
     for method, path in WORKSPACE_ROUTES
-    if set(re.findall(r"\{(\w+)\}", path)) - {"workspace_id"}
+    if set(PATH_PARAMETER.findall(path)) - {"workspace_id"}
 ]
 # Every GET that returns tenant data without naming a child: the lists, and the two routes
 # that list the caller's workspaces.
@@ -149,7 +150,9 @@ def _fill(path: str, ids: dict[str, str]) -> str:
         assert name in ids, f"the cross-tenant suite has no id for the path parameter {name!r}"
         return ids[name]
 
-    return re.sub(r"\{(\w+)\}", value, path)
+    filled = PATH_PARAMETER.sub(value, path)
+    assert "{" not in filled, f"a path parameter of {path} was not understood"
+    return filled
 
 
 async def _call(

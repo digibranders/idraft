@@ -8,6 +8,7 @@ routes answer 503: a limiter that cannot count must not wave requests through.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
@@ -54,6 +55,20 @@ local count = redis.call('INCR', KEYS[1])
 if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
 if count > tonumber(ARGV[1]) then return 0 end
 return 1
+"""
+
+
+# KEYS: counters. ARGV: window, then one limit per counter. Counts one action against every
+# counter, or against none: returns 0, or the position of the first counter already at its limit.
+_ALLOW_ALL = """
+for i = 1, #KEYS do
+  local count = tonumber(redis.call('GET', KEYS[i]) or '0')
+  if count >= tonumber(ARGV[i + 1]) then return i end
+end
+for i = 1, #KEYS do
+  if redis.call('INCR', KEYS[i]) == 1 then redis.call('EXPIRE', KEYS[i], ARGV[1]) end
+end
+return 0
 """
 
 
@@ -126,11 +141,31 @@ class LoginThrottle:
         """Count one action by `subject` and say whether it is within `limit` per window."""
         try:
             allowed = await self._redis.eval(
-                _ALLOW, 1, f"throttle:{scope}:{_digest(subject)}", limit, window_seconds
+                _ALLOW, 1, _allowance_key(scope, subject), limit, window_seconds
             )
         except _REDIS_ERRORS:
             raise ThrottleUnavailableError from None
         return bool(int(allowed) == 1)
+
+    async def allow_all(
+        self, allowances: Sequence[tuple[str, str, int]], *, window_seconds: int
+    ) -> bool:
+        """Count one action against several allowances, each a (scope, subject, limit), when it
+        is within all of them. A refused action is counted against none, so running into one
+        limit never uses up another."""
+        keys = [_allowance_key(scope, subject) for scope, subject, _ in allowances]
+        limits = [limit for _, _, limit in allowances]
+        try:
+            refused_by = await self._redis.eval(
+                _ALLOW_ALL, len(keys), *keys, window_seconds, *limits
+            )
+        except _REDIS_ERRORS:
+            raise ThrottleUnavailableError from None
+        return bool(int(refused_by) == 0)
+
+
+def _allowance_key(scope: str, subject: str) -> str:
+    return f"throttle:{scope}:{_digest(subject)}"
 
 
 def _failures_key(kind: str, subject: str) -> str:

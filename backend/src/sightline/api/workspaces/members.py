@@ -184,6 +184,8 @@ class MemberService:
                 target_type="invitation",
                 target_id=invitation_id,
                 info=info,
+                # Tells it apart from an invitation someone withdrew by hand.
+                after={"reason": "sender_removed" if now is None else "sender_demoted"},
             )
 
     @staticmethod

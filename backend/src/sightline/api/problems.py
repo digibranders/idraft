@@ -9,7 +9,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.json_schema import SkipJsonSchema
 from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException
@@ -46,6 +46,10 @@ class ValidationItem(BaseModel):
     message: str
 
 
+def _no_default(schema: dict[str, Any]) -> None:
+    schema.pop("default", None)
+
+
 class Problem(BaseModel):
     """The body of every error response. Codes may add members, documented per route."""
 
@@ -54,12 +58,14 @@ class Problem(BaseModel):
     type: str
     title: str
     status: int
-    # Left out of a body when there is none, never sent as null.
-    detail: str | SkipJsonSchema[None] = None
+    # Left out of a body when there is none, never sent as null: optional, with no default.
+    detail: str | SkipJsonSchema[None] = Field(default=None, json_schema_extra=_no_default)
     instance: str
     code: str
     request_id: str
-    errors: list[ValidationItem] | SkipJsonSchema[None] = None
+    errors: list[ValidationItem] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=_no_default
+    )
 
 
 class ProblemError(Exception):

@@ -10,11 +10,20 @@ from pydantic import (
     BaseModel,
     Field,
     StringConstraints,
+    field_validator,
     model_validator,
 )
 
 from sightline.api.permissions import Role
-from sightline.api.schemas.common import Body, Email, ImageUrl, Name, Token
+from sightline.api.schemas.common import (
+    Body,
+    Email,
+    ImageUrl,
+    Name,
+    Patch,
+    Token,
+    refuse_null,
+)
 
 # Far above the policy limit: the policy answers with a reason, this only bounds the body.
 PASSWORD_BODY_MAX = 1024
@@ -133,18 +142,19 @@ class SessionList(BaseModel):
     data: list[SessionItem]
 
 
-class ProfileUpdate(Body):
-    """At least one member. `image: null` removes the picture; `name` cannot be null."""
+class ProfileUpdate(Patch):
+    """At least one field. `image: null` removes the picture; `name` cannot be null."""
 
     name: Name | None = None
     image: ImageUrl | None = None
+
+    nullable = frozenset({"image"})
+    _not_null = field_validator("name")(refuse_null)
 
     @model_validator(mode="after")
     def _says_something(self) -> ProfileUpdate:
         if not self.model_fields_set:
             raise ValueError("give name, image or both")
-        if "name" in self.model_fields_set and self.name is None:
-            raise ValueError("name cannot be null")
         return self
 
 

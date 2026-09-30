@@ -680,6 +680,13 @@ async def test_an_owner_invitation_does_not_outlive_its_senders_ownership(
     rows = await fetch(
         migrated, "SELECT role, status FROM auth.invitations WHERE workspace_id = $1", workspace.id
     )
+    reasons = await fetch(
+        migrated,
+        "SELECT after::text FROM ops.audit_logs "
+        "WHERE workspace_id = $1 AND action = 'invitation.cancelled'",
+        workspace.id,
+    )
+    assert [row["after"] for row in reasons] == ['{"reason": "sender_demoted"}']
     # Still an admin, so what an admin may send stays; what only an owner may send goes.
     assert {row["role"]: row["status"] for row in rows} == {
         "owner": "cancelled",
@@ -716,3 +723,31 @@ async def test_many_changes_at_once_never_deadlock_or_lose_the_last_owner(
             ]
             roles = [await _role(migrated, workspace, user) for user in (early, late)]
             assert "owner" in roles
+
+
+async def test_an_invitation_already_past_its_date_is_left_as_it_is(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    _, owner = await _member(resources, migrated, workspace, "owner")
+    sender, sender_headers = await _member(resources, migrated, workspace, "admin")
+    invitations = f"/api/v1/workspaces/{workspace.id}/invitations"
+    sent = await api.post(
+        invitations, json={"email": new_email(), "role": "viewer"}, headers=sender_headers
+    )
+    await execute(
+        migrated,
+        "UPDATE auth.invitations SET expires_at = now() - interval '1 minute' WHERE id = $1",
+        uuid.UUID(sent.json()["data"]["invitation_id"]),
+    )
+
+    removed = await api.delete(f"{_members(workspace)}/{sender.id}", headers=owner)
+
+    assert removed.status_code == 204
+    row = await fetchrow(
+        migrated, "SELECT status FROM auth.invitations WHERE workspace_id = $1", workspace.id
+    )
+    # Expired, as the list shows it and as the route that withdraws one treats it.
+    assert row["status"] == "pending"
+    actions = [action for action, *_ in await _audit(migrated, workspace)]
+    assert actions == ["invitation.created", "member.removed"]

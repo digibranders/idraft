@@ -90,14 +90,25 @@ def test_the_declared_access_is_the_documented_access() -> None:
 # here only after confirming it is not a project, or a thing inside one project, in disguise. A
 # route for something inside a project carries `{project_id}` before it.
 PATH_PARAMETERS = {"workspace_id", "project_id", "user_id", "invitation_id", "session_id"}
+# `{name}` or `{name:converter}`.
+PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")
+
+
+def test_a_path_parameter_is_recognised_with_or_without_a_converter() -> None:
+    path = "/api/v1/workspaces/{workspace_id}/projects/{pid:uuid}/files/{name:path}"
+    assert PATH_PARAMETER.findall(path) == ["workspace_id", "pid", "name"]
+    assert re.findall(r"/projects/\{(\w+)", path) == ["pid"]
 
 
 def test_path_parameters_come_from_a_known_set_and_a_project_is_called_project_id() -> None:
     for route in iter_route_contexts(create_app(placeholder_settings()).routes):
         assert route.path is not None
-        names = re.findall(r"\{(\w+)\}", route.path)
+        names = PATH_PARAMETER.findall(route.path)
+        # Every brace was understood: a `{name:converter}` must not slip past as no parameter.
+        assert len(names) == route.path.count("{"), route.path
         assert set(names) <= PATH_PARAMETERS, route.path
-        assert re.findall(r"/projects/\{(\w+)\}", route.path) in ([], ["project_id"]), route.path
+        after_projects = re.findall(r"/projects/\{(\w+)", route.path)
+        assert after_projects in ([], ["project_id"]), route.path
         if "project_id" in names:
             assert names[:2] == ["workspace_id", "project_id"], route.path
 

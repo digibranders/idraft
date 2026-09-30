@@ -521,6 +521,8 @@ async def cancel_invitations_sent_by(
         invitations.c.workspace_id == workspace_id,
         invitations.c.invited_by == user_id,
         invitations.c.status == "pending",
+        # One past its date is expired already, as it is for the route that withdraws one.
+        invitations.c.expires_at > now,
     ]
     if only_role is not None:
         conditions.append(invitations.c.role == only_role)
@@ -530,7 +532,8 @@ async def cancel_invitations_sent_by(
         .values(status="cancelled", responded_at=now)
         .returning(invitations.c.id)
     )
-    return list((await db.execute(statement)).scalars())
+    # In the order they were sent: the ids are time-ordered.
+    return sorted((await db.execute(statement)).scalars())
 
 
 @dataclass(frozen=True, slots=True)

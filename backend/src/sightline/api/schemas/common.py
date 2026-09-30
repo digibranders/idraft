@@ -31,10 +31,24 @@ def printable(value: str) -> str:
     return value
 
 
+# Normalising can shorten a string (a letter and its accent become one character) and lengthen
+# it, so the limit is checked on the result. It is also slow on long runs of accents, so nothing
+# longer than this is normalised at all: no address of ADDRESS_MAX characters is longer raw.
+_RAW_ADDRESS_MAX = 4 * ADDRESS_MAX
+
+
 def _one_spelling(value: object) -> object:
     """A composed and a decomposed "é" are different bytes, and the database would keep them as
-    two addresses. Runs before the length check: composing can make a string longer."""
-    return unicodedata.normalize("NFC", value) if isinstance(value, str) else value
+    two addresses. Runs before the length check of the type."""
+    if not isinstance(value, str):
+        return value
+    if len(value) > _RAW_ADDRESS_MAX:
+        raise PydanticCustomError(
+            "string_too_long",
+            "String should have at most {max_length} characters",
+            {"max_length": ADDRESS_MAX},
+        )
+    return unicodedata.normalize("NFC", value)
 
 
 def _email(value: str) -> str:
@@ -54,8 +68,10 @@ Name = Annotated[
 ]
 Email = Annotated[
     str,
-    BeforeValidator(_one_spelling),
+    # The constraints first, so they are the string's own and report as such; the validator
+    # below them still runs before they are checked.
     StringConstraints(strip_whitespace=True, min_length=3, max_length=ADDRESS_MAX),
+    BeforeValidator(_one_spelling),
     AfterValidator(printable),
     AfterValidator(_email),
 ]

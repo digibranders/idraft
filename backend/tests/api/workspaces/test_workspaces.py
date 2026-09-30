@@ -654,6 +654,7 @@ def test_a_field_that_refuses_null_is_not_nullable_in_the_api_document() -> None
     for model, fields in (
         ("WorkspaceUpdate", ("name", "slug", "timezone")),
         ("MemberUpdate", ("role",)),
+        ("ProfileUpdate", ("name",)),
         ("ProjectUpdate", ("name", "slug", "timezone", "deep_check_weekday", "status")),
     ):
         for field in fields:
@@ -664,9 +665,13 @@ def test_a_field_that_refuses_null_is_not_nullable_in_the_api_document() -> None
     assert {"type": "null"} in schemas["ProjectUpdate"]["properties"]["default_language_code"][
         "anyOf"
     ]
-    # An error body leaves these out when it has none; it never sends null.
-    assert "anyOf" not in schemas["Problem"]["properties"]["detail"]
-    assert "anyOf" not in schemas["Problem"]["properties"]["errors"]
+    # An error body leaves these out when it has none; it never sends null. So they are
+    # optional, with no default: a generated client must not type them as always present.
+    for member in ("detail", "errors"):
+        described = schemas["Problem"]["properties"][member]
+        assert "anyOf" not in described
+        assert "default" not in described
+        assert member not in schemas["Problem"]["required"]
 
 
 async def test_a_refused_slug_or_null_has_a_code_of_its_own(
@@ -692,3 +697,9 @@ async def test_a_refused_slug_or_null_has_a_code_of_its_own(
     assert [error["code"] for error in reserved.json()["errors"]] == ["slug_reserved"]
     assert [error["code"] for error in like_an_id.json()["errors"]] == ["slug_is_id"]
     assert [error["code"] for error in null.json()["errors"]] == ["null_not_allowed"]
+    profile = await api.patch(
+        "/api/v1/me", json={"name": None}, headers=await _session(resources, owner)
+    )
+    assert [(error["path"], error["code"]) for error in profile.json()["errors"]] == [
+        ("name", "null_not_allowed")
+    ]

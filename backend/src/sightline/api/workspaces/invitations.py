@@ -316,11 +316,14 @@ class InvitationService:
             )
 
     async def _count(self, access: WorkspaceAccess, email: str) -> None:
-        """Count one invitation against each allowance. The inviter first: a refused attempt then
-        costs the workspace and the recipient nothing."""
-        for scope, subject, limit in (
-            ("invite:inviter", access.user_id, INVITATIONS_PER_HOUR_PER_INVITER),
-            ("invite:workspace", access.workspace_id, INVITATIONS_PER_HOUR_PER_WORKSPACE),
-            ("invite:recipient", email.casefold(), INVITATIONS_PER_HOUR_PER_RECIPIENT),
-        ):
-            await limits.enforce(self._throttle, scope, subject, limit=limit, window_seconds=_HOUR)
+        """Count one invitation against the inviter, the workspace and the recipient, or against
+        none of them when one allowance is used up."""
+        await limits.enforce_all(
+            self._throttle,
+            [
+                ("invite:inviter", access.user_id, INVITATIONS_PER_HOUR_PER_INVITER),
+                ("invite:workspace", access.workspace_id, INVITATIONS_PER_HOUR_PER_WORKSPACE),
+                ("invite:recipient", email.casefold(), INVITATIONS_PER_HOUR_PER_RECIPIENT),
+            ],
+            window_seconds=_HOUR,
+        )

@@ -718,12 +718,10 @@
             "type": "string"
           },
           "detail": {
-            "default": null,
             "title": "Detail",
             "type": "string"
           },
           "errors": {
-            "default": null,
             "items": {
               "$ref": "#/components/schemas/ValidationItem"
             },
@@ -764,7 +762,7 @@
       },
       "ProfileUpdate": {
         "additionalProperties": false,
-        "description": "At least one member. `image: null` removes the picture; `name` cannot be null.",
+        "description": "At least one field. `image: null` removes the picture; `name` cannot be null.",
         "properties": {
           "image": {
             "anyOf": [
@@ -780,17 +778,10 @@
             "title": "Image"
           },
           "name": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
           }
         },
         "title": "ProfileUpdate",

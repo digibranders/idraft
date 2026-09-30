@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import re
+import time
 import unicodedata
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -359,7 +360,7 @@ async def test_no_invitation_is_sent_when_attempts_cannot_be_counted(
 
     workspace = await make_workspace(migrated)
     _, headers = await _member(resources, migrated, workspace, "owner")
-    monkeypatch.setattr(LoginThrottle, "allow", unavailable)
+    monkeypatch.setattr(LoginThrottle, "allow_all", unavailable)
 
     response = await api.post(
         _invitations(workspace), json={"email": new_email(), "role": "viewer"}, headers=headers
@@ -1079,3 +1080,76 @@ async def test_an_address_is_measured_in_the_spelling_that_is_stored(
         )
         == []
     )
+
+
+async def test_a_huge_address_is_refused_without_being_normalised(
+    api: httpx.AsyncClient,
+) -> None:
+    """Normalising a megabyte of accents takes most of a minute and blocks every other request.
+    Nothing longer than an address can be is normalised at all."""
+    address = "a" + "\u0301\u0316" * 250_000 + "@client.example"
+
+    started = time.perf_counter()
+    response = await api.post("/api/v1/auth/sign-in", json={"email": address, "password": PASSWORD})
+    elapsed = time.perf_counter() - started
+
+    assert _problem(response) == (422, "validation_failed")
+    assert response.json()["errors"] == [
+        {
+            "location": "body",
+            "path": "email",
+            "code": "string_too_long",
+            "message": "String should have at most 254 characters",
+        }
+    ]
+    assert elapsed < 1.0
+
+
+@pytest.mark.parametrize(
+    ("address", "code"),
+    [
+        ("a" * 250 + "@client.example", "string_too_long"),
+        ("a@", "string_too_short"),
+        # Shorter once composed: each pair becomes one character, and the result fits.
+        ("e\u0301" * 120 + "@client.example", None),
+    ],
+)
+async def test_an_address_keeps_the_error_codes_of_a_string(
+    api: httpx.AsyncClient, address: str, code: str | None
+) -> None:
+    response = await api.post("/api/v1/auth/sign-in", json={"email": address, "password": PASSWORD})
+    if code is None:
+        assert _problem(response) == (401, "invalid_credentials")
+    else:
+        assert [error["code"] for error in response.json()["errors"]] == [code]
+
+
+async def test_an_invitation_refused_by_one_allowance_costs_the_others_nothing(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    mailbox: RecordingEmailSender,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(invitation_rules, "INVITATIONS_PER_HOUR_PER_INVITER", 5)
+    workspace = await make_workspace(migrated)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    url = _invitations(workspace)
+    busy = new_email()
+
+    statuses = []
+    for _ in range(6):
+        response = await api.post(url, json={"email": busy, "role": "viewer"}, headers=headers)
+        statuses.append(response.status_code)
+        if response.status_code == 201:
+            invitation_id = response.json()["data"]["invitation_id"]
+            await api.delete(f"{url}/{invitation_id}", headers=headers)
+    # The recipient's allowance (3) refused the last three. The inviter has used 3 of 5.
+    others = [
+        (await api.post(url, json={"email": new_email(), "role": "viewer"}, headers=headers))
+        for _ in range(3)
+    ]
+
+    assert statuses == [201, 201, 201, 429, 429, 429]
+    assert [response.status_code for response in others] == [201, 201, 429]
+    assert len(mailbox.messages) == 5
