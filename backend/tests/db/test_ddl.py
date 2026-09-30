@@ -1,6 +1,6 @@
 import pytest
 
-from sightline.db.ddl import grants, tenant_isolation
+from sightline.db.ddl import grants, statements, tenant_isolation
 
 
 def test_grant_statements_per_role() -> None:
@@ -63,3 +63,37 @@ def test_column_names_are_validated(column: str) -> None:
 def test_privileges_are_validated(privileges: str) -> None:
     with pytest.raises(ValueError, match="privileges"):
         grants("core.projects", api=privileges)
+
+
+def test_a_script_is_split_into_statements_at_blank_lines() -> None:
+    script = """
+    CREATE TABLE a (id int);
+
+    CREATE INDEX ON a (id);
+
+
+    -- a note that stands alone is not a statement
+
+    CREATE FUNCTION f() RETURNS int
+        LANGUAGE sql
+        BEGIN ATOMIC
+            SELECT 1;
+        END;
+    """
+    assert statements(script) == [
+        "CREATE TABLE a (id int);",
+        "CREATE INDEX ON a (id);",
+        "CREATE FUNCTION f() RETURNS int\n"
+        "        LANGUAGE sql\n"
+        "        BEGIN ATOMIC\n"
+        "            SELECT 1;\n"
+        "        END;",
+    ]
+
+
+def test_a_comment_above_a_statement_stays_with_it() -> None:
+    assert statements("-- why\nSELECT 1;") == ["-- why\nSELECT 1;"]
+
+
+def test_an_empty_script_has_no_statements() -> None:
+    assert statements("   \n\n  ") == []

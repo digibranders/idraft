@@ -8,9 +8,15 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, async_sessionmaker
 
 from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory, workspace_transaction
+from sightline.db.engine import (
+    create_engine,
+    create_session_factory,
+    user_transaction,
+    workspace_transaction,
+)
 
 WORKSPACE = "SELECT NULLIF(current_setting('app.workspace_id', true), '')"
+USER = "SELECT NULLIF(current_setting('app.user_id', true), '')"
 
 
 async def _scalar(executor: AsyncConnection | AsyncSession, sql: str) -> Any:
@@ -126,3 +132,29 @@ async def test_database_errors_never_carry_the_bound_values(
 
 async def test_waiting_for_a_pooled_connection_is_bounded(engine: AsyncEngine) -> None:
     assert engine.pool.timeout() == 5.0  # type: ignore[attr-defined]
+
+
+async def test_a_workspace_transaction_can_also_carry_the_user(engine: AsyncEngine) -> None:
+    sessions = create_session_factory(engine)
+    workspace_id, user_id = uuid.uuid4(), uuid.uuid4()
+
+    async with workspace_transaction(sessions, workspace_id, user_id=user_id) as session:
+        inside = (await _scalar(session, WORKSPACE), await _scalar(session, USER))
+    async with sessions() as session, session.begin():
+        after = (await _scalar(session, WORKSPACE), await _scalar(session, USER))
+
+    assert inside == (str(workspace_id), str(user_id))
+    assert after == (None, None)
+
+
+async def test_a_user_transaction_sets_the_user_and_no_workspace(engine: AsyncEngine) -> None:
+    sessions = create_session_factory(engine)
+    user_id = uuid.uuid4()
+
+    async with user_transaction(sessions, user_id) as session:
+        inside = (await _scalar(session, WORKSPACE), await _scalar(session, USER))
+    async with sessions() as session, session.begin():
+        after = await _scalar(session, USER)
+
+    assert inside == (None, str(user_id))
+    assert after is None

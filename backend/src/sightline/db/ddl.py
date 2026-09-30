@@ -57,3 +57,18 @@ def tenant_isolation(
         f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY",
         f"CREATE POLICY {POLICY_NAME} ON {table} USING ({visible}) WITH CHECK ({owned})",
     ]
+
+
+def statements(script: str) -> list[str]:
+    """Split a script into statements at blank lines.
+
+    asyncpg sends one statement per call. Splitting at blank lines, not at semicolons, keeps
+    function bodies whole, so a script must separate its statements with an empty line and must not
+    put one inside a statement.
+    """
+    chunks = (chunk.strip() for chunk in re.split(r"\n\s*\n", script))
+    return [
+        chunk
+        for chunk in chunks
+        if chunk and not all(line.lstrip().startswith("--") for line in chunk.splitlines())
+    ]
