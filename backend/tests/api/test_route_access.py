@@ -56,7 +56,7 @@ EXPECTED: dict[tuple[str, str], str] = {
     ): "members:manage",
     ("POST", "/api/v1/invitations/accept"): "authenticated",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects"): "member",
-    ("POST", "/api/v1/workspaces/{workspace_id}/projects"): "projects:write",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects"): "projects:write every-project",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}"): "member",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/projects/{project_id}"): "projects:write",
 }

@@ -18,9 +18,9 @@ from sightline.api.problems import (
     ForbiddenError,
     NotFoundError,
     UnauthenticatedError,
-    invalid_field,
 )
 from sightline.api.request_info import RequestInfo
+from sightline.api.timezones import check_timezone
 from sightline.api.workspaces import repository
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.api.workspaces.repository import SlugTakenError, WorkspaceRecord
@@ -29,12 +29,6 @@ from sightline.db.engine import user_transaction, workspace_transaction
 # With open registration anyone verified can create workspaces, each with quotas of its own.
 WORKSPACES_PER_DAY = 5
 _DAY = 86_400
-
-
-async def check_timezone(db: AsyncSession, timezone: str) -> None:
-    """Refuse a well-formed name PostgreSQL has no zone for, as a validation error on the field."""
-    if not await repository.timezone_exists(db, timezone):
-        raise invalid_field("timezone", code="timezone_unknown", message="Unknown time zone.")
 
 
 def _slug_taken() -> DuplicateError:

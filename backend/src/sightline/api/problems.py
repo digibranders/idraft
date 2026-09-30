@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
@@ -204,6 +205,28 @@ class ServiceUnavailableError(ProblemError):
     status, code, title = 503, "service_unavailable", "Service unavailable"
 
 
+class QueryTimeoutError(ProblemError):
+    status, code, title = 503, "query_timeout", "The request took too long"
+
+
+# What PostgreSQL reports when a statement could not finish because of other work, not because
+# of a fault: the row is locked by another request (55P03), two requests waited on each other
+# and this one was chosen to give way (40P01), or the statement ran into its timeout (57014).
+_LOCK_NOT_AVAILABLE = "55P03"
+_DEADLOCK_DETECTED = "40P01"
+_QUERY_CANCELED = "57014"
+
+
+def _contention(error: DBAPIError) -> ProblemError | None:
+    """The problem to answer a database error with, when it says "busy" and not "broken"."""
+    state = getattr(error.orig, "sqlstate", None)
+    if state in (_LOCK_NOT_AVAILABLE, _DEADLOCK_DETECTED):
+        return ConflictError("Another request is changing this. Try again.")
+    if state == _QUERY_CANCELED:
+        return QueryTimeoutError("Try again, with a narrower request if it has filters.")
+    return None
+
+
 def invalid_field(path: str, *, code: str, message: str) -> RequestValidationError:
     """A `422 validation_failed` for a body field that only the database can judge, in the same
     shape as the errors Pydantic finds."""
@@ -355,7 +378,19 @@ def register_problem_handlers(app: FastAPI, *, app_origin: str) -> None:
             title="Internal error",
         )
 
+    async def handle_database(request: Request, error: Exception) -> JSONResponse:
+        problem = _contention(error) if isinstance(error, DBAPIError) else None
+        if problem is None:
+            # Not contention: raised again, so it reaches the catch-all and the error tracker
+            # like any other fault.
+            raise error
+        _log.warning(
+            "database contention", sqlstate=getattr(getattr(error, "orig", None), "sqlstate", None)
+        )
+        return await handle_problem(request, problem)
+
     app.add_exception_handler(ProblemError, handle_problem)
+    app.add_exception_handler(DBAPIError, handle_database)
     app.add_exception_handler(RequestValidationError, handle_validation)
     app.add_exception_handler(HTTPException, handle_http)
     app.add_exception_handler(Exception, handle_unexpected)

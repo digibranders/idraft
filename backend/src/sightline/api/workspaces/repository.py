@@ -82,14 +82,6 @@ async def new_id(db: AsyncSession) -> UUID:
     return generated
 
 
-_TIMEZONE_EXISTS = text("SELECT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = :name)")
-
-
-async def timezone_exists(db: AsyncSession, name: str) -> bool:
-    """Whether PostgreSQL knows this time zone by exactly this name."""
-    return bool((await db.execute(_TIMEZONE_EXISTS, {"name": name})).scalar_one())
-
-
 async def list_for_user(db: AsyncSession, user_id: UUID) -> list[WorkspaceRecord]:
     """The workspaces the user belongs to, except ones being deleted. Run in `user_transaction`."""
     statement = (

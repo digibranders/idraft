@@ -3,10 +3,12 @@
 import asyncio
 import uuid
 
+import asyncpg
 import httpx
 import pytest
 
 from sightline.api.resources import Resources
+from sightline.db import engine
 from tests.api.auth.support import (
     User,
     Workspace,
@@ -151,8 +153,12 @@ async def test_creating_needs_the_permission_and_every_project(
         403,
         "forbidden",
     )
-    # They could not see what they had just made.
+    # They could not see what they had just made. Said before the body is looked at.
     assert _problem(await api.post(_projects(workspace), json=body, headers=limited)) == (
+        403,
+        "forbidden",
+    )
+    assert _problem(await api.post(_projects(workspace), json={"name": ""}, headers=limited)) == (
         403,
         "forbidden",
     )
@@ -194,7 +200,7 @@ async def test_the_project_limit_holds_when_projects_are_created_at_once(
     workspace = await make_workspace(migrated)
     await make_project(migrated, workspace.id)
     gone = await make_project(migrated, workspace.id)
-    # A deleted project does not count. The workspace has no quota row yet: it gets the defaults.
+    # A deleted project does not count.
     await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", gone)
     await execute(
         migrated,
@@ -259,6 +265,8 @@ async def test_a_workspace_without_a_quota_row_gets_the_default_limit(
         {"timezone": "localtime"},
         {"deep_check_weekday": 7},
         {"deep_check_weekday": -1},
+        {"deep_check_weekday": "3"},
+        {"deep_check_weekday": True},
         {"default_language_code": "eng"},
         {"default_language_code": "EN"},
         # Taken by later phases, not accepted yet.
@@ -428,8 +436,8 @@ async def test_an_editor_changes_a_project_and_only_what_differs_is_recorded(
 
     cleared = await api.patch(url, json={"default_language_code": None}, headers=headers)
     assert cleared.json()["data"]["default_language_code"] is None
-    revived = await api.patch(url, json={"status": "archived"}, headers=headers)
-    assert revived.json()["data"]["status"] == "archived"
+    archived = await api.patch(url, json={"status": "archived"}, headers=headers)
+    assert archived.json()["data"]["status"] == "archived"
     # An archived project is still there for those who ask for it by id.
     assert (await api.get(url, headers=headers)).json()["data"]["status"] == "archived"
 
@@ -561,3 +569,186 @@ async def test_a_change_that_is_not_allowed_is_refused(
     response = await api.patch(f"{_projects(workspace)}/{project_id}", json=body, headers=headers)
     assert _problem(response) == (422, "validation_failed")
     assert [error["path"] for error in response.json()["errors"]] == [path]
+
+
+# -------------------------------------------------------------------------------------------------
+# What the review of these routes asked for
+
+
+async def test_an_archived_project_frees_its_slot_and_needs_one_to_come_back(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    first = await make_project(migrated, workspace.id)
+    await execute(
+        migrated,
+        "INSERT INTO core.workspace_quotas (workspace_id, max_projects) VALUES ($1, 1)",
+        workspace.id,
+    )
+    _, headers = await _member(resources, migrated, workspace, "owner")
+    base = _projects(workspace)
+
+    full = await api.post(base, json={"name": "Two", "slug": _slug()}, headers=headers)
+    await api.patch(f"{base}/{first}", json={"status": "archived"}, headers=headers)
+    second = await api.post(base, json={"name": "Two", "slug": _slug()}, headers=headers)
+    back = await api.patch(f"{base}/{first}", json={"status": "active"}, headers=headers)
+    # Pausing the live one frees nothing: a paused project still holds its slot.
+    second_url = f"{base}/{second.json()['data']['project_id']}"
+    await api.patch(second_url, json={"status": "paused"}, headers=headers)
+    still = await api.patch(f"{base}/{first}", json={"status": "paused"}, headers=headers)
+
+    assert _problem(full) == (422, "quota_exceeded")
+    assert second.status_code == 201
+    assert _problem(back) == _problem(still) == (422, "quota_exceeded")
+    assert (back.json()["limit"], back.json()["used"], back.json()["requested"]) == (1, 1, 1)
+    row = await fetchrow(migrated, "SELECT status FROM core.projects WHERE id = $1", first)
+    assert row["status"] == "archived"
+    # Other changes to an archived project need no slot.
+    renamed = await api.patch(f"{base}/{first}", json={"name": "Old site"}, headers=headers)
+    assert renamed.status_code == 200
+
+
+async def test_the_warning_is_about_a_zone_that_really_changed(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project_id = await make_project(migrated, workspace.id)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+
+    response = await api.patch(
+        f"{_projects(workspace)}/{project_id}",
+        json={"name": "Renamed", "timezone": "UTC"},
+        headers=headers,
+    )
+
+    assert response.json()["data"]["name"] == "Renamed"
+    assert response.json()["meta"] == {"warnings": []}
+
+
+async def test_projects_with_one_name_keep_one_order(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    ids = [
+        await make_project(migrated, workspace.id, name=name)
+        for name in ("same", "Same", "SAME", "same", "Alpha")
+    ]
+    _, headers = await _member(resources, migrated, workspace, "viewer")
+
+    pages = [
+        await api.get(_projects(workspace), params={"offset": offset, "limit": 1}, headers=headers)
+        for offset in range(5)
+    ]
+
+    listed = [page.json()["data"][0]["project_id"] for page in pages]
+    # By name without regard to case, then by id.
+    assert listed == [str(ids[4]), *sorted(str(project_id) for project_id in ids[:4])]
+
+
+async def test_a_deleted_project_cannot_be_changed(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project_id = await make_project(migrated, workspace.id, name="Gone")
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", project_id)
+    _, headers = await _member(resources, migrated, workspace, "owner")
+
+    response = await api.patch(
+        f"{_projects(workspace)}/{project_id}", json={"name": "Back"}, headers=headers
+    )
+
+    assert _problem(response) == (404, "not_found")
+    row = await fetchrow(migrated, "SELECT name FROM core.projects WHERE id = $1", project_id)
+    assert row["name"] == "Gone"
+
+
+async def test_one_slug_created_many_times_at_once_makes_one_project(
+    client_for: AppFactory, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    slug = _slug()
+    async with client_for(db_pool_size=6) as api:
+        resources = api._transport.app.state.resources  # type: ignore[attr-defined]
+        _, headers = await _member(resources, migrated, workspace, "owner")
+        responses = await asyncio.gather(
+            *(
+                api.post(_projects(workspace), json={"name": "Site", "slug": slug}, headers=headers)
+                for _ in range(5)
+            )
+        )
+
+    assert sorted(response.status_code for response in responses) == [201, 409, 409, 409, 409]
+    assert len(await _audit(migrated, workspace)) == 1
+
+
+async def test_every_value_of_a_repeated_status_filter_counts(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    archived = await make_project(migrated, workspace.id, name="Archived")
+    await make_project(migrated, workspace.id, name="Live")
+    await execute(migrated, "UPDATE core.projects SET status = 'archived' WHERE id = $1", archived)
+    _, headers = await _member(resources, migrated, workspace, "viewer")
+    url = _projects(workspace)
+
+    both = await api.get(
+        url,
+        params=[("filter[status_in]", "archived"), ("filter[status_in]", "active")],
+        headers=headers,
+    )
+    bogus = await api.get(
+        url,
+        params=[("filter[status_in]", "bogus"), ("filter[status_in]", "active")],
+        headers=headers,
+    )
+
+    assert [item["name"] for item in both.json()["data"]] == ["Archived", "Live"]
+    assert _problem(bogus) == (422, "validation_failed")
+
+
+async def test_a_change_that_waits_too_long_for_a_lock_is_a_conflict_not_a_fault(
+    client_for: AppFactory, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(engine, "LOCK_TIMEOUT", "200ms")
+    workspace = await make_workspace(migrated)
+    project_id = await make_project(migrated, workspace.id, name="Site")
+    holder = await asyncpg.connect(migrated.url())
+    try:
+        async with client_for() as api, holder.transaction():
+            resources = api._transport.app.state.resources  # type: ignore[attr-defined]
+            _, headers = await _member(resources, migrated, workspace, "owner")
+            await holder.execute("SELECT 1 FROM core.projects WHERE id = $1 FOR UPDATE", project_id)
+
+            changed = await api.patch(
+                f"{_projects(workspace)}/{project_id}", json={"name": "Renamed"}, headers=headers
+            )
+            read = await api.get(f"{_projects(workspace)}/{project_id}", headers=headers)
+    finally:
+        await holder.close()
+
+    assert _problem(changed) == (409, "conflict")
+    assert changed.json()["detail"] == "Another request is changing this. Try again."
+    # Reading does not wait for the lock.
+    assert read.json()["data"]["name"] == "Site"
+
+
+async def test_a_statement_that_runs_into_its_timeout_is_answered_as_busy(
+    client_for: AppFactory, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(engine, "LOCK_TIMEOUT", "30s")
+    workspace = await make_workspace(migrated)
+    project_id = await make_project(migrated, workspace.id)
+    holder = await asyncpg.connect(migrated.url())
+    try:
+        async with client_for(db_statement_timeout="200ms") as api, holder.transaction():
+            resources = api._transport.app.state.resources  # type: ignore[attr-defined]
+            _, headers = await _member(resources, migrated, workspace, "owner")
+            await holder.execute("SELECT 1 FROM core.projects WHERE id = $1 FOR UPDATE", project_id)
+
+            response = await api.patch(
+                f"{_projects(workspace)}/{project_id}", json={"name": "Renamed"}, headers=headers
+            )
+    finally:
+        await holder.close()
+
+    assert _problem(response) == (503, "query_timeout")

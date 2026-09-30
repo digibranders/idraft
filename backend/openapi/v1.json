@@ -3194,8 +3194,12 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
-                  "type": "string"
+                  "items": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "maxItems": 3,
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -3234,7 +3238,7 @@
         ]
       },
       "post": {
-        "description": "Counts against the workspace's project limit. A member limited to some projects cannot create one.",
+        "description": "Counts against the workspace's project limit, as every active or paused project does; an archived one does not. A member limited to some projects cannot create one.",
         "operationId": "create_project_api_v1_workspaces__workspace_id__projects_post",
         "parameters": [
           {
@@ -3339,7 +3343,7 @@
         ]
       },
       "patch": {
-        "description": "A new time zone applies to business dates from now on; dates already computed stay, and the response says so in `meta.warnings`.",
+        "description": "A new time zone applies to business dates from now on; dates already computed stay, and the response says so in `meta.warnings`. Bringing a project back from the archive needs a free slot in the workspace's project limit.",
         "operationId": "update_project_api_v1_workspaces__workspace_id__projects__project_id__patch",
         "parameters": [
           {

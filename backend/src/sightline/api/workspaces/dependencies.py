@@ -115,17 +115,20 @@ MemberAccess = Annotated[WorkspaceAccess, Depends(workspace_member)]
 
 
 def require_permission(
-    permission: Permission, *, fresh: bool = False
+    permission: Permission, *, fresh: bool = False, every_project: bool = False
 ) -> Callable[[WorkspaceAccess], WorkspaceAccess]:
     """A dependency for a route that needs `permission` in the path workspace.
 
+    With `every_project`, the member must not be limited to some of the workspace's projects.
     With `fresh`, the session must also have re-entered a credential in the last 10 minutes.
     """
 
-    @declare(AccessRule("permission", permission, fresh=fresh))
+    @declare(AccessRule("permission", permission, fresh=fresh, every_project=every_project))
     def check(access: MemberAccess) -> WorkspaceAccess:
         if not access.holds(permission):
             raise ForbiddenError
+        if every_project and access.project_ids is not None:
+            raise ForbiddenError("Not available to a member who is limited to some projects.")
         if fresh and not access.session.is_fresh(datetime.now(UTC)):
             raise FreshSessionRequiredError(reauth_url=REAUTH_URL)
         return access

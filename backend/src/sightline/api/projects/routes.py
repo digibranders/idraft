@@ -11,6 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import RequestValidationError
+from pydantic import StringConstraints
 
 from sightline.api.pagination import Offset, OffsetPageInfo
 from sightline.api.permissions import Permission
@@ -46,6 +47,10 @@ Projects = Annotated[ProjectService, Depends(get_project_service)]
 MayWriteProjects = Annotated[
     WorkspaceAccess, Depends(require_permission(Permission.PROJECTS_WRITE))
 ]
+# Someone limited to some projects could not see what they had just made.
+MayCreateProjects = Annotated[
+    WorkspaceAccess, Depends(require_permission(Permission.PROJECTS_WRITE, every_project=True))
+]
 
 
 def _project(record: ProjectRecord) -> Project:
@@ -80,18 +85,19 @@ def _project(record: ProjectRecord) -> Project:
 
 
 def status_filter(
-    value: Annotated[
-        str | None,
+    values: Annotated[
+        list[Annotated[str, StringConstraints(max_length=64)]] | None,
         Query(
             alias=_STATUS_FILTER,
-            max_length=64,
+            max_length=len(_STATUSES),
             description="Comma-separated statuses. Default: `active,paused`.",
         ),
     ] = None,
 ) -> frozenset[str]:
-    if value is None:
+    """The statuses to list. Given more than once, every value counts."""
+    if values is None:
         return _LISTED_BY_DEFAULT
-    wanted = frozenset(value.split(","))
+    wanted = frozenset(status for value in values for status in value.split(","))
     if not wanted <= _STATUSES:
         raise RequestValidationError(
             [
@@ -126,12 +132,12 @@ async def list_projects(
     status_code=201,
     summary="Create a project",
     description=(
-        "Counts against the workspace's project limit. A member limited to some projects "
-        "cannot create one."
+        "Counts against the workspace's project limit, as every active or paused project does; "
+        "an archived one does not. A member limited to some projects cannot create one."
     ),
 )
 async def create_project(
-    body: ProjectCreate, access: MayWriteProjects, projects: Projects, info: Info
+    body: ProjectCreate, access: MayCreateProjects, projects: Projects, info: Info
 ) -> ProjectResponse:
     record = await projects.create(
         access=access,
@@ -157,7 +163,8 @@ async def get_project(
     summary="Change a project",
     description=(
         "A new time zone applies to business dates from now on; dates already computed stay, "
-        "and the response says so in `meta.warnings`."
+        "and the response says so in `meta.warnings`. Bringing a project back from the archive "
+        "needs a free slot in the workspace's project limit."
     ),
 )
 async def update_project(

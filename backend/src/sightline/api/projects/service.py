@@ -9,13 +9,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.api import audit
-from sightline.api.problems import DuplicateError, ForbiddenError, NotFoundError, QuotaExceededError
+from sightline.api.problems import DuplicateError, NotFoundError, QuotaExceededError
 from sightline.api.projects import repository
 from sightline.api.projects.repository import ProjectRecord, ProjectSlugTakenError
 from sightline.api.request_info import RequestInfo
+from sightline.api.timezones import check_timezone
 from sightline.api.workspaces import repository as workspaces
 from sightline.api.workspaces.access import WorkspaceAccess
-from sightline.api.workspaces.service import check_timezone
 from sightline.db.engine import workspace_transaction
 
 
@@ -54,9 +54,6 @@ class ProjectService:
         default_language_code: str | None,
         info: RequestInfo,
     ) -> ProjectRecord:
-        if access.project_ids is not None:
-            # They could not see what they had just made.
-            raise ForbiddenError("A member limited to some projects cannot create one.")
         try:
             async with workspace_transaction(
                 self._sessions, access.workspace_id, user_id=access.user_id
@@ -68,15 +65,7 @@ class ProjectService:
                     timezone = workspace.timezone
                 else:
                     await check_timezone(db, timezone)
-                limit = await repository.lock_project_limit(db, access.workspace_id)
-                used = await repository.count_projects(db, access.workspace_id)
-                if used >= limit:
-                    raise QuotaExceededError(
-                        "The workspace has as many projects as its plan allows.",
-                        limit=limit,
-                        used=used,
-                        requested=1,
-                    )
+                await self._take_a_slot(db, access.workspace_id)
                 project_id = await repository.insert_project(
                     db,
                     workspace_id=access.workspace_id,
@@ -150,6 +139,9 @@ class ProjectService:
                 timezone = differing.get("timezone")
                 if isinstance(timezone, str):
                     await check_timezone(db, timezone)
+                if current.status == "archived" and "status" in differing:
+                    # Coming back from the archive takes a slot again.
+                    await self._take_a_slot(db, access.workspace_id)
                 await repository.update_project(
                     db,
                     workspace_id=access.workspace_id,
@@ -174,3 +166,17 @@ class ProjectService:
         if updated is None:  # pragma: no cover - the row was locked by this transaction
             raise NotFoundError
         return updated, "timezone" in differing
+
+    @staticmethod
+    async def _take_a_slot(db: AsyncSession, workspace_id: UUID) -> None:
+        """Refuse when the workspace has as many live projects as its limit. Archived projects
+        do not count, so archiving one frees a slot and reviving it needs one."""
+        limit = await repository.lock_project_limit(db, workspace_id)
+        used = await repository.count_projects(db, workspace_id)
+        if used >= limit:
+            raise QuotaExceededError(
+                "The workspace has as many projects as its plan allows. Archive one first.",
+                limit=limit,
+                used=used,
+                requested=1,
+            )

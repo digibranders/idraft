@@ -2,7 +2,8 @@
 
 `primary_domain`, `default_location_id`, the settings and the own entity are taken by later
 phases, when the tables they point at exist. Until then the first two are always null in a
-response and none of them is accepted in a request.
+response and none of them is accepted in a request. `deep_check_weekday` and `status` are
+stored and have no effect yet: the schedules they steer arrive with rank collection.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ ProjectStatus = Literal["active", "paused", "archived"]
 # ISO 639-1.
 LanguageCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2}$")]
 # 0 is Sunday.
-Weekday = Annotated[int, Field(ge=0, le=6)]
+Weekday = Annotated[int, Field(ge=0, le=6, strict=True)]
 
 
 class DomainRef(BaseModel):

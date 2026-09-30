@@ -11,6 +11,10 @@ from __future__ import annotations
 from typing import Annotated
 
 from pydantic import AfterValidator, StringConstraints
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from sightline.api.problems import invalid_field
 
 TIMEZONE_MAX = 64
 # `UTC`, or an area and one or two further parts: no bare words such as `localtime`, which are
@@ -49,3 +53,11 @@ Timezone = Annotated[
     StringConstraints(min_length=1, max_length=TIMEZONE_MAX, pattern=TIMEZONE_PATTERN),
     AfterValidator(current_name),
 ]
+
+_EXISTS = text("SELECT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = :name)")
+
+
+async def check_timezone(db: AsyncSession, timezone: str) -> None:
+    """Refuse a well-formed name PostgreSQL has no zone for, as a validation error on the field."""
+    if not (await db.execute(_EXISTS, {"name": timezone})).scalar_one():
+        raise invalid_field("timezone", code="timezone_unknown", message="Unknown time zone.")

@@ -117,7 +117,8 @@ async def get_project(
     statement = _projects(workspace_id).where(projects.c.id == project_id)
     if for_update:
         # FOR NO KEY UPDATE: a plain FOR UPDATE would wait for, and block, every insert of a row
-        # that references the project, which is every collected observation.
+        # that references the project, which is every collected observation. A change of slug
+        # still takes the stronger lock when it is written, because the slug is part of a key.
         statement = statement.with_for_update(of=projects, key_share=True)
     row = (await db.execute(statement)).one_or_none()
     return None if row is None else _project(row)
@@ -140,12 +141,17 @@ async def lock_project_limit(db: AsyncSession, workspace_id: UUID) -> int:
 
 
 async def count_projects(db: AsyncSession, workspace_id: UUID) -> int:
-    """Projects that count against the limit: every one that has not been deleted."""
+    """Projects that count against the limit: active and paused ones. An archived project
+    collects nothing, and a deleted one is gone."""
     count: int = (
         await db.execute(
             select(func.count())
             .select_from(projects)
-            .where(projects.c.workspace_id == workspace_id, projects.c.deleted_at.is_(None))
+            .where(
+                projects.c.workspace_id == workspace_id,
+                projects.c.deleted_at.is_(None),
+                projects.c.status != "archived",
+            )
         )
     ).scalar_one()
     return count

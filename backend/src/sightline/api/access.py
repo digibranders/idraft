@@ -29,6 +29,8 @@ class AccessRule:
     kind: AccessKind
     permission: Permission | None = None
     fresh: bool = False
+    # For a member who is not limited to some of the workspace's projects.
+    every_project: bool = False
 
     def __post_init__(self) -> None:
         if (self.kind == "permission") != (self.permission is not None):
@@ -66,7 +68,7 @@ def route_access(route: RouteContext) -> str | None:
     Takes a route as `fastapi.routing.iter_route_contexts(app.routes)` yields it: that is the
     route with the dependencies of every router it was included through. Every requirement is
     reported, so dropping one of two changes the label: the strictest kind, each permission,
-    and `fresh` when any dependency asks for it.
+    `every-project` and `fresh` when any dependency asks for them.
     """
     dependant = getattr(route, "dependant", None)
     if not isinstance(dependant, Dependant):
@@ -78,4 +80,6 @@ def route_access(route: RouteContext) -> str | None:
     base = " + ".join(permissions) or max(
         (rule.kind for rule in rules), key=_STRICTNESS.__getitem__
     )
+    if any(rule.every_project for rule in rules):
+        base = f"{base} every-project"
     return f"{base} fresh" if any(rule.fresh for rule in rules) else base
