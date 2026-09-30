@@ -48,6 +48,7 @@ const textBackgrounds = [
   'surface-subtle',
   'surface-elevated',
   'surface-hover',
+  'surface-elevated-hover',
   'surface-selected',
 ];
 const textTokens = [

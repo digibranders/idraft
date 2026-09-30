@@ -148,7 +148,7 @@ Scroll containers set `scroll-padding-top: var(--sticky-stack-height)`. The bulk
 | Event | Focus goes to | Returns to |
 |---|---|---|
 | Menu, select, popover opens | First item or the selected item (Base UI) | Trigger on close |
-| Modal dialog opens | First focusable field; for dialogs that open on a table or list, the dialog title (`tabindex="-1"`); for destructive confirmations, the least destructive button ("Cancel") | Trigger, or the next logical element if the trigger no longer exists (a deleted row: the row now at the same index, else the table) |
+| Modal dialog opens | The first field of the body; the Close button when the body has no field; what the caller names with `initialFocus` (the title, for a dialog that opens on a table or list); for destructive confirmations, the least destructive button ("Cancel") | Trigger. When the trigger no longer exists (a deleted row), the screen that closes the dialog moves focus itself: the row now at the same index, else the table |
 | Inspector opens (docked or overlay) | Inspector title (`h2`, `tabindex="-1"`) | Escape or the close button returns focus to the originating row cell |
 | Inspector record changes (next or previous record) | Stays on the control that changed it | n/a |
 | Mobile inspector sheet opens | Back button | The list row |

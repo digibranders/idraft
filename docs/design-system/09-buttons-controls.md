@@ -440,10 +440,10 @@ Base UI `Menu` (`Trigger`, `Portal`, `Positioner`, `Popup`, `Item`, `CheckboxIte
 
 | Part | Spec |
 |---|---|
-| Trigger | `Button` (any variant) with trailing `ChevronDown` 14 px in `text-foreground-muted`, or the `Ellipsis` `IconButton` "More actions". `data-popup-open` keeps the pressed background while open |
+| Trigger | `Button` (any variant) with trailing `ChevronDown` 14 px in `text-foreground-muted`, or the `Ellipsis` `IconButton` "More actions". `data-popup-open` keeps the pressed background while open (`surface-selected` for `secondary`, `subtle` and `ghost`, written in `buttonVariants`) |
 | Positioner | `sideOffset={4}`, `align="start"` (end for triggers at the right edge of a region), `z-(--z-dropdown)` |
-| Popup | `min-w-(--anchor-width) max-h-(--available-height) rounded-lg border border-border bg-surface-elevated p-1 shadow-popover`, entry and exit on `data-starting-style` and `data-ending-style`: opacity plus a 4 px translate from the open side, 150 ms in, 100 ms fade out ([21-motion.md](21-motion.md) section 4.1) |
-| Item | 32 px `h-8`, `px-2 gap-2 rounded-md type-body text-foreground`, leading icon 14 px, `data-highlighted:bg-surface-hover`, `focus-visible:focus-ring-inset` |
+| Popup | `min-w-menu-min max-w-menu-max` (180 to 280 px, content-sized, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 5.2), `max-h-[min(var(--size-popover-max-h),var(--available-height))] rounded-lg border border-border bg-surface-elevated p-1 shadow-popover`, entry and exit on `data-starting-style` and `data-ending-style`: opacity plus a 4 px translate from the open side, 150 ms in, 100 ms fade out ([21-motion.md](21-motion.md) section 4.1). The shared classes live in `ui/popup-styles.ts` |
+| Item | 32 px `h-8`, `px-2 gap-2 rounded-md type-body text-foreground`, leading icon 14 px, `data-highlighted:bg-surface-elevated-hover`, `focus-visible:focus-ring-inset` |
 | Shortcut | Right aligned `Kbd` (section 11) with `ml-auto pl-4` (16 px minimum gap from the label, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 5.2), never plain `type-kbd` text |
 | Checkbox and radio items | 16 px leading slot holding a 14 px `Check` (or 6 px dot for radio) when checked; the slot is reserved when unchecked so labels align |
 | Destructive item | Last, after a `Separator` (`my-1 h-px bg-border-subtle`), `text-negative-text`, leading icon in the same color |
@@ -468,7 +468,7 @@ Two sizes, one Base UI `Tabs` implementation (`Root`, `List`, `Tab`, `Indicator`
 | Height | 44 px (`h-tab`) including the 2 px indicator | 32 px (the segmented control `sm`, section 6) |
 | List | `flex gap-6 border-b border-border`: labels 24 px apart, and a 1 px bottom border runs across the whole tab row | Segmented group, hugging its items |
 | Tab | `h-tab type-body text-foreground-secondary` (14 px, weight 400), hover `text-foreground` | Segmented item |
-| Selected | `data-selected:text-primary-text` at weight 500 plus `Tabs.Indicator`: `absolute bottom-0 h-0.5 bg-primary left-(--active-tab-left) w-(--active-tab-width)`, no transition: the indicator moves to the new tab instantly ([21-motion.md](21-motion.md) sections 5 and 12) | Segmented selected |
+| Selected | `data-active:text-primary-text` at weight 500 (Base UI 1.8 marks the chosen tab with `data-active`) plus `Tabs.Indicator`: `absolute bottom-0 h-0.5 bg-primary left-(--active-tab-left) w-(--active-tab-width)`, no transition: the indicator moves to the new tab instantly ([21-motion.md](21-motion.md) sections 5 and 12) | Segmented selected |
 | Focus | `focus-visible:focus-ring-inset` | `focus-visible:focus-ring-inset` on the item (same as page tabs) |
 | Count | Inbox tabs only ([11-navigation.md](11-navigation.md) section 6): `type-micro` counter after the label, 6 px gap, `text-foreground-tertiary`, formatted with `formatCompact` | Not used |
 | Where | Section switches within a page (Keyword detail: Overview, SERP history, Competitors) and inspector sections ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.3) | Chart modes inside panels |

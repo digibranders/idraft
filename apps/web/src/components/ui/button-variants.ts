@@ -5,7 +5,8 @@ import { cva, type VariantProps } from 'class-variance-authority';
  * This module has no `'use client'`, so a Server Component can call it too.
  *
  * Hover and pressed fills are written for a button that is neither disabled nor loading: a loading button
- * keeps its resting look (08-interaction-states.md section 1 puts loading above hover).
+ * keeps its resting look (08-interaction-states.md section 1 puts loading above hover). A button that has
+ * opened a menu or a popover keeps the pressed fill while it is open (`data-popup-open`).
  */
 export const buttonVariants = cva(
   'relative inline-flex shrink-0 items-center justify-center gap-2 rounded-md border type-body-strong whitespace-nowrap transition-colors duration-(--duration-fast) ease-standard select-none focus-visible:focus-ring aria-busy:cursor-progress data-disabled:cursor-not-allowed',
@@ -15,11 +16,11 @@ export const buttonVariants = cva(
         primary:
           'border-transparent bg-primary text-primary-foreground not-aria-busy:not-data-disabled:hover:bg-primary-hover not-aria-busy:not-data-disabled:active:bg-primary-hover',
         secondary:
-          'border-border bg-surface text-foreground not-aria-busy:not-data-disabled:hover:bg-surface-hover not-aria-busy:not-data-disabled:active:bg-surface-selected',
+          'border-border bg-surface text-foreground not-aria-busy:not-data-disabled:hover:bg-surface-hover not-aria-busy:not-data-disabled:active:bg-surface-selected data-popup-open:bg-surface-selected not-aria-busy:not-data-disabled:data-popup-open:hover:bg-surface-selected',
         subtle:
-          'border-transparent bg-surface-subtle text-foreground not-aria-busy:not-data-disabled:hover:bg-surface-hover not-aria-busy:not-data-disabled:active:bg-surface-selected',
+          'border-transparent bg-surface-subtle text-foreground not-aria-busy:not-data-disabled:hover:bg-surface-hover not-aria-busy:not-data-disabled:active:bg-surface-selected data-popup-open:bg-surface-selected not-aria-busy:not-data-disabled:data-popup-open:hover:bg-surface-selected',
         ghost:
-          'border-transparent bg-transparent text-foreground-secondary not-aria-busy:not-data-disabled:hover:bg-surface-hover not-aria-busy:not-data-disabled:hover:text-foreground not-aria-busy:not-data-disabled:active:bg-surface-selected not-aria-busy:not-data-disabled:active:text-foreground',
+          'border-transparent bg-transparent text-foreground-secondary not-aria-busy:not-data-disabled:hover:bg-surface-hover not-aria-busy:not-data-disabled:hover:text-foreground not-aria-busy:not-data-disabled:active:bg-surface-selected not-aria-busy:not-data-disabled:active:text-foreground data-popup-open:bg-surface-selected data-popup-open:text-foreground not-aria-busy:not-data-disabled:data-popup-open:hover:bg-surface-selected',
         destructive:
           'border-negative-border bg-surface text-negative-text not-aria-busy:not-data-disabled:hover:bg-negative-subtle not-aria-busy:not-data-disabled:active:border-negative-solid not-aria-busy:not-data-disabled:active:bg-negative-subtle',
         'destructive-solid':

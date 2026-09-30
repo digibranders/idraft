@@ -327,8 +327,8 @@ Width is fixed per size and capped at the viewport width minus 32 px. No other w
 Rules:
 - Exactly one primary button. Its label is the verb and object: "Add competitor", "Import 1,204 keywords", "Delete 12 keywords". Never "OK", "Submit" or "Yes".
 - **No analytics inside dialogs**: no charts, no metric strips, no record tables, no inspectors. A dialog may show counts that inform the decision ("Matches 312 keywords", "Estimated cost $4.10 per month") with a link that opens the full view in a new tab.
-- A dialog never opens another dialog, with one exception: the discard or destructive AlertDialog may stack on top of a dialog (one level).
-- Server errors that are not tied to a field appear as a negative `Banner` at the top of the body ([18-notifications-alerts.md](18-notifications-alerts.md) section 4); field errors map to fields.
+- A dialog never opens another dialog, with one exception: the discard or destructive AlertDialog may stack on top of a dialog (one level). While it is open, the dialog under it is dimmed with the scrim color.
+- Server errors that are not tied to a field appear as a negative `FormAlert` (the region banner look) at the top of the body ([18-notifications-alerts.md](18-notifications-alerts.md) section 4); field errors map to fields.
 - On success the dialog closes and a success toast confirms the result, because the dialog that showed the task is gone ([18-notifications-alerts.md](18-notifications-alerts.md) section 3).
 
 ### 4.3 Focus, Escape and outside click
@@ -339,7 +339,7 @@ Rules:
 | Tab | Trapped inside the dialog (Base UI Dialog) | same |
 | Esc | Closes | Opens the discard AlertDialog |
 | Close button, Cancel | Closes | Opens the discard AlertDialog |
-| Click on the scrim | Closes | Ignored (no prompt, no animation) |
+| Click on the scrim | Closes | Ignored (no prompt, no animation). Focus stays where it was |
 | Browser back | Closes (the dialog does not add a history entry) | Discard AlertDialog |
 | On close | Focus returns to the trigger; if the trigger is gone, to the page `h1` | same |
 
@@ -410,14 +410,14 @@ Used for imports (keywords, first-party reports). Size large (720 px).
 | Height | Maximum `min(400 px, var(--available-height))`; the content region scrolls (Base UI ScrollArea), header and footer stay fixed |
 | Surface | `surface-elevated`, 1 px `border`, `rounded-lg` (8 px), `shadow-popover`, `--z-dropdown` (60). No arrow |
 | Padding | 12 px for list popovers (filters, column chooser); 16 px for text popovers (method definition) |
-| Positioning | Side `bottom`, align `start`, 4 px offset, `collisionPadding` 8 px; Base UI collision avoidance flips to the opposite side, then shifts along the edge. Transform origin from `--transform-origin` |
+| Positioning | Side `bottom`, align `start`, 4 px offset, `collisionPadding` 8 px; Base UI collision avoidance flips to the opposite side, then shifts along the edge; it never falls back to the side of the trigger (`POPUP_COLLISION`), and a popup that still does not fit is limited to the available height. Transform origin from `--transform-origin` |
 | Modality | Non-modal. Focus moves to the first focusable element (or the popup when none); Esc and outside click close; focus returns to the trigger |
 
 These limits match [05-layout-grid.md](05-layout-grid.md) section 4. Exception: the notification center popover ([18-notifications-alerts.md](18-notifications-alerts.md) section 5.2) is 380 px wide and up to 560 px tall. Exception: the `DateRangePicker` popover ([10-forms.md](10-forms.md) section 10.2) is 648 px wide (preset column plus two months). These two are the only documented exceptions to the popover size limits.
 
 Uses: filter editing ([13-filters-search.md](13-filters-search.md) owns the content), quick settings (density, chart options), the metric method popover from (i), column chooser, date range picker.
 
-Nesting: a popover may open one more floating layer (a Select list, a date picker, a Menu). That layer may not open anything further. A popover never opens a dialog; an action that needs a dialog closes the popover first.
+Nesting: a popover may open one more floating layer (a Select list, a date picker, a Menu). Inside a dialog or the navigation drawer, such a layer takes the z-index of what it is in (`--z-dropdown` is set to `--z-dialog` or `--z-drawer` on their portal), so it comes out above it. That layer may not open anything further. A popover never opens a dialog; an action that needs a dialog closes the popover first.
 
 ### 5.2 Menu
 
@@ -426,7 +426,7 @@ Nesting: a popover may open one more floating layer (a Select list, a date picke
 | Primitive | Base UI Menu (buttons), Base UI ContextMenu (right-click) |
 | Width | 180 to 280 px, content-sized |
 | Container | `surface-elevated`, 1 px `border`, `rounded-lg`, `shadow-popover`, 4 px padding, max height `min(400 px, var(--available-height))` with scroll |
-| Item | 32 px tall (the option row height shared with selects and comboboxes), 8 px horizontal padding, `rounded-md`, `type-body`; highlighted item `surface-hover` (`data-highlighted`) |
+| Item | 32 px tall (the option row height shared with selects and comboboxes), 8 px horizontal padding, `rounded-md`, `type-body`; highlighted item `surface-elevated-hover` (`data-highlighted`), with the inset focus ring when it has keyboard focus |
 | Item icon | 14 px (`size-icon-sm`), leading, `foreground-tertiary`, 8 px to the label. Either every item in a group has an icon or none does |
 | Shortcut hint | Right-aligned `Kbd` ([09-buttons-controls.md](09-buttons-controls.md) section 11), 16 px minimum gap from the label |
 | Group label | `type-meta`, 28 px row, not focusable |

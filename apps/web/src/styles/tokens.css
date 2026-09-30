@@ -24,6 +24,7 @@
   --surface-subtle: oklch(0.979 0.003 265);      /* #F7F8FA table header, quote boxes, wells */
   --surface-elevated: oklch(0.997 0.001 255);    /* popovers, menus, dialogs, chart tooltips (with shadow) */
   --surface-hover: oklch(0.963 0.003 255);       /* #F1F3F5 row and item hover */
+  --surface-elevated-hover: oklch(0.963 0.003 255); /* highlighted row inside a popover, menu or list */
   --surface-selected: oklch(0.957 0.019 263);    /* #EAF1FE selected row, active nav item, active segment */
   --surface-disabled: oklch(0.958 0.003 255);    /* disabled control fill */
 
@@ -159,6 +160,7 @@
   --surface-subtle: oklch(0.215 0.006 260);
   --surface-elevated: oklch(0.235 0.007 260);
   --surface-hover: oklch(0.245 0.007 260);
+  --surface-elevated-hover: oklch(0.285 0.007 260); /* one step above surface-elevated, as hover is above surface */
   --surface-selected: oklch(0.274 0.050 263);    /* #1A2740 selected row, active nav item */
   --surface-disabled: oklch(0.290 0.006 260);    /* lighter than surface-elevated so disabled buttons keep their shape on dialogs */
 

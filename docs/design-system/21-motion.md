@@ -222,7 +222,7 @@ Docking changes the width of the main column. Animating that width would re-layo
 }
 ```
 
-When a toast leaves, the remaining toasts move to their new stack positions with a `transform` transition of 150 ms. Toasts never slide in from off-screen.
+When a toast leaves, the remaining toasts take their new positions. The toasts are laid out in normal flow, so they move at once; an animated restack is not built (it would need Base UI's absolutely positioned stack, which the three-row list does not use). Toasts never slide in from off-screen.
 
 ## 5. Controls
 

@@ -342,8 +342,24 @@ Carried to later tasks: `disabledReason` on the selection controls, added togeth
 | `Combobox` | `ui/combobox.tsx` | 10 section 6.3 | Used by the project switcher |
 | `Tabs` | `ui/tabs.tsx` | 09 section 12 | `h-tab`, underline indicator |
 
-- [ ] Steps 1 to 5 for each row. Overlay tests cover: Escape closes and returns focus; the trigger carries `aria-expanded` and `aria-controls`; a modal dialog traps focus and a popover does not; the toast region is a polite live region and an error toast an assertive one.
-- [ ] Opus review, fixes, gates, commit "Add the overlay and feedback primitives".
+- [x] Steps 1 to 5 for each row. Overlay tests cover: Escape closes and returns focus; the trigger carries `aria-expanded` and `aria-controls`; a modal dialog traps focus and a popover does not; the toast region is a polite live region and an error toast an assertive one.
+- [x] Opus review, fixes, gates, commit "Add the overlay and feedback primitives".
+
+Done differently from the steps above, and why:
+
+- `Tooltip` was built in Task 4. This task adds `ui/popup-styles.ts`: the surface, the motion, the row and the collision rule every anchored popup shares, also used by `Select`.
+- Every label inside an overlay is a prop (`closeLabel`, `cancelLabel`, the `discard` copy of `Dialog`, the labels of `Toaster` and `Combobox`), because primitives cannot read the catalog. `common.notifications` is added for the toast region.
+- `ToastProvider` and `Toaster` are mounted in `AppProviders` and in the test render helper; `toast()` and `dismissToast()` work from anywhere through one toast manager.
+- `Drawer` is the navigation drawer only (from the left). The right-hand `SideDrawer` stays a later component.
+- `Combobox` has two forms: the text field of a form, and a button with the search field in the popup, which the project switcher of Task 13 uses.
+- `Menu` takes items as data and orders them itself: groups as given, destructive items last after a separator. It has `kind: 'link'` for items that navigate.
+- `buttonVariants` gained the pressed look for a button whose menu or popover is open.
+- An `overlays` section is added to the `/design-system` route.
+- A new color token, `--surface-elevated-hover`, marks the highlighted row of a popup: `surface-hover` is almost the color of a popup in the dark theme (25 section 23 row 107).
+- Popups opened inside a dialog or the drawer take its z-index, through `--z-dropdown` set on its portal (row 108).
+- jsdom does not run animation frames, run transitions or lay out, so the focus trap, the motion and the placement of popups are checked in the browser, not in unit tests. The unit tests check what causes them: the page outside a dialog is made inert, a popup opens on the documented side, and so on.
+
+Carried to later tasks: `Tabs.overflow` ("More tabs" below 1024 px) with the first page that has more tabs than fit; toasts aligned to the main column while the inspector is docked (Task 13 and the inspector plan); the dialog as a bottom-anchored sheet with a sticky 48 px header on phones follows 19 section 9 only in outline (full screen, scrolling body) and gets its final form with the mobile layout; 44 px menu rows on touch devices (19 section 9) with the mobile layout; `ContextMenu`, `Toggletip`, `PreviewCard` and `StepperDialog` belong to the plans of the screens that use them.
 
 ### Task 7: The `/design-system` route
 

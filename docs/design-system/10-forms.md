@@ -142,7 +142,7 @@ Base UI `Select` (`Root`, `Trigger`, `Value`, `Icon`, `Portal`, `Positioner`, `P
 | Trigger | Input classes, `flex items-center justify-between gap-2`, value in `type-body text-foreground`, placeholder ("Select a workload") in `text-foreground-tertiary`, trailing `ChevronDown` 14 px in `text-foreground-muted` |
 | Positioning | `alignItemWithTrigger={false}`: the list opens below the trigger with `sideOffset={4}`, like every other popover. Overlaying the trigger was rejected because it hides the label and the fields around it |
 | Popup | Same surface as a menu ([09-buttons-controls.md](09-buttons-controls.md) section 10): `min-w-(--anchor-width) max-h-(--available-height) rounded-lg border border-border bg-surface-elevated p-1 shadow-popover` |
-| Item | 32 px (`h-8`), `px-2 gap-2 rounded-md type-body`, `data-highlighted:bg-surface-hover`; 16 px leading slot with `Check` 14 px on the selected item |
+| Item | 32 px (`h-8`), `px-2 gap-2 rounded-md type-body`, `data-highlighted:bg-surface-elevated-hover`; 16 px leading slot with `Check` 14 px on the selected item |
 | Item with description | Label in `type-body`, second line `type-meta`; item height grows to fit (`py-1.5`) |
 
 Keyboard follows the APG select-only combobox: Enter, Space or arrows open; typing jumps by first letters; Enter selects; Escape closes without change.

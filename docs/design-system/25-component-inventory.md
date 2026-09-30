@@ -190,6 +190,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | ConflictDialog | Foundation | `app/shell/conflict-dialog.tsx` | V1 | 16 §4.4 |
 | StepperDialog | Foundation | `ui/stepper-dialog.tsx` | V1 | 16 §4.6 |
 | Sheet (Drawer) | Foundation | `ui/drawer.tsx` | V1 | 16 §2.6, 19 §9 |
+| Drawer | Foundation | `ui/drawer.tsx` | V1 | 19 §3.1 |
 | SideDrawer | Foundation | `ui/drawer.tsx` | Later | 16 §8 |
 | Tabs | Foundation | `ui/tabs.tsx` | V1 | 09 §12 |
 | TabNav | Foundation | `app/shell/tab-nav.tsx` | V1 | 09 §12 |
@@ -854,9 +855,11 @@ Purpose: short, focused interaction anchored to a control (filter editors, colum
 ```ts
 interface PopoverProps {
   trigger: React.ReactElement;
-  title?: string;                   // labels the popup
+  title?: string;                   // a visible heading that names the popup; without it pass aria-label
   padding?: 'list' | 'text';        // 12 or 16 px
-  width?: 'min' | 'max' | 'notifications' | 'date-range';  // 280, 360, 380, 648 px ('notifications' only for NotificationCenter, 18 §5.2; 'date-range' only for DateRangePicker, 10 §10.2)
+  width?: 'content' | 'min' | 'max' | 'notifications' | 'date-range';  // 'content' (default) sizes between 280 and 360 px; 280, 360, 380, 648 px ('notifications' only for NotificationCenter, 18 §5.2; 'date-range' only for DateRangePicker, 10 §10.2)
+  side?: 'bottom' | 'top' | 'left' | 'right';   // default 'bottom'
+  align?: 'start' | 'center' | 'end';           // default 'start'
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   children: Slot;
@@ -864,8 +867,8 @@ interface PopoverProps {
 }
 ```
 
-- **Variants:** `width` 3 values.
-- **States:** closed, open (150 ms enter, 100 ms exit, 4 px from the open side), collision flipped.
+- **Variants:** `width` 5 values.
+- **States:** closed, open (150 ms enter, 100 ms exit, 4 px from the open side), collision flipped to the opposite side and shifted along the edge; it never moves to the side of its trigger, and is limited to the available height when it still does not fit.
 - **A11y:** non-modal; focus moves to the first focusable element; Escape and outside click close; focus returns to the trigger; one nested floating layer at most.
 - **Use:** anything interactive under 400 px tall that belongs to a control.
 - **Not for:** record detail (`Inspector`), multi-step tasks (`Dialog`), commands (`Menu`), opening a dialog (close the popover first).
@@ -898,19 +901,20 @@ Purpose: a list of commands or single choices opened from a button.
 
 ```ts
 interface MenuItemDef {
-  id: string;
+  id: string;                       // for radio items also the value
   label: string;
   icon?: LucideIcon;                // either every item in a group has an icon or none
   shortcut?: readonly string[];
-  kind?: 'action' | 'checkbox' | 'radio' | 'submenu';
+  kind?: 'action' | 'checkbox' | 'radio' | 'submenu' | 'link';
   checked?: boolean;
   group?: string;                   // group label text
-  tone?: 'default' | 'destructive'; // destructive items go last after a separator
-  disabledReason?: string;          // replaces the shortcut hint; item stays focusable
+  tone?: 'default' | 'destructive'; // destructive items are listed last after a separator, wherever they are given
+  disabledReason?: string;          // replaces the shortcut hint and describes the item; the item stays focusable
   onSelect?: () => void;
+  link?: React.ReactElement;        // for kind 'link': <Link href="..." /> from components/app
   items?: readonly MenuItemDef[];   // one submenu level at most
 }
-interface MenuProps { trigger: React.ReactElement; items: readonly MenuItemDef[]; align?: 'start' | 'end' }
+interface MenuProps { trigger: React.ReactElement; items: readonly MenuItemDef[]; align?: 'start' | 'end'; open?: boolean; onOpenChange?: (open: boolean) => void }
 ```
 
 - **Variants:** none (180 to 280 px, 32 px items).
@@ -979,18 +983,20 @@ interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   size: 'sm' | 'md' | 'lg';         // 400, 560, 720 px
-  dirty?: boolean;                  // Escape, Close and Cancel open DiscardChangesDialog when true
-  initialFocus?: 'first-field' | 'title' | 'close';
+  dirty?: boolean;                  // Escape, Close and Cancel open DiscardChangesDialog when true; the scrim does nothing
+  discard?: { title: string; description: string; keepEditingLabel: string; discardLabel: string };   // required together with `dirty`
+  initialFocus?: React.RefObject<HTMLElement | null>;   // overrides the first field
   children: Slot;
 }
-interface DialogHeaderProps { title: string; description?: string }            // Close is a 32 px icon button
-interface DialogBodyProps { children: Slot }                                    // scrolls; server errors as a negative Banner at top
+interface DialogHeaderProps { title: string; description?: string; closeLabel: string }   // Close is a 32 px icon button
+interface DialogBodyProps { children: Slot }                                    // scrolls; server errors as a FormAlert at top
 interface DialogFooterProps { primary: Slot; secondary?: Slot; start?: Slot }   // start (left aligned): step "Back" (16 §4.6) or a destructive outline action in a non-destructive dialog (09 §2.6)
+function DialogClose(props: { children: React.ReactElement }): React.ReactElement;   // wraps "Cancel", so it closes the way Close does
 ```
 
 - **Variants:** `size` 3 values.
-- **States:** clean, dirty, submitting (primary loading), server error; full-screen sheet below 640 px.
-- **A11y:** modal dialog, `aria-modal`, `aria-labelledby` title; Tab trapped; Escape closes (or asks when dirty); focus returns to the trigger or the page `h1`.
+- **States:** clean, dirty, submitting (primary loading), server error; full-screen sheet below 640 px. The footer shows its top border only while the body is cut off below (`data-cut` on the body). While the discard question is open above it, the dialog is dimmed.
+- **A11y:** modal dialog named by its title; everything outside is hidden from assistive technology and focus guards send Tab back in; focus starts in the first field of the body that is shown and enabled, on Close when there is none, or where `initialFocus` says; Escape closes (or asks when dirty); focus returns to the trigger.
 - **Use:** add keywords, add competitor, edit prompt text, invite member, property picker.
 - **Not for:** analytics, charts, record tables or inspectors inside it; record detail (`Inspector`); confirmations (`ConfirmDialog`); a dialog opening another dialog (only the discard or destructive alert may stack).
 
@@ -1006,8 +1012,10 @@ interface ConfirmDialogProps {
   title: string;                    // "Delete 12 keywords?"
   description: string;              // what is lost, when, and the reversible alternative
   confirmLabel: string;             // repeats verb and count: "Delete 12 keywords"
-  onConfirm: () => Promise<void>;
-  typedConfirmation?: { value: string; label: string };  // project or workspace deletion only
+  cancelLabel: string;              // "Cancel"
+  onConfirm: () => Promise<void> | void;   // resolves: the dialog closes; rejects: it stays open and the caller passes `error`
+  error?: string | null;            // shown above the buttons as a FormAlert
+  typedConfirmation?: { expected: string; label: Slot };  // project or workspace deletion only
   tone?: 'destructive' | 'neutral'; // 'neutral' for session expiry ("Stay signed in")
 }
 ```
@@ -1025,12 +1033,12 @@ interface ConfirmDialogProps {
 Purpose: the typed-name field inside `ConfirmDialog` for irreversible project or workspace deletion.
 
 ```ts
-interface TypeToConfirmFieldProps { expected: string; value: string; onValueChange: (value: string) => void }
+interface TypeToConfirmFieldProps { expected: string; label: Slot; value: string; onValueChange: (value: string) => void }
 ```
 
-- **Variants:** none; label "Type {expected} to confirm" with `expected` in `type-mono`.
+- **Variants:** none; label "Type {expected} to confirm" with `expected` in `type-mono`. The caller passes the label as rich text from the catalog.
 - **States:** empty, mismatch, match (case-sensitive, trimmed).
-- **A11y:** labeled input; the confirm button's disabled reason names the mismatch.
+- **A11y:** labeled input; the label states what to type, and the confirm button stays disabled until it matches.
 - **Use:** only project and workspace deletion, followed by re-authentication.
 - **Not for:** any other deletion, including thousands of keywords (section 23, item 44).
 
@@ -1042,8 +1050,11 @@ Purpose: asks before unsaved edits are lost (dirty dialog, dirty inspector secti
 ```ts
 interface DiscardChangesDialogProps {
   open: boolean;
-  objectName: string;               // "Budgets", "this competitor"
-  onKeepEditing: () => void;
+  title: string;                    // "Discard unsaved changes?"
+  description: string;              // "Your changes to Budgets will be lost."
+  keepEditingLabel: string;         // "Keep editing"
+  discardLabel: string;             // "Discard changes"
+  onKeepEditing: () => void;        // also what Escape does
   onDiscard: () => void;
 }
 ```
@@ -1140,8 +1151,19 @@ interface SheetProps {
 - **Use:** only below the widths in 19 §9 and for the navigation drawer below 1024 px.
 - **Not for:** the docked or overlay inspector (a layout component, not a popup), desktop dialogs.
 
-### 3.37 SideDrawer
-`ui/drawer.tsx` · Later · [16 §8](16-drawers-dialogs-popovers.md)
+### 3.37 Drawer and SideDrawer
+`ui/drawer.tsx` · `Drawer` V1 · [19 §3.1](19-responsive-behavior.md) · `SideDrawer` Later · [16 §8](16-drawers-dialogs-popovers.md)
+
+`Drawer` is the navigation drawer below 1024 px: a modal panel from the left edge on Base UI `Drawer`, `min(280px, 100vw - 56px)` wide, `surface`, with a scrim.
+
+```ts
+interface DrawerProps { open: boolean; onOpenChange: (open: boolean) => void; title: string; children: Slot }   // title names it and is not shown
+```
+
+- **States:** closed, open (200 ms in, 150 ms out, from the left), swiping. **A11y:** modal, everything outside inert; Escape, a click on the scrim and a swipe to the left close it; focus returns to the button that opened it.
+- **Use:** the sidebar's contents on tablet and phone. **Not for:** record detail (`Inspector`), filters on phones (a bottom sheet).
+
+`SideDrawer` is the right-hand variant described below.
 
 Purpose: a 560 px modal right drawer above an open inspector for deep metric explanation.
 
@@ -1164,9 +1186,10 @@ interface TabsProps<TValue extends string> {
   label: string;                    // tablist name
   value: TValue;
   onValueChange: (value: TValue) => void;   // callers write ?tab= (page) or ?itab= (inspector)
-  items: ReadonlyArray<{ value: TValue; label: string; count?: string }>;   // count preformatted with formatCompact, underline only
-  overflow?: 'menu';                // below 1024 px: trailing "More tabs" button outside the tablist
+  items: ReadonlyArray<{ value: TValue; label: string; count?: string; disabled?: boolean }>;   // count preformatted with formatCompact, underline only
+  children: Slot;                   // one <TabsPanel value> per item
 }
+interface TabsPanelProps<TValue extends string> { value: TValue; children: Slot }
 ```
 
 - **Variants:** `variant` 2 values. Underline: 44 px row, labels `type-body` 24 px apart (`gap-6`), 1 px `border` bottom across the row. Segmented: the `SegmentedControl` styling (section 3.5).
@@ -1269,15 +1292,17 @@ interface ToastOptions {
   type: ToastType;
   title: string;                    // result first, past tense: "12 keywords archived"
   description?: string;             // at most 2 lines
-  action?: { label: string; onAction: () => void };   // at most one, 2 words
+  action?: { label: string; onAction: () => void };   // at most one, 2 words; using it closes the toast
 }
 declare function toast(options: ToastOptions): string;
-interface ToasterProps { placement: 'main-column' | 'mobile' }
+declare function dismissToast(id?: string): void;      // one toast, or all of them
+function ToastProvider(props: { children: Slot }): React.ReactElement;   // once, at the root
+interface ToasterProps { label: string; closeLabel: string }             // "Notifications", "Close"; once, inside the provider
 ```
 
 - **Variants:** none (360 px, `surface-elevated`, visible limit 3).
 - **States:** success and info dismiss after 6 s; toasts with an action and error toasts persist until dismissed (section 23, item 25); timers pause on hover, focus and hidden document; progress updates by id.
-- **A11y:** Base UI Toast region named "Notifications", reachable with F6; toasts never take focus; error assertive, others polite.
+- **A11y:** Base UI Toast region named "Notifications", reachable with F6; toasts never take focus; error assertive, others polite. The Close button is kept out of the accessibility tree until the pointer or focus is in the region (Base UI), so a screen reader does not hear "Close" after every toast; the action button is always exposed. Placement: bottom right at 360 px from 768 px up, across the bottom below; aligning to the main column while the inspector is docked arrives with the shell.
 - **Use:** dialog submitted and closed, reversible bulk actions with Undo, background jobs the user started, 429 retry countdown.
 - **Not for:** alert events, page conditions (`Banner`), validation or permission errors (inline), inline edits (visible in place), copy confirmation, warnings.
 
@@ -1483,16 +1508,24 @@ interface ComboboxProps<TItem> {
   itemToString: (item: TItem) => string;
   itemKey: (item: TItem) => string;
   groupOf?: (item: TItem) => string;
+  renderItem?: (item: TItem) => Slot;        // a richer row; the text stays the name of the option
   onQueryChange?: (query: string) => void;   // server mode: caller debounces 250 ms, min 2 characters, 50 results
   loading?: boolean;
+  loadingText?: string;                      // "Searching"
   emptyText: (query: string) => string;      // "No locations match "berl""
   placeholder: string;
+  clearLabel: string;                        // "Clear"
+  openLabel: string;                         // "Show options"
+  trigger?: React.ReactElement;              // a button opens the list and the search field sits inside the popup (a switcher)
+  triggerLabel?: string;                     // required with `trigger`: "Project: fynix.digital" (a combobox is not named by its content)
+  footer?: Slot;                             // under the list: "Create project"
+  size?: 'sm' | 'md' | 'lg'; disabled?: boolean; name?: string; required?: boolean;
 }
 ```
 
-- **Variants:** none (size follows context: `md` in forms).
+- **Variants:** `size` as `Input`; two forms chosen by `trigger`: a text field with the list below it (forms), or a button with the search inside the popup (`ProjectSwitcher`).
 - **States:** empty, typing, searching (32 px status row "Searching" after 300 ms, previous results kept), results, no results, value set (Clear button), invalid; unmatched text cleared on blur.
-- **A11y:** APG editable combobox; focus stays in the input with `aria-activedescendant`; Alt+Down, Alt+Up; result count announced after 500 ms.
+- **A11y:** APG editable combobox; focus stays in the input with `aria-activedescendant`; arrows open and move, Enter chooses, Escape closes; the loading and empty rows are in a status region. Announcing the result count is the caller's (`announce()`), since a primitive cannot reach the announcer. `inputRef`, `id`, `onBlur` and `aria-required` reach the text field for forms.
 - **Use:** location, domain, entity pickers.
 - **Not for:** several values (`MultiSelect`), short known lists (`Select`).
 
@@ -4966,3 +4999,19 @@ Disagreements between documents found while compiling this inventory. The resolu
 | 95 | Off switch on hover | 09 §8.3 gives the off track `border-strong` and `foreground-muted` on hover; in the light theme the two are almost the same color, so the hover shows nothing | Open: a token question for 02-color-system (a hover step for `border-strong`). The code follows 09 §8.3 |
 | 96 | Names of the one-time code cells | Every cell is named by the field label; Base UI ignores `aria-label` on the first cell and offers no position | Kept as Base UI does it. A screen reader hears the label on each cell and the group once |
 | 97 | `ErrorSummary` line | 10 §18 joined label and message with a colon inside the component | The label is heavier and the whole line is the link, so no punctuation is built into a primitive |
+| 98 | Text inside overlay primitives | Sections 3.29 to 3.32, 3.43 and 4.8 had the labels of Close, Cancel, the discard question and the toast region built in | Primitives cannot read the catalog, so every label is a prop: `closeLabel`, `cancelLabel`, the `discard` copy of `Dialog`, `label` and `closeLabel` of `Toaster`, `clearLabel` and `openLabel` of `Combobox` |
+| 99 | Which toasts show at the limit | 18 §3.1 said further toasts wait until one closes; Base UI shows the three newest and brings an older one back when there is room | Kept as Base UI does it: the newest result is the one the user just caused. 18 §3.1 corrected |
+| 100 | Popup collision | 16 §5.1 says flip, then shift; Base UI also falls back to the side of the trigger when neither fits | The side fallback is off for popovers, menus, selects and comboboxes (`POPUP_COLLISION` in `ui/popup-styles.ts`): a popup that does not fit is limited to the available height and scrolls |
+| 101 | `Dialog.initialFocus` | Section 3.29 had `initialFocus: 'first-field' | 'title' | 'close'` | No prop: focus goes to the first field of the body, or to Close when the body has none (16 §4.3) |
+| 102 | `ConfirmDialog.onConfirm` failing | Section 3.30 listed an error state without saying who shows it | When `onConfirm` rejects, the dialog stays open and the caller passes `error` |
+| 103 | `Menu` link items | Section 3.25 had no way to navigate from a menu item | `kind: 'link'` with `link` (the router's link element); the item is a `menuitem` that is an anchor |
+| 104 | `Combobox` as a switcher | 11 §8 describes the project switcher as "a combobox menu with search"; section 4.8 only had the text field form | `trigger` puts the search field inside the popup; the button is then a combobox and needs `triggerLabel` |
+| 105 | `Tabs.overflow` | Section 3.38 had `overflow?: 'menu'` for a "More tabs" button below 1024 px | Not built: no page in this plan has more tabs than fit. It arrives with the first page that needs it |
+| 106 | Pressed look of a button that has opened a popup | 09 §10 says `data-popup-open` keeps the pressed background; `buttonVariants` had no such state | `secondary`, `subtle` and `ghost` take `surface-selected` while `data-popup-open` is set |
+| 107 | Highlighted row in popups | 09 §10, 10 §6.2 and 16 §5.2 used `surface-hover`; on `surface-elevated` that is about 1.03:1 in the dark theme, so the row the keyboard is on could not be seen | New token `--surface-elevated-hover` (02): the same as `surface-hover` in light, one step above `surface-elevated` in dark. Rows also show the inset focus ring when they have keyboard focus |
+| 108 | Popups inside a dialog or the drawer | Positioners use `--z-dropdown` (60), dialogs 80 and the drawer 70, so a select, menu or popover opened inside one rendered behind it | The portal of `Dialog`, the alert dialogs and `Drawer` sets `--z-dropdown` to its own layer. 16 §5.1 says so |
+| 109 | Close button of a dialog | Section 3.29 made it an `IconButton`, whose tooltip opened when a dialog without fields put focus on it, and took the first Escape | A ghost icon button named by `aria-label`, without a tooltip |
+| 110 | `toast()` before the provider listens | Base UI's provider subscribes in an effect that runs after the effects of its children, so a toast from a mount effect was lost | `toast()` keeps such toasts and hands them over once the provider listens |
+| 111 | Toast restack motion and height | 21 §4.6 animated the restack; 18 §3.1 said 48 px | Toasts are in normal flow and move at once; a toast is 48 px of content plus its border. Both documents corrected |
+| 112 | Menu rows on touch | 19 §9 makes menu items 44 px tall when the device is touch-primary | Open: arrives with the mobile layout |
+| 113 | Dialog exit | The dialog left with the 8 px move it arrived with | It leaves by fading only, as 21 §4.3 says; scrims leave with `ease-exit` |

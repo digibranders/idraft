@@ -8,7 +8,8 @@
     "close": "Close",
     "retry": "Try again",
     "loading": "Loading",
-    "optional": "(optional)"
+    "optional": "(optional)",
+    "notifications": "Notifications"
   },
   "errors": {
     "notFound": {

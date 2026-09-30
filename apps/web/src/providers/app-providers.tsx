@@ -1,12 +1,13 @@
 'use client';
 
-import { Toast } from '@base-ui/react/toast';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
+import { useTranslations } from 'next-intl';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import type { ReactNode } from 'react';
 
 import { LiveRegions } from './live-regions';
+import { Toaster, ToastProvider } from '@/components/ui/toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { getQueryClient } from '@/lib/api/query-client';
 
@@ -21,6 +22,7 @@ const DEFAULT_THEME = 'system';
  * Server Component and hands the messages down.
  */
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>): ReactNode {
+  const t = useTranslations('common');
   return (
     // The theme changes at once: a color transition on every element would read as a flicker (21-motion.md).
     // The storage key is the app's own: the default, "theme", is shared with whatever else ran on this origin.
@@ -34,10 +36,13 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>): R
     >
       <QueryClientProvider client={getQueryClient()}>
         <NuqsAdapter>
-          <Toast.Provider>
-            <TooltipProvider>{children}</TooltipProvider>
+          <ToastProvider>
+            <TooltipProvider>
+              {children}
+              <Toaster label={t('notifications')} closeLabel={t('close')} />
+            </TooltipProvider>
             <LiveRegions />
-          </Toast.Provider>
+          </ToastProvider>
         </NuqsAdapter>
       </QueryClientProvider>
     </ThemeProvider>

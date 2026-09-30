@@ -57,7 +57,7 @@ Base UI Toast (shadcn `toast`, [research/09-frontend-stack.md](../../research/09
 |---|---|
 | Viewport | Bottom-right, 20 px from the right edge of the main column and the bottom of the viewport. When the inspector is docked, toasts align to the main column's right edge so they never cover the inspector footer. Below 768 px: bottom center, full width minus 24 px |
 | Width | 360 px |
-| Height | 48 px minimum (a 32 px action plus 8 px padding above and below); grows to two lines of description at most |
+| Height | 48 px of content minimum (a 32 px action plus 8 px padding above and below), 50 px with the border; grows to two lines of description at most |
 | Surface | `surface-elevated`, 1 px `border`, `rounded-lg`, `shadow-popover`, `--z-toast` (100) |
 | Padding, gap | 8 px vertical, 12 px horizontal; 8 px between icon, text and actions; 8 px between stacked toasts |
 | Icon | 16 px status icon, leading |
@@ -65,7 +65,7 @@ Base UI Toast (shadcn `toast`, [research/09-frontend-stack.md](../../research/09
 | Description | Optional, `type-meta`, `foreground-secondary`, at most 2 lines |
 | Action | At most one, a 32 px (`sm`) ghost button with a label of 2 words at most ("Undo", "View report", "Download") |
 | Close | `X`, 24 px icon button, always present |
-| Visible limit | **3**. Base UI `limit={3}`; further toasts wait until one closes. Newest at the bottom |
+| Visible limit | **3**. Base UI `limit={3}`: the three newest are shown, the newest at the bottom; an older one comes back when there is room again |
 
 ### 3.2 Types and durations
 

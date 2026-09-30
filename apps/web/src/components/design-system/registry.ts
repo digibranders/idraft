@@ -4,6 +4,7 @@ import { BadgesSection } from './badges-section';
 import { ButtonsSection } from './buttons-section';
 import { DisplaySection } from './display-section';
 import { FormsSection } from './forms-section';
+import { OverlaysSection } from './overlays-section';
 
 export interface PreviewSection {
   readonly slug: string;
@@ -15,6 +16,7 @@ export interface PreviewSection {
 export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'buttons', title: 'Buttons', render: ButtonsSection },
   { slug: 'forms', title: 'Forms', render: FormsSection },
+  { slug: 'overlays', title: 'Overlays and feedback', render: OverlaysSection },
   { slug: 'badges', title: 'Badges', render: BadgesSection },
   { slug: 'display', title: 'Icons and display', render: DisplaySection },
 ];

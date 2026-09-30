@@ -1,4 +1,3 @@
-import { Toast } from '@base-ui/react/toast';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
@@ -7,6 +6,7 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import type { ReactElement, ReactNode } from 'react';
 
 import messages from '../../messages/en.json';
+import { Toaster, ToastProvider } from '@/components/ui/toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { makeQueryClient } from '@/lib/api/query-client';
 import { LiveRegions } from '@/providers/live-regions';
@@ -33,11 +33,14 @@ export function renderWithProviders(
       <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
         <QueryClientProvider client={queryClient}>
           <NuqsTestingAdapter searchParams={searchParams}>
-            <Toast.Provider>
+            <ToastProvider>
               {/* No hover delay: a test waits for the tooltip, never for a timer */}
-              <TooltipProvider delay={0}>{children}</TooltipProvider>
+              <TooltipProvider delay={0}>
+                {children}
+                <Toaster label="Notifications" closeLabel="Close" />
+              </TooltipProvider>
               <LiveRegions />
-            </Toast.Provider>
+            </ToastProvider>
           </NuqsTestingAdapter>
         </QueryClientProvider>
       </NextIntlClientProvider>

@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 
 import { Icon } from './icon';
 import { inputVariants, type InputSize } from './input-variants';
+import { POPUP_COLLISION, POPUP_GROUP_LABEL, POPUP_ITEM, POPUP_MOTION, POPUP_SURFACE } from './popup-styles';
 import { cn } from '@/lib/utils';
 
 export interface SelectOption<TValue extends string> {
@@ -57,10 +58,7 @@ function Option<TValue extends string>({ option }: { option: SelectOption<TValue
       value={option.value}
       label={option.label}
       disabled={option.disabled}
-      className={cn(
-        'flex cursor-default items-start gap-2 rounded-md px-2 type-body text-foreground outline-none select-none data-disabled:text-foreground-disabled data-highlighted:bg-surface-hover',
-        option.description === undefined ? 'h-8 items-center' : 'py-1.5',
-      )}
+      className={cn(POPUP_ITEM, option.description !== undefined && 'h-auto items-start py-1.5')}
     >
       <span className="flex h-5 w-4 shrink-0 items-center justify-center">
         <SelectPrimitive.ItemIndicator className="flex">
@@ -128,11 +126,16 @@ export function Select<TValue extends string>({
           align="start"
           sideOffset={4}
           collisionPadding={8}
+          collisionAvoidance={POPUP_COLLISION}
           className="z-(--z-dropdown)"
         >
           <SelectPrimitive.Popup
             data-slot="select-popup"
-            className="max-h-(--available-height) min-w-(--anchor-width) overflow-y-auto rounded-lg border border-border bg-surface-elevated p-1 shadow-popover outline-none"
+            className={cn(
+              'max-h-(--available-height) min-w-(--anchor-width) overflow-y-auto p-1',
+              POPUP_SURFACE,
+              POPUP_MOTION,
+            )}
           >
             <SelectPrimitive.List>
               {grouped(options).map((group, index) =>
@@ -140,9 +143,7 @@ export function Select<TValue extends string>({
                   group.options.map((option) => <Option key={option.value} option={option} />)
                 ) : (
                   <SelectPrimitive.Group key={`${String(index)}:${group.name}`}>
-                    <SelectPrimitive.GroupLabel className="flex h-8 items-center px-2 type-meta">
-                      {group.name}
-                    </SelectPrimitive.GroupLabel>
+                    <SelectPrimitive.GroupLabel className={POPUP_GROUP_LABEL}>{group.name}</SelectPrimitive.GroupLabel>
                     {group.options.map((option) => (
                       <Option key={option.value} option={option} />
                     ))}

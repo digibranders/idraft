@@ -26,6 +26,7 @@ Why cobalt: it is serious and legible on both themes, distinct from the semantic
 | `--surface-subtle` | `0.979 0.003 265` | `#F7F8FA` | Table header, quote boxes, wells, code blocks (same tone as the canvas) |
 | `--surface-elevated` | `0.997 0.001 255` | `#FEFEFF` | Popovers, menus, dialogs, chart tooltips (with shadow) |
 | `--surface-hover` | `0.963 0.003 255` | `#F1F3F5` | Row and item hover |
+| `--surface-elevated-hover` | `0.963 0.003 255` | `#F1F3F5` | Highlighted row inside a popover, menu or list (the same value as `--surface-hover` in this theme) |
 | `--surface-selected` | `0.957 0.019 263` | `#EAF1FE` | Selected row, active nav item |
 | `--surface-disabled` | `0.958 0.003 255` | `#F0F1F3` | Disabled control fill |
 | `--foreground` | `0.204 0.011 261` | `#14171C` | Primary text and values |
@@ -59,7 +60,8 @@ Dark mode is designed as layered neutral surfaces: the sidebar is the darkest la
 | `--surface` | `0.195 0.006 260` | `#131518` | Panels, top bar, tables |
 | `--surface-subtle` | `0.215 0.006 260` | `#181A1C` | Table header, wells |
 | `--surface-elevated` | `0.235 0.007 260` | `#1C1E21` | Popovers, dialogs (plus 1 px border in the shadow token) |
-| `--surface-hover` | `0.245 0.007 260` | `#1E2124` | Hover |
+| `--surface-hover` | `0.245 0.007 260` | `#1E2124` | Hover on `surface` |
+| `--surface-elevated-hover` | `0.285 0.007 260` | `#282A2E` | Highlighted row inside a popover, menu or list: one step above `--surface-elevated`, as hover is one step above `surface`. `--surface-hover` is almost the color of a popup here and would not show |
 | `--surface-selected` | `0.274 0.050 263` | `#1A2740` | Selected row, active nav item (dark blue tint) |
 | `--surface-disabled` | `0.290 0.006 260` | `#2A2B2E` | Disabled. Lighter than `--surface-elevated` so a disabled button keeps its shape on dialogs and popovers |
 | `--foreground` | `0.945 0.004 255` | `#EBEDEF` | Primary text (not pure white) |
@@ -256,7 +258,7 @@ Every row below is a test in `tokens.contrast.test.ts`, run for each theme. The 
 | Pair type | Minimum | Tests per theme |
 |---|---|---|
 | Every color token inside the sRGB gamut | n/a | 1 |
-| Text (`foreground`, `-secondary`, `-tertiary`, `link`, `primary-text`, `positive-text`, `negative-text`, `warning-text`, `info-text`, `neutral-text`) on every surface (`background`, `surface`, `surface-subtle`, `surface-elevated`, `surface-hover`, `surface-selected`) | 4.5:1 | 60 |
+| Text (`foreground`, `-secondary`, `-tertiary`, `link`, `primary-text`, `positive-text`, `negative-text`, `warning-text`, `info-text`, `neutral-text`) on every surface (`background`, `surface`, `surface-subtle`, `surface-elevated`, `surface-hover`, `surface-elevated-hover`, `surface-selected`) | 4.5:1 | 70 |
 | Text (`foreground`, `-secondary`, `-tertiary`) on `sidebar` | 4.5:1 | 3 |
 | Non-text: `border-strong` (control outlines), `ring` (focus), `foreground-muted` (icons) on every surface | 3:1 | 18 |
 | Foreground on fill: `primary-foreground` on `primary` and `primary-hover`; `negative-button-foreground` on `negative-button` and `negative-button-hover`; each semantic `-text` on its own `-subtle` (positive, negative, warning, info); `primary-text` on `primary-subtle`; `neutral-text` on `neutral-subtle` | 4.5:1 | 10 |
