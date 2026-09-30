@@ -46,6 +46,8 @@ def test_a_wait_doubles_from_the_first_and_stops_at_its_cap() -> None:
     )
     waits = [patient.wait(attempts).total_seconds() for attempts in range(1, 9)]
     assert waits == [30, 60, 120, 240, 480, 900, 900, 900]
+    # However often: the doubling does not outgrow what a duration can hold.
+    assert patient.wait(5000) == timedelta(minutes=15)
     steady = Backoff(
         first=timedelta(seconds=5),
         cap=timedelta(seconds=5),
@@ -66,6 +68,9 @@ def test_a_task_waits_at_least_as_long_as_the_provider_asks_up_to_the_cap() -> N
     assert wait(timedelta(seconds=-5)) == timedelta(seconds=30)
     # A provider cannot park a task for a day.
     assert wait(timedelta(days=1)) == timedelta(minutes=15)
+    # Tasks told the same wait do not all come back in the same second.
+    spread = decide(K.RATE_LIMITED, attempts=1, jitter=0.5, retry_after=timedelta(seconds=90)).delay
+    assert spread == timedelta(seconds=99)
     # A task that is not tried again has no wait, whatever the provider said.
     ended = decide(K.RATE_LIMITED, attempts=6, jitter=0.0, retry_after=timedelta(seconds=90))
     assert (ended.status, ended.delay) == ("failed", None)

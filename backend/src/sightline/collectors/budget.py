@@ -16,20 +16,33 @@ from collections.abc import MutableMapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import TypedDict
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Table, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.db.tables import budgets, collection_runs, provider_cost_events
+from sightline.db.tables import (
+    budgets,
+    collection_runs,
+    collection_tasks,
+    provider_cost_events,
+)
 from sightline.domain.workloads import BudgetGroup, TaskWorkload, budget_group, cost_workloads
 
 _events = provider_cost_events
 _runs = collection_runs
+_tasks = collection_tasks
 
 # Spend already read in this tick: workspace, project (None for the whole workspace), group and
 # month. A dispatcher tick asks about many projects under the same budgets.
 SpendMemo = MutableMapping[tuple[UUID, UUID | None, BudgetGroup, date], Decimal]
+
+
+class _Scope(TypedDict):
+    workspace_id: UUID
+    project_id: UUID | None
+    group: BudgetGroup
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,41 +101,27 @@ async def _spent(
 
 
 async def _committed(
-    db: AsyncSession,
-    *,
-    workspace_id: UUID,
-    project_id: UUID | None,
-    group: BudgetGroup,
-    month: datetime,
+    db: AsyncSession, *, workspace_id: UUID, project_id: UUID | None, group: BudgetGroup
 ) -> Decimal:
     """What the runs under way in the budget's scope are still expected to spend: for each,
-    its estimate less what it has cost so far.
+    its estimate less what its tasks have cost so far.
 
     Without this a second run planned a minute after the first would see the budget almost
-    unspent, because the first has sent nothing yet, and both would be let through.
+    unspent, because the first has sent nothing yet, and both would be let through. Every run
+    under way counts, whenever its window began: what is left of a run that started on the
+    last evening of a month is spent in the new one.
     """
-    spent_by_run = (
-        select(_events.c.run_id, func.sum(_events.c.cost_usd).label("cost"))
-        .where(
-            _events.c.workspace_id == workspace_id,
-            _events.c.billing_period == month.date(),
-            _events.c.occurred_at >= month,
-            _events.c.run_id.is_not(None),
-        )
-        .group_by(_events.c.run_id)
-        .subquery("spent_by_run")
+    cost_so_far = (
+        select(func.coalesce(func.sum(_tasks.c.cost_usd), 0))
+        .where(_tasks.c.run_id == _runs.c.id)
+        .scalar_subquery()
     )
-    unspent = func.greatest(
-        func.coalesce(_runs.c.estimated_cost_usd, 0) - func.coalesce(spent_by_run.c.cost, 0), 0
-    )
+    unspent = func.greatest(func.coalesce(_runs.c.estimated_cost_usd, 0) - cost_so_far, 0)
     total: Decimal = (
         await db.execute(
-            select(func.coalesce(func.sum(unspent), 0))
-            .select_from(_runs.outerjoin(spent_by_run, spent_by_run.c.run_id == _runs.c.id))
-            .where(
+            select(func.coalesce(func.sum(unspent), 0)).where(
                 *_in_scope(_runs, workspace_id, project_id),
                 _runs.c.status == "running",
-                _runs.c.window_start >= month,
                 _runs.c.workload.in_(sorted(cost_workloads(group))),
             )
         )
@@ -145,8 +144,10 @@ async def check(
     With an `estimate`, a run is being planned: a budget blocks when the month's spend, plus
     what the runs under way are still expected to spend, plus the estimate would pass its
     limit. Planning in one workspace is made to wait its turn here, so two planners cannot
-    both see room for the same money. The run being planned is not yet `running` and is not
-    counted.
+    both see room for the same money. The turn is held until the caller's transaction ends,
+    and the wait for it is bounded by the connection's lock timeout: a caller that cannot get
+    its turn in time gets the database's lock error and tries again later. The run being
+    planned is not yet `running` and is not counted.
 
     With no estimate, tasks are about to be sent: a budget blocks when its limit is reached.
     `memo` keeps the spend read so far in a tick, which asks about many projects under the
@@ -186,7 +187,11 @@ async def check(
     for row in applicable.all():
         # A budget with no group covers everything, like `all`.
         covered = BudgetGroup.ALL if row.workload is None else BudgetGroup(row.workload)
-        scope = {"workspace_id": workspace_id, "project_id": row.project_id, "group": covered}
+        scope: _Scope = {
+            "workspace_id": workspace_id,
+            "project_id": row.project_id,
+            "group": covered,
+        }
         key = (workspace_id, row.project_id, covered, month.date())
         if memo is not None and key in memo:
             spent = memo[key]
@@ -199,7 +204,7 @@ async def check(
             expected = spent
             over = spent >= limit
         else:
-            expected = spent + await _committed(db, month=month, **scope) + estimate
+            expected = spent + await _committed(db, **scope) + estimate
             over = spent >= limit or expected > limit
         if expected >= limit * Decimal(row.soft_limit_pct) / 100:
             past_soft.append(row.id)

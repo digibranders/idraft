@@ -53,11 +53,16 @@ class Backoff:
     def wait(self, attempts: int) -> timedelta:
         """The wait after the `attempts`-th try failed, before jitter: `first` after the first
         failure, doubling from there if the policy doubles, and never more than `cap`."""
-        base = self.first * (2 ** (attempts - 1)) if self.doubles else self.first
-        return min(base, self.cap)
+        if not self.doubles:
+            return min(self.first, self.cap)
+        # Doubling stops at the cap; the exponent is bounded so a huge count cannot overflow.
+        doubled: int = 2 ** min(attempts - 1, _DOUBLINGS_MAX)
+        return min(self.first * doubled, self.cap)
 
 
 _MINUTE = timedelta(minutes=1)
+# 2 to this power times any first wait is past any cap.
+_DOUBLINGS_MAX = 32
 _PROVIDER_TROUBLE = Backoff(
     first=_MINUTE, cap=30 * _MINUTE, doubles=True, max_attempts=4, exhausted="dead"
 )
@@ -132,7 +137,9 @@ def decide(
     backoff = _BACKOFF[kind]
     if attempts >= backoff.max_attempts:
         return RetryDecision(status=backoff.exhausted, reduce_rate=backoff.reduce_rate)
-    delay = backoff.wait(attempts) * (1 + JITTER_SHARE * jitter)
+    spread = 1 + JITTER_SHARE * jitter
+    delay = backoff.wait(attempts) * spread
     if retry_after is not None:
-        delay = max(delay, min(retry_after, backoff.cap))
+        # Spread as well: tasks told the same wait would otherwise all come back together.
+        delay = max(delay, min(retry_after, backoff.cap) * spread)
     return RetryDecision(status="pending", delay=delay, reduce_rate=backoff.reduce_rate)

@@ -13,8 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
 from sightline.collectors.ledger import NewRun, NewTask, Trigger
+from sightline.collectors.registry import Plan, ScheduleWindow
+from sightline.domain.tasks import scheduled_for
 from sightline.domain.workloads import TaskWorkload
-from tests.api.auth.support import fetch, fetchrow, make_workspace
+from tests.api.auth.support import execute, fetch, fetchrow, make_workspace
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
 
@@ -26,6 +28,16 @@ NOW = datetime.now(UTC).replace(microsecond=0)
 class Project:
     workspace_id: uuid.UUID
     id: uuid.UUID
+
+
+async def empty_ledger(pg: PostgresServer) -> None:
+    """Remove every schedule, run, task, cost event and budget. Planning, claiming and
+    reconciling look at all of them, whoever made them."""
+    await execute(
+        pg,
+        "TRUNCATE ops.collection_tasks, ops.provider_cost_events, ops.collection_runs, "
+        "ops.schedules, ops.budgets CASCADE",
+    )
 
 
 async def make_tenant(pg: PostgresServer) -> Project:
@@ -221,3 +233,46 @@ async def make_budget(
     )
     budget_id: uuid.UUID = row["id"]
     return budget_id
+
+
+class FakeWorkload:
+    """Plans one task per subject, spread over the window, at a fixed price."""
+
+    name = TaskWorkload.SEO_RANK
+
+    def __init__(self, subjects: int = 3, *, price: str = "0.001") -> None:
+        self.subjects = subjects
+        self.price = Decimal(price)
+        self.windows: list[ScheduleWindow] = []
+        # Schedules this workload cannot plan.
+        self.broken: set[uuid.UUID] = set()
+
+    async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
+        if window.schedule_id in self.broken:
+            raise RuntimeError("the selector names a group that is gone")
+        self.windows.append(window)
+        tasks = [
+            NewTask(
+                subject_type="tracked_keyword",
+                subject_id=f"keyword-{number}",
+                engine_code=None,
+                location_id=2356,
+                replicate_index=1,
+                depth=20,
+                request_fingerprint=hashlib.sha256(f"keyword-{number}".encode()).digest(),
+                provider_code="fake",
+                provider_endpoint="serp",
+                scheduled_for=scheduled_for(
+                    window_start=window.window_start,
+                    subject_id=f"keyword-{number}",
+                    workload=window.workload,
+                    window_hours=window.window_hours,
+                ),
+            )
+            for number in range(self.subjects)
+        ]
+        return Plan(
+            tasks=tasks,
+            estimated_cost_usd=self.price * len(tasks),
+            config_snapshot={"adapter": "fake@1", "provider_mode": window.provider_mode},
+        )

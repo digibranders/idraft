@@ -46,8 +46,9 @@ for schedule in SELECT ... FROM ops.schedules
 
     BEGIN
       run = INSERT INTO ops.collection_runs (schedule_id, window_start, ...)
-            ON CONFLICT (schedule_id, window_start) DO NOTHING RETURNING id
-      if run is null: skip (already planned)
+            ON CONFLICT (schedule_id, window_start) WHERE trigger = 'schedule'
+            DO NOTHING RETURNING id
+      if run is null: move the schedule on and skip (already planned)
 
       subjects = resolve_selector(schedule)          -- keywords or prompt versions in scope, active only
       tasks    = expand(subjects, schedule)          -- engines x locations x replicates; depth per profile
@@ -62,7 +63,10 @@ for schedule in SELECT ... FROM ops.schedules
 ```
 
 - `next_occurrence` computes the next window start in the schedule's timezone (DST-safe, using the standard library `zoneinfo`).
-- If the worker was down and several occurrences were missed, only the **most recent** missed occurrence is planned (no catch-up storm); earlier ones are recorded as `ops.collection_runs` with status `cancelled` and reason `missed_window`, so gaps are visible.
+- Each schedule is planned in its own transaction, so one schedule that cannot be planned is logged, left as it was and tried again on the next tick, and the others go on. The budget check takes a turn per workspace (an advisory lock held to the end of the transaction); a schedule that does not get the turn within the lock timeout is left for the next tick, with the rest of its workspace.
+- Only schedules whose workload is registered with this worker and whose cadence has a rule (`daily`, `weekly`, `monthly`) are looked at. A schedule that names a project of another workspace than its own is never planned.
+- A schedule whose project is not collecting (paused, archived, deleted, or in a workspace that is not active) lets its windows pass: `next_run_at` moves on and no run is recorded, so nothing is spent and the schedule is at its next window when the project collects again.
+- If the worker was down and several occurrences were missed, only the **most recent** missed occurrence is planned (no catch-up storm); earlier ones are recorded as `ops.collection_runs` with status `cancelled` and reason `missed_window`, so gaps are visible. At most the 60 most recent missed windows of a schedule are recorded in one tick.
 
 ### 3.2 Selector resolution
 

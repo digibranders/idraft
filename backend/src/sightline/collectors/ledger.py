@@ -37,11 +37,14 @@ from sqlalchemy import (
     Select,
     SmallInteger,
     Text,
+    Uuid,
     and_,
     bindparam,
     case,
+    exists,
     func,
     literal,
+    literal_column,
     or_,
     select,
     true,
@@ -234,6 +237,28 @@ def _aware(now: datetime) -> datetime:
 
 
 _running_runs = select(_runs.c.id).where(_runs.c.status == "running")
+# Predicates of partial indexes, written out. As a bound parameter PostgreSQL cannot match one
+# to its index once the statement runs on a generic plan: the insert of a run then fails with
+# "no unique or exclusion constraint matching the ON CONFLICT specification", and the claim of
+# due tasks reads every partition from end to end.
+_SCHEDULED = _runs.c.trigger == literal_column("'schedule'")
+_PENDING = _tasks.c.status == literal_column("'pending'")
+
+
+def _scope_rows(scopes: Collection[Scope], budget_ids: Sequence[UUID] | None = None) -> Any:
+    """Scopes as a row set: one array per column, so a statement has the same text and the
+    same few parameters however many scopes there are. A list of thousands written into the
+    statement takes PostgreSQL seconds to plan."""
+    arrays = [
+        bindparam(None, [scope.project_id for scope in scopes], type_=ARRAY(Uuid)),
+        bindparam(None, [str(scope.workload) for scope in scopes], type_=ARRAY(Text)),
+    ]
+    names = ["project_id", "workload"]
+    if budget_ids is not None:
+        arrays.append(bindparam(None, list(budget_ids), type_=ARRAY(Uuid)))
+        names.append("budget_id")
+    return func.unnest(*arrays).table_valued(*names, name="scope").render_derived()
+
 
 # ---------------------------------------------------------------------------------------------
 # Runs
@@ -269,8 +294,7 @@ async def create_run(
             completed_at=_aware(now) if status == "cancelled" else None,
         )
         .on_conflict_do_nothing(
-            index_elements=["schedule_id", "window_start"],
-            index_where=_runs.c.trigger == "schedule",
+            index_elements=["schedule_id", "window_start"], index_where=_SCHEDULED
         )
         .returning(_runs.c.id)
     )
@@ -327,8 +351,9 @@ def _arrays(run_id: UUID, tasks: Sequence[NewTask]) -> Any:
 
 
 async def insert_tasks(db: AsyncSession, run_id: UUID, tasks: Sequence[NewTask]) -> int:
-    """Add the run's tasks, all `pending`. A task that is already there is left as it is, so a
-    second planning of the run adds nothing. Returns how many were new.
+    """Add the tasks of a run that is being planned, all `pending`. A task that is already
+    there is left as it is, so a second planning of the run adds nothing. A run that has been
+    started, or has ended, gets none. Returns how many were new.
 
     The run's row gives every task its workspace, project and workload, and the month of its
     window gives `created_at`: the ledger is partitioned by it and its unique constraint
@@ -359,7 +384,8 @@ async def insert_tasks(db: AsyncSession, run_id: UUID, tasks: Sequence[NewTask])
                     literal("pending"),
                 )
                 .select_from(_runs.join(item, true()))
-                .where(_runs.c.id == run_id),
+                # A run gets its tasks while it is being planned, and not after.
+                .where(_runs.c.id == run_id, _runs.c.status == "planned"),
             )
             .on_conflict_do_nothing(index_elements=["idempotency_key", "created_at"])
             .returning(_tasks.c.id)
@@ -420,30 +446,40 @@ async def sync_budget_holds(db: AsyncSession, holds: Mapping[Scope, UUID]) -> No
     holds it. Runs in those scopes are marked; a run that was marked and is no longer held is
     cleared, so the mark never outlives the hold.
     """
-    held_before = and_(_runs.c.status == "running", _runs.c.status_reason == _BUDGET_EXCEEDED)
-    scope = tuple_(_runs.c.project_id, _runs.c.workload)
-    still_held = scope.in_([(held.project_id, held.workload) for held in holds])
+    held = _scope_rows(list(holds), list(holds.values()))
+    in_scope = and_(held.c.project_id == _runs.c.project_id, held.c.workload == _runs.c.workload)
     await db.execute(
         update(_runs)
-        .where(held_before, ~still_held if holds else true())
+        .where(
+            _runs.c.status == "running",
+            _runs.c.status_reason == _BUDGET_EXCEEDED,
+            ~exists().where(in_scope),
+        )
         .values(status_reason=None, blocked_by_budget_id=None)
     )
-    by_budget: dict[UUID, list[tuple[UUID, TaskWorkload]]] = {}
-    for held, budget_id in holds.items():
-        by_budget.setdefault(budget_id, []).append((held.project_id, held.workload))
-    for budget_id, scopes in by_budget.items():
-        await db.execute(
-            update(_runs)
-            .where(
-                _runs.c.status == "running",
-                scope.in_(scopes),
-                _runs.c.blocked_by_budget_id.is_distinct_from(budget_id),
-            )
-            .values(
-                status_reason=_BUDGET_EXCEEDED,
-                blocked_by_budget_id=_budget_of_the_runs_workspace(budget_id),
-            )
+    if not holds:
+        return
+    await db.execute(
+        update(_runs)
+        .where(
+            in_scope,
+            _runs.c.status == "running",
+            or_(
+                _runs.c.status_reason.is_distinct_from(_BUDGET_EXCEEDED),
+                _runs.c.blocked_by_budget_id.is_distinct_from(held.c.budget_id),
+            ),
         )
+        .values(
+            status_reason=_BUDGET_EXCEEDED,
+            # The budget, if it is one of the run's own workspace.
+            blocked_by_budget_id=select(budgets.c.id)
+            .where(
+                budgets.c.id == held.c.budget_id,
+                budgets.c.workspace_id == _runs.c.workspace_id,
+            )
+            .scalar_subquery(),
+        )
+    )
 
 
 async def complete_finished_runs(db: AsyncSession, *, now: datetime) -> int:
@@ -502,7 +538,7 @@ async def complete_finished_runs(db: AsyncSession, *, now: datetime) -> int:
 def _due(now: datetime, paused_providers: Collection[str], held: Collection[Scope]) -> Any:
     """A task the dispatcher may send now. Used on tasks joined to their run."""
     conditions = [
-        _tasks.c.status == "pending",
+        _PENDING,
         _tasks.c.dispatched_at.is_(None),
         _tasks.c.scheduled_for <= now,
         or_(_tasks.c.next_attempt_at.is_(None), _tasks.c.next_attempt_at <= now),
@@ -512,23 +548,23 @@ def _due(now: datetime, paused_providers: Collection[str], held: Collection[Scop
     if paused_providers:
         conditions.append(_tasks.c.provider_code.not_in(paused_providers))
     if held:
+        scope = _scope_rows(held)
         conditions.append(
-            tuple_(_tasks.c.project_id, _tasks.c.workload).not_in(
-                [(scope.project_id, scope.workload) for scope in held]
+            ~exists().where(
+                scope.c.project_id == _tasks.c.project_id, scope.c.workload == _tasks.c.workload
             )
         )
     return and_(*conditions)
 
 
-async def due_scopes(
-    db: AsyncSession, *, now: datetime, paused_providers: Collection[str] = ()
-) -> list[Scope]:
+async def due_scopes(db: AsyncSession, *, now: datetime) -> list[Scope]:
     """Every project and workload with a task due now: what the dispatcher checks budgets for
-    before it claims anything."""
+    before it claims anything. Tasks of a paused provider count: a budget does not stop
+    holding because a provider is out."""
     rows = await db.execute(
         select(_tasks.c.workspace_id, _tasks.c.project_id, _tasks.c.workload)
         .select_from(_with_run)
-        .where(_due(_aware(now), paused_providers, ()))
+        .where(_due(_aware(now), (), ()))
         .distinct()
         .order_by(_tasks.c.workspace_id, _tasks.c.project_id, _tasks.c.workload)
     )
@@ -554,11 +590,14 @@ async def claim_due(
     """Lock and return the tasks that are due, oldest first, fairly across projects.
 
     Each project with due work gets an equal share of `limit`, at most `per_project`; what is
-    left over after that goes to the projects that still have more, in the same order. One
-    large project cannot use a whole tick while a small one waits. Tasks of a paused provider
-    and of a scope a budget holds back are left where they are, so they take nobody's share.
-    The rows stay locked until the transaction ends, and rows another dispatcher holds are
-    skipped.
+    left over after that goes to the projects that still have more, the one that has waited
+    longest first. One large project cannot use a whole tick while a small one waits. Tasks
+    of a paused provider and of a scope a budget holds back are left where they are, so they
+    take nobody's share. The rows stay locked until the transaction ends, and rows another
+    dispatcher holds are skipped.
+
+    Two statements, however many projects there are: one for the shares, one for the
+    leftover.
     """
     due = _due(_aware(now), paused_providers, held)
     oldest_first = (_tasks.c.scheduled_for, _tasks.c.id)
@@ -575,8 +614,8 @@ async def claim_due(
         return []
     share = max(1, min(per_project, limit // projects))
 
-    # First an equal share each, in one statement.
-    project = waiting.subquery("project")
+    # No more projects than the tick has room for, so no row is locked and then left out.
+    project = waiting.order_by("first_due", _tasks.c.project_id).limit(limit).subquery("project")
     fair = (
         _task_query()
         .where(due, _tasks.c.project_id == project.c.project_id)
@@ -590,32 +629,44 @@ async def claim_due(
         select(fair)
         .select_from(project.join(fair, true()))
         .order_by(project.c.first_due, project.c.project_id, fair.c.scheduled_for, fair.c.id)
-        .limit(limit)
     )
     claimed: dict[UUID, list[LedgerTask]] = {}
     for row in rows:
         task = _task(row)
         claimed.setdefault(task.project_id, []).append(task)
+    tasks = [task for taken in claimed.values() for task in taken]
 
     # Then the leftover, to the projects that had a full share and so may have more.
-    remaining = limit - sum(len(taken) for taken in claimed.values())
-    for project_id, taken in claimed.items():
-        take = min(per_project - len(taken), remaining)
-        if take <= 0 or len(taken) < share:
-            continue
-        # SKIP LOCKED passes over rows other transactions hold, not the ones this one took
-        # above, so those are named.
-        more = await db.execute(
-            _task_query()
-            .where(due, _tasks.c.project_id == project_id, ~_named([task.ref for task in taken]))
-            .order_by(*oldest_first)
-            .limit(take)
-            .with_for_update(of=_tasks, skip_locked=True)
+    remaining = limit - len(tasks)
+    more_for = [project_id for project_id, taken in claimed.items() if len(taken) == share]
+    if remaining > 0 and more_for and per_project > share:
+        turn = (
+            func.unnest(bindparam(None, more_for, type_=ARRAY(Uuid)))
+            .table_valued("project_id", with_ordinality="position", name="turn")
+            .render_derived()
         )
-        found = [_task(row) for row in more]
-        taken.extend(found)
-        remaining -= len(found)
-    tasks = [task for taken in claimed.values() for task in taken]
+        more = (
+            _task_query()
+            # SKIP LOCKED passes over rows other transactions hold, not the ones this one
+            # took above, so those are named.
+            .where(
+                due,
+                _tasks.c.project_id == turn.c.project_id,
+                ~_named([task.ref for task in tasks]),
+            )
+            .order_by(*oldest_first)
+            .limit(per_project - share)
+            .with_for_update(of=_tasks, skip_locked=True)
+            .correlate(turn)
+            .lateral("more")
+        )
+        rows = await db.execute(
+            select(more)
+            .select_from(turn.join(more, true()))
+            .order_by(turn.c.position, more.c.scheduled_for, more.c.id)
+            .limit(remaining)
+        )
+        tasks.extend(_task(row) for row in rows)
     return sorted(tasks, key=lambda task: (task.scheduled_for, task.ref.id))
 
 
@@ -695,7 +746,10 @@ async def mark_submitted(
             .values(
                 status="submitted",
                 provider_task_id=provider_task_id,
-                cost_usd=None if cost is None else cost.usd,
+                # A task sent again after its result expired has been paid for twice.
+                cost_usd=_tasks.c.cost_usd
+                if cost is None
+                else func.coalesce(_tasks.c.cost_usd, 0) + cost.usd,
                 dispatched_at=None,
                 next_attempt_at=None,
                 last_error_code=None,

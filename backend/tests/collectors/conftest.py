@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
-from tests.api.auth.support import execute
+from tests.collectors.support import empty_ledger
 from tests.conftest import BASE_URL, PostgresServer
 
 
@@ -16,13 +16,8 @@ from tests.conftest import BASE_URL, PostgresServer
 async def worker_db(
     migrated: PostgresServer, redis_url: str
 ) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    """Sessions as `app_worker`, the role the worker connects with. The ledger is emptied
-    first: claiming and reconciling look at every due task, whoever made it."""
-    await execute(
-        migrated,
-        "TRUNCATE ops.collection_tasks, ops.provider_cost_events, ops.collection_runs, "
-        "ops.schedules, ops.budgets CASCADE",
-    )
+    """Sessions as `app_worker`, the role the worker connects with, on an empty ledger."""
+    await empty_ledger(migrated)
     settings = Settings(
         process_role="worker",
         app_origin=BASE_URL,

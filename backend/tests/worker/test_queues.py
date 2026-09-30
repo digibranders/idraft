@@ -60,11 +60,14 @@ async def test_each_queue_runs_its_handlers_at_its_own_concurrency(
     peak = {"collect": 0, "process": 0}
     done: list[tuple[str, int]] = []
 
+    finish = asyncio.Event()
+
     def handler(queue: str):  # type: ignore[no-untyped-def]
         async def handle(message: Note) -> None:
             running[queue] += 1
             peak[queue] = max(peak[queue], running[queue])
-            await asyncio.sleep(0.1)
+            # Held until the test has seen how many run at once: no timing to get wrong.
+            await finish.wait()
             running[queue] -= 1
             done.append((queue, message.number))
 
@@ -72,6 +75,7 @@ async def test_each_queue_runs_its_handlers_at_its_own_concurrency(
 
     queues.register("collect", "call", handler("collect"))
     queues.register("process", "ingest", handler("process"))
+    full = {"collect": 8, "process": 4}
 
     async with _receiving(queues, collect=8, process=4):
         for number in range(20):
@@ -79,9 +83,14 @@ async def test_each_queue_runs_its_handlers_at_its_own_concurrency(
             assert await queues.enqueue(
                 "ingest", Note(number=number), dedupe_key=f"ingest:{number}"
             )
-        await eventually(lambda: len(done) == 40)
+        await eventually(lambda: running == full, within=30)
+        # With every slot busy and messages waiting, no further handler starts.
+        await asyncio.sleep(0.5)
+        assert running == full
+        finish.set()
+        await eventually(lambda: len(done) == 40, within=30)
 
-    assert peak == {"collect": 8, "process": 4}
+    assert peak == full
     assert sorted(done) == sorted(
         [("collect", n) for n in range(20)] + [("process", n) for n in range(20)]
     )

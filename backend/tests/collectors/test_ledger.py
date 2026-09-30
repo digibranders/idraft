@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
@@ -90,6 +91,28 @@ async def test_a_schedule_has_one_run_per_window(
     assert (row["workspace_id"], row["project_id"]) == (project.workspace_id, project.id)
     assert row["window_end"] - row["window_start"] == timedelta(hours=6)
     assert row["completed_at"] is None
+
+
+async def test_the_window_guard_holds_however_often_the_statement_has_run(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """After a few executions on one connection PostgreSQL plans a statement once for all
+    parameters. The guard must still be matched to its index then."""
+    project = await make_tenant(migrated)
+    schedule_id = await make_schedule(migrated, project)
+
+    async with worker_db() as db, db.begin():
+        made = [
+            await ledger.create_run(
+                db,
+                new_run(project, schedule_id=schedule_id, window_start=NOW + day * MINUTE),
+                now=NOW,
+            )
+            for day in (*range(12), 0)
+        ]
+
+    assert made[-1] is None
+    assert len(set(made[:-1])) == 12
 
 
 async def test_runs_without_a_schedule_do_not_stand_in_each_others_way(
@@ -201,6 +224,43 @@ async def test_a_task_takes_its_workspace_project_and_workload_from_its_runs_row
     )
 
 
+async def test_a_run_gets_its_tasks_while_it_is_planned_and_not_after(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """A task added to a run that is under way would be sent under an estimate that never
+    counted it; added to one that has ended, it would never be sent and never counted."""
+    project = await make_tenant(migrated)
+    running = await seed_run(worker_db, project, 1)
+    ended = await seed_run(worker_db, project, 1)
+    await _set_run(migrated, ended, "completed")
+
+    async with worker_db() as db, db.begin():
+        added = [
+            await ledger.insert_tasks(db, run_id, [new_task(7)]) for run_id in (running, ended)
+        ]
+
+    assert added == [0, 0]
+    assert len(await task_rows(migrated, running)) == 1
+
+
+async def test_the_month_of_a_task_is_the_utc_month_whatever_the_sessions_zone(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    # The last evening of last month in UTC, already this month in India.
+    window_start = partition_month(NOW) - timedelta(hours=4)
+
+    async with worker_db() as db, db.begin():
+        await db.execute(text("SET LOCAL TIME ZONE 'Asia/Kolkata'"))
+        run_id = await ledger.create_run(db, new_run(project, window_start=window_start), now=NOW)
+        assert run_id is not None
+        await ledger.insert_tasks(db, run_id, [new_task(0)])
+
+    (row,) = await task_rows(migrated, run_id)
+    assert row["created_at"] == partition_month(window_start)
+    assert row["created_at"] < partition_month(NOW)
+
+
 async def test_a_run_of_thousands_of_tasks_is_inserted(
     worker_db: Ledger, migrated: PostgresServer
 ) -> None:
@@ -297,8 +357,12 @@ async def test_a_running_run_says_which_budget_holds_it_back_for_as_long_as_it_d
             db, blocked, budget_id=budget_id, estimated_cost_usd=Decimal("5"), now=NOW
         )
         await ledger.sync_budget_holds(db, {_scope(project): budget_id})
-        # A second tick with the same holds changes nothing.
+    version = "SELECT xmin::text AS version FROM ops.collection_runs WHERE id = $1"
+    before = await fetch(migrated, version, held)
+    async with worker_db() as db, db.begin():
         await ledger.sync_budget_holds(db, {_scope(project): budget_id})
+    # A second tick with the same holds does not write the row again.
+    assert await fetch(migrated, version, held) == before
 
     row = await run_row(migrated, held)
     assert (row["status"], row["status_reason"], row["blocked_by_budget_id"]) == (
@@ -496,10 +560,11 @@ async def test_tasks_of_a_paused_provider_wait(worker_db: Ledger, migrated: Post
     await seed_run(worker_db, project, 3, provider="other")
 
     async with worker_db() as db:
-        scopes = await ledger.due_scopes(db, now=NOW, paused_providers=["dataforseo", "other"])
+        scopes = await ledger.due_scopes(db, now=NOW)
     claimed = await _claim(worker_db, paused_providers=["dataforseo"])
 
-    assert scopes == []
+    # A budget is checked for the scope whether or not its provider is out.
+    assert scopes == [_scope(project)]
     assert {task.provider_code for task in claimed} == {"other"}
     assert len(claimed) == 3
     assert len(await _claim(worker_db)) == 2
@@ -528,6 +593,62 @@ async def test_work_a_budget_holds_back_is_left_alone_and_takes_nobodys_share(
     assert len(claimed) == 3
     # Once the hold is gone the tasks are there, untouched.
     assert len(await _claim(worker_db)) == 6
+
+
+async def test_thousands_of_held_scopes_cost_the_claim_nothing(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """One agency workspace out of budget is a held scope per project and workload. Written
+    into the statement as a list, a few thousand of them took PostgreSQL longer to plan than
+    a statement is allowed to run; they are sent as arrays."""
+    project = await make_tenant(migrated)
+    held_run = await seed_run(worker_db, project, 2)
+    await seed_run(worker_db, project, 1, workload=TaskWorkload.AI_PROMPT)
+    elsewhere = [
+        Scope(workspace_id=uuid.uuid4(), project_id=uuid.uuid4(), workload=TaskWorkload.SEO_RANK)
+        for _ in range(5000)
+    ]
+    holds = dict.fromkeys([*elsewhere, _scope(project)], uuid.uuid4())
+
+    async with worker_db() as db, db.begin():
+        await asyncio.wait_for(ledger.sync_budget_holds(db, holds), timeout=5)
+    claimed = await asyncio.wait_for(_claim(worker_db, held=list(holds)), timeout=5)
+
+    assert [task.workload for task in claimed] == [TaskWorkload.AI_PROMPT]
+    assert (await run_row(migrated, held_run))["status_reason"] == "budget_exceeded"
+
+
+async def test_the_leftover_is_shared_without_waiting_for_another_dispatcher(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """The second statement of a claim, the one that hands out the leftover, skips the rows
+    another dispatcher holds just as the first does."""
+    large = await make_tenant(migrated)
+    small = await make_tenant(migrated)
+    await seed_run(worker_db, large, 30, scheduled_for=NOW - MINUTE)
+    await seed_run(worker_db, small, 2)
+    holding = asyncio.Event()
+    let_go = asyncio.Event()
+
+    async def first_dispatcher() -> list[LedgerTask]:
+        async with worker_db() as db, db.begin():
+            # A share of 5 each, then 3 more for the large project.
+            tasks = await ledger.claim_due(db, now=NOW, limit=10, per_project=8)
+            holding.set()
+            await let_go.wait()
+            return tasks
+
+    holder = asyncio.create_task(first_dispatcher())
+    await holding.wait()
+    try:
+        second = await asyncio.wait_for(_claim(worker_db, limit=10, per_project=8), timeout=10)
+    finally:
+        let_go.set()
+    first = await holder
+
+    by_project = [sum(task.project_id == large.id for task in tasks) for tasks in (first, second)]
+    assert ([len(first), len(second)], by_project) == ([10, 8], [8, 8])
+    assert not {task.ref for task in first} & {task.ref for task in second}
 
 
 async def test_a_run_that_is_no_longer_running_sends_nothing_more(
@@ -655,6 +776,27 @@ async def test_an_accepted_task_is_submitted_and_its_cost_recorded_once(
         "keyword-0",
     )
     assert event["billing_period"] == NOW.date().replace(day=1)
+
+
+async def test_a_task_sent_again_has_cost_what_both_submissions_cost(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """A result that expired at the provider is asked for again, and paid for again."""
+    (task,) = await _in_flight(worker_db, migrated)
+    async with worker_db() as db, db.begin():
+        await ledger.mark_submitted(db, task.ref, provider_task_id="first", cost=PAID, now=NOW)
+    # Back in a provider call, as after the retry policy sent it again.
+    await execute(migrated, "UPDATE ops.collection_tasks SET status = 'submit_unknown'")
+
+    async with worker_db() as db, db.begin():
+        assert await ledger.mark_submitted(
+            db, task.ref, provider_task_id="second", cost=PAID, now=NOW
+        )
+
+    (row,) = await task_rows(migrated, task.run_id)
+    assert (row["provider_task_id"], row["cost_usd"]) == ("second", Decimal("0.001200"))
+    events = await fetch(migrated, "SELECT cost_usd FROM ops.provider_cost_events")
+    assert [event["cost_usd"] for event in events] == [Decimal("0.000600")] * 2
 
 
 async def test_a_submission_whose_cost_is_not_known_yet_records_no_cost(
@@ -936,6 +1078,14 @@ async def test_tasks_dispatched_long_ago_are_offered_for_release(
 
     async with worker_db() as db, db.begin():
         stale = await ledger.stale_dispatches(db, older_than=10 * MINUTE, now=NOW)
+        # A second reconciler does not wait for the rows this one holds; it finds none.
+        async with worker_db() as other, other.begin():
+            assert (
+                await asyncio.wait_for(
+                    ledger.stale_dispatches(other, older_than=10 * MINUTE, now=NOW), timeout=10
+                )
+                == []
+            )
     # Finding them changes nothing.
     rows = {row["subject_id"]: row["dispatched_at"] for row in await task_rows(migrated, run_id)}
     assert rows["keyword-0"] is not None
