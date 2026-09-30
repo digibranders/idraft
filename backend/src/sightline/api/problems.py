@@ -138,6 +138,12 @@ class SecondFactorRequiredError(ProblemError):
     status, code, title = 403, "second_factor_required", "A two-factor code is required"
 
 
+class WorkspaceSuspendedError(ProblemError):
+    """A suspended workspace can be read and not changed."""
+
+    status, code, title = 403, "workspace_suspended", "Workspace is suspended"
+
+
 class RegistrationClosedError(ProblemError):
     status, code, title = 403, "registration_closed", "Registration is by invitation"
 

@@ -8,6 +8,9 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
+# What the audit log keeps of a user agent; ops.record_auth_event cuts at the same length.
+USER_AGENT_MAX = 512
+
 
 @dataclass(frozen=True, slots=True)
 class RequestInfo:
@@ -23,13 +26,16 @@ class RequestInfo:
 def request_info(
     *, client_host: str | None, user_agent: str | None, request_id: str | None
 ) -> RequestInfo:
-    """Build RequestInfo from what the server reports. An address that is not an IP is dropped."""
+    """Build RequestInfo from what the server reports. An address that is not an IP is dropped,
+    and a long user agent is cut."""
     ip: str | None = None
     if client_host is not None:
         try:
             ip = str(ipaddress.ip_address(client_host))
         except ValueError:
             ip = None
+    if user_agent is not None:
+        user_agent = user_agent[:USER_AGENT_MAX]
     return RequestInfo(ip=ip, user_agent=user_agent, request_id=request_id)
 
 

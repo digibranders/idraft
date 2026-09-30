@@ -4,6 +4,7 @@ The table is the contract. A new route must be added here with its access, and a
 access changes must change here too, so both show up in review.
 """
 
+import re
 from typing import Annotated
 
 import pytest
@@ -14,6 +15,7 @@ from fastapi.routing import APIRoute, iter_route_contexts
 from sightline.api.access import AccessRule, declare, public, route_access
 from sightline.api.main import create_app
 from sightline.api.openapi import placeholder_settings
+from sightline.api.pagination import _query_names
 from sightline.api.permissions import Permission
 
 EXPECTED: dict[tuple[str, str], str] = {
@@ -55,9 +57,8 @@ def _declared(app: FastAPI) -> dict[tuple[str, str], str | None]:
         assert isinstance(route.original_route, APIRoute), f"{route} is not an API route"
         assert route.path is not None
         assert route.methods
-        rule = route_access(route)
         for method in sorted(route.methods):
-            found[(method, route.path)] = None if rule is None else rule.label
+            found[(method, route.path)] = route_access(route)
     return found
 
 
@@ -67,15 +68,44 @@ def test_every_route_declares_who_may_call_it() -> None:
 
 
 def test_the_declared_access_is_the_documented_access() -> None:
-    assert _declared(create_app(placeholder_settings())) == EXPECTED
+    app = create_app(placeholder_settings())
+    assert _declared(app) == EXPECTED
+    # An override would replace a check without changing what the route declares.
+    assert app.dependency_overrides == {}
 
 
-def test_the_strictest_declaration_of_a_route_is_the_one_reported() -> None:
+def test_a_project_in_a_path_is_always_called_project_id() -> None:
+    """The membership dependency checks the project scope for a path parameter of that name."""
+    for route in iter_route_contexts(create_app(placeholder_settings()).routes):
+        assert route.path is not None
+        assert re.findall(r"/projects/\{(\w+)\}", route.path) in ([], ["project_id"]), route.path
+
+
+def test_no_router_adds_a_query_parameter_to_the_routes_it_includes() -> None:
+    """`reject_unknown_query` reads the parameters of the route itself. A dependency given to
+    `include_router` would declare one it cannot see."""
+    for route in iter_route_contexts(create_app(placeholder_settings()).routes):
+        assert isinstance(route.original_route, APIRoute)
+        assert set(_query_names(route.dependant)) == set(
+            _query_names(route.original_route.dependant)
+        ), route.path
+
+
+def test_every_requirement_of_a_route_is_reported() -> None:
     @declare(AccessRule("authenticated"))
     def signed_in() -> None: ...
 
+    @declare(AccessRule("authenticated", fresh=True))
+    def recently(_: Annotated[None, Depends(signed_in)]) -> None: ...
+
+    @declare(AccessRule("member"))
+    def member(_: Annotated[None, Depends(signed_in)]) -> None: ...
+
     @declare(AccessRule("permission", Permission.MEMBERS_MANAGE, fresh=True))
-    def manager(_: Annotated[None, Depends(signed_in)]) -> None: ...
+    def manager(_: Annotated[None, Depends(member)]) -> None: ...
+
+    @declare(AccessRule("permission", Permission.AUDIT_READ))
+    def auditor(_: Annotated[None, Depends(member)]) -> None: ...
 
     app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
 
@@ -85,19 +115,28 @@ def test_the_strictest_declaration_of_a_route_is_the_one_reported() -> None:
     @app.get("/managed", dependencies=[Depends(public)])
     def managed(_: Annotated[None, Depends(manager)]) -> None: ...
 
+    @app.get("/member-fresh", dependencies=[Depends(recently)])
+    def member_fresh(_: Annotated[None, Depends(member)]) -> None: ...
+
+    @app.get("/audited-fresh", dependencies=[Depends(recently)])
+    def audited_fresh(_: Annotated[None, Depends(auditor)]) -> None: ...
+
+    @app.get("/both", dependencies=[Depends(manager), Depends(auditor)])
+    def both() -> None: ...
+
     @app.get("/undeclared")
     def undeclared() -> None: ...
 
     # Not an API route, so it has no dependencies to declare anything with.
     app.add_route("/plain", lambda request: PlainTextResponse("ok"))
 
-    labels = {
-        route.path: None if (rule := route_access(route)) is None else rule.label
-        for route in iter_route_contexts(app.routes)
-    }
+    labels = {route.path: route_access(route) for route in iter_route_contexts(app.routes)}
     assert labels == {
         "/open": "public",
         "/managed": "members:manage fresh",
+        "/member-fresh": "member fresh",
+        "/audited-fresh": "audit:read fresh",
+        "/both": "audit:read + members:manage fresh",
         "/undeclared": None,
         "/plain": None,
     }

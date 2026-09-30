@@ -8,6 +8,7 @@ have no workspace and go through `ops.record_auth_event` instead (sightline.api.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import insert
@@ -17,6 +18,17 @@ from sightline.api.request_info import RequestInfo
 from sightline.db.tables import audit_logs
 
 type Snapshot = Mapping[str, str | int | bool | list[str] | None]
+AuditAction = Literal[
+    "workspace.created",
+    "workspace.updated",
+    "member.updated",
+    "member.removed",
+    "invitation.created",
+    "invitation.cancelled",
+    "invitation.accepted",
+    "project.created",
+    "project.updated",
+]
 
 
 async def record(
@@ -24,7 +36,7 @@ async def record(
     *,
     workspace_id: UUID,
     actor_id: UUID,
-    action: str,
+    action: AuditAction,
     target_type: str,
     target_id: UUID,
     info: RequestInfo,

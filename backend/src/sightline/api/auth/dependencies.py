@@ -13,6 +13,7 @@ from fastapi import Depends, Request, Response
 
 from sightline.api.access import AccessRule, declare
 from sightline.api.auth.sessions import ExpiredSession, SessionContext
+from sightline.api.pagination import reject_unknown_query
 from sightline.api.problems import (
     FreshSessionRequiredError,
     SessionExpiredError,
@@ -63,6 +64,8 @@ async def _load(request: Request, resources: Resources, *, allow_pending: bool) 
         raise UnauthenticatedError
     if context.state == "pending_totp" and not allow_pending:
         raise UnauthenticatedError("Two-factor verification is not complete.")
+    # After the session check, so an anonymous caller learns nothing about the route's parameters.
+    reject_unknown_query(request)
     return context
 
 
@@ -106,7 +109,8 @@ async def pending_or_active_session(
 async def optional_session(
     request: Request, resources: Annotated[Resources, Depends(get_resources)]
 ) -> AsyncIterator[SessionContext | None]:
-    """The session if the cookie names a live one, pending or active. Never refuses."""
+    """The session if the cookie names a live one, pending or active. Never refuses one."""
+    reject_unknown_query(request)
     token = session_token(request)
     context: SessionContext | None = None
     if token is not None:

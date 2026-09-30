@@ -12,9 +12,11 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from fastapi import Request
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import RouteContext
 
+from sightline.api.pagination import reject_unknown_query
 from sightline.api.permissions import Permission
 
 AccessKind = Literal["public", "authenticated", "member", "permission"]
@@ -32,12 +34,6 @@ class AccessRule:
         if (self.kind == "permission") != (self.permission is not None):
             raise ValueError("a permission rule names its permission, and no other rule does")
 
-    @property
-    def label(self) -> str:
-        """As the catalog in docs/19-api-specification.md writes it: `members:manage fresh`."""
-        base = self.kind if self.permission is None else self.permission.value
-        return f"{base} fresh" if self.fresh else base
-
 
 def declare[F: Callable[..., Any]](rule: AccessRule) -> Callable[[F], F]:
     """Mark a dependency with the access it enforces."""
@@ -50,8 +46,9 @@ def declare[F: Callable[..., Any]](rule: AccessRule) -> Callable[[F], F]:
 
 
 @declare(AccessRule("public"))
-def public() -> None:
-    """For a route that needs no session. It checks nothing: it states the decision."""
+async def public(request: Request) -> None:
+    """For a route that needs no session: it states the decision."""
+    reject_unknown_query(request)
 
 
 def _declared(dependant: Dependant) -> Iterator[AccessRule]:
@@ -62,11 +59,14 @@ def _declared(dependant: Dependant) -> Iterator[AccessRule]:
         yield from _declared(child)
 
 
-def route_access(route: RouteContext) -> AccessRule | None:
-    """The strictest rule among the route's dependencies, or None when it declares none.
+def route_access(route: RouteContext) -> str | None:
+    """What the route's dependencies require together, as the catalog in docs/19 writes it
+    (`members:manage fresh`), or None when it declares nothing.
 
     Takes a route as `fastapi.routing.iter_route_contexts(app.routes)` yields it: that is the
-    route with the dependencies of every router it was included through.
+    route with the dependencies of every router it was included through. Every requirement is
+    reported, so dropping one of two changes the label: the strictest kind, each permission,
+    and `fresh` when any dependency asks for it.
     """
     dependant = getattr(route, "dependant", None)
     if not isinstance(dependant, Dependant):
@@ -74,4 +74,8 @@ def route_access(route: RouteContext) -> AccessRule | None:
     rules = list(_declared(dependant))
     if not rules:
         return None
-    return max(rules, key=lambda rule: (_STRICTNESS[rule.kind], rule.fresh))
+    permissions = sorted({rule.permission.value for rule in rules if rule.permission is not None})
+    base = " + ".join(permissions) or max(
+        (rule.kind for rule in rules), key=_STRICTNESS.__getitem__
+    )
+    return f"{base} fresh" if any(rule.fresh for rule in rules) else base

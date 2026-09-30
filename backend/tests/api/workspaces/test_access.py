@@ -191,7 +191,9 @@ async def test_a_fresh_route_wants_a_recent_credential_from_someone_who_may_use_
     assert refused.json()["reauth_url"] == "/api/v1/me/reauthenticate"
     assert (await api.post(url, headers=fresh)).status_code == 200
     # Without the permission the answer is the same whether or not the session is fresh.
+    stale_admin = await _signed_in(resources, migrated, workspace, "admin")
     assert _problem(await api.post(url, headers=admin)) == (403, "forbidden")
+    assert _problem(await api.post(url, headers=stale_admin)) == (403, "forbidden")
 
 
 async def test_a_project_outside_the_members_scope_does_not_exist_for_them(
@@ -235,16 +237,68 @@ async def test_log_lines_of_a_workspace_request_name_the_workspace(
     stream = io.StringIO()
     configure_logging(service="api", version="test", level="info", stream=stream)
 
-    await api.get(f"{PROBE}/{workspace.id}/member", headers=headers)
+    foreign = uuid.uuid4()
+    await api.get(f"{PROBE}/{workspace.id}/log", headers=headers)
     await api.get(f"{PROBE}/{workspace.id}/boom", headers=headers)
+    await api.get(f"{PROBE}/{foreign}/member", headers=headers)
     await api.get("/api/v1/_probe/current", headers=headers)
 
     lines = [json.loads(line) for line in stream.getvalue().splitlines() if line.strip()]
     finished = [line for line in lines if line["msg"] == "request finished"]
+    # A refused attempt names the workspace that was tried, so a probe can be traced.
     assert [line.get("workspace_id") for line in finished] == [
         str(workspace.id),
         str(workspace.id),
+        str(foreign),
         None,
     ]
     (unhandled,) = [line for line in lines if line["msg"] == "unhandled exception"]
     assert unhandled["workspace_id"] == str(workspace.id)
+    (inside,) = [line for line in lines if line["msg"] == "inside the handler"]
+    assert inside["workspace_id"] == str(workspace.id)
+
+
+async def test_a_suspended_workspace_can_be_read_and_not_changed(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project_id = await make_project(migrated, workspace.id)
+    owner = await _signed_in(resources, migrated, workspace, "owner", fresh=True)
+    viewer = await _signed_in(resources, migrated, workspace, "viewer")
+    stranger = await _signed_in(resources, migrated)
+    await execute(
+        migrated, "UPDATE auth.workspaces SET status = 'suspended' WHERE id = $1", workspace.id
+    )
+    base = f"{PROBE}/{workspace.id}"
+
+    assert (await api.get(f"{base}/member", headers=owner)).status_code == 200
+    assert (await api.get(f"{base}/projects/{project_id}", headers=viewer)).status_code == 200
+    for response in (
+        await api.post(f"{base}/manage", json={"value": 1}, headers=owner),
+        await api.post(f"{base}/delete", headers=owner),
+        await api.patch(f"{base}/projects/{project_id}", headers=owner),
+        # Said before the permission is looked at: nobody can write, whatever their role.
+        await api.post(f"{base}/manage", json={"value": 1}, headers=viewer),
+    ):
+        assert _problem(response) == (403, "workspace_suspended")
+    # Someone outside still learns nothing.
+    outside = await api.post(f"{base}/manage", json={"value": 1}, headers=stranger)
+    assert _problem(outside) == (404, "not_found")
+
+
+async def test_the_workspace_is_only_ever_taken_from_the_path(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    headers = await _signed_in(resources, migrated, workspace)
+
+    malformed = await api.get(f"{PROBE}/not-an-id/member", headers=headers)
+    # A route that forgot the workspace in its path cannot be given one in the query.
+    forgotten = await api.get(
+        "/api/v1/_probe/no-workspace", params={"workspace_id": str(workspace.id)}, headers=headers
+    )
+
+    assert _problem(malformed) == (422, "validation_failed")
+    assert malformed.json()["errors"][0]["location"] == "path"
+    assert forgotten.status_code >= 400
+    assert "role" not in forgotten.text

@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 
 import httpx
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from redis.asyncio import Redis
 
 from sightline import __version__
@@ -21,7 +21,6 @@ from sightline.api.auth.totp import TotpCipher
 from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.document import router as document_router
 from sightline.api.health import router as health_router
-from sightline.api.pagination import reject_unknown_query
 from sightline.api.problems import register_problem_handlers
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
@@ -123,7 +122,6 @@ def create_app(
         docs_url=None,
         redoc_url=None,
         lifespan=lifespan,
-        dependencies=[Depends(reject_unknown_query)],
     )
     # Added last runs first: the request id is bound before the access log line is written, and
     # a request refused for its origin still gets both.

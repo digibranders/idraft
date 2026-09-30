@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
+import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -70,9 +71,20 @@ async def probe_project_write(
     return _describe(access)
 
 
+@workspace_probes.get(_WORKSPACE + "/log")
+async def probe_log(access: MemberAccess) -> dict[str, bool]:
+    structlog.get_logger("probe").info("inside the handler")
+    return {"ok": True}
+
+
 @workspace_probes.get(_WORKSPACE + "/boom")
 async def probe_workspace_boom(access: MemberAccess) -> None:
     raise RuntimeError("kaput")
+
+
+@workspace_probes.get("/no-workspace")
+async def probe_no_workspace(access: MemberAccess) -> dict[str, object]:
+    return _describe(access)
 
 
 @workspace_probes.get("/page", dependencies=[Depends(public)])
