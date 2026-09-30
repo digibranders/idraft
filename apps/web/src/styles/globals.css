@@ -317,6 +317,12 @@
   outline-offset: -2px;
 }
 
+/* InsufficientData (12 section 7.3): 1 px diagonal lines, 4 px apart, in border-subtle on surface-subtle. */
+@utility bg-insufficient {
+  background-color: var(--surface-subtle);
+  background-image: repeating-linear-gradient(45deg, var(--border-subtle) 0, var(--border-subtle) 1px, transparent 1px, transparent 4px);
+}
+
 @layer base {
   html {
     font-family: var(--font-sans-stack);
