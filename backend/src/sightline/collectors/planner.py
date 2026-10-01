@@ -96,6 +96,7 @@ async def _next_due(
         )
         .where(
             schedules.c.is_active,
+            schedules.c.deleted_at.is_(None),
             schedules.c.next_run_at <= now,
             schedules.c.workload.in_(sorted(registry.workloads)),
             # `cron` is reserved in the schema and has no rule yet.

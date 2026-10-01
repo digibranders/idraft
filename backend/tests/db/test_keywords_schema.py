@@ -200,7 +200,7 @@ async def test_a_term_of_another_workspace_cannot_be_assigned(
             )
 
 
-async def test_one_snapshot_per_keyword_location_language_source_and_fetch(
+async def test_one_snapshot_per_task(
     migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
 ) -> None:
     alpha, _ = tenants
@@ -208,20 +208,72 @@ async def test_one_snapshot_per_keyword_location_language_source_and_fetch(
         keyword_id = await _keyword(db, alpha)
         insert = (
             "INSERT INTO seo.keyword_metric_snapshots (workspace_id, keyword_id, location_id, "
-            "language_code, source, fetched_at, data_month, is_material_change) "
-            "VALUES ($1, $2, $3, 'en', 'dataforseo_labs', '2026-10-01T03:00:00Z', $4, true)"
+            "language_code, source, fetched_at, data_month, task_id, is_material_change) "
+            "VALUES ($1, $2, $3, 'en', 'dataforseo_labs', '2026-10-01T03:00:00Z', $4, $5, true)"
         )
-        await db.execute(insert, alpha.workspace_id, keyword_id, SEED_LOCATION, None)
-        with pytest.raises(asyncpg.UniqueViolationError):
-            await db.execute(insert, alpha.workspace_id, keyword_id, SEED_LOCATION, None)
+        await db.execute(insert, alpha.workspace_id, keyword_id, SEED_LOCATION, None, 7)
+        with pytest.raises(asyncpg.UniqueViolationError, match="one_per_task"):
+            await db.execute(insert, alpha.workspace_id, keyword_id, SEED_LOCATION, None, 7)
+        # Another task of the same call: same keyword and time, a second snapshot.
+        await db.execute(insert, alpha.workspace_id, keyword_id, SEED_LOCATION, None, 8)
         with pytest.raises(asyncpg.CheckViolationError):
             await db.execute(
-                insert.replace("03:00", "04:00"),
+                insert,
                 alpha.workspace_id,
                 keyword_id,
                 SEED_LOCATION,
                 date(2026, 9, 15),  # a data month is a month's first day
+                9,
             )
+
+
+async def test_the_current_row_names_a_snapshot_of_its_own_key(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    alpha, _ = tenants
+    async with connection(migrated) as db:
+        keyword_id = await _keyword(db, alpha)
+        other_snapshot: int = await db.fetchval(
+            "SELECT id FROM seo.keyword_metric_snapshots WHERE workspace_id = $1",
+            alpha.workspace_id,
+        )
+        with pytest.raises(asyncpg.ForeignKeyViolationError):
+            await db.execute(
+                "INSERT INTO seo.keyword_metrics_current (keyword_id, location_id, "
+                "language_code, source, workspace_id, snapshot_id, fetched_at) "
+                "VALUES ($1, $2, 'en', 'dataforseo_labs', $3, $4, now())",
+                keyword_id,
+                SEED_LOCATION,
+                alpha.workspace_id,
+                other_snapshot,
+            )
+
+
+async def test_a_tracked_keyword_names_a_schedule_of_its_own_project(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    alpha, _ = tenants
+    async with connection(migrated) as db:
+        other_project: uuid.UUID = await db.fetchval(
+            "INSERT INTO core.projects (workspace_id, name, slug) "
+            "VALUES ($1, 'Other', $2) RETURNING id",
+            alpha.workspace_id,
+            f"other-{_suffix()}",
+        )
+        sibling_schedule: uuid.UUID = await db.fetchval(
+            "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, "
+            "timezone, next_run_at) VALUES ($1, $2, 'seo_rank', 'x', 'daily', 'UTC', now()) "
+            "RETURNING id",
+            alpha.workspace_id,
+            other_project,
+        )
+        with pytest.raises(asyncpg.ForeignKeyViolationError):
+            await _tracked(
+                db, alpha, await _keyword(db, alpha), columns={"schedule_id": sibling_schedule}
+            )
+        await _tracked(
+            db, alpha, await _keyword(db, alpha), columns={"schedule_id": alpha.schedule_id}
+        )
 
 
 async def test_import_rows_split_a_both_device_row_in_two_parts(
@@ -234,12 +286,15 @@ async def test_import_rows_split_a_both_device_row_in_two_parts(
         )
         row = (
             "INSERT INTO seo.keyword_import_rows (import_id, row_no, part, workspace_id, raw, "
-            "outcome, action) VALUES ($1, 2, $2, $3, '{}', 'new', 'create')"
+            "device, outcome, action) VALUES ($1, 2, $2, $3, '{}', $4, 'new', 'create')"
         )
-        await db.execute(row, import_id, 1, alpha.workspace_id)
-        await db.execute(row, import_id, 2, alpha.workspace_id)
+        await db.execute(row, import_id, 1, alpha.workspace_id, "desktop")
+        # The second part of a `both` row is the mobile one.
         with pytest.raises(asyncpg.CheckViolationError):
-            await db.execute(row, import_id, 3, alpha.workspace_id)
+            await db.execute(row, import_id, 2, alpha.workspace_id, "desktop")
+        await db.execute(row, import_id, 2, alpha.workspace_id, "mobile")
+        with pytest.raises(asyncpg.CheckViolationError):
+            await db.execute(row, import_id, 3, alpha.workspace_id, "mobile")
 
 
 async def test_urls_are_global_and_the_api_adds_only_their_documented_columns(

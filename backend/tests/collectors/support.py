@@ -130,13 +130,14 @@ async def make_schedule(
     month_day: int | None = None,
     is_active: bool = True,
     selector: dict[str, Any] | None = None,
+    deleted_at: datetime | None = None,
 ) -> uuid.UUID:
     row = await fetchrow(
         pg,
         "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone, "
         "window_start_local, window_hours, weekday, month_day, priority, is_active, "
-        "next_run_at, selector) "
-        "VALUES ($1, $2, $3, 'Ranks', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb) "
+        "next_run_at, selector, deleted_at) "
+        "VALUES ($1, $2, $3, 'Ranks', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14) "
         "RETURNING id",
         project.workspace_id,
         project.id,
@@ -151,6 +152,7 @@ async def make_schedule(
         is_active,
         next_run_at,
         json.dumps(selector or {}),
+        deleted_at,
     )
     schedule_id: uuid.UUID = row["id"]
     return schedule_id

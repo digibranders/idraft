@@ -162,7 +162,10 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     ),
     "seo.keyword_import_rows": (
         access("SELECT", UPDATE=("action",)),
-        access("SELECT, INSERT, DELETE"),
+        access(
+            "SELECT, INSERT, DELETE",
+            UPDATE=("result", "tracked_keyword_id", "write_error_code"),
+        ),
     ),
     # A view read with the reader's rights (see the view test below).
     "core.project_domain_roles": (READ, NONE),
@@ -174,7 +177,11 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "ops.partitioned_tables": (NONE, NONE),
     # The worker creates a project's keyword metrics schedule when an import adds its first
     # tracked keyword.
-    "ops.schedules": (CRUD, access("SELECT, INSERT", UPDATE=("next_run_at", "last_run_id"))),
+    # Deleting a schedule sets `deleted_at`, so its runs keep naming it.
+    "ops.schedules": (
+        access("SELECT, INSERT, UPDATE"),
+        access("SELECT, INSERT", UPDATE=("next_run_at", "last_run_id")),
+    ),
     "ops.collection_runs": (
         access(
             "SELECT",

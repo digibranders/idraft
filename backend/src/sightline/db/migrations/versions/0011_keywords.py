@@ -13,7 +13,10 @@ choices (plan `docs/superpowers/plans/2026-10-01-keywords.md`):
   (D5), SERP ingest adds the rest. `core.url_remap` waits for its first writer.
 - Schedules now refer to their project through `(project_id, workspace_id)`, and runs to their
   schedule through `(schedule_id, workspace_id)`: routes write schedules from this revision on
-  (docs/review-log.md F66).
+  (docs/review-log.md F66). A tracked keyword names a schedule of its own project. A schedule
+  is deleted by setting `deleted_at`, so its runs keep naming it.
+- Snapshots are unique per task, so ingest can run twice; import rows record what writing
+  them did.
 - The price book gets the verified DataForSEO Labs prices (docs/27-cost-model.md section 1), used
   for estimates only.
 
@@ -52,8 +55,11 @@ CREATE TABLE core.urls (
 
 CREATE INDEX urls_domain_id ON core.urls (domain_id);
 
+-- A deleted schedule keeps its row, so its runs keep naming it (docs/19 section 3.11.3).
 ALTER TABLE ops.schedules
+    ADD COLUMN deleted_at timestamptz,
     ADD CONSTRAINT schedules_id_workspace_id_key UNIQUE (id, workspace_id),
+    ADD CONSTRAINT schedules_id_project_id_workspace_id_key UNIQUE (id, project_id, workspace_id),
     DROP CONSTRAINT schedules_project_id_fkey,
     ADD CONSTRAINT schedules_project_id_workspace_id_fkey
         FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id)
@@ -63,6 +69,14 @@ ALTER TABLE ops.collection_runs
     DROP CONSTRAINT collection_runs_schedule_id_fkey,
     ADD CONSTRAINT collection_runs_schedule_id_workspace_id_fkey
         FOREIGN KEY (schedule_id, workspace_id) REFERENCES ops.schedules(id, workspace_id);
+
+-- A project's runs, newest first, and its manual runs of a day (the manual run limit).
+CREATE INDEX collection_runs_project_created
+    ON ops.collection_runs (project_id, created_at DESC, id);
+
+-- A subject's recent tasks of a workload: the new-keyword metrics tick skips keywords that had
+-- one in the last day, finished or not, so a failing keyword is not paid for every minute.
+CREATE INDEX collection_tasks_subject ON ops.collection_tasks (workload, subject_id, created_at);
 
 CREATE TABLE seo.keywords (
     id               uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -117,7 +131,9 @@ CREATE TABLE seo.tracked_keywords (
         ON DELETE CASCADE,
     FOREIGN KEY (keyword_id, workspace_id, language_code)
         REFERENCES seo.keywords(id, workspace_id, language_code),
-    FOREIGN KEY (schedule_id, workspace_id) REFERENCES ops.schedules(id, workspace_id)
+    -- A schedule of the same project.
+    FOREIGN KEY (schedule_id, project_id, workspace_id)
+        REFERENCES ops.schedules(id, project_id, workspace_id)
 );
 
 CREATE INDEX tracked_keywords_live_project ON seo.tracked_keywords (project_id)
@@ -244,9 +260,13 @@ CREATE TABLE seo.keyword_metric_snapshots (
     task_id             bigint,
     cost_event_id       bigint,
     is_material_change  boolean NOT NULL,
-    CONSTRAINT keyword_metric_snapshots_one_per_fetch
-        UNIQUE (keyword_id, location_id, language_code, source, fetched_at),
+    -- One snapshot per task, so ingesting a task twice writes one row; two tasks of one call
+    -- for the same keyword (a manual refresh and the monthly run) write two.
+    CONSTRAINT keyword_metric_snapshots_one_per_task UNIQUE (task_id),
     UNIQUE (id, workspace_id),
+    -- What the current row refers to, so it names a snapshot of its own key.
+    CONSTRAINT keyword_metric_snapshots_current_key
+        UNIQUE (id, workspace_id, keyword_id, location_id, language_code, source),
     FOREIGN KEY (keyword_id, workspace_id, language_code)
         REFERENCES seo.keywords(id, workspace_id, language_code) ON DELETE CASCADE
 );
@@ -270,8 +290,9 @@ CREATE TABLE seo.keyword_metrics_current (
     PRIMARY KEY (keyword_id, location_id, language_code, source),
     FOREIGN KEY (keyword_id, workspace_id, language_code)
         REFERENCES seo.keywords(id, workspace_id, language_code) ON DELETE CASCADE,
-    FOREIGN KEY (snapshot_id, workspace_id)
-        REFERENCES seo.keyword_metric_snapshots(id, workspace_id) ON DELETE CASCADE
+    FOREIGN KEY (snapshot_id, workspace_id, keyword_id, location_id, language_code, source)
+        REFERENCES seo.keyword_metric_snapshots(id, workspace_id, keyword_id, location_id,
+                                                language_code, source) ON DELETE CASCADE
 );
 
 CREATE TABLE seo.keyword_imports (
@@ -311,7 +332,7 @@ CREATE TABLE seo.keyword_import_rows (
     keyword_text                 text,
     normalized_text              text,
     language_code                text,
-    device                       text,
+    device                       text CHECK (device IN ('desktop','mobile')),
     location_id                  integer,
     outcome                      text NOT NULL
                                  CHECK (outcome IN ('new','duplicate','variant','conflict',
@@ -321,7 +342,12 @@ CREATE TABLE seo.keyword_import_rows (
     existing_tracked_keyword_id  uuid,
     action                       text NOT NULL
                                  CHECK (action IN ('create','skip','merge','force_separate')),
+    -- What writing the row did: the report says which rows failed and what each one became.
+    result                       text CHECK (result IN ('created','skipped','merged','failed')),
+    tracked_keyword_id           uuid,
+    write_error_code             text,
     PRIMARY KEY (import_id, row_no, part),
+    CHECK (part = 1 OR device IS NOT DISTINCT FROM 'mobile'),
     FOREIGN KEY (import_id, workspace_id)
         REFERENCES seo.keyword_imports(id, workspace_id) ON DELETE CASCADE
 )
@@ -463,6 +489,14 @@ def upgrade() -> None:
         column_grant(
             "seo.keyword_import_rows", role="app_api", privilege="UPDATE", columns=("action",)
         ),
+        column_grant(
+            "seo.keyword_import_rows",
+            role="app_worker",
+            privilege="UPDATE",
+            columns=("result", "tracked_keyword_id", "write_error_code"),
+        ),
+        # A schedule is deleted by setting `deleted_at`: its runs keep naming it.
+        "REVOKE DELETE ON ops.schedules FROM app_api",
     ]
     for statement in script:
         op.execute(statement)
@@ -486,12 +520,16 @@ def downgrade() -> None:
         "ADD CONSTRAINT collection_runs_schedule_id_fkey "
         "FOREIGN KEY (schedule_id) REFERENCES ops.schedules(id)"
     )
+    op.execute("DROP INDEX ops.collection_tasks_subject, ops.collection_runs_project_created")
     op.execute(
         "ALTER TABLE ops.schedules DROP CONSTRAINT schedules_project_id_workspace_id_fkey, "
         "ADD CONSTRAINT schedules_project_id_fkey FOREIGN KEY (project_id) "
         "REFERENCES core.projects(id) ON DELETE CASCADE, "
-        "DROP CONSTRAINT schedules_id_workspace_id_key"
+        "DROP CONSTRAINT schedules_id_project_id_workspace_id_key, "
+        "DROP CONSTRAINT schedules_id_workspace_id_key, "
+        "DROP COLUMN deleted_at"
     )
+    op.execute("GRANT DELETE ON ops.schedules TO app_api")
     op.execute("REVOKE INSERT ON ops.schedules FROM app_worker")
     op.execute("REVOKE INSERT ON core.taxonomy_terms FROM app_worker")
     op.execute("REVOKE SELECT ON core.taxonomy_terms, core.taxonomy_vocabularies FROM app_worker")

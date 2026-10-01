@@ -623,7 +623,10 @@ Taxonomy terms attach to `tracked_keywords` rather than `keywords` because a wor
 - **Workspace keys.** Every one carries `workspace_id`, the link tables too (`tracked_keyword_config_history`, `keyword_group_members`, `tracked_keyword_terms`, `tracked_keyword_competitors`, `keyword_metrics_current`, `keyword_import_rows`). Each refers to its parents through keys that include it, so row-level security covers them and no row can point into another workspace.
 - **Same project.** A group member and a group's parent carry `project_id` as well, so a group and its members stay in one project.
 - **Language.** A tracked keyword's `language_code` is its keyword's: the key to `seo.keywords` is `(keyword_id, workspace_id, language_code)`.
-- **Schedules.** `schedule_id` refers to `ops.schedules(id, workspace_id)`, and from this revision on schedules refer to their project, and runs to their schedule, through the workspace too.
+- **Schedules.**
+  - `schedule_id` refers to `ops.schedules(id, project_id, workspace_id)`, so a tracked keyword names a schedule of its own project.
+  - From this revision on, schedules refer to their project, and runs to their schedule, through the workspace too.
+  - A schedule is deleted by setting its new `deleted_at`, so its runs keep naming it; the API has no `DELETE` on it.
 - **Checks.**
   - `intent`, `funnel_stage` and `os` take only the values of section 5.3 and doc 19.
   - `business_value` is not negative.
@@ -678,6 +681,16 @@ CREATE TABLE seo.keyword_metrics_current (
 ```
 
 Keyword metric snapshots are low volume (one per keyword per month), so they are not partitioned.
+
+**As built (migration 0011): metrics.**
+- **Uniqueness.** A snapshot names the ledger task that fetched it (`task_id`) and is unique per task, not per fetch time. Ingesting a task twice writes one row, and two tasks of one call for the same keyword (a manual refresh and the monthly run) write two.
+- **Checks.**
+  - `source` takes the three values in the comment.
+  - `monthly_searches` is `NOT NULL DEFAULT '[]'` and an array.
+  - `data_month` is a month's first day.
+  - Volumes, CPC and the ranges of `competition` and `keyword_difficulty` are checked.
+- **Current row.** `keyword_metrics_current` carries `workspace_id` and refers to its snapshot through `(snapshot_id, workspace_id, keyword_id, location_id, language_code, source)`, so it always names a snapshot of its own key.
+- **Catalog test.** `backend/tests/db/test_keyword_catalog.py` pins every constraint and index of the keyword tables.
 
 ```sql
 -- Modeled AI demand (DataForSEO AI Keyword Data). Deliberately a separate table from Google search volume.
@@ -2203,12 +2216,12 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `seo.keyword_metric_snapshots` | SELECT | SELECT, INSERT |
 | `seo.keyword_metrics_current` | SELECT | SELECT, INSERT, UPDATE |
 | `seo.keyword_imports` | SELECT, INSERT; UPDATE (`column_mapping`, `defaults`, `status`, `duplicate_action`, `finished_at`) | SELECT; UPDATE (`column_mapping`, `status`, `counts`, `error_code`, `finished_at`) |
-| `seo.keyword_import_rows` | SELECT; UPDATE (`action`) | SELECT, INSERT, DELETE (a new preview replaces the rows) |
+| `seo.keyword_import_rows` | SELECT; UPDATE (`action`) | SELECT, INSERT, DELETE (a new preview replaces the rows); UPDATE (`result`, `tracked_keyword_id`, `write_error_code`) |
 | `core.entity_domains` | SELECT, INSERT, DELETE | none |
 | `core.project_entities` | SELECT, INSERT, UPDATE (a removed role keeps its row; `removed_at` is set) | none |
 | `core.project_domain_roles` (view, `security_invoker`; `tests/db/test_grants.py` refuses any view a runtime role reads that is not, and any readable materialized view) | SELECT | none |
 | `ops.budgets` | SELECT, INSERT, UPDATE, DELETE | SELECT |
-| `ops.schedules` | SELECT, INSERT, UPDATE, DELETE | SELECT, INSERT (a project's keyword metrics schedule, made with its first tracked keyword); UPDATE (`next_run_at`, `last_run_id`) |
+| `ops.schedules` | SELECT, INSERT, UPDATE (deleting sets `deleted_at`, so runs keep naming the schedule) | SELECT, INSERT (a project's keyword metrics schedule, made with its first tracked keyword); UPDATE (`next_run_at`, `last_run_id`) |
 | `ops.collection_runs` | SELECT; INSERT (what a manual run asks for: scope, workload, window, trigger, status, creator, request id, estimated cost, config snapshot); UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns) |
 | `ops.collection_tasks` | SELECT | SELECT, INSERT; UPDATE (lifecycle, attempt, result and error columns) |
 | `ops.raw_payloads` | none | SELECT, INSERT; UPDATE (`expires_at`) |
@@ -2225,7 +2238,7 @@ What the narrow lines are for:
 - **`is_platform_operator` is set only by the ops CLI**, which connects as `migrator`. The API cannot insert or update it, so an injection bug cannot mint an operator. The same holds for `email` and `disabled_at` until the routes that change them exist and bring their grant with them.
 - **A session, token or TOTP secret cannot be re-pointed.** The API can create them and move them through their lifecycle, but `user_id`, `token_hash` and `absolute_expires_at` are fixed at insert.
 - **The API cannot forge a run's counters or actual cost.** It inserts what was asked for; the worker fills in what happened.
-- **Nothing is hard-deleted by the API** except a membership (remove a member), a TOTP secret (disable), a budget, a schedule, and links between configuration rows: an entity's alias or domain, a keyword group (its subgroups go with it, its members are unlinked), a group membership, a term assignment, a competitor override, a vocabulary or term. Users, sessions, tokens, workspaces, projects and tracked keywords are disabled, revoked, consumed or soft-deleted. Purges belong to worker maintenance, and that plan adds the `DELETE` grants it needs.
+- **Nothing is hard-deleted by the API** except a membership (remove a member), a TOTP secret (disable), a budget, and links between configuration rows: an entity's alias or domain, a keyword group (its subgroups go with it, its members are unlinked), a group membership, a term assignment, a competitor override, a vocabulary or term. Users, sessions, tokens, workspaces, projects, schedules and tracked keywords are disabled, revoked, consumed or soft-deleted. Purges belong to worker maintenance, and that plan adds the `DELETE` grants it needs.
 - **The API cannot read `ops.raw_payloads`.** The table is a cache shared by every workspace with no `workspace_id` to filter on, so RLS cannot scope it. The two raw routes (19: `serp-snapshots/{id}/raw`, Phase 4; `ai/observations/{id}/raw`, Phase 7) will read one registry row through a `SECURITY DEFINER` function that joins it to a snapshot or observation row of the current workspace. Each function is created by the revision that creates the table it joins.
 - **The worker cannot move a row between workspaces**, and reads from `auth.users` only what an email notification needs. It has no access to password hashes, sessions, verification tokens, invitation token hashes, API key hashes or TOTP secrets.
 - **Audit entries are numbered and timed by the database.** `INSERT` excludes `id` and `occurred_at`, and neither role has `UPDATE` or `DELETE`.

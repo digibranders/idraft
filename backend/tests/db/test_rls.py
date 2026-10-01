@@ -152,11 +152,15 @@ async def test_the_api_cannot_change_or_delete_another_workspaces_rows(
         updated = await db.execute(
             "UPDATE core.projects SET name = 'taken' WHERE id = $1", beta.project_id
         )
-        deleted = await db.execute("DELETE FROM ops.schedules WHERE id = $1", beta.schedule_id)
+        # A table the API may delete from (schedules are soft-deleted since migration 0011).
+        deleted = await db.execute(
+            "DELETE FROM seo.keyword_group_members WHERE workspace_id = $1", beta.workspace_id
+        )
     assert (updated, deleted) == ("UPDATE 0", "DELETE 0")
     async with connection(migrated) as db:
         survivors = await db.fetchval(
-            "SELECT count(*) FROM ops.schedules WHERE id = $1", beta.schedule_id
+            "SELECT count(*) FROM seo.keyword_group_members WHERE workspace_id = $1",
+            beta.workspace_id,
         )
     assert survivors == 1
 

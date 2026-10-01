@@ -324,7 +324,12 @@ schedules = Table(
     Column("next_run_at", DateTime(timezone=True), nullable=False),
     Column("last_run_id", Uuid),
     _created_at(),
+    # A deleted schedule keeps its row, so its runs keep naming it.
+    Column("deleted_at", DateTime(timezone=True)),
     UniqueConstraint("id", "workspace_id", name="schedules_id_workspace_id_key"),
+    UniqueConstraint(
+        "id", "project_id", "workspace_id", name="schedules_id_project_id_workspace_id_key"
+    ),
     ForeignKeyConstraint(
         ["project_id", "workspace_id"],
         [projects.c.id, projects.c.workspace_id],
@@ -754,8 +759,10 @@ tracked_keywords = Table(
         ["keyword_id", "workspace_id", "language_code"],
         [keywords.c.id, keywords.c.workspace_id, keywords.c.language_code],
     ),
+    # A schedule of the same project.
     ForeignKeyConstraint(
-        ["schedule_id", "workspace_id"], [schedules.c.id, schedules.c.workspace_id]
+        ["schedule_id", "project_id", "workspace_id"],
+        [schedules.c.id, schedules.c.project_id, schedules.c.workspace_id],
     ),
     schema="seo",
 )
@@ -896,15 +903,18 @@ keyword_metric_snapshots = Table(
     Column("task_id", BigInteger),
     Column("cost_event_id", BigInteger),
     Column("is_material_change", Boolean, nullable=False),
+    # One snapshot per task, so ingesting a task twice writes one row.
+    UniqueConstraint("task_id", name="keyword_metric_snapshots_one_per_task"),
+    UniqueConstraint("id", "workspace_id", name="keyword_metric_snapshots_id_workspace_id_key"),
     UniqueConstraint(
+        "id",
+        "workspace_id",
         "keyword_id",
         "location_id",
         "language_code",
         "source",
-        "fetched_at",
-        name="keyword_metric_snapshots_one_per_fetch",
+        name="keyword_metric_snapshots_current_key",
     ),
-    UniqueConstraint("id", "workspace_id", name="keyword_metric_snapshots_id_workspace_id_key"),
     ForeignKeyConstraint(
         ["keyword_id", "workspace_id", "language_code"],
         [keywords.c.id, keywords.c.workspace_id, keywords.c.language_code],
@@ -933,8 +943,15 @@ keyword_metrics_current = Table(
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
-        ["snapshot_id", "workspace_id"],
-        [keyword_metric_snapshots.c.id, keyword_metric_snapshots.c.workspace_id],
+        ["snapshot_id", "workspace_id", "keyword_id", "location_id", "language_code", "source"],
+        [
+            keyword_metric_snapshots.c.id,
+            keyword_metric_snapshots.c.workspace_id,
+            keyword_metric_snapshots.c.keyword_id,
+            keyword_metric_snapshots.c.location_id,
+            keyword_metric_snapshots.c.language_code,
+            keyword_metric_snapshots.c.source,
+        ],
         ondelete="CASCADE",
     ),
     schema="seo",
@@ -986,6 +1003,9 @@ keyword_import_rows = Table(
     Column("reason", Text),
     Column("existing_tracked_keyword_id", Uuid),
     Column("action", Text, nullable=False),
+    Column("result", Text),
+    Column("tracked_keyword_id", Uuid),
+    Column("write_error_code", Text),
     ForeignKeyConstraint(
         ["import_id", "workspace_id"],
         [keyword_imports.c.id, keyword_imports.c.workspace_id],

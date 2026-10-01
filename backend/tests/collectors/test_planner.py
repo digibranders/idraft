@@ -251,6 +251,7 @@ async def test_schedules_the_planner_has_no_business_with_are_left_as_they_are(
     project = await make_tenant(migrated)
     left_alone = {
         "inactive": await _due_schedule(migrated, project, is_active=False),
+        "deleted": await _due_schedule(migrated, project, deleted_at=NOW - timedelta(days=1)),
         # No workload of this name is registered with this worker.
         "unknown workload": await _due_schedule(migrated, project, workload="ai_prompt"),
         # Reserved in the schema; there is no rule for it yet.
