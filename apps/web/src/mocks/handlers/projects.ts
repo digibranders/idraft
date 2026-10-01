@@ -1,7 +1,16 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
 import { visibleProjects } from './access';
-import { at, bodyError, canonicalHost, domainTextError, isRecord, queryError } from './rules';
+import {
+  at,
+  bodyError,
+  canonicalHost,
+  domainTextError,
+  isRecord,
+  offsetPageOf,
+  offsetPaging,
+  queryError,
+} from './rules';
 import { emptyChange } from './workspaces';
 import { entityWorld, readEntityChanges, workspaceOfRow } from '../entities-state';
 import { isPublicSuffix, registrableDomain } from '../factories/domain';
@@ -35,9 +44,6 @@ type Project = components['schemas']['Project'];
  * as built); the own entity is kept with the project, since one answer sets one cookie.
  */
 
-const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 200;
-const MAX_OFFSET = 100_000;
 const STATUSES = ['active', 'paused', 'archived'];
 const DEFAULT_STATUSES = ['active', 'paused'];
 const LIST_PARAMETERS = new Set(['offset', 'limit', 'filter[status_in]']);
@@ -84,22 +90,14 @@ function listParameters(url: URL): { offset: number; limit: number; statuses: st
   for (const name of new Set(url.searchParams.keys())) {
     if (!LIST_PARAMETERS.has(name)) errors.push(queryError(name, 'extra_forbidden', 'Extra inputs are not permitted'));
   }
-  const whole = (name: string, fallback: number, min: number, max: number): number => {
-    const raw = url.searchParams.get(name);
-    if (raw === null) return fallback;
-    const number = Number(raw);
-    if (!Number.isInteger(number) || number < min || number > max) {
-      errors.push(queryError(name, 'value_error', `Use a whole number from ${String(min)} to ${String(max)}.`));
-    }
-    return number;
-  };
-  const offset = whole('offset', 0, 0, MAX_OFFSET);
-  const limit = whole('limit', DEFAULT_LIMIT, 1, MAX_LIMIT);
+  const paging = offsetPaging(url);
+  if (Array.isArray(paging)) errors.push(...paging);
   const given = url.searchParams.getAll('filter[status_in]').flatMap((value) => value.split(','));
   if (given.some((status) => !STATUSES.includes(status))) {
     errors.push(queryError('filter[status_in]', 'enum', `Allowed: ${STATUSES.join(', ')}.`));
   }
-  return errors.length > 0 ? errors : { offset, limit, statuses: given.length > 0 ? given : DEFAULT_STATUSES };
+  if (Array.isArray(paging) || errors.length > 0) return errors;
+  return { ...paging, statuses: given.length > 0 ? given : DEFAULT_STATUSES };
 }
 
 /** The field errors of the project fields in `body`, as the API's models give them. A null is checked apart. */
@@ -250,14 +248,10 @@ export const projectHandlers: HttpHandler[] = [
     if (!access) return problem(request, 'not_found');
     const parameters = listParameters(new URL(request.url));
     if (Array.isArray(parameters)) return invalid(request, parameters);
-    const { offset, limit, statuses } = parameters;
     const projects = visibleProjects(access, changes, readEntityChanges(cookies)).filter((project) =>
-      statuses.includes(project.status),
+      parameters.statuses.includes(project.status),
     );
-    return HttpResponse.json({
-      data: projects.slice(offset, offset + limit),
-      page: { offset, limit, total: projects.length },
-    });
+    return HttpResponse.json(offsetPageOf(projects, parameters));
   }),
 
   mock('post', '/api/v1/workspaces/{workspace_id}/projects', async ({ request, cookies, params }) => {

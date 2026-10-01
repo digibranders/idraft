@@ -4,7 +4,7 @@ import { normalizeDomain } from '@/lib/domains/normalize';
 
 /**
  * Request rules the entity, taxonomy and registry mocks share: field errors shaped like Pydantic's
- * (19 section 2.7), query parameters, cursor pages (19 section 2.4), and the domain and alias inputs of
+ * (19 section 2.7), query parameters, offset and cursor pages (19 sections 2.4 and 2.5), and the domain and alias inputs of
  * 19 section 3.4 with the backend's field codes (`invalid_domain`, `domain_is_public_suffix`,
  * `path_prefix_mismatch`, `invalid_path_prefix`, `invalid_regex`).
  */
@@ -105,11 +105,38 @@ export function booleanQuery(url: URL, name: string, fallback: boolean): boolean
   return queryError(name, 'bool_parsing', 'Input should be a valid boolean');
 }
 
-// Cursor pages (19 section 2.4).
+// Offset pages (19 section 2.5) and cursor pages (19 section 2.4).
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const MAX_OFFSET = 100_000;
 const MAX_CURSOR_LENGTH = 512;
+
+/** `offset` and `limit` of a list paged by offset (19 section 2.5), or their errors. */
+export function offsetPaging(url: URL): { offset: number; limit: number } | ValidationItem[] {
+  const errors: ValidationItem[] = [];
+  const whole = (name: string, fallback: number, min: number, max: number): number => {
+    const raw = url.searchParams.get(name);
+    if (raw === null) return fallback;
+    const number = Number(raw);
+    if (!Number.isInteger(number) || number < min || number > max) {
+      errors.push(queryError(name, 'value_error', `Use a whole number from ${String(min)} to ${String(max)}.`));
+    }
+    return number;
+  };
+  const offset = whole('offset', 0, 0, MAX_OFFSET);
+  const limit = whole('limit', DEFAULT_LIMIT, 1, MAX_LIMIT);
+  return errors.length > 0 ? errors : { offset, limit };
+}
+
+/** The page of `rows` that `paging` asks for, as the API answers a list paged by offset. */
+export const offsetPageOf = <Row>(
+  rows: readonly Row[],
+  paging: { offset: number; limit: number },
+): { data: Row[]; page: { offset: number; limit: number; total: number } } => ({
+  data: rows.slice(paging.offset, paging.offset + paging.limit),
+  page: { offset: paging.offset, limit: paging.limit, total: rows.length },
+});
 
 interface PageRequest {
   limit: number;

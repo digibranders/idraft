@@ -12,6 +12,7 @@ import {
   isRecord,
   notAnObject,
   nullErrors,
+  offsetPaging,
   queryError,
   textError,
   uuidError,
@@ -52,9 +53,6 @@ const MAX_PATH = 1000;
 const MAX_DESCRIPTION = 2000;
 const MAX_TERMS = 500;
 const MAX_QUERY_TEXT = 200;
-const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 200;
-const MAX_OFFSET = 100_000;
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const TERM_FIELDS = ['name', 'parent_id', 'path', 'slug', 'description'] as const;
 
@@ -219,23 +217,6 @@ const byName = (a: StoredVocabulary, b: StoredVocabulary): number =>
   a.name.toLowerCase().localeCompare(b.name.toLowerCase()) ||
   a.vocabulary_id.localeCompare(b.vocabulary_id);
 
-/** `offset` and `limit`, or their errors. */
-function offsetPage(url: URL): { offset: number; limit: number } | ValidationItem[] {
-  const errors: ValidationItem[] = [];
-  const whole = (name: string, fallback: number, min: number, max: number): number => {
-    const raw = url.searchParams.get(name);
-    if (raw === null) return fallback;
-    const number = Number(raw);
-    if (!Number.isInteger(number) || number < min || number > max) {
-      errors.push(queryError(name, 'value_error', `Use a whole number from ${String(min)} to ${String(max)}.`));
-    }
-    return number;
-  };
-  const offset = whole('offset', 0, 0, MAX_OFFSET);
-  const limit = whole('limit', DEFAULT_LIMIT, 1, MAX_LIMIT);
-  return errors.length > 0 ? errors : { offset, limit };
-}
-
 const W = '/api/v1/workspaces/{workspace_id}';
 
 export const taxonomyHandlers: HttpHandler[] = [
@@ -245,7 +226,7 @@ export const taxonomyHandlers: HttpHandler[] = [
       query: ['offset', 'limit', 'filter[project_id]', 'filter[kind]'],
     });
     if (caller instanceof Response) return caller;
-    const paging = offsetPage(caller.url);
+    const paging = offsetPaging(caller.url);
     const projectId = caller.url.searchParams.get('filter[project_id]');
     const kind = caller.url.searchParams.get('filter[kind]');
     const errors = [

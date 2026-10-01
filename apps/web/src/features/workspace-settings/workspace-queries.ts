@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 
-import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
+import { apiAllPagesQuery, apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { Role } from '@/lib/api/types';
 
 /** The roles in the order the dialogs list them, from the most to the least access (24-security.md section 3.1). */
@@ -12,25 +12,21 @@ export type AccessChoice = 'all' | 'some';
 const MEMBERS = '/api/v1/workspaces/{workspace_id}/members';
 const INVITATIONS = '/api/v1/workspaces/{workspace_id}/invitations';
 const PROJECTS = '/api/v1/workspaces/{workspace_id}/projects';
-/**
- * The most the API gives in one page. The screens read one page for now; a workspace with more members,
- * invitations or projects than that is an open point of the plan (paging these lists).
- */
-const PAGE = 200;
-
+/** Every member: the table shows them all, whatever the page size of the API. */
 export const membersQuery = (workspaceId: string): ApiQueryOptions<typeof MEMBERS> =>
-  apiQuery(MEMBERS, { params: { path: { workspace_id: workspaceId }, query: { limit: PAGE } } });
+  apiAllPagesQuery(MEMBERS, { params: { path: { workspace_id: workspaceId } } });
 
+/** Every pending invitation, read page by page like the members. */
 export const invitationsQuery = (workspaceId: string): ApiQueryOptions<typeof INVITATIONS> =>
-  apiQuery(INVITATIONS, { params: { path: { workspace_id: workspaceId }, query: { limit: PAGE } } });
+  apiAllPagesQuery(INVITATIONS, { params: { path: { workspace_id: workspaceId } } });
 
 /**
- * The active and paused projects, for the project lists of the member and invitation dialogs. Fetched
+ * Every active and paused project, for the project lists of the member and invitation dialogs. Fetched
  * again each time a dialog opens: projects are created, renamed and archived on other screens, and a
  * stale list would offer an archived project the API refuses.
  */
 export const projectsQuery = (workspaceId: string): ApiQueryOptions<typeof PROJECTS> => ({
-  ...apiQuery(PROJECTS, { params: { path: { workspace_id: workspaceId }, query: { limit: PAGE } } }),
+  ...apiAllPagesQuery(PROJECTS, { params: { path: { workspace_id: workspaceId } } }),
   staleTime: 0,
 });
 

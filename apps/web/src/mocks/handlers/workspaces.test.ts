@@ -293,6 +293,16 @@ describe('members', () => {
     ]);
   });
 
+  it('pages by offset like the API, and refuses a limit it would refuse', async () => {
+    const all = (await call('GET', `${W}/members`, cookieOf('admin'))).body;
+    const total = (all.data as unknown[]).length;
+    const page = (await call('GET', `${W}/members?offset=2&limit=3`, cookieOf('admin'))).body;
+    expect(page.page).toEqual({ offset: 2, limit: 3, total });
+    expect(page.data).toEqual((all.data as unknown[]).slice(2, 5));
+    expect((await call('GET', `${W}/members?limit=500`, cookieOf('admin'))).code).toBe('validation_failed');
+    expect((await call('GET', `${W}/invitations?offset=-1`, cookieOf('admin'))).code).toBe('validation_failed');
+  });
+
   it('changes a role and a project list from a fresh session', async () => {
     const [fynix] = MOCK_PROJECTS;
     if (!fynix) throw new Error('no fixture project');

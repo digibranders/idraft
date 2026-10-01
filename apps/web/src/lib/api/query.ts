@@ -10,6 +10,7 @@ import type { ClientPathsWithMethod, FetchResponse, ParamsOption, RequestBodyOpt
 
 import { api, unwrap, type ApiClient } from './client';
 import { normalizeFilters, queryKey, type Filters, type QueryKey } from './keys';
+import { readAllPages } from './pages';
 import type { paths } from './schema';
 
 /**
@@ -125,6 +126,65 @@ export function apiQuery<P extends ApiPath<'get'>>(path: P, ...[init]: QueryArgs
   const key = queryKey(path, parts.path, query);
   const queryFn: QueryFunction<ApiResponse<'get', P>, QueryKey> = ({ signal }) =>
     send(client, 'get', path, { params: { path: parts.path, query }, signal });
+  return { ...queryOptions({ queryKey: key, queryFn }), queryFn };
+}
+
+/** A GET whose answer is one page of a list paged by offset (19-api-specification.md section 2.5). */
+export type OffsetListPath = {
+  [P in ApiPath<'get'>]: ApiResponse<'get', P> extends { data: readonly unknown[]; page: { total: number } }
+    ? P
+    : never;
+}[ApiPath<'get'>];
+
+interface OffsetPageShape {
+  data: readonly unknown[];
+  page: Readonly<Record<string, unknown>> & { total: number };
+}
+
+const isOffsetPage = (value: unknown): value is OffsetPageShape =>
+  isRecord(value) && Array.isArray(value.data) && isRecord(value.page) && typeof value.page.total === 'number';
+
+/**
+ * Whether `value` is an answer of the offset-paged `P`. The check is the page's shape: like every answer
+ * of the typed client, the rest is trusted to follow the API document. It names the type TypeScript
+ * cannot derive for a page rebuilt from the answers of a path that is still a type parameter.
+ */
+const isAnswerOf = <P extends OffsetListPath>(value: unknown): value is ApiResponse<'get', P> => isOffsetPage(value);
+
+const PAGING = new Set(['offset', 'limit']);
+
+/**
+ * Query options for every item of a list the API pages by offset: the pages are read one after another
+ * (`readAllPages`) and answered as one page that holds them all, so a screen reads `data` and
+ * `page.total` as it would for one page. For the lists a screen shows whole, such as a workspace's members;
+ * `offset` and `limit` in `init` are ignored. The key differs from the key of one page of the same list.
+ */
+export function apiAllPagesQuery<P extends OffsetListPath>(path: P, ...[init]: QueryArgs<P>): ApiQueryOptions<P> {
+  const client = init?.client ?? api;
+  const parts = partsOf(init?.params);
+  const filters = Object.fromEntries(Object.entries(parts.query).filter(([name]) => !PAGING.has(name)));
+  const query = normalizeFilters(filters, init?.defaults);
+  const key = queryKey(path, parts.path, { ...query, pages: 'all' });
+  const queryFn: QueryFunction<ApiResponse<'get', P>, QueryKey> = async ({ signal }) => {
+    // The first page carries the answer's fields besides the list
+    const pages: OffsetPageShape[] = [];
+    const { items, total } = await readAllPages(async (offset, limit) => {
+      const answer: unknown = await send(client, 'get', path, {
+        params: { path: parts.path, query: { ...query, offset, limit } },
+        signal,
+      });
+      if (!isOffsetPage(answer)) throw new Error(`${path} did not answer a page of a list`);
+      pages.push(answer);
+      return answer;
+    });
+    const [first] = pages;
+    const whole: unknown =
+      first === undefined
+        ? null
+        : { ...first, data: items, page: { ...first.page, offset: 0, limit: items.length, total } };
+    if (!isAnswerOf<P>(whole)) throw new Error(`${path} answered no page`);
+    return whole;
+  };
   return { ...queryOptions({ queryKey: key, queryFn }), queryFn };
 }
 
