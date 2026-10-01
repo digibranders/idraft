@@ -17,6 +17,13 @@ describe('foldName', () => {
     expect(foldName('\uFF21\uFF23\uFF2D\uFF25')).toBe('acme');
   });
 
+  it('reads symbols and other numbers as spaces, and folds case fully', () => {
+    expect(foldName('Acme™')).toBe('acme');
+    expect(foldName('HubSpot® CRM')).toBe('hubspot crm');
+    expect(foldName('Straße')).toBe('strasse');
+    expect(foldName('″Acme″')).toBe('"acme"');
+  });
+
   it('keeps the marks that tell letters apart outside Latin, Greek and Cyrillic', () => {
     expect(foldName('\u0915\u093F')).toBe('\u0915\u093F');
   });

@@ -16,6 +16,7 @@ import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
+import { textLength } from '@/lib/text/length';
 
 const CREATE = apiMutation('post', '/api/v1/workspaces/{workspace_id}/vocabularies');
 const CHANGE = apiMutation('patch', '/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}');
@@ -73,7 +74,7 @@ function VocabularyForm({
   const localError =
     trimmed === ''
       ? t('nameRequired')
-      : trimmed.length > MAX_NAME_LENGTH
+      : textLength(trimmed) > MAX_NAME_LENGTH
         ? t('nameTooLong', { max: MAX_NAME_LENGTH })
         : null;
   const shownError = nameError ?? (submitted ? localError : null);

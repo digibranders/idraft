@@ -24,6 +24,7 @@ import type { components } from '@/lib/api/schema';
 import type { ValidationItem } from '@/lib/api/types';
 import { currentTimeZoneName, isKnownTimeZone } from '@/lib/format/time-zone';
 import { slugProblem } from '@/lib/slugs/slug';
+import { textLength } from '@/lib/text/length';
 
 type Project = components['schemas']['Project'];
 
@@ -108,7 +109,7 @@ function projectFieldErrors(body: Readonly<Record<string, unknown>>): Validation
   if ('name' in body && body.name !== null) {
     const name = typeof body.name === 'string' ? body.name.trim() : null;
     if (name === null || name === '') errors.push(bodyError('name', 'string_too_short', 'Enter a name.'));
-    else if (name.length > MAX_NAME_LENGTH)
+    else if (textLength(name) > MAX_NAME_LENGTH)
       errors.push(bodyError('name', 'string_too_long', 'At most 120 characters.'));
   }
   if ('slug' in body && body.slug !== null) {
@@ -169,7 +170,7 @@ function ownEntityInput(value: unknown): Omit<CreatedOwnEntity, 'entity_id'> | V
   else if (name === null)
     errors.push(bodyError(at(path, 'canonical_name'), 'string_type', 'Input should be a valid string'));
   else if (name === '') errors.push(bodyError(at(path, 'canonical_name'), 'string_too_short', 'Enter a name.'));
-  else if (name.length > MAX_ENTITY_NAME) {
+  else if (textLength(name) > MAX_ENTITY_NAME) {
     errors.push(bodyError(at(path, 'canonical_name'), 'string_too_long', 'At most 200 characters.'));
   }
   const list = (member: 'domains' | 'aliases', max: number): unknown[] => {
@@ -205,7 +206,7 @@ function ownEntityInput(value: unknown): Omit<CreatedOwnEntity, 'entity_id'> | V
     const text = typeof alias === 'string' ? alias.trim() : null;
     if (text === null) errors.push(bodyError(where, 'string_type', 'Input should be a valid string'));
     else if (text === '') errors.push(bodyError(where, 'string_too_short', 'An alias has at least one character.'));
-    else if (text.length > MAX_ALIAS) errors.push(bodyError(where, 'string_too_long', 'At most 200 characters.'));
+    else if (textLength(text) > MAX_ALIAS) errors.push(bodyError(where, 'string_too_long', 'At most 200 characters.'));
     // Word aliases that ignore case: one spelling of each is enough
     else if (!texts.some((other) => other.toLowerCase() === text.toLowerCase())) texts.push(text);
   }

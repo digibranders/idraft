@@ -1,6 +1,7 @@
 import { isPublicSuffix, registrableDomain } from '../factories/domain';
 import type { ValidationItem } from '@/lib/api/types';
 import { normalizeDomain } from '@/lib/domains/normalize';
+import { textLength } from '@/lib/text/length';
 
 /**
  * Request rules the entity, taxonomy and registry mocks share: field errors shaped like Pydantic's
@@ -72,8 +73,9 @@ export function textError(
 ): ValidationItem[] {
   if (value === undefined) return [];
   if (typeof value !== 'string') return [bodyError(path, 'string_type', 'Input should be a valid string')];
-  if (value.length < min) return [bodyError(path, 'string_too_short', `At least ${String(min)} character.`)];
-  if (value.length > max) return [bodyError(path, 'string_too_long', `At most ${String(max)} characters.`)];
+  // The API counts characters (code points), as Python does
+  if (textLength(value) < min) return [bodyError(path, 'string_too_short', `At least ${String(min)} character.`)];
+  if (textLength(value) > max) return [bodyError(path, 'string_too_long', `At most ${String(max)} characters.`)];
   return [];
 }
 

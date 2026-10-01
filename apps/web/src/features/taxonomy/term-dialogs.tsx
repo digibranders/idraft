@@ -26,8 +26,6 @@ const MAX_BATCH = 500;
 const ROOT = '';
 /** A term is at most this many levels from its root (19 section 3.5). */
 const MAX_DEPTH = 10;
-/** The longest path a pasted line may be, in characters (19 section 3.5, `TermInput.path`). */
-const MAX_PATH_LENGTH = 2048;
 
 type Translate = ReturnType<typeof useTranslations<'taxonomySettings.termDialog'>>;
 
@@ -126,7 +124,7 @@ function NameForm({
   const localError =
     trimmed === ''
       ? t('nameRequired')
-      : trimmed.length > MAX_NAME_LENGTH
+      : textLength(trimmed) > MAX_NAME_LENGTH
         ? t('nameTooLong', { max: MAX_NAME_LENGTH })
         : null;
   const shownError = nameError ?? (submitted ? localError : null);
@@ -318,7 +316,13 @@ function PasteForm({ scope, hierarchical, onClose }: Omit<TermDialogProps, 'acti
     ...new Set(
       text
         .split('\n')
-        .map((line) => line.trim())
+        // Each name trimmed, so 10 names of 200 characters stay under the API's 2048 for a path
+        .map((line) =>
+          line
+            .split('/')
+            .map((name) => name.trim())
+            .join('/'),
+        )
         .filter((line) => line !== ''),
     ),
   ];
@@ -331,8 +335,7 @@ function PasteForm({ scope, hierarchical, onClose }: Omit<TermDialogProps, 'acti
           ? t('pasteTooDeep', { max: MAX_DEPTH })
           : lines.some((line) =>
                 hierarchical
-                  ? textLength(line) > MAX_PATH_LENGTH ||
-                    line.split('/').some((name) => textLength(name.trim()) > MAX_NAME_LENGTH)
+                  ? line.split('/').some((name) => textLength(name) > MAX_NAME_LENGTH)
                   : textLength(line) > MAX_NAME_LENGTH,
               )
             ? t('pasteTooLong', { max: MAX_NAME_LENGTH })

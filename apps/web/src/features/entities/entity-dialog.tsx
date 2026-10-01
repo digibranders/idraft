@@ -28,6 +28,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation, apiQuery } from '@/lib/api/query';
 import { domainMessageKey, normalizeDomain } from '@/lib/domains/normalize';
 import { otherNames } from '@/lib/entities/aliases';
+import { textLength } from '@/lib/text/length';
 
 const CREATE = apiMutation('post', '/api/v1/workspaces/{workspace_id}/entities');
 const ATTACH = apiMutation('post', '/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities');
@@ -99,7 +100,7 @@ function EntityForm({
   const localNameError =
     trimmedName === ''
       ? t('nameRequired')
-      : trimmedName.length > MAX_NAME_LENGTH
+      : textLength(trimmedName) > MAX_NAME_LENGTH
         ? t('nameTooLong', { max: MAX_NAME_LENGTH })
         : null;
   const trackError = !trackSeo && !trackAi ? t('trackRequired') : null;
