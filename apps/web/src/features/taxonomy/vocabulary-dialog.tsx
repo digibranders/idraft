@@ -28,6 +28,8 @@ export interface VocabularyDialogProps {
   projectId: string;
   /** `'new'` creates one; a vocabulary renames it; `null` keeps the dialog closed. */
   vocabulary: Vocabulary | 'new' | null;
+  /** Whether the member may create a workspace-wide vocabulary: not when limited to some projects. */
+  canShare: boolean;
   onClose: (created?: Vocabulary) => void;
 }
 
@@ -46,6 +48,7 @@ function VocabularyForm({
   workspaceId,
   projectId,
   vocabulary,
+  canShare,
   onClose,
 }: Omit<VocabularyDialogProps, 'vocabulary'> & { vocabulary: Vocabulary | 'new' }): ReactNode {
   const t = useTranslations('taxonomySettings.vocabularyDialog');
@@ -120,7 +123,13 @@ function VocabularyForm({
         nameInput.current?.focus();
         return;
       }
-      setAlert(isApiProblem(error, 'single_valued_violation') ? t('singleValuedViolation') : t('failed'));
+      setAlert(
+        isApiProblem(error, 'single_valued_violation')
+          ? t('singleValuedViolation')
+          : isApiProblem(error, 'forbidden')
+            ? t('forbidden')
+            : t('failed'),
+      );
       return;
     }
     void queryClient.invalidateQueries({ queryKey: vocabulariesQuery(workspaceId, projectId).queryKey });
@@ -190,7 +199,12 @@ function VocabularyForm({
               onValueChange={setReach}
               options={[
                 { value: 'project', label: t('reachProject'), description: t('reachProjectHint') },
-                { value: 'workspace', label: t('reachWorkspace'), description: t('reachWorkspaceHint') },
+                {
+                  value: 'workspace',
+                  label: t('reachWorkspace'),
+                  description: canShare ? t('reachWorkspaceHint') : t('reachWorkspaceLimited'),
+                  disabled: !canShare,
+                },
               ]}
             />
           ) : null}

@@ -74,7 +74,6 @@ const PROBLEMS = {
   last_owner: [409, 'The workspace needs an owner'],
   invalid_state_transition: [409, 'Not possible in this state'],
   entity_in_use: [409, 'Entity is in use'],
-  primary_own_exists: [409, 'The project already has a primary own entity'],
   cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
   has_children: [409, 'Term has children'],
   payload_too_large: [413, 'Payload too large'],

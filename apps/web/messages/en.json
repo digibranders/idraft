@@ -546,6 +546,9 @@
     "removeAlias": "Remove {alias}",
     "aliasesChips": "{count, plural, one {# name} other {# names}}. From the start of the field, press Left Arrow to reach them.",
     "aliasChip": "Press Backspace or Delete to remove",
+    "aliasTooLong": "Each other name has at most {max} characters.",
+    "aliasesTooMany": "Add at most {max} other names. More can be added later under Entities and aliases.",
+    "aliasInvalid": "One of the other names cannot be saved. Check it and try again.",
     "timezone": "Time zone",
     "timezoneHint": "Business dates are counted in this time zone. Your browser's is chosen.",
     "weekday": "Deep check day",
@@ -901,6 +904,7 @@
       "editTitle": "Change alias",
       "text": "Alias",
       "textHint": "A name answers use, such as HubSpot CRM",
+      "restatesName": "This is the entity's own name. The options below then set how the name itself is matched: its case, whether it needs context, or that it is never counted.",
       "regexHint": "A regular expression in RE2 syntax: no backreferences or lookaround",
       "textRequired": "Enter an alias.",
       "textTooLong": "Use at most {max} characters.",
@@ -987,7 +991,8 @@
         "aliasRegex": "pattern match",
         "aliasName": "name match",
         "aliasDomain": "domain name match",
-        "viaProduct": "match through a product"
+        "viaProduct": "match through a product",
+        "viaNamedProduct": "match through {product}"
       },
       "skipped": "{count, plural, one {# stored pattern was} other {# stored patterns were}} skipped: the matcher cannot run {count, plural, one {it} other {them}}.",
       "tooLarge": "This text is over 100 KB. Test a shorter part of the answer.",
@@ -1016,6 +1021,8 @@
     "description": "The vocabularies keywords and prompts are filed under: topics, products, markets and more. Workspace vocabularies are shared by every project.",
     "readOnlyLead": "Read only:",
     "readOnly": "Owners, admins and editors can change the taxonomy.",
+    "sharedReadOnlyLead": "Read only:",
+    "sharedReadOnly": "This vocabulary is shared by every project, and you can open only some of them. You can change the vocabularies of your projects.",
     "newVocabulary": "New vocabulary",
     "noVocabularies": "No vocabularies yet. Create one to start filing keywords and prompts.",
     "loadFailed": "The vocabularies could not be loaded.",
@@ -1082,6 +1089,8 @@
       "reachProjectHint": "Only this project sees it.",
       "reachWorkspace": "The whole workspace",
       "reachWorkspaceHint": "Every project sees and shares it.",
+      "reachWorkspaceLimited": "Only members who can open every project create workspace vocabularies.",
+      "forbidden": "Workspace vocabularies are shared by every project. Members limited to some projects change only their projects' vocabularies.",
       "rules": "Rules",
       "hierarchical": "Terms nest",
       "hierarchicalHint": "A term can sit under another, such as CRM, then CRM for startups.",
@@ -1123,10 +1132,14 @@
       "pasteHintPaths": "One term per line. Write CRM/CRM for startups to place a term under another; missing parents are created.",
       "pasteRequired": "Enter at least one term.",
       "pasteTooMany": "Paste at most {max} terms at a time.",
+      "pasteTooDeep": "A line has more than {max} levels. Shorten it and try again.",
       "pasteCount": "{count, plural, one {# term} other {# terms}}",
       "pasteDuplicate": "Some of these terms already exist at their level. Remove them and try again.",
       "pasteSubmit": "Add terms",
-      "pasted": "{count, plural, one {# term added} other {# terms added}}"
+      "pasted": "{count, plural, one {# term added} other {# terms added}}",
+      "tooDeep": "A term is at most {max} levels from the top. Choose a place higher up.",
+      "parentGone": "The term to place it under no longer exists. Choose another place.",
+      "forbidden": "Workspace vocabularies are shared by every project. Members limited to some projects change only their projects' vocabularies."
     },
     "deleteVocabularyFailed": "{name} was not deleted. Try again in a moment."
   }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { MOCK_TERM_IDS, MOCK_VOCABULARY_IDS } from '../entity-fixtures';
-import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
+import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
 import type { Term, TermNode, Vocabulary } from '@/lib/api/types';
 import { OFFSET_PAGE, TERM, TERM_NODE, VOCABULARY } from '@/test/api-shapes';
 import { dataOf, fieldCodes, mockBrowser, pageOf, type Answer } from '@/test/mock-api';
@@ -25,12 +25,12 @@ const shape = (nodes: readonly TermNode[]): unknown[] =>
   nodes.map((node) => (node.children.length === 0 ? node.path : { [node.path]: shape(node.children) }));
 
 describe('vocabularies', () => {
-  it('lists the workspace-wide ones first, then those of the projects the member may open, in offset pages', async () => {
+  it('lists by name the workspace-wide ones and those of the projects the member may open, in offset pages', async () => {
     const viewer = mockBrowser('viewer');
     const all = await viewer.call('GET', `${W}/vocabularies`);
     expect(vocabularies(all).map((row) => [row.name, row.project_id, row.term_count])).toEqual([
-      ['Topics', null, 6],
       ['Services', fynix.project_id, 3],
+      ['Topics', null, 6],
     ]);
     expect(pageOf(all, OFFSET_PAGE)).toEqual({ offset: 0, limit: 50, total: 2 });
     const ofCleanstart = vocabularies(
@@ -167,8 +167,58 @@ describe('terms', () => {
       (await editor.call('POST', `${TOPICS}/terms`, { name: 'Local', slug: 'local-seo', parent_id: terms.seo })).code,
     ).toBe('duplicate');
     expect(fieldCodes(await editor.call('POST', `${TOPICS}/terms`, { name: 'Ads', parent_id: OTHER_ID }))).toEqual([
-      'parent_id:term_unknown',
+      'parent_id:parent_unknown',
     ]);
+  });
+
+  it('takes no parents in a flat vocabulary, and no more than 10 levels', async () => {
+    const editor = mockBrowser('editor');
+    const services = `${W}/vocabularies/${MOCK_VOCABULARY_IDS.services}`;
+    const [first] = termList(await editor.call('POST', `${services}/terms`, { name: 'Audits' }));
+    if (!first) throw new Error('The term was not added');
+    expect(
+      fieldCodes(await editor.call('POST', `${services}/terms`, { name: 'Deep', parent_id: first.term_id })),
+    ).toEqual(['parent_id:not_hierarchical']);
+    expect(fieldCodes(await editor.call('POST', `${services}/terms`, { items: [{ path: 'A/B' }] }))).toEqual([
+      'items.0.path:not_hierarchical',
+    ]);
+    const levels = Array.from({ length: 10 }, (_, index) => `L${String(index + 1)}`);
+    expect(fieldCodes(await editor.call('POST', `${TOPICS}/terms`, { path: [...levels, 'L11'].join('/') }))).toEqual([
+      'path:too_deep',
+    ]);
+    const deepest = termList(await editor.call('POST', `${TOPICS}/terms`, { path: levels.join('/') })).at(-1);
+    if (!deepest) throw new Error('The path was not added');
+    expect(
+      fieldCodes(await editor.call('POST', `${TOPICS}/terms`, { name: 'L11', parent_id: deepest.term_id })),
+    ).toEqual(['parent_id:too_deep']);
+    // SEO has a level below it, so under the ninth level it would reach eleven
+    const ninth = termNodes(await editor.call('GET', `${TOPICS}/terms?format=flat&filter[q]=L9`)).find(
+      (term) => term.name === 'L9',
+    );
+    if (!ninth) throw new Error('The ninth level is missing');
+    expect(fieldCodes(await editor.call('PATCH', `${W}/terms/${terms.seo}`, { parent_id: ninth.term_id }))).toEqual([
+      'parent_id:too_deep',
+    ]);
+  });
+
+  it('lets a member limited to some projects change only the vocabularies of those projects', async () => {
+    const owner = mockBrowser('owner');
+    const limited = await owner.call('PATCH', `${W}/members/${mockUser('editor').user_id}`, {
+      project_ids: [fynix.project_id],
+    });
+    expect(limited.status).toBe(200);
+    const editor = owner.as('editor');
+    expect((await editor.call('POST', `${W}/vocabularies`, { kind: 'tag', name: 'Tags' })).code).toBe('forbidden');
+    expect((await editor.call('PATCH', TOPICS, { name: 'Themes' })).code).toBe('forbidden');
+    expect((await editor.call('POST', `${TOPICS}/terms`, { name: 'Ads' })).code).toBe('forbidden');
+    expect((await editor.call('PATCH', `${W}/terms/${terms.seo}`, { name: 'Search' })).code).toBe('forbidden');
+    expect((await editor.call('DELETE', `${W}/terms/${terms.paidSearch}`)).code).toBe('forbidden');
+    const services = `${W}/vocabularies/${MOCK_VOCABULARY_IDS.services}`;
+    expect((await editor.call('POST', `${services}/terms`, { name: 'Audits' })).status).toBe(201);
+    expect(
+      (await editor.call('POST', `${W}/vocabularies`, { kind: 'tag', name: 'Tags', project_id: fynix.project_id }))
+        .status,
+    ).toBe(201);
   });
 
   it('adds a batch of paths, creating the parents they lack once', async () => {
@@ -186,7 +236,13 @@ describe('terms', () => {
       'crm/agencies',
       'seo/audits',
     ]);
-    expect((await editor.call('POST', `${TOPICS}/terms`, { path: 'SEO/Local SEO' })).code).toBe('duplicate');
+    // A path that exists adds nothing; a name that exists under its parent is refused
+    const again = await editor.call('POST', `${TOPICS}/terms`, { path: 'seo/LOCAL SEO' });
+    expect(again.status).toBe(201);
+    expect(termList(again)).toEqual([]);
+    expect((await editor.call('POST', `${TOPICS}/terms`, { name: 'Local SEO', parent_id: terms.seo })).code).toBe(
+      'duplicate',
+    );
   });
 
   it('refuses inputs the API refuses', async () => {
@@ -228,6 +284,19 @@ describe('terms', () => {
     expect((await editor.call('PATCH', `${W}/terms/${terms.localSeo}`, { name: 'technical seo' })).code).toBe(
       'duplicate',
     );
+    expect(fieldCodes(await editor.call('PATCH', `${W}/terms/${terms.seo}`, { parent_id: OTHER_ID }))).toEqual([
+      'parent_id:parent_unknown',
+    ]);
+    // Moved without a slug next to a sibling with its slug, a term is numbered; a given slug that is taken is refused
+    const [twin] = termList(await editor.call('POST', `${TOPICS}/terms`, { name: 'Local-SEO' }));
+    if (!twin) throw new Error('The root term was not added');
+    expect(oneTerm(await editor.call('PATCH', `${W}/terms/${twin.term_id}`, { parent_id: terms.seo }))).toMatchObject({
+      slug: 'local-seo-2',
+      path: 'seo/local-seo-2',
+    });
+    expect(
+      (await editor.call('PATCH', `${W}/terms/${twin.term_id}`, { parent_id: null, slug: 'paid-search' })).code,
+    ).toBe('duplicate');
     expect(fieldCodes(await editor.call('PATCH', `${W}/terms/${terms.localSeo}`, {}))).toEqual([':value_error']);
   });
 

@@ -133,6 +133,7 @@ export const ALIAS_TEST_RESULT: z.ZodType<AliasTestResult> = z.object({
             'via_product',
           ]),
           score: z.number(),
+          via_entity_id: z.string().nullable(),
           status: STATUS,
         }),
       ),

@@ -183,6 +183,35 @@ describe('New project', () => {
     await waitFor(() => expect(alert.closest('[data-slot="form-alert"]')).toHaveFocus());
   });
 
+  it('checks the other names, and puts the API’s error for one of them on their field', async () => {
+    const { user } = renderWithProviders(form());
+    await user.type(await screen.findByLabelText('Name'), 'Acme Studio');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'acme-studio.example');
+    const others = screen.getByRole('combobox', { name: /^Other names/ });
+    // Pasted, as typing 201 characters one by one is slow
+    await user.click(others);
+    await user.paste('A'.repeat(201));
+    await user.keyboard('{Enter}{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+    expect(await screen.findByText('Each other name has at most 200 characters.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: `Remove ${'A'.repeat(201)}` }));
+
+    server.use(
+      http.post(mswPath('/api/v1/workspaces/{workspace_id}/projects'), ({ request }) =>
+        problem(request, 'validation_failed', {
+          errors: [{ location: 'body', path: 'own_entity.aliases.0', code: 'string_too_short', message: 'Too short' }],
+        }),
+      ),
+    );
+    await user.type(others, 'Acme{Enter}{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+    expect(
+      await screen.findByText('One of the other names cannot be saved. Check it and try again.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('The project was not created. Try again in a moment.')).toBeNull();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it('says so when the workspace is suspended', async () => {
     server.use(
       http.post(mswPath('/api/v1/workspaces/{workspace_id}/projects'), ({ request }) =>

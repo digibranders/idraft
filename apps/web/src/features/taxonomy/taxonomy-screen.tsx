@@ -30,7 +30,7 @@ import { TreeView, type TreeViewNode } from '@/components/ui/tree-view';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
-import { useCan } from '@/lib/permissions';
+import { canWriteSharedTaxonomy, useCan, useMembership } from '@/lib/permissions';
 
 const DELETE_TERM = apiMutation('delete', '/api/v1/workspaces/{workspace_id}/terms/{term_id}');
 const DELETE_VOCABULARY = apiMutation('delete', '/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}');
@@ -53,6 +53,8 @@ export function TaxonomyScreen({ workspaceId, projectId }: TaxonomyScreenProps):
   const t = useTranslations('taxonomySettings');
   const common = useTranslations('common');
   const canWrite = useCan('taxonomy:write');
+  // A member limited to some projects changes only their projects' vocabularies, not the shared ones
+  const canWriteShared = canWriteSharedTaxonomy(useMembership());
   const vocabularies = useQuery(vocabulariesQuery(workspaceId, projectId));
   const [chosen, setChosen] = useState<string | null>(null);
   const [editingVocabulary, setEditingVocabulary] = useState<Vocabulary | 'new' | null>(null);
@@ -61,8 +63,12 @@ export function TaxonomyScreen({ workspaceId, projectId }: TaxonomyScreenProps):
   const queryClient = useQueryClient();
   const deleteVocabulary = useMutation(DELETE_VOCABULARY);
   const heading = useRef<HTMLHeadingElement>(null);
-  const list = vocabularies.data?.data ?? [];
+  // The API lists by name; the picker groups them, the workspace's first, each group still by name
+  const list = [...(vocabularies.data?.data ?? [])].sort(
+    (a, b) => Number(a.project_id !== null) - Number(b.project_id !== null),
+  );
   const vocabulary = list.find((candidate) => candidate.vocabulary_id === chosen) ?? list[0] ?? null;
+  const canChange = vocabulary !== null && canWrite && (vocabulary.project_id !== null || canWriteShared);
 
   const confirmDeleteVocabulary = async (): Promise<void> => {
     if (deletingVocabulary === null) return;
@@ -137,7 +143,7 @@ export function TaxonomyScreen({ workspaceId, projectId }: TaxonomyScreenProps):
                 }))}
               />
             </Field>
-            {canWrite ? (
+            {canChange ? (
               <Menu
                 align="end"
                 trigger={
@@ -159,18 +165,22 @@ export function TaxonomyScreen({ workspaceId, projectId }: TaxonomyScreenProps):
               reach: vocabulary.project_id === null ? 'workspace' : 'project',
             })}
           </p>
+          {canWrite && !canChange ? (
+            <Banner tone="info" placement="region" lead={t('sharedReadOnlyLead')} message={t('sharedReadOnly')} />
+          ) : null}
           <TermTree
             key={vocabulary.vocabulary_id}
             workspaceId={workspaceId}
             projectId={projectId}
             vocabulary={vocabulary}
-            canWrite={canWrite}
+            canWrite={canChange}
           />
         </>
       )}
       <VocabularyDialog
         workspaceId={workspaceId}
         projectId={projectId}
+        canShare={canWriteShared}
         vocabulary={editingVocabulary}
         onClose={(created) => {
           setEditingVocabulary(null);

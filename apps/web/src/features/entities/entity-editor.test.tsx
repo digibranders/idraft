@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -9,8 +10,10 @@ import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_ENTITIES } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
+import { mswPath } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { axe } from '@/test/axe';
+import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
@@ -118,6 +121,50 @@ describe('Entity editor', () => {
     expect(await screen.findByLabelText(/^Fynix mention/)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Northlight SEO mention/)).toBeInTheDocument();
     expect(screen.getByText(/1 match dropped by a negative alias/, { selector: 'p' })).toBeInTheDocument();
+  });
+
+  it('names the product whose mention counts for a brand', async () => {
+    const brand = { entity_id: entityNamed('Fynix'), canonical_name: 'Fynix', entity_type: 'brand', role: 'own' };
+    const product = { ...brand, entity_id: entityNamed('Fynix Audit'), canonical_name: 'Fynix Audit', role: 'watch' };
+    const span = { start: 4, end: 15, alias_id: null, score: 0.95, status: 'accepted' };
+    server.use(
+      http.post(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test'), () =>
+        HttpResponse.json({
+          data: {
+            mentions: [
+              {
+                entity: { ...brand, color_index: 1 },
+                spans: [{ ...span, match_method: 'via_product', via_entity_id: product.entity_id }],
+                confidence: 0.95,
+                status: 'accepted',
+              },
+              {
+                entity: { ...product, color_index: null },
+                spans: [{ ...span, match_method: 'alias_word', via_entity_id: null }],
+                confidence: 0.95,
+                status: 'accepted',
+              },
+            ],
+            negatives_applied: [],
+            skipped_alias_ids: [],
+          },
+        }),
+      ),
+    );
+    const { user } = renderWithProviders(editorAs('editor', 'Rankforge'));
+    await user.click(await screen.findByRole('textbox', { name: 'Sample answer' }));
+    await user.paste('Try Fynix Audit first.');
+    const mentions = await screen.findByRole('list', { name: 'Mentions found' });
+    expect(within(mentions).getByText('match through Fynix Audit')).toBeInTheDocument();
+    expect(within(mentions).getByText('whole word match')).toBeInTheDocument();
+  });
+
+  it('says when an alias restates the entity’s own name', async () => {
+    const { user } = renderWithProviders(editorAs('editor', 'Rankforge'));
+    await user.click(await screen.findByRole('button', { name: 'Add alias' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add an alias to Rankforge' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Alias' }), ' RANKFORGE ');
+    expect(within(dialog).getByText(/^This is the entity's own name/)).toBeInTheDocument();
   });
 
   it('refuses a parent that would make a loop, on the parent field', async () => {

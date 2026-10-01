@@ -17,13 +17,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
+import { MAX_ALIAS_LENGTH } from '@/lib/entities/aliases';
 
 const ADD = apiMutation('post', '/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases');
 const CHANGE = apiMutation('patch', '/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases/{alias_id}');
 
 export type MatchMode = AliasInput['match_mode'];
 export const MATCH_MODES: readonly MatchMode[] = ['word_boundary', 'exact_case', 'substring', 'regex'];
-const MAX_ALIAS_LENGTH = 200;
 
 export interface AliasDialogProps {
   scope: ProjectScope;
@@ -76,6 +76,8 @@ function AliasForm({
       ? t('textTooLong', { max: MAX_ALIAS_LENGTH })
       : null;
   const shownError = textError ?? (submitted ? localError : null);
+  // An alias of the name's own text, other than a pattern, sets how the name itself is matched
+  const restatesName = mode !== 'regex' && !blank && trimmed.toLowerCase() === entityName.trim().toLowerCase();
   const values: AliasInput = {
     alias: trimmed,
     match_mode: mode,
@@ -190,7 +192,9 @@ function AliasForm({
               }}
             />
             {shownError === null ? (
-              <FieldDescription>{mode === 'regex' ? t('regexHint') : t('textHint')}</FieldDescription>
+              <FieldDescription>
+                {mode === 'regex' ? t('regexHint') : restatesName ? t('restatesName') : t('textHint')}
+              </FieldDescription>
             ) : (
               <FieldError message={shownError} />
             )}

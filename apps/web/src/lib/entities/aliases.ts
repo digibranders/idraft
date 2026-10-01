@@ -1,3 +1,9 @@
+/** The longest alias the API stores (19 section 3.4). */
+export const MAX_ALIAS_LENGTH = 200;
+
+/** The most other names a new project's own brand takes (`own_entity.aliases`). */
+export const MAX_OWN_ALIASES = 50;
+
 /**
  * The other names to store for an entity, as word aliases: each once whatever its case, and not its own
  * name, which the matcher already finds by itself (doc 13 stage 4, `match_method: 'alias_name'`).

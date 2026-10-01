@@ -6,13 +6,14 @@ import type { StoredAlias, StoredDomain, StoredEntity } from './entities-state';
  *
  * - word aliases match between word boundaries and allow a plural `s` or `es`; exact-case aliases too, with
  *   case; substrings anywhere; regex aliases as written; every entity's name by itself, as a word alias that
- *   ignores case (`alias_name`, which a stored alias of the same span replaces); and each host or registrable
+ *   ignores case (`alias_name`), unless a stored alias other than a regex has the name's text in any case,
+ *   whose case, context and negative rules then stand for the name; and each host or registrable
  *   domain of an entity is a domain-shaped alias (`acme.io`, without `www.`);
  * - a positive span inside a negative alias's span is dropped, and the negative is reported;
  * - a span scores 0.95, or 0.30 for an ambiguous entity or an alias that needs context, plus 0.35 when one of
  *   the entity's hints is within 40 words (backend plan D6); 0.70 and up is accepted, 0.40 and up uncertain;
  * - of overlapping spans the longest wins, spans that count before discarded ones; a product's span also
- *   counts for its brand.
+ *   counts for its brand, as `via_product` with the product's id.
  *
  * Offsets are UTF-16 code units, which is what JavaScript's string indices are. Unlike the backend, the mock
  * folds no accents, quotes or dashes.
@@ -35,6 +36,8 @@ interface MatchSpan {
   match_method: MatchMethod;
   score: number;
   status: MentionStatus;
+  /** For `via_product`: the product whose span counts for this entity. */
+  via_entity_id: string | null;
 }
 
 interface MatchMention {
@@ -153,8 +156,12 @@ function patternsOf(entities: readonly MatcherEntity[], skipped: string[]): Patt
       }
       patterns.push({ regex, entityId: entity.entity_id, alias, method: METHOD[mode] });
     }
-    // The name by itself, so an entity with no aliases is still found
-    if (entity.canonical_name.trim() !== '') {
+    // The name by itself, so an entity with no aliases is still found, unless an alias restates it
+    const name = entity.canonical_name.trim().toLowerCase();
+    const restated = aliases.some(
+      (alias) => (alias.match_mode ?? 'word_boundary') !== 'regex' && alias.alias.trim().toLowerCase() === name,
+    );
+    if (name !== '' && !restated) {
       patterns.push({
         regex: wordPattern(entity.canonical_name, false),
         entityId: entity.entity_id,
@@ -306,10 +313,13 @@ export function matchAliases(text: string, entities: readonly MatcherEntity[]): 
       match_method: hit.method,
       score,
       status: statusOf(score),
+      via_entity_id: null,
     };
     keep(hit.entityId, span);
     const parent = byId.get(hit.entityId)?.parent_entity_id ?? null;
-    if (parent !== null && byId.has(parent)) keep(parent, { ...span, match_method: 'via_product' });
+    if (parent !== null && byId.has(parent)) {
+      keep(parent, { ...span, match_method: 'via_product', via_entity_id: hit.entityId });
+    }
   }
 
   const mentions = [...spans.entries()].map(([entityId, byRange]): MatchMention => {

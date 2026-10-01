@@ -511,20 +511,35 @@ describe('project entities', () => {
     );
   });
 
-  it('keeps one primary own entity, which cannot be removed', async () => {
+  it('keeps one primary own entity: another one takes over, and the current one cannot step down', async () => {
     const editor = mockBrowser('editor');
+    expect(
+      fieldCodes(
+        await editor.call('POST', `${P}/entities`, { entity_id: ids.fynixAudit, role: 'watch', is_primary: true }),
+      ),
+    ).toEqual(['is_primary:primary_needs_own']);
+    expect((await editor.call('DELETE', `${P}/entities/${ids.fynix}`)).code).toBe('cannot_remove_primary_own');
+    expect((await editor.call('PATCH', `${P}/entities/${ids.fynix}`, { is_primary: false })).code).toBe(
+      'cannot_remove_primary_own',
+    );
+    expect((await editor.call('PATCH', `${P}/entities/${ids.fynix}`, { role: 'watch' })).code).toBe(
+      'cannot_remove_primary_own',
+    );
+    // A new primary own entity hands over in the same write
     const second = await editor.call('POST', `${P}/entities`, {
       entity_id: ids.fynixAudit,
       role: 'own',
       is_primary: true,
     });
-    expect(second.code).toBe('primary_own_exists');
-    expect(
-      fieldCodes(
-        await editor.call('POST', `${P}/entities`, { entity_id: ids.fynixAudit, role: 'watch', is_primary: true }),
-      ),
-    ).toEqual([':value_error']);
-    expect((await editor.call('DELETE', `${P}/entities/${ids.fynix}`)).code).toBe('cannot_remove_primary_own');
+    expect(dataOf(second, PROJECT_ENTITY)).toMatchObject({ role: 'own', is_primary: true });
+    const roles = dataOf(await editor.call('GET', `${P}/entities`), PROJECT_ENTITIES);
+    expect(roles.filter((role) => role.is_primary).map((role) => role.entity.entity_id)).toEqual([ids.fynixAudit]);
+    // The former primary can now leave, and handing back works through PATCH too
+    expect(fieldCodes(await editor.call('PATCH', `${P}/entities/${ids.northlight}`, { is_primary: true }))).toEqual([
+      'is_primary:primary_needs_own',
+    ]);
+    const back = await editor.call('PATCH', `${P}/entities/${ids.fynix}`, { is_primary: true });
+    expect(dataOf(back, PROJECT_ENTITY)).toMatchObject({ is_primary: true });
     expect(fieldCodes(await editor.call('POST', `${P}/entities`, { entity_id: OTHER_ID, role: 'watch' }))).toEqual([
       'entity_id:entity_unknown',
     ]);
@@ -637,6 +652,37 @@ describe('the alias test', () => {
       ['Orbitly', 'alias_name', null, 'accepted'],
       ['Notion', 'alias_name', null, 'discarded'],
     ]);
+  });
+
+  it('lets an alias of the name’s own text set how the name is matched', async () => {
+    const editor = mockBrowser('editor');
+    const entity = dataOf(
+      await editor.call('POST', `${W}/entities`, { entity_type: 'brand', canonical_name: 'Orbitly' }),
+      ENTITY,
+    );
+    await editor.call('POST', `${P}/entities`, { entity_id: entity.entity_id, role: 'watch' });
+    await editor.call('POST', `${W}/entities/${entity.entity_id}/aliases`, {
+      alias: 'orbitly',
+      match_mode: 'exact_case',
+    });
+    const text = 'ORBITLY is not orbitly.';
+    const result = await test({ text }, editor);
+    // The exact-case alias stands for the name, so the name no longer matches by itself in any case
+    expect(result.mentions[0]?.spans.map((span) => [text.slice(span.start, span.end), span.match_method])).toEqual([
+      ['orbitly', 'alias_exact'],
+    ]);
+  });
+
+  it('counts a product’s mention for its brand, naming the product', async () => {
+    const editor = mockBrowser('editor');
+    await editor.call('POST', `${P}/entities`, { entity_id: ids.fynixAudit, role: 'watch' });
+    const result = await test({ text: 'Try Fynix Audit first.' }, editor);
+    const brand = result.mentions.find((mention) => mention.entity.entity_id === ids.fynix);
+    expect(brand?.spans).toEqual([
+      expect.objectContaining({ match_method: 'via_product', via_entity_id: ids.fynixAudit }),
+    ]);
+    const product = result.mentions.find((mention) => mention.entity.entity_id === ids.fynixAudit);
+    expect(product?.spans).toEqual([expect.objectContaining({ match_method: 'alias_word', via_entity_id: null })]);
   });
 
   it('drops a mention inside a negative alias and says which one', async () => {

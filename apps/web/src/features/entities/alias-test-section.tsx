@@ -27,7 +27,7 @@ const MAX_BYTES = 100 * 1024;
 const COUNTER_FROM = MAX_BYTES * 0.8;
 
 type Mention = AliasTestResult['mentions'][number];
-type Method = Mention['spans'][number]['match_method'];
+type Span = Mention['spans'][number];
 
 const bytesOf = (text: string): number => new TextEncoder().encode(text).length;
 
@@ -102,7 +102,16 @@ export function AliasTestSection({
     if (summary !== null) announce(summary);
   }, [summary]);
 
-  const methodLabel = (method: Method): string => t(`methods.${METHOD_KEY[method]}`);
+  // A product's span that counts for its brand names the product, when the product is among the mentions
+  const methodLabel = (span: Pick<Span, 'match_method' | 'via_entity_id'>): string => {
+    const product =
+      span.match_method === 'via_product' && span.via_entity_id !== null
+        ? shown?.result.mentions.find((mention) => mention.entity.entity_id === span.via_entity_id)
+        : undefined;
+    return product === undefined
+      ? t(`methods.${METHOD_KEY[span.match_method]}`)
+      : t('methods.viaNamedProduct', { product: product.entity.canonical_name });
+  };
   return (
     <section aria-labelledby="alias-test-title" className="flex flex-col gap-4">
       <div>
@@ -148,7 +157,7 @@ export function AliasTestSection({
                         own: segment.mention.entity.role === 'own',
                         colorIndex: colorOf(segment.mention.entity.color_index),
                       }}
-                      matchLabel={methodLabel(segment.span.match_method)}
+                      matchLabel={methodLabel(segment.span)}
                       confidence={segment.span.score}
                       certainty={segment.span.status === 'accepted' ? 'certain' : 'uncertain'}
                     >
@@ -167,8 +176,8 @@ export function AliasTestSection({
                       <span className="min-w-0 flex-1 truncate type-body">{mention.entity.canonical_name}</span>
                       <span className="hidden type-meta sm:inline">
                         {methodLabel(
-                          (mention.spans.find((span) => span.status !== 'discarded') ?? mention.spans[0])
-                            ?.match_method ?? 'alias_word',
+                          mention.spans.find((span) => span.status !== 'discarded') ??
+                            mention.spans[0] ?? { match_method: 'alias_word', via_entity_id: null },
                         )}
                       </span>
                       <span className="num type-meta">

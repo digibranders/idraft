@@ -804,11 +804,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete a term */
+        /**
+         * Delete a term
+         * @description `409 has_children` for a term with children, unless `cascade=true`.
+         */
         delete: operations["delete_term_api_v1_workspaces__workspace_id__terms__term_id__delete"];
         options?: never;
         head?: never;
-        /** Change or move a term */
+        /**
+         * Change or move a term
+         * @description A new `slug` or `parent_id` rewrites the paths of the whole subtree. The name keeps its slug unless a slug is given. `422 cycle_detected` for a parent under the term.
+         */
         patch: operations["update_term_api_v1_workspaces__workspace_id__terms__term_id__patch"];
         trace?: never;
     };
@@ -819,10 +825,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Vocabularies */
+        /** Vocabularies, by name */
         get: operations["list_vocabularies_api_v1_workspaces__workspace_id__vocabularies_get"];
         put?: never;
-        /** Create a vocabulary */
+        /**
+         * Create a vocabulary
+         * @description Workspace-wide without `project_id`, which a member limited to some projects cannot create. `409 duplicate` when the scope has a vocabulary of this kind with this name, in any case.
+         */
         post: operations["create_vocabulary_api_v1_workspaces__workspace_id__vocabularies_post"];
         delete?: never;
         options?: never;
@@ -855,10 +864,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A vocabulary's terms, as a tree or flat */
+        /**
+         * A vocabulary's terms, as a tree or flat
+         * @description In path order. `flat` lists every term with empty `children`.
+         */
         get: operations["list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get"];
         put?: never;
-        /** Add one term or a batch */
+        /**
+         * Add one term or a batch
+         * @description Items are added in order. A `path` reuses the terms it names that exist, matched by name in any case, and creates the others; a path that exists adds nothing. The response lists the terms created. `409 duplicate` when a `name` item, or a given `slug`, is taken under its parent; `422 not_hierarchical` for a parent in a flat vocabulary.
+         */
         post: operations["add_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_post"];
         delete?: never;
         options?: never;
@@ -1027,7 +1042,7 @@ export interface components {
         AliasTestSpan: {
             /**
              * Alias Id
-             * @description None for a domain-shaped alias.
+             * @description The stored alias that matched; None for the canonical name (`alias_name`) and a domain-shaped alias (`alias_domain`).
              */
             alias_id: string | null;
             /** End */
@@ -1050,6 +1065,11 @@ export interface components {
              * @enum {string}
              */
             status: "accepted" | "uncertain" | "discarded";
+            /**
+             * Via Entity Id
+             * @description For `via_product`: the product whose mention counts for this entity.
+             */
+            via_entity_id: string | null;
         };
         /**
          * AliasUpdate
@@ -1630,7 +1650,7 @@ export interface components {
         OwnEntityInput: {
             /**
              * Aliases
-             * @description Word aliases that ignore case.
+             * @description Word aliases that ignore case, trimmed; repeats in any case are one alias.
              */
             aliases?: string[];
             /** Canonical Name */
@@ -1842,7 +1862,7 @@ export interface components {
             entity_id: string;
             /**
              * Is Primary
-             * @description Only for `own`; one per project.
+             * @description Only for `own`; one per project, so the current primary one stops being primary.
              * @default false
              */
             is_primary: boolean;
@@ -4296,7 +4316,7 @@ export interface operations {
     list_vocabularies_api_v1_workspaces__workspace_id__vocabularies_get: {
         parameters: {
             query?: {
-                /** @description That project's and the workspace-wide ones. */
+                /** @description That project's vocabularies and the workspace-wide ones. */
                 "filter[project_id]"?: string | null;
                 "filter[kind]"?: ("topic" | "cluster" | "product" | "service" | "market" | "campaign" | "persona" | "tag" | "custom") | null;
                 offset?: number;
@@ -4435,7 +4455,7 @@ export interface operations {
         parameters: {
             query?: {
                 format?: "tree" | "flat";
-                /** @description Matching terms, with their ancestors in the tree format. */
+                /** @description Terms whose name holds the text; the tree keeps their ancestors. */
                 "filter[q]"?: string | null;
             };
             header?: never;

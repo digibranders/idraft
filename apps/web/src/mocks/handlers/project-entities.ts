@@ -24,6 +24,7 @@ import {
   withEdited,
   withVersionsBumped,
   workspaceOfRow,
+  type EntityChanges,
   type EntityWorld,
   type StoredRole,
 } from '../entities-state';
@@ -84,7 +85,8 @@ const roleFieldErrors = (body: Readonly<Record<string, unknown>>): ValidationIte
   ...colorError(body.color_index),
 ];
 
-const primaryNeedsOwn = (): ValidationItem => bodyError('', 'value_error', '`is_primary` is only for the `own` role.');
+const primaryNeedsOwn = (): ValidationItem =>
+  bodyError('is_primary', 'primary_needs_own', 'Only an `own` entity is primary.');
 
 /** `422 competitor_limit` when one more SEO competitor would pass the limit, or `null`. */
 function competitorLimit(
@@ -101,11 +103,21 @@ function competitorLimit(
     : null;
 }
 
-/** Another entity of the project is its primary own entity already. */
-const primaryTaken = (world: EntityWorld, projectId: string, except: string): boolean =>
-  rolesOf(world, projectId).some(
-    (role) => role.entity_id !== except && isActiveRole(role) && role.role === 'own' && (role.is_primary ?? false),
+/**
+ * The changes with the project's current primary own entity, other than `entityId`, no longer primary: a
+ * new primary takes over in the same write, as the API hands over.
+ */
+function withPrimaryHandedOver(
+  changes: EntityChanges,
+  world: EntityWorld,
+  projectId: string,
+  entityId: string,
+): EntityChanges {
+  const previous = rolesOf(world, projectId).find(
+    (role) => role.entity_id !== entityId && isActiveRole(role) && role.role === 'own' && (role.is_primary ?? false),
   );
+  return previous ? withEdited(changes, 'roles', previous, { is_primary: false }) : changes;
+}
 
 /** The project's role for an entity, removed ones included, or `undefined`. */
 const roleIn = (caller: ProjectCaller, entityId: string | readonly string[] | undefined): StoredRole | undefined =>
@@ -150,13 +162,14 @@ export const projectEntityHandlers: HttpHandler[] = [
       ...nullErrors(body, ['entity_id', 'role', 'is_primary', 'track_seo', 'track_ai']),
       ...uuidError(body.entity_id === null ? undefined : body.entity_id, 'entity_id'),
       ...roleFieldErrors(body),
+      // Checked after `role`: when the role failed, its own error is the one reported
+      ...(body.is_primary === true && isOneOf(body.role, ROLES) && body.role !== 'own' ? [primaryNeedsOwn()] : []),
     ];
     if (errors.length > 0) return invalid(request, errors);
     if (typeof body.entity_id !== 'string' || !isOneOf(body.role, ROLES)) {
       throw new Error('The entity id and role were checked above');
     }
     const isPrimary = body.is_primary === true;
-    if (isPrimary && body.role !== 'own') return invalid(request, [primaryNeedsOwn()]);
     const entityId = body.entity_id;
     const entity = caller.world.entities.find(
       (candidate) =>
@@ -169,7 +182,6 @@ export const projectEntityHandlers: HttpHandler[] = [
       return problem(request, 'duplicate', { detail: 'The project already gives this entity a role.' });
     }
     const projectId = caller.project.project_id;
-    if (isPrimary && primaryTaken(caller.world, projectId, entityId)) return problem(request, 'primary_own_exists');
     const trackSeo = body.track_seo !== false;
     if (countsAsSeoCompetitor({ role: body.role, track_seo: trackSeo })) {
       const full = competitorLimit(request, caller.world, projectId, entityId);
@@ -182,11 +194,14 @@ export const projectEntityHandlers: HttpHandler[] = [
       track_ai: body.track_ai !== false,
       color_index: typeof body.color_index === 'number' ? body.color_index : null,
     };
+    const changes = isPrimary
+      ? withPrimaryHandedOver(caller.entityChanges, caller.world, projectId, entityId)
+      : caller.entityChanges;
     // Giving a removed entity a role again brings back its one row per project and entity
     const next = withVersionsBumped(
       existing
-        ? withEdited(caller.entityChanges, 'roles', existing, { ...values, removed_at: null })
-        : withCreated(caller.entityChanges, 'roles', {
+        ? withEdited(changes, 'roles', existing, { ...values, removed_at: null })
+        : withCreated(changes, 'roles', {
             project_id: projectId,
             entity_id: entityId,
             role: values.role,
@@ -227,22 +242,24 @@ export const projectEntityHandlers: HttpHandler[] = [
     ];
     if (errors.length > 0) return invalid(request, errors);
     const role: Role = isOneOf(body.role, ROLES) ? body.role : current.role;
-    const isPrimary = typeof body.is_primary === 'boolean' ? body.is_primary : (current.is_primary ?? false);
+    const wasPrimary = current.is_primary ?? false;
+    const primary = typeof body.is_primary === 'boolean' ? body.is_primary : wasPrimary;
     const trackSeo = typeof body.track_seo === 'boolean' ? body.track_seo : (current.track_seo ?? true);
-    if (body.is_primary === true && role !== 'own') return invalid(request, [primaryNeedsOwn()]);
-    // A primary own entity that changes role stops being primary
-    const primary = isPrimary && role === 'own';
+    // The primary own entity stays primary and own until another own entity takes over
+    if (wasPrimary && (!primary || role !== 'own')) return problem(request, 'cannot_remove_primary_own');
+    if (primary && role !== 'own') return invalid(request, [primaryNeedsOwn()]);
     const projectId = caller.project.project_id;
     const entityId = current.entity_id;
-    if (primary && !(current.is_primary ?? false) && primaryTaken(caller.world, projectId, entityId)) {
-      return problem(request, 'primary_own_exists');
-    }
     if (countsAsSeoCompetitor({ role, track_seo: trackSeo }) && !countsAsSeoCompetitor(current)) {
       const full = competitorLimit(request, caller.world, projectId, entityId);
       if (full) return full;
     }
+    const changes =
+      primary && !wasPrimary
+        ? withPrimaryHandedOver(caller.entityChanges, caller.world, projectId, entityId)
+        : caller.entityChanges;
     const next = withVersionsBumped(
-      withEdited(caller.entityChanges, 'roles', current, {
+      withEdited(changes, 'roles', current, {
         role,
         is_primary: primary,
         track_seo: trackSeo,

@@ -33,15 +33,18 @@ import { termView, vocabularyView } from '../factories/entity';
 import { MOCK_CREATED_AT, MOCK_WORKSPACE } from '../fixtures';
 import { invalid, mock, noContent, problem } from '../respond';
 import { MAX_SLUG, termSlug } from '../term-slug';
-import type { TermNode, ValidationItem } from '@/lib/api/types';
+import type { Problem, TermNode, ValidationItem } from '@/lib/api/types';
 
 /**
  * Vocabularies and their terms (19 section 3.5). A vocabulary is workspace-wide or belongs to one project;
  * its terms form a tree whose `path` is the slugs from the root. Slugs are made from names and are unique
  * among siblings; a `path` such as `CRM/CRM for Startups` creates the parents it lacks; a move recomputes the
- * subtree's paths (they are derived, so nothing else is written) and may not make a cycle; a term with
- * children is deleted only with `cascade`. A vocabulary's name is unique per scope and kind, ignoring case
- * (migration 0010). Changes are kept in the entities cookie (../entities-state.ts), where a term keeps the
+ * subtree's paths (they are derived, so nothing else is written), may not make a cycle or pass 10 levels,
+ * and renumbers the term's slug when it lands next to a sibling with it (`c` becomes `c-2`) unless a slug is
+ * given; a term with children is deleted only with `cascade`. A flat vocabulary takes no parents. A member
+ * limited to some projects cannot change a workspace-wide vocabulary or its terms (`403`). A vocabulary's
+ * name is unique per scope and kind, ignoring case (migration 0010). Terms are listed in path order, level
+ * by level, and vocabularies by name. Changes are kept in the entities cookie (../entities-state.ts), where a term keeps the
  * fixture time as its `created_at`.
  */
 
@@ -52,6 +55,8 @@ const MAX_TERM_NAME = 200;
 const MAX_PATH = 1000;
 const MAX_DESCRIPTION = 2000;
 const MAX_TERMS = 500;
+/** A term is at most this many levels from its root. */
+const MAX_DEPTH = 10;
 const MAX_QUERY_TEXT = 200;
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const TERM_FIELDS = ['name', 'parent_id', 'path', 'slug', 'description'] as const;
@@ -62,6 +67,23 @@ const VOCABULARY_TAKEN = 'A vocabulary of this scope and kind already has this n
 
 /** The project of a vocabulary, or `null` for a workspace-wide one. */
 const projectOf = (vocabulary: StoredVocabulary): string | null => vocabulary.project_id ?? null;
+
+/**
+ * `403` when the vocabulary is workspace-wide (`projectId` is `null`) and the caller is limited to some
+ * projects: it is shared by every project, so such a member cannot change it.
+ */
+function sharedRefusal(
+  request: Request,
+  caller: WorkspaceCaller,
+  projectId: string | null,
+): HttpResponse<Problem> | null {
+  return projectId === null && caller.access.membership.project_ids !== null
+    ? problem(request, 'forbidden', {
+        detail:
+          'A workspace-wide vocabulary is shared by every project, so a member limited to some projects cannot change it.',
+      })
+    : null;
+}
 
 /** The vocabulary with this id the caller may see: of the workspace, and of a project they may open. */
 function vocabularyIn(
@@ -103,6 +125,34 @@ function subtreeOf(terms: readonly StoredTerm[], termId: string): StoredTerm[] {
   return found;
 }
 
+/** How many levels a term is from its root: 1 for a root. */
+function depthOf(terms: readonly StoredTerm[], term: StoredTerm): number {
+  let depth = 1;
+  for (let parentId = term.parent_id ?? null; parentId !== null; depth += 1) {
+    const id = parentId;
+    parentId = terms.find((candidate) => candidate.term_id === id)?.parent_id ?? null;
+  }
+  return depth;
+}
+
+/** How many levels a term's subtree reaches below it: 0 for a leaf. */
+const levelsBelow = (terms: readonly StoredTerm[], term: StoredTerm): number =>
+  Math.max(...subtreeOf(terms, term.term_id).map((below) => depthOf(terms, below))) - depthOf(terms, term);
+
+/** Text in code point order, as the API compares slugs and paths. */
+const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/** Path order, level by level: a parent comes right before its subtree, so `a-b` sorts after `a/b`. */
+function byPath(a: string, b: string): number {
+  const left = a.split('/');
+  const right = b.split('/');
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    const order = byCodePoint(left[index] ?? '', right[index] ?? '');
+    if (order !== 0) return order;
+  }
+  return left.length - right.length;
+}
+
 /** `slug`, or `slug-2`, `slug-3` and so on, whichever no sibling has. */
 function freeSlug(siblings: readonly StoredTerm[], slug: string): string {
   const taken = new Set(siblings.map((term) => term.slug));
@@ -141,6 +191,8 @@ interface TermValues {
   parent_id: string | null;
   slug: string | null;
   description: string | null;
+  /** Given as a `path`, whose existing terms are reused. */
+  isPath: boolean;
   /** Where the input was, for its errors. */
   prefix: string;
 }
@@ -175,11 +227,15 @@ function termInput(value: unknown, prefix: string): TermValues | ValidationItem[
       bodyError(at(prefix, 'path'), 'invalid_term_path', 'A path is term names separated by `/`, none of them empty.'),
     ];
   }
+  if (names.length > MAX_DEPTH) {
+    return [bodyError(at(prefix, 'path'), 'too_deep', `A path has at most ${String(MAX_DEPTH)} levels.`)];
+  }
   return {
     names,
     parent_id: parentId,
     slug: typeof value.slug === 'string' ? value.slug : null,
     description: typeof value.description === 'string' ? value.description : null,
+    isPath: path !== null,
     prefix,
   };
 }
@@ -204,18 +260,16 @@ function termInputs(body: unknown): TermValues[] | ValidationItem[] {
 const isTermList = (value: TermValues[] | ValidationItem[]): value is TermValues[] =>
   value.every((item) => 'names' in item);
 
-/** The tree of `terms` under `parentId`, siblings by name. */
+/** The tree of `terms` under `parentId`, in path order: siblings by slug. */
 function treeOf(world: EntityWorld, terms: readonly StoredTerm[], parentId: string | null): TermNode[] {
   return childrenOf(terms, parentId)
-    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.term_id.localeCompare(b.term_id))
+    .sort((a, b) => byCodePoint(a.slug, b.slug))
     .map((term) => ({ ...termView(world, term), children: treeOf(world, terms, term.term_id) }));
 }
 
-/** The workspace-wide vocabularies first, as every project shares them; then by name, ignoring case, then id. */
+/** By name, ignoring case, then by id, as the API lists them. */
 const byName = (a: StoredVocabulary, b: StoredVocabulary): number =>
-  Number(projectOf(a) !== null) - Number(projectOf(b) !== null) ||
-  a.name.toLowerCase().localeCompare(b.name.toLowerCase()) ||
-  a.vocabulary_id.localeCompare(b.vocabulary_id);
+  byCodePoint(a.name.toLowerCase(), b.name.toLowerCase()) || byCodePoint(a.vocabulary_id, b.vocabulary_id);
 
 const W = '/api/v1/workspaces/{workspace_id}';
 
@@ -273,6 +327,8 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (!isOneOf(body.kind, KINDS) || typeof body.name !== 'string')
       throw new Error('The kind and name were checked above');
     const projectId = typeof body.project_id === 'string' ? body.project_id : null;
+    const refused = sharedRefusal(request, caller, projectId);
+    if (refused) return refused;
     // The body names a project, so the route checks the caller's scope itself (19 section 2.2)
     if (projectId !== null && !caller.projects.some((project) => project.project_id === projectId)) {
       return invalid(request, [bodyError('project_id', 'project_unknown', 'A project is not in this workspace.')]);
@@ -312,6 +368,8 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const vocabulary = vocabularyIn(caller, params.vocabulary_id);
     if (!vocabulary) return problem(request, 'not_found');
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const empty = emptyChange(request, body);
@@ -354,6 +412,8 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const vocabulary = vocabularyIn(caller, params.vocabulary_id);
     if (!vocabulary) return problem(request, 'not_found');
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
     // Terms go with their vocabulary
     let next = withDeleted(caller.entityChanges, 'vocabularies', vocabulary.vocabulary_id);
     for (const term of termsOf(caller.world, vocabulary.vocabulary_id)) next = withDeleted(next, 'terms', term.term_id);
@@ -385,7 +445,7 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (format === 'flat') {
       const data: TermNode[] = matching
         .map((term) => ({ ...termView(world, term), children: [] }))
-        .sort((a, b) => a.path.localeCompare(b.path));
+        .sort((a, b) => byPath(a.path, b.path));
       return HttpResponse.json({ data });
     }
     // The tree keeps the ancestors of every match, so each match shows where it sits
@@ -412,26 +472,46 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const vocabulary = vocabularyIn(caller, params.vocabulary_id);
     if (!vocabulary) return problem(request, 'not_found');
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
     const body: unknown = await request.json();
     const inputs = termInputs(body);
     if (!isTermList(inputs)) return invalid(request, inputs);
+    const flat = vocabulary.is_hierarchical !== true;
     // Each input sees the terms the ones before it made, so a batch can build a tree
     const terms = [...termsOf(caller.world, vocabulary.vocabulary_id)];
     const created: StoredTerm[] = [];
     const ids = idMinter(caller.entityChanges);
     for (const input of inputs) {
       let parentId = input.parent_id;
-      if (parentId !== null && !terms.some((term) => term.term_id === parentId)) {
-        return invalid(request, [
-          bodyError(at(input.prefix, 'parent_id'), 'term_unknown', 'No term of this vocabulary has this id.'),
-        ]);
+      const byPathInput = input.isPath;
+      if (flat && (parentId !== null || input.names.length > 1)) {
+        const where = at(input.prefix, byPathInput ? 'path' : 'parent_id');
+        return invalid(request, [bodyError(where, 'not_hierarchical', 'The vocabulary is flat: no parents.')]);
       }
-      let made = false;
+      if (parentId !== null) {
+        const parent = terms.find((term) => term.term_id === parentId);
+        if (!parent) {
+          return invalid(request, [
+            bodyError(at(input.prefix, 'parent_id'), 'parent_unknown', 'No such term in this vocabulary.'),
+          ]);
+        }
+        if (depthOf(terms, parent) >= MAX_DEPTH) {
+          return invalid(request, [
+            bodyError(
+              at(input.prefix, 'parent_id'),
+              'too_deep',
+              `A term is at most ${String(MAX_DEPTH)} levels from its root.`,
+            ),
+          ]);
+        }
+      }
       for (const [index, name] of input.names.entries()) {
         const last = index === input.names.length - 1;
         const siblings = childrenOf(terms, parentId);
         const existing = siblings.find((term) => sameName(term.name, name));
-        if (existing && !last) {
+        // A path reuses the terms it names that exist; a path that exists adds nothing
+        if (existing && byPathInput) {
           parentId = existing.term_id;
           continue;
         }
@@ -451,9 +531,7 @@ export const taxonomyHandlers: HttpHandler[] = [
         terms.push(term);
         created.push(term);
         parentId = term.term_id;
-        made = true;
       }
-      if (!made) throw new Error('A term input made no term');
     }
     let next = caller.entityChanges;
     for (const term of created) next = withCreated(next, 'terms', term);
@@ -473,6 +551,8 @@ export const taxonomyHandlers: HttpHandler[] = [
     const term = caller.world.terms.find((row) => row.term_id === params.term_id);
     const vocabulary = term ? vocabularyIn(caller, term.vocabulary_id) : undefined;
     if (!term || !vocabulary) return problem(request, 'not_found');
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const empty = emptyChange(request, body);
@@ -491,25 +571,41 @@ export const taxonomyHandlers: HttpHandler[] = [
     const terms = termsOf(caller.world, vocabulary.vocabulary_id);
     const currentParent = term.parent_id ?? null;
     const parentId = 'parent_id' in body ? (typeof body.parent_id === 'string' ? body.parent_id : null) : currentParent;
-    if (parentId !== null && !terms.some((candidate) => candidate.term_id === parentId)) {
-      return invalid(request, [bodyError('parent_id', 'term_unknown', 'No term of this vocabulary has this id.')]);
-    }
-    // A term cannot move under itself or under one of its own terms
-    if (parentId !== null && subtreeOf(terms, term.term_id).some((below) => below.term_id === parentId)) {
-      return problem(request, 'cycle_detected', { detail: 'The new parent is the term or one of its children.' });
+    const moving = parentId !== currentParent;
+    if (moving && parentId !== null) {
+      if (vocabulary.is_hierarchical !== true) {
+        return invalid(request, [bodyError('parent_id', 'not_hierarchical', 'The vocabulary is flat.')]);
+      }
+      const parent = terms.find((candidate) => candidate.term_id === parentId);
+      if (!parent) {
+        return invalid(request, [bodyError('parent_id', 'parent_unknown', 'No such term in this vocabulary.')]);
+      }
+      // A term cannot move under itself or under one of its own terms
+      if (subtreeOf(terms, term.term_id).some((below) => below.term_id === parentId)) {
+        return problem(request, 'cycle_detected', { detail: 'The parent is this term or one under it.' });
+      }
+      if (depthOf(terms, parent) + 1 + levelsBelow(terms, term) > MAX_DEPTH) {
+        return invalid(request, [
+          bodyError('parent_id', 'too_deep', `A term is at most ${String(MAX_DEPTH)} levels from its root.`),
+        ]);
+      }
     }
     const name = typeof body.name === 'string' ? body.name.trim() : term.name;
-    const slug = typeof body.slug === 'string' ? body.slug : term.slug;
+    const slugGiven = typeof body.slug === 'string';
     const siblings = childrenOf(terms, parentId).filter((other) => other.term_id !== term.term_id);
-    if (siblings.some((other) => sameName(other.name, name))) {
+    if ((moving || name !== term.name) && siblings.some((other) => sameName(other.name, name))) {
       return problem(request, 'duplicate', { detail: `"${name}" is already a term at this place.` });
     }
-    if (siblings.some((other) => other.slug === slug)) {
+    const taken = (candidate: string): boolean => siblings.some((other) => other.slug === candidate);
+    let slug = typeof body.slug === 'string' ? body.slug : term.slug;
+    if (slugGiven && (moving || slug !== term.slug) && taken(slug)) {
       return problem(request, 'duplicate', { detail: 'A term at this place already has this slug.' });
     }
+    // Moved without a slug next to a sibling that has its slug, the term is numbered as an insert is
+    if (!slugGiven && moving && taken(slug)) slug = freeSlug(siblings, slug);
     const next = withEdited(caller.entityChanges, 'terms', term, {
       name: typeof body.name === 'string' ? name : undefined,
-      slug: typeof body.slug === 'string' ? slug : undefined,
+      slug: slug === term.slug ? undefined : slug,
       parent_id: 'parent_id' in body ? parentId : undefined,
       description: 'description' in body ? (typeof body.description === 'string' ? body.description : null) : undefined,
     });
@@ -530,6 +626,8 @@ export const taxonomyHandlers: HttpHandler[] = [
     const term = caller.world.terms.find((row) => row.term_id === params.term_id);
     const vocabulary = term ? vocabularyIn(caller, term.vocabulary_id) : undefined;
     if (!term || !vocabulary) return problem(request, 'not_found');
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
     const cascade = booleanQuery(caller.url, 'cascade', false);
     if (typeof cascade !== 'boolean') return invalid(request, [cascade]);
     const terms = termsOf(caller.world, vocabulary.vocabulary_id);
