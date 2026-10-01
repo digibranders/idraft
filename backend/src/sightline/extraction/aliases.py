@@ -35,7 +35,13 @@ from sightline.extraction.text import (
 
 MatchMode = Literal["word_boundary", "exact_case", "substring", "regex"]
 MatchMethod = Literal[
-    "alias_word", "alias_exact", "alias_substring", "alias_regex", "alias_domain", "via_product"
+    "alias_word",
+    "alias_exact",
+    "alias_substring",
+    "alias_regex",
+    "alias_name",
+    "alias_domain",
+    "via_product",
 ]
 MentionStatus = Literal["accepted", "uncertain", "discarded"]
 
@@ -51,8 +57,9 @@ _METHOD_RANK: Final[dict[MatchMethod, int]] = {
     "alias_word": 1,
     "alias_substring": 2,
     "alias_regex": 3,
-    "alias_domain": 4,
-    "via_product": 5,
+    "alias_name": 4,
+    "alias_domain": 5,
+    "via_product": 6,
 }
 # Plurals allowed before the closing boundary of a word alias. A possessive needs no entry:
 # its apostrophe is already a boundary.
@@ -95,6 +102,8 @@ class TooManyMatchesError(ValueError):
 @dataclass(frozen=True, slots=True)
 class EntityRule:
     id: uuid.UUID
+    # Matched by itself, as a word alias that ignores case (`alias_name`), so an entity with no
+    # aliases is still found by its name.
     canonical_name: str
     parent_entity_id: uuid.UUID | None = None
     is_ambiguous: bool = False
@@ -210,6 +219,8 @@ class AliasMatcher:
                 pattern = _Pattern(alias.entity_id, alias, method, boundary, len(key))
                 (cased if sensitive else folded)[key].append(pattern)
         for entity in self._entities.values():
+            if name := normalize(entity.canonical_name, fold_case=True).text.strip():
+                folded[name].append(_Pattern(entity.id, None, "alias_name", "word", len(name)))
             for key in _domain_keys(entity.domains):
                 pattern = _Pattern(entity.id, None, "alias_domain", "domain", len(key))
                 folded[key].append(pattern)
@@ -498,7 +509,8 @@ class _Context:
     def score(self, hit: _Hit, entity: EntityRule) -> float:
         alias = hit.pattern.alias
         needs_context = entity.is_ambiguous or (alias is not None and alias.requires_context)
-        if alias is None or not needs_context:
+        # A domain (`monday.com`) names the entity whatever its name means elsewhere.
+        if hit.pattern.method == "alias_domain" or not needs_context:
             return _BASE_PLAIN
         score = _BASE_NEEDS_CONTEXT
         if self._hint_near(hit, entity.id):

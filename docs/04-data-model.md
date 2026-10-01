@@ -1196,7 +1196,7 @@ CREATE TABLE ai.entity_mentions (
     recommendation_method text,                  -- 'rule','local_model','llm'
     sentiment           text CHECK (sentiment IN ('positive','neutral','negative','mixed')),
     sentiment_method    text,
-    match_method        text NOT NULL,           -- 'alias_exact','alias_word','alias_substring','alias_regex','alias_domain','via_product','fuzzy','ner','llm'
+    match_method        text NOT NULL,           -- 'alias_exact','alias_word','alias_substring','alias_regex','alias_name','alias_domain','via_product','fuzzy','ner','llm'
     mention_status      text NOT NULL DEFAULT 'accepted' CHECK (mention_status IN ('accepted','uncertain')),  -- uncertain rows are excluded from rates (13 section 1)
     structured_list_index smallint,              -- which ordered list in the answer carries structured_rank (13 stage 6)
     confidence          numeric(4,3) NOT NULL,

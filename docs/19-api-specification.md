@@ -766,8 +766,9 @@ interface EntityDetail extends Entity { aliases: Alias[]; projects: Array<{ proj
 interface AliasInput { alias: string; match_mode?: 'word_boundary' | 'exact_case' | 'substring' | 'regex';   // default 'word_boundary'
                        case_sensitive?: boolean; language_code?: string | null; is_negative?: boolean; requires_context?: boolean }
 interface Alias extends AliasInput { alias_id: Uuid; entity_id: Uuid; created_by: UserRef | null; created_at: Iso }
-// Domain-shaped aliases (doc 13 stage 4) are generated when the automaton is compiled; they are not rows and are not listed here.
-// POST {P}/alias-test reports them with match_method 'alias_domain'.
+// The canonical name and domain-shaped aliases (doc 13 stage 4) are matched without being rows, and are not listed here.
+// POST {P}/alias-test reports them with match_method 'alias_name' and 'alias_domain', alias_id null. A client need not
+// store the name as an alias.
 interface EntityDomain { entity_domain_id: Uuid; entity_id: Uuid; domain: DomainRef; match_scope: 'host' | 'registrable' | 'path_prefix'; path_prefix: string | null }
 interface ProjectEntity { project_id: Uuid; entity: EntityRef; role: 'own' | 'competitor' | 'watch'; is_primary: boolean;
                           track_seo: boolean; track_ai: boolean; color_index: 1 | 2 | 3 | 4 | 5 | 6 | null; added_at: Iso; removed_at: Iso | null;

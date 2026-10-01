@@ -160,7 +160,7 @@ def test_case_sensitive_and_exact_case_compare_the_original_case() -> None:
         _alias(ACME, "Notion", case_sensitive=True),
         _alias(ACME, "Notion", "exact_case"),
     ):
-        result = _match(text, [_entity(ACME, "Notion")], [alias])
+        result = _match(text, [_entity(ACME, "Notion Labs")], [alias])
         assert _texts(result, text, ACME) == ["Notion"]
 
 
@@ -186,10 +186,11 @@ def test_matching_sees_through_normalization_and_reports_original_offsets() -> N
 
 def test_regex_runs_through_re2_on_the_normalized_text() -> None:
     text = "Acme CRM, ACME-CRM and acmecrm"
-    result = _match(text, [_entity(ACME, "Acme")], [_alias(ACME, r"acme[ -]?crm", "regex")])
+    entities = [_entity(ACME, "Acme Corp")]
+    result = _match(text, entities, [_alias(ACME, r"acme[ -]?crm", "regex")])
     assert _texts(result, text, ACME) == ["Acme CRM", "ACME-CRM", "acmecrm"]
     sensitive = _alias(ACME, r"Acme[ -]?CRM", "regex", case_sensitive=True)
-    assert _texts(_match(text, [_entity(ACME, "Acme")], [sensitive]), text, ACME) == ["Acme CRM"]
+    assert _texts(_match(text, entities, [sensitive]), text, ACME) == ["Acme CRM"]
 
 
 def test_a_pattern_is_normalized_like_the_text() -> None:
@@ -205,7 +206,7 @@ def test_a_pattern_is_normalized_like_the_text() -> None:
 
 
 def test_a_regex_that_matches_nothing_wide_is_skipped() -> None:
-    result = _match("acme", [_entity(ACME, "Acme")], [_alias(ACME, "x*", "regex")])
+    result = _match("acme", [_entity(ACME, "Acme Corp")], [_alias(ACME, "x*", "regex")])
     assert result.mentions == ()
 
 
@@ -325,7 +326,7 @@ def test_every_negative_that_covers_a_span_is_reported() -> None:
 
 def test_a_negative_that_drops_nothing_is_not_reported() -> None:
     result = _match(
-        "apple pie", [_entity(APPLE, "Apple")], [_alias(APPLE, "apple pie", negative=True)]
+        "apple pie", [_entity(APPLE, "Apple Inc")], [_alias(APPLE, "apple pie", negative=True)]
     )
     assert result.negatives_applied == ()
     # A positive elsewhere does not make a negative that holds nothing count.
@@ -369,7 +370,7 @@ def test_domain_shaped_aliases_come_from_the_entity_domains() -> None:
         "Visit acme.io, www.acme.io or Acme.IO/pricing; "
         "not acme.io.evil.com, acme.ios, acme.io-x, my-acme.io or notacme.io."
     )
-    entities = [_entity(ACME, "Acme", domains=("www.acme.io", "acme.io"))]
+    entities = [_entity(ACME, "Acme Corp", domains=("www.acme.io", "acme.io"))]
     result = _match(text, entities, [])
     mention = _mention(result, ACME)
     assert mention is not None
@@ -533,8 +534,33 @@ def test_an_alias_for_an_entity_that_is_not_given_is_refused() -> None:
 
 def test_an_alias_that_normalizes_to_nothing_is_ignored() -> None:
     invisible = "\N{ZERO WIDTH SPACE} \N{ZERO WIDTH SPACE}"
-    result = _match("acme", [_entity(ACME, "Acme")], [_alias(ACME, invisible)])
+    result = _match("acme", [_entity(ACME, "Acme Corp")], [_alias(ACME, invisible)])
     assert result.mentions == ()
+    assert _match("acme", [_entity(ACME, invisible)], []).mentions == ()
+
+
+def test_an_entity_is_found_by_its_name_without_any_alias() -> None:
+    text = "HubSpot, hubspot and MyHubSpot"
+    result = _match(text, [_entity(HUBSPOT, "HubSpot")], [])
+    mention = _mention(result, HUBSPOT)
+    assert mention is not None
+    assert [(text[s.start : s.end], s.match_method, s.alias_id) for s in mention.spans] == [
+        ("HubSpot", "alias_name", None),
+        ("hubspot", "alias_name", None),
+    ]
+
+
+def test_a_stored_alias_with_the_names_text_takes_its_place() -> None:
+    alias = _alias(HUBSPOT, "HubSpot")
+    mention = _mention(_match("HubSpot", [_entity(HUBSPOT, "HubSpot")], [alias]), HUBSPOT)
+    assert mention is not None
+    assert [(s.match_method, s.alias_id) for s in mention.spans] == [("alias_word", alias.id)]
+
+
+def test_an_ambiguous_name_matched_by_itself_still_needs_context() -> None:
+    entities = [_entity(MONDAY, "Monday", is_ambiguous=True, hints=("crm",))]
+    assert _confidence(_match("see you monday", entities, []), MONDAY) == 0.05
+    assert _confidence(_match("The crm we use is Monday.", entities, []), MONDAY) == 0.80
 
 
 def test_no_aliases_match_nothing() -> None:
