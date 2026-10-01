@@ -420,6 +420,7 @@ CREATE TABLE core.entity_aliases (
 
 CREATE TABLE core.entity_domains (
     entity_id      uuid NOT NULL REFERENCES core.entities(id) ON DELETE CASCADE,
+    workspace_id   uuid NOT NULL,                  -- for row-level security, as on every tenant table
     domain_id      integer NOT NULL REFERENCES core.domains(id),
     match_scope    text NOT NULL DEFAULT 'registrable'
                    CHECK (match_scope IN ('host','registrable','path_prefix')),
@@ -446,17 +447,19 @@ CREATE UNIQUE INDEX project_one_primary_own ON core.project_entities (project_id
 
 Owned domains for a project are the `core.entity_domains` of entities with `role = 'own'`. There is no separate "owned domains" table; that would create two sources of truth.
 
-A materialized helper keeps resolution fast in ingest:
+A helper view joins the two for `GET {P}/domains` and for ingest:
 
 ```sql
-CREATE MATERIALIZED VIEW core.project_domain_roles AS
+CREATE VIEW core.project_domain_roles WITH (security_invoker = true) AS
 SELECT pe.project_id, pe.workspace_id, pe.entity_id, pe.role, ed.domain_id, ed.match_scope, ed.path_prefix
 FROM core.project_entities pe
-JOIN core.entity_domains ed ON ed.entity_id = pe.entity_id
+JOIN core.entity_domains ed ON ed.entity_id = pe.entity_id AND ed.workspace_id = pe.workspace_id
 WHERE pe.removed_at IS NULL;
-CREATE UNIQUE INDEX ON core.project_domain_roles (project_id, entity_id, domain_id, match_scope);
--- Refreshed CONCURRENTLY by the API after any entity/domain change (low frequency).
 ```
+
+It is a plain view, not a materialized one: a materialized view cannot have row-level security, so the API could read every workspace's rows through it, while a view run with the reader's rights applies the base tables' policies (migration 0010). Ingest keeps its own in-process cache of a project's domain rules; if it ever needs a materialized view, that one is readable by the worker only.
+
+As built (migration 0010), every tenant table of sections 5.3 and 6 refers to its parents through `(id, workspace_id)` rather than `id` alone (`core.entities`, `core.projects`, `core.taxonomy_vocabularies` and `core.taxonomy_terms` have `UNIQUE (id, workspace_id)` for it), so a row cannot point into another workspace even for a role that bypasses row-level security. Entity names are unique per workspace and type whatever their case, and a term's slug is unique among its siblings, roots included (`UNIQUE NULLS NOT DISTINCT`).
 
 ## 7. SEO tables
 
@@ -2117,6 +2120,13 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `auth.api_keys` | SELECT | none |
 | `core.projects` | SELECT, INSERT, UPDATE | SELECT; UPDATE (`data_version`) |
 | `core.workspace_quotas` | SELECT, INSERT, UPDATE | SELECT |
+| `core.domain_categories` | SELECT | none |
+| `core.domains` | SELECT, INSERT (an entity domain or a project's primary domain adds its host; no route lists the table) | none until SERP ingest (step 5) |
+| `core.locations`, `core.provider_location_map` | SELECT | SELECT, INSERT, UPDATE (the location sync) |
+| `core.entities`, `core.entity_aliases`, `core.taxonomy_vocabularies`, `core.taxonomy_terms` | SELECT, INSERT, UPDATE, DELETE | none until ingest and extraction read them |
+| `core.entity_domains` | SELECT, INSERT, DELETE | none |
+| `core.project_entities` | SELECT, INSERT, UPDATE (a removed role keeps its row; `removed_at` is set) | none |
+| `core.project_domain_roles` (view) | SELECT | none |
 | `ops.budgets` | SELECT, INSERT, UPDATE, DELETE | SELECT |
 | `ops.schedules` | SELECT, INSERT, UPDATE, DELETE | SELECT; UPDATE (`next_run_at`, `last_run_id`) |
 | `ops.collection_runs` | SELECT; INSERT (what a manual run asks for: scope, workload, window, trigger, status, creator, request id, estimated cost, config snapshot); UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns) |

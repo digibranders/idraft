@@ -92,6 +92,18 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "auth.api_keys": (READ, NONE),
     "core.projects": (access("SELECT, INSERT, UPDATE"), access("SELECT", UPDATE=("data_version",))),
     "core.workspace_quotas": (access("SELECT, INSERT, UPDATE"), READ),
+    # Global dictionaries: the API adds a host's row when an entity or project names it; the
+    # worker keeps the locations.
+    "core.domain_categories": (READ, NONE),
+    "core.domains": (access("SELECT, INSERT"), NONE),
+    "core.locations": (READ, access("SELECT, INSERT, UPDATE")),
+    "core.provider_location_map": (READ, access("SELECT, INSERT, UPDATE")),
+    "core.entities": (CRUD, NONE),
+    "core.entity_aliases": (CRUD, NONE),
+    "core.entity_domains": (access("SELECT, INSERT, DELETE"), NONE),
+    "core.project_entities": (access("SELECT, INSERT, UPDATE"), NONE),
+    "core.taxonomy_vocabularies": (CRUD, NONE),
+    "core.taxonomy_terms": (CRUD, NONE),
     "ops.alembic_version": (READ, READ),
     "ops.budgets": (CRUD, READ),
     "ops.providers": (READ, READ),

@@ -22,6 +22,12 @@ TENANT_TABLES: dict[str, str] = {
     "auth.api_keys": "workspace_id",
     "core.projects": "workspace_id",
     "core.workspace_quotas": "workspace_id",
+    "core.entities": "workspace_id",
+    "core.entity_aliases": "workspace_id",
+    "core.entity_domains": "workspace_id",
+    "core.project_entities": "workspace_id",
+    "core.taxonomy_vocabularies": "workspace_id",
+    "core.taxonomy_terms": "workspace_id",
     "ops.budgets": "workspace_id",
     "ops.schedules": "workspace_id",
     "ops.collection_runs": "workspace_id",
@@ -136,8 +142,58 @@ async def seed_tenant(pg: PostgresServer, label: str) -> Tenant:
         await db.execute(
             "INSERT INTO core.workspace_quotas (workspace_id) VALUES ($1)", workspace_id
         )
+        await seed_vocabulary(db, workspace_id, project_id, label)
         schedule_id, run_id = await seed_operations(db, workspace_id, project_id)
     return Tenant(workspace_id, owner_id, project_id, token_hash, schedule_id, run_id)
+
+
+async def seed_vocabulary(
+    db: asyncpg.Connection[Any], workspace_id: uuid.UUID, project_id: uuid.UUID, label: str
+) -> None:
+    """One row in every entity and taxonomy table: an own brand with an alias and a domain,
+    and a topic with one term."""
+    entity_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO core.entities (workspace_id, entity_type, canonical_name) "
+        "VALUES ($1, 'brand', $2) RETURNING id",
+        workspace_id,
+        f"{label} brand",
+    )
+    await db.execute(
+        "INSERT INTO core.entity_aliases (workspace_id, entity_id, alias) VALUES ($1, $2, $3)",
+        workspace_id,
+        entity_id,
+        label,
+    )
+    domain_id: int = await db.fetchval(
+        "INSERT INTO core.domains (host, registrable_domain, public_suffix) "
+        "VALUES ($1, $1, 'com') ON CONFLICT (host) DO UPDATE SET host = excluded.host "
+        "RETURNING id",
+        f"{label}-{uuid.uuid4().hex[:8]}.com",
+    )
+    await db.execute(
+        "INSERT INTO core.entity_domains (entity_id, workspace_id, domain_id) VALUES ($1, $2, $3)",
+        entity_id,
+        workspace_id,
+        domain_id,
+    )
+    await db.execute(
+        "INSERT INTO core.project_entities (project_id, entity_id, workspace_id, role, is_primary) "
+        "VALUES ($1, $2, $3, 'own', true)",
+        project_id,
+        entity_id,
+        workspace_id,
+    )
+    vocabulary_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, kind, name) "
+        "VALUES ($1, 'topic', 'Topics') RETURNING id",
+        workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, name, slug, path) "
+        "VALUES ($1, $2, 'CRM', 'crm', 'crm')",
+        workspace_id,
+        vocabulary_id,
+    )
 
 
 async def seed_operations(
