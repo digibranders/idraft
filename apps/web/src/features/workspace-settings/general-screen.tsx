@@ -52,7 +52,7 @@ export interface WorkspaceGeneralScreenProps {
 
 /**
  * Settings > Workspace settings > General (11-navigation.md section 5, 20 section 5.19.1): the name, the
- * address and the time zone new projects start with, through the save bar. A member who may not change the
+ * address and the time zone of the workspace pages (Costs, Operations), through the save bar. A member who may not change the
  * workspace sees the values read-only. The logo waits for an upload route; deletion is deferred.
  */
 export function WorkspaceGeneralScreen({ workspace: initial, projectSlug }: WorkspaceGeneralScreenProps): ReactNode {

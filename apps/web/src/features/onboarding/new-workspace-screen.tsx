@@ -32,7 +32,7 @@ interface NewWorkspaceValues {
 
 /**
  * Create a workspace (19 section 3.2, `POST /workspaces`), for a platform operator while sign-up is by
- * invitation: the name, an address suggested from it, and the time zone its projects fall back on. The
+ * invitation: the name, an address suggested from it, and the time zone of its workspace pages. The
  * operator becomes its owner and lands on it.
  */
 export function NewWorkspaceScreen(): ReactNode {

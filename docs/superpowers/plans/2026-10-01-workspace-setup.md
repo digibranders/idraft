@@ -124,13 +124,19 @@ As built:
 - [x] **Step 1:** For `user.is_platform_operator`: the home screen without a workspace offers "Create workspace", and the account menu has it too. The page asks for name, slug and time zone (`POST /workspaces`); the operator becomes owner and lands on the new workspace. `409 duplicate`, `429 rate_limited` (5 a day), `403 email_not_verified`. Anyone else gets the 404 page.
 - [x] **Step 2:** Tests, real API (the walkthrough account is an operator only if the backend seed makes it one; otherwise mocks only, and say so), Opus review, gates, commit "Add workspace creation for operators".
 
-As built: the operator made with the backend's `create-operator` command created a workspace through the real API. `429` says "Try again tomorrow" (the limit is 5 a day), and the page links back to `/`. The workspace time-zone hint now says what the zone is for: it applies where a project gives none.
+As built: the operator made with the backend's `create-operator` command created a workspace through the real API. `429` says "Try again tomorrow" (the limit is 5 a day), and the page links back to `/`. The workspace time-zone hint now says what the zone is for: the workspace pages such as Costs (20 section 3); each project keeps its own.
 
 ### Task 8: End-to-end, visual, documents, review
 
-- [ ] **Step 1:** Playwright flows: an owner invites a member and withdraws the invitation, changes a role through the re-authentication dialog, creates a project and lands on it, renames the workspace and follows the new slug; an analyst sees read-only settings; axe on every new page in both themes. Visual specs for the new pages.
-- [ ] **Step 2:** Docs: 20 sections 3.2 and 5.19 as built, 11 section 5 (which groups exist), the review log, the open points below.
-- [ ] **Step 3:** Whole-branch Opus review, fixes, gates; tell the user the branch is ready; merge on their word.
+- [x] **Step 1:** Playwright flows: an owner invites a member and withdraws the invitation, changes a role through the re-authentication dialog, creates a project and lands on it, renames the workspace and follows the new slug; an analyst sees read-only settings; axe on every new page in both themes. Visual specs for the new pages.
+- [x] **Step 2:** Docs: 20 sections 3.2 and 5.19 as built, 11 section 5 (which groups exist), the review log, the open points below.
+- [x] **Step 3:** Whole-branch Opus review, fixes, gates; tell the user the branch is ready; merge on their word.
+
+As built:
+
+- Flows in `e2e/flows/workspace.spec.ts`: invite and withdraw, a role change, an editor creates a project, an operator creates a workspace from the account menu, a workspace rename that follows the new slug, and an analyst who sees project and workspace settings read-only. axe runs on each new page in the default theme. Visual specs for the new pages are in `e2e/visual/pages.spec.ts`; their baselines are made in the Playwright container with CI (review log F63), since this Mac has no Docker.
+- Not done here, kept as open points: the role change in the browser does not go through "Confirm it is you" (a mock sign-in is fresh for 10 minutes; the unit tests cover the dialog), axe in the dark theme for these pages, and an admin visual of Members with the invitations.
+- The whole-branch review found two issues, both fixed: Members and roles had no read-only `Banner`, and the dialogs' project list could be 30 s stale after a project was created, renamed or archived elsewhere (it is now fetched each time a dialog opens). The workspace time-zone hint now names what the zone is for.
 
 ---
 
@@ -141,3 +147,5 @@ As built: the operator made with the backend's `create-operator` command created
 | Is the walkthrough account an operator in the backend seed, or can the seed make one? | backend session | Task 7 |
 | An account route that needs no project (Account settings from the workspace page goes to the first project's settings) | frontend, settings plan | later |
 | Primary domain, default location and own brand in the new-project form | backend step 4 | the entities plan |
+| The members, invitations and project lists read one page of 200; page them for larger workspaces | frontend | before a workspace can pass 200 of any |
+| "Confirm it is you" in a browser flow (a stale mock session), axe in the dark theme, an admin visual of Members | frontend | the next settings plan |

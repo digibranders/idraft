@@ -7,6 +7,7 @@ import { useRef, useState, type ReactNode } from 'react';
 
 import { MemberDialog } from './member-dialog';
 import { membersQuery, refreshPeople } from './workspace-queries';
+import { Banner } from '@/components/app/status/banner';
 import { InlineError } from '@/components/app/status/inline-error';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -110,6 +111,7 @@ export function MembersScreen(): ReactNode {
         </h2>
         <p className="mt-1 type-meta">{t('description')}</p>
       </div>
+      {canManage ? null : <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />}
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
         {members.isError ? (
           <InlineError

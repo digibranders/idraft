@@ -846,3 +846,7 @@ Plan `docs/superpowers/plans/2026-10-01-workspace-setup.md`, branch `frontend/wo
 | Project restriction has a UI now, though doc 24 section 3.1 says Phase 12 | product owner, to confirm |
 | `withFreshSession` passes a second `fresh_session_required` through like a cancel; the dialogs cannot tell a refusal from a cancel | frontend |
 | Primary domain, location and own brand in the new-project form | backend step 4, then the entities plan |
+| Members, invitations and the dialogs' project list read one page of 200 | frontend |
+| "Confirm it is you" in a browser flow, axe in the dark theme, an admin visual of Members | frontend |
+
+Whole-branch review (Opus): no critical findings. Fixed: the Members read-only `Banner`, the dialogs' project list fetched on each open (it could be 30 s stale), the workspace time-zone hint, and two new-project tests (an emptied address follows the name again; a discard during the create does not open the project).

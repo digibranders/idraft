@@ -232,7 +232,8 @@ describe('Project settings > General', () => {
     const { user } = renderWithProviders(screenAs('editor'));
     await user.click(await screen.findByRole('button', { name: 'Archive project' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Archive Fynix?' });
-    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    // The dialog moves focus in the frame after it opens
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus());
     await user.click(within(dialog).getByRole('button', { name: 'Archive project' }));
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/digibranders'));
   });

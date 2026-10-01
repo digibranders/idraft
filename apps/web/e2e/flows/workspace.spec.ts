@@ -79,11 +79,18 @@ test.describe('setting up the workspace', () => {
     await expect(page.getByRole('textbox', { name: 'Address' })).toHaveValue('digibranders-agency');
   });
 
-  test('an analyst sees the project settings read-only', async ({ page }) => {
+  test('an analyst sees the project and workspace settings read-only', async ({ page }) => {
     await signIn(page, ANALYST);
     await page.goto('/digibranders/fynix/settings/general');
     await expect(page.getByText('Owners, admins and editors can change project settings.')).toBeVisible();
     await expect(page.getByRole('textbox')).toHaveCount(0);
+    await expectAccessible(page);
+    await page.goto('/digibranders/fynix/settings/workspace');
+    await expect(page.getByText('Owners and admins can change workspace settings.')).toBeVisible();
+    await expect(page.getByRole('textbox')).toHaveCount(0);
+    await page.goto('/digibranders/fynix/settings/members');
+    await expect(page.getByText('Owners and admins can manage members.')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Actions for/ })).toHaveCount(0);
     await expectAccessible(page);
   });
 });

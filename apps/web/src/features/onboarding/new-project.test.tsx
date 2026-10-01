@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -48,6 +48,52 @@ describe('New project', () => {
     await user.type(address, 'nw');
     await user.type(screen.getByLabelText('Name'), 'Northwind');
     expect(address).toHaveValue('nw');
+  });
+
+  it('hands the address back to the name when it is emptied', async () => {
+    const { user } = renderWithProviders(form());
+    const address = await screen.findByLabelText('Address');
+    await user.type(address, 'nw');
+    await user.type(screen.getByLabelText('Name'), 'Northwind');
+    await user.clear(address);
+    expect(address).toHaveValue('northwind');
+  });
+
+  it('does not open the project when the person discarded it while it was being created', async () => {
+    let onCreated: (() => void) | undefined;
+    const created = new Promise<void>((resolve) => {
+      onCreated = resolve;
+    });
+    const onMocked = ({ request, response }: { request: Request; response: Response }): void => {
+      if (request.method === 'POST' && response.status === 201) onCreated?.();
+    };
+    server.events.on('response:mocked', onMocked);
+    let answer: (() => void) | undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    server.use(
+      // Holds the create until the person has left, then lets the mock create the project
+      http.post(mswPath('/api/v1/workspaces/{workspace_id}/projects'), async (): Promise<undefined> => {
+        await answered;
+        return undefined;
+      }),
+    );
+    const { user } = renderWithProviders(form());
+    await user.type(await screen.findByLabelText('Name'), 'Northwind');
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+    await user.click(screen.getByRole('link', { name: 'Back to projects' }));
+    const question = await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
+    await user.click(within(question).getByRole('button', { name: 'Discard changes' }));
+    expect(router.push).toHaveBeenCalledWith('/digibranders');
+    answer?.();
+    await created;
+    // Lets the mutation settle and the page render with the new project before looking
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(router.replace).not.toHaveBeenCalled();
+    server.events.removeListener('response:mocked', onMocked);
   });
 
   it('checks the fields before it sends them, and puts a taken address on its field', async () => {

@@ -66,6 +66,7 @@ describe('Members and roles', () => {
     await rowOf('Ana Brandt');
     expect(screen.queryByRole('button', { name: /^Actions for/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Invite people' })).toBeNull();
+    expect(screen.getByText('Owners and admins can manage members.')).toBeInTheDocument();
   });
 
   it('changes a role and limits the projects', async () => {

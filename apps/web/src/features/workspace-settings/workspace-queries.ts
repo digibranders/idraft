@@ -12,7 +12,10 @@ export type AccessChoice = 'all' | 'some';
 const MEMBERS = '/api/v1/workspaces/{workspace_id}/members';
 const INVITATIONS = '/api/v1/workspaces/{workspace_id}/invitations';
 const PROJECTS = '/api/v1/workspaces/{workspace_id}/projects';
-/** The most the API gives in one page; a workspace's members and invitations fit in one. */
+/**
+ * The most the API gives in one page. The screens read one page for now; a workspace with more members,
+ * invitations or projects than that is an open point of the plan (paging these lists).
+ */
 const PAGE = 200;
 
 export const membersQuery = (workspaceId: string): ApiQueryOptions<typeof MEMBERS> =>
@@ -21,9 +24,15 @@ export const membersQuery = (workspaceId: string): ApiQueryOptions<typeof MEMBER
 export const invitationsQuery = (workspaceId: string): ApiQueryOptions<typeof INVITATIONS> =>
   apiQuery(INVITATIONS, { params: { path: { workspace_id: workspaceId }, query: { limit: PAGE } } });
 
-/** The active and paused projects, for the project lists of the member and invitation dialogs. */
-export const projectsQuery = (workspaceId: string): ApiQueryOptions<typeof PROJECTS> =>
-  apiQuery(PROJECTS, { params: { path: { workspace_id: workspaceId }, query: { limit: PAGE } } });
+/**
+ * The active and paused projects, for the project lists of the member and invitation dialogs. Fetched
+ * again each time a dialog opens: projects are created, renamed and archived on other screens, and a
+ * stale list would offer an archived project the API refuses.
+ */
+export const projectsQuery = (workspaceId: string): ApiQueryOptions<typeof PROJECTS> => ({
+  ...apiQuery(PROJECTS, { params: { path: { workspace_id: workspaceId }, query: { limit: PAGE } } }),
+  staleTime: 0,
+});
 
 const WORKSPACE = '/api/v1/workspaces/{workspace_id}';
 
