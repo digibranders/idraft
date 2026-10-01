@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { FileText } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -124,6 +124,29 @@ describe('Inspector', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('leaves Escape and J to the list when focus is outside both', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    act(() => screen.getByRole('button', { name: 'A row of the list' }).focus());
+    await user.keyboard('{Escape}j');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('previews a drag over the list and commits the width on release', () => {
+    Object.defineProperty(Element.prototype, 'setPointerCapture', { configurable: true, value: () => undefined });
+    renderWithProviders(<Harness />);
+    fireEvent.pointerDown(separator(), { button: 0, clientX: 800, pointerId: 1 });
+    fireEvent.pointerMove(separator(), { clientX: 720, pointerId: 1 });
+    // Drawn 80 px wider, while a negative margin keeps the layout at 400 px until release
+    expect(inspector()).toHaveStyle({ width: '480px', marginLeft: '-80px' });
+    expect(window.localStorage.getItem('inspector-width:keyword')).toBeNull();
+    fireEvent.pointerUp(separator(), { clientX: 720, pointerId: 1 });
+    expect(inspector()).toHaveStyle({ width: '480px' });
+    expect(inspector().style.marginLeft).toBe('');
+    expect(window.localStorage.getItem('inspector-width:keyword')).toBe('480');
+    Reflect.deleteProperty(Element.prototype, 'setPointerCapture');
+  });
+
   it('names a disabled Previous by why it is disabled', () => {
     renderWithProviders(<Harness atFirst />);
     expect(screen.getByRole('button', { name: 'First keyword in this list' })).toHaveAttribute('aria-disabled', 'true');
@@ -152,7 +175,9 @@ describe('Inspector', () => {
   it('offers the widths in its More menu', async () => {
     const { user } = renderWithProviders(<Harness />);
     await user.click(screen.getByRole('button', { name: 'More actions' }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Wide' }));
+    expect(await screen.findByRole('menuitemradio', { name: 'Default' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: 'Wide' })).toHaveAttribute('aria-checked', 'false');
+    await user.click(screen.getByRole('menuitemradio', { name: 'Wide' }));
     await waitFor(() => {
       expect(inspector()).toHaveStyle({ width: '440px' });
     });

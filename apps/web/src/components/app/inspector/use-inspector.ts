@@ -1,6 +1,7 @@
 'use client';
 
 import { parseAsString, useQueryStates } from 'nuqs';
+import { useEffect } from 'react';
 
 import { formatInspectTarget, parseInspectTarget, type InspectorTarget } from '@/lib/inspector/placement';
 
@@ -35,6 +36,12 @@ export function useInspector(): UseInspectorResult {
   const [state, setState] = useQueryStates(KEYS);
   const target = parseInspectTarget(state.inspect);
   const tab = state.itab ?? DEFAULT_INSPECTOR_TAB;
+  // Once the inspector is closed, by Close or by the browser's Back, the entry it sat on is gone: a later
+  // inspector that arrives with the URL must close by replacing, not by going back
+  const closed = target === null;
+  useEffect(() => {
+    if (closed) pushedByPage = false;
+  }, [closed]);
   const tabParam = (next: string | undefined): string | null =>
     next === undefined || next === DEFAULT_INSPECTOR_TAB ? null : next;
 

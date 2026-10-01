@@ -286,22 +286,27 @@ export function DataTable<TRow extends RowData>({
   };
   // The inspector closed: focus returns to the identity cell of the row it showed, scrolled into view, or
   // to the grid's tab stop when that row is gone (16-drawers-dialogs-popovers.md section 2.8, rule 3)
+  // The cell takes DOM focus only if focus was lost, and its own focus handler then moves the tab stop, so
+  // the tab stop never leaves the cell that has focus.
   const [lastActive, setLastActive] = useState(activeRowId ?? null);
+  const [inView, setInView] = useState<string | null>(null);
   if ((activeRowId ?? null) !== lastActive) {
     setLastActive(activeRowId ?? null);
+    if ((activeRowId ?? null) === null) setInView(null);
     if ((activeRowId ?? null) === null && lastActive !== null && showRows) {
       const index = indexOfId.get(lastActive);
       const identity = grid.findIndex((column) => column.kind === 'data' && column.column.identity === true);
       const cell = index === undefined ? current : { row: index, column: Math.max(identity, 0) };
-      setFocus(cellAt(cell.row, cell.column));
       setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1, ifLost: true }));
     }
-    // Stepping to another record keeps its row in view (16 section 2.10)
-    const nextIndex = activeRowId === null || activeRowId === undefined ? undefined : indexOfId.get(activeRowId);
-    if (nextIndex !== undefined) {
-      const cell = { row: nextIndex, column: current.column };
-      setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1, scrollOnly: true }));
-    }
+  }
+  // The open record's row is kept in view: when J or K step to it, and when a shared link's list arrives
+  // (16 section 2.10)
+  const activeIndex = activeRowId === null || activeRowId === undefined ? undefined : indexOfId.get(activeRowId);
+  if (activeIndex !== undefined && activeRowId !== inView) {
+    setInView(activeRowId ?? null);
+    const cell = { row: activeIndex, column: current.column };
+    setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1, scrollOnly: true }));
   }
   // Whether focus is in the grid, so a cell removed under it (a refetch dropped its row) hands focus on
   // instead of leaving it on the page body

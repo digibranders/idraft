@@ -13,7 +13,7 @@ const memory = new Map<InspectorType, number | null>();
 export function readInspectorWidth(type: InspectorType): number | null {
   try {
     const stored = window.localStorage.getItem(keyOf(type));
-    if (stored === null) return memory.get(type) ?? null;
+    if (stored === null) return null;
     const width = Number(stored);
     return Number.isInteger(width) && width >= INSPECTOR_WIDTH.min && width <= INSPECTOR_WIDTH.max ? width : null;
   } catch {

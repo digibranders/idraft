@@ -39,7 +39,8 @@ export function emptyDraft(field: FilterField): FilterValue {
  */
 function parseEnd(text: string, bounds: RangeFilterField['bounds']): number | null {
   const trimmed = text.trim();
-  if (trimmed === '') return null;
+  // A minus sign alone is a number on its way, not a wrong one
+  if (trimmed === '' || trimmed === '-') return null;
   const digits = trimmed.replace(/[,\s]/g, '');
   const number = /^-?\d+$/.test(digits) ? Number(digits) : Number.NaN;
   if (!Number.isSafeInteger(number)) return Number.NaN;
@@ -288,12 +289,12 @@ function SingleChoiceEditor({
         value={draft}
         onValueChange={(value) => {
           draftRef.current = value;
+          // The radio follows at once, also while the popover fades out after a pick
+          setDraft(value);
           if (picking.current) {
             picking.current = false;
             latestApply.current({ kind: 'enum', values: [value] });
-            return;
           }
-          setDraft(value);
         }}
         options={field.options.map((option) => ({ value: option.value, label: option.label }))}
       />
