@@ -23,6 +23,7 @@ from sightline.api.pagination import (
     invalid_cursor,
 )
 from sightline.api.resources import Resources, get_resources
+from sightline.api.schemas.common import QueryText
 from sightline.api.schemas.registries import (
     DomainCategory,
     DomainCategoryList,
@@ -34,6 +35,8 @@ from sightline.db.tables import domain_categories, locations, provider_location_
 router = APIRouter(prefix="/api/v1", tags=["registries"])
 
 Surface = Literal["serp", "ai_mode", "llm_scraper"]
+# Location ids are an `integer` column.
+LOCATION_ID_MAX = 2_147_483_647
 
 
 async def _supports(db: AsyncSession, location_ids: Sequence[int]) -> dict[int, set[str]]:
@@ -58,13 +61,11 @@ async def list_locations(
     session: CurrentSession,
     page: Cursor,
     resources: Annotated[Resources, Depends(get_resources)],
-    q: Annotated[str | None, Query(alias="filter[q]", min_length=1, max_length=200)] = None,
+    q: Annotated[QueryText | None, Query(alias="filter[q]")] = None,
     country_iso: Annotated[
         str | None, Query(alias="filter[country_iso]", pattern=r"^[A-Za-z]{2}$")
     ] = None,
-    location_type: Annotated[
-        str | None, Query(alias="filter[location_type]", min_length=1, max_length=64)
-    ] = None,
+    location_type: Annotated[QueryText | None, Query(alias="filter[location_type]")] = None,
     supports: Annotated[Surface | None, Query(alias="filter[supports]")] = None,
 ) -> LocationPage:
     country = None if country_iso is None else country_iso.upper()
@@ -99,7 +100,12 @@ async def list_locations(
         )
     if page.cursor is not None:
         key = decode_cursor(page.cursor, scope=scope)
-        if len(key) != 2 or not isinstance(key[0], str) or not isinstance(key[1], int):
+        if (
+            len(key) != 2
+            or not isinstance(key[0], str)
+            or not isinstance(key[1], int)
+            or not 0 < key[1] <= LOCATION_ID_MAX
+        ):
             raise invalid_cursor()
         statement = statement.where(
             tuple_(locations.c.name, locations.c.id) > tuple_(literal(key[0]), literal(key[1]))

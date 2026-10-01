@@ -120,7 +120,11 @@ def test_the_command_says_why_it_cannot_sync(
     assert command.main(["--from-file", str(broken)]) == 1
     assert "could not be read" in capsys.readouterr().err
     assert command.main(["--from-file", str(tmp_path / "missing.json")]) == 1
-    assert "could not be read" in capsys.readouterr().err
+    assert "The file could not be read" in capsys.readouterr().err
+    # A database that cannot be reached is not a file that cannot be read.
+    monkeypatch.setenv("DATABASE_URL", "postgresql://app_worker:x@127.0.0.1:9/sightline")
+    assert command.main(["--from-file", str(SAMPLE)]) == 1
+    assert "The sync could not run" in capsys.readouterr().err
 
 
 def test_the_command_runs_as_the_worker_only(
@@ -163,4 +167,4 @@ def test_a_refused_call_is_reported(
 
     monkeypatch.setattr(httpx, "AsyncClient", mocked)
     assert command.main([]) == 1
-    assert "DataForSEO refused the call" in capsys.readouterr().err
+    assert "The DataForSEO call failed: auth" in capsys.readouterr().err

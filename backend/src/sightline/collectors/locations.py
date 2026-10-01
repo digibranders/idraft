@@ -3,7 +3,8 @@
 
 Locations are global dictionaries, so this runs outside any workspace. A location the list no
 longer has is deactivated, not deleted: projects may name it. A list far shorter than what is
-active (a broken answer) deactivates nothing.
+active, or one with entries that could not be read (a broken or changed answer), deactivates
+nothing. Syncs run one at a time.
 """
 
 from __future__ import annotations
@@ -12,14 +13,17 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final
 
-from sqlalchemy import ARRAY, Integer, and_, func, literal, select, update
+import structlog
+from sqlalchemy import ARRAY, Integer, and_, func, literal, literal_column, select, update
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.db.tables import locations, provider_location_map
 from sightline.providers.dataforseo.locations import LocationList, ProviderLocation
 
+_log = structlog.get_logger(__name__)
 DATAFORSEO: Final = "dataforseo"
+_LOCK_KEY: Final = "location_sync"
 # Rows per statement: six values a row stays far below PostgreSQL's 32,767 parameters.
 _BATCH: Final = 2_000
 # A new list shorter than this share of the active locations is taken to be broken.
@@ -31,7 +35,8 @@ class LocationSyncReport:
     listed: int
     skipped: int  # entries the provider's list had that could not be read
     deactivated: int
-    deactivation_skipped: bool  # the list was too short to trust for deactivation
+    # The list was too short, or had unreadable entries, to trust for deactivation.
+    deactivation_skipped: bool
 
 
 def parents_first(listed: Sequence[ProviderLocation]) -> list[tuple[ProviderLocation, int | None]]:
@@ -42,12 +47,14 @@ def parents_first(listed: Sequence[ProviderLocation]) -> list[tuple[ProviderLoca
     parent_of: dict[int, int | None] = {}
     for location in listed:
         chain: list[int] = []
+        walked: set[int] = set()
         current: int | None = location.code
         while current is not None and current in by_code and current not in depth:
-            if current in chain:  # a cycle: cut it where it closes
+            if current in walked:  # a cycle: cut it where it closes
                 parent_of[chain[-1]] = None
                 break
             chain.append(current)
+            walked.add(current)
             current = by_code[current].parent_code
         base = depth.get(current, -1) if current is not None else -1
         for code in reversed(chain):
@@ -73,20 +80,38 @@ async def sync_locations(
         return LocationSyncReport(
             listed=0, skipped=listed.skipped, deactivated=0, deactivation_skipped=False
         )
-    ordered = parents_first(listed.locations)
-    codes = [location.code for location in listed.locations]
+    # A code given twice keeps its first entry, as `read_locations` does.
+    unique = list({location.code: location for location in reversed(listed.locations)}.values())
+    unique.reverse()
+    ordered = parents_first(unique)
+    codes = [location.code for location in unique]
     async with sessions() as db, db.begin():
+        # One sync at a time: two at once would wait on each other's rows and time out.
+        await db.execute(
+            select(func.pg_advisory_xact_lock(func.hashtextextended(literal(_LOCK_KEY), 0)))
+        )
         for start in range(0, len(ordered), _BATCH):
             batch = ordered[start : start + _BATCH]
             await _write_locations(db, batch)
             await _write_map(db, [location for location, _ in batch], provider_code)
-        deactivated, skipped = await _deactivate_unlisted(db, codes, provider_code)
-    return LocationSyncReport(
+        if listed.skipped:
+            # An entry not read may be a location still listed.
+            deactivated, untrusted = 0, True
+        else:
+            deactivated, untrusted = await _deactivate_unlisted(db, codes, provider_code)
+    report = LocationSyncReport(
         listed=len(codes),
         skipped=listed.skipped,
         deactivated=deactivated,
-        deactivation_skipped=skipped,
+        deactivation_skipped=untrusted,
     )
+    if report.skipped or report.deactivation_skipped:
+        _log.warning(
+            "location list not trusted for deactivation",
+            skipped=report.skipped,
+            listed=report.listed,
+        )
+    return report
 
 
 async def _write_locations(
@@ -139,7 +164,15 @@ async def _write_map(
                 provider_location_map.c.provider_code,
                 provider_location_map.c.location_id,
             ],
-            set_={"provider_value": statement.excluded.provider_value},
+            set_={
+                "provider_value": statement.excluded.provider_value,
+                # `serp` comes back if it was lost; surfaces added since are kept.
+                "supports": literal_column(
+                    "ARRAY(SELECT DISTINCT surface FROM unnest("
+                    "core.provider_location_map.supports || excluded.supports) AS surface "
+                    "ORDER BY surface)"
+                ),
+            },
         )
     )
 

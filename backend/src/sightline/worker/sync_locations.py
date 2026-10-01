@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 from redis.asyncio import Redis
+from sqlalchemy.exc import SQLAlchemyError
 
 from sightline.collectors.locations import LocationSyncReport, sync_locations
 from sightline.config.logging import configure_logging
@@ -68,14 +69,24 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(
         service=settings.process_role, version=settings.release_sha, level=settings.log_level
     )
+    saved = None
+    if arguments.from_file is not None:
+        try:
+            saved = arguments.from_file.read_bytes()
+        except OSError as error:
+            sys.stderr.write(f"The file could not be read: {error}\n")
+            return 1
     try:
-        saved = None if arguments.from_file is None else arguments.from_file.read_bytes()
         report = asyncio.run(run(settings, saved))
-    except (LocationListError, OSError) as error:
+    except LocationListError as error:
         sys.stderr.write(f"The locations could not be read: {error}\n")
         return 1
     except ProviderCallError as error:
-        sys.stderr.write(f"DataForSEO refused the call: {error.error.kind.value}\n")
+        sys.stderr.write(f"The DataForSEO call failed: {error.error.kind.value}\n")
+        return 1
+    except (SQLAlchemyError, OSError) as error:
+        # The database, or Redis for the call limiter, could not be used.
+        sys.stderr.write(f"The sync could not run: {type(error).__name__}\n")
         return 1
     if report is None:
         sys.stderr.write(
@@ -83,10 +94,11 @@ def main(argv: list[str] | None = None) -> int:
             "Use --from-file to read a saved list.\n"
         )
         return 1
+    untrusted = " (deactivation skipped: the list was not trusted)"
     sys.stdout.write(
         f"{report.listed} locations, {report.skipped} skipped, "
         f"{report.deactivated} deactivated"
-        + (" (deactivation skipped: the list was too short)" if report.deactivation_skipped else "")
+        + (untrusted if report.deactivation_skipped else "")
         + "\n"
     )
     return 0

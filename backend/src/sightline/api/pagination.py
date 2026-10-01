@@ -7,6 +7,7 @@ import base64
 import binascii
 import hashlib
 import json
+import unicodedata
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Annotated
@@ -90,11 +91,25 @@ def decode_cursor(cursor: str, *, scope: Mapping[str, object]) -> list[KeyValue]
     if not isinstance(payload, dict) or payload.get("s") != _scope_hash(scope):
         raise invalid_cursor()
     key = payload.get("k")
-    if not isinstance(key, list) or not all(
-        isinstance(value, str | int) and not isinstance(value, bool) for value in key
-    ):
+    if not isinstance(key, list) or not all(_key_value(value) for value in key):
         raise invalid_cursor()
     return key
+
+
+def _key_value(value: object) -> bool:
+    """A value a key may hold: an integer, or text the database can compare (UTF-8, no control
+    characters), which JSON's `\\u` escapes could otherwise smuggle in."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return -(2**63) <= value < 2**63
+    if not isinstance(value, str):
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return not any(unicodedata.category(char) == "Cc" for char in value)
 
 
 @dataclass(frozen=True, slots=True)

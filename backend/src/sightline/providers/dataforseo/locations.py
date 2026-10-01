@@ -9,10 +9,18 @@ counted, never the reason the whole list is lost.
 from __future__ import annotations
 
 import json
+import unicodedata
 from dataclasses import dataclass
 from typing import Annotated, Final
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+)
 
 from sightline.providers.dataforseo.client import DataForSeoClient, Envelope, TaskAnswer
 
@@ -39,35 +47,54 @@ class LocationList:
     skipped: int  # entries that could not be read, or repeated a code
 
 
+def _storable(value: str) -> str:
+    """Text PostgreSQL keeps: UTF-8 (no lone surrogate), no control characters, not blank."""
+    value.encode("utf-8")  # raises UnicodeEncodeError, a ValueError, for a lone surrogate
+    if not value.strip() or any(unicodedata.category(char) == "Cc" for char in value):
+        raise ValueError("not storable text")
+    return value
+
+
+# A location id is an `integer` column.
+LocationCode = Annotated[int, Field(gt=0, le=2_147_483_647)]
+StorableText = Annotated[str, AfterValidator(_storable)]
+
+
 class _Entry(BaseModel):
     model_config = ConfigDict(extra="ignore", strict=True)
 
-    location_code: Annotated[int, Field(gt=0)]
-    location_name: Annotated[str, StringConstraints(min_length=1, max_length=500)]
-    location_code_parent: Annotated[int, Field(gt=0)] | None = None
+    location_code: LocationCode
+    location_name: Annotated[StorableText, StringConstraints(min_length=1, max_length=500)]
+    location_code_parent: LocationCode | None = None
     country_iso_code: Annotated[str, StringConstraints(pattern=r"^[A-Za-z]{2}$")]
-    location_type: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    location_type: Annotated[StorableText, StringConstraints(min_length=1, max_length=64)]
 
 
 async def fetch_locations(client: DataForSeoClient) -> LocationList:
     """Raises `ProviderCallError` when the call fails, `LocationListError` when the answer is
-    not a list."""
+    not a list. Reads the answer the client has already parsed."""
     answered = await client.call("GET", LOCATIONS_PATH)
-    return read_locations(answered.content)
+    return _read(answered.envelope, answered.tasks[0] if answered.tasks else None)
 
 
 def read_locations(content: bytes) -> LocationList:
-    """The locations of an answer, as received or as saved to a file."""
+    """The locations of an answer saved to a file."""
     try:
         envelope = Envelope.model_validate(json.loads(content))
-    except (ValueError, ValidationError) as error:
+    except (ValueError, ValidationError, RecursionError) as error:
         raise LocationListError("not a DataForSEO answer") from error
-    if envelope.status_code != _OK or not envelope.tasks:
+    task = None
+    if envelope.tasks:
+        try:
+            task = TaskAnswer.model_validate(envelope.tasks[0])
+        except (ValidationError, RecursionError) as error:
+            raise LocationListError("the answer's task cannot be read") from error
+    return _read(envelope, task)
+
+
+def _read(envelope: Envelope, task: TaskAnswer | None) -> LocationList:
+    if envelope.status_code != _OK or task is None:
         raise LocationListError(f"the answer holds no task: {envelope.status_message!r}")
-    try:
-        task = TaskAnswer.model_validate(envelope.tasks[0])
-    except ValidationError as error:
-        raise LocationListError("the answer's task cannot be read") from error
     if task.status_code != _OK or task.result is None:
         raise LocationListError(f"the task holds no result: {task.status_message!r}")
 
@@ -93,4 +120,7 @@ def read_locations(content: bytes) -> LocationList:
                 location_type=entry.location_type,
             )
         )
+    if task.result and not locations:
+        # Every entry unreadable is a changed format, not an empty list.
+        raise LocationListError(f"none of the {len(task.result)} entries could be read")
     return LocationList(locations=tuple(locations), skipped=skipped)

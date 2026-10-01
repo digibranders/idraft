@@ -115,7 +115,32 @@ async def test_locations_filter_by_text_country_type_and_surface(
         "United Kingdom",
     ]
     assert await _names(api, headers, {"filter[supports]": "llm_scraper"}) == ["United States"]
+    # Wildcards are characters.
     assert await _names(api, headers, {"filter[q]": "%"}) == []
+    assert await _names(api, headers, {"filter[q]": "_"}) == []
+    for name in ("filter[q]", "filter[location_type]"):
+        response = await api.get(LOCATIONS, params={name: "a\x00"}, headers=headers)
+        assert response.status_code == 422
+
+
+@pytest.mark.usefixtures("located")
+async def test_locations_with_the_same_name_page_by_id(
+    api: httpx.AsyncClient, headers: dict[str, str], migrated: PostgresServer
+) -> None:
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) "
+        "SELECT 3000 + n, 'Springfield', 'US', 'City' FROM generate_series(1, 7) AS n",
+    )
+    seen: list[int] = []
+    params: dict[str, Any] = {"limit": 2, "filter[q]": "springfield"}
+    while True:
+        body = (await api.get(LOCATIONS, params=params, headers=headers)).json()
+        seen += [row["location_id"] for row in body["data"]]
+        if not body["page"]["has_more"]:
+            break
+        params = {**params, "cursor": body["page"]["next_cursor"]}
+    assert seen == list(range(3001, 3008))
 
 
 @pytest.mark.usefixtures("located")
@@ -133,8 +158,12 @@ async def test_a_location_cursor_only_works_with_its_own_filters(
     }
     for params in (
         {"cursor": cursor, "filter[q]": "a"},
-        # The right filters, and a key this list never writes.
+        # The right filters, and keys this list never writes.
         {"cursor": encode_cursor(["India", "2356"], scope=scope)},
+        {"cursor": encode_cursor(["India", 2**40], scope=scope)},
+        {"cursor": encode_cursor(["India", 0], scope=scope)},
+        {"cursor": encode_cursor(["In\ud800dia", 2356], scope=scope)},
+        {"cursor": encode_cursor(["In\x00dia", 2356], scope=scope)},
     ):
         response = await api.get(LOCATIONS, params=params, headers=headers)
         assert (response.status_code, response.json()["code"]) == (400, "invalid_cursor")

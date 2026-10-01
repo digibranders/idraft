@@ -252,6 +252,10 @@ async def test_the_list_filters_by_type_text_project_and_role(
     assert await names({"filter[q]": "acme crm"}) == ["Acme"]
     assert await names({"filter[q]": "0%"}) == ["Cloud 100%"]
     assert await names({"filter[q]": "_"}) == []
+    nul = await api.get(
+        entities_url(workspace), params={"filter[q]": "a\x00"}, headers=owner.headers
+    )
+    assert nul.status_code == 422
     # A removed role does not count.
     assert await names({"filter[project_id]": str(project)}) == ["Acme", "Rival"]
     assert await names({"filter[role]": "competitor"}) == ["Rival"]

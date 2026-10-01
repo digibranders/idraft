@@ -18,7 +18,7 @@ from sightline.api.pagination import Cursor, CursorPageInfo
 from sightline.api.permissions import Permission
 from sightline.api.request_info import Info
 from sightline.api.resources import Resources, get_resources
-from sightline.api.schemas.common import DomainRef, UserRef
+from sightline.api.schemas.common import DomainRef, QueryText, UserRef
 from sightline.api.schemas.entities import (
     Alias,
     AliasBatch,
@@ -135,7 +135,7 @@ async def list_entities(
     page: Cursor,
     entities: Entities,
     entity_type: Annotated[EntityType | None, Query(alias="filter[entity_type]")] = None,
-    q: Annotated[str | None, Query(alias="filter[q]", min_length=1, max_length=200)] = None,
+    q: Annotated[QueryText | None, Query(alias="filter[q]")] = None,
     project_id: Annotated[UUID | None, Query(alias="filter[project_id]")] = None,
     role: Annotated[
         Role | None,

@@ -69,6 +69,13 @@ def test_entries_that_cannot_be_read_are_skipped_and_counted() -> None:
                 _entry(location_code=2, country_iso_code=None),
                 _entry(location_code=3, location_type=""),
                 _entry(location_code=True),
+                # What the database would refuse: past `integer`, NUL, blank.
+                _entry(location_code=2**31),
+                _entry(location_code=4, location_code_parent=2**31),
+                _entry(location_code=5, location_name="Nul\x00here"),
+                _entry(location_code=6, location_name="   "),
+                _entry(location_code=7, location_type="City\n"),
+                _entry(location_code=8, location_name="\ud800"),
                 "not an entry",
                 # The same code again keeps the first.
                 _entry(location_name="Duplicate"),
@@ -79,7 +86,7 @@ def test_entries_that_cannot_be_read_are_skipped_and_counted() -> None:
         (2840, "US"),
         (2826, "GB"),
     ]
-    assert found.skipped == 7
+    assert found.skipped == 13
 
 
 @pytest.mark.parametrize(
@@ -93,6 +100,10 @@ def test_entries_that_cannot_be_read_are_skipped_and_counted() -> None:
         json.dumps(envelope([task_answer(result=None)])).encode(),
         json.dumps(envelope([task_answer(result=[])], status_code=40000)).encode(),
         json.dumps([1, 2]).encode(),
+        # A changed format, where nothing can be read, is not an empty list.
+        _body([{"code": 1}, {"code": 2}]),
+        # Nested past what the parser follows.
+        b"[" * 100_000 + b"]" * 100_000,
     ],
 )
 def test_an_answer_that_is_not_a_location_list_is_refused(content: bytes) -> None:

@@ -85,6 +85,11 @@ ImageUrl = Annotated[
     AfterValidator(printable),
 ]
 Token = Annotated[str, StringConstraints(min_length=1, max_length=TOKEN_BODY_MAX)]
+# A text filter in a query string (`filter[q]`). A control character or a lone surrogate would
+# reach the database as a 500, so it is a 422 here.
+QueryText = Annotated[
+    str, StringConstraints(min_length=1, max_length=200), AfterValidator(printable)
+]
 
 
 class Body(BaseModel):
