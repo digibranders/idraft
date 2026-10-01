@@ -373,7 +373,7 @@
                 "type": "null"
               }
             ],
-            "description": "None for a domain-shaped alias.",
+            "description": "The stored alias that matched; None for the canonical name (`alias_name`) and a domain-shaped alias (`alias_domain`).",
             "title": "Alias Id"
           },
           "end": {
@@ -411,6 +411,19 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "via_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For `via_product`: the product whose mention counts for this entity.",
+            "title": "Via Entity Id"
           }
         },
         "required": [
@@ -419,7 +432,8 @@
           "alias_id",
           "match_method",
           "score",
-          "status"
+          "status",
+          "via_entity_id"
         ],
         "title": "AliasTestSpan",
         "type": "object"
@@ -1906,7 +1920,7 @@
         "additionalProperties": false,
         "properties": {
           "aliases": {
-            "description": "Word aliases that ignore case.",
+            "description": "Word aliases that ignore case, trimmed; repeats in any case are one alias.",
             "items": {
               "maxLength": 200,
               "minLength": 1,
@@ -2484,7 +2498,7 @@
           },
           "is_primary": {
             "default": false,
-            "description": "Only for `own`; one per project.",
+            "description": "Only for `own`; one per project, so the current primary one stops being primary.",
             "title": "Is Primary",
             "type": "boolean"
           },
@@ -3179,7 +3193,7 @@
           "path": {
             "anyOf": [
               {
-                "maxLength": 1000,
+                "maxLength": 2048,
                 "minLength": 1,
                 "type": "string"
               },
@@ -5462,7 +5476,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
+                "oneOf": [
                   {
                     "$ref": "#/components/schemas/AliasInput"
                   },
@@ -6821,6 +6835,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/terms/{term_id}": {
       "delete": {
+        "description": "`409 has_children` for a term with children, unless `cascade=true`.",
         "operationId": "delete_term_api_v1_workspaces__workspace_id__terms__term_id__delete",
         "parameters": [
           {
@@ -6877,6 +6892,7 @@
         ]
       },
       "patch": {
+        "description": "A new `slug` or `parent_id` rewrites the paths of the whole subtree. The name keeps its slug unless a slug is given. `422 cycle_detected` for a parent under the term.",
         "operationId": "update_term_api_v1_workspaces__workspace_id__terms__term_id__patch",
         "parameters": [
           {
@@ -6953,7 +6969,7 @@
             }
           },
           {
-            "description": "That project's and the workspace-wide ones.",
+            "description": "That project's vocabularies and the workspace-wide ones.",
             "in": "query",
             "name": "filter[project_id]",
             "required": false,
@@ -6967,7 +6983,7 @@
                   "type": "null"
                 }
               ],
-              "description": "That project's and the workspace-wide ones.",
+              "description": "That project's vocabularies and the workspace-wide ones.",
               "title": "Filter[Project Id]"
             }
           },
@@ -7045,12 +7061,13 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Vocabularies",
+        "summary": "Vocabularies, by name",
         "tags": [
           "taxonomy"
         ]
       },
       "post": {
+        "description": "Workspace-wide without `project_id`, which a member limited to some projects cannot create. `409 duplicate` when the scope has a vocabulary of this kind with this name, in any case.",
         "operationId": "create_vocabulary_api_v1_workspaces__workspace_id__vocabularies_post",
         "parameters": [
           {
@@ -7211,6 +7228,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms": {
       "get": {
+        "description": "In path order. `flat` lists every term with empty `children`.",
         "operationId": "list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get",
         "parameters": [
           {
@@ -7248,7 +7266,7 @@
             }
           },
           {
-            "description": "Matching terms, with their ancestors in the tree format.",
+            "description": "Terms whose name holds the text; the tree keeps their ancestors.",
             "in": "query",
             "name": "filter[q]",
             "required": false,
@@ -7256,13 +7274,14 @@
               "anyOf": [
                 {
                   "maxLength": 200,
+                  "minLength": 1,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Matching terms, with their ancestors in the tree format.",
+              "description": "Terms whose name holds the text; the tree keeps their ancestors.",
               "title": "Filter[Q]"
             }
           }
@@ -7295,6 +7314,7 @@
         ]
       },
       "post": {
+        "description": "Items are added in order. A `path` reuses the terms it names that exist, matched by name in any case, and creates the others; a path that exists adds nothing. The response lists the terms created. `409 duplicate` when a `name` item, or a given `slug`, is taken under its parent; `422 not_hierarchical` for a parent in a flat vocabulary.",
         "operationId": "add_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_post",
         "parameters": [
           {
@@ -7322,7 +7342,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
+                "oneOf": [
                   {
                     "$ref": "#/components/schemas/TermInput"
                   },

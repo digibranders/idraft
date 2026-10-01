@@ -17,6 +17,7 @@ const span = (start: number, end: number, status: Mention['status'] = 'accepted'
   match_method: 'alias_word',
   score: 0.95,
   status,
+  via_entity_id: null,
 });
 
 describe('segmentsOf', () => {
