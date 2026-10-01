@@ -173,7 +173,10 @@ export function EntityAliasesSection({ scope, entity, canWrite }: EntityAliasesS
         scope={scope}
         entityId={entity.entity_id}
         entityName={entity.canonical_name}
-        existing={entity.aliases.map((alias) => alias.alias)}
+        // Only a plain alias is the same as a pasted one: a negative, a pattern or an exact-case alias differs
+        existing={entity.aliases
+          .filter((alias) => alias.match_mode === 'word_boundary' && !alias.is_negative && !alias.case_sensitive)
+          .map((alias) => alias.alias)}
         open={pasting}
         onClose={() => setPasting(false)}
       />

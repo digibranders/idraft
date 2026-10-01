@@ -30,7 +30,7 @@ import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
-import { useCan } from '@/lib/permissions';
+import { canWriteEntities, useMembership } from '@/lib/permissions';
 import { projectPath } from '@/lib/routes/paths';
 
 const REMOVE = apiMutation('delete', '/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities/{entity_id}');
@@ -54,7 +54,8 @@ export function EntitiesScreen({ workspaceId, projectId, workspaceSlug, projectS
   const t = useTranslations('entitySettings');
   const common = useTranslations('common');
   const scope: ProjectScope = { workspaceId, projectId };
-  const canWrite = useCan('entities:write');
+  // A member limited to some projects cannot change workspace entities, whatever their role
+  const canWrite = canWriteEntities(useMembership());
   const queryClient = useQueryClient();
   const entities = useQuery(projectEntitiesQuery(scope));
   const remove = useMutation(REMOVE);

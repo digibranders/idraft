@@ -18,7 +18,7 @@ import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TextLink } from '@/components/ui/text-link';
 import { isApiProblem } from '@/lib/api/problem';
-import { useCan } from '@/lib/permissions';
+import { canWriteEntities, useMembership } from '@/lib/permissions';
 import { projectPath } from '@/lib/routes/paths';
 
 export interface EntityEditorProps extends ProjectScope {
@@ -41,7 +41,8 @@ export function EntityEditor({
 }: EntityEditorProps): ReactNode {
   const t = useTranslations('entitySettings.editor');
   const common = useTranslations('common');
-  const canWrite = useCan('entities:write');
+  // A member limited to some projects cannot change workspace entities, whatever their role
+  const canWrite = canWriteEntities(useMembership());
   const entity = useQuery(entityQuery(workspaceId, entityId));
   const project = useQuery(projectQuery({ workspaceId, projectId }));
   const version = project.data?.data.entity_config_version;

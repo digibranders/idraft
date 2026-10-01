@@ -246,7 +246,7 @@ export interface PasteAliasesDialogProps {
   scope: ProjectScope;
   entityId: string;
   entityName: string;
-  /** The entity's aliases now: a pasted line that repeats one is left out rather than refused. */
+  /** The entity's plain word aliases now: a pasted line that repeats one is left out rather than refused. */
   existing: readonly string[];
   open: boolean;
   onClose: () => void;

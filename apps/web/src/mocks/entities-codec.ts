@@ -11,7 +11,7 @@ import type {
   StoredVocabulary,
 } from './entities-state';
 import { MOCK_CREATED_AT } from './fixtures';
-import { mockId, mockIdNumber, type IdKind } from './mock-ids';
+import { FIRST_MINTED, mockId, mockIdNumber, type IdKind } from './mock-ids';
 import { termSlug } from './term-slug';
 import { z } from 'zod';
 
@@ -42,7 +42,12 @@ const COLLECTION = z
 
 /** The shape of the cookie; one that does not fit is ignored. */
 export const COMPACT_CHANGES = z.object({
-  n: z.number().optional(),
+  // The last id minted here: never one of the fixtures' numbers, and a whole number
+  n: z
+    .number()
+    .int()
+    .min(FIRST_MINTED - 1)
+    .optional(),
   u: z.array(z.string()).optional(),
   e: COLLECTION,
   a: COLLECTION,
@@ -50,7 +55,8 @@ export const COMPACT_CHANGES = z.object({
   r: COLLECTION,
   v: COLLECTION,
   t: COLLECTION,
-  x: z.array(z.tuple([z.number(), z.number()])).optional(),
+  // A project reference (a minted number, or a negative index into `u`) and its version count
+  x: z.array(z.tuple([z.number().int(), z.number().int().nonnegative()])).optional(),
 });
 type CompactChanges = z.infer<typeof COMPACT_CHANGES>;
 type CompactCollection = NonNullable<CompactChanges['e']>;

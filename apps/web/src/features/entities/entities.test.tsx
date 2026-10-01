@@ -170,6 +170,21 @@ describe('Entities and aliases', () => {
     await waitFor(() => expect(within(row).queryByText('AI')).toBeNull());
   });
 
+  it('shows an editor limited to some projects the lists read-only, as the API refuses their writes', async () => {
+    document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('editor').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
+    renderWithProviders(
+      <PermissionProvider membership={{ ...membershipFactory('editor'), project_ids: [SCOPE.projectId] }}>
+        <LeaveGuardProvider>
+          <Suspense fallback={null}>
+            <EntitiesScreen {...SCOPE} />
+          </Suspense>
+        </LeaveGuardProvider>
+      </PermissionProvider>,
+    );
+    await table('Competitors');
+    expect(screen.queryByRole('button', { name: 'Add competitor' })).toBeNull();
+  });
+
   it('shows a member without entities:write the lists read-only', async () => {
     renderWithProviders(as('analyst', <EntitiesScreen {...SCOPE} />));
     await table('Competitors');

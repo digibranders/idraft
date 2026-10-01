@@ -185,7 +185,8 @@ function hitsOf(text: string, patterns: readonly Pattern[], entities: ReadonlyMa
         aliasId: pattern.alias?.alias_id ?? null,
         method: pattern.method,
         negative: pattern.alias?.is_negative ?? false,
-        needsContext: ambiguous || (pattern.alias?.requires_context ?? false),
+        // A domain in the text names its entity plainly: the context score is for words (backend d24bc65)
+        needsContext: pattern.method !== 'alias_domain' && (ambiguous || (pattern.alias?.requires_context ?? false)),
       });
       if (hits.length > MAX_HITS) throw new TooManyMatchesError();
     }

@@ -7,6 +7,7 @@ import {
   can,
   canCreateProjects,
   canOpenProject,
+  canWriteEntities,
   PermissionProvider,
   useCan,
   useMembership,
@@ -67,6 +68,14 @@ describe('canOpenProject', () => {
     expect(canOpenProject(limited, fynix?.project_id ?? '')).toBe(true);
     expect(canOpenProject(limited, cleanstart?.project_id ?? '')).toBe(false);
     expect(canOpenProject([], fynix?.project_id ?? '')).toBe(false);
+  });
+});
+
+describe('canWriteEntities', () => {
+  it('lets a role with entities:write change entities only while it sees every project', () => {
+    expect(canWriteEntities(membershipFactory('editor'))).toBe(true);
+    expect(canWriteEntities({ ...membershipFactory('editor'), project_ids: [] })).toBe(false);
+    expect(canWriteEntities(membershipFactory('analyst'))).toBe(false);
   });
 });
 

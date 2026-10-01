@@ -655,6 +655,12 @@ describe('the alias test', () => {
     expect(hinted.mentions[0]).toMatchObject({ confidence: 0.65, status: 'uncertain' });
   });
 
+  it('counts a domain of an ambiguous entity in full: the context score is for words', async () => {
+    const result = await test({ text: 'See northlightseo.com for the details.' });
+    expect(result.mentions[0]).toMatchObject({ status: 'accepted' });
+    expect(result.mentions[0]?.spans[0]).toMatchObject({ match_method: 'alias_domain', status: 'accepted' });
+  });
+
   it('runs patterns and domain-shaped aliases, and orders mentions by their first span that counts', async () => {
     const text = 'Read meridiangrowth.com/blog, then try Click Vantage. Northlight sits apart.';
     const result = await test({ text });

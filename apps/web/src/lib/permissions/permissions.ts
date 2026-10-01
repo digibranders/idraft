@@ -60,3 +60,15 @@ export function canCreateProjects(membership: {
 }): boolean {
   return can(membership.permissions, 'projects:write') && membership.project_ids === null;
 }
+
+/**
+ * Whether a member may change entities, their aliases and domains. Entities belong to the workspace and
+ * reach every project that names them, so a member limited to some projects is refused (19 section 3.4,
+ * `every_project`) whatever their role.
+ */
+export function canWriteEntities(membership: {
+  permissions: readonly string[];
+  project_ids: readonly string[] | null;
+}): boolean {
+  return can(membership.permissions, 'entities:write') && membership.project_ids === null;
+}
