@@ -15,7 +15,7 @@ import structlog
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors.costs import roll_up_costs
+from sightline.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
 from sightline.collectors.dispatcher import SubmitBatch, dispatch
 from sightline.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
 from sightline.collectors.keyword_metrics import (
@@ -61,8 +61,10 @@ RECONCILE_EVERY = timedelta(minutes=5)
 PARTITIONS_AT = "10 0 * * *"
 # docs/21-scheduler-workers.md section 10: monthly, the 2nd at 03:00 UTC.
 LOCATIONS_AT = "0 3 2 * *"
-# Plan decision D14: today's and yesterday's costs, every hour.
+# Plan decision D14: today's and yesterday's costs every hour, and the last 35 days once a day
+# so a day missed while the worker was down is counted.
 COSTS_AT = "7 * * * *"
+COSTS_REBUILT_AT = "37 1 * * *"
 _log = structlog.get_logger(__name__)
 
 
@@ -181,10 +183,16 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
 
     async def cost_rollup() -> None:
         now = await database_time(context.sessions)
-        written = await roll_up_costs(context.sessions, now=now)
-        _log.info("costs rolled up", rows=written)
+        written = await roll_up_costs(context.sessions, now=now, days=HOURLY_DAYS)
+        _log.info("costs rolled up", rows=written, days=HOURLY_DAYS)
+
+    async def cost_rebuild() -> None:
+        now = await database_time(context.sessions)
+        written = await roll_up_costs(context.sessions, now=now, days=DAILY_DAYS)
+        _log.info("costs rolled up", rows=written, days=DAILY_DAYS)
 
     context.queues.register_scheduled("cost_rollup", cost_rollup, cron=COSTS_AT)
+    context.queues.register_scheduled("cost_rebuild", cost_rebuild, cron=COSTS_REBUILT_AT)
 
     async def queue_new(now: datetime) -> None:
         if KEYWORD_METRICS not in parts.workloads:

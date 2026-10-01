@@ -11,6 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import RequestValidationError
+from pydantic import AfterValidator
 
 from sightline.api.operations.costs import BudgetLine, CostService
 from sightline.api.operations.costs_repository import BudgetRecord, PriceRecord
@@ -37,8 +38,21 @@ router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}", tags=["operations
 
 ReadCosts = Annotated[WorkspaceAccess, Depends(require_permission(Permission.COSTS_READ))]
 
-# A year and a day: a leap year's whole period.
+# A leap year's whole period.
 PERIOD_DAYS_MAX: Final = 366
+YEAR_MIN: Final = 2000
+YEAR_MAX: Final = 2100
+_MONTH_PATTERN: Final = r"^(20\d{2}|2100)-(0[1-9]|1[0-2])$"
+
+
+def _in_years(value: date) -> date:
+    """A day the ledger can hold: no cost is older, and none is from the far future."""
+    if not YEAR_MIN <= value.year <= YEAR_MAX:
+        raise ValueError(f"a day from {YEAR_MIN} to {YEAR_MAX}")
+    return value
+
+
+Day = Annotated[date, AfterValidator(_in_years)]
 
 
 def get_cost_service(resources: Annotated[Resources, Depends(get_resources)]) -> CostService:
@@ -64,8 +78,8 @@ def _query_error(name: str, code: str, message: str) -> RequestValidationError:
 async def list_costs(
     access: ReadCosts,
     costs: Costs,
-    start: Annotated[date, Query(alias="from")],
-    end: Annotated[date, Query(alias="to")],
+    start: Annotated[Day, Query(alias="from")],
+    end: Annotated[Day, Query(alias="to")],
     group_by: Annotated[list[CostGroup] | None, Commas, Query(max_length=7)] = None,
     project_id: Annotated[UUID | None, Query(alias="filter[project_id]")] = None,
     workloads: Annotated[
@@ -78,7 +92,7 @@ async def list_costs(
     if end < start:
         raise _query_error("to", "range_invalid", "`to` is on or after `from`.")
     if (end - start).days >= PERIOD_DAYS_MAX:
-        raise _query_error("to", "range_too_long", f"At most {PERIOD_DAYS_MAX} days.")
+        raise _query_error("to", "range_too_long", f"A period of at most {PERIOD_DAYS_MAX} days.")
     report = await costs.costs(
         access,
         start=start,
@@ -140,7 +154,9 @@ def _status(line: BudgetLine) -> BudgetStatus:
 async def budget_status(
     access: ReadCosts,
     costs: Costs,
-    month: Annotated[str | None, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")] = None,
+    month: Annotated[
+        str | None, Query(pattern=_MONTH_PATTERN, description="`YYYY-MM`, 2000 to 2100.")
+    ] = None,
 ) -> BudgetStatusList:
     first = None if month is None else date.fromisoformat(f"{month}-01")
     lines = await costs.budget_status(access, first)
@@ -178,7 +194,7 @@ async def price_book(
     endpoint: Annotated[
         str | None, Query(alias="filter[endpoint]", min_length=1, max_length=200)
     ] = None,
-    valid_at: date | None = None,
+    valid_at: Day | None = None,
 ) -> PricePage:
     found = await costs.prices(
         access,

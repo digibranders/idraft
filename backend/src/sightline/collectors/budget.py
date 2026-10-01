@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import MutableMapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import TypedDict
 from uuid import UUID
@@ -87,13 +87,16 @@ async def spent_in_month(
 ) -> Decimal:
     """The cost in the budget's scope (the whole workspace, or one project) in the billing
     month starting at `month`. The API's budget status reads it too."""
+    next_month = (month + timedelta(days=32)).replace(day=1)
     total: Decimal = (
         await db.execute(
             select(func.coalesce(func.sum(_events.c.cost_usd), 0)).where(
                 *_in_scope(_events, workspace_id, project_id),
                 _events.c.billing_period == month.date(),
-                # The same month again, on the column the table is partitioned by.
+                # The same month again, on the column the table is partitioned by, so only
+                # its partition is read.
                 _events.c.occurred_at >= month,
+                _events.c.occurred_at < next_month,
                 _events.c.workload.in_(sorted(cost_workloads(group))),
             )
         )

@@ -22,6 +22,12 @@
   "ops.collection_tasks": {
     "collection_tasks_subject": "CREATE INDEX collection_tasks_subject ON ONLY ops.collection_tasks USING btree (workload, subject_id, created_at)"
   },
+  "ops.cost_daily": {
+    "cost_daily_workspace_date": "CREATE INDEX cost_daily_workspace_date ON ops.cost_daily USING btree (workspace_id, cost_date)"
+  },
+  "ops.provider_cost_events": {
+    "provider_cost_events_occurred": "CREATE INDEX provider_cost_events_occurred ON ONLY ops.provider_cost_events USING brin (occurred_at)"
+  },
   "ops.schedules": {
     "schedules_id_project_id_workspace_id_key": "CREATE UNIQUE INDEX schedules_id_project_id_workspace_id_key ON ops.schedules USING btree (id, project_id, workspace_id)",
     "schedules_id_workspace_id_key": "CREATE UNIQUE INDEX schedules_id_workspace_id_key ON ops.schedules USING btree (id, workspace_id)",

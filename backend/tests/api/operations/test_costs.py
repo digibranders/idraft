@@ -216,6 +216,8 @@ async def test_the_filters_narrow_the_rows_and_the_sources(
         {"from": "2026-09-30", "to": "2026-09-01"},
         {"from": "2025-01-01", "to": "2026-09-01"},
         {"from": "2026-09-01", "to": "2026-09-30", "group_by": "colour"},
+        {"from": "2026-09-01", "to": "9999-12-31"},
+        {"from": "0001-01-01", "to": "0001-01-02"},
     ],
 )
 async def test_a_period_the_rollup_cannot_answer_is_refused(
@@ -230,6 +232,21 @@ async def test_a_period_the_rollup_cannot_answer_is_refused(
     response = await api.get(_url(workspace, "costs"), params=params, headers=owner.headers)
 
     assert problem(response) == (422, "validation_failed")
+
+
+async def test_a_deleted_projects_costs_are_still_its_history(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, _first, second, owner = await _setup(resources, migrated)
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", second)
+
+    response = await api.get(
+        _url(workspace, "costs"),
+        params=_period(**{"filter[project_id]": str(second)}),
+        headers=owner.headers,
+    )
+
+    assert _rows(response) == [({}, "0.000600", 1, 1)]
 
 
 async def test_a_member_limited_to_a_project_sees_its_costs_only(
@@ -317,6 +334,16 @@ async def test_each_budget_says_what_is_spent_committed_and_its_state(
         project,
         uuid.UUID(used_up),
     )
+    # A run under way it holds back for now: not a blocked run.
+    await execute(
+        migrated,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, blocked_by_budget_id, config_snapshot) VALUES ($1, $2, "
+        "'keyword_metrics', now(), now() + interval '1 hour', 'manual', 'running', $3, '{}')",
+        workspace.id,
+        project,
+        uuid.UUID(used_up),
+    )
 
     response = await api.get(_url(workspace, "budgets", "status"), headers=owner.headers)
 
@@ -337,6 +364,54 @@ async def test_each_budget_says_what_is_spent_committed_and_its_state(
         used_up: ("0.600000", "0.300000", 120.0, "hard_exceeded", 1),
     }
     assert found[used_up]["budget"]["workload"] == "all"
+
+
+async def test_a_budget_of_nothing_is_used_up_and_one_that_only_alerts_still_says_so(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    nothing = await _budget(migrated, workspace, "0.00")
+    alerting = await fetchrow(
+        migrated,
+        "INSERT INTO ops.budgets (workspace_id, workload, limit_usd, action_on_hard) "
+        "VALUES ($1, 'seo_rank', 1.00, 'alert_only') RETURNING id",
+        workspace.id,
+    )
+    project = await keyword_project(migrated, workspace)
+    await _event(migrated, workspace, project, "2.00", workload="seo_rank")
+
+    response = await api.get(_url(workspace, "budgets", "status"), headers=owner.headers)
+
+    found = {row["budget"]["budget_id"]: row for row in response.json()["data"]}
+    assert (found[nothing]["pct_used"], found[nothing]["state"]) == (100.0, "hard_exceeded")
+    alert = found[str(alerting["id"])]
+    assert (alert["state"], alert["budget"]["action_on_hard"]) == ("hard_exceeded", "alert_only")
+
+
+@pytest.mark.parametrize("month", ["0000-01", "9999-12", "2026-13", "2026-1"])
+async def test_a_month_the_ledger_cannot_hold_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, month: str
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+
+    response = await api.get(
+        _url(workspace, "budgets", "status"), params={"month": month}, headers=owner.headers
+    )
+
+    assert problem(response) == (422, "validation_failed")
+
+
+async def test_a_workspace_without_budgets_has_an_empty_status(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+
+    response = await api.get(_url(workspace, "budgets", "status"), headers=owner.headers)
+
+    assert response.json() == {"data": []}
 
 
 async def test_a_past_month_has_no_committed_spend(
@@ -409,3 +484,30 @@ async def test_the_price_book_lists_the_prices_valid_on_a_day(
     assert (price["provider_code"], price["endpoint"]) == ("dataforseo", LABS)
     assert price["source_url"].startswith("https://")
     assert before.json()["data"] == []
+
+
+async def test_a_price_ends_the_day_before_its_valid_to(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    analyst = await member(resources, migrated, workspace, "analyst")
+    endpoint = f"test/{uuid.uuid4().hex[:8]}"
+    await execute(
+        migrated,
+        "INSERT INTO ops.provider_price_book (provider_code, endpoint, price_unit, "
+        "unit_price_usd, valid_from, valid_to, source_url, verified_at) VALUES ('dataforseo', "
+        "$1, 'task', 0.0006, '2026-01-01', '2026-06-01', 'https://dataforseo.com/pricing', "
+        "'2026-01-01')",
+        endpoint,
+    )
+
+    async def valid_on(day: str) -> int:
+        response = await api.get(
+            _url(workspace, "price-book"),
+            params={"filter[endpoint]": endpoint, "valid_at": day},
+            headers=analyst.headers,
+        )
+        total: int = response.json()["page"]["total"]
+        return total
+
+    assert (await valid_on("2026-05-31"), await valid_on("2026-06-01")) == (1, 0)

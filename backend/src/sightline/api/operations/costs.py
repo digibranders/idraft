@@ -20,7 +20,6 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.api.keywords import repository as keywords
 from sightline.api.operations import costs_repository as repository
 from sightline.api.operations.costs_repository import (
     BudgetRecord,
@@ -77,8 +76,9 @@ def _state(spent: Decimal, budget: BudgetRecord) -> BudgetState:
 
 
 def _pct(spent: Decimal, limit: Decimal) -> float:
+    """A limit of nothing is used up from the start, as the planner judges it."""
     if limit <= 0:
-        return 100.0 if spent > 0 else 0.0
+        return 100.0
     return round(float(spent / limit * 100), 1)
 
 
@@ -108,8 +108,9 @@ class CostService:
         projects = access.project_ids
         async with self._transaction(access) as db:
             if project_id is not None:
-                if not access.sees(project_id) or (
-                    await keywords.project_defaults(db, access.workspace_id, project_id) is None
+                # A deleted project's costs are its history: shown, as in the grouped report.
+                if not access.sees(project_id) or not await repository.project_exists(
+                    db, access.workspace_id, project_id
                 ):
                     raise NotFoundError
                 projects = frozenset({project_id})

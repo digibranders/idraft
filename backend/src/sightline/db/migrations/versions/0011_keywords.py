@@ -78,6 +78,13 @@ CREATE INDEX collection_runs_project_created
 -- one in the last day, finished or not, so a failing keyword is not paid for every minute.
 CREATE INDEX collection_tasks_subject ON ops.collection_tasks (workload, subject_id, created_at);
 
+-- The cost rollup reads the events of its last days across every workspace (plan decision
+-- D14). The table is append-only and filled in time order, which a BRIN index suits.
+CREATE INDEX provider_cost_events_occurred ON ops.provider_cost_events USING brin (occurred_at);
+
+-- A workspace's costs over a period.
+CREATE INDEX cost_daily_workspace_date ON ops.cost_daily (workspace_id, cost_date);
+
 CREATE TABLE seo.keywords (
     id               uuid PRIMARY KEY DEFAULT uuidv7(),
     workspace_id     uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE CASCADE,
@@ -531,7 +538,10 @@ def downgrade() -> None:
         "ADD CONSTRAINT collection_runs_schedule_id_fkey "
         "FOREIGN KEY (schedule_id) REFERENCES ops.schedules(id)"
     )
-    op.execute("DROP INDEX ops.collection_tasks_subject, ops.collection_runs_project_created")
+    op.execute(
+        "DROP INDEX ops.collection_tasks_subject, ops.collection_runs_project_created, "
+        "ops.provider_cost_events_occurred, ops.cost_daily_workspace_date"
+    )
     op.execute(
         "ALTER TABLE ops.schedules DROP CONSTRAINT schedules_project_id_workspace_id_fkey, "
         "ADD CONSTRAINT schedules_project_id_fkey FOREIGN KEY (project_id) "

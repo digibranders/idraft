@@ -33,6 +33,8 @@ ALTERED = {
     ("ops.collection_runs", "collection_runs_schedule_id_workspace_id_fkey"),
     ("ops.collection_runs", "collection_runs_project_created"),
     ("ops.collection_tasks", "collection_tasks_subject"),
+    ("ops.provider_cost_events", "provider_cost_events_occurred"),
+    ("ops.cost_daily", "cost_daily_workspace_date"),
 }
 
 

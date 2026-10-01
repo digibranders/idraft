@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors.costs import roll_up_costs
@@ -92,6 +93,29 @@ async def test_today_and_yesterday_are_summed_per_project_endpoint_and_workload(
         ],
         key=lambda row: (row[0], str(row[1])),
     )
+
+
+async def test_a_wider_rebuild_counts_days_the_hourly_rollup_missed(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    await empty_ledger(migrated)
+    await execute(migrated, "TRUNCATE ops.cost_daily")
+    project = await make_tenant(migrated)
+    await _event(migrated, project, "0.000600", when=NOW - 3 * DAY, engine="google")
+
+    hourly = await roll_up_costs(worker_db, now=NOW)
+    rebuilt = await roll_up_costs(worker_db, now=NOW, days=5)
+
+    assert (hourly, rebuilt) == (0, 1)
+    ((day, _, _, _, engine, _, cost, _),) = await _daily(migrated)
+    assert (day, engine, cost) == ((NOW - 3 * DAY).date(), "google", Decimal("0.000600"))
+
+
+async def test_the_rollup_covers_at_least_today(worker_db: Ledger) -> None:
+    with pytest.raises(ValueError, match="today"):
+        await roll_up_costs(worker_db, now=NOW, days=0)
+    with pytest.raises(ValueError, match="aware"):
+        await roll_up_costs(worker_db, now=NOW.replace(tzinfo=None))
 
 
 async def test_running_twice_gives_the_same_rows_and_a_late_event_is_picked_up(

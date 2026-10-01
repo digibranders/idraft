@@ -12,13 +12,14 @@ from decimal import Decimal
 from typing import Any, Final
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Text, case, cast, func, literal, select
+from sqlalchemy import ColumnElement, Text, case, cast, exists, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sightline.db.tables import (
     budgets,
     collection_runs,
     cost_daily,
+    projects,
     provider_cost_events,
     provider_price_book,
 )
@@ -138,6 +139,19 @@ async def cost_sources(
     return {row.cost_source: Decimal(row.cost_usd) for row in rows}
 
 
+async def project_exists(db: AsyncSession, workspace_id: UUID, project_id: UUID) -> bool:
+    """Whether the workspace has the project, deleted or not: a deleted project's costs are
+    still its history."""
+    found: bool = (
+        await db.execute(
+            select(
+                exists().where(projects.c.workspace_id == workspace_id, projects.c.id == project_id)
+            )
+        )
+    ).scalar_one()
+    return found
+
+
 @dataclass(frozen=True, slots=True)
 class BudgetRecord:
     id: UUID
@@ -183,7 +197,9 @@ async def blocked_runs(
     since: datetime,
     until: datetime,
 ) -> dict[UUID, int]:
-    """How many runs each budget blocked in the period."""
+    """How many runs each budget blocked when they were planned, by when they were blocked.
+    A run under way that a budget holds back names the budget too, but only until the hold
+    lifts; it is not counted."""
     if not budget_ids:
         return {}
     r = collection_runs.c
@@ -191,9 +207,10 @@ async def blocked_runs(
         select(r.blocked_by_budget_id, func.count().label("runs"))
         .where(
             r.workspace_id == workspace_id,
+            r.status == "budget_blocked",
             r.blocked_by_budget_id.in_(sorted(budget_ids)),
-            r.created_at >= since,
-            r.created_at < until,
+            r.completed_at >= since,
+            r.completed_at < until,
         )
         .group_by(r.blocked_by_budget_id)
     )
