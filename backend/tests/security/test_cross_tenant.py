@@ -104,6 +104,14 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-create"): {
         "items": [{"keyword": "planted", "location_id": LOCATION, "language_code": "en"}],
     },
+    ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-update"): {
+        "ids": ["{tracked_keyword_id}"],
+        "set": {"priority": 1},
+    },
+    ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-archive"): {
+        "ids": ["{tracked_keyword_id}"],
+        "archive": True,
+    },
     ("PATCH", _W + "/projects/{project_id}/tracked-keywords/{tracked_keyword_id}"): {
         "priority": 1,
     },

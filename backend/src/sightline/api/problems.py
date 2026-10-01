@@ -237,6 +237,12 @@ class QuotaExceededError(ProblemError):
     status, code, title = 422, "quota_exceeded", "Workspace limit reached"
 
 
+class TooManySubjectsError(ProblemError):
+    """Carries `limit`: a filter of a bulk change matched more rows than one request changes."""
+
+    status, code, title = 422, "too_many_subjects", "The filter matches too many"
+
+
 class WeakPasswordProblemError(ProblemError):
     """Carries `reason`: too_short, too_long, contains_email, breached or unchanged."""
 

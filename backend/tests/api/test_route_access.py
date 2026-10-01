@@ -137,8 +137,20 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords",
     ): "keywords:write",
     (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords",
+    ): "data:read",
+    (
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-create",
+    ): "keywords:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-update",
+    ): "keywords:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-archive",
     ): "keywords:write",
     (
         "GET",

@@ -486,6 +486,36 @@
         "title": "AliasUpdate",
         "type": "object"
       },
+      "BulkArchiveResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkArchiveResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "BulkArchiveResponse",
+        "type": "object"
+      },
+      "BulkArchiveResult": {
+        "properties": {
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "updated"
+        ],
+        "title": "BulkArchiveResult",
+        "type": "object"
+      },
       "BulkCreateResponse": {
         "properties": {
           "data": {
@@ -571,6 +601,41 @@
           "existing_id"
         ],
         "title": "BulkSkipped",
+        "type": "object"
+      },
+      "BulkUpdateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkUpdateResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "BulkUpdateResponse",
+        "type": "object"
+      },
+      "BulkUpdateResult": {
+        "properties": {
+          "config_versions_created": {
+            "title": "Config Versions Created",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "updated",
+          "config_versions_created"
+        ],
+        "title": "BulkUpdateResult",
         "type": "object"
       },
       "CompetitorOverride": {
@@ -4652,6 +4717,48 @@
         "title": "TrackedKeyword",
         "type": "object"
       },
+      "TrackedKeywordBulkArchive": {
+        "additionalProperties": false,
+        "properties": {
+          "archive": {
+            "description": "false unarchives, within the quota.",
+            "title": "Archive",
+            "type": "boolean"
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackedKeywordFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 5000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ids"
+          }
+        },
+        "required": [
+          "archive"
+        ],
+        "title": "TrackedKeywordBulkArchive",
+        "type": "object"
+      },
       "TrackedKeywordBulkCreate": {
         "additionalProperties": false,
         "properties": {
@@ -4679,6 +4786,87 @@
           "items"
         ],
         "title": "TrackedKeywordBulkCreate",
+        "type": "object"
+      },
+      "TrackedKeywordBulkUpdate": {
+        "additionalProperties": false,
+        "description": "At least one of `set` and the group and term lists. `add_term_ids` with a term of a\nsingle-valued vocabulary replaces the keyword's other term of that vocabulary.",
+        "properties": {
+          "add_group_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Add Group Ids",
+            "type": "array"
+          },
+          "add_term_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Add Term Ids",
+            "type": "array"
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackedKeywordFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 5000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ids"
+          },
+          "remove_group_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Remove Group Ids",
+            "type": "array"
+          },
+          "remove_term_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Remove Term Ids",
+            "type": "array"
+          },
+          "set": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackedKeywordPatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "TrackedKeywordBulkUpdate",
         "type": "object"
       },
       "TrackedKeywordCreate": {
@@ -5200,6 +5388,261 @@
         "title": "TrackedKeywordDetailResponse",
         "type": "object"
       },
+      "TrackedKeywordFilter": {
+        "additionalProperties": false,
+        "description": "The list's filters, as a body: what bulk changes and term assignments select by.\nThe same names as the list's `filter[...]` parameters, without the brackets.",
+        "properties": {
+          "depth_profile_in": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "light",
+                    "standard",
+                    "deep",
+                    "full",
+                    "weekly",
+                    "weekly_light",
+                    "until_own_match_100"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Profile In"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "enum": [
+                  "desktop",
+                  "mobile"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "funnel_stage_in": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "tofu",
+                    "mofu",
+                    "bofu",
+                    "retention",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funnel Stage In"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "intent_in": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "informational",
+                    "navigational",
+                    "commercial",
+                    "transactional",
+                    "local",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent In"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": true,
+            "title": "Is Active"
+          },
+          "keyword_difficulty_lte": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword Difficulty Lte"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "priority_lte": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority Lte"
+          },
+          "q": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q"
+          },
+          "search_engine": {
+            "anyOf": [
+              {
+                "enum": [
+                  "google",
+                  "bing"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Engine"
+          },
+          "search_volume_gte": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Volume Gte"
+          },
+          "source_in": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "manual",
+                    "csv_import",
+                    "api",
+                    "gsc_import",
+                    "discovery",
+                    "bulk_paste"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source In"
+          },
+          "term": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Each term or one under it; terms of two vocabularies: both.",
+            "title": "Term"
+          },
+          "term_in": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term In"
+          }
+        },
+        "title": "TrackedKeywordFilter",
+        "type": "object"
+      },
       "TrackedKeywordList": {
         "properties": {
           "data": {
@@ -5214,6 +5657,61 @@
           "data"
         ],
         "title": "TrackedKeywordList",
+        "type": "object"
+      },
+      "TrackedKeywordPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TrackedKeywordRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/TrackedKeywordPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "TrackedKeywordPage",
+        "type": "object"
+      },
+      "TrackedKeywordPageInfo": {
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "next_cursor",
+          "has_more",
+          "total"
+        ],
+        "title": "TrackedKeywordPageInfo",
         "type": "object"
       },
       "TrackedKeywordPatch": {
@@ -5335,6 +5833,294 @@
           "data"
         ],
         "title": "TrackedKeywordResponse",
+        "type": "object"
+      },
+      "TrackedKeywordRow": {
+        "description": "A list row. The blocks named in `include` are filled; the others are null.",
+        "properties": {
+          "business_value": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Value"
+          },
+          "competitors": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CompetitorOverride"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=competitors`: the keyword's overrides.",
+            "title": "Competitors"
+          },
+          "config_version": {
+            "title": "Config Version",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depth_profile": {
+            "enum": [
+              "light",
+              "standard",
+              "deep",
+              "full",
+              "weekly",
+              "weekly_light",
+              "until_own_match_100"
+            ],
+            "title": "Depth Profile",
+            "type": "string"
+          },
+          "device": {
+            "enum": [
+              "desktop",
+              "mobile"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "frequency": {
+            "enum": [
+              "daily",
+              "weekly",
+              "custom"
+            ],
+            "title": "Frequency",
+            "type": "string"
+          },
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GroupRef"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=groups`.",
+            "title": "Groups"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "intent_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "provider",
+                  "manual",
+                  "rule"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Source"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "keyword": {
+            "$ref": "#/components/schemas/Keyword"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeywordMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=metrics`."
+          },
+          "os": {
+            "anyOf": [
+              {
+                "enum": [
+                  "windows",
+                  "macos",
+                  "android",
+                  "ios"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "search_engine": {
+            "enum": [
+              "google",
+              "bing"
+            ],
+            "title": "Search Engine",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "manual",
+              "csv_import",
+              "api",
+              "gsc_import",
+              "discovery",
+              "bulk_paste"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UrlRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TermRef"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=terms`.",
+            "title": "Terms"
+          },
+          "tracked_keyword_id": {
+            "format": "uuid",
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracked_keyword_id",
+          "project_id",
+          "keyword",
+          "search_engine",
+          "location_id",
+          "location",
+          "language_code",
+          "device",
+          "os",
+          "config_version",
+          "depth_profile",
+          "target_url",
+          "intent",
+          "intent_source",
+          "funnel_stage",
+          "priority",
+          "business_value",
+          "frequency",
+          "schedule_id",
+          "source",
+          "is_active",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TrackedKeywordRow",
         "type": "object"
       },
       "TrackedVariant": {
@@ -9070,6 +9856,458 @@
       }
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords": {
+      "get": {
+        "description": "Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority` and `created_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric sorts keywords without one last in both directions. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).",
+        "operationId": "list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "Blocks to fill: a comma list, or the parameter repeated.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "metrics",
+                      "groups",
+                      "terms",
+                      "competitors"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Blocks to fill: a comma list, or the parameter repeated.",
+              "title": "Include"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[q]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Q]"
+            }
+          },
+          {
+            "description": "The group or one under it.",
+            "in": "query",
+            "name": "filter[group]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The group or one under it.",
+              "title": "Filter[Group]"
+            }
+          },
+          {
+            "description": "Each given term or one under it; terms of two vocabularies must both match.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Each given term or one under it; terms of two vocabularies must both match.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "description": "Any of these terms or one under them.",
+            "in": "query",
+            "name": "filter[term_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Any of these terms or one under them.",
+              "title": "Filter[Term In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[device]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "desktop",
+                    "mobile"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Device]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[location_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Location Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[language_code]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Language Code]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[search_engine]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "google",
+                    "bing"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Search Engine]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[intent_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "informational",
+                      "navigational",
+                      "commercial",
+                      "transactional",
+                      "local",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Intent In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[funnel_stage_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "tofu",
+                      "mofu",
+                      "bofu",
+                      "retention",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Funnel Stage In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[priority_lte]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Priority Lte]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Filter[Is Active]",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[source_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "manual",
+                      "csv_import",
+                      "api",
+                      "gsc_import",
+                      "discovery",
+                      "bulk_paste"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Source In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[depth_profile_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "light",
+                      "standard",
+                      "deep",
+                      "full",
+                      "weekly",
+                      "weekly_light",
+                      "until_own_match_100"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Depth Profile In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[search_volume_gte]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Search Volume Gte]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[keyword_difficulty_lte]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Keyword Difficulty Lte]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedKeywordPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's tracked keywords",
+        "tags": [
+          "keywords"
+        ]
+      },
       "post": {
         "description": "Defaults come from the project: its location and language, and `settings.seo`. `409 duplicate` with `existing_id` when the project tracks the keyword already, archived included; a deleted one comes back with its stored settings. `422 quota_exceeded` carries `limit`, `used` and `requested`.",
         "operationId": "create_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_post",
@@ -9128,6 +10366,70 @@
           }
         },
         "summary": "Track a keyword (two rows for device both)",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-archive": {
+      "post": {
+        "description": "Exactly one of `ids` and `filter`. Archived keywords are not collected and do not count against the quota; unarchiving is `422 quota_exceeded` when they would not fit.",
+        "operationId": "bulk_archive_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackedKeywordBulkArchive"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkArchiveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Archive or unarchive tracked keywords",
         "tags": [
           "keywords"
         ]
@@ -9192,6 +10494,70 @@
           }
         },
         "summary": "Track up to 1,000 keywords",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-update": {
+      "post": {
+        "description": "Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches, with `limit`). `set` takes the fields of a single change; a new `depth_profile` or `target_url` makes a configuration version for each row it changes (`config_versions_created`). `add_term_ids` with a term of a single-valued vocabulary replaces the keyword's other term of that vocabulary.",
+        "operationId": "bulk_update_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackedKeywordBulkUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkUpdateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change tracked keywords by ids or by filter",
         "tags": [
           "keywords"
         ]

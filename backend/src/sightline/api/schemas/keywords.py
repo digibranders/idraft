@@ -181,6 +181,7 @@ class UrlRef(BaseModel):
     path: str
 
 
+TrackedInclude = Literal["metrics", "groups", "terms", "competitors"]
 MetricsSource = Literal["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"]
 CompetitionLevel = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -353,11 +354,29 @@ class Selection(Body):
 
 
 class TrackedKeywordBulkUpdate(Selection):
+    """At least one of `set` and the group and term lists. `add_term_ids` with a term of a
+    single-valued vocabulary replaces the keyword's other term of that vocabulary."""
+
     set: TrackedKeywordPatch | None = None
     add_group_ids: Links = Field(default_factory=list)
     remove_group_ids: Links = Field(default_factory=list)
     add_term_ids: Links = Field(default_factory=list)
     remove_term_ids: Links = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _says_something(self) -> TrackedKeywordBulkUpdate:
+        lists = (self.add_group_ids, self.remove_group_ids, self.add_term_ids, self.remove_term_ids)
+        if self.set is None and not any(lists):
+            raise PydanticCustomError(
+                "nothing_to_change", "Give `set`, or groups or terms to add or remove."
+            )
+        if set(self.add_group_ids) & set(self.remove_group_ids) or set(self.add_term_ids) & set(
+            self.remove_term_ids
+        ):
+            raise PydanticCustomError(
+                "added_and_removed", "A group or term is either added or removed, not both."
+            )
+        return self
 
 
 class BulkUpdateResult(BaseModel):

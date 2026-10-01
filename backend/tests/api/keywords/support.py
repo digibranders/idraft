@@ -166,6 +166,12 @@ async def term(
     slug: str,
     parent: str | None = None,
 ) -> str:
+    path = slug
+    if parent is not None:
+        above = await fetchrow(
+            pg, "SELECT path FROM core.taxonomy_terms WHERE id = $1", uuid.UUID(parent)
+        )
+        path = f"{above['path']}/{slug}"
     row = await fetchrow(
         pg,
         "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, parent_id, name, slug, "
@@ -175,6 +181,6 @@ async def term(
         None if parent is None else uuid.UUID(parent),
         slug,
         slug,
-        slug,
+        path,
     )
     return str(row["id"])

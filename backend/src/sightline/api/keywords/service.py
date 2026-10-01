@@ -19,7 +19,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.api import audit
-from sightline.api.keywords import repository
+from sightline.api.keywords import filters, repository
 from sightline.api.keywords.repository import (
     CompetitorRecord,
     ConfigRecord,
@@ -39,13 +39,17 @@ from sightline.api.problems import (
     FieldError,
     NotFoundError,
     QuotaExceededError,
+    TooManySubjectsError,
     invalid_fields,
 )
 from sightline.api.request_info import RequestInfo
 from sightline.api.schemas.keywords import (
     CompetitorOverrides,
+    TrackedKeywordBulkArchive,
     TrackedKeywordBulkCreate,
+    TrackedKeywordBulkUpdate,
     TrackedKeywordCreate,
+    TrackedKeywordFilter,
 )
 from sightline.api.schemas.operations import SeoSettings
 from sightline.api.workspaces.access import WorkspaceAccess
@@ -66,6 +70,8 @@ _COMPARED: Final = (
     "schedule_id",
     "is_active",
 )
+# The rows one bulk change may touch by filter (docs/19 section 3.6.1); id lists stop at 5,000.
+SUBJECTS_MAX = 20_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +149,31 @@ class TrackedDetail:
 
 
 @dataclass(frozen=True, slots=True)
+class TrackedRow:
+    """A list row; a block the request did not `include` is None."""
+
+    record: TrackedRecord
+    metrics: MetricsRecord | None
+    groups: list[GroupRecord] | None
+    terms: list[TermRecord] | None
+    overrides: list[OverrideRecord] | None
+
+
+@dataclass(frozen=True, slots=True)
+class TrackedPageResult:
+    rows: list[TrackedRow]
+    next_cursor: str | None
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
+class BulkUpdateOutcome:
+    matched: int
+    updated: int
+    versions: int
+
+
+@dataclass(frozen=True, slots=True)
 class CompetitorSetResult:
     effective: list[CompetitorRecord]
     overrides: list[OverrideRecord]
@@ -191,6 +222,12 @@ def _snapshot(record: TrackedRecord) -> dict[str, str | int | bool | None]:
         "schedule_id": None if record.schedule_id is None else str(record.schedule_id),
         "is_active": record.is_active,
     }
+
+
+def _audit_value(value: object) -> str | int | bool | None:
+    if value is None or isinstance(value, str | int | bool):
+        return value
+    return str(value)
 
 
 def _target_id(record: TrackedRecord) -> int | None:
@@ -618,6 +655,299 @@ class KeywordService:
         return CompetitorSetResult(
             effective=effective_set(defaults, overrides), overrides=overrides
         )
+
+    # The list and bulk changes.
+
+    async def page(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        given: TrackedKeywordFilter,
+        sort: Sequence[filters.SortKey],
+        include: Collection[str],
+        page: CursorParams,
+    ) -> TrackedPageResult:
+        """A page of the project's tracked keywords, with `page.total` for the filter."""
+        parts = filters.components(sort)
+        bound = {"sort": [key.label() for key in sort], **filters.scope(given)}
+        after = None
+        if page.cursor is not None:
+            values = filters.decode_key(parts, decode_cursor(page.cursor, scope=bound))
+            after = filters.after(parts, values)
+        async with self._transaction(access) as db:
+            await self._defaults(db, access, project_id)
+            where = filters.conditions(
+                given,
+                workspace_id=access.workspace_id,
+                project_id=project_id,
+                terms=await self._term_groups(db, access, given.term or []),
+            )
+            found = await repository.list_tracked(
+                db,
+                access.workspace_id,
+                conditions=where,
+                order=filters.order_by(parts),
+                key=[part.expression for part in parts],
+                after=after,
+                limit=page.limit + 1,
+            )
+            shown = found[: page.limit]
+            total = await repository.count_tracked(db, access.workspace_id, where)
+            rows = await self._blocks(db, access, project_id, [row for row, _ in shown], include)
+        next_cursor = None
+        if len(found) > page.limit:
+            next_cursor = encode_cursor(filters.encode_key(parts, shown[-1][1]), scope=bound)
+        return TrackedPageResult(rows=rows, next_cursor=next_cursor, total=total)
+
+    async def bulk_update(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        body: TrackedKeywordBulkUpdate,
+        info: RequestInfo,
+    ) -> BulkUpdateOutcome:
+        """`set`, then groups and terms, on the chosen rows, in one transaction. A new depth
+        profile or target URL is a new configuration version for each row it changes."""
+        now = datetime.now(UTC)
+        given = {} if body.set is None else body.set.model_dump(include=body.set.model_fields_set)
+        reason = given.pop("change_reason", None)
+        async with self._transaction(access) as db:
+            await self._defaults(db, access, project_id)
+            found: list[FieldError] = []
+            target: CanonicalUrl | None = None
+            raw_target = given.get("target_url")
+            if isinstance(raw_target, str):
+                try:
+                    target = canonicalize(raw_target)
+                except UrlRejectedError:
+                    found.append(FieldError("set.target_url", "invalid_url", "Not an http(s) URL."))
+            schedule_id = given.get("schedule_id")
+            if isinstance(schedule_id, UUID) and not await repository.rank_schedules(
+                db, access.workspace_id, project_id, [schedule_id]
+            ):
+                found.append(
+                    FieldError(
+                        "set.schedule_id",
+                        "schedule_unknown",
+                        "No such rank schedule in the project.",
+                    )
+                )
+            groups = await repository.project_groups(
+                db, access.workspace_id, project_id, body.add_group_ids
+            )
+            if any(group_id not in groups for group_id in body.add_group_ids):
+                found.append(
+                    FieldError("add_group_ids", "group_unknown", "No such group in the project.")
+                )
+            terms = {
+                term.term_id: term
+                for term in await repository.project_terms(
+                    db, access.workspace_id, project_id, body.add_term_ids
+                )
+            }
+            if any(term_id not in terms for term_id in body.add_term_ids):
+                found.append(
+                    FieldError("add_term_ids", "term_unknown", "No such term the project may use.")
+                )
+            elif _two_in_a_single_valued_vocabulary(body.add_term_ids, terms):
+                found.append(
+                    FieldError(
+                        "add_term_ids",
+                        "single_valued_vocabulary",
+                        "At most one term of a single-valued vocabulary.",
+                    )
+                )
+            if found:
+                raise invalid_fields(found)
+            # In the order every writer takes them: the URL, the quota, then the rows.
+            target_url_id = None if target is None else (await dictionaries.url_for(db, target)).id
+            quota = (
+                await writer.lock_quota(db, access.workspace_id)
+                if given.get("is_active") is True
+                else None
+            )
+            ids = await self._subjects(db, access, project_id, body.ids, body.filter)
+            if quota is not None:
+                await self._fits(db, access, ids, quota)
+            plain: dict[str, object] = {
+                field: given[field]
+                for field in _COMPARED
+                if field in given and field != "depth_profile"
+            }
+            if "intent" in given:
+                plain["intent_source"] = "manual"
+            workspace_id = access.workspace_id
+            changed = await repository.set_fields(db, workspace_id, ids, plain, now)
+            versioned = await repository.new_config_versions(
+                db,
+                workspace_id,
+                ids,
+                depth_profile=None
+                if given.get("depth_profile") is None
+                else str(given["depth_profile"]),
+                target_url_id=target_url_id,
+                set_target="target_url" in given,
+                changed_by=access.user_id,
+                change_reason=None if reason is None else str(reason),
+                now=now,
+            )
+            changed |= versioned
+            changed |= await repository.remove_members(db, workspace_id, ids, body.remove_group_ids)
+            changed |= await repository.add_members_to(db, workspace_id, ids, body.add_group_ids)
+            changed |= await repository.remove_terms(db, workspace_id, ids, body.remove_term_ids)
+            changed |= await repository.drop_other_single_valued(
+                db, workspace_id, ids, body.add_term_ids
+            )
+            changed |= await repository.add_terms_to(
+                db, workspace_id, ids, body.add_term_ids, assigned_by="manual"
+            )
+            change: dict[str, str | int | bool | list[str] | None] = {
+                field: _audit_value(value) for field, value in given.items()
+            }
+            for name, links in (
+                ("add_group_ids", body.add_group_ids),
+                ("remove_group_ids", body.remove_group_ids),
+                ("add_term_ids", body.add_term_ids),
+                ("remove_term_ids", body.remove_term_ids),
+            ):
+                if links:
+                    change[name] = sorted(map(str, links))
+            if reason is not None:
+                change["change_reason"] = str(reason)
+            await self._audit_bulk(db, access, changed, change, info)
+        return BulkUpdateOutcome(matched=len(ids), updated=len(changed), versions=len(versioned))
+
+    async def bulk_archive(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        body: TrackedKeywordBulkArchive,
+        info: RequestInfo,
+    ) -> tuple[int, int]:
+        """Archives or unarchives the chosen rows; unarchiving counts against the quota. How
+        many matched and how many changed."""
+        now = datetime.now(UTC)
+        async with self._transaction(access) as db:
+            await self._defaults(db, access, project_id)
+            quota = None if body.archive else await writer.lock_quota(db, access.workspace_id)
+            ids = await self._subjects(db, access, project_id, body.ids, body.filter)
+            if quota is not None:
+                await self._fits(db, access, ids, quota)
+            changed = await repository.set_fields(
+                db, access.workspace_id, ids, {"is_active": not body.archive}, now
+            )
+            await self._audit_bulk(db, access, changed, {"is_active": not body.archive}, info)
+        return len(ids), len(changed)
+
+    async def _term_groups(
+        self, db: AsyncSession, access: WorkspaceAccess, term_ids: Sequence[UUID]
+    ) -> filters.TermGroups:
+        if not term_ids:
+            return filters.TermGroups(())
+        vocabularies = await repository.vocabularies_of(db, access.workspace_id, term_ids)
+        return filters.term_groups(term_ids, vocabularies)
+
+    async def _subjects(
+        self,
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        ids: Sequence[UUID] | None,
+        given: TrackedKeywordFilter | None,
+    ) -> list[UUID]:
+        """The chosen rows, locked: the given ids of the project's live tracked keywords, or
+        the rows the filter matches, at most `SUBJECTS_MAX`."""
+        if ids is not None:
+            where = filters.chosen(workspace_id=access.workspace_id, project_id=project_id, ids=ids)
+        else:
+            chosen_by = given or TrackedKeywordFilter()
+            where = filters.conditions(
+                chosen_by,
+                workspace_id=access.workspace_id,
+                project_id=project_id,
+                terms=await self._term_groups(db, access, chosen_by.term or []),
+            )
+        found = await repository.lock_subjects(db, access.workspace_id, where, SUBJECTS_MAX + 1)
+        if len(found) > SUBJECTS_MAX:
+            raise TooManySubjectsError(
+                f"The filter matches more than {SUBJECTS_MAX} tracked keywords; narrow it.",
+                limit=SUBJECTS_MAX,
+            )
+        return found
+
+    @staticmethod
+    async def _fits(
+        db: AsyncSession, access: WorkspaceAccess, ids: Collection[UUID], quota: tuple[int, int]
+    ) -> None:
+        """The archived rows among `ids` can become active within the quota."""
+        try:
+            writer.check_quota(
+                *quota, await repository.count_inactive(db, access.workspace_id, ids)
+            )
+        except writer.QuotaExceededError as error:
+            raise _quota(error.limit, error.used, error.requested) from None
+
+    @staticmethod
+    async def _audit_bulk(
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        changed: Collection[UUID],
+        change: audit.Snapshot,
+        info: RequestInfo,
+    ) -> None:
+        """One entry per changed row, each with the change the request asked for."""
+        await audit.record_each(
+            db,
+            workspace_id=access.workspace_id,
+            actor_id=access.user_id,
+            action="tracked_keyword.updated",
+            target_type="tracked_keyword",
+            info=info,
+            entries=[
+                audit.Entry(target_id=tracked_id, after={**change, "bulk": True})
+                for tracked_id in sorted(changed)
+            ],
+        )
+
+    async def _blocks(
+        self,
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        records: Sequence[TrackedRecord],
+        include: Collection[str],
+    ) -> list[TrackedRow]:
+        """The rows with the blocks `include` names; the others stay None."""
+        ids = [record.id for record in records]
+        workspace_id = access.workspace_id
+        metrics = (
+            await repository.current_metrics(
+                db,
+                workspace_id,
+                {(r.keyword.id, r.location_id, r.language_code) for r in records},
+            )
+            if "metrics" in include
+            else None
+        )
+        groups = await repository.groups_of(db, workspace_id, ids) if "groups" in include else None
+        terms = await repository.terms_of(db, workspace_id, ids) if "terms" in include else None
+        overrides = (
+            await repository.overrides_of(db, workspace_id, project_id, ids)
+            if "competitors" in include
+            else None
+        )
+        return [
+            TrackedRow(
+                record=record,
+                metrics=None
+                if metrics is None
+                else metrics.get((record.keyword.id, record.location_id, record.language_code)),
+                groups=None if groups is None else groups.get(record.id, []),
+                terms=None if terms is None else terms.get(record.id, []),
+                overrides=None if overrides is None else overrides.get(record.id, []),
+            )
+            for record in records
+        ]
 
     # Workspace keywords.
 

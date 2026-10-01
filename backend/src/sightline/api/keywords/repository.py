@@ -12,7 +12,7 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Final
+from typing import Any, Final
 from uuid import UUID
 
 from sqlalchemy import (
@@ -20,6 +20,7 @@ from sqlalchemy import (
     Integer,
     Row,
     Select,
+    Text,
     Uuid,
     and_,
     any_,
@@ -60,12 +61,15 @@ from sightline.db.tables import (
 )
 
 LABS = "dataforseo_labs"
+# The current Labs metrics of a tracked keyword's keyword, location and language: what the list
+# filters and sorts by.
+LABS_CURRENT = keyword_metrics_current.alias("labs_current")
 # Rows per multi-row insert of links: 4 parameters a row stays well under the 32,767 a
 # statement may carry.
 LINKS_PER_STATEMENT: Final = 5000
 
 
-def _among_ids(column: ColumnElement[UUID], ids: Collection[UUID]) -> ColumnElement[bool]:
+def among_ids(column: ColumnElement[UUID], ids: Collection[UUID]) -> ColumnElement[bool]:
     """`column = ANY($1)`: one array parameter however many ids, so a long list never reaches
     the driver's parameter limit."""
     return column == any_(literal(list(ids), type_=ARRAY(Uuid)))
@@ -271,7 +275,7 @@ async def rank_schedules(
         select(schedules.c.id).where(
             schedules.c.workspace_id == workspace_id,
             schedules.c.project_id == project_id,
-            _among_ids(schedules.c.id, schedule_ids),
+            among_ids(schedules.c.id, schedule_ids),
             schedules.c.workload == "seo_rank",
             schedules.c.deleted_at.is_(None),
         )
@@ -286,7 +290,7 @@ async def project_groups(
         select(keyword_groups.c.id).where(
             keyword_groups.c.workspace_id == workspace_id,
             keyword_groups.c.project_id == project_id,
-            _among_ids(keyword_groups.c.id, group_ids),
+            among_ids(keyword_groups.c.id, group_ids),
         )
     )
     return {row.id for row in rows}
@@ -307,7 +311,7 @@ async def project_terms(
     rows = await db.execute(
         _terms().where(
             taxonomy_terms.c.workspace_id == workspace_id,
-            _among_ids(taxonomy_terms.c.id, term_ids),
+            among_ids(taxonomy_terms.c.id, term_ids),
             _project_vocabulary(project_id),
         )
     )
@@ -351,7 +355,7 @@ async def entities_with_role(
         select(project_entities.c.entity_id).where(
             project_entities.c.workspace_id == workspace_id,
             project_entities.c.project_id == project_id,
-            _among_ids(project_entities.c.entity_id, entity_ids),
+            among_ids(project_entities.c.entity_id, entity_ids),
             project_entities.c.removed_at.is_(None),
         )
     )
@@ -507,9 +511,354 @@ async def tracked_by_ids(
     db: AsyncSession, workspace_id: UUID, ids: Sequence[UUID]
 ) -> list[TrackedRecord]:
     """In the order of `ids`."""
-    rows = await db.execute(_tracked(workspace_id).where(_among_ids(tracked_keywords.c.id, ids)))
+    rows = await db.execute(_tracked(workspace_id).where(among_ids(tracked_keywords.c.id, ids)))
     found = {record.id: record for record in map(tracked_record, rows)}
     return [found[tracked_id] for tracked_id in ids if tracked_id in found]
+
+
+# The list and bulk changes.
+
+
+def _listed(workspace_id: UUID) -> Select[tuple[object, ...]]:
+    """`_tracked` with the keyword's current Labs metrics, which the list filters and sorts by."""
+    t = tracked_keywords.c
+    return _tracked(workspace_id).outerjoin(
+        LABS_CURRENT,
+        and_(
+            LABS_CURRENT.c.keyword_id == t.keyword_id,
+            LABS_CURRENT.c.location_id == t.location_id,
+            LABS_CURRENT.c.language_code == t.language_code,
+            LABS_CURRENT.c.workspace_id == t.workspace_id,
+            LABS_CURRENT.c.source == LABS,
+        ),
+    )
+
+
+async def list_tracked(
+    db: AsyncSession,
+    workspace_id: UUID,
+    *,
+    conditions: Sequence[ColumnElement[bool]],
+    order: Sequence[ColumnElement[Any]],
+    key: Sequence[ColumnElement[Any]],
+    after: ColumnElement[bool] | None,
+    limit: int,
+) -> list[tuple[TrackedRecord, list[object]]]:
+    """A page of the list, each row with the values of its sort `key`."""
+    statement = (
+        _listed(workspace_id)
+        .add_columns(*(column.label(f"sort_key_{n}") for n, column in enumerate(key)))
+        .where(*conditions)
+    )
+    if after is not None:
+        statement = statement.where(after)
+    rows = await db.execute(statement.order_by(*order).limit(limit))
+    return [
+        (tracked_record(row), [row._mapping[f"sort_key_{n}"] for n in range(len(key))])
+        for row in rows
+    ]
+
+
+async def count_tracked(
+    db: AsyncSession, workspace_id: UUID, conditions: Sequence[ColumnElement[bool]]
+) -> int:
+    count: int = (
+        await db.execute(
+            _listed(workspace_id)
+            .with_only_columns(func.count(), maintain_column_froms=False)
+            .where(*conditions)
+        )
+    ).scalar_one()
+    return count
+
+
+async def lock_subjects(
+    db: AsyncSession, workspace_id: UUID, conditions: Sequence[ColumnElement[bool]], limit: int
+) -> list[UUID]:
+    """The ids of the matching rows, at most `limit`, locked in id order so that two bulk
+    changes over the same rows wait for each other instead of deadlocking."""
+    rows = await db.execute(
+        _listed(workspace_id)
+        .with_only_columns(tracked_keywords.c.id, maintain_column_froms=False)
+        .where(*conditions)
+        .order_by(tracked_keywords.c.id)
+        .limit(limit)
+        .with_for_update(of=tracked_keywords, key_share=True)
+    )
+    return [row.id for row in rows]
+
+
+async def vocabularies_of(
+    db: AsyncSession, workspace_id: UUID, term_ids: Collection[UUID]
+) -> dict[UUID, UUID]:
+    """The vocabulary of each of these terms that exists in the workspace."""
+    rows = await db.execute(
+        select(taxonomy_terms.c.id, taxonomy_terms.c.vocabulary_id).where(
+            taxonomy_terms.c.workspace_id == workspace_id, among_ids(taxonomy_terms.c.id, term_ids)
+        )
+    )
+    return {row.id: row.vocabulary_id for row in rows}
+
+
+async def count_inactive(db: AsyncSession, workspace_id: UUID, ids: Collection[UUID]) -> int:
+    count: int = (
+        await db.execute(
+            select(func.count()).where(
+                tracked_keywords.c.workspace_id == workspace_id,
+                among_ids(tracked_keywords.c.id, ids),
+                tracked_keywords.c.is_active.is_(False),
+            )
+        )
+    ).scalar_one()
+    return count
+
+
+async def set_fields(
+    db: AsyncSession,
+    workspace_id: UUID,
+    ids: Collection[UUID],
+    values: Mapping[str, object],
+    now: datetime,
+) -> set[UUID]:
+    """Sets `values` on the rows among `ids` where one of them differs; the ids changed."""
+    if not ids or not values:
+        return set()
+    t = tracked_keywords.c
+    rows = await db.execute(
+        update(tracked_keywords)
+        .where(
+            t.workspace_id == workspace_id,
+            among_ids(t.id, ids),
+            or_(*(t[name].is_distinct_from(value) for name, value in values.items())),
+        )
+        .values(**values, updated_at=now)
+        .returning(t.id)
+    )
+    return {row.id for row in rows}
+
+
+async def new_config_versions(
+    db: AsyncSession,
+    workspace_id: UUID,
+    ids: Collection[UUID],
+    *,
+    depth_profile: str | None,
+    target_url_id: int | None,
+    set_target: bool,
+    changed_by: UUID,
+    change_reason: str | None,
+    now: datetime,
+) -> set[UUID]:
+    """A new configuration version, with its history row, for each row among `ids` whose depth
+    profile or target URL differs from the given ones (the target only with `set_target`). The
+    previous version ends when the new one begins, never before it began."""
+    t = tracked_keywords.c
+    values: dict[str, object] = {}
+    differs: list[ColumnElement[bool]] = []
+    if depth_profile is not None:
+        values["depth_profile"] = depth_profile
+        differs.append(t.depth_profile.is_distinct_from(depth_profile))
+    if set_target:
+        values["target_url_id"] = target_url_id
+        differs.append(t.target_url_id.is_distinct_from(target_url_id))
+    if not ids or not values:
+        return set()
+    changed = {
+        row.id
+        for row in await db.execute(
+            update(tracked_keywords)
+            .where(t.workspace_id == workspace_id, among_ids(t.id, ids), or_(*differs))
+            .values(**values, config_version=t.config_version + 1, updated_at=now)
+            .returning(t.id)
+        )
+    }
+    if not changed:
+        return changed
+    history = tracked_keyword_config_history
+    h = history.c
+    await db.execute(
+        update(history)
+        .where(
+            h.workspace_id == workspace_id,
+            among_ids(h.tracked_keyword_id, changed),
+            h.valid_to.is_(None),
+        )
+        .values(valid_to=func.greatest(literal(now), h.valid_from))
+    )
+    previous = history.alias("previous")
+    ended = (
+        select(previous.c.valid_to)
+        .where(
+            previous.c.tracked_keyword_id == t.id,
+            previous.c.workspace_id == t.workspace_id,
+            previous.c.config_version == t.config_version - 1,
+        )
+        .scalar_subquery()
+    )
+    await db.execute(
+        insert(history).from_select(
+            [
+                "tracked_keyword_id",
+                "workspace_id",
+                "config_version",
+                "depth_profile",
+                "target_url_id",
+                "valid_from",
+                "changed_by",
+                "change_reason",
+            ],
+            select(
+                t.id,
+                t.workspace_id,
+                t.config_version,
+                t.depth_profile,
+                t.target_url_id,
+                func.coalesce(ended, literal(now)),
+                literal(changed_by, Uuid),
+                literal(change_reason, Text),
+            ).where(t.workspace_id == workspace_id, among_ids(t.id, changed)),
+        )
+    )
+    return changed
+
+
+async def remove_members(
+    db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], group_ids: Collection[UUID]
+) -> set[UUID]:
+    """Takes the rows among `ids` out of these groups; the ids changed."""
+    if not ids or not group_ids:
+        return set()
+    m = keyword_group_members.c
+    rows = await db.execute(
+        delete(keyword_group_members)
+        .where(
+            m.workspace_id == workspace_id,
+            among_ids(m.tracked_keyword_id, ids),
+            among_ids(m.group_id, group_ids),
+        )
+        .returning(m.tracked_keyword_id)
+    )
+    return {row.tracked_keyword_id for row in rows}
+
+
+async def add_members_to(
+    db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], group_ids: Collection[UUID]
+) -> set[UUID]:
+    """Puts the rows among `ids` in these groups of their project; the ids changed."""
+    if not ids or not group_ids:
+        return set()
+    t, g, m = tracked_keywords.c, keyword_groups.c, keyword_group_members.c
+    rows = await db.execute(
+        upsert(keyword_group_members)
+        .from_select(
+            ["group_id", "tracked_keyword_id", "project_id", "workspace_id"],
+            select(g.id, t.id, t.project_id, t.workspace_id)
+            .select_from(
+                tracked_keywords.join(
+                    keyword_groups,
+                    and_(g.project_id == t.project_id, g.workspace_id == t.workspace_id),
+                )
+            )
+            .where(
+                t.workspace_id == workspace_id,
+                among_ids(t.id, ids),
+                among_ids(g.id, group_ids),
+            ),
+        )
+        .on_conflict_do_nothing()
+        .returning(m.tracked_keyword_id)
+    )
+    return {row.tracked_keyword_id for row in rows}
+
+
+async def remove_terms(
+    db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], term_ids: Collection[UUID]
+) -> set[UUID]:
+    if not ids or not term_ids:
+        return set()
+    k = tracked_keyword_terms.c
+    rows = await db.execute(
+        delete(tracked_keyword_terms)
+        .where(
+            k.workspace_id == workspace_id,
+            among_ids(k.tracked_keyword_id, ids),
+            among_ids(k.term_id, term_ids),
+        )
+        .returning(k.tracked_keyword_id)
+    )
+    return {row.tracked_keyword_id for row in rows}
+
+
+async def drop_other_single_valued(
+    db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], term_ids: Collection[UUID]
+) -> set[UUID]:
+    """Takes away the rows' terms of the single-valued vocabularies of `term_ids` that are not
+    among them, so the given term can take their place; the ids changed."""
+    if not ids or not term_ids:
+        return set()
+    k, terms, vocabularies = tracked_keyword_terms.c, taxonomy_terms.c, taxonomy_vocabularies.c
+    single = (
+        select(terms.vocabulary_id)
+        .join(
+            taxonomy_vocabularies,
+            and_(
+                vocabularies.id == terms.vocabulary_id,
+                vocabularies.workspace_id == terms.workspace_id,
+            ),
+        )
+        .where(
+            terms.workspace_id == workspace_id,
+            among_ids(terms.id, term_ids),
+            vocabularies.is_single_valued,
+        )
+    )
+    rows = await db.execute(
+        delete(tracked_keyword_terms)
+        .where(
+            k.workspace_id == workspace_id,
+            among_ids(k.tracked_keyword_id, ids),
+            ~among_ids(k.term_id, term_ids),
+            k.term_id.in_(
+                select(terms.id).where(
+                    terms.workspace_id == workspace_id, terms.vocabulary_id.in_(single)
+                )
+            ),
+        )
+        .returning(k.tracked_keyword_id)
+    )
+    return {row.tracked_keyword_id for row in rows}
+
+
+async def add_terms_to(
+    db: AsyncSession,
+    workspace_id: UUID,
+    ids: Collection[UUID],
+    term_ids: Collection[UUID],
+    *,
+    assigned_by: str,
+) -> set[UUID]:
+    """Gives the rows among `ids` these terms; the ids changed."""
+    if not ids or not term_ids:
+        return set()
+    t, terms, k = tracked_keywords.c, taxonomy_terms.c, tracked_keyword_terms.c
+    rows = await db.execute(
+        upsert(tracked_keyword_terms)
+        .from_select(
+            ["tracked_keyword_id", "term_id", "workspace_id", "assigned_by"],
+            select(t.id, terms.id, t.workspace_id, literal(assigned_by, Text))
+            .select_from(
+                tracked_keywords.join(taxonomy_terms, terms.workspace_id == t.workspace_id)
+            )
+            .where(
+                t.workspace_id == workspace_id,
+                among_ids(t.id, ids),
+                among_ids(terms.id, term_ids),
+            ),
+        )
+        .on_conflict_do_nothing()
+        .returning(k.tracked_keyword_id)
+    )
+    return {row.tracked_keyword_id for row in rows}
 
 
 async def update_tracked(
@@ -734,7 +1083,7 @@ async def groups_of(
         )
         .where(
             keyword_group_members.c.workspace_id == workspace_id,
-            _among_ids(keyword_group_members.c.tracked_keyword_id, tracked_ids),
+            among_ids(keyword_group_members.c.tracked_keyword_id, tracked_ids),
         )
         .order_by(keyword_groups.c.path, keyword_groups.c.id)
     )
@@ -759,7 +1108,7 @@ async def terms_of(
         )
         .where(
             tracked_keyword_terms.c.workspace_id == workspace_id,
-            _among_ids(tracked_keyword_terms.c.tracked_keyword_id, tracked_ids),
+            among_ids(tracked_keyword_terms.c.tracked_keyword_id, tracked_ids),
         )
         .order_by(taxonomy_terms.c.vocabulary_id, taxonomy_terms.c.path, taxonomy_terms.c.id)
     )
@@ -809,7 +1158,7 @@ async def overrides_of(
         )
         .where(
             tracked_keyword_competitors.c.workspace_id == workspace_id,
-            _among_ids(tracked_keyword_competitors.c.tracked_keyword_id, tracked_ids),
+            among_ids(tracked_keyword_competitors.c.tracked_keyword_id, tracked_ids),
         )
         .order_by(func.lower(entities.c.canonical_name), entities.c.id)
     )

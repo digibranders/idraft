@@ -9,17 +9,20 @@ track, and only their tracked variants.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
+from pydantic import BeforeValidator
 
-from sightline.api.keywords import metric_values
+from sightline.api.keywords import filters, metric_values
 from sightline.api.keywords.repository import (
     CompetitorRecord,
     ConfigRecord,
+    GroupRecord,
     KeywordRecord,
     OverrideRecord,
+    TermRecord,
     TrackedRecord,
     UrlRecord,
     UserRecord,
@@ -32,33 +35,49 @@ from sightline.api.resources import Resources, get_resources
 from sightline.api.schemas.common import LanguageCode, LocationRef, QueryText, UserRef
 from sightline.api.schemas.entities import EntityRef
 from sightline.api.schemas.keywords import (
+    BulkArchiveResponse,
+    BulkArchiveResult,
     BulkCreateResponse,
     BulkCreateResult,
     BulkRejected,
     BulkSkipped,
+    BulkUpdateResponse,
+    BulkUpdateResult,
     CompetitorOverride,
     CompetitorOverrides,
     CompetitorSet,
     CompetitorSetResponse,
     ConfigHistory,
     ConfigVersion,
+    DepthProfile,
+    Device,
+    FunnelStage,
     GroupRef,
+    Intent,
     Keyword,
     KeywordDetail,
     KeywordDetailResponse,
     KeywordMetricsHistoryResponse,
     KeywordPage,
+    KeywordSource,
     MetricsSource,
     ScheduleRef,
     TermRef,
+    TrackedInclude,
     TrackedKeyword,
+    TrackedKeywordBulkArchive,
     TrackedKeywordBulkCreate,
+    TrackedKeywordBulkUpdate,
     TrackedKeywordCreate,
     TrackedKeywordDetail,
     TrackedKeywordDetailResponse,
+    TrackedKeywordFilter,
     TrackedKeywordList,
+    TrackedKeywordPage,
+    TrackedKeywordPageInfo,
     TrackedKeywordPatch,
     TrackedKeywordResponse,
+    TrackedKeywordRow,
     TrackedVariant,
     UrlRef,
 )
@@ -128,6 +147,20 @@ def _override(record: OverrideRecord) -> CompetitorOverride:
     )
 
 
+def _group(record: GroupRecord) -> GroupRef:
+    return GroupRef(group_id=record.group_id, name=record.name, path=record.path)
+
+
+def _term(record: TermRecord) -> TermRef:
+    return TermRef(
+        term_id=record.term_id,
+        vocabulary_id=record.vocabulary_id,
+        vocabulary_kind=record.vocabulary_kind,
+        name=record.name,
+        path=record.path,
+    )
+
+
 def _tracked_fields(record: TrackedRecord) -> dict[str, object]:
     return {
         "tracked_keyword_id": record.id,
@@ -181,6 +214,163 @@ def _config_version(record: ConfigRecord) -> ConfigVersion:
 
 
 # Tracked keywords.
+
+
+def _split(value: object) -> object:
+    """`include` as a comma list, repeated, or both."""
+    if isinstance(value, list):
+        return [part for item in value for part in str(item).split(",") if part]
+    return value
+
+
+Include = Annotated[
+    list[TrackedInclude] | None,
+    BeforeValidator(_split),
+    Query(description="Blocks to fill: a comma list, or the parameter repeated."),
+]
+
+
+@router.get(
+    "",
+    summary="The project's tracked keywords",
+    description="Sorted by `sort`, a comma list of `keyword`, `search_volume`, "
+    "`keyword_difficulty`, `cpc_usd`, `priority` and `created_at`, each at most once and with "
+    "`-` for descending; `keyword` when left out, and the id always last. A metric sorts "
+    "keywords without one last in both directions. `page.total` counts every match. A cursor "
+    "is bound to its filters and sort (`400 invalid_cursor` otherwise).",
+)
+async def list_tracked_keywords(
+    project_id: UUID,
+    access: ReadData,
+    page: Cursor,
+    keywords: Keywords,
+    sort: Annotated[str | None, Query(max_length=200)] = None,
+    include: Include = None,
+    q: Annotated[QueryText | None, Query(alias="filter[q]")] = None,
+    group: Annotated[
+        UUID | None, Query(alias="filter[group]", description="The group or one under it.")
+    ] = None,
+    term: Annotated[
+        list[UUID] | None,
+        Query(
+            alias="filter[term]",
+            description="Each given term or one under it; terms of two vocabularies must both "
+            "match.",
+        ),
+    ] = None,
+    term_in: Annotated[
+        list[UUID] | None,
+        Query(alias="filter[term_in]", description="Any of these terms or one under them."),
+    ] = None,
+    device: Annotated[Device | None, Query(alias="filter[device]")] = None,
+    location_id: Annotated[int | None, Query(alias="filter[location_id]")] = None,
+    language_code: Annotated[LanguageCode | None, Query(alias="filter[language_code]")] = None,
+    search_engine: Annotated[
+        Literal["google", "bing"] | None, Query(alias="filter[search_engine]")
+    ] = None,
+    intent_in: Annotated[list[Intent] | None, Query(alias="filter[intent_in]")] = None,
+    funnel_stage_in: Annotated[
+        list[FunnelStage] | None, Query(alias="filter[funnel_stage_in]")
+    ] = None,
+    priority_lte: Annotated[int | None, Query(alias="filter[priority_lte]", ge=1, le=5)] = None,
+    is_active: Annotated[bool, Query(alias="filter[is_active]")] = True,
+    source_in: Annotated[list[KeywordSource] | None, Query(alias="filter[source_in]")] = None,
+    depth_profile_in: Annotated[
+        list[DepthProfile] | None, Query(alias="filter[depth_profile_in]")
+    ] = None,
+    search_volume_gte: Annotated[int | None, Query(alias="filter[search_volume_gte]", ge=0)] = None,
+    keyword_difficulty_lte: Annotated[
+        int | None, Query(alias="filter[keyword_difficulty_lte]", ge=0, le=100)
+    ] = None,
+) -> TrackedKeywordPage:
+    given = TrackedKeywordFilter(
+        q=q,
+        group=group,
+        term=term,
+        term_in=term_in,
+        device=device,
+        location_id=location_id,
+        language_code=language_code,
+        search_engine=search_engine,
+        intent_in=intent_in,
+        funnel_stage_in=funnel_stage_in,
+        priority_lte=priority_lte,
+        is_active=is_active,
+        source_in=source_in,
+        depth_profile_in=depth_profile_in,
+        search_volume_gte=search_volume_gte,
+        keyword_difficulty_lte=keyword_difficulty_lte,
+    )
+    result = await keywords.page(
+        access, project_id, given, filters.parse_sort(sort), frozenset(include or ()), page
+    )
+    return TrackedKeywordPage(
+        data=[
+            TrackedKeywordRow.model_validate(
+                {
+                    **_tracked_fields(row.record),
+                    "metrics": None
+                    if row.metrics is None
+                    else metric_values.keyword_metrics(row.metrics),
+                    "groups": None if row.groups is None else [_group(g) for g in row.groups],
+                    "terms": None if row.terms is None else [_term(t) for t in row.terms],
+                    "competitors": None
+                    if row.overrides is None
+                    else [_override(o) for o in row.overrides],
+                }
+            )
+            for row in result.rows
+        ],
+        page=TrackedKeywordPageInfo(
+            limit=page.limit,
+            next_cursor=result.next_cursor,
+            has_more=result.next_cursor is not None,
+            total=result.total,
+        ),
+    )
+
+
+@router.post(
+    "/bulk-update",
+    summary="Change tracked keywords by ids or by filter",
+    description="Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over "
+    "20,000 matches, with `limit`). `set` takes the fields of a single change; a new "
+    "`depth_profile` or `target_url` makes a configuration version for each row it changes "
+    "(`config_versions_created`). `add_term_ids` with a term of a single-valued vocabulary "
+    "replaces the keyword's other term of that vocabulary.",
+)
+async def bulk_update_tracked_keywords(
+    project_id: UUID,
+    body: TrackedKeywordBulkUpdate,
+    access: WriteKeywords,
+    keywords: Keywords,
+    info: Info,
+) -> BulkUpdateResponse:
+    outcome = await keywords.bulk_update(access, project_id, body, info)
+    return BulkUpdateResponse(
+        data=BulkUpdateResult(
+            matched=outcome.matched,
+            updated=outcome.updated,
+            config_versions_created=outcome.versions,
+        )
+    )
+
+
+@router.post(
+    "/bulk-archive",
+    summary="Archive or unarchive tracked keywords",
+    description="Exactly one of `ids` and `filter`. Archived keywords are not collected and do "
+    "not count against the quota; unarchiving is `422 quota_exceeded` when they would not fit.",
+)
+async def bulk_archive_tracked_keywords(
+    project_id: UUID,
+    body: TrackedKeywordBulkArchive,
+    access: WriteKeywords,
+    keywords: Keywords,
+    info: Info,
+) -> BulkArchiveResponse:
+    matched, updated = await keywords.bulk_archive(access, project_id, body, info)
+    return BulkArchiveResponse(data=BulkArchiveResult(matched=matched, updated=updated))
 
 
 @router.post(
@@ -249,20 +439,8 @@ async def get_tracked_keyword(
                 "metrics": None
                 if detail.metrics is None
                 else metric_values.keyword_metrics(detail.metrics),
-                "groups": [
-                    GroupRef(group_id=group.group_id, name=group.name, path=group.path)
-                    for group in detail.groups
-                ],
-                "terms": [
-                    TermRef(
-                        term_id=term.term_id,
-                        vocabulary_id=term.vocabulary_id,
-                        vocabulary_kind=term.vocabulary_kind,
-                        name=term.name,
-                        path=term.path,
-                    )
-                    for term in detail.terms
-                ],
+                "groups": [_group(group) for group in detail.groups],
+                "terms": [_term(term) for term in detail.terms],
                 "competitor_overrides": [_override(o) for o in detail.overrides],
                 "config_history_count": detail.config_versions,
                 "schedule": None
