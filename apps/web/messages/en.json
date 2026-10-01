@@ -11,6 +11,15 @@
     "optional": "(optional)",
     "notifications": "Notifications",
     "clear": "Clear",
+    "domain": {
+      "empty": "Enter a domain, for example example.com",
+      "spaces": "Remove the spaces from the domain",
+      "scheme": "Use a URL that starts with http or https",
+      "invalid": "Enter a valid domain, for example example.com",
+      "private": "Local and private addresses cannot be tracked",
+      "preview": "Will track: <value>{domain}</value>",
+      "previewWithPath": "Will track: <value>{domain}</value> (path {path} ignored)"
+    },
     "weekdays": {
       "monday": "Monday",
       "tuesday": "Tuesday",
