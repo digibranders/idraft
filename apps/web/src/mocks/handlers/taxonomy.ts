@@ -51,7 +51,7 @@ const KINDS = ['topic', 'cluster', 'product', 'service', 'market', 'campaign', '
 const FORMATS = ['tree', 'flat'] as const;
 const MAX_VOCABULARY_NAME = 100;
 const MAX_TERM_NAME = 200;
-const MAX_PATH = 1000;
+const MAX_PATH = 2048;
 const MAX_DESCRIPTION = 2000;
 const MAX_TERMS = 500;
 /** A term is at most this many levels from its root. */
@@ -269,9 +269,12 @@ function treeOf(world: EntityWorld, terms: readonly StoredTerm[], parentId: stri
     .map((term) => ({ ...termView(world, term), children: treeOf(world, terms, term.term_id) }));
 }
 
-/** By name, ignoring case, then by id, as the API lists them. */
+/**
+ * By name, ignoring case, then by id. The API sorts `lower(name)` in the database's language-aware
+ * collation; `localeCompare` is close to it, not the same for every pair of names.
+ */
 const byName = (a: StoredVocabulary, b: StoredVocabulary): number =>
-  byCodePoint(a.name.toLowerCase(), b.name.toLowerCase()) || byCodePoint(a.vocabulary_id, b.vocabulary_id);
+  a.name.toLowerCase().localeCompare(b.name.toLowerCase(), 'en') || byCodePoint(a.vocabulary_id, b.vocabulary_id);
 
 /** `offset` and `limit`, or their errors. */
 function offsetPage(url: URL): { offset: number; limit: number } | ValidationItem[] {
@@ -387,8 +390,6 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const vocabulary = vocabularyIn(caller, params.vocabulary_id);
     if (!vocabulary) return problem(request, 'not_found');
-    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
-    if (refused) return refused;
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const empty = emptyChange(request, body);
@@ -400,6 +401,9 @@ export const taxonomyHandlers: HttpHandler[] = [
       ...booleanError(body.is_single_valued === null ? undefined : body.is_single_valued, 'is_single_valued'),
     ];
     if (errors.length > 0) return invalid(request, errors);
+    // The body is checked before the scope, as the API validates it before its service runs
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
     const name = typeof body.name === 'string' ? body.name.trim() : undefined;
     if (
       name !== undefined &&
@@ -491,11 +495,12 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const vocabulary = vocabularyIn(caller, params.vocabulary_id);
     if (!vocabulary) return problem(request, 'not_found');
-    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
-    if (refused) return refused;
     const body: unknown = await request.json();
     const inputs = termInputs(body);
     if (!isTermList(inputs)) return invalid(request, inputs);
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
+
     const flat = vocabulary.is_hierarchical !== true;
     // Each input sees the terms the ones before it made, so a batch can build a tree
     const terms = [...termsOf(caller.world, vocabulary.vocabulary_id)];
@@ -570,8 +575,6 @@ export const taxonomyHandlers: HttpHandler[] = [
     const term = caller.world.terms.find((row) => row.term_id === params.term_id);
     const vocabulary = term ? vocabularyIn(caller, term.vocabulary_id) : undefined;
     if (!term || !vocabulary) return problem(request, 'not_found');
-    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
-    if (refused) return refused;
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const empty = emptyChange(request, body);
@@ -587,6 +590,8 @@ export const taxonomyHandlers: HttpHandler[] = [
         : textError(body.description, 'description', { min: 0, max: MAX_DESCRIPTION })),
     ];
     if (errors.length > 0) return invalid(request, errors);
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
     const terms = termsOf(caller.world, vocabulary.vocabulary_id);
     const currentParent = term.parent_id ?? null;
     const parentId = 'parent_id' in body ? (typeof body.parent_id === 'string' ? body.parent_id : null) : currentParent;
@@ -645,10 +650,11 @@ export const taxonomyHandlers: HttpHandler[] = [
     const term = caller.world.terms.find((row) => row.term_id === params.term_id);
     const vocabulary = term ? vocabularyIn(caller, term.vocabulary_id) : undefined;
     if (!term || !vocabulary) return problem(request, 'not_found');
-    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
-    if (refused) return refused;
     const cascade = booleanQuery(caller.url, 'cascade', false);
     if (typeof cascade !== 'boolean') return invalid(request, [cascade]);
+    const refused = sharedRefusal(request, caller, projectOf(vocabulary));
+    if (refused) return refused;
+
     const terms = termsOf(caller.world, vocabulary.vocabulary_id);
     const subtree = subtreeOf(terms, term.term_id);
     if (subtree.length > 1 && !cascade) {

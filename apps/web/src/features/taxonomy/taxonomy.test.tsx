@@ -130,6 +130,44 @@ describe('Taxonomy', () => {
     ).toBeInTheDocument();
   });
 
+  it('says when the term to add under was deleted meanwhile', async () => {
+    server.use(
+      http.post(mswPath('/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms'), ({ request }) =>
+        problem(request, 'validation_failed', {
+          errors: [{ location: 'body', path: 'parent_id', code: 'parent_unknown', message: 'No such term' }],
+        }),
+      ),
+    );
+    const { user } = renderWithProviders(screenAs('editor'));
+    await tree();
+    await user.click(term('SEO'));
+    await user.click(screen.getByRole('button', { name: 'Add under SEO' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add a term under SEO' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Enterprise SEO');
+    await user.click(within(dialog).getByRole('button', { name: 'Add term' }));
+    expect(
+      await within(dialog).findByText('The term to place it under no longer exists. Choose another place.'),
+    ).toBeInTheDocument();
+  });
+
+  it('checks the depth of pasted paths, and says when every one was there already', async () => {
+    const { user } = renderWithProviders(screenAs('editor'));
+    await tree();
+    await user.click(screen.getByRole('button', { name: 'Paste a list' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Paste a list of terms' });
+    const field = within(dialog).getByRole('textbox', { name: 'Terms' });
+    await user.click(field);
+    await user.paste(Array.from({ length: 11 }, (_, index) => `L${String(index + 1)}`).join('/'));
+    await user.click(within(dialog).getByRole('button', { name: 'Add terms' }));
+    expect(
+      await within(dialog).findByText('A line has more than 10 levels. Shorten it and try again.'),
+    ).toBeInTheDocument();
+    await user.clear(field);
+    await user.paste('SEO\nSEO/Local SEO');
+    await user.click(within(dialog).getByRole('button', { name: 'Add terms' }));
+    expect(await screen.findByText('These terms are all there already, so none was added.')).toBeInTheDocument();
+  });
+
   it('lets a member limited to some projects change only their projects’ vocabularies', async () => {
     const { user } = renderWithProviders(screenAs('editor', [fynix.project_id]));
     await tree();

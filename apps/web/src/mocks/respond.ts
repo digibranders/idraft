@@ -30,6 +30,9 @@ type RequestBody<M extends Method, P extends ApiPath<M>> =
 export type MockBody<M extends Method, P extends ApiPath<M>> =
   (ApiResponse<M, P> extends undefined ? null : ApiResponse<M, P>) | Problem;
 
+/** The largest request body the API reads (19 section 2.7, `413 payload_too_large`). */
+const MAX_BODY_BYTES = 1024 * 1024;
+
 /** `/api/v1/workspaces/{workspace_id}` as an MSW path on any origin: `*\/api/v1/workspaces/:workspace_id`. */
 export const mswPath = (path: string): string => `*${path.replace(/\{([^}]+)\}/g, ':$1')}`;
 
@@ -38,7 +41,13 @@ export function mock<M extends Method, P extends ApiPath<M>>(
   path: P,
   resolver: HttpResponseResolver<PathParams<ParamNames<M, P>>, RequestBody<M, P>, MockBody<M, P>>,
 ): HttpHandler {
-  return http[method]<PathParams<ParamNames<M, P>>, RequestBody<M, P>, MockBody<M, P>>(mswPath(path), resolver);
+  return http[method]<PathParams<ParamNames<M, P>>, RequestBody<M, P>, MockBody<M, P>>(mswPath(path), async (info) => {
+    // The API refuses any body over 1 MB before it reads it (backend middleware)
+    if (method !== 'get' && (await info.request.clone().arrayBuffer()).byteLength > MAX_BODY_BYTES) {
+      return problem(info.request, 'payload_too_large', { detail: 'A request body is at most 1 MB.' });
+    }
+    return resolver(info);
+  });
 }
 
 /**

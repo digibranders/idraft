@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
+import { textLength } from '@/lib/text/length';
 
 const ADD = apiMutation('post', '/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms');
 const CHANGE = apiMutation('patch', '/api/v1/workspaces/{workspace_id}/terms/{term_id}');
@@ -25,6 +26,8 @@ const MAX_BATCH = 500;
 const ROOT = '';
 /** A term is at most this many levels from its root (19 section 3.5). */
 const MAX_DEPTH = 10;
+/** The longest path a pasted line may be, in characters (19 section 3.5, `TermInput.path`). */
+const MAX_PATH_LENGTH = 2048;
 
 type Translate = ReturnType<typeof useTranslations<'taxonomySettings.termDialog'>>;
 
@@ -326,7 +329,14 @@ function PasteForm({ scope, hierarchical, onClose }: Omit<TermDialogProps, 'acti
         ? t('pasteTooMany', { max: MAX_BATCH })
         : hierarchical && lines.some((line) => line.split('/').length > MAX_DEPTH)
           ? t('pasteTooDeep', { max: MAX_DEPTH })
-          : null;
+          : lines.some((line) =>
+                hierarchical
+                  ? textLength(line) > MAX_PATH_LENGTH ||
+                    line.split('/').some((name) => textLength(name.trim()) > MAX_NAME_LENGTH)
+                  : textLength(line) > MAX_NAME_LENGTH,
+              )
+            ? t('pasteTooLong', { max: MAX_NAME_LENGTH })
+            : null;
 
   const submit = async (): Promise<void> => {
     setSubmitted(true);
@@ -338,10 +348,20 @@ function PasteForm({ scope, hierarchical, onClose }: Omit<TermDialogProps, 'acti
         body: { items: lines.map((line) => (hierarchical ? { path: line } : { name: line })) },
       });
       refreshTerms(queryClient, scope.workspaceId, scope.projectId, scope.vocabularyId);
-      toast({ type: 'success', title: t('pasted', { count: added.data.length }) });
+      // A path that exists adds nothing, so a paste of known terms adds none
+      toast({
+        type: 'success',
+        title: added.data.length === 0 ? t('pastedNone') : t('pasted', { count: added.data.length }),
+      });
       onClose();
     } catch (error) {
-      setAlert(isApiProblem(error, 'duplicate') ? t('pasteDuplicate') : (refusalOf(error, t) ?? t('failed')));
+      setAlert(
+        isApiProblem(error, 'duplicate')
+          ? t('pasteDuplicate')
+          : isApiProblem(error, 'payload_too_large')
+            ? t('pasteTooLarge')
+            : (refusalOf(error, t) ?? t('failed')),
+      );
     }
   };
 
