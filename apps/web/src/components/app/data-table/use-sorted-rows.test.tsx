@@ -37,6 +37,32 @@ describe('useSortedRows', () => {
     expect(screen.getByRole('status')).toHaveTextContent('c,b,a');
   });
 
+  it('sorts again only when the rows, the columns or the sort change, not on every render', () => {
+    let reads = 0;
+    const counted = [
+      col.volume<Row>(
+        'volume',
+        (row) => {
+          reads += 1;
+          return row.volume;
+        },
+        { header: 'Volume' },
+      ),
+    ];
+    const sort: SortKey[] = [{ id: 'volume', desc: true }];
+    function Counted({ tick }: { tick: number }): ReactElement {
+      const sorted = useSortedRows({ rows: ROWS, columns: counted, sort, manual: false, getRowId: (row) => row.id });
+      return <output data-tick={tick}>{sorted.map((row) => row.id).join(',')}</output>;
+    }
+    const { rerender } = render(<Counted tick={0} />);
+    const afterFirst = reads;
+    expect(afterFirst).toBeGreaterThan(0);
+    rerender(<Counted tick={1} />);
+    rerender(<Counted tick={2} />);
+    expect(reads).toBe(afterFirst);
+    expect(screen.getByRole('status')).toHaveTextContent('c,a,b');
+  });
+
   it('follows new rows, keeps the order the API gave in server mode, and ignores unknown sort keys', () => {
     const { rerender } = render(<Order rows={ROWS} sort={[{ id: 'volume', desc: true }]} />);
     rerender(

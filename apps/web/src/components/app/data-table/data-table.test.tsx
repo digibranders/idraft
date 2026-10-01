@@ -248,6 +248,22 @@ describe('DataTable', () => {
     expect(document.activeElement).toBe(screen.getByRole('columnheader', { name: /Keyword/ }));
   });
 
+  it('returns focus to the grid when the bulk bar closes', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 001' }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Clear selection' }));
+    expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull();
+    expect(grid()).toContainElement(document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    expect(document.activeElement).toHaveAttribute('tabindex', '0');
+  });
+
+  it('counts the header and the message row when a search matches nothing', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
+    await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), 'nothing like this');
+    expect(screen.getByText('No keywords match.')).toBeInTheDocument();
+    expect(grid()).toHaveAttribute('aria-rowcount', '2');
+  });
+
   it('numbers the rows of a server page by their place in the whole list', () => {
     renderWithProviders(<Harness rows={rowsOf(100)} server={SERVER_PAGE} />);
     expect(grid()).toHaveAttribute('aria-rowcount', '4813');

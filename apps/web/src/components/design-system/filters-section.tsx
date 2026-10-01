@@ -69,11 +69,7 @@ function SampleBar({ initial, count }: { initial: FilterValues; count?: boolean 
       fields={FIELDS}
       values={values}
       onChange={setValues}
-      trailing={
-        count === true ? (
-          <p className="num type-meta">{`${formatInteger(4812 - applied * 1100)} keywords`}</p>
-        ) : undefined
-      }
+      resultCount={count === true ? `${formatInteger(4812 - applied * 1100)} keywords` : null}
     />
   );
 }

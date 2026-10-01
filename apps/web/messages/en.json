@@ -1191,6 +1191,26 @@
     "pageSize": "Rows per page",
     "pageSizeValue": "{size} per page"
   },
+  "inspector": {
+    "resize": "Resize inspector",
+    "widthValue": "{width} pixels",
+    "close": "Close",
+    "back": "Back to {page}",
+    "moreActions": "More actions",
+    "openPage": "Open page",
+    "previous": "Previous {type}",
+    "next": "Next {type}",
+    "firstInList": "First {type} in this list",
+    "lastInList": "Last {type} in this list",
+    "separator": "·",
+    "width": "Width",
+    "widthDefault": "Default",
+    "widthWide": "Wide",
+    "widthMaximum": "Maximum",
+    "resetWidth": "Reset width",
+    "notFound": "This {type} does not exist or you do not have access to it.",
+    "sectionError": "This section did not load"
+  },
   "filters": {
     "bar": "Filters",
     "add": "Filter",
@@ -1208,6 +1228,8 @@
     "minimum": "Minimum",
     "maximum": "Maximum",
     "rangeOrder": "The minimum is above the maximum.",
+    "wholeNumber": "Enter a whole number.",
+    "wholeNumberBetween": "Enter a whole number from {min} to {max}.",
     "operator": "Operator",
     "text": "Text",
     "operators": {

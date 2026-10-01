@@ -10,6 +10,7 @@ import type { FilterField, FilterValues } from './types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover } from '@/components/ui/popover';
+import { announce } from '@/lib/a11y/announcer';
 import type { FilterValue } from '@/lib/filters/filter-values';
 
 /** The field picker gets a search box above this many fields, like an enum editor. */
@@ -26,7 +27,12 @@ export interface FilterBarProps {
   values: FilterValues;
   /** The new applied filters: one changed, one removed, or none left after "Clear filters". */
   onChange: (values: FilterValues) => void;
-  /** Right-aligned on the first row: the result count on overview pages, or a legend. */
+  /**
+   * "412 keywords" on overview pages, right-aligned and announced when it changes. Table pages show and
+   * announce it in the table toolbar instead.
+   */
+  resultCount?: string | null | undefined;
+  /** Right-aligned on the first row after the count: a legend. */
   trailing?: ReactNode | undefined;
 }
 
@@ -35,9 +41,17 @@ export interface FilterBarProps {
  * "+ Filter" to add one, and "Clear filters" while any is applied. Scope controls (date range, location,
  * device) live elsewhere and are never cleared here.
  */
-export function FilterBar({ fields, values, onChange, trailing }: FilterBarProps): ReactElement {
+export function FilterBar({ fields, values, onChange, resultCount, trailing }: FilterBarProps): ReactElement {
   const t = useTranslations('filters');
   const groupRef = useRef<HTMLDivElement>(null);
+  const countKey = useId();
+  // The count is spoken when it changes once the data arrives, not on the first render (13 section 8)
+  const spokenCount = useRef<string | null | undefined>(resultCount);
+  useEffect(() => {
+    if (resultCount === null || resultCount === undefined || resultCount === spokenCount.current) return;
+    spokenCount.current = resultCount;
+    announce(resultCount, { key: countKey, debounceMs: 500 });
+  }, [countKey, resultCount]);
   // The chip, or "+ Filter", to focus once a removal has rendered.
   const pendingFocus = useRef<string | null>(null);
   const active = fields.filter((field) => values[field.id] !== undefined);
@@ -55,23 +69,21 @@ export function FilterBar({ fields, values, onChange, trailing }: FilterBarProps
     element?.focus();
   });
 
+  // Filters this screen does not show (from a shared link or another screen) are kept as they are
+  const without = (ids: ReadonlySet<string>): Record<string, FilterValue> =>
+    Object.fromEntries(Object.entries(values).filter(([key]) => !ids.has(key)));
   const set = (id: string, value: FilterValue | null): void => {
-    const next: Record<string, FilterValue> = {};
-    for (const field of fields) {
-      const current = field.id === id ? value : (values[field.id] ?? null);
-      if (current !== null) next[field.id] = current;
-    }
-    onChange(next);
+    onChange(value === null ? without(new Set([id])) : { ...values, [id]: value });
   };
+  // Focus moves on to what follows in the row: the next chip, or "+ Filter" (13 section 8)
   const remove = (id: string): void => {
-    const index = active.findIndex((field) => field.id === id);
-    const after = active[index + 1] ?? active[index - 1];
+    const after = active[active.findIndex((field) => field.id === id) + 1];
     pendingFocus.current = after === undefined ? ADD_TARGET : after.id;
     set(id, null);
   };
   const clearAll = (): void => {
     pendingFocus.current = ADD_TARGET;
-    onChange({});
+    onChange(without(new Set(fields.map((field) => field.id))));
   };
 
   return (
@@ -101,6 +113,9 @@ export function FilterBar({ fields, values, onChange, trailing }: FilterBarProps
           </Button>
         )}
       </div>
+      {resultCount === null || resultCount === undefined ? null : (
+        <p className="flex h-control shrink-0 items-center num type-meta">{resultCount}</p>
+      )}
       {trailing === undefined ? null : <div className="flex h-control shrink-0 items-center">{trailing}</div>}
     </div>
   );
@@ -159,6 +174,8 @@ function AddFilter({
           variant="ghost"
           icon={Plus}
           disabled={fields.length === 0}
+          // Focus returns here when the last field is added, so a disabled "+ Filter" keeps it
+          focusableWhenDisabled
           aria-label={t('addLabel')}
           data-filter-add=""
         >

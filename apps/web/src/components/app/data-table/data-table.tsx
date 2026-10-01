@@ -231,6 +231,11 @@ export function DataTable<TRow extends RowData>({
     index: row,
     column,
   });
+  // The focused row went (a refetch or a filter dropped it): the row now at its place takes the tab stop
+  // for good, so the old row coming back (an undo) does not pull the tab stop away
+  if (showRows && current.row >= 0 && focus.rowId !== null && !indexOfId.has(focus.rowId)) {
+    setFocus(cellAt(current.row, current.column));
+  }
   // Looked up by the grid's id when a menu closes, which is after render
   const cellElement = (row: number, column: number): HTMLElement | null =>
     document.getElementById(gridId)?.querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`) ??
@@ -379,7 +384,9 @@ export function DataTable<TRow extends RowData>({
       // A control in a cell (a checkbox, a sort button, a menu trigger) keeps its own keys, but Escape and
       // the arrows go back to the grid: Escape to the cell, the arrows on from it
       const cell = target.closest<HTMLElement>('[data-cell]');
-      if (cell === null || !GRID_KEYS.has(event.key) || event.altKey) return;
+      // A control that used the key (an open trigger, a caret in a field) keeps it
+      const typing = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio';
+      if (cell === null || !GRID_KEYS.has(event.key) || event.altKey || event.defaultPrevented || typing) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         cell.focus({ preventScroll: true });
@@ -487,6 +494,18 @@ export function DataTable<TRow extends RowData>({
   })();
 
   const selecting = selection !== undefined && (selected.size > 0 || selection.allMatching);
+  // The bulk bar goes when the selection empties (Clear, or an action that cleared it). Focus inside it
+  // would fall to the page body, so it returns to the grid at the last focused cell (20 section 4.3)
+  const wasSelecting = useRef(selecting);
+  useEffect(() => {
+    const left = wasSelecting.current && !selecting;
+    wasSelecting.current = selecting;
+    if (!left || (document.activeElement !== null && document.activeElement !== document.body)) return;
+    document
+      .getElementById(gridId)
+      ?.querySelector<HTMLElement>(`[data-cell="${String(current.row)}:${String(current.column)}"]`)
+      ?.focus({ preventScroll: true });
+  }, [selecting, gridId, current.row, current.column]);
   const footerCount =
     loadProgress === null || loadProgress === undefined
       ? countText
@@ -536,7 +555,10 @@ export function DataTable<TRow extends RowData>({
   // Row positions for assistive technology (20-accessibility.md section 6.4): in server mode the page's
   // rows sit at their place in the whole list, and an unknown total is -1
   const rowOffset = server?.offset ?? 0;
-  const rowCount = !showRows ? -1 : serverMode ? (total === null ? -1 : total + 1) : rows.length + 1;
+  // A message in the body (error, empty, no match) is one row after the header
+  const showsMessage = status === 'error' || status === 'empty' || status === 'filtered-empty' || rows.length === 0;
+  const rowCount =
+    status === 'loading' ? -1 : showsMessage ? 2 : serverMode ? (total === null ? -1 : total + 1) : rows.length + 1;
   const bodyItems: ({ kind: 'gap'; key: string; height: number } | { kind: 'row'; row: TRow; index: number })[] = [];
   ranges.forEach((range, position) => {
     const height = gaps[position] ?? 0;

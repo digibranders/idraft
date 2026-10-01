@@ -172,4 +172,49 @@ describe('FilterBar', () => {
     expect(latest).toEqual({});
     expect(screen.getByRole('button', { name: 'Add a filter' })).toHaveFocus();
   });
+
+  it('applies a single choice on Space, not while the arrows move through the options', async () => {
+    const { user } = renderWithProviders(<Harness initial={{ device: { kind: 'enum', values: ['desktop'] } }} />);
+    await user.click(screen.getByRole('button', { name: 'Device: Desktop. Edit filter' }));
+    const desktop = await screen.findByRole('radio', { name: 'Desktop' });
+    act(() => desktop.focus());
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('radio', { name: 'Mobile' })).toHaveFocus();
+    expect(latest).toEqual({});
+    await user.keyboard(' ');
+    expect(latest).toEqual({ device: { kind: 'enum', values: ['mobile'] } });
+  });
+
+  it('reads group separators in a range, and refuses text that is not a whole number', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Volume' }));
+    await user.keyboard('2,000');
+    await user.type(screen.getByRole('textbox', { name: 'Maximum' }), 'lots');
+    expect(screen.getByRole('textbox', { name: 'Maximum' })).toHaveAccessibleDescription('Enter a whole number.');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    await user.keyboard('{Enter}');
+    expect(latest).toEqual({});
+    await user.clear(screen.getByRole('textbox', { name: 'Maximum' }));
+    await user.keyboard('{Enter}');
+    expect(latest).toEqual({ vol: { kind: 'range', min: 2000, max: null } });
+  });
+
+  it('keeps filters it does not show, and moves focus to + Filter after the last chip', async () => {
+    const other = { kind: 'enum', values: ['x'] } as const;
+    const { user } = renderWithProviders(
+      <Harness
+        initial={{
+          other,
+          kw: { kind: 'text', operator: 'equals', text: 'crm' },
+          vol: { kind: 'range', min: 1, max: 9 },
+        }}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Remove filter Volume: 1 to 9' }));
+    expect(latest).toEqual({ other, kw: { kind: 'text', operator: 'equals', text: 'crm' } });
+    expect(screen.getByRole('button', { name: 'Add a filter' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(latest).toEqual({ other });
+  });
 });

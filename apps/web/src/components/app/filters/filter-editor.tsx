@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useId, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
 
 import {
   OPERATOR_MESSAGE,
@@ -32,13 +32,24 @@ export function emptyDraft(field: FilterField): FilterValue {
   return { kind: 'text', operator: field.operators[0] ?? 'contains', text: '' };
 }
 
-/** A whole number as typed, or `null` while the text is empty or not one. */
-function parseWhole(text: string): number | null {
+/**
+ * One end of a range as typed: `null` while empty, the number for a whole number (group separators
+ * allowed, as the chip prints them: "2,000"), and `NaN` for anything else or a number outside the field's
+ * bounds, which the editor reports and refuses to apply.
+ */
+function parseEnd(text: string, bounds: RangeFilterField['bounds']): number | null {
   const trimmed = text.trim();
-  if (!/^-?\d+$/.test(trimmed)) return null;
-  const number = Number(trimmed);
-  return Number.isSafeInteger(number) ? number : null;
+  if (trimmed === '') return null;
+  const digits = trimmed.replace(/[,\s]/g, '');
+  const number = /^-?\d+$/.test(digits) ? Number(digits) : Number.NaN;
+  if (!Number.isSafeInteger(number)) return Number.NaN;
+  return bounds === undefined || (number >= bounds.min && number <= bounds.max) ? number : Number.NaN;
 }
+
+/** A range with an end that is not a whole number in bounds cannot be applied. */
+const rangeInvalid = (draft: FilterValue): boolean =>
+  draft.kind === 'range' &&
+  ((draft.min !== null && Number.isNaN(draft.min)) || (draft.max !== null && Number.isNaN(draft.max)));
 
 /**
  * Enter in a field applies. Done by the field rather than by implicit submission, because Apply sits in the
@@ -73,8 +84,10 @@ export interface FilterEditorProps {
 export function FilterEditor({ field, draft, onDraftChange, onApply, formId }: FilterEditorProps): ReactElement {
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    if (rangeOutOfOrder(draft)) return;
-    onApply(isActiveFilter(draft) ? draft : null);
+    if (rangeOutOfOrder(draft) || rangeInvalid(draft)) return;
+    // Text is applied as the URL keeps it, so the next open compares like with like
+    const value = draft.kind === 'text' ? { ...draft, text: draft.text.trim() } : draft;
+    onApply(isActiveFilter(value) ? value : null);
   };
   return (
     <form id={formId} noValidate onSubmit={submit} className="flex flex-col gap-3">
@@ -109,7 +122,8 @@ export function FilterEditorFooter({
   formId,
 }: FilterEditorFooterProps): ReactElement {
   const t = useTranslations('filters');
-  const current = isActiveFilter(draft) ? draft : null;
+  const trimmed = draft.kind === 'text' ? { ...draft, text: draft.text.trim() } : draft;
+  const current = isActiveFilter(trimmed) ? trimmed : null;
   return (
     <div className="flex w-full items-center justify-between gap-2">
       <Button variant="ghost" size="sm" disabled={current === null} onClick={() => onDraftChange(emptyDraft(field))}>
@@ -120,7 +134,7 @@ export function FilterEditorFooter({
         form={formId}
         variant="primary"
         size="sm"
-        disabled={sameFilterValue(current, applied) || rangeOutOfOrder(draft)}
+        disabled={sameFilterValue(current, applied) || rangeOutOfOrder(draft) || rangeInvalid(draft)}
       >
         {t('apply')}
       </Button>
@@ -142,16 +156,7 @@ function EnumEditor({
   const t = useTranslations('filters');
   const [search, setSearch] = useState('');
   const selected = draft.kind === 'enum' ? draft.values : [];
-  if (!field.multi) {
-    return (
-      <RadioGroup<string>
-        legend={field.label}
-        value={selected[0] ?? null}
-        onValueChange={(value) => onApply({ kind: 'enum', values: [value] })}
-        options={field.options.map((option) => ({ value: option.value, label: option.label }))}
-      />
-    );
-  }
+  if (!field.multi) return <SingleChoiceEditor field={field} selected={selected[0] ?? null} onApply={onApply} />;
   const needle = search.trim().toLocaleLowerCase();
   const shown = field.options.filter((option) => needle === '' || option.label.toLocaleLowerCase().includes(needle));
   const set = (values: readonly string[]): void => onDraftChange({ kind: 'enum', values });
@@ -219,6 +224,83 @@ function EnumEditor({
   );
 }
 
+/**
+ * A single choice, which applies at once (13 section 3) but only when the person picks: a click, Space or
+ * Enter. Arrow keys move the checked radio as radios do, and only that, so stepping through the options
+ * never applies one on the way (WCAG 3.2.2). The keys and the pointer are read with native listeners,
+ * which see an event before Base UI turns it into a change.
+ */
+function SingleChoiceEditor({
+  field,
+  selected,
+  onApply,
+}: {
+  field: EnumFilterField;
+  selected: string | null;
+  onApply: (value: FilterValue | null) => void;
+}): ReactElement {
+  const container = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState(selected);
+  const draftRef = useRef(selected);
+  // A pointer press makes the next change a pick; any key makes it a move
+  const picking = useRef(false);
+  const latestApply = useRef(onApply);
+  useEffect(() => {
+    latestApply.current = onApply;
+  }, [onApply]);
+  useEffect(() => {
+    const element = container.current;
+    if (element === null) return undefined;
+    const apply = (value: string): void => latestApply.current({ kind: 'enum', values: [value] });
+    const onPointerDown = (): void => {
+      picking.current = true;
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      picking.current = false;
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      const radios = [...element.querySelectorAll<HTMLElement>('[role="radio"]')];
+      const option = field.options[radios.findIndex((radio) => radio === document.activeElement)];
+      if (option === undefined) return;
+      event.preventDefault();
+      apply(option.value);
+    };
+    // A click on the option already checked changes nothing, so no change event applies it
+    const onClick = (event: MouseEvent): void => {
+      if (event.detail === 0 || !(event.target instanceof Node)) return;
+      const target = event.target;
+      const labels = [...element.querySelectorAll('label')];
+      const option = field.options[labels.findIndex((label) => label.contains(target))];
+      if (option !== undefined && option.value === draftRef.current) apply(option.value);
+    };
+    element.addEventListener('pointerdown', onPointerDown, true);
+    element.addEventListener('keydown', onKeyDown, true);
+    element.addEventListener('click', onClick);
+    return () => {
+      element.removeEventListener('pointerdown', onPointerDown, true);
+      element.removeEventListener('keydown', onKeyDown, true);
+      element.removeEventListener('click', onClick);
+    };
+  }, [field.options]);
+  return (
+    <div ref={container}>
+      <RadioGroup<string>
+        legend={field.label}
+        value={draft}
+        onValueChange={(value) => {
+          draftRef.current = value;
+          if (picking.current) {
+            picking.current = false;
+            latestApply.current({ kind: 'enum', values: [value] });
+            return;
+          }
+          setDraft(value);
+        }}
+        options={field.options.map((option) => ({ value: option.value, label: option.label }))}
+      />
+    </div>
+  );
+}
+
 function RangeEditor({
   field,
   draft,
@@ -230,37 +312,48 @@ function RangeEditor({
 }): ReactElement {
   const t = useTranslations('filters');
   const errorId = useId();
-  // What was typed, so a partial entry ("-") stays in the field while the draft holds no number yet
+  // What was typed, so "2,000" stays as typed and a wrong entry stays visible beside its error
   const [typed, setTyped] = useState<{ min: string; max: string }>({ min: '', max: '' });
   const range = draft.kind === 'range' ? draft : { kind: 'range' as const, min: null, max: null };
-  const outOfOrder = rangeOutOfOrder(range);
-  // The typed text while it still reads as the draft's number; the draft's own value after Clear
+  const invalid = rangeInvalid(range);
+  const error = invalid
+    ? field.bounds === undefined
+      ? t('wholeNumber')
+      : t('wholeNumberBetween', { min: formatInteger(field.bounds.min), max: formatInteger(field.bounds.max) })
+    : rangeOutOfOrder(range)
+      ? t('rangeOrder')
+      : null;
+  // The typed text while it still reads as the draft's value; the draft's own value after Clear
   const shown = (end: 'min' | 'max'): string => {
     const value = range[end];
-    return parseWhole(typed[end]) === value ? typed[end] : value === null ? '' : String(value);
+    const fromTyped = parseEnd(typed[end], field.bounds);
+    const same =
+      value === null ? fromTyped === null : Number.isNaN(value) ? Number.isNaN(fromTyped) : fromTyped === value;
+    return same ? typed[end] : value === null ? '' : String(value);
   };
   const change = (end: 'min' | 'max', text: string): void => {
     setTyped((current) => ({ ...current, [end]: text }));
-    onDraftChange({ ...range, [end]: parseWhole(text) });
+    onDraftChange({ ...range, [end]: parseEnd(text, field.bounds) });
   };
   return (
     <div className="grid grid-cols-2 gap-3">
-      {RANGE_ENDS.map((end) => (
-        <Field key={end} invalid={outOfOrder}>
-          <FieldLabel>{t(end === 'min' ? 'minimum' : 'maximum')}</FieldLabel>
-          <Input
-            size="sm"
-            inputMode="numeric"
-            min={field.bounds?.min}
-            max={field.bounds?.max}
-            value={shown(end)}
-            onValueChange={(text) => change(end, text)}
-            onKeyDown={submitOnEnter}
-            aria-describedby={outOfOrder ? errorId : undefined}
-          />
-        </Field>
-      ))}
-      {outOfOrder ? <GroupError id={errorId} message={t('rangeOrder')} className="col-span-2" /> : null}
+      {RANGE_ENDS.map((end) => {
+        const wrong = range[end] !== null && Number.isNaN(range[end]);
+        return (
+          <Field key={end} invalid={error !== null && (wrong || !invalid)}>
+            <FieldLabel>{t(end === 'min' ? 'minimum' : 'maximum')}</FieldLabel>
+            <Input
+              size="sm"
+              inputMode="numeric"
+              value={shown(end)}
+              onValueChange={(text) => change(end, text)}
+              onKeyDown={submitOnEnter}
+              aria-describedby={error === null ? undefined : errorId}
+            />
+          </Field>
+        );
+      })}
+      {error === null ? null : <GroupError id={errorId} message={error} className="col-span-2" />}
     </div>
   );
 }
