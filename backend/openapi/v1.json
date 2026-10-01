@@ -305,6 +305,45 @@
         "title": "CursorPageInfo",
         "type": "object"
       },
+      "DomainCategory": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "description"
+        ],
+        "title": "DomainCategory",
+        "type": "object"
+      },
+      "DomainCategoryList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DomainCategory"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DomainCategoryList",
+        "type": "object"
+      },
       "DomainInput": {
         "additionalProperties": false,
         "properties": {
@@ -1151,6 +1190,78 @@
           "slug"
         ],
         "title": "JoinedWorkspace",
+        "type": "object"
+      },
+      "Location": {
+        "properties": {
+          "country_iso": {
+            "title": "Country Iso",
+            "type": "string"
+          },
+          "location_id": {
+            "description": "The Google Ads geo target id, as DataForSEO uses it.",
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "location_type": {
+            "description": "As DataForSEO gives it: `Country`, `State`, `City`, `DMA Region`, ...",
+            "title": "Location Type",
+            "type": "string"
+          },
+          "name": {
+            "description": "As DataForSEO gives it: `Austin,Texas,United States`.",
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "supports": {
+            "description": "Surfaces a provider can collect there: `serp`.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Supports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_id",
+          "name",
+          "country_iso",
+          "location_type",
+          "parent_id",
+          "supports"
+        ],
+        "title": "Location",
+        "type": "object"
+      },
+      "LocationPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "LocationPage",
         "type": "object"
       },
       "LocationRef": {
@@ -3278,6 +3389,37 @@
         ]
       }
     },
+    "/api/v1/domain-categories": {
+      "get": {
+        "operationId": "list_domain_categories_api_v1_domain_categories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainCategoryList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Domain categories",
+        "tags": [
+          "registries"
+        ]
+      }
+    },
     "/api/v1/invitations/accept": {
       "post": {
         "description": "For a signed-in account whose verified address is the one the invitation was sent to. Accepting again returns the same membership.",
@@ -3317,6 +3459,144 @@
         "summary": "Join the workspace an invitation link invites to",
         "tags": [
           "workspaces"
+        ]
+      }
+    },
+    "/api/v1/locations": {
+      "get": {
+        "operationId": "list_locations_api_v1_locations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filter[q]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Q]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[country_iso]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Country Iso]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[location_type]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Location Type]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[supports]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "serp",
+                    "ai_mode",
+                    "llm_scraper"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Supports]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Locations collection can target, by name",
+        "tags": [
+          "registries"
         ]
       }
     },

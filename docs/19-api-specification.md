@@ -638,7 +638,7 @@ interface ApiKey { api_key_id: Uuid; name: string; prefix: string; scopes: strin
 | GET | `{W}/quotas` | member | none | `One<QuotaUsage>` | no | | deferred |
 | PUT | `/api/v1/admin/workspaces/{workspace_id}/quotas` | platform_operator | `{ max_projects, max_tracked_keywords, max_active_prompts, max_ai_observations_per_month, max_serp_checks_per_month }` | `One<QuotaUsage>` | no | | deferred |
 | GET | `{W}/audit-logs` | `audit:read` | `from?`, `to?`, `filter[actor_type]?`, `filter[actor_id]?`, `filter[action]?` (prefix match, e.g. `panel.`), `filter[target_type]?`, `filter[target_id]?` | `Page<AuditLog>` sorted `-occurred_at` | cursor | | deferred |
-| GET | `/api/v1/locations` | authenticated | `filter[q]?` (left out: all, by name, so `filter[location_type]=Country` lists countries), `filter[country_iso]?`, `filter[location_type]?`, `filter[supports]?` (`serp`, `ai_mode`, `llm_scraper`) | `Page<Location>` | cursor | | 2 |
+| GET | `/api/v1/locations` | authenticated | `filter[q]?` (left out: all, by name, so `filter[location_type]=Country` lists countries; active locations only, sorted by name then id; `supports` is every surface any provider can collect there), `filter[country_iso]?`, `filter[location_type]?`, `filter[supports]?` (`serp`, `ai_mode`, `llm_scraper`) | `Page<Location>` | cursor | | 2 |
 | GET | `/api/v1/engines` | authenticated | none | `{ data: Engine[] }` from `ai.engines` | no | | 6 |
 | GET | `/api/v1/serp-feature-types` | authenticated | none | `{ data: Array<{ code, label, ownable, tracked_by_default }> }` | no | | 4 |
 | GET | `/api/v1/domain-categories` | authenticated | none | `{ data: Array<{ code, label, description }> }` | no | | 2 |

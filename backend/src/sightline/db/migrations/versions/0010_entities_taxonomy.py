@@ -96,6 +96,9 @@ CREATE TABLE core.locations (
 
 CREATE INDEX locations_name ON core.locations USING gin (name gin_trgm_ops);
 
+-- The location list pages through active locations by name.
+CREATE INDEX locations_active_name_id ON core.locations (name, id) WHERE is_active;
+
 CREATE TABLE core.provider_location_map (
     provider_code   text NOT NULL REFERENCES ops.providers(code),
     location_id     integer NOT NULL REFERENCES core.locations(id),

@@ -26,6 +26,7 @@ from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
 from sightline.api.projects.routes import router as projects_router
 from sightline.api.projects.service import ProjectService
+from sightline.api.registries import router as registries_router
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
 from sightline.api.schema import install_openapi
@@ -150,6 +151,7 @@ def create_app(
     app.include_router(workspaces_router)
     app.include_router(projects_router)
     app.include_router(entities_router)
+    app.include_router(registries_router)
     app.include_router(document_router)
     install_openapi(app)
     return app

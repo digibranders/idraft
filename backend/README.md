@@ -86,6 +86,20 @@ The worker calls DataForSEO only when `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWOR
 
 No test calls the real API: the adapter's tests answer from synthetic fixtures in `tests/fixtures/dataforseo/`, which the spikes replace with captured answers.
 
+### Locations
+
+The locations a project and its keywords can target come from DataForSEO's free list, synced by the worker on the 2nd of each month at 03:00 UTC. A location the list no longer has is deactivated, not deleted, and a list less than half as long as what is active deactivates nothing. Without credentials there is nothing to sync and the list stays empty. The command runs with the worker's settings (`cp .env.worker.example .env.worker`; it connects as `app_worker`). To sync once now from DataForSEO, which needs the credentials and the bucket in `.env.worker`:
+
+```bash
+uv run --env-file .env.worker python -m sightline.worker.sync_locations
+```
+
+That calls the DataForSEO account. A local database can be filled without credentials or network from the synthetic sample (nine countries, regions and cities):
+
+```bash
+uv run --env-file .env.worker python -m sightline.worker.sync_locations --from-file tests/fixtures/dataforseo/locations.json
+```
+
 ## The image
 
 `smoke.sh` runs a built image the way production does: it migrates a fresh PostgreSQL 18 with only `DATABASE_URL` set, starts the API and requires `/api/readyz` to answer 200 as uid 10001, then starts the worker as `app_worker`, requires its heartbeat to be fresh by the container's own healthcheck, and requires SIGTERM to stop it with exit code 0. CI runs it on every change.
