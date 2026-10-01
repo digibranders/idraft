@@ -7,7 +7,7 @@ import hashlib
 from urllib.parse import quote
 
 import pytest
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from sightline.extraction.urls import (
@@ -93,6 +93,12 @@ def test_vector_youtu_be() -> None:
         ("https://1.2.3.999/", "invalid_host"),
         ("https://[::zz]/", "invalid_host"),
         ("https://[::1]x/", "invalid_host"),
+        ("http://[fe80::1%25eth0]/x", "invalid_host"),
+        ("http://[fe80::1%25é]/x", "invalid_host"),
+        ("https://acme.com:" + "9" * 5000 + "/", "invalid_port"),
+        ("https://acme.com:٨٠/", "invalid_port"),
+        ("https://1.2.3.0x4/", "invalid_host"),
+        ("https://acme.com/" + "a" * 32 * 1024, "too_long"),
         ("https://�.com/", "invalid_host"),
         ("https://☃.net/", "invalid_host"),
         ("https://a‍b.de/", "invalid_host"),
@@ -112,6 +118,16 @@ def test_surrounding_whitespace_and_embedded_newlines_are_ignored() -> None:
 
 def test_credentials_are_never_kept() -> None:
     assert _url("https://user:secret@acme.com/x") == "https://acme.com/x"
+    assert _url("https://user:p%40ss@word@acme.com/x") == "https://acme.com/x"
+
+
+def test_leading_zeros_in_a_port_are_allowed() -> None:
+    assert _url("http://acme.com:000080/x") == "http://acme.com/x"
+
+
+def test_idna_uses_the_non_transitional_mapping_and_allows_underscores() -> None:
+    assert canonicalize("https://faß.de/").host.name == "xn--fa-hia.de"
+    assert canonicalize("https://my_app.bücher.de/").host.name == "my_app.xn--bcher-kva.de"
 
 
 # Step 2: redirectors, unwrapped without the network.
@@ -177,20 +193,47 @@ def test_an_undecodable_redirector_is_kept_and_flagged(raw: str) -> None:
     assert canonicalize(result.url).url == result.url
 
 
-def test_five_nested_wrappers_are_unwrapped() -> None:
+def test_wrappers_are_unwrapped_however_deep() -> None:
+    """Stopping at any depth would leave output the next call unwraps further."""
     raw = "https://acme.io/pricing"
-    for _ in range(5):
-        raw = "https://www.google.com/url?q=" + quote(raw, safe="")
-    assert canonicalize(raw).url == "https://acme.io/pricing"
-
-
-def test_wrappers_nested_too_deep_are_left_wrapped() -> None:
-    raw = "https://acme.io/pricing"
-    for _ in range(6):
+    for _ in range(8):
         raw = "https://www.google.com/url?q=" + quote(raw, safe="")
     result = canonicalize(raw)
-    assert result.host.name == "www.google.com"
-    assert result.flags == frozenset({"redirect_unwrapped", "unresolved_redirect"})
+    assert result.url == "https://acme.io/pricing"
+    assert result.flags == frozenset({"redirect_unwrapped"})
+
+
+def test_a_url_over_32_kib_is_refused() -> None:
+    """The limit bounds unwrapping, which reparses each level."""
+    with pytest.raises(UrlRejectedError) as caught:
+        canonicalize("https://acme.com/" + "a" * 32 * 1024)
+    assert caught.value.reason == "too_long"
+    assert canonicalize("https://acme.com/" + "a" * 32_000).host.name == "acme.com"
+
+
+def test_google_on_a_private_suffix_is_not_google() -> None:
+    """Anyone can publish `google.github.io/url?q=...`; it must not name another page."""
+    for host in ("google.github.io", "google.netlify.app", "google.blogspot.com"):
+        raw = f"https://{host}/url?q=https%3A%2F%2Fevil.io%2F"
+        assert canonicalize(raw).host.name == host
+
+
+def test_google_reads_q_before_url() -> None:
+    raw = "https://www.google.com/url?url=https%3A%2F%2Fa.io%2F&q=https%3A%2F%2Fb.io%2F"
+    assert _url(raw) == "https://b.io/"
+
+
+def test_bing_without_www_and_an_encoded_href_li_target_are_unwrapped() -> None:
+    assert _url(_bing("https://acme.io/a").replace("www.bing.com", "bing.com")) == (
+        "https://acme.io/a"
+    )
+    assert _url("https://href.li/?https%3A%2F%2Facme.io%2Fa") == "https://acme.io/a"
+
+
+def test_a_text_fragment_on_the_wrapper_is_flagged() -> None:
+    result = canonicalize("https://href.li/?https://acme.io/a#:~:text=crm")
+    assert result.url == "https://acme.io/a"
+    assert result.flags == frozenset({"redirect_unwrapped", "text_fragment_removed"})
 
 
 def test_other_vertex_pages_are_not_wrappers() -> None:
@@ -381,6 +424,16 @@ def test_a_lone_percent_sign_is_encoded() -> None:
 
 def test_backslashes_are_path_separators() -> None:
     assert _url("https://acme.com\\a\\b") == "https://acme.com/a/b"
+    # Not in the query.
+    assert _url("https://acme.com/a?q=x\\y") == "https://acme.com/a?q=x%5Cy"
+
+
+def test_a_short_escape_at_the_end_is_a_percent_sign() -> None:
+    assert _url("https://acme.com/a%a") == "https://acme.com/a%25a"
+
+
+def test_a_lone_surrogate_is_encoded_as_its_code_unit() -> None:
+    assert _url("https://acme.com/a\ud800") == "https://acme.com/a%ED%A0%80"
 
 
 def test_an_empty_path_becomes_the_root() -> None:
@@ -423,6 +476,8 @@ def test_mobile_wikipedia_maps_to_desktop(raw: str, url: str) -> None:
         ("https://www.theguardian.com/story/amp//amp", "https://www.theguardian.com/story"),
         ("https://www.theguardian.com/amp", "https://www.theguardian.com/"),
         ("https://edition.cnn.com/story?amp=1&x=2", "https://edition.cnn.com/story?x=2"),
+        ("https://edition.cnn.com/story?amp=TRUE", "https://edition.cnn.com/story"),
+        ("https://edition.cnn.com/story?amp=0", "https://edition.cnn.com/story?amp=0"),
         ("https://acme.com/products/amp", "https://acme.com/products/amp"),
         ("https://acme.com/a?amp=1", "https://acme.com/a?amp=1"),
     ],
@@ -433,6 +488,16 @@ def test_amp_maps_to_the_article_on_known_publishers_only(raw: str, url: str) ->
 
 def test_youtu_be_keeps_its_other_parameters() -> None:
     assert _url("http://youtu.be/abc123?t=42&si=x") == "http://youtube.com/watch?t=42&v=abc123"
+
+
+def test_youtu_be_replaces_a_v_parameter_already_there() -> None:
+    assert _url("https://youtu.be/abc?v=zzz") == "https://youtube.com/watch?v=abc"
+
+
+def test_a_youtu_be_id_cannot_split_the_query() -> None:
+    once = canonicalize("https://youtu.be/a&b=c")
+    assert once.url == "https://youtube.com/watch?v=a%26b=c"
+    assert canonicalize(once.url).url == once.url
 
 
 def test_youtu_be_without_a_video_is_left_alone() -> None:
@@ -492,6 +557,20 @@ def test_canonicalizing_a_canonical_url_changes_nothing(
     assert twice.host == once.host
 
 
+@settings(max_examples=500)
+@given(
+    prefix=st.sampled_from(["https://", "http://", "https://www.google.com/url?q=", ""]),
+    rest=st.text(max_size=80),
+)
+def test_any_text_is_refused_or_canonicalized_to_a_fixed_point(prefix: str, rest: str) -> None:
+    try:
+        once = canonicalize(prefix + rest)
+    except UrlRejectedError:
+        return
+    twice = canonicalize(once.url)
+    assert (twice.url, twice.url_hash, twice.host) == (once.url, once.url_hash, once.host)
+
+
 def test_the_version_is_one() -> None:
     assert CANONICALIZER_VERSION == 1
 
@@ -509,6 +588,9 @@ def test_the_version_is_one() -> None:
         ("acme.com:8080", "acme.com", "acme.com"),
         ("Bücher.de", "xn--bcher-kva.de", "xn--bcher-kva.de"),
         ("medium.com/@acme", "medium.com", "medium.com"),
+        # Mapped as canonicalize maps them, so a rule entered this way still matches.
+        ("en.m.wikipedia.org", "en.wikipedia.org", "wikipedia.org"),
+        ("https://youtu.be/abc", "youtube.com", "youtube.com"),
     ],
 )
 def test_a_host_is_read_from_a_bare_name_or_a_url(value: str, host: str, registrable: str) -> None:
@@ -532,6 +614,7 @@ def test_a_host_that_cannot_be_read_is_rejected(value: str) -> None:
         ("/Acme/./docs/../blog", "/Acme/blog"),
         ("/%7eacme", "/~acme"),
         ("/", "/"),
+        ("/ac\nme", "/acme"),
     ],
 )
 def test_a_path_prefix_is_normalized_like_a_canonical_path(value: str, prefix: str) -> None:

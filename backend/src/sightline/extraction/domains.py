@@ -15,7 +15,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Final, Literal
 
-from sightline.extraction.urls import CanonicalUrl, Host
+from sightline.extraction.urls import CanonicalUrl, Host, normalize_path_prefix
 
 ProjectRole = Literal["own", "competitor", "watch"]
 DomainRole = Literal["own", "competitor", "third_party"]
@@ -44,6 +44,11 @@ class DomainRule:
     def __post_init__(self) -> None:
         if (self.match_scope == "path_prefix") != (self.path_prefix is not None):
             raise ValueError("a path_prefix is given exactly when the match scope is path_prefix")
+        # A prefix in another form (`/acme/`) would silently match nothing.
+        if self.path_prefix is not None and self.path_prefix != normalize_path_prefix(
+            self.path_prefix
+        ):
+            raise ValueError(f"a path_prefix is normalized first: {self.path_prefix!r}")
 
     @property
     def key(self) -> str:

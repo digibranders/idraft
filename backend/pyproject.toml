@@ -12,7 +12,8 @@ dependencies = [
     "cryptography>=50.0.1",
     "fastapi>=0.142.1",
     "httpx>=0.28.1",
-    "idna>=3.10",
+    # Pinned, like publicsuffixlist: its UTS 46 tables decide canonical hosts.
+    "idna==3.20",
     # Pinned: its bundled Public Suffix List is part of the URL canonicalizer version.
     "publicsuffixlist==1.0.2.20260925",
     "pydantic>=2.13.5",

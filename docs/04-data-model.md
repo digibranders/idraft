@@ -1120,7 +1120,7 @@ CREATE TABLE ai.citations (
     answer_block_index  smallint,                     -- paragraph / list item index the citation is attached to
     occurrences         smallint NOT NULL DEFAULT 1,  -- times the same URL is cited within this answer
     domain_role         text NOT NULL CHECK (domain_role IN ('own','competitor','third_party')),
-    role_entity_id      uuid,                         -- entity when own/competitor
+    role_entity_id      uuid,                         -- entity whose domain rule matched: own, competitor, or watch (then domain_role is third_party)
     referral_tag        text,                         -- e.g. utm_source value stripped from the URL ('chatgpt.com')
     flags               text[] NOT NULL DEFAULT '{}', -- 'unresolved_redirect','engine_internal','redirect_unwrapped','text_fragment_removed' (14 sections 3.2 and 9)
     PRIMARY KEY (observation_id, observed_at, citation_index),

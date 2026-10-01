@@ -6,7 +6,13 @@ import uuid
 
 import pytest
 
-from sightline.extraction.domains import DomainConflict, DomainResolver, DomainRule
+from sightline.extraction.domains import (
+    DomainConflict,
+    DomainResolver,
+    DomainRule,
+    MatchScope,
+    ProjectRole,
+)
 from sightline.extraction.urls import canonicalize, normalize_host, normalize_path_prefix
 
 OWN = uuid.UUID(int=1)
@@ -17,15 +23,15 @@ OTHER_RIVAL = uuid.UUID(int=4)
 
 def _rule(
     entity_id: uuid.UUID,
-    role: str,
+    role: ProjectRole,
     host: str,
-    scope: str = "registrable",
+    scope: MatchScope = "registrable",
     prefix: str | None = None,
 ) -> DomainRule:
     return DomainRule(
         entity_id=entity_id,
-        role=role,  # type: ignore[arg-type]
-        match_scope=scope,  # type: ignore[arg-type]
+        role=role,
+        match_scope=scope,
         host=normalize_host(host),
         path_prefix=None if prefix is None else normalize_path_prefix(prefix),
     )
@@ -178,7 +184,7 @@ def test_the_resolver_accepts_parts_as_well_as_a_canonical_url() -> None:
 
 
 @pytest.mark.parametrize("scope", ["host", "registrable"])
-def test_a_prefix_on_a_rule_that_is_not_a_path_prefix_is_refused(scope: str) -> None:
+def test_a_prefix_on_a_rule_that_is_not_a_path_prefix_is_refused(scope: MatchScope) -> None:
     with pytest.raises(ValueError, match="path_prefix"):
         _rule(OWN, "own", "acme.com", scope, "/a")
 
@@ -186,3 +192,16 @@ def test_a_prefix_on_a_rule_that_is_not_a_path_prefix_is_refused(scope: str) -> 
 def test_a_path_prefix_rule_without_a_prefix_is_refused() -> None:
     with pytest.raises(ValueError, match="path_prefix"):
         _rule(OWN, "own", "acme.com", "path_prefix")
+
+
+@pytest.mark.parametrize("prefix", ["/acme/", "acme", "/a/../acme", "/%7eacme"])
+def test_a_path_prefix_that_is_not_normalized_is_refused(prefix: str) -> None:
+    """It would never match a canonical path, silently."""
+    with pytest.raises(ValueError, match="normalized"):
+        DomainRule(
+            entity_id=OWN,
+            role="own",
+            match_scope="path_prefix",
+            host=normalize_host("github.com"),
+            path_prefix=prefix,
+        )

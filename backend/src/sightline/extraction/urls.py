@@ -16,25 +16,35 @@ import re
 import string
 from dataclasses import dataclass
 from typing import Final, Literal
-from urllib.parse import SplitResult, unquote, urlsplit
+from urllib.parse import unquote, urlsplit
 
 import idna
 from publicsuffixlist import PublicSuffixList
 
 CANONICALIZER_VERSION: Final = 1
 
-RejectReason = Literal["unsupported_scheme", "missing_host", "invalid_host", "invalid_port"]
+RejectReason = Literal[
+    "unsupported_scheme", "missing_host", "invalid_host", "invalid_port", "too_long"
+]
 UrlFlag = Literal["text_fragment_removed", "redirect_unwrapped", "unresolved_redirect"]
+Scheme = Literal["http", "https"]
 
 _PSL: Final = PublicSuffixList()
-_SCHEMES: Final = frozenset({"http", "https"})
-_DEFAULT_PORTS: Final = {"http": 80, "https": 443}
-_MAX_UNWRAP: Final = 5
+# Who runs a site is decided on ICANN suffixes only: `google.github.io` is not Google.
+_ICANN_PSL: Final = PublicSuffixList(only_icann=True)
+_SCHEMES: Final[dict[str, Scheme]] = {"http": "http", "https": "https"}
+_DEFAULT_PORTS: Final[dict[Scheme, int]] = {"http": 80, "https": 443}
+# Wrappers are unwrapped until none is left, which is what makes the output a fixed point. Each
+# destination is shorter than its wrapper, so this ends; the length limit bounds the work.
+_MAX_LENGTH: Final = 32 * 1024
 
 # RFC 3986: what may stand unencoded in a path or a query; everything else is percent-encoded.
 _UNRESERVED: Final = frozenset(string.ascii_letters + string.digits + "-._~")
 _PATH_SAFE: Final = _UNRESERVED | frozenset("!$&'()*+,;=:@/")
 _QUERY_SAFE: Final = _PATH_SAFE | frozenset("?")
+# A path segment moved into a query value (youtu.be) must not split the query.
+_QUERY_VALUE_SAFE: Final = _QUERY_SAFE - frozenset("&")
+_DROPPED_CONTROLS: Final = str.maketrans("", "", "\t\r\n")
 _HEX: Final = frozenset(string.hexdigits)
 
 _ASCII_LABEL: Final = re.compile(r"[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?")
@@ -131,7 +141,7 @@ class Host:
 @dataclass(frozen=True, slots=True)
 class CanonicalUrl:
     url: str
-    scheme: str  # as observed; the hash leaves it out
+    scheme: Scheme  # as observed; the hash leaves it out
     host: Host
     port: int | None  # None when it is the scheme's default
     path: str  # canonical path without the query
@@ -143,7 +153,7 @@ class CanonicalUrl:
 
 @dataclass(frozen=True, slots=True)
 class _Parts:
-    scheme: str
+    scheme: Scheme
     host: Host
     port: int | None
     path: str
@@ -160,7 +170,10 @@ def canonicalize(raw: str) -> CanonicalUrl:
     """The canonical form of an http(s) URL. Raises `UrlRejectedError` for anything else."""
     flags: set[UrlFlag] = set()
     parts = _parse(raw, raw)
-    for _ in range(_MAX_UNWRAP):
+    while True:
+        # A wrapper can carry the text fragment its destination was linked with (href.li).
+        if ":~:" in parts.fragment:
+            flags.add("text_fragment_removed")
         wrapper = _wrapper(parts)
         if wrapper is None:
             break
@@ -173,12 +186,6 @@ def canonicalize(raw: str) -> CanonicalUrl:
             flags.add("unresolved_redirect")
             break
         flags.add("redirect_unwrapped")
-    else:
-        if _wrapper(parts) is not None:
-            flags.add("unresolved_redirect")
-
-    if ":~:" in parts.fragment:
-        flags.add("text_fragment_removed")
 
     host = _desktop_wikipedia(parts.host)
     path = _remove_dot_segments(_encode(parts.path or "/", _PATH_SAFE))
@@ -186,6 +193,7 @@ def canonicalize(raw: str) -> CanonicalUrl:
     if host.name == "youtu.be" and (video := _single_segment(path)) is not None:
         host = _host("youtube.com")
         path = "/watch"
+        video = _encode(video, _QUERY_VALUE_SAFE)
         pairs = [(name, value) for name, value in pairs if name != "v"] + [("v", video)]
     if host.registrable_domain in _AMP_PUBLISHERS:
         path = _strip_amp(path)
@@ -218,16 +226,22 @@ def canonicalize(raw: str) -> CanonicalUrl:
 
 
 def normalize_host(value: str) -> Host:
-    """The host of something a person typed: a bare name (`Acme.COM.`) or a URL."""
+    """The host of something a person typed: a bare name (`Acme.COM.`) or a URL.
+
+    Hosts `canonicalize` never produces are mapped as it maps them (`en.m.wikipedia.org` is
+    `en.wikipedia.org`, `youtu.be` is `youtube.com`), so a rule entered with one still matches.
+    """
     text = value.strip()
     if "://" not in text:
         text = f"http://{text}"
-    return _parse(text, value).host
+    host = _desktop_wikipedia(_parse(text, value).host)
+    return _host("youtube.com") if host.name == "youtu.be" else host
 
 
 def normalize_path_prefix(value: str) -> str:
     """A path prefix normalized the way canonical paths are, so the two compare directly."""
-    text = value.strip().replace("\\", "/")
+    # Tabs and newlines are dropped from URLs before they are split, so from prefixes too.
+    text = value.strip().translate(_DROPPED_CONTROLS).replace("\\", "/")
     if not text or "?" in text or "#" in text:
         raise ValueError(f"a path prefix is a non-empty path with no query or fragment: {value!r}")
     if not text.startswith("/"):
@@ -242,25 +256,28 @@ def _parse(text: str, raw: str) -> _Parts:
         # Browsers read backslashes before the query as slashes in http(s) URLs.
         cut = min((i for i in (text.find("?"), text.find("#")) if i >= 0), default=len(text))
         text = text[:cut].replace("\\", "/") + text[cut:]
+    if len(text) > _MAX_LENGTH:
+        raise UrlRejectedError("too_long", raw)
     try:
         split = urlsplit(text)
     except ValueError as error:  # an unbalanced or invalid bracketed IPv6 host
         raise UrlRejectedError("invalid_host", raw) from error
-    if split.scheme not in _SCHEMES:
+    scheme = _SCHEMES.get(split.scheme)
+    if scheme is None:
         raise UrlRejectedError("unsupported_scheme", raw)
-    host_text, port = _authority(split, raw)
+    host_text, port = _authority(split.netloc, scheme, raw)
     if not host_text:
         raise UrlRejectedError("missing_host", raw)
     try:
         host = _host(host_text)
     except ValueError as error:
         raise UrlRejectedError("invalid_host", raw) from error
-    return _Parts(split.scheme, host, port, split.path, split.query, split.fragment)
+    return _Parts(scheme, host, port, split.path, split.query, split.fragment)
 
 
-def _authority(split: SplitResult, raw: str) -> tuple[str, int | None]:
+def _authority(netloc: str, scheme: Scheme, raw: str) -> tuple[str, int | None]:
     """The host text and the port, without credentials; a default port is None."""
-    hostport = split.netloc.rpartition("@")[2]
+    hostport = netloc.rpartition("@")[2]
     if hostport.startswith("["):  # urlsplit has checked the brackets and what follows them
         end = hostport.find("]")
         host_text, port_text = hostport[: end + 1], hostport[end + 2 :]
@@ -268,16 +285,23 @@ def _authority(split: SplitResult, raw: str) -> tuple[str, int | None]:
         host_text, _, port_text = hostport.partition(":")
     if not port_text:
         return host_text, None
-    if not port_text.isascii() or not port_text.isdigit() or int(port_text) > 65535:
+    # Leading zeros are allowed (`:000080`); the length check keeps int() off huge inputs.
+    digits = port_text.lstrip("0") or "0"
+    if not port_text.isascii() or not port_text.isdigit() or len(digits) > 5:
         raise UrlRejectedError("invalid_port", raw)
-    port = int(port_text)
-    return host_text, None if port == _DEFAULT_PORTS[split.scheme] else port
+    port = int(digits)
+    if port > 65535:
+        raise UrlRejectedError("invalid_port", raw)
+    return host_text, None if port == _DEFAULT_PORTS[scheme] else port
 
 
 def _host(text: str) -> Host:
     """Lowercase, IDNA to punycode, no trailing dot; IP addresses in their standard form."""
     if text.startswith("["):  # urlsplit has checked the closing bracket
-        name = f"[{ipaddress.IPv6Address(text[1:-1]).compressed}]"
+        ipv6 = ipaddress.IPv6Address(text[1:-1])
+        if ipv6.scope_id is not None:  # a zone id names an interface on one machine
+            raise ValueError("an IPv6 host has no zone id in a URL")
+        name = f"[{ipv6.compressed}]"
         return Host(name=name, registrable_domain=name, public_suffix="", is_ip=True)
 
     text = unquote(text)
@@ -317,7 +341,7 @@ def _wrapper(parts: _Parts) -> _Wrapper | None:
     """Step 2: a known redirect wrapper and its destination, read from its parameters."""
     host = parts.host
     path = parts.path
-    if host.registrable_domain.split(".", 1)[0] == "google":
+    if (_ICANN_PSL.privatesuffix(host.name) or "").split(".", 1)[0] == "google":
         if host.name == "vertexaisearch.cloud.google.com":
             # Grounding redirects carry an opaque token, never the destination.
             if path.startswith("/grounding-api-redirect/"):
@@ -339,9 +363,12 @@ def _wrapper(parts: _Parts) -> _Wrapper | None:
 
 
 def _first_url(query: str, names: tuple[str, ...]) -> str | None:
-    for name, value in _raw_pairs(query):
-        if name in names and _HTTP_PREFIX.match(target := unquote(value)):
-            return target
+    """The first http(s) value of the first name that has one, in the order names are given."""
+    pairs = _raw_pairs(query)
+    for wanted in names:
+        for name, value in pairs:
+            if name == wanted and _HTTP_PREFIX.match(target := unquote(value)):
+                return target
     return None
 
 
@@ -353,10 +380,10 @@ def _bing_target(query: str) -> str | None:
             continue
         body = encoded[2:]
         try:
-            target = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)).decode("utf-8")
+            # A destination that is not http(s) is refused when it is parsed.
+            return base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)).decode("utf-8")
         except (binascii.Error, ValueError):
             return None
-        return target if _HTTP_PREFIX.match(target) else None
     return None
 
 
