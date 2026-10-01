@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 
+import { workspaceKey } from '@/lib/api/keys';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { components } from '@/lib/api/schema';
 
@@ -43,16 +44,15 @@ export const projectDomainsQuery = (scope: ProjectScope): ApiQueryOptions<typeof
   apiQuery(PROJECT_DOMAINS, { params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } } });
 
 /**
- * After a change to an entity or a role: the project's entity list, its domains, the entity itself, and
- * the project (its `entity_config_version` moved).
+ * After a change to an entity or a role: the workspace's entities, the project's entity list and domains,
+ * and the project (its `entity_config_version` moved).
  */
-export function refreshEntities(queryClient: QueryClient, scope: ProjectScope, entityId?: string): void {
+export function refreshEntities(queryClient: QueryClient, scope: ProjectScope): void {
+  // Every workspace entity query: the lists (the parent picker, the duplicate lookup) and each entity
+  void queryClient.invalidateQueries({ queryKey: [...workspaceKey(scope.workspaceId), 'entities'] });
   void queryClient.invalidateQueries({ queryKey: projectEntitiesQuery(scope).queryKey });
   void queryClient.invalidateQueries({ queryKey: projectDomainsQuery(scope).queryKey });
   void queryClient.invalidateQueries({ queryKey: projectQuery(scope).queryKey });
-  if (entityId !== undefined) {
-    void queryClient.invalidateQueries({ queryKey: entityQuery(scope.workspaceId, entityId).queryKey });
-  }
 }
 
 /** The color a new competitor gets: the first of 2 to 6 no current role holds, or none past the sixth. */

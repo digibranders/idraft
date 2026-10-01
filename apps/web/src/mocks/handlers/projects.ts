@@ -4,7 +4,7 @@ import { visibleProjects } from './access';
 import { at, bodyError, canonicalHost, domainTextError, isRecord, queryError } from './rules';
 import { emptyChange } from './workspaces';
 import { entityWorld, readEntityChanges, workspaceOfRow } from '../entities-state';
-import { isPublicSuffix } from '../factories/domain';
+import { isPublicSuffix, registrableDomain } from '../factories/domain';
 import { mockLocation } from '../factories/location';
 import { PERMISSION_HOLDERS } from '../factories/permissions';
 import { invalid, invalidField, mock, problem, unknownMembers } from '../respond';
@@ -194,7 +194,10 @@ function ownEntityInput(value: unknown): Omit<CreatedOwnEntity, 'entity_id'> | V
       errors.push(
         bodyError(where, 'domain_is_public_suffix', 'A public suffix is shared by many sites; name a host under it.'),
       );
-    } else if (host !== null && !hosts.includes(host)) hosts.push(host);
+    } else if (host !== null && !hosts.includes(registrableDomain(host))) {
+      // A registrable rule is stored against the registrable domain (`blog.acme.com` is `acme.com`)
+      hosts.push(registrableDomain(host));
+    }
   }
   const texts: string[] = [];
   for (const [index, alias] of aliases.entries()) {
@@ -288,13 +291,15 @@ export const projectHandlers: HttpHandler[] = [
     if (slugTaken(all, slug)) return problem(request, 'duplicate', { detail: 'A project already uses this slug.' });
     const workspaceId = access.workspace.workspace_id;
     if (own !== null) {
-      // The own entity is an entity of the workspace like any other, so its name must be free
+      // The own entity is a brand of the workspace like any other, so the name must be free for that type
       const taken = entityWorld(readEntityChanges(cookies), changes).entities.some(
         (entity) =>
           workspaceOfRow(entity) === workspaceId &&
+          entity.entity_type === 'brand' &&
           entity.canonical_name.toLowerCase() === own.canonical_name.toLowerCase(),
       );
-      if (taken) return problem(request, 'duplicate', { detail: 'An entity of this workspace already has this name.' });
+      if (taken)
+        return problem(request, 'duplicate', { detail: 'The workspace has an entity of this type with this name.' });
     }
     const now = new Date().toISOString();
     const host = primaryHost(body);

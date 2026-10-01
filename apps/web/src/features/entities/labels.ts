@@ -19,12 +19,16 @@ export const MODE_KEY: Readonly<Record<MatchMode, 'wordBoundary' | 'exactCase' |
 };
 
 export const METHOD_KEY: Readonly<
-  Record<MatchMethod, 'aliasWord' | 'aliasExact' | 'aliasSubstring' | 'aliasRegex' | 'aliasDomain' | 'viaProduct'>
+  Record<
+    MatchMethod,
+    'aliasWord' | 'aliasExact' | 'aliasSubstring' | 'aliasRegex' | 'aliasName' | 'aliasDomain' | 'viaProduct'
+  >
 > = {
   alias_word: 'aliasWord',
   alias_exact: 'aliasExact',
   alias_substring: 'aliasSubstring',
   alias_regex: 'aliasRegex',
+  alias_name: 'aliasName',
   alias_domain: 'aliasDomain',
   via_product: 'viaProduct',
 };

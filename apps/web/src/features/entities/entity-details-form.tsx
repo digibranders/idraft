@@ -171,6 +171,11 @@ function DetailsForm({ scope, entity }: { scope: ProjectScope; entity: EntityDet
         form.setError('canonical_name', { type: 'server', message: t('nameTaken') }, { shouldFocus: true });
         return;
       }
+      // A parent under this entity would make a loop: a problem of its own, shown on the parent field
+      if (isApiProblem(error, 'cycle_detected')) {
+        form.setError('parent_entity_id', { type: 'server', message: t('parentCycle') }, { shouldFocus: true });
+        return;
+      }
       if (isApiProblem(error, 'validation_failed')) {
         const rest = applyServerErrors(form, error.errors, {
           fields: ['canonical_name', 'entity_type', 'description', 'disambiguation_hints', 'parent_entity_id'],
@@ -178,8 +183,7 @@ function DetailsForm({ scope, entity }: { scope: ProjectScope; entity: EntityDet
             string_too_short: t('nameRequired'),
             string_too_long: t('nameTooLong', { max: MAX_NAME_LENGTH }),
             too_long: t('tooManyHints', { max: MAX_HINTS }),
-            cycle_detected: t('parentCycle'),
-            entity_unknown: t('parentGone'),
+            parent_unknown: t('parentGone'),
           },
         });
         if (rest.length === 0) return;

@@ -59,7 +59,7 @@ function TrackingForm({ scope, entity, onClose }: TrackingDialogProps & { entity
       );
       return;
     }
-    refreshEntities(queryClient, scope, entity.entity.entity_id);
+    refreshEntities(queryClient, scope);
     toast({ type: 'success', title: t('saved', { name }) });
     onClose();
   };

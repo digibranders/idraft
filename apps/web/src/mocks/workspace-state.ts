@@ -223,8 +223,15 @@ export const readChanges = (cookies: Readonly<Record<string, string>>): Workspac
   readJsonCookie<WorkspaceChanges>(cookies, WORKSPACE_COOKIE, CHANGES, {});
 
 /** The `Set-Cookie` that keeps `changes`. Throws when they no longer fit in a cookie. */
-export const changesCookie = (changes: WorkspaceChanges): string =>
-  jsonCookie(WORKSPACE_COOKIE, changes, 'workspace state');
+export function changesCookie(changes: WorkspaceChanges): string {
+  const cookie = jsonCookie(WORKSPACE_COOKIE, changes);
+  if (cookie === null) {
+    throw new Error(
+      `The mock workspace state no longer fits in its cookie. Expire the ${WORKSPACE_COOKIE} cookie to start again from the fixtures.`,
+    );
+  }
+  return cookie;
+}
 
 /** The fixture workspace as this browser changed it. */
 export function currentWorkspace(changes: WorkspaceChanges): {

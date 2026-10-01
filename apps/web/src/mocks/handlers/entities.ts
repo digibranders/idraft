@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
-import { workspaceCaller, type WorkspaceCaller } from './access';
+import { savedEntities, workspaceCaller, type WorkspaceCaller } from './access';
 import {
   aliasInput,
   aliasMemberErrors,
@@ -26,10 +26,12 @@ import {
   type DomainValues,
 } from './rules';
 import { emptyChange } from './workspaces';
+import { stateTime } from '../entities-codec';
 import {
-  entitiesCookie,
   entityWorld,
+  idMinter,
   isActiveRole,
+  projectsNaming,
   projectsUsing,
   withCreated,
   withDeleted,
@@ -49,15 +51,22 @@ import { invalid, invalidField, mock, noContent, problem } from '../respond';
 import type { Problem, ValidationItem } from '@/lib/api/types';
 
 /**
- * Entities, their aliases and their domains (19 section 3.4), with the API's rules: names unique in the
- * workspace ignoring case, an entity deleted only when no project ever gave it a role and no product names
- * it as its brand, no parent that makes a cycle, aliases unique per entity ignoring case and compiled when
- * they are patterns, hosts canonicalized and a `domain_role_conflict` warning when another entity of a shared
- * project claims the same domain. Every change moves the `entity_config_version` of the projects that use the
- * entity. Changes are kept in the entities cookie (../entities-state.ts).
+ * Entities, their aliases and their domains (19 section 3.4), with the backend's rules as built
+ * (`api/entities/service.py` and `routes.py`, migration 0010):
+ *
+ * - reading needs `data:read`; a member limited to some projects sees only the entities those projects name
+ *   (a removed role included) and gets `404` for the others; changing a workspace entity needs
+ *   `entities:write` and a membership that is not limited to some projects (`403` otherwise);
+ * - a name is unique per entity type in the workspace, ignoring case; no parent that makes a cycle
+ *   (`cycle_detected`), and an unknown parent is the field code `parent_unknown`;
+ * - an entity is deleted only when no project ever named it and no product names it as its brand;
+ * - aliases are unique per text, match mode and negativity (case folded for word and substring aliases that
+ *   ignore case), and a pattern must compile;
+ * - a registrable rule is stored against the registrable domain; host and path rules keep the host as given;
+ * - every change moves the `entity_config_version` of every project that ever named the entity.
  */
 
-export const ENTITY_TYPES = ['brand', 'product', 'organization', 'person', 'other'] as const;
+const ENTITY_TYPES = ['brand', 'product', 'organization', 'person', 'other'] as const;
 type EntityType = (typeof ENTITY_TYPES)[number];
 const ROLES = ['own', 'competitor', 'watch'] as const;
 const MAX_NAME = 200;
@@ -75,32 +84,44 @@ const ENTITY_FIELDS = [
   'is_ambiguous',
   'disambiguation_hints',
 ] as const;
+/** Writes change a workspace entity, which every project shares. */
+const WRITE = { permission: 'entities:write', everyProject: true } as const;
 
-/** The entity with `entityId` in the caller's workspace, or `undefined`. */
-export const entityIn = (
-  caller: WorkspaceCaller,
-  entityId: string | readonly string[] | undefined,
-): StoredEntity | undefined =>
-  caller.world.entities.find(
-    (entity) => entity.entity_id === entityId && workspaceOfRow(entity) === caller.access.workspace.workspace_id,
+/** Whether a member with this scope may see the entity: any, or one their projects name. */
+function canSee(caller: WorkspaceCaller, entityId: string): boolean {
+  const scope = caller.access.membership.project_ids;
+  return (
+    scope === null || caller.world.roles.some((role) => role.entity_id === entityId && scope.includes(role.project_id))
   );
+}
 
-const sameName = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+/** The entity with `entityId` in the caller's workspace that they may see, or `undefined`. */
+function entityIn(caller: WorkspaceCaller, entityId: string | readonly string[] | undefined): StoredEntity | undefined {
+  return caller.world.entities.find(
+    (entity) =>
+      entity.entity_id === entityId &&
+      workspaceOfRow(entity) === caller.access.workspace.workspace_id &&
+      canSee(caller, entity.entity_id),
+  );
+}
 
-/** Another entity of the workspace already has this name, ignoring case. */
-const nameTaken = (caller: WorkspaceCaller, name: string, except?: string): boolean =>
+/** Another entity of the workspace has this name and type, ignoring the case of the name. */
+const nameTaken = (caller: WorkspaceCaller, name: string, type: EntityType, except?: string): boolean =>
   caller.world.entities.some(
     (entity) =>
       entity.entity_id !== except &&
       workspaceOfRow(entity) === caller.access.workspace.workspace_id &&
-      sameName(entity.canonical_name, name),
+      entity.entity_type === type &&
+      entity.canonical_name.toLowerCase() === name.toLowerCase(),
   );
 
-/** `changes` with the `entity_config_version` of every project that uses the entity moved. */
-export const bumpedFor = (changes: EntityChanges, world: EntityWorld, entityId: string): EntityChanges =>
-  withVersionsBumped(changes, projectsUsing(world, entityId));
+const NAME_TAKEN = 'The workspace has an entity of this type with this name.';
 
-const duplicate = (request: Request, detail: string): ReturnType<typeof problem> =>
+/** `changes` with the `entity_config_version` of every project that named the entity moved (backend D7). */
+const bumpedFor = (changes: EntityChanges, world: EntityWorld, entityId: string): EntityChanges =>
+  withVersionsBumped(changes, projectsNaming(world, entityId));
+
+const duplicate = (request: Request, detail: string): HttpResponse<Problem> =>
   problem(request, 'duplicate', { detail });
 
 /** The errors of `disambiguation_hints`, at `path`. */
@@ -128,23 +149,25 @@ function entityFieldErrors(body: Readonly<Record<string, unknown>>): ValidationI
   ];
 }
 
-/** The parent's errors: it must be an entity of the workspace, and not the entity itself or below it. */
+/** The parent's errors: an entity of the workspace (`parent_unknown`), and not the entity or below it. */
 function parentProblem(
   request: Request,
   caller: WorkspaceCaller,
   parentId: string,
   entityId: string | null,
 ): HttpResponse<Problem> | null {
-  if (!entityIn(caller, parentId)) {
-    return invalidField(request, 'parent_entity_id', 'entity_unknown', 'No entity of this workspace has this id.');
-  }
+  const exists = caller.world.entities.some(
+    (entity) => entity.entity_id === parentId && workspaceOfRow(entity) === caller.access.workspace.workspace_id,
+  );
+  if (!exists) return invalidField(request, 'parent_entity_id', 'parent_unknown', 'No such entity.');
   if (entityId === null) return null;
   // Walking up from the new parent must not reach the entity
   const seen = new Set<string>();
   let current: string | null = parentId;
   while (current !== null && !seen.has(current)) {
-    if (current === entityId)
-      return problem(request, 'cycle_detected', { detail: 'The parent is the entity or one of its products.' });
+    if (current === entityId) {
+      return problem(request, 'cycle_detected', { detail: 'The parent is this entity or one of its products.' });
+    }
     seen.add(current);
     const id: string = current;
     current = caller.world.entities.find((entity) => entity.entity_id === id)?.parent_entity_id ?? null;
@@ -177,14 +200,24 @@ const isAliasList = (value: AliasValues[] | ValidationItem[]): value is AliasVal
 const isDomainList = (value: DomainValues[] | ValidationItem[]): value is DomainValues[] =>
   value.every((item) => 'match_scope' in item);
 
-/** The first alias of `incoming` that repeats an existing one or one before it, if any. */
-function repeatedAlias(existing: readonly AliasValues[], incoming: readonly AliasValues[]): AliasValues | undefined {
+/** `{ items }` of 1 to 200 aliases, or its errors. */
+function aliasBatch(body: Readonly<Record<string, unknown>>): AliasValues[] | ValidationItem[] {
+  const errors = extraMembers(body, ['items']);
+  const items = body.items;
+  if (!Array.isArray(items)) return [...errors, bodyError('items', 'list_type', 'Input should be a valid list')];
+  if (items.length === 0) return [...errors, bodyError('items', 'too_short', 'At least 1 item.')];
+  const parsed = aliasList(items, 'items', MAX_ALIASES);
+  return errors.length > 0 ? [...errors, ...(isAliasList(parsed) ? [] : parsed)] : parsed;
+}
+
+/** Whether any alias of `incoming` repeats an existing one or one before it. */
+function repeatsAlias(existing: readonly AliasValues[], incoming: readonly AliasValues[]): boolean {
   const seen = [...existing];
   for (const alias of incoming) {
-    if (seen.some((other) => sameAlias(other, alias))) return alias;
+    if (seen.some((other) => sameAlias(other, alias))) return true;
     seen.push(alias);
   }
-  return undefined;
+  return false;
 }
 
 const sameRule = (a: DomainValues, b: DomainValues): boolean =>
@@ -205,28 +238,22 @@ const valuesOfDomain = (row: StoredDomain): DomainValues => ({
   path_prefix: row.path_prefix ?? null,
 });
 
-/** An alias row, without the members that hold their default. */
-export const storedAlias = (
-  values: AliasValues,
-  entityId: string,
-  userId: string | null,
-  now: string,
-): StoredAlias => ({
-  alias_id: crypto.randomUUID(),
-  entity_id: entityId,
+/** An alias row, without the members that hold their default. It takes its entity's time (../entities-codec.ts). */
+const aliasRow = (aliasId: string, values: AliasValues, entity: StoredEntity): StoredAlias => ({
+  alias_id: aliasId,
+  entity_id: entity.entity_id,
   alias: values.alias,
   ...(values.match_mode === 'word_boundary' ? {} : { match_mode: values.match_mode }),
   ...(values.case_sensitive ? { case_sensitive: true } : {}),
   ...(values.language_code === null ? {} : { language_code: values.language_code }),
   ...(values.is_negative ? { is_negative: true } : {}),
   ...(values.requires_context ? { requires_context: true } : {}),
-  ...(userId === null ? {} : { created_by: userId }),
-  created_at: now,
+  created_at: entity.created_at,
 });
 
 /** An entity domain row, without the members that hold their default. */
-export const storedDomain = (values: DomainValues, entityId: string): StoredDomain => ({
-  entity_domain_id: crypto.randomUUID(),
+const domainRow = (domainId: string, values: DomainValues, entityId: string): StoredDomain => ({
+  entity_domain_id: domainId,
   entity_id: entityId,
   host: values.host,
   ...(values.match_scope === 'registrable' ? {} : { match_scope: values.match_scope }),
@@ -242,8 +269,8 @@ const claimOf = (rule: DomainValues): string =>
       : `path:${rule.host}${rule.path_prefix ?? ''}`;
 
 /**
- * Whether another entity with a role in a project where this one has a role claims the same domain at the
- * same specificity (doc 13 stage 2). Own wins at derivation; the API only warns.
+ * Whether another entity with a live role in a project where this one has a live role claims the same domain
+ * at the same specificity (doc 13 stage 2). Own wins at derivation; the API only warns.
  */
 function roleConflict(world: EntityWorld, entityId: string, rule: DomainValues): boolean {
   const projects = new Set(projectsUsing(world, entityId));
@@ -260,6 +287,15 @@ function roleConflict(world: EntityWorld, entityId: string, rule: DomainValues):
 const byName = (a: StoredEntity, b: StoredEntity): number =>
   a.canonical_name.toLowerCase().localeCompare(b.canonical_name.toLowerCase()) ||
   a.entity_id.localeCompare(b.entity_id);
+
+/** Whether the entity's name or one of its aliases holds `text`, ignoring case. */
+const holds = (world: EntityWorld, entity: StoredEntity, text: string): boolean => {
+  const needle = text.toLowerCase();
+  return (
+    entity.canonical_name.toLowerCase().includes(needle) ||
+    world.aliases.some((alias) => alias.entity_id === entity.entity_id && alias.alias.toLowerCase().includes(needle))
+  );
+};
 
 const W = '/api/v1/workspaces/{workspace_id}';
 const LIST_QUERY = ['cursor', 'limit', 'filter[entity_type]', 'filter[q]', 'filter[project_id]', 'filter[role]'];
@@ -282,34 +318,29 @@ export const entityHandlers: HttpHandler[] = [
       ...(type === null || isOneOf(type, ENTITY_TYPES)
         ? []
         : [queryError('filter[entity_type]', 'enum', `Allowed: ${ENTITY_TYPES.join(', ')}.`)]),
-      ...(text !== null && text.length > MAX_QUERY_TEXT
-        ? [queryError('filter[q]', 'string_too_long', 'At most 200 characters.')]
-        : []),
+      ...(text === null ? [] : textErrorOfQuery(text)),
       ...(role === null || isOneOf(role, ROLES)
         ? []
         : [queryError('filter[role]', 'enum', `Allowed: ${ROLES.join(', ')}.`)]),
-      ...(role !== null && projectId === null
-        ? [queryError('filter[role]', 'value_error', 'Give filter[project_id] with filter[role].')]
-        : []),
     ];
     if (errors.length > 0 || Array.isArray(paging)) return invalid(request, errors);
-    // A project the caller cannot open is one they cannot see
-    if (projectId !== null && !caller.projects.some((project) => project.project_id === projectId)) {
-      return problem(request, 'not_found');
-    }
+    const scope = caller.access.membership.project_ids;
+    // A live role, in the project given or any project the member may open
     const roles =
-      projectId === null
+      projectId === null && role === null
         ? null
         : caller.world.roles.filter(
             (candidate) =>
-              candidate.project_id === projectId &&
               isActiveRole(candidate) &&
-              (role === null || candidate.role === role),
+              (projectId === null || candidate.project_id === projectId) &&
+              (role === null || candidate.role === role) &&
+              (scope === null || scope.includes(candidate.project_id)),
           );
     const rows = caller.world.entities
       .filter((entity) => workspaceOfRow(entity) === caller.access.workspace.workspace_id)
+      .filter((entity) => canSee(caller, entity.entity_id))
       .filter((entity) => type === null || entity.entity_type === type)
-      .filter((entity) => text === null || entity.canonical_name.toLowerCase().includes(text.trim().toLowerCase()))
+      .filter((entity) => text === null || holds(caller.world, entity, text))
       .filter((entity) => roles === null || roles.some((candidate) => candidate.entity_id === entity.entity_id))
       .sort(byName);
     const page = cursorPage(rows, paging, JSON.stringify([type, text, projectId, role]));
@@ -318,7 +349,7 @@ export const entityHandlers: HttpHandler[] = [
   }),
 
   mock('post', `${W}/entities`, async ({ request, cookies, params }) => {
-    const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'entities:write' });
+    const caller = workspaceCaller(request, cookies, params.workspace_id, WRITE);
     if (caller instanceof Response) return caller;
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
@@ -351,18 +382,18 @@ export const entityHandlers: HttpHandler[] = [
       if (refused) return refused;
     }
     const name = body.canonical_name.trim();
-    if (nameTaken(caller, name)) return duplicate(request, 'An entity of this workspace already has this name.');
-    if (repeatedAlias([], aliases)) return duplicate(request, 'An alias is given twice.');
+    if (nameTaken(caller, name, body.entity_type)) return duplicate(request, NAME_TAKEN);
+    if (repeatsAlias([], aliases)) return duplicate(request, 'An alias is given twice.');
     if (domains.some((rule, index) => domains.findIndex((other) => sameRule(other, rule)) !== index)) {
-      return duplicate(request, 'A domain is given twice.');
+      return duplicate(request, 'A domain is given twice at the same scope.');
     }
-    const now = new Date().toISOString();
     const workspaceId = caller.access.workspace.workspace_id;
     const hints = Array.isArray(body.disambiguation_hints)
       ? body.disambiguation_hints.filter((hint): hint is string => typeof hint === 'string').map((hint) => hint.trim())
       : [];
+    const ids = idMinter(caller.entityChanges);
     const entity: StoredEntity = {
-      entity_id: crypto.randomUUID(),
+      entity_id: ids.next('entity'),
       ...(workspaceId === MOCK_WORKSPACE.workspace_id ? {} : { workspace_id: workspaceId }),
       entity_type: body.entity_type,
       canonical_name: name,
@@ -370,18 +401,18 @@ export const entityHandlers: HttpHandler[] = [
       ...(typeof body.description === 'string' ? { description: body.description } : {}),
       ...(body.is_ambiguous === true ? { is_ambiguous: true } : {}),
       ...(hints.length > 0 ? { disambiguation_hints: hints } : {}),
-      created_at: now,
+      created_at: stateTime(),
     };
     let next = withCreated(caller.entityChanges, 'entities', entity);
-    for (const alias of aliases) {
-      next = withCreated(next, 'aliases', storedAlias(alias, entity.entity_id, caller.session.user.user_id, now));
+    for (const alias of aliases) next = withCreated(next, 'aliases', aliasRow(ids.next('alias'), alias, entity));
+    for (const rule of domains) {
+      next = withCreated(next, 'domains', domainRow(ids.next('domain'), rule, entity.entity_id));
     }
-    for (const rule of domains) next = withCreated(next, 'domains', storedDomain(rule, entity.entity_id));
+    next = ids.commit(next);
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const world = entityWorld(next, caller.changes);
-    return HttpResponse.json(
-      { data: entityView(world, entity) },
-      { status: 201, headers: { 'set-cookie': entitiesCookie(next) } },
-    );
+    return HttpResponse.json({ data: entityView(world, entity) }, { status: 201, headers: { 'set-cookie': cookie } });
   }),
 
   mock('get', `${W}/entities/{entity_id}`, ({ request, cookies, params }) => {
@@ -394,7 +425,7 @@ export const entityHandlers: HttpHandler[] = [
   }),
 
   mock('patch', `${W}/entities/{entity_id}`, async ({ request, cookies, params }) => {
-    const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'entities:write' });
+    const caller = workspaceCaller(request, cookies, params.workspace_id, WRITE);
     if (caller instanceof Response) return caller;
     const entity = entityIn(caller, params.entity_id);
     if (!entity) return problem(request, 'not_found');
@@ -413,12 +444,11 @@ export const entityHandlers: HttpHandler[] = [
       if (refused) return refused;
     }
     const name = typeof body.canonical_name === 'string' ? body.canonical_name.trim() : undefined;
-    if (name !== undefined && nameTaken(caller, name, entity.entity_id)) {
-      return duplicate(request, 'An entity of this workspace already has this name.');
-    }
     const type: EntityType | undefined = isOneOf(body.entity_type, ENTITY_TYPES) ? body.entity_type : undefined;
-    const now = new Date().toISOString();
-    let next = withEdited(caller.entityChanges, 'entities', entity.entity_id, {
+    if (nameTaken(caller, name ?? entity.canonical_name, type ?? entity.entity_type, entity.entity_id)) {
+      return duplicate(request, NAME_TAKEN);
+    }
+    let next = withEdited(caller.entityChanges, 'entities', entity, {
       canonical_name: name,
       entity_type: type,
       parent_entity_id:
@@ -434,26 +464,30 @@ export const entityHandlers: HttpHandler[] = [
             .filter((hint): hint is string => typeof hint === 'string')
             .map((hint) => hint.trim())
         : undefined,
-      updated_at: now,
+      updated_at: stateTime(),
     });
     next = bumpedFor(next, caller.world, entity.entity_id);
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const world = entityWorld(next, caller.changes);
     const changed = world.entities.find((candidate) => candidate.entity_id === entity.entity_id);
     if (!changed) throw new Error('The changed entity is missing');
-    return HttpResponse.json({ data: entityView(world, changed) }, { headers: { 'set-cookie': entitiesCookie(next) } });
+    return HttpResponse.json({ data: entityView(world, changed) }, { headers: { 'set-cookie': cookie } });
   }),
 
   mock('delete', `${W}/entities/{entity_id}`, ({ request, cookies, params }) => {
-    const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'entities:write' });
+    const caller = workspaceCaller(request, cookies, params.workspace_id, WRITE);
     if (caller instanceof Response) return caller;
     const entity = entityIn(caller, params.entity_id);
     if (!entity) return problem(request, 'not_found');
     // A role keeps history even once removed, so an entity any project ever named stays
-    if (caller.world.roles.some((role) => role.entity_id === entity.entity_id)) {
-      return problem(request, 'entity_in_use', { detail: 'A project gives this entity a role, or did.' });
-    }
-    if (caller.world.entities.some((other) => other.parent_entity_id === entity.entity_id)) {
-      return problem(request, 'entity_in_use', { detail: 'Products name this entity as their brand.' });
+    if (
+      caller.world.roles.some((role) => role.entity_id === entity.entity_id) ||
+      caller.world.entities.some((other) => other.parent_entity_id === entity.entity_id)
+    ) {
+      return problem(request, 'entity_in_use', {
+        detail: 'A project has named this entity, or it has products. Remove those first.',
+      });
     }
     let next = withDeleted(caller.entityChanges, 'entities', entity.entity_id);
     for (const alias of caller.world.aliases.filter((row) => row.entity_id === entity.entity_id)) {
@@ -462,7 +496,8 @@ export const entityHandlers: HttpHandler[] = [
     for (const domain of caller.world.domains.filter((row) => row.entity_id === entity.entity_id)) {
       next = withDeleted(next, 'domains', domain.entity_domain_id);
     }
-    return noContent({ 'set-cookie': entitiesCookie(next) });
+    const cookie = savedEntities(request, next);
+    return typeof cookie === 'string' ? noContent({ 'set-cookie': cookie }) : cookie;
   }),
 
   mock('get', `${W}/entities/{entity_id}/aliases`, ({ request, cookies, params }) => {
@@ -474,7 +509,7 @@ export const entityHandlers: HttpHandler[] = [
   }),
 
   mock('post', `${W}/entities/{entity_id}/aliases`, async ({ request, cookies, params }) => {
-    const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'entities:write' });
+    const caller = workspaceCaller(request, cookies, params.workspace_id, WRITE);
     if (caller instanceof Response) return caller;
     const entity = entityIn(caller, params.entity_id);
     if (!entity) return problem(request, 'not_found');
@@ -485,20 +520,19 @@ export const entityHandlers: HttpHandler[] = [
     const incoming = isRecord(body) && 'items' in body ? aliasBatch(body) : single(aliasInput(body, ''));
     if (!isAliasList(incoming)) return invalid(request, incoming);
     const existing = aliasesOf(caller.world, entity.entity_id).map(valuesOfAlias);
-    if (repeatedAlias(existing, incoming)) return duplicate(request, 'The entity already has this alias.');
-    const now = new Date().toISOString();
-    const rows = incoming.map((alias) => storedAlias(alias, entity.entity_id, caller.session.user.user_id, now));
+    if (repeatsAlias(existing, incoming)) return duplicate(request, 'The entity has this alias already.');
+    const ids = idMinter(caller.entityChanges);
+    const rows = incoming.map((alias) => aliasRow(ids.next('alias'), alias, entity));
     let next = caller.entityChanges;
     for (const row of rows) next = withCreated(next, 'aliases', row);
-    next = bumpedFor(next, caller.world, entity.entity_id);
-    return HttpResponse.json(
-      { data: rows.map(aliasView) },
-      { status: 201, headers: { 'set-cookie': entitiesCookie(next) } },
-    );
+    next = ids.commit(bumpedFor(next, caller.world, entity.entity_id));
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
+    return HttpResponse.json({ data: rows.map(aliasView) }, { status: 201, headers: { 'set-cookie': cookie } });
   }),
 
   mock('patch', `${W}/entities/{entity_id}/aliases/{alias_id}`, async ({ request, cookies, params }) => {
-    const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'entities:write' });
+    const caller = workspaceCaller(request, cookies, params.workspace_id, WRITE);
     if (caller instanceof Response) return caller;
     const entity = entityIn(caller, params.entity_id);
     const alias = entity
@@ -528,7 +562,13 @@ export const entityHandlers: HttpHandler[] = [
     const current = valuesOfAlias(alias);
     const mode = isOneOf(body.match_mode, MATCH_MODES) ? body.match_mode : current.match_mode;
     const caseSensitive = typeof body.case_sensitive === 'boolean' ? body.case_sensitive : current.case_sensitive;
-    const shaped = aliasShape(typeof body.alias === 'string' ? body.alias : current.alias, mode, caseSensitive, '');
+    // The merged alias is shaped again and reported on `alias`, as the backend's service does
+    const shaped = aliasShape(
+      typeof body.alias === 'string' ? body.alias : current.alias,
+      mode,
+      caseSensitive,
+      'alias',
+    );
     if (typeof shaped !== 'string') return invalid(request, [shaped]);
     const changed: AliasValues = {
       alias: shaped,
@@ -546,16 +586,17 @@ export const entityHandlers: HttpHandler[] = [
     const others = aliasesOf(caller.world, entity.entity_id)
       .filter((row) => row.alias_id !== alias.alias_id)
       .map(valuesOfAlias);
-    if (repeatedAlias(others, [changed])) return duplicate(request, 'The entity already has this alias.');
-    let next = withEdited(caller.entityChanges, 'aliases', alias.alias_id, changed);
-    next = bumpedFor(next, caller.world, entity.entity_id);
+    if (repeatsAlias(others, [changed])) return duplicate(request, 'The entity has this alias already.');
+    const next = bumpedFor(withEdited(caller.entityChanges, 'aliases', alias, changed), caller.world, entity.entity_id);
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const saved = entityWorld(next, caller.changes).aliases.find((row) => row.alias_id === alias.alias_id);
     if (!saved) throw new Error('The changed alias is missing');
-    return HttpResponse.json({ data: aliasView(saved) }, { headers: { 'set-cookie': entitiesCookie(next) } });
+    return HttpResponse.json({ data: aliasView(saved) }, { headers: { 'set-cookie': cookie } });
   }),
 
   mock('delete', `${W}/entities/{entity_id}/aliases/{alias_id}`, ({ request, cookies, params }) => {
-    const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'entities:write' });
+    const caller = workspaceCaller(request, cookies, params.workspace_id, WRITE);
     if (caller instanceof Response) return caller;
     const entity = entityIn(caller, params.entity_id);
     const alias = entity
@@ -567,7 +608,8 @@ export const entityHandlers: HttpHandler[] = [
       caller.world,
       entity.entity_id,
     );
-    return noContent({ 'set-cookie': entitiesCookie(next) });
+    const cookie = savedEntities(request, next);
+    return typeof cookie === 'string' ? noContent({ 'set-cookie': cookie }) : cookie;
   }),
 
   mock('get', `${W}/entities/{entity_id}/domains`, ({ request, cookies, params }) => {
@@ -579,7 +621,7 @@ export const entityHandlers: HttpHandler[] = [
   }),
 
   mock('post', `${W}/entities/{entity_id}/domains`, async ({ request, cookies, params }) => {
-    const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'entities:write' });
+    const caller = workspaceCaller(request, cookies, params.workspace_id, WRITE);
     if (caller instanceof Response) return caller;
     const entity = entityIn(caller, params.entity_id);
     if (!entity) return problem(request, 'not_found');
@@ -588,21 +630,26 @@ export const entityHandlers: HttpHandler[] = [
     if (Array.isArray(rule)) return invalid(request, rule);
     const existing = caller.world.domains.filter((row) => row.entity_id === entity.entity_id).map(valuesOfDomain);
     if (existing.some((other) => sameRule(other, rule))) {
-      return duplicate(request, 'The entity already claims this domain at this scope.');
+      return duplicate(request, 'The entity claims this domain at this scope already.');
     }
-    const row = storedDomain(rule, entity.entity_id);
+    const ids = idMinter(caller.entityChanges);
+    const row = domainRow(ids.next('domain'), rule, entity.entity_id);
     const warnings: 'domain_role_conflict'[] = roleConflict(caller.world, entity.entity_id, rule)
       ? ['domain_role_conflict']
       : [];
-    const next = bumpedFor(withCreated(caller.entityChanges, 'domains', row), caller.world, entity.entity_id);
+    const next = ids.commit(
+      bumpedFor(withCreated(caller.entityChanges, 'domains', row), caller.world, entity.entity_id),
+    );
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     return HttpResponse.json(
       { data: entityDomainView(row), meta: { warnings } },
-      { status: 201, headers: { 'set-cookie': entitiesCookie(next) } },
+      { status: 201, headers: { 'set-cookie': cookie } },
     );
   }),
 
   mock('delete', `${W}/entities/{entity_id}/domains/{entity_domain_id}`, ({ request, cookies, params }) => {
-    const caller = workspaceCaller(request, cookies, params.workspace_id, { permission: 'entities:write' });
+    const caller = workspaceCaller(request, cookies, params.workspace_id, WRITE);
     if (caller instanceof Response) return caller;
     const entity = entityIn(caller, params.entity_id);
     const domain = entity
@@ -616,16 +663,14 @@ export const entityHandlers: HttpHandler[] = [
       caller.world,
       entity.entity_id,
     );
-    return noContent({ 'set-cookie': entitiesCookie(next) });
+    const cookie = savedEntities(request, next);
+    return typeof cookie === 'string' ? noContent({ 'set-cookie': cookie }) : cookie;
   }),
 ];
 
-/** `{ items }` of 1 to 200 aliases, or its errors. */
-function aliasBatch(body: Readonly<Record<string, unknown>>): AliasValues[] | ValidationItem[] {
-  const errors = extraMembers(body, ['items']);
-  const items = body.items;
-  if (!Array.isArray(items)) return [...errors, bodyError('items', 'list_type', 'Input should be a valid list')];
-  if (items.length === 0) return [...errors, bodyError('items', 'too_short', 'At least 1 item.')];
-  const parsed = aliasList(items, 'items', MAX_ALIASES);
-  return errors.length > 0 ? [...errors, ...(isAliasList(parsed) ? [] : parsed)] : parsed;
+/** The errors of `filter[q]`: 1 to 200 characters. */
+function textErrorOfQuery(text: string): ValidationItem[] {
+  if (text.length === 0) return [queryError('filter[q]', 'string_too_short', 'At least 1 character.')];
+  if (text.length > MAX_QUERY_TEXT) return [queryError('filter[q]', 'string_too_long', 'At most 200 characters.')];
+  return [];
 }

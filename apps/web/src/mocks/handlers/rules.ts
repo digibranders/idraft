@@ -1,5 +1,4 @@
-import { decodeJson, encodeJson } from '../cookie-json';
-import { isPublicSuffix } from '../factories/domain';
+import { isPublicSuffix, registrableDomain } from '../factories/domain';
 import type { ValidationItem } from '@/lib/api/types';
 import { normalizeDomain } from '@/lib/domains/normalize';
 
@@ -112,7 +111,7 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_CURSOR_LENGTH = 512;
 
-export interface PageRequest {
+interface PageRequest {
   limit: number;
   cursor: string | null;
 }
@@ -132,7 +131,19 @@ export function pageRequest(url: URL): PageRequest | ValidationItem[] {
   return errors.length > 0 ? errors : { limit, cursor };
 }
 
-export interface CursorPage<T> {
+/** A cursor as base64url JSON, like the API's, so it goes into a URL as it is. */
+function toCursor(value: unknown): string {
+  let binary = '';
+  for (const byte of new TextEncoder().encode(JSON.stringify(value))) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+}
+
+function fromCursor(cursor: string): unknown {
+  const binary = atob(cursor.replaceAll('-', '+').replaceAll('_', '/'));
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0))));
+}
+
+interface CursorPage<T> {
   data: T[];
   page: { limit: number; next_cursor: string | null; has_more: boolean };
 }
@@ -147,7 +158,7 @@ export function cursorPage<T>(rows: readonly T[], request: PageRequest, filters:
   if (request.cursor !== null) {
     let position: unknown;
     try {
-      position = decodeJson(request.cursor);
+      position = fromCursor(request.cursor);
     } catch (error) {
       if (error instanceof SyntaxError || error instanceof DOMException) return null;
       throw error;
@@ -161,7 +172,7 @@ export function cursorPage<T>(rows: readonly T[], request: PageRequest, filters:
     data: rows.slice(offset, end),
     page: {
       limit: request.limit,
-      next_cursor: hasMore ? encodeJson({ offset: end, filters }) : null,
+      next_cursor: hasMore ? toCursor({ offset: end, filters }) : null,
       has_more: hasMore,
     },
   };
@@ -169,14 +180,17 @@ export function cursorPage<T>(rows: readonly T[], request: PageRequest, filters:
 
 // Domains (19 section 3.4, DomainInput).
 
-export const MATCH_SCOPES = ['path_prefix', 'host', 'registrable'] as const;
-export type MatchScope = (typeof MATCH_SCOPES)[number];
+const MATCH_SCOPES = ['path_prefix', 'host', 'registrable'] as const;
+type MatchScope = (typeof MATCH_SCOPES)[number];
 const MAX_DOMAIN_INPUT = 2048;
 const MAX_PATH_PREFIX = 512;
 
-/** The canonical host of a domain the API accepts (a host or an http(s) URL), or `null`. */
-export function canonicalHost(raw: string): string | null {
-  const normalized = normalizeDomain(raw);
+/**
+ * The canonical host of a domain the API accepts (a host or an http(s) URL), or `null`. A host or path rule
+ * keeps a leading `www.` as given (`keepWww`), as the backend's canonicalizer does.
+ */
+export function canonicalHost(raw: string, { keepWww = false }: { keepWww?: boolean } = {}): string | null {
+  const normalized = normalizeDomain(raw, { keepWww });
   return normalized.ok ? normalized.domain : null;
 }
 
@@ -232,7 +246,7 @@ export function domainInput(value: unknown, prefix: string): DomainValues | Vali
     }
   }
   if (errors.length > 0) return errors;
-  const host = typeof value.domain === 'string' ? canonicalHost(value.domain) : null;
+  const host = typeof value.domain === 'string' ? canonicalHost(value.domain, { keepWww: true }) : null;
   if (host === null) return [bodyError(at(prefix, 'domain'), 'invalid_domain', 'Not a host name or an http(s) URL.')];
   const scope: MatchScope = isOneOf(value.match_scope, MATCH_SCOPES) ? value.match_scope : 'registrable';
   // Model-level rules report at the input itself, as Pydantic's model validators do
@@ -246,13 +260,18 @@ export function domainInput(value: unknown, prefix: string): DomainValues | Vali
       bodyError(prefix, 'domain_is_public_suffix', 'A public suffix is shared by many sites; name a host under it.'),
     ];
   }
-  return { host, match_scope: scope, path_prefix: pathPrefix };
+  // A registrable rule is stored against the registrable domain: `blog.acme.com` and `www.acme.com` are `acme.com`
+  return {
+    host: scope === 'registrable' ? registrableDomain(host) : host,
+    match_scope: scope,
+    path_prefix: pathPrefix,
+  };
 }
 
 // Aliases (19 section 3.4, AliasInput).
 
 export const MATCH_MODES = ['word_boundary', 'exact_case', 'substring', 'regex'] as const;
-export type MatchMode = (typeof MATCH_MODES)[number];
+type MatchMode = (typeof MATCH_MODES)[number];
 const MAX_ALIAS = 200;
 const LANGUAGE = /^[a-z]{2}$/;
 
@@ -269,7 +288,7 @@ export interface AliasValues {
  * Whether the browser can compile a regex alias. The API compiles it with RE2, which also refuses
  * backreferences, lookaround and very large programs; the mock refuses only what `RegExp` cannot compile.
  */
-export function compiles(pattern: string, caseSensitive: boolean): boolean {
+function compiles(pattern: string, caseSensitive: boolean): boolean {
   try {
     new RegExp(pattern, caseSensitive ? 'gu' : 'giu');
     return true;
@@ -340,12 +359,16 @@ export function aliasInput(value: unknown, prefix: string): AliasValues | Valida
   };
 }
 
+/** A word or substring alias that ignores case is the same alias whatever its case. */
+const foldsCase = (alias: AliasValues): boolean =>
+  (alias.match_mode === 'word_boundary' || alias.match_mode === 'substring') && !alias.case_sensitive;
+
 /**
- * Whether two aliases of one entity are the same: an alias that ignores case is a duplicate in any case
- * (19 section 3.4, as built).
+ * Whether two aliases of one entity are the same, as the backend's unique keys say (migration 0010): the same
+ * text, match mode and negativity, or, for two that fold case, the same text in any case. A negative alias
+ * and a pattern may repeat a positive word alias's text.
  */
-export const sameAlias = (
-  a: { alias: string; case_sensitive: boolean },
-  b: { alias: string; case_sensitive: boolean },
-): boolean =>
-  a.case_sensitive && b.case_sensitive ? a.alias === b.alias : a.alias.toLowerCase() === b.alias.toLowerCase();
+export const sameAlias = (a: AliasValues, b: AliasValues): boolean =>
+  a.match_mode === b.match_mode &&
+  a.is_negative === b.is_negative &&
+  (a.alias === b.alias || (foldsCase(a) && foldsCase(b) && a.alias.toLowerCase() === b.alias.toLowerCase()));

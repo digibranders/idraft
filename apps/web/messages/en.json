@@ -893,7 +893,7 @@
     },
     "aliases": {
       "title": "Aliases",
-      "description": "Other names that count as this entity in AI answers. Names made from its domains count too.",
+      "description": "Other names that count as this entity in AI answers. Its own name and names made from its domains count too.",
       "empty": "No aliases yet. The name above is matched as it is.",
       "add": "Add alias",
       "addTitle": "Add an alias to {name}",
@@ -959,7 +959,9 @@
       "pasteCount": "{count, plural, one {# alias} other {# aliases}}",
       "pasteDuplicate": "{name} already has one of these aliases. Remove it from the list and try again.",
       "pasteSubmit": "Add aliases",
-      "pasted": "{count, plural, one {# alias added} other {# aliases added}}"
+      "pasted": "{count, plural, one {# alias added} other {# aliases added}}",
+      "pasteAllKnown": "Every line is already an alias of this entity.",
+      "pasteLeftOut": "{count, plural, one {# line was left out: it is an alias already.} other {# lines were left out: they are aliases already.}}"
     },
     "aliasTest": {
       "title": "Test against a sample answer",
@@ -982,6 +984,7 @@
         "aliasExact": "exact match",
         "aliasSubstring": "match inside a word",
         "aliasRegex": "pattern match",
+        "aliasName": "name match",
         "aliasDomain": "domain name match",
         "viaProduct": "match through a product"
       },

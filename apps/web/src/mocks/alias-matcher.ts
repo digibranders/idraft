@@ -5,8 +5,9 @@ import type { StoredAlias, StoredDomain, StoredEntity } from './entities-state';
  * and 5 (docs/13-ai-extraction-engine.md, backend `extraction/aliases.py`):
  *
  * - word aliases match between word boundaries and allow a plural `s` or `es`; exact-case aliases too, with
- *   case; substrings anywhere; regex aliases as written; and each host or registrable domain of an entity
- *   is a domain-shaped alias (`acme.io`, without `www.`);
+ *   case; substrings anywhere; regex aliases as written; every entity's name by itself, as a word alias that
+ *   ignores case (`alias_name`, which a stored alias of the same span replaces); and each host or registrable
+ *   domain of an entity is a domain-shaped alias (`acme.io`, without `www.`);
  * - a positive span inside a negative alias's span is dropped, and the negative is reported;
  * - a span scores 0.95, or 0.30 for an ambiguous entity or an alias that needs context, plus 0.35 when one of
  *   the entity's hints is within 40 words (backend plan D6); 0.70 and up is accepted, 0.40 and up uncertain;
@@ -17,9 +18,9 @@ import type { StoredAlias, StoredDomain, StoredEntity } from './entities-state';
  * folds no accents, quotes or dashes.
  */
 
-export type MatchMethod =
-  'alias_word' | 'alias_exact' | 'alias_substring' | 'alias_regex' | 'alias_domain' | 'via_product';
-export type MentionStatus = 'accepted' | 'uncertain' | 'discarded';
+type MatchMethod =
+  'alias_word' | 'alias_exact' | 'alias_substring' | 'alias_regex' | 'alias_name' | 'alias_domain' | 'via_product';
+type MentionStatus = 'accepted' | 'uncertain' | 'discarded';
 
 export interface MatcherEntity {
   entity: StoredEntity;
@@ -27,7 +28,7 @@ export interface MatcherEntity {
   domains: readonly StoredDomain[];
 }
 
-export interface MatchSpan {
+interface MatchSpan {
   start: number;
   end: number;
   alias_id: string | null;
@@ -36,21 +37,21 @@ export interface MatchSpan {
   status: MentionStatus;
 }
 
-export interface MatchMention {
+interface MatchMention {
   entity_id: string;
   spans: MatchSpan[];
   confidence: number;
   status: MentionStatus;
 }
 
-export interface MatchResult {
+interface MatchResult {
   mentions: MatchMention[];
   negatives_applied: { start: number; end: number; alias_id: string }[];
   skipped_alias_ids: string[];
 }
 
 /** More matches than this in one text is refused (`422 too_many_matches`), as the backend refuses it. */
-export const MAX_HITS = 250_000;
+const MAX_HITS = 250_000;
 
 export class TooManyMatchesError extends Error {
   constructor() {
@@ -78,8 +79,9 @@ const METHOD_RANK: Readonly<Record<MatchMethod, number>> = {
   alias_word: 1,
   alias_substring: 2,
   alias_regex: 3,
-  alias_domain: 4,
-  via_product: 5,
+  alias_name: 4,
+  alias_domain: 5,
+  via_product: 6,
 };
 
 const WORD = '[\\p{L}\\p{N}\\p{M}_]';
@@ -109,16 +111,23 @@ interface Pattern {
 /** A word or exact-case alias between word boundaries, a plural allowed; a substring anywhere. */
 function aliasPattern(alias: StoredAlias): RegExp {
   const mode = alias.match_mode ?? 'word_boundary';
-  const body = alias.alias.trim().split(/\s+/u).map(escaped).join('\\s+');
   const sensitive = (alias.case_sensitive ?? false) || mode === 'exact_case';
-  const flags = sensitive ? 'gu' : 'giu';
-  if (mode === 'substring') return new RegExp(body, flags);
-  const first = alias.alias.trim().at(0) ?? '';
-  const last = alias.alias.trim().at(-1) ?? '';
-  // A side needs a boundary only where the alias itself has a word character there (`C++`)
+  return mode === 'substring'
+    ? new RegExp(wordsOf(alias.alias), sensitive ? 'gu' : 'giu')
+    : wordPattern(alias.alias, sensitive);
+}
+
+/** The text with any run of spaces matching any run of whitespace. */
+const wordsOf = (text: string): string => text.trim().split(/\s+/u).map(escaped).join('\\s+');
+
+/** `text` between word boundaries, a plural allowed. */
+function wordPattern(text: string, sensitive: boolean): RegExp {
+  const first = text.trim().at(0) ?? '';
+  const last = text.trim().at(-1) ?? '';
+  // A side needs a boundary only where the text itself has a word character there (`C++`)
   const before = IS_WORD.test(first) ? `(?<!${WORD})` : '';
   const after = IS_WORD.test(last) ? `(?=(?:es|s)?(?!${WORD}))` : '';
-  return new RegExp(`${before}${body}${after}`, flags);
+  return new RegExp(`${before}${wordsOf(text)}${after}`, sensitive ? 'gu' : 'giu');
 }
 
 /** `www.acme.io` and `acme.io/pricing` hold the domain; `notacme.io` and `acme.io.evil.com` do not. */
@@ -143,6 +152,15 @@ function patternsOf(entities: readonly MatcherEntity[], skipped: string[]): Patt
         continue;
       }
       patterns.push({ regex, entityId: entity.entity_id, alias, method: METHOD[mode] });
+    }
+    // The name by itself, so an entity with no aliases is still found
+    if (entity.canonical_name.trim() !== '') {
+      patterns.push({
+        regex: wordPattern(entity.canonical_name, false),
+        entityId: entity.entity_id,
+        alias: null,
+        method: 'alias_name',
+      });
     }
     const hosts = new Set(
       domains.filter((domain) => (domain.match_scope ?? 'registrable') !== 'path_prefix').map((domain) => domain.host),

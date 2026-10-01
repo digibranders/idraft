@@ -57,7 +57,7 @@ export function EntityAliasesSection({ scope, entity, canWrite }: EntityAliasesS
       }
     }
     setRemoved(true);
-    refreshEntities(queryClient, scope, entity.entity_id);
+    refreshEntities(queryClient, scope);
     toast({ type: 'success', title: t('removed', { alias: removing.alias }) });
   };
 
@@ -173,6 +173,7 @@ export function EntityAliasesSection({ scope, entity, canWrite }: EntityAliasesS
         scope={scope}
         entityId={entity.entity_id}
         entityName={entity.canonical_name}
+        existing={entity.aliases.map((alias) => alias.alias)}
         open={pasting}
         onClose={() => setPasting(false)}
       />

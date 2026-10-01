@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { MOCK_LOCATIONS } from '../entity-fixtures';
-import type { DomainCategory, Location } from '@/lib/api/types';
+import type { Location } from '@/lib/api/types';
 import { TEST_API_ORIGIN } from '@/test/api-server';
-import { dataOf, fieldCodes, mockBrowser } from '@/test/mock-api';
+import { CURSOR_PAGE, DOMAIN_CATEGORY, LOCATION } from '@/test/api-shapes';
+import { dataOf, fieldCodes, mockBrowser, pageOf, type Answer } from '@/test/mock-api';
 
+const locations = (answer: Answer): Location[] => dataOf(answer, z.array(LOCATION));
 const names = (rows: readonly Location[]): string[] => rows.map((row) => row.name);
 
 describe('locations', () => {
@@ -19,8 +22,8 @@ describe('locations', () => {
     let cursor: string | null = null;
     do {
       const answer = await viewer.call('GET', `/api/v1/locations?limit=5${cursor === null ? '' : `&cursor=${cursor}`}`);
-      seen.push(...names(dataOf<Location[]>(answer)));
-      cursor = (answer.body.page as { next_cursor: string | null }).next_cursor;
+      seen.push(...names(locations(answer)));
+      cursor = pageOf(answer, CURSOR_PAGE).next_cursor;
     } while (cursor !== null);
     expect(seen).toHaveLength(MOCK_LOCATIONS.length);
     expect(seen).toEqual([...seen].sort((a, b) => a.localeCompare(b)));
@@ -29,7 +32,7 @@ describe('locations', () => {
   it('filters by text, country, type and surface', async () => {
     const viewer = mockBrowser('viewer');
     const list = async (query: string): Promise<string[]> =>
-      names(dataOf<Location[]>(await viewer.call('GET', `/api/v1/locations?${query}`)));
+      names(locations(await viewer.call('GET', `/api/v1/locations?${query}`)));
     expect(await list('filter[q]=LON')).toEqual(['London,England,United Kingdom']);
     expect(await list('filter[country_iso]=us')).toEqual([
       'Los Angeles,California,United States',
@@ -40,7 +43,7 @@ describe('locations', () => {
     expect(countries).toHaveLength(12);
     expect(countries[0]).toBe('Australia');
     expect(await list('filter[supports]=ai_mode')).toEqual([]);
-    const london = dataOf<Location[]>(await viewer.call('GET', '/api/v1/locations?filter[q]=london'));
+    const london = locations(await viewer.call('GET', '/api/v1/locations?filter[q]=london'));
     expect(london[0]).toEqual({
       location_id: 1006886,
       name: 'London,England,United Kingdom',
@@ -62,14 +65,25 @@ describe('locations', () => {
     expect(fieldCodes(await viewer.call('GET', '/api/v1/locations?limit=500'))).toEqual(['limit:value_error']);
     expect(fieldCodes(await viewer.call('GET', '/api/v1/locations?country=US'))).toEqual(['country:extra_forbidden']);
     expect((await viewer.call('GET', '/api/v1/locations?cursor=nonsense')).code).toBe('invalid_cursor');
+    expect(fieldCodes(await viewer.call('GET', '/api/v1/locations?filter[q]='))).toEqual([
+      'filter[q]:string_too_short',
+    ]);
+    expect(fieldCodes(await viewer.call('GET', '/api/v1/locations?filter[location_type]='))).toEqual([
+      'filter[location_type]:string_too_short',
+    ]);
   });
 });
 
 describe('domain categories', () => {
-  it('lists the 15 categories of doc 14', async () => {
-    const categories = dataOf<DomainCategory[]>(await mockBrowser('viewer').call('GET', '/api/v1/domain-categories'));
-    expect(categories).toHaveLength(15);
-    expect(categories.map((category) => category.code)).toContain('review_aggregator');
+  it('lists the 15 categories of doc 14 by code', async () => {
+    const categories = dataOf(
+      await mockBrowser('viewer').call('GET', '/api/v1/domain-categories'),
+      z.array(DOMAIN_CATEGORY),
+    );
+    const codes = categories.map((category) => category.code);
+    expect(codes).toHaveLength(15);
+    expect(codes).toContain('review_aggregator');
+    expect(codes).toEqual([...codes].sort());
     expect((await fetch(`${TEST_API_ORIGIN}/api/v1/domain-categories`)).status).toBe(401);
   });
 });

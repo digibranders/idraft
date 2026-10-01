@@ -25,6 +25,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import type { components } from '@/lib/api/schema';
 import { domainMessageKey, normalizeDomain } from '@/lib/domains/normalize';
+import { otherNames } from '@/lib/entities/aliases';
 import { applyServerErrors } from '@/lib/forms';
 import { LANGUAGE_CODES, languageName } from '@/lib/format/language';
 import { useLocationSearch } from '@/lib/locations/use-location-search';
@@ -157,7 +158,8 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
           own_entity: {
             canonical_name: values.brand.trim(),
             domains: [values.primary_domain.trim()],
-            aliases: [...values.aliases],
+            // The matcher finds the brand's own name itself; these are its other names
+            aliases: otherNames(values.brand, values.aliases),
           },
         },
       });

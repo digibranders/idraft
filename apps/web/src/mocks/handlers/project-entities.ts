@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
-import { projectCaller, type ProjectCaller } from './access';
+import { projectCaller, savedEntities, type ProjectCaller } from './access';
 import {
   bodyError,
   booleanError,
@@ -16,11 +16,10 @@ import {
 } from './rules';
 import { emptyChange } from './workspaces';
 import { matchAliases, TooManyMatchesError, type MatcherEntity } from '../alias-matcher';
+import { stateTime } from '../entities-codec';
 import {
-  entitiesCookie,
   entityWorld,
   isActiveRole,
-  roleKey,
   withCreated,
   withEdited,
   withVersionsBumped,
@@ -44,7 +43,7 @@ type Role = (typeof ROLES)[number];
 /** Active SEO competitors a project may have (doc 08 section 4). */
 export const MAX_SEO_COMPETITORS = 10;
 /** The alias test's limit, as UTF-8 (`413 payload_too_large` beyond). */
-export const MAX_ALIAS_TEST_BYTES = 100 * 1024;
+const MAX_ALIAS_TEST_BYTES = 100 * 1024;
 const ROLE_FIELDS = ['role', 'is_primary', 'track_seo', 'track_ai', 'color_index'] as const;
 const ROLE_ORDER: Readonly<Record<Role, number>> = { own: 0, competitor: 1, watch: 2 };
 
@@ -186,7 +185,7 @@ export const projectEntityHandlers: HttpHandler[] = [
     // Giving a removed entity a role again brings back its one row per project and entity
     const next = withVersionsBumped(
       existing
-        ? withEdited(caller.entityChanges, 'roles', roleKey(projectId, entityId), { ...values, removed_at: null })
+        ? withEdited(caller.entityChanges, 'roles', existing, { ...values, removed_at: null })
         : withCreated(caller.entityChanges, 'roles', {
             project_id: projectId,
             entity_id: entityId,
@@ -195,16 +194,18 @@ export const projectEntityHandlers: HttpHandler[] = [
             ...(values.track_seo ? {} : { track_seo: false }),
             ...(values.track_ai ? {} : { track_ai: false }),
             ...(values.color_index === null ? {} : { color_index: values.color_index }),
-            added_at: new Date().toISOString(),
+            added_at: stateTime(),
           }),
       [projectId],
     );
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const world = entityWorld(next, caller.changes);
     const saved = world.roles.find((role) => role.project_id === projectId && role.entity_id === entityId);
     if (!saved) throw new Error('The new role is missing');
     return HttpResponse.json(
       { data: projectEntityView(world, saved) },
-      { status: 201, headers: { 'set-cookie': entitiesCookie(next) } },
+      { status: 201, headers: { 'set-cookie': cookie } },
     );
   }),
 
@@ -241,7 +242,7 @@ export const projectEntityHandlers: HttpHandler[] = [
       if (full) return full;
     }
     const next = withVersionsBumped(
-      withEdited(caller.entityChanges, 'roles', roleKey(projectId, entityId), {
+      withEdited(caller.entityChanges, 'roles', current, {
         role,
         is_primary: primary,
         track_seo: trackSeo,
@@ -251,13 +252,12 @@ export const projectEntityHandlers: HttpHandler[] = [
       }),
       [projectId],
     );
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const world = entityWorld(next, caller.changes);
     const saved = world.roles.find((row) => row.project_id === projectId && row.entity_id === entityId);
     if (!saved) throw new Error('The changed role is missing');
-    return HttpResponse.json(
-      { data: projectEntityView(world, saved) },
-      { headers: { 'set-cookie': entitiesCookie(next) } },
-    );
+    return HttpResponse.json({ data: projectEntityView(world, saved) }, { headers: { 'set-cookie': cookie } });
   }),
 
   mock('delete', `${P}/entities/{entity_id}`, ({ request, cookies, params }) => {
@@ -271,19 +271,15 @@ export const projectEntityHandlers: HttpHandler[] = [
     if (!isActiveRole(current)) return HttpResponse.json({ data: projectEntityView(caller.world, current) });
     if (current.role === 'own' && (current.is_primary ?? false)) return problem(request, 'cannot_remove_primary_own');
     const projectId = caller.project.project_id;
-    const next = withVersionsBumped(
-      withEdited(caller.entityChanges, 'roles', roleKey(projectId, current.entity_id), {
-        removed_at: new Date().toISOString(),
-      }),
-      [projectId],
-    );
+    const next = withVersionsBumped(withEdited(caller.entityChanges, 'roles', current, { removed_at: stateTime() }), [
+      projectId,
+    ]);
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const world = entityWorld(next, caller.changes);
     const saved = world.roles.find((row) => row.project_id === projectId && row.entity_id === current.entity_id);
     if (!saved) throw new Error('The removed role is missing');
-    return HttpResponse.json(
-      { data: projectEntityView(world, saved) },
-      { headers: { 'set-cookie': entitiesCookie(next) } },
-    );
+    return HttpResponse.json({ data: projectEntityView(world, saved) }, { headers: { 'set-cookie': cookie } });
   }),
 
   mock('get', `${P}/domains`, ({ request, cookies, params }) => {

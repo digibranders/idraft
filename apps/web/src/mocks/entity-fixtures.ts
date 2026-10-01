@@ -1,4 +1,5 @@
 import { MOCK_CREATED_AT, MOCK_PROJECTS } from './fixtures';
+import { mockId } from './mock-ids';
 import type {
   StoredAlias,
   StoredDomain,
@@ -20,11 +21,11 @@ const [fynixSeed, cleanstartSeed] = MOCK_PROJECTS;
 const FYNIX_PROJECT = fynixSeed?.project_id ?? '';
 const CLEANSTART_PROJECT = cleanstartSeed?.project_id ?? '';
 
-const entityId = (n: number): string => `0192d1a8-e001-7a10-8e01-${String(n).padStart(12, '0')}`;
-const aliasId = (n: number): string => `0192d1a8-e002-7a10-8e02-${String(n).padStart(12, '0')}`;
-const domainRowId = (n: number): string => `0192d1a8-e003-7a10-8e03-${String(n).padStart(12, '0')}`;
-const vocabularyId = (n: number): string => `0192d1a8-e004-7a10-8e04-${String(n).padStart(12, '0')}`;
-const termId = (n: number): string => `0192d1a8-e005-7a10-8e05-${String(n).padStart(12, '0')}`;
+const entityId = (n: number): string => mockId('entity', n);
+const aliasId = (n: number): string => mockId('alias', n);
+const domainRowId = (n: number): string => mockId('domain', n);
+const vocabularyId = (n: number): string => mockId('vocabulary', n);
+const termId = (n: number): string => mockId('term', n);
 
 /** The ids tests and screens refer to by name. */
 export const MOCK_ENTITY_IDS = {

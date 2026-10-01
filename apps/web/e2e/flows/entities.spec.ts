@@ -26,6 +26,9 @@ test.describe('entities, domains and taxonomy', () => {
     await expect(
       page.getByRole('table', { name: 'Own brand' }).getByRole('link', { name: 'Acme Studio' }),
     ).toBeVisible();
+    await page.getByRole('table', { name: 'Own brand' }).getByRole('link', { name: 'Acme Studio' }).click();
+    const aliases = page.getByRole('table', { name: 'Aliases' });
+    await expect(aliases.getByRole('rowheader', { name: 'Acme', exact: true })).toBeVisible();
     await page.goto('/digibranders/acme-studio/settings/general');
     await expect(page.getByRole('combobox', { name: /^Location/ })).toHaveValue('Germany');
   });

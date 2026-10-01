@@ -2,6 +2,8 @@ import type { HttpResponse } from 'msw';
 
 import { unknownQuery } from './rules';
 import {
+  ENTITIES_COOKIE,
+  entitiesCookie,
   entityConfigVersion,
   entityWorld,
   readEntityChanges,
@@ -61,15 +63,30 @@ interface Gate {
   permission: Permission;
   /** The query parameters the route has; any other is a `422`. */
   query?: readonly string[];
+  /**
+   * The route changes something every project shares (a workspace entity), so a member limited to some
+   * projects gets `403` (backend `require_permission(..., every_project=True)`).
+   */
+  everyProject?: boolean;
 }
 
 type PathParam = string | readonly string[] | undefined;
+
+/** The `Set-Cookie` that keeps `changes`, or the `422` to answer when they no longer fit in the cookie. */
+export function savedEntities(request: Request, changes: EntityChanges): string | HttpResponse<Problem> {
+  return (
+    entitiesCookie(changes) ??
+    problem(request, 'mock_state_full', {
+      detail: `What this browser changed no longer fits in the mock state. Expire the ${ENTITIES_COOKIE} cookie to start again from the fixtures.`,
+    })
+  );
+}
 
 export function workspaceCaller(
   request: Request,
   cookies: Readonly<Record<string, string>>,
   workspaceId: PathParam,
-  { permission, query = [] }: Gate,
+  { permission, query = [], everyProject = false }: Gate,
 ): WorkspaceCaller | HttpResponse<Problem> {
   const session = signedIn(cookies);
   if (!session) return problem(request, 'unauthenticated');
@@ -80,6 +97,9 @@ export function workspaceCaller(
   const access = accessTo(workspaceId, session.user, changes, cookies);
   if (!access) return problem(request, 'not_found');
   if (!can(access, permission)) return problem(request, 'forbidden');
+  if (everyProject && access.membership.project_ids !== null) {
+    return problem(request, 'forbidden', { detail: 'Not available to a member who is limited to some projects.' });
+  }
   const entityChanges = readEntityChanges(cookies);
   return {
     session,

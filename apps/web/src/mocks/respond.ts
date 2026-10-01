@@ -82,6 +82,8 @@ const PROBLEMS = {
   competitor_limit: [422, 'Competitor limit reached'],
   cycle_detected: [422, 'Would make a cycle'],
   too_many_matches: [422, 'Too many matches'],
+  // The mocks' own: what a browser changed no longer fits in its cookie
+  mock_state_full: [422, 'Mock state is full'],
   weak_password: [422, 'Password is not strong enough'],
   rate_limited: [429, 'Too many requests'],
 } as const satisfies Record<string, readonly [number, string]>;

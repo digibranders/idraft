@@ -135,7 +135,7 @@ function AliasForm({
       setAlert(isApiProblem(error, 'not_found') ? t('gone') : t('saveFailed'));
       return;
     }
-    refreshEntities(queryClient, scope, entityId);
+    refreshEntities(queryClient, scope);
     toast({ type: 'success', title: t(initial === null ? 'added' : 'changed', { alias: trimmed }) });
     onClose();
   };
@@ -246,6 +246,8 @@ export interface PasteAliasesDialogProps {
   scope: ProjectScope;
   entityId: string;
   entityName: string;
+  /** The entity's aliases now: a pasted line that repeats one is left out rather than refused. */
+  existing: readonly string[];
   open: boolean;
   onClose: () => void;
 }
@@ -255,7 +257,13 @@ export function PasteAliasesDialog({ open, ...props }: PasteAliasesDialogProps):
   return open ? <PasteAliasesForm {...props} /> : null;
 }
 
-function PasteAliasesForm({ scope, entityId, entityName, onClose }: Omit<PasteAliasesDialogProps, 'open'>): ReactNode {
+function PasteAliasesForm({
+  scope,
+  entityId,
+  entityName,
+  existing,
+  onClose,
+}: Omit<PasteAliasesDialogProps, 'open'>): ReactNode {
   const t = useTranslations('entitySettings.aliases');
   const common = useTranslations('common');
   const queryClient = useQueryClient();
@@ -263,17 +271,24 @@ function PasteAliasesForm({ scope, entityId, entityName, onClose }: Omit<PasteAl
   const [text, setText] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [alert, setAlert] = useState<string | null>(null);
-  const lines = [
-    ...new Set(
-      text
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line !== ''),
-    ),
-  ];
+  // Each name once whatever its case, and none the entity already has (the API refuses those)
+  const known = new Set(existing.map((alias) => alias.toLocaleLowerCase()));
+  const typed = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+  const lines = typed.filter((line) => {
+    const key = line.toLocaleLowerCase();
+    if (known.has(key)) return false;
+    known.add(key);
+    return true;
+  });
+  const left = typed.length - lines.length;
   const localError =
     lines.length === 0
-      ? t('pasteRequired')
+      ? typed.length > 0
+        ? t('pasteAllKnown')
+        : t('pasteRequired')
       : lines.length > MAX_ALIAS_BATCH
         ? t('pasteTooMany', { max: MAX_ALIAS_BATCH })
         : lines.some((line) => line.length > MAX_ALIAS_LENGTH)
@@ -293,8 +308,12 @@ function PasteAliasesForm({ scope, entityId, entityName, onClose }: Omit<PasteAl
       setAlert(isApiProblem(error, 'duplicate') ? t('pasteDuplicate', { name: entityName }) : t('saveFailed'));
       return;
     }
-    refreshEntities(queryClient, scope, entityId);
-    toast({ type: 'success', title: t('pasted', { count: lines.length }) });
+    refreshEntities(queryClient, scope);
+    toast({
+      type: 'success',
+      title: t('pasted', { count: lines.length }),
+      ...(left > 0 ? { description: t('pasteLeftOut', { count: left }) } : {}),
+    });
     onClose();
   };
 

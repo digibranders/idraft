@@ -27,6 +27,7 @@ import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation, apiQuery } from '@/lib/api/query';
 import { domainMessageKey, normalizeDomain } from '@/lib/domains/normalize';
+import { otherNames } from '@/lib/entities/aliases';
 
 const CREATE = apiMutation('post', '/api/v1/workspaces/{workspace_id}/entities');
 const ATTACH = apiMutation('post', '/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities');
@@ -120,13 +121,20 @@ function EntityForm({
   /** The id of the workspace entity with this name, found ignoring case, or `null`. */
   const findEntity = async (name: string): Promise<string | null> => {
     try {
-      const found = await queryClient.fetchQuery(
-        apiQuery('/api/v1/workspaces/{workspace_id}/entities', {
+      const found = await queryClient.fetchQuery({
+        ...apiQuery('/api/v1/workspaces/{workspace_id}/entities', {
           params: { path: { workspace_id: scope.workspaceId }, query: { 'filter[q]': name } },
         }),
-      );
+        // An entity created a moment ago, perhaps in another tab, has to be found
+        staleTime: 0,
+      });
       const lowered = name.toLocaleLowerCase();
-      return found.data.find((entity) => entity.canonical_name.toLocaleLowerCase() === lowered)?.entity_id ?? null;
+      // Names are unique per type, so the one to offer is the brand of this name
+      return (
+        found.data.find(
+          (entity) => entity.entity_type === 'brand' && entity.canonical_name.toLocaleLowerCase() === lowered,
+        )?.entity_id ?? null
+      );
     } catch {
       return null;
     }
@@ -170,7 +178,8 @@ function EntityForm({
             is_ambiguous: false,
             canonical_name: trimmedName,
             domains: [{ domain: domain.trim(), match_scope: 'registrable' }],
-            aliases: aliases.map(wordAlias),
+            // The matcher finds the name itself; stored aliases are the other names
+            aliases: otherNames(trimmedName, aliases).map(wordAlias),
           },
         });
         entityId = created.data.entity_id;
@@ -205,7 +214,7 @@ function EntityForm({
     try {
       await giveRole(entityId);
     } catch (error) {
-      refreshEntities(queryClient, scope, entityId);
+      refreshEntities(queryClient, scope);
       setAlert(
         isApiProblem(error, 'competitor_limit')
           ? t('competitorLimit', { limit: COMPETITOR_LIMIT })
@@ -215,7 +224,7 @@ function EntityForm({
       );
       return;
     }
-    refreshEntities(queryClient, scope, entityId);
+    refreshEntities(queryClient, scope);
     toast({
       type: 'success',
       title: t(role === 'competitor' ? 'addedCompetitor' : 'addedWatched', { name: trimmedName }),

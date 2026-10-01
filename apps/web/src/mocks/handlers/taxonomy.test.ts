@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { MOCK_TERM_IDS, MOCK_VOCABULARY_IDS } from '../entity-fixtures';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
 import type { Term, TermNode, Vocabulary } from '@/lib/api/types';
-import { dataOf, fieldCodes, mockBrowser } from '@/test/mock-api';
+import { OFFSET_PAGE, TERM, TERM_NODE, VOCABULARY } from '@/test/api-shapes';
+import { dataOf, fieldCodes, mockBrowser, pageOf, type Answer } from '@/test/mock-api';
+
+const vocabularies = (answer: Answer): Vocabulary[] => dataOf(answer, z.array(VOCABULARY));
+const vocabulary = (answer: Answer): Vocabulary => dataOf(answer, VOCABULARY);
+const termNodes = (answer: Answer): TermNode[] => dataOf(answer, z.array(TERM_NODE));
+const termList = (answer: Answer): Term[] => dataOf(answer, z.array(TERM));
+const oneTerm = (answer: Answer): Term => dataOf(answer, TERM);
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
 const [fynix, cleanstart, eventus] = MOCK_PROJECTS;
@@ -20,17 +28,17 @@ describe('vocabularies', () => {
   it('lists the workspace-wide ones first, then those of the projects the member may open, in offset pages', async () => {
     const viewer = mockBrowser('viewer');
     const all = await viewer.call('GET', `${W}/vocabularies`);
-    expect(dataOf<Vocabulary[]>(all).map((row) => [row.name, row.project_id, row.term_count])).toEqual([
+    expect(vocabularies(all).map((row) => [row.name, row.project_id, row.term_count])).toEqual([
       ['Topics', null, 6],
       ['Services', fynix.project_id, 3],
     ]);
-    expect(all.body.page).toEqual({ offset: 0, limit: 50, total: 2 });
-    const ofCleanstart = dataOf<Vocabulary[]>(
+    expect(pageOf(all, OFFSET_PAGE)).toEqual({ offset: 0, limit: 50, total: 2 });
+    const ofCleanstart = vocabularies(
       await viewer.call('GET', `${W}/vocabularies?filter[project_id]=${cleanstart.project_id}`),
     );
     expect(ofCleanstart.map((row) => row.name)).toEqual(['Topics']);
     expect(
-      dataOf<Vocabulary[]>(await viewer.call('GET', `${W}/vocabularies?filter[kind]=service`)).map((row) => row.name),
+      vocabularies(await viewer.call('GET', `${W}/vocabularies?filter[kind]=service`)).map((row) => row.name),
     ).toEqual(['Services']);
     expect(fieldCodes(await viewer.call('GET', `${W}/vocabularies?filter[kind]=colour`))).toEqual([
       'filter[kind]:enum',
@@ -50,6 +58,8 @@ describe('vocabularies', () => {
       body: { data: { name: 'Markets', project_id: eventus.project_id, is_hierarchical: true, term_count: 0 } },
     });
     expect((await editor.call('POST', `${W}/vocabularies`, { kind: 'topic', name: 'TOPICS' })).code).toBe('duplicate');
+    // A name is unique per scope and kind
+    expect((await editor.call('POST', `${W}/vocabularies`, { kind: 'tag', name: 'Topics' })).status).toBe(201);
     // The same name in a project is another scope
     expect(
       (await editor.call('POST', `${W}/vocabularies`, { kind: 'topic', name: 'Topics', project_id: fynix.project_id }))
@@ -65,7 +75,7 @@ describe('vocabularies', () => {
 
   it('hides a vocabulary of a project outside the member scope', async () => {
     const owner = mockBrowser('owner');
-    const markets = dataOf<Vocabulary>(
+    const markets = vocabulary(
       await owner.call('POST', `${W}/vocabularies`, {
         kind: 'market',
         name: 'Markets',
@@ -73,7 +83,7 @@ describe('vocabularies', () => {
       }),
     );
     const analyst = owner.as('analyst');
-    expect(dataOf<Vocabulary[]>(await analyst.call('GET', `${W}/vocabularies`)).map((row) => row.name)).not.toContain(
+    expect(vocabularies(await analyst.call('GET', `${W}/vocabularies`)).map((row) => row.name)).not.toContain(
       'Markets',
     );
     expect((await analyst.call('GET', `${W}/vocabularies/${markets.vocabulary_id}/terms`)).code).toBe('not_found');
@@ -85,7 +95,7 @@ describe('vocabularies', () => {
   it('renames one, refuses an empty change, and deletes one with its terms', async () => {
     const editor = mockBrowser('editor');
     const renamed = await editor.call('PATCH', TOPICS, { name: 'Themes', is_single_valued: true });
-    expect(dataOf<Vocabulary>(renamed)).toMatchObject({ name: 'Themes', is_single_valued: true, kind: 'topic' });
+    expect(vocabulary(renamed)).toMatchObject({ name: 'Themes', is_single_valued: true, kind: 'topic' });
     expect(fieldCodes(await editor.call('PATCH', TOPICS, {}))).toEqual([':value_error']);
     expect(fieldCodes(await editor.call('PATCH', TOPICS, { name: null }))).toEqual(['name:null_not_allowed']);
     expect(fieldCodes(await editor.call('PATCH', TOPICS, { kind: 'tag' }))).toEqual(['kind:extra_forbidden']);
@@ -110,13 +120,13 @@ describe('vocabularies', () => {
 describe('terms', () => {
   it('gives the tree with paths, or the flat list by path', async () => {
     const viewer = mockBrowser('viewer');
-    const tree = dataOf<TermNode[]>(await viewer.call('GET', `${TOPICS}/terms`));
+    const tree = termNodes(await viewer.call('GET', `${TOPICS}/terms`));
     expect(shape(tree)).toEqual([
       { 'content-marketing': ['content-marketing/blog-strategy'] },
       'paid-search',
       { seo: ['seo/local-seo', 'seo/technical-seo'] },
     ]);
-    const flat = dataOf<TermNode[]>(await viewer.call('GET', `${TOPICS}/terms?format=flat`));
+    const flat = termNodes(await viewer.call('GET', `${TOPICS}/terms?format=flat`));
     expect(flat.map((term) => term.path)).toEqual([
       'content-marketing',
       'content-marketing/blog-strategy',
@@ -131,20 +141,18 @@ describe('terms', () => {
 
   it('finds terms by name, with their ancestors in the tree', async () => {
     const viewer = mockBrowser('viewer');
-    expect(shape(dataOf<TermNode[]>(await viewer.call('GET', `${TOPICS}/terms?filter[q]=BLOG`)))).toEqual([
+    expect(shape(termNodes(await viewer.call('GET', `${TOPICS}/terms?filter[q]=BLOG`)))).toEqual([
       { 'content-marketing': ['content-marketing/blog-strategy'] },
     ]);
     expect(
-      dataOf<TermNode[]>(await viewer.call('GET', `${TOPICS}/terms?format=flat&filter[q]=seo`)).map(
-        (term) => term.name,
-      ),
+      termNodes(await viewer.call('GET', `${TOPICS}/terms?format=flat&filter[q]=seo`)).map((term) => term.name),
     ).toEqual(['SEO', 'Local SEO', 'Technical SEO']);
   });
 
   it('adds a term under a parent with a slug unique among its siblings, and refuses a name it has', async () => {
     const editor = mockBrowser('editor');
     const added = await editor.call('POST', `${TOPICS}/terms`, { name: 'Technical-SEO!', parent_id: terms.seo });
-    expect(dataOf<Term[]>(added)).toEqual([
+    expect(termList(added)).toEqual([
       expect.objectContaining({
         name: 'Technical-SEO!',
         slug: 'technical-seo-2',
@@ -172,7 +180,7 @@ describe('terms', () => {
         { path: 'SEO/Audits' },
       ],
     });
-    expect(dataOf<Term[]>(added).map((term) => term.path)).toEqual([
+    expect(termList(added).map((term) => term.path)).toEqual([
       'crm',
       'crm/crm-for-startups',
       'crm/agencies',
@@ -203,8 +211,8 @@ describe('terms', () => {
   it('moves a term with its subtree, and refuses a move under itself', async () => {
     const editor = mockBrowser('editor');
     const moved = await editor.call('PATCH', `${W}/terms/${terms.contentMarketing}`, { parent_id: terms.seo });
-    expect(dataOf<Term>(moved).path).toBe('seo/content-marketing');
-    const flat = dataOf<TermNode[]>(await editor.call('GET', `${TOPICS}/terms?format=flat&filter[q]=blog`));
+    expect(oneTerm(moved).path).toBe('seo/content-marketing');
+    const flat = termNodes(await editor.call('GET', `${TOPICS}/terms?format=flat&filter[q]=blog`));
     expect(flat.map((term) => term.path)).toEqual(['seo/content-marketing/blog-strategy']);
     expect((await editor.call('PATCH', `${W}/terms/${terms.seo}`, { parent_id: terms.blogStrategy })).code).toBe(
       'cycle_detected',
@@ -216,7 +224,7 @@ describe('terms', () => {
       parent_id: null,
       name: 'Content',
     });
-    expect(dataOf<Term>(root)).toMatchObject({ path: 'content-marketing', name: 'Content', parent_id: null });
+    expect(oneTerm(root)).toMatchObject({ path: 'content-marketing', name: 'Content', parent_id: null });
     expect((await editor.call('PATCH', `${W}/terms/${terms.localSeo}`, { name: 'technical seo' })).code).toBe(
       'duplicate',
     );
@@ -231,7 +239,7 @@ describe('terms', () => {
     ]);
     expect((await editor.call('DELETE', `${W}/terms/${terms.paidSearch}`)).status).toBe(204);
     expect((await editor.call('DELETE', `${W}/terms/${terms.seo}?cascade=true`)).status).toBe(204);
-    expect(shape(dataOf<TermNode[]>(await editor.call('GET', `${TOPICS}/terms`)))).toEqual([
+    expect(shape(termNodes(await editor.call('GET', `${TOPICS}/terms`)))).toEqual([
       { 'content-marketing': ['content-marketing/blog-strategy'] },
     ]);
     expect((await editor.call('PATCH', `${W}/terms/${terms.technicalSeo}`, { name: 'Tech' })).code).toBe('not_found');

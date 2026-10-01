@@ -386,6 +386,7 @@
               "alias_exact",
               "alias_substring",
               "alias_regex",
+              "alias_name",
               "alias_domain",
               "via_product"
             ],
@@ -4601,37 +4602,6 @@
         "operationId": "list_locations_api_v1_locations_get",
         "parameters": [
           {
-            "description": "`page.next_cursor` of the previous page.",
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 512,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "`page.next_cursor` of the previous page.",
-              "title": "Cursor"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "filter[q]",
             "required": false,
@@ -4639,6 +4609,7 @@
               "anyOf": [
                 {
                   "maxLength": 200,
+                  "minLength": 1,
                   "type": "string"
                 },
                 {
@@ -4673,6 +4644,7 @@
               "anyOf": [
                 {
                   "maxLength": 64,
+                  "minLength": 1,
                   "type": "string"
                 },
                 {
@@ -4701,6 +4673,37 @@
                 }
               ],
               "title": "Filter[Supports]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
             }
           }
         ],
@@ -5024,37 +5027,6 @@
             }
           },
           {
-            "description": "`page.next_cursor` of the previous page.",
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 512,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "`page.next_cursor` of the previous page.",
-              "title": "Cursor"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "filter[entity_type]",
             "required": false,
@@ -5085,6 +5057,7 @@
               "anyOf": [
                 {
                   "maxLength": 200,
+                  "minLength": 1,
                   "type": "string"
                 },
                 {
@@ -5112,7 +5085,7 @@
             }
           },
           {
-            "description": "With `filter[project_id]`.",
+            "description": "A live role, in any project or the one given.",
             "in": "query",
             "name": "filter[role]",
             "required": false,
@@ -5130,8 +5103,39 @@
                   "type": "null"
                 }
               ],
-              "description": "With `filter[project_id]`.",
+              "description": "A live role, in any project or the one given.",
               "title": "Filter[Role]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
             }
           }
         ],
@@ -5216,6 +5220,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/entities/{entity_id}": {
       "delete": {
+        "description": "Its aliases and domains go with it. `409 entity_in_use` when a project role, even a removed one, or a product names it.",
         "operationId": "delete_entity_api_v1_workspaces__workspace_id__entities__entity_id__delete",
         "parameters": [
           {
@@ -5674,6 +5679,7 @@
         ]
       },
       "post": {
+        "description": "A registrable rule is stored against the registrable domain itself (`https://www.acme.com/x` is `acme.com`); host and path prefix rules keep the host.",
         "operationId": "add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post",
         "parameters": [
           {

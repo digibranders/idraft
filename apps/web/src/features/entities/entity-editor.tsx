@@ -101,7 +101,7 @@ export function EntityEditor({
       <EntityDetailsForm scope={scope} entity={detail} canWrite={canWrite} />
       <EntityDomainsSection scope={scope} entity={detail} canWrite={canWrite} />
       <EntityAliasesSection scope={scope} entity={detail} canWrite={canWrite} />
-      {role === undefined ? null : <AliasTestSection scope={scope} />}
+      {role === undefined ? null : <AliasTestSection scope={scope} version={version} />}
     </div>
   );
 }

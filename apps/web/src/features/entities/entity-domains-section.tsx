@@ -56,6 +56,7 @@ export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsS
   const add = useMutation(ADD);
   const remove = useMutation(REMOVE);
   const domainInput = useRef<HTMLInputElement>(null);
+  const pathInput = useRef<HTMLInputElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const [domain, setDomain] = useState('');
   const [matchScope, setMatchScope] = useState<MatchScope>('registrable');
@@ -86,7 +87,10 @@ export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsS
       domainInput.current?.focus();
       return;
     }
-    if (localPathError !== null) return;
+    if (localPathError !== null) {
+      pathInput.current?.focus();
+      return;
+    }
     setConflict(null);
     try {
       const added = await add.mutateAsync({
@@ -97,7 +101,7 @@ export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsS
           path_prefix: matchScope === 'path_prefix' ? path : null,
         },
       });
-      refreshEntities(queryClient, scope, entity.entity_id);
+      refreshEntities(queryClient, scope);
       setDomain('');
       setPathPrefix('');
       if (added.meta.warnings.includes('domain_role_conflict')) setConflict(ruleText(added.data));
@@ -107,9 +111,12 @@ export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsS
         setDomainError(t('duplicate', { name: entity.canonical_name }));
       } else if (isApiProblem(error, 'validation_failed')) {
         const codes = error.errors.map((item) => item.code);
-        if (codes.includes('invalid_path_prefix') || codes.includes('path_prefix_mismatch'))
+        if (codes.includes('invalid_path_prefix') || codes.includes('path_prefix_mismatch')) {
           setPathError(t('pathInvalid'));
-        else setDomainError(domainCopy(codes.includes('domain_is_public_suffix') ? 'publicSuffix' : 'invalid'));
+          pathInput.current?.focus();
+          return;
+        }
+        setDomainError(domainCopy(codes.includes('domain_is_public_suffix') ? 'publicSuffix' : 'invalid'));
       } else {
         setDomainError(t('addFailed'));
       }
@@ -137,7 +144,7 @@ export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsS
       }
     }
     setRemoved(true);
-    refreshEntities(queryClient, scope, entity.entity_id);
+    refreshEntities(queryClient, scope);
     toast({ type: 'success', title: t('removed', { domain: ruleText(removing) }) });
   };
 
@@ -225,6 +232,7 @@ export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsS
             <Field invalid={pathError !== null} width="medium">
               <FieldLabel>{t('path')}</FieldLabel>
               <Input
+                ref={pathInput}
                 value={pathPrefix}
                 placeholder={t('pathPlaceholder')}
                 autoComplete="off"

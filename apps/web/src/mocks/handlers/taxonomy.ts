@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
-import { workspaceCaller, type WorkspaceCaller } from './access';
+import { savedEntities, workspaceCaller, type WorkspaceCaller } from './access';
 import {
   at,
   bodyError,
@@ -18,8 +18,8 @@ import {
 } from './rules';
 import { emptyChange } from './workspaces';
 import {
-  entitiesCookie,
   entityWorld,
+  idMinter,
   withCreated,
   withDeleted,
   withEdited,
@@ -29,8 +29,9 @@ import {
   type StoredVocabulary,
 } from '../entities-state';
 import { termView, vocabularyView } from '../factories/entity';
-import { MOCK_WORKSPACE } from '../fixtures';
+import { MOCK_CREATED_AT, MOCK_WORKSPACE } from '../fixtures';
 import { invalid, mock, noContent, problem } from '../respond';
+import { MAX_SLUG, termSlug } from '../term-slug';
 import type { TermNode, ValidationItem } from '@/lib/api/types';
 
 /**
@@ -38,14 +39,15 @@ import type { TermNode, ValidationItem } from '@/lib/api/types';
  * its terms form a tree whose `path` is the slugs from the root. Slugs are made from names and are unique
  * among siblings; a `path` such as `CRM/CRM for Startups` creates the parents it lacks; a move recomputes the
  * subtree's paths (they are derived, so nothing else is written) and may not make a cycle; a term with
- * children is deleted only with `cascade`. Changes are kept in the entities cookie (../entities-state.ts).
+ * children is deleted only with `cascade`. A vocabulary's name is unique per scope and kind, ignoring case
+ * (migration 0010). Changes are kept in the entities cookie (../entities-state.ts), where a term keeps the
+ * fixture time as its `created_at`.
  */
 
 const KINDS = ['topic', 'cluster', 'product', 'service', 'market', 'campaign', 'persona', 'tag', 'custom'] as const;
 const FORMATS = ['tree', 'flat'] as const;
 const MAX_VOCABULARY_NAME = 100;
 const MAX_TERM_NAME = 200;
-const MAX_SLUG = 100;
 const MAX_PATH = 1000;
 const MAX_DESCRIPTION = 2000;
 const MAX_TERMS = 500;
@@ -57,6 +59,8 @@ const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const TERM_FIELDS = ['name', 'parent_id', 'path', 'slug', 'description'] as const;
 
 const sameName = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+const VOCABULARY_TAKEN = 'A vocabulary of this scope and kind already has this name.';
 
 /** The project of a vocabulary, or `null` for a workspace-wide one. */
 const projectOf = (vocabulary: StoredVocabulary): string | null => vocabulary.project_id ?? null;
@@ -99,19 +103,6 @@ function subtreeOf(terms: readonly StoredTerm[], termId: string): StoredTerm[] {
     queue.push(...childrenOf(terms, term.term_id).map((child) => child.term_id));
   }
   return found;
-}
-
-/** A slug made from a name: lower case ASCII letters and digits joined by hyphens. */
-export function slugOf(name: string): string {
-  const slug = name
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, MAX_SLUG)
-    .replace(/-+$/, '');
-  return slug === '' ? 'term' : slug;
 }
 
 /** `slug`, or `slug-2`, `slug-3` and so on, whichever no sibling has. */
@@ -306,16 +297,19 @@ export const taxonomyHandlers: HttpHandler[] = [
       return invalid(request, [bodyError('project_id', 'project_unknown', 'A project is not in this workspace.')]);
     }
     const name = body.name.trim();
+    const kind = body.kind;
     if (
       visibleVocabularies(caller).some(
-        (vocabulary) => (vocabulary.project_id ?? null) === projectId && sameName(vocabulary.name, name),
+        (vocabulary) =>
+          projectOf(vocabulary) === projectId && vocabulary.kind === kind && sameName(vocabulary.name, name),
       )
     ) {
-      return problem(request, 'duplicate', { detail: 'A vocabulary of this scope already has this name.' });
+      return problem(request, 'duplicate', { detail: VOCABULARY_TAKEN });
     }
     const workspaceId = caller.access.workspace.workspace_id;
+    const ids = idMinter(caller.entityChanges);
     const row: StoredVocabulary = {
-      vocabulary_id: crypto.randomUUID(),
+      vocabulary_id: ids.next('vocabulary'),
       ...(workspaceId === MOCK_WORKSPACE.workspace_id ? {} : { workspace_id: workspaceId }),
       ...(projectId === null ? {} : { project_id: projectId }),
       kind: body.kind,
@@ -323,10 +317,12 @@ export const taxonomyHandlers: HttpHandler[] = [
       ...(body.is_hierarchical === true ? { is_hierarchical: true } : {}),
       ...(body.is_single_valued === true ? { is_single_valued: true } : {}),
     };
-    const next = withCreated(caller.entityChanges, 'vocabularies', row);
+    const next = ids.commit(withCreated(caller.entityChanges, 'vocabularies', row));
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     return HttpResponse.json(
       { data: vocabularyView(entityWorld(next, caller.changes), row) },
-      { status: 201, headers: { 'set-cookie': entitiesCookie(next) } },
+      { status: 201, headers: { 'set-cookie': cookie } },
     );
   }),
 
@@ -352,24 +348,24 @@ export const taxonomyHandlers: HttpHandler[] = [
       visibleVocabularies(caller).some(
         (other) =>
           other.vocabulary_id !== vocabulary.vocabulary_id &&
-          (other.project_id ?? null) === (vocabulary.project_id ?? null) &&
+          projectOf(other) === projectOf(vocabulary) &&
+          other.kind === vocabulary.kind &&
           sameName(other.name, name),
       )
     ) {
-      return problem(request, 'duplicate', { detail: 'A vocabulary of this scope already has this name.' });
+      return problem(request, 'duplicate', { detail: VOCABULARY_TAKEN });
     }
     // Turning on single-valued cannot fail yet: no subject has terms until keywords and prompts exist
-    const next = withEdited(caller.entityChanges, 'vocabularies', vocabulary.vocabulary_id, {
+    const next = withEdited(caller.entityChanges, 'vocabularies', vocabulary, {
       name,
       is_single_valued: typeof body.is_single_valued === 'boolean' ? body.is_single_valued : undefined,
     });
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const world = entityWorld(next, caller.changes);
     const saved = world.vocabularies.find((row) => row.vocabulary_id === vocabulary.vocabulary_id);
     if (!saved) throw new Error('The changed vocabulary is missing');
-    return HttpResponse.json(
-      { data: vocabularyView(world, saved) },
-      { headers: { 'set-cookie': entitiesCookie(next) } },
-    );
+    return HttpResponse.json({ data: vocabularyView(world, saved) }, { headers: { 'set-cookie': cookie } });
   }),
 
   mock('delete', `${W}/vocabularies/{vocabulary_id}`, ({ request, cookies, params }) => {
@@ -380,7 +376,8 @@ export const taxonomyHandlers: HttpHandler[] = [
     // Terms go with their vocabulary
     let next = withDeleted(caller.entityChanges, 'vocabularies', vocabulary.vocabulary_id);
     for (const term of termsOf(caller.world, vocabulary.vocabulary_id)) next = withDeleted(next, 'terms', term.term_id);
-    return noContent({ 'set-cookie': entitiesCookie(next) });
+    const cookie = savedEntities(request, next);
+    return typeof cookie === 'string' ? noContent({ 'set-cookie': cookie }) : cookie;
   }),
 
   mock('get', `${W}/vocabularies/{vocabulary_id}/terms`, ({ request, cookies, params }) => {
@@ -440,7 +437,7 @@ export const taxonomyHandlers: HttpHandler[] = [
     // Each input sees the terms the ones before it made, so a batch can build a tree
     const terms = [...termsOf(caller.world, vocabulary.vocabulary_id)];
     const created: StoredTerm[] = [];
-    const now = new Date().toISOString();
+    const ids = idMinter(caller.entityChanges);
     for (const input of inputs) {
       let parentId = input.parent_id;
       if (parentId !== null && !terms.some((term) => term.term_id === parentId)) {
@@ -462,13 +459,13 @@ export const taxonomyHandlers: HttpHandler[] = [
           return problem(request, 'duplicate', { detail: 'A term at this place already has this slug.' });
         }
         const term: StoredTerm = {
-          term_id: crypto.randomUUID(),
+          term_id: ids.next('term'),
           vocabulary_id: vocabulary.vocabulary_id,
           ...(parentId === null ? {} : { parent_id: parentId }),
           name,
-          slug: last && input.slug !== null ? input.slug : freeSlug(siblings, slugOf(name)),
+          slug: last && input.slug !== null ? input.slug : freeSlug(siblings, termSlug(name)),
           ...(last && input.description !== null ? { description: input.description } : {}),
-          created_at: now,
+          created_at: MOCK_CREATED_AT,
         };
         terms.push(term);
         created.push(term);
@@ -479,10 +476,13 @@ export const taxonomyHandlers: HttpHandler[] = [
     }
     let next = caller.entityChanges;
     for (const term of created) next = withCreated(next, 'terms', term);
+    next = ids.commit(next);
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const world = entityWorld(next, caller.changes);
     return HttpResponse.json(
       { data: created.map((term) => termView(world, term)) },
-      { status: 201, headers: { 'set-cookie': entitiesCookie(next) } },
+      { status: 201, headers: { 'set-cookie': cookie } },
     );
   }),
 
@@ -526,16 +526,18 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (siblings.some((other) => other.slug === slug)) {
       return problem(request, 'duplicate', { detail: 'A term at this place already has this slug.' });
     }
-    const next = withEdited(caller.entityChanges, 'terms', term.term_id, {
+    const next = withEdited(caller.entityChanges, 'terms', term, {
       name: typeof body.name === 'string' ? name : undefined,
       slug: typeof body.slug === 'string' ? slug : undefined,
       parent_id: 'parent_id' in body ? parentId : undefined,
       description: 'description' in body ? (typeof body.description === 'string' ? body.description : null) : undefined,
     });
+    const cookie = savedEntities(request, next);
+    if (typeof cookie !== 'string') return cookie;
     const world = entityWorld(next, caller.changes);
     const saved = world.terms.find((row) => row.term_id === term.term_id);
     if (!saved) throw new Error('The changed term is missing');
-    return HttpResponse.json({ data: termView(world, saved) }, { headers: { 'set-cookie': entitiesCookie(next) } });
+    return HttpResponse.json({ data: termView(world, saved) }, { headers: { 'set-cookie': cookie } });
   }),
 
   mock('delete', `${W}/terms/{term_id}`, ({ request, cookies, params }) => {
@@ -556,6 +558,7 @@ export const taxonomyHandlers: HttpHandler[] = [
     }
     let next = caller.entityChanges;
     for (const row of subtree) next = withDeleted(next, 'terms', row.term_id);
-    return noContent({ 'set-cookie': entitiesCookie(next) });
+    const cookie = savedEntities(request, next);
+    return typeof cookie === 'string' ? noContent({ 'set-cookie': cookie }) : cookie;
   }),
 ];

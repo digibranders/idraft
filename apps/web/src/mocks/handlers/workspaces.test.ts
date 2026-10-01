@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { MOCK_PROJECT_LIMIT } from './projects';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
 import { SESSION_COOKIE } from '../session';
 import { MOCK_PENDING_INVITATIONS, WORKSPACE_COOKIE } from '../workspace-state';
-import type { EntityDetail, Project, ProjectEntity } from '@/lib/api/types';
 import { TEST_API_ORIGIN } from '@/test/api-server';
+import { ENTITY_DETAIL, PROJECT, PROJECT_ENTITY } from '@/test/api-shapes';
 import { dataOf, fieldCodes as codesOf, mockBrowser } from '@/test/mock-api';
 
 interface Answer {
@@ -130,7 +131,7 @@ describe('projects, with a domain, a location and an own brand', () => {
   it('shows the fixture project with its primary domain and default location', async () => {
     const [fynix] = MOCK_PROJECTS;
     if (!fynix) throw new Error('no fixture project');
-    const project = dataOf<Project>(await mockBrowser('viewer').call('GET', `${W}/projects/${fynix.project_id}`));
+    const project = dataOf(await mockBrowser('viewer').call('GET', `${W}/projects/${fynix.project_id}`), PROJECT);
     expect(project).toMatchObject({
       primary_domain: { host: 'fynix.digital', registrable_domain: 'fynix.digital' },
       default_location_id: 2276,
@@ -147,19 +148,23 @@ describe('projects, with a domain, a location and an own brand', () => {
       default_location_id: 1006886,
       own_entity: {
         canonical_name: 'Acme',
-        domains: ['acme.io', 'https://acme.co.uk/'],
+        // Registrable rules: `www.acme.io` is `acme.io`, given twice
+        domains: ['acme.io', 'https://acme.co.uk/', 'www.acme.io'],
         aliases: ['Acme', 'acme', ' Acme HQ '],
       },
     });
     expect(created.status).toBe(201);
-    const project = dataOf<Project>(created);
+    const project = dataOf(created, PROJECT);
     expect(project).toMatchObject({
       primary_domain: { host: 'acme.io' },
       default_location_id: 1006886,
       default_location: { name: 'London,England,United Kingdom', location_type: 'City' },
       entity_config_version: 1,
     });
-    const roles = dataOf<ProjectEntity[]>(await editor.call('GET', `${W}/projects/${project.project_id}/entities`));
+    const roles = dataOf(
+      await editor.call('GET', `${W}/projects/${project.project_id}/entities`),
+      z.array(PROJECT_ENTITY),
+    );
     expect(roles).toHaveLength(1);
     expect(roles[0]).toMatchObject({
       role: 'own',
@@ -172,7 +177,7 @@ describe('projects, with a domain, a location and an own brand', () => {
       ['acme.co.uk', 'registrable'],
       ['acme.io', 'registrable'],
     ]);
-    const detail = dataOf<EntityDetail>(await editor.call('GET', `${W}/entities/${roles[0]?.entity.entity_id ?? ''}`));
+    const detail = dataOf(await editor.call('GET', `${W}/entities/${roles[0]?.entity.entity_id ?? ''}`), ENTITY_DETAIL);
     expect(
       detail.aliases.map((alias) => [alias.alias, alias.match_mode, alias.case_sensitive, alias.language_code]),
     ).toEqual([
@@ -205,6 +210,13 @@ describe('projects, with a domain, a location and an own brand', () => {
       own_entity: { canonical_name: 'RANKFORGE' },
     });
     expect(taken.code).toBe('duplicate');
+    // The own entity is a brand: a product's name is free for it
+    const product = await editor.call('POST', `${W}/projects`, {
+      name: 'Audit',
+      slug: 'audit',
+      own_entity: { canonical_name: 'Fynix Audit' },
+    });
+    expect(product.status).toBe(201);
   });
 
   it('changes and clears the primary domain and the default location', async () => {
@@ -213,14 +225,14 @@ describe('projects, with a domain, a location and an own brand', () => {
     const editor = mockBrowser('editor');
     const path = `${W}/projects/${fynix.project_id}`;
     const moved = await editor.call('PATCH', path, { primary_domain: 'Fynix.io', default_location_id: 2840 });
-    expect(dataOf<Project>(moved)).toMatchObject({
+    expect(dataOf(moved, PROJECT)).toMatchObject({
       primary_domain: { host: 'fynix.io' },
       default_location_id: 2840,
       default_location: { name: 'United States' },
     });
-    expect(dataOf<Project>(await editor.call('GET', path))).toMatchObject({ primary_domain: { host: 'fynix.io' } });
+    expect(dataOf(await editor.call('GET', path), PROJECT)).toMatchObject({ primary_domain: { host: 'fynix.io' } });
     const cleared = await editor.call('PATCH', path, { primary_domain: null, default_location_id: null });
-    expect(dataOf<Project>(cleared)).toMatchObject({
+    expect(dataOf(cleared, PROJECT)).toMatchObject({
       primary_domain: null,
       default_location_id: null,
       default_location: null,

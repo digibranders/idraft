@@ -509,7 +509,10 @@ export interface paths {
         get: operations["get_entity_api_v1_workspaces__workspace_id__entities__entity_id__get"];
         put?: never;
         post?: never;
-        /** Delete an entity no project has ever named */
+        /**
+         * Delete an entity no project has ever named
+         * @description Its aliases and domains go with it. `409 entity_in_use` when a project role, even a removed one, or a product names it.
+         */
         delete: operations["delete_entity_api_v1_workspaces__workspace_id__entities__entity_id__delete"];
         options?: never;
         head?: never;
@@ -563,7 +566,10 @@ export interface paths {
         /** An entity's domains */
         get: operations["list_entity_domains_api_v1_workspaces__workspace_id__entities__entity_id__domains_get"];
         put?: never;
-        /** Add a domain */
+        /**
+         * Add a domain
+         * @description A registrable rule is stored against the registrable domain itself (`https://www.acme.com/x` is `acme.com`); host and path prefix rules keep the host.
+         */
         post: operations["add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post"];
         delete?: never;
         options?: never;
@@ -1018,7 +1024,7 @@ export interface components {
              * Match Method
              * @enum {string}
              */
-            match_method: "alias_word" | "alias_exact" | "alias_substring" | "alias_regex" | "alias_domain" | "via_product";
+            match_method: "alias_word" | "alias_exact" | "alias_substring" | "alias_regex" | "alias_name" | "alias_domain" | "via_product";
             /** Score */
             score: number;
             /**
@@ -2988,13 +2994,13 @@ export interface operations {
     list_locations_api_v1_locations_get: {
         parameters: {
             query?: {
-                /** @description `page.next_cursor` of the previous page. */
-                cursor?: string | null;
-                limit?: number;
                 "filter[q]"?: string | null;
                 "filter[country_iso]"?: string | null;
                 "filter[location_type]"?: string | null;
                 "filter[supports]"?: ("serp" | "ai_mode" | "llm_scraper") | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
             };
             header?: never;
             path?: never;
@@ -3248,14 +3254,14 @@ export interface operations {
     list_entities_api_v1_workspaces__workspace_id__entities_get: {
         parameters: {
             query?: {
-                /** @description `page.next_cursor` of the previous page. */
-                cursor?: string | null;
-                limit?: number;
                 "filter[entity_type]"?: ("brand" | "product" | "organization" | "person" | "other") | null;
                 "filter[q]"?: string | null;
                 "filter[project_id]"?: string | null;
-                /** @description With `filter[project_id]`. */
+                /** @description A live role, in any project or the one given. */
                 "filter[role]"?: ("own" | "competitor" | "watch") | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
             };
             header?: never;
             path: {
@@ -4500,7 +4506,7 @@ export const pathsApiV1WorkspacesWorkspace_idVocabulariesVocabulary_idTermsGetPa
 export const aliasMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Alias"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const aliasInputMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasInput"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const aliasTestMentionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestMention"]["status"]> = ["accepted", "uncertain", "discarded"];
-export const aliasTestSpanMatch_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["match_method"]> = ["alias_word", "alias_exact", "alias_substring", "alias_regex", "alias_domain", "via_product"];
+export const aliasTestSpanMatch_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["match_method"]> = ["alias_word", "alias_exact", "alias_substring", "alias_regex", "alias_name", "alias_domain", "via_product"];
 export const aliasTestSpanStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["status"]> = ["accepted", "uncertain", "discarded"];
 export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];

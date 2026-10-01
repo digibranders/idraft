@@ -120,6 +120,23 @@ describe('Entities and aliases', () => {
     expect(creates).toBe(1);
   });
 
+  it('offers a workspace entity of the same name instead of creating a second one', async () => {
+    const { user } = renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
+    await table('Competitors');
+    await user.click(screen.getByRole('button', { name: 'Add competitor' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add competitor' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Domain' }), 'sparkleandco.com');
+    const name = within(dialog).getByRole('textbox', { name: 'Name' });
+    await user.clear(name);
+    await user.type(name, 'Sparkle & Co');
+    await user.click(within(dialog).getByRole('button', { name: 'Add competitor' }));
+    expect(await within(dialog).findByText(/^Sparkle & Co already exists in this workspace/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Add competitor' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    const competitors = await table('Competitors');
+    expect(await within(competitors).findAllByRole('link', { name: 'Sparkle & Co' })).toHaveLength(1);
+  });
+
   it('removes a competitor after asking, and says its history stays', async () => {
     const { user } = renderWithProviders(as('editor', <EntitiesScreen {...SCOPE} />));
     await table('Competitors');

@@ -49,6 +49,24 @@ describe('the generated schema', () => {
     GENERATION_TIMEOUT_MS,
   );
 
+  // A branch may build against a backend step's draft contract (the entities plan); once the committed
+  // document has every path of the draft, the client goes back to it, and this test says so
+  it('reads the committed document, unless a draft still has routes the backend has not merged', () => {
+    const script = (
+      JSON.parse(readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')) as { scripts: Record<string, string> }
+    ).scripts['gen:api'];
+    const source = /^openapi-typescript (\S+)/.exec(script ?? '')?.[1];
+    if (source === undefined || source === '../../backend/openapi/v1.json') return;
+    const pathsOf = (file: string): string[] =>
+      Object.keys((JSON.parse(readFileSync(path.join(APP_ROOT, file), 'utf8')) as { paths: object }).paths);
+    const committed = new Set(pathsOf('../../backend/openapi/v1.json'));
+    const missing = pathsOf(source).filter((route) => !committed.has(route));
+    expect(
+      missing.length > 0,
+      `gen:api still reads ${source}, and backend/openapi/v1.json now has all of its routes: point gen:api back at it`,
+    ).toBe(true);
+  });
+
   it('carries the enums a form checks at runtime', () => {
     expect(reservedWorkspaceSlugValues).toContain('design-system');
     expect(reservedProjectSlugValues).toContain('projects');

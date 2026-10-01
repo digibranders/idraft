@@ -120,6 +120,43 @@ describe('Entity editor', () => {
     expect(screen.getByText(/1 match dropped by a negative alias/, { selector: 'p' })).toBeInTheDocument();
   });
 
+  it('refuses a parent that would make a loop, on the parent field', async () => {
+    const { user } = renderWithProviders(editorAs('editor', 'Fynix'));
+    await screen.findByRole('heading', { level: 2, name: 'Fynix' });
+    await user.click(screen.getByRole('combobox', { name: /^Part of/ }));
+    await user.click(await screen.findByRole('option', { name: 'Fynix Audit' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(
+      await screen.findByText('This entity already sits under the one chosen. Choose another.'),
+    ).toBeInTheDocument();
+  });
+
+  it('pastes several aliases, leaving out the ones it has and the repeats', async () => {
+    const { user } = renderWithProviders(editorAs('editor', 'Rankforge'));
+    await user.click(await screen.findByRole('button', { name: 'Paste several' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Paste aliases for Rankforge' });
+    await user.click(within(dialog).getByRole('textbox', { name: 'Aliases' }));
+    await user.paste('rankforge\nRankforge Labs\nrankforge labs');
+    expect(within(dialog).getByText('1 alias')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Add aliases' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    const aliases = screen.getByRole('table', { name: 'Aliases' });
+    expect(await within(aliases).findAllByRole('rowheader', { name: 'Rankforge Labs' })).toHaveLength(1);
+  });
+
+  it('asks again for the same sample once an alias is added', async () => {
+    const { user } = renderWithProviders(editorAs('editor', 'Rankforge'));
+    const sample = await screen.findByRole('textbox', { name: 'Sample answer' });
+    await user.click(sample);
+    await user.paste('We hired RF Labs last year.');
+    expect(await screen.findByText(/^0 mentions count/, { selector: 'p' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add alias' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add an alias to Rankforge' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Alias' }), 'RF Labs');
+    await user.click(within(dialog).getByRole('button', { name: 'Add alias' }));
+    expect(await screen.findByText(/^1 mention counts/, { selector: 'p' })).toBeInTheDocument();
+  });
+
   it('is read-only without entities:write', async () => {
     renderWithProviders(editorAs('analyst', 'Rankforge'));
     expect(await screen.findByText('Owners, admins and editors can change entities.')).toBeInTheDocument();

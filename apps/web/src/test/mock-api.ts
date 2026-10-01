@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
 import type { Role } from '@/lib/api/types';
@@ -5,7 +7,8 @@ import { TEST_API_ORIGIN } from '@/test/api-server';
 
 /**
  * A browser for the mock handlers' tests: it signs in as a fixture role and keeps the mock cookies each answer
- * sets (the workspace and entity state), so a test can chain requests the way a page would.
+ * sets (the workspace and entity state), so a test can chain requests the way a page would. Answers are read
+ * through zod shapes (./api-shapes.ts), never cast.
  */
 
 export interface Answer {
@@ -25,6 +28,9 @@ export interface MockBrowser {
   cookie: (name: string) => string | undefined;
 }
 
+const BODY = z.record(z.string(), z.unknown());
+const FIELD_ERRORS = z.object({ errors: z.array(z.object({ path: z.string(), code: z.string() })).optional() });
+
 export function mockBrowser(role: Role, jar: Map<string, string> = new Map()): MockBrowser {
   const session = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 10 * 60 * 1000)}`;
   return {
@@ -38,7 +44,7 @@ export function mockBrowser(role: Role, jar: Map<string, string> = new Map()): M
         ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
       });
       const text = await response.text();
-      const parsed = text === '' ? {} : (JSON.parse(text) as Record<string, unknown>);
+      const parsed = text === '' ? {} : BODY.parse(JSON.parse(text));
       const setCookie = response.headers.get('set-cookie')?.split(';')[0];
       if (setCookie !== undefined) {
         const [name = '', ...value] = setCookie.split('=');
@@ -58,7 +64,10 @@ export function mockBrowser(role: Role, jar: Map<string, string> = new Map()): M
 
 /** `path:code` of each field error of a `422 validation_failed`. */
 export const fieldCodes = (answer: Answer): string[] =>
-  ((answer.body.errors ?? []) as { path: string; code: string }[]).map((error) => `${error.path}:${error.code}`);
+  (FIELD_ERRORS.parse(answer.body).errors ?? []).map((error) => `${error.path}:${error.code}`);
 
-/** The `data` member of an answer. */
-export const dataOf = <T>(answer: Answer): T => answer.body.data as T;
+/** The `data` member of an answer, checked against `shape`. */
+export const dataOf = <T>(answer: Answer, shape: z.ZodType<T>): T => shape.parse(answer.body.data);
+
+/** The `page` member of an answer, checked against `shape`. */
+export const pageOf = <T>(answer: Answer, shape: z.ZodType<T>): T => shape.parse(answer.body.page);

@@ -133,7 +133,7 @@ export const vocabularyView = (world: EntityWorld, row: StoredVocabulary): Vocab
 });
 
 /** The slugs from the root down to `row`, joined by `/`. A broken chain (a hand-edited cookie) stops where it breaks. */
-export function termPath(world: EntityWorld, row: StoredTerm): string {
+function termPath(world: EntityWorld, row: StoredTerm): string {
   const slugs = [row.slug];
   const seen = new Set([row.term_id]);
   let parentId = row.parent_id ?? null;

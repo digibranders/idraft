@@ -39,14 +39,23 @@ const colorOf = (value: number | null): EntityColorIndex | null =>
  * the project's saved entities and aliases, nothing is stored, and the result shows which spans count,
  * which are uncertain, and what a negative alias dropped.
  */
-export function AliasTestSection({ scope }: { scope: ProjectScope }): ReactNode {
+export function AliasTestSection({
+  scope,
+  version,
+}: {
+  scope: ProjectScope;
+  /** The project's `entity_config_version`: a change to its entities asks again for the same text. */
+  version: number | undefined;
+}): ReactNode {
   const t = useTranslations('entitySettings.aliasTest');
   const test = useMutation(TEST);
   const [text, setText] = useState('');
   const settled = useDebouncedValue(text, TEST_DELAY_MS);
   // The last answer, with the text it answers: an answer to an older text is never shown
   const [outcome, setOutcome] = useState<
-    { text: string; result: AliasTestResult; problem: null } | { text: string; result: null; problem: string } | null
+    | { text: string; version: number | undefined; result: AliasTestResult; problem: null }
+    | { text: string; version: number | undefined; result: null; problem: string }
+    | null
   >(null);
   const bytes = bytesOf(text);
   const tooLarge = bytes > MAX_BYTES;
@@ -61,7 +70,7 @@ export function AliasTestSection({ scope }: { scope: ProjectScope }): ReactNode 
       body: { text: settled, markdown: null },
     }).then(
       (response) => {
-        if (current) setOutcome({ text: settled, result: response.data, problem: null });
+        if (current) setOutcome({ text: settled, version, result: response.data, problem: null });
       },
       (error: unknown) => {
         if (!current) return;
@@ -70,18 +79,19 @@ export function AliasTestSection({ scope }: { scope: ProjectScope }): ReactNode 
           : isApiProblem(error, 'too_many_matches')
             ? t('tooManyMatches')
             : t('failed');
-        setOutcome({ text: settled, result: null, problem });
+        setOutcome({ text: settled, version, result: null, problem });
       },
     );
     return () => {
       current = false;
     };
-  }, [settled, scope.workspaceId, scope.projectId, mutateAsync, t]);
+  }, [settled, version, scope.workspaceId, scope.projectId, mutateAsync, t]);
 
   // What the panel shows: nothing for an empty text, the limit for a text over it, a wait while typing or
   // asking, then the answer or what went wrong, for exactly the text in the field
   const empty = text.trim() === '';
-  const current = outcome !== null && outcome.text === text && !empty ? outcome : null;
+  // An answer is for one text and one version of the project's entities
+  const current = outcome !== null && outcome.text === text && outcome.version === version && !empty ? outcome : null;
   const shown = current !== null && current.result !== null ? { text: current.text, result: current.result } : null;
   const problem = tooLarge ? t('tooLarge') : (current?.problem ?? null);
   const waiting = !empty && !tooLarge && current === null;

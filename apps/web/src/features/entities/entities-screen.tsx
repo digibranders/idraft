@@ -83,7 +83,7 @@ export function EntitiesScreen({ workspaceId, projectId, workspaceSlug, projectS
       if (isApiProblem(error, 'not_found')) {
         toast({ type: 'info', title: t('removeDialog.gone', { name }) });
         setRowGone(true);
-        refreshEntities(queryClient, scope, removing.entity.entity_id);
+        refreshEntities(queryClient, scope);
         return;
       }
       setRemoveError(
@@ -95,7 +95,7 @@ export function EntitiesScreen({ workspaceId, projectId, workspaceSlug, projectS
     }
     toast({ type: 'success', title: t('removeDialog.removed', { name }) });
     setRowGone(true);
-    refreshEntities(queryClient, scope, removing.entity.entity_id);
+    refreshEntities(queryClient, scope);
   };
 
   const itemsFor = (row: ProjectEntity): MenuItemDef[] => [

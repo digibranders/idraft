@@ -1,4 +1,5 @@
 import { jsonCookie, readJsonCookie } from './cookie-json';
+import { COMPACT_CHANGES, decodeChanges, encodeChanges } from './entities-codec';
 import {
   MOCK_ALIASES,
   MOCK_ENTITIES,
@@ -8,6 +9,7 @@ import {
   MOCK_VOCABULARIES,
 } from './entity-fixtures';
 import { MOCK_WORKSPACE } from './fixtures';
+import { FIRST_MINTED, mockId, type IdKind } from './mock-ids';
 import { ENTITIES_COOKIE } from './session';
 import type { WorkspaceChanges } from './workspace-state';
 import { z } from 'zod';
@@ -17,7 +19,7 @@ import { z } from 'zod';
  * entities, aliases, entity domains, project roles, vocabularies and terms that were created, edited or
  * deleted, and how often each project's `entity_config_version` moved. Only the changes are kept, in their
  * own cookie, against a base of the fixtures (./entity-fixtures.ts) and the own entities of projects created
- * here (./workspace-state.ts). Rows are stored without the members that hold their default, to stay small.
+ * here (./workspace-state.ts). In memory the rows are whole; ./entities-codec.ts writes them compactly.
  */
 export { ENTITIES_COOKIE };
 
@@ -52,7 +54,7 @@ const STORED_ENTITY = z.object({
   updated_at: z.string().optional(),
 });
 
-/** An alias; `created_by` is a user id. */
+/** An alias; `created_by` is a user id, kept for the fixtures only. */
 const STORED_ALIAS = z.object({
   alias_id: z.string(),
   entity_id: z.string(),
@@ -119,16 +121,16 @@ export type StoredVocabulary = z.infer<typeof STORED_VOCABULARY>;
 export type StoredTerm = z.infer<typeof STORED_TERM>;
 
 /** The members of a row to change; a member left out keeps its value. */
-export type RowPatch<R> = { [K in keyof R]?: R[K] | undefined };
+type RowPatch<R> = { [K in keyof R]?: R[K] | undefined };
 
-/** Rows created here, changes to rows of the base, and rows of the base deleted. */
+/** Rows created here, rows of the base as changed here (whole), and rows of the base deleted. */
 export interface Collection<R> {
   created?: R[] | undefined;
-  edited?: Record<string, RowPatch<R>> | undefined;
+  edited?: R[] | undefined;
   deleted?: string[] | undefined;
 }
 
-interface Kinds {
+export interface Kinds {
   entities: StoredEntity;
   aliases: StoredAlias;
   domains: StoredDomain;
@@ -143,14 +145,9 @@ type Collections = { [K in Kind]?: Collection<Kinds[K]> | undefined };
 export type EntityChanges = Collections & {
   /** Per project, how many times its `entity_config_version` moved past 1. */
   versions?: Record<string, number> | undefined;
+  /** The last id number given to a row created here. */
+  minted?: number | undefined;
 };
-
-const collection = <R>(row: z.ZodType<R>, patch: z.ZodType<RowPatch<R>>): z.ZodType<Collection<R>> =>
-  z.object({
-    created: z.array(row).optional(),
-    edited: z.record(z.string(), patch).optional(),
-    deleted: z.array(z.string()).optional(),
-  });
 
 const SCHEMAS: { readonly [K in Kind]: z.ZodType<Kinds[K]> } = {
   entities: STORED_ENTITY,
@@ -161,26 +158,20 @@ const SCHEMAS: { readonly [K in Kind]: z.ZodType<Kinds[K]> } = {
   terms: STORED_TERM,
 };
 
-/** The shape the cookie must have; anything else (an older version of the mocks, a hand edit) is ignored. */
-const CHANGES: z.ZodType<EntityChanges> = z.object({
-  entities: collection(STORED_ENTITY, STORED_ENTITY.partial()).optional(),
-  aliases: collection(STORED_ALIAS, STORED_ALIAS.partial()).optional(),
-  domains: collection(STORED_DOMAIN, STORED_DOMAIN.partial()).optional(),
-  roles: collection(STORED_ROLE, STORED_ROLE.partial()).optional(),
-  vocabularies: collection(STORED_VOCABULARY, STORED_VOCABULARY.partial()).optional(),
-  terms: collection(STORED_TERM, STORED_TERM.partial()).optional(),
-  versions: z.record(z.string(), z.number()).optional(),
-});
+/** What the cookie holds, checked against its shape; a cookie that does not decode is ignored. */
+export function readEntityChanges(cookies: Readonly<Record<string, string>>): EntityChanges {
+  const compact = readJsonCookie(cookies, ENTITIES_COOKIE, COMPACT_CHANGES, null);
+  return compact === null ? {} : (decodeChanges(compact) ?? {});
+}
 
-/** What the cookie holds, checked against its shape. */
-export const readEntityChanges = (cookies: Readonly<Record<string, string>>): EntityChanges =>
-  readJsonCookie<EntityChanges>(cookies, ENTITIES_COOKIE, CHANGES, {});
+/** The `Set-Cookie` that keeps `changes`, or `null` when they no longer fit in a cookie. */
+export const entitiesCookie = (changes: EntityChanges): string | null =>
+  jsonCookie(ENTITIES_COOKIE, encodeChanges(changes));
 
-/** The `Set-Cookie` that keeps `changes`. Throws when they no longer fit in a cookie. */
-export const entitiesCookie = (changes: EntityChanges): string => jsonCookie(ENTITIES_COOKIE, changes, 'entity state');
+const roleKey = (projectId: string, entityId: string): string => `${projectId}:${entityId}`;
 
 /** The key of a row in its collection. A role has none of its own: a project has one row per entity. */
-export const keyOf: { readonly [K in Kind]: (row: Kinds[K]) => string } = {
+const keyOf: { readonly [K in Kind]: (row: Kinds[K]) => string } = {
   entities: (row) => row.entity_id,
   aliases: (row) => row.alias_id,
   domains: (row) => row.entity_domain_id,
@@ -188,8 +179,6 @@ export const keyOf: { readonly [K in Kind]: (row: Kinds[K]) => string } = {
   vocabularies: (row) => row.vocabulary_id,
   terms: (row) => row.term_id,
 };
-
-export const roleKey = (projectId: string, entityId: string): string => `${projectId}:${entityId}`;
 
 /** Every row of every kind, as this browser changed them. */
 export interface EntityWorld {
@@ -237,21 +226,18 @@ function baseOf(workspace: WorkspaceChanges): EntityWorld {
   return world;
 }
 
-/** The rows of one kind: the base and the rows created here, less the deleted ones, with their changes. */
+/** The rows of one kind: the base and the rows created here, less the deleted ones, as changed here. */
 function rowsOf<K extends Kind>(
   kind: K,
   base: readonly Kinds[K][],
   change: Collection<Kinds[K]> | undefined,
 ): Kinds[K][] {
-  const deleted = new Set(change?.deleted ?? []);
   const key = keyOf[kind];
+  const deleted = new Set(change?.deleted ?? []);
+  const edited = new Map((change?.edited ?? []).map((row) => [key(row), row]));
   return [...base, ...(change?.created ?? [])]
     .filter((row) => !deleted.has(key(row)))
-    .map((row) => {
-      const patch = change?.edited?.[key(row)];
-      // Parsing merges the change and proves the result is still a whole row
-      return patch === undefined ? row : SCHEMAS[kind].parse({ ...row, ...patch });
-    });
+    .map((row) => edited.get(key(row)) ?? row);
 }
 
 export function entityWorld(changes: EntityChanges, workspace: WorkspaceChanges): EntityWorld {
@@ -279,26 +265,27 @@ export function withCreated<K extends Kind>(changes: EntityChanges, kind: K, row
 }
 
 /**
- * `changes` with `patch` applied to the row with `key`: in place for a row created here, as a change kept
- * apart for a row of the base. Members that are `undefined` are left out, so they never reach the cookie.
+ * `changes` with `patch` applied to `row` as it is now: in place for a row created here, as the whole changed
+ * row for a row of the base. Members that are `undefined` keep their value.
  */
 export function withEdited<K extends Kind>(
   changes: EntityChanges,
   kind: K,
-  key: string,
+  row: Kinds[K],
   patch: RowPatch<Kinds[K]>,
 ): EntityChanges {
   const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
+  // Parsing merges the change and proves the result is still a whole row
+  const merged = SCHEMAS[kind].parse({ ...row, ...defined });
+  const key = keyOf[kind](row);
   const current = collectionOf(changes, kind);
   const created = current.created ?? [];
-  const index = created.findIndex((row) => keyOf[kind](row) === key);
-  if (index >= 0) {
-    const merged = SCHEMAS[kind].parse({ ...created[index], ...defined });
-    const next: Collection<Kinds[K]> = { ...current, created: created.map((row, at) => (at === index ? merged : row)) };
-    return { ...changes, [kind]: next };
-  }
-  const edits = { ...current.edited, [key]: { ...current.edited?.[key], ...defined } };
-  const next: Collection<Kinds[K]> = { ...current, edited: edits };
+  const next: Collection<Kinds[K]> = created.some((candidate) => keyOf[kind](candidate) === key)
+    ? { ...current, created: created.map((candidate) => (keyOf[kind](candidate) === key ? merged : candidate)) }
+    : {
+        ...current,
+        edited: [...(current.edited ?? []).filter((candidate) => keyOf[kind](candidate) !== key), merged],
+      };
   return { ...changes, [kind]: next };
 }
 
@@ -306,12 +293,29 @@ export function withEdited<K extends Kind>(
 export function withDeleted<K extends Kind>(changes: EntityChanges, kind: K, key: string): EntityChanges {
   const current = collectionOf(changes, kind);
   const created = current.created ?? [];
-  const isCreated = created.some((row) => keyOf[kind](row) === key);
-  const edited = Object.fromEntries(Object.entries(current.edited ?? {}).filter(([edit]) => edit !== key));
-  const next: Collection<Kinds[K]> = isCreated
+  const edited = (current.edited ?? []).filter((row) => keyOf[kind](row) !== key);
+  const next: Collection<Kinds[K]> = created.some((row) => keyOf[kind](row) === key)
     ? { ...current, created: created.filter((row) => keyOf[kind](row) !== key), edited }
     : { ...current, edited, deleted: [...(current.deleted ?? []), key] };
   return { ...changes, [kind]: next };
+}
+
+/**
+ * Ids for the rows a request creates, counted on from the last one this browser made, so the cookie can keep
+ * a number for each. `commit` writes the count into the changes that hold the new rows.
+ */
+export function idMinter(changes: EntityChanges): {
+  next: (kind: IdKind) => string;
+  commit: (next: EntityChanges) => EntityChanges;
+} {
+  let last = changes.minted ?? FIRST_MINTED - 1;
+  return {
+    next: (kind) => {
+      last += 1;
+      return mockId(kind, last);
+    },
+    commit: (next) => ({ ...next, minted: last }),
+  };
 }
 
 /** `changes` with the `entity_config_version` of each project moved once (doc 04, backend plan D7). */
@@ -335,3 +339,7 @@ export const isActiveRole = (role: StoredRole): boolean => (role.removed_at ?? n
 /** The projects that use an entity now: those that give it a role that is not removed. */
 export const projectsUsing = (world: EntityWorld, entityId: string): string[] =>
   world.roles.filter((role) => role.entity_id === entityId && isActiveRole(role)).map((role) => role.project_id);
+
+/** Every project that has given the entity a role, removed roles included: the projects a change bumps. */
+export const projectsNaming = (world: EntityWorld, entityId: string): string[] =>
+  world.roles.filter((role) => role.entity_id === entityId).map((role) => role.project_id);

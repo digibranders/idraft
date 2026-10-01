@@ -63,7 +63,7 @@ const FNV_PRIME = 0x01000193;
 const POSITIVE_INT = 0x7fffffff;
 
 /** A stable positive id for `host` (FNV-1a), as the API's `domain_id` would be. */
-export function domainId(host: string): number {
+function domainId(host: string): number {
   let hash = FNV_OFFSET;
   for (const char of host) {
     hash ^= char.codePointAt(0) ?? 0;
