@@ -25,6 +25,10 @@ const SIGNED_IN = [
   { name: 'settings-profile', path: '/digibranders/fynix/settings/profile' },
   { name: 'settings-security', path: '/digibranders/fynix/settings/security' },
   { name: 'settings-preferences', path: '/digibranders/fynix/settings/preferences' },
+  { name: 'settings-project-general', path: '/digibranders/fynix/settings/general' },
+  { name: 'settings-workspace-general', path: '/digibranders/fynix/settings/workspace' },
+  { name: 'settings-members', path: '/digibranders/fynix/settings/members' },
+  { name: 'new-project', path: '/digibranders/onboarding' },
 ] as const;
 
 /** Waits until nothing on the page will still move: the content is there, the fonts are in, no request is out. */
