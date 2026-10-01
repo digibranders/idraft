@@ -5214,14 +5214,21 @@
             "type": "string"
           },
           "provider_mode": {
-            "default": "standard_queue",
-            "enum": [
-              "standard_queue",
-              "priority_queue",
-              "live"
+            "anyOf": [
+              {
+                "enum": [
+                  "standard_queue",
+                  "priority_queue",
+                  "live"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Provider Mode",
-            "type": "string"
+            "description": "Left out: `live` for `keyword_metrics`, `standard_queue` for `seo_rank`.",
+            "title": "Provider Mode"
           },
           "selector": {
             "$ref": "#/components/schemas/Selector"

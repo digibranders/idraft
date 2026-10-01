@@ -51,6 +51,8 @@ class WorkloadRules:
 
     selectors: frozenset[str]
     provider_modes: frozenset[str]
+    # The mode of a schedule created without one.
+    default_mode: str
     # A selector that names nothing selects nothing; `keyword_metrics` reads it as "the stale
     # ones" instead.
     needs_selector: bool
@@ -62,14 +64,27 @@ WORKLOADS: Final[Mapping[str, WorkloadRules]] = {
     "keyword_metrics": WorkloadRules(
         selectors=frozenset({"stale_days", "all", "groups", "terms"}),
         provider_modes=frozenset({"live"}),
+        default_mode="live",
         needs_selector=False,
     ),
     "seo_rank": WorkloadRules(
         selectors=frozenset({"all", "groups", "terms", "priority_lte"}),
         provider_modes=frozenset({"standard_queue", "priority_queue", "live"}),
+        default_mode="standard_queue",
         needs_selector=True,
     ),
 }
+
+
+def _mode(workload: str, given: str | None) -> str:
+    """The provider mode asked for, else the workload's default. A workload that is not
+    offered has none; its error is reported first."""
+    if given is not None:
+        return given
+    rules = WORKLOADS.get(workload)
+    return "standard_queue" if rules is None else rules.default_mode
+
+
 # The order selector members are checked in, so the first error found is always the same one.
 _SELECTOR_ORDER: Final = ("all", "groups", "terms", "priority_lte", "stale_days")
 
@@ -280,7 +295,8 @@ class ScheduleService:
     async def create(
         self, access: WorkspaceAccess, project_id: UUID, body: ScheduleInput, info: RequestInfo
     ) -> ScheduleRecord:
-        errors = _shape_errors(body.workload, body.cadence, body.provider_mode) or (
+        provider_mode = _mode(body.workload, body.provider_mode)
+        errors = _shape_errors(body.workload, body.cadence, provider_mode) or (
             _selector_errors(body.workload, body.selector)
         )
         if not errors and body.cron_expr is not None:
@@ -314,7 +330,7 @@ class ScheduleService:
                     "weekday": body.weekday,
                     "month_day": body.month_day,
                     "priority": body.priority,
-                    "provider_mode": body.provider_mode,
+                    "provider_mode": provider_mode,
                     "selector": _given(body.selector),
                     "next_run_at": next_occurrence(rule, await _now(db)),
                 },

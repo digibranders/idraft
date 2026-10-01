@@ -114,6 +114,22 @@ async def test_a_daily_schedule_runs_next_at_its_local_time(
     assert entry["target_id"] == data["schedule_id"]
 
 
+async def test_a_schedule_without_a_provider_mode_takes_its_workloads(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    metrics_body = _body()
+    del metrics_body["provider_mode"]
+    ranks_body = _body(workload="seo_rank", selector={"all": True})
+    del ranks_body["provider_mode"]
+
+    metrics = await _create(api, workspace, project, owner, metrics_body)
+    ranks = await _create(api, workspace, project, owner, ranks_body)
+
+    assert metrics.json()["data"]["provider_mode"] == "live"
+    assert ranks.json()["data"]["provider_mode"] == "standard_queue"
+
+
 async def test_weekly_and_monthly_schedules_run_on_their_day(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

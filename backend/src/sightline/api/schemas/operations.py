@@ -82,7 +82,10 @@ class ScheduleInput(Body):
         default=None, description="Monthly cadence: 1 to 28, so every month has the day."
     )
     priority: SchedulePriority = "standard"
-    provider_mode: ProviderMode = "standard_queue"
+    provider_mode: ProviderMode | None = Field(
+        default=None,
+        description="Left out: `live` for `keyword_metrics`, `standard_queue` for `seo_rank`.",
+    )
     selector: Selector = Field(default_factory=Selector)
 
     @model_validator(mode="after")
