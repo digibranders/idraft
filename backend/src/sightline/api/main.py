@@ -20,6 +20,8 @@ from sightline.api.auth.tokens import derive_key
 from sightline.api.auth.totp import TotpCipher
 from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.document import router as document_router
+from sightline.api.entities.routes import router as entities_router
+from sightline.api.entities.service import EntityService
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
 from sightline.api.projects.routes import router as projects_router
@@ -117,6 +119,7 @@ def create_app(
                 ),
                 members=MemberService(sessions=sessions),
                 projects=ProjectService(sessions=sessions),
+                entities=EntityService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -146,6 +149,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(workspaces_router)
     app.include_router(projects_router)
+    app.include_router(entities_router)
     app.include_router(document_router)
     install_openapi(app)
     return app

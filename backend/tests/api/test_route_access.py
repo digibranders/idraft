@@ -59,6 +59,40 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/workspaces/{workspace_id}/projects"): "projects:write every-project",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}"): "member",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/projects/{project_id}"): "projects:write",
+    # Entities are shared by the workspace's projects, so changing one needs every project.
+    ("GET", "/api/v1/workspaces/{workspace_id}/entities"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/entities"): "entities:write every-project",
+    ("GET", "/api/v1/workspaces/{workspace_id}/entities/{entity_id}"): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/entities/{entity_id}",
+    ): "entities:write every-project",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/entities/{entity_id}",
+    ): "entities:write every-project",
+    ("GET", "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases"): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases",
+    ): "entities:write every-project",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases/{alias_id}",
+    ): "entities:write every-project",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases/{alias_id}",
+    ): "entities:write every-project",
+    ("GET", "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains"): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains",
+    ): "entities:write every-project",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains/{entity_domain_id}",
+    ): "entities:write every-project",
 }
 
 
@@ -89,7 +123,17 @@ def test_the_declared_access_is_the_documented_access() -> None:
 # one named `project_id`, so a project must never travel under another name: a new name is added
 # here only after confirming it is not a project, or a thing inside one project, in disguise. A
 # route for something inside a project carries `{project_id}` before it.
-PATH_PARAMETERS = {"workspace_id", "project_id", "user_id", "invitation_id", "session_id"}
+PATH_PARAMETERS = {
+    "workspace_id",
+    "project_id",
+    "user_id",
+    "invitation_id",
+    "session_id",
+    # Workspace-level: an entity is shared by projects, never inside one.
+    "entity_id",
+    "alias_id",
+    "entity_domain_id",
+}
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")
 

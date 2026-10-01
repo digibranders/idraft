@@ -28,6 +28,14 @@ AuditAction = Literal[
     "invitation.accepted",
     "project.created",
     "project.updated",
+    "entity.created",
+    "entity.updated",
+    "entity.deleted",
+    "entity_alias.created",
+    "entity_alias.updated",
+    "entity_alias.deleted",
+    "entity_domain.created",
+    "entity_domain.deleted",
 ]
 
 

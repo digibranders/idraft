@@ -177,6 +177,16 @@ class InvalidStateTransitionError(ProblemError):
     status, code, title = 409, "invalid_state_transition", "Not possible in the current state"
 
 
+class EntityInUseProblemError(ProblemError):
+    """A project role, current or removed, or a product still names the entity."""
+
+    status, code, title = 409, "entity_in_use", "The entity is in use"
+
+
+class CycleDetectedError(ProblemError):
+    status, code, title = 422, "cycle_detected", "That would make a cycle"
+
+
 class LastOwnerError(ProblemError):
     status, code, title = 409, "last_owner", "A workspace needs an owner"
 

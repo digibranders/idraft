@@ -43,6 +43,308 @@
         "title": "AcceptedInvitationResponse",
         "type": "object"
       },
+      "Alias": {
+        "properties": {
+          "alias": {
+            "title": "Alias",
+            "type": "string"
+          },
+          "alias_id": {
+            "format": "uuid",
+            "title": "Alias Id",
+            "type": "string"
+          },
+          "case_sensitive": {
+            "title": "Case Sensitive",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "is_negative": {
+            "title": "Is Negative",
+            "type": "boolean"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "match_mode": {
+            "enum": [
+              "word_boundary",
+              "exact_case",
+              "substring",
+              "regex"
+            ],
+            "title": "Match Mode",
+            "type": "string"
+          },
+          "requires_context": {
+            "title": "Requires Context",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "alias_id",
+          "entity_id",
+          "alias",
+          "match_mode",
+          "case_sensitive",
+          "language_code",
+          "is_negative",
+          "requires_context",
+          "created_by",
+          "created_at"
+        ],
+        "title": "Alias",
+        "type": "object"
+      },
+      "AliasBatch": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AliasInput"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AliasBatch",
+        "type": "object"
+      },
+      "AliasInput": {
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Alias",
+            "type": "string"
+          },
+          "case_sensitive": {
+            "default": false,
+            "title": "Case Sensitive",
+            "type": "boolean"
+          },
+          "is_negative": {
+            "default": false,
+            "description": "A phrase that must not count.",
+            "title": "Is Negative",
+            "type": "boolean"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "match_mode": {
+            "default": "word_boundary",
+            "enum": [
+              "word_boundary",
+              "exact_case",
+              "substring",
+              "regex"
+            ],
+            "title": "Match Mode",
+            "type": "string"
+          },
+          "requires_context": {
+            "default": false,
+            "description": "Counts only near a disambiguation hint.",
+            "title": "Requires Context",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "alias"
+        ],
+        "title": "AliasInput",
+        "type": "object"
+      },
+      "AliasList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Alias"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AliasList",
+        "type": "object"
+      },
+      "AliasResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Alias"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AliasResponse",
+        "type": "object"
+      },
+      "AliasUpdate": {
+        "additionalProperties": false,
+        "description": "At least one member. `language_code: null` removes it; the others cannot be null.",
+        "properties": {
+          "alias": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Alias",
+            "type": "string"
+          },
+          "case_sensitive": {
+            "title": "Case Sensitive",
+            "type": "boolean"
+          },
+          "is_negative": {
+            "title": "Is Negative",
+            "type": "boolean"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "match_mode": {
+            "enum": [
+              "word_boundary",
+              "exact_case",
+              "substring",
+              "regex"
+            ],
+            "title": "Match Mode",
+            "type": "string"
+          },
+          "requires_context": {
+            "title": "Requires Context",
+            "type": "boolean"
+          }
+        },
+        "title": "AliasUpdate",
+        "type": "object"
+      },
+      "CursorPageInfo": {
+        "description": "A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.",
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "limit",
+          "next_cursor",
+          "has_more"
+        ],
+        "title": "CursorPageInfo",
+        "type": "object"
+      },
+      "DomainInput": {
+        "additionalProperties": false,
+        "properties": {
+          "domain": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "match_scope": {
+            "default": "registrable",
+            "enum": [
+              "path_prefix",
+              "host",
+              "registrable"
+            ],
+            "title": "Match Scope",
+            "type": "string"
+          },
+          "path_prefix": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Given exactly when `match_scope` is `path_prefix`.",
+            "title": "Path Prefix"
+          }
+        },
+        "required": [
+          "domain"
+        ],
+        "title": "DomainInput",
+        "type": "object"
+      },
       "DomainRef": {
         "properties": {
           "category": {
@@ -123,6 +425,541 @@
           "email"
         ],
         "title": "EmailRequest",
+        "type": "object"
+      },
+      "Entity": {
+        "properties": {
+          "alias_count": {
+            "title": "Alias Count",
+            "type": "integer"
+          },
+          "canonical_name": {
+            "title": "Canonical Name",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "disambiguation_hints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Disambiguation Hints",
+            "type": "array"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/EntityDomain"
+            },
+            "title": "Domains",
+            "type": "array"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "enum": [
+              "brand",
+              "product",
+              "organization",
+              "person",
+              "other"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "is_ambiguous": {
+            "title": "Is Ambiguous",
+            "type": "boolean"
+          },
+          "parent_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Entity Id"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_type",
+          "canonical_name",
+          "parent_entity_id",
+          "description",
+          "is_ambiguous",
+          "disambiguation_hints",
+          "alias_count",
+          "domains",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Entity",
+        "type": "object"
+      },
+      "EntityCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "items": {
+              "$ref": "#/components/schemas/AliasInput"
+            },
+            "maxItems": 200,
+            "title": "Aliases",
+            "type": "array"
+          },
+          "canonical_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Canonical Name",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "disambiguation_hints": {
+            "description": "Words that confirm the entity nearby (`crm`).",
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disambiguation Hints",
+            "type": "array"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/DomainInput"
+            },
+            "maxItems": 50,
+            "title": "Domains",
+            "type": "array"
+          },
+          "entity_type": {
+            "enum": [
+              "brand",
+              "product",
+              "organization",
+              "person",
+              "other"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "is_ambiguous": {
+            "default": false,
+            "description": "The name is also a common word (`Notion`, `Monday`).",
+            "title": "Is Ambiguous",
+            "type": "boolean"
+          },
+          "parent_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Entity Id"
+          }
+        },
+        "required": [
+          "entity_type",
+          "canonical_name"
+        ],
+        "title": "EntityCreate",
+        "type": "object"
+      },
+      "EntityDetail": {
+        "properties": {
+          "alias_count": {
+            "title": "Alias Count",
+            "type": "integer"
+          },
+          "aliases": {
+            "items": {
+              "$ref": "#/components/schemas/Alias"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "canonical_name": {
+            "title": "Canonical Name",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "disambiguation_hints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Disambiguation Hints",
+            "type": "array"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/EntityDomain"
+            },
+            "title": "Domains",
+            "type": "array"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "enum": [
+              "brand",
+              "product",
+              "organization",
+              "person",
+              "other"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "is_ambiguous": {
+            "title": "Is Ambiguous",
+            "type": "boolean"
+          },
+          "parent_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Entity Id"
+          },
+          "projects": {
+            "description": "Every project that has given the entity a role, removed roles included.",
+            "items": {
+              "$ref": "#/components/schemas/EntityProjectRole"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_type",
+          "canonical_name",
+          "parent_entity_id",
+          "description",
+          "is_ambiguous",
+          "disambiguation_hints",
+          "alias_count",
+          "domains",
+          "created_at",
+          "updated_at",
+          "aliases",
+          "projects"
+        ],
+        "title": "EntityDetail",
+        "type": "object"
+      },
+      "EntityDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EntityDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "EntityDetailResponse",
+        "type": "object"
+      },
+      "EntityDomain": {
+        "properties": {
+          "domain": {
+            "$ref": "#/components/schemas/DomainRef"
+          },
+          "entity_domain_id": {
+            "format": "uuid",
+            "title": "Entity Domain Id",
+            "type": "string"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "match_scope": {
+            "enum": [
+              "path_prefix",
+              "host",
+              "registrable"
+            ],
+            "title": "Match Scope",
+            "type": "string"
+          },
+          "path_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path Prefix"
+          }
+        },
+        "required": [
+          "entity_domain_id",
+          "entity_id",
+          "domain",
+          "match_scope",
+          "path_prefix"
+        ],
+        "title": "EntityDomain",
+        "type": "object"
+      },
+      "EntityDomainCreated": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EntityDomain"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/EntityDomainMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "EntityDomainCreated",
+        "type": "object"
+      },
+      "EntityDomainList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EntityDomain"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "EntityDomainList",
+        "type": "object"
+      },
+      "EntityDomainMeta": {
+        "properties": {
+          "warnings": {
+            "description": "`domain_role_conflict`: another entity in a project that has this one claims the same domain at the same specificity (doc 13 stage 2).",
+            "items": {
+              "const": "domain_role_conflict",
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "warnings"
+        ],
+        "title": "EntityDomainMeta",
+        "type": "object"
+      },
+      "EntityPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Entity"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "EntityPage",
+        "type": "object"
+      },
+      "EntityProjectRole": {
+        "properties": {
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "removed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removed At"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor",
+              "watch"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "role",
+          "is_primary",
+          "removed_at"
+        ],
+        "title": "EntityProjectRole",
+        "type": "object"
+      },
+      "EntityResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Entity"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "EntityResponse",
+        "type": "object"
+      },
+      "EntityUpdate": {
+        "additionalProperties": false,
+        "description": "At least one member. `parent_entity_id` and `description` may be null to remove them.",
+        "properties": {
+          "canonical_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Canonical Name",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "disambiguation_hints": {
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disambiguation Hints",
+            "type": "array"
+          },
+          "entity_type": {
+            "enum": [
+              "brand",
+              "product",
+              "organization",
+              "person",
+              "other"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "is_ambiguous": {
+            "title": "Is Ambiguous",
+            "type": "boolean"
+          },
+          "parent_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Entity Id"
+          }
+        },
+        "title": "EntityUpdate",
         "type": "object"
       },
       "Health": {
@@ -2757,6 +3594,791 @@
         "summary": "Change a workspace's name, slug, logo or time zone",
         "tags": [
           "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/entities": {
+      "get": {
+        "operationId": "list_entities_api_v1_workspaces__workspace_id__entities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[entity_type]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "brand",
+                    "product",
+                    "organization",
+                    "person",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Entity Type]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[q]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Q]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[project_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Project Id]"
+            }
+          },
+          {
+            "description": "A live role, in any project or the one given.",
+            "in": "query",
+            "name": "filter[role]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "own",
+                    "competitor",
+                    "watch"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A live role, in any project or the one given.",
+              "title": "Filter[Role]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The workspace's entities, by name",
+        "tags": [
+          "entities"
+        ]
+      },
+      "post": {
+        "operationId": "create_entity_api_v1_workspaces__workspace_id__entities_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Create an entity, with aliases and domains",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}": {
+      "delete": {
+        "description": "Its aliases and domains go with it. `409 entity_in_use` when a project role, even a removed one, or a product names it.",
+        "operationId": "delete_entity_api_v1_workspaces__workspace_id__entities__entity_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete an entity no project has ever named",
+        "tags": [
+          "entities"
+        ]
+      },
+      "get": {
+        "operationId": "get_entity_api_v1_workspaces__workspace_id__entities__entity_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One entity, with aliases, domains and project roles",
+        "tags": [
+          "entities"
+        ]
+      },
+      "patch": {
+        "operationId": "update_entity_api_v1_workspaces__workspace_id__entities__entity_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change an entity",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases": {
+      "get": {
+        "operationId": "list_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AliasList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "An entity's aliases",
+        "tags": [
+          "entities"
+        ]
+      },
+      "post": {
+        "operationId": "add_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AliasInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AliasBatch"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AliasList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add one alias or a batch",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases/{alias_id}": {
+      "delete": {
+        "operationId": "delete_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alias_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alias Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Remove an alias",
+        "tags": [
+          "entities"
+        ]
+      },
+      "patch": {
+        "operationId": "update_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alias_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alias Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AliasUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AliasResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change an alias",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains": {
+      "get": {
+        "operationId": "list_entity_domains_api_v1_workspaces__workspace_id__entities__entity_id__domains_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityDomainList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "An entity's domains",
+        "tags": [
+          "entities"
+        ]
+      },
+      "post": {
+        "description": "A registrable rule is stored against the registrable domain itself (`https://www.acme.com/x` is `acme.com`); host and path prefix rules keep the host.",
+        "operationId": "add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityDomainCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a domain",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains/{entity_domain_id}": {
+      "delete": {
+        "operationId": "delete_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains__entity_domain_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_domain_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Domain Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Remove a domain",
+        "tags": [
+          "entities"
         ]
       }
     },

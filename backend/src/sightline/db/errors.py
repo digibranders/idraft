@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 _UNIQUE_VIOLATION = "23505"
+_FOREIGN_KEY_VIOLATION = "23503"
 # Waited for a lock longer than the connection's lock timeout, or was the one of two
 # statements waiting on each other that PostgreSQL chose to end.
 _GAVE_WAY = frozenset({"55P03", "40P01"})
@@ -14,6 +15,15 @@ def violated_unique_constraint(error: IntegrityError) -> str | None:
     """The name of the unique constraint or index a statement ran into, or None when the error
     is something else. asyncpg keeps the name; SQLAlchemy's wrapper only carries the code."""
     if getattr(error.orig, "sqlstate", None) != _UNIQUE_VIOLATION:
+        return None
+    name = getattr(getattr(error.orig, "__cause__", None), "constraint_name", None)
+    return name if isinstance(name, str) else None
+
+
+def violated_foreign_key(error: IntegrityError) -> str | None:
+    """The name of the foreign key a statement broke, or None when the error is something else:
+    a row still referenced on delete, or a reference to a row that does not exist."""
+    if getattr(error.orig, "sqlstate", None) != _FOREIGN_KEY_VIOLATION:
         return None
     name = getattr(getattr(error.orig, "__cause__", None), "constraint_name", None)
     return name if isinstance(name, str) else None
