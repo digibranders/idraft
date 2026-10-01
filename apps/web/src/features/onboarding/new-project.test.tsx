@@ -86,6 +86,16 @@ describe('New project', () => {
     server.events.removeAllListeners('request:start');
   });
 
+  it('puts a brand name the workspace has on the brand field', async () => {
+    const { user } = renderWithProviders(form());
+    await user.type(await screen.findByLabelText('Name'), 'Rankforge');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'rankforge.example');
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+    expect(await screen.findByText(/^Another brand in this workspace has this name/)).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Brand name' })).toHaveAttribute('aria-invalid', 'true');
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it('hands the address back to the name when it is emptied', async () => {
     const { user } = renderWithProviders(form());
     const address = await screen.findByLabelText('Address');

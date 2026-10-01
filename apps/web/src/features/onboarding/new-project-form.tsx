@@ -212,6 +212,7 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
             invalid_domain: domainCopy('invalid'),
             domain_is_public_suffix: domainCopy('publicSuffix'),
             location_unknown: t('locationUnknown'),
+            entity_exists: t('brandTaken'),
             string_too_short: t('nameRequired'),
             string_too_long: t('nameTooLong', { max: MAX_PROJECT_NAME_LENGTH }),
             string_pattern_mismatch: t('slugInvalid'),

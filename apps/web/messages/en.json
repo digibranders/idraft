@@ -537,6 +537,7 @@
     "brandDescription": "The brand answers are checked for. It owns the site above. Competitors are added later, under Entities and aliases.",
     "brand": "Brand name",
     "brandRequired": "Enter the brand's name.",
+    "brandTaken": "Another brand in this workspace has this name. Choose another, or add this project's brand later under Entities and aliases.",
     "aliases": "Other names",
     "aliasesHint": "Names AI answers use for the brand, such as its old name or a short form.",
     "aliasPlaceholder": "Fynix Digital",

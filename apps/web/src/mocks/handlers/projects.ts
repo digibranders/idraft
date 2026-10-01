@@ -298,8 +298,12 @@ export const projectHandlers: HttpHandler[] = [
           entity.entity_type === 'brand' &&
           entity.canonical_name.toLowerCase() === own.canonical_name.toLowerCase(),
       );
-      if (taken)
-        return problem(request, 'duplicate', { detail: 'The workspace has an entity of this type with this name.' });
+      // As built (backend 0c833e1): a field error on the name, and nothing is created, the project included
+      if (taken) {
+        return invalid(request, [
+          bodyError('own_entity.canonical_name', 'entity_exists', 'The workspace has a brand with this name.'),
+        ]);
+      }
     }
     const now = new Date().toISOString();
     const host = primaryHost(body);

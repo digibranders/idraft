@@ -686,7 +686,10 @@ export interface paths {
         /** The projects of a workspace that the caller can see */
         get: operations["list_projects_api_v1_workspaces__workspace_id__projects_get"];
         put?: never;
-        /** Create a project */
+        /**
+         * Create a project
+         * @description Counts against the workspace's project limit, as every active or paused project does; an archived one does not. A member limited to some projects cannot create one.
+         */
         post: operations["create_project_api_v1_workspaces__workspace_id__projects_post"];
         delete?: never;
         options?: never;
@@ -708,7 +711,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Change a project */
+        /**
+         * Change a project
+         * @description A new time zone applies to business dates from now on; dates already computed stay, and the response says so in `meta.warnings`. Bringing a project back from the archive needs a free slot in the workspace's project limit.
+         */
         patch: operations["update_project_api_v1_workspaces__workspace_id__projects__project_id__patch"];
         trace?: never;
     };
@@ -721,7 +727,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** What extraction would count in a text, with today's aliases */
+        /**
+         * What extraction would count in a text, with today's aliases
+         * @description Nothing is stored. Offsets are UTF-16 code units, as JavaScript indexes the text. `413 payload_too_large` over 100 KB; `422 too_many_matches` over 250,000 matches.
+         */
         post: operations["alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post"];
         delete?: never;
         options?: never;
@@ -756,7 +765,10 @@ export interface paths {
         /** The entities a project has given a role */
         get: operations["list_project_entities_api_v1_workspaces__workspace_id__projects__project_id__entities_get"];
         put?: never;
-        /** Give an entity a role in the project */
+        /**
+         * Give an entity a role in the project
+         * @description An entity whose role was removed gets it back, on the same row.
+         */
         post: operations["add_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities_post"];
         delete?: never;
         options?: never;
@@ -1888,7 +1900,11 @@ export interface components {
         ProjectResponse: {
             data: components["schemas"]["Project"];
         };
-        /** ProjectUpdate */
+        /**
+         * ProjectUpdate
+         * @description At least one member. `default_language_code`, `primary_domain` and `default_location_id`
+         *     may be null to remove them; the others cannot be null.
+         */
         ProjectUpdate: {
             /** Deep Check Weekday */
             deep_check_weekday?: number;

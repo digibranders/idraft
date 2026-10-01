@@ -209,7 +209,10 @@ describe('projects, with a domain, a location and an own brand', () => {
       slug: 'acme',
       own_entity: { canonical_name: 'RANKFORGE' },
     });
-    expect(taken.code).toBe('duplicate');
+    // A brand name the workspace has is a field error, and no project is created (backend 0c833e1)
+    expect(codesOf(taken)).toEqual(['own_entity.canonical_name:entity_exists']);
+    const listed = await editor.call('GET', `${W}/projects`);
+    expect(JSON.stringify(listed.body)).not.toContain('"slug":"acme"');
     // The own entity is a brand: a product's name is free for it
     const product = await editor.call('POST', `${W}/projects`, {
       name: 'Audit',

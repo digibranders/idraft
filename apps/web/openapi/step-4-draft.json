@@ -2250,6 +2250,8 @@
           "default_location_id": {
             "anyOf": [
               {
+                "exclusiveMinimum": 0.0,
+                "maximum": 2147483647.0,
                 "type": "integer"
               },
               {
@@ -2617,6 +2619,7 @@
       },
       "ProjectUpdate": {
         "additionalProperties": false,
+        "description": "At least one member. `default_language_code`, `primary_domain` and `default_location_id`\nmay be null to remove them; the others cannot be null.",
         "properties": {
           "deep_check_weekday": {
             "maximum": 6.0,
@@ -2639,6 +2642,8 @@
           "default_location_id": {
             "anyOf": [
               {
+                "exclusiveMinimum": 0.0,
+                "maximum": 2147483647.0,
                 "type": "integer"
               },
               {
@@ -4643,7 +4648,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 200,
                   "minLength": 1,
                   "type": "string"
                 },
@@ -6229,6 +6234,7 @@
         ]
       },
       "post": {
+        "description": "Counts against the workspace's project limit, as every active or paused project does; an archived one does not. A member limited to some projects cannot create one.",
         "operationId": "create_project_api_v1_workspaces__workspace_id__projects_post",
         "parameters": [
           {
@@ -6333,6 +6339,7 @@
         ]
       },
       "patch": {
+        "description": "A new time zone applies to business dates from now on; dates already computed stay, and the response says so in `meta.warnings`. Bringing a project back from the archive needs a free slot in the workspace's project limit.",
         "operationId": "update_project_api_v1_workspaces__workspace_id__projects__project_id__patch",
         "parameters": [
           {
@@ -6396,6 +6403,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
       "post": {
+        "description": "Nothing is stored. Offsets are UTF-16 code units, as JavaScript indexes the text. `413 payload_too_large` over 100 KB; `422 too_many_matches` over 250,000 matches.",
         "operationId": "alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post",
         "parameters": [
           {
@@ -6615,6 +6623,7 @@
         ]
       },
       "post": {
+        "description": "An entity whose role was removed gets it back, on the same row.",
         "operationId": "add_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities_post",
         "parameters": [
           {
