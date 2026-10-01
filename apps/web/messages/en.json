@@ -1218,7 +1218,142 @@
     "notFound": "This {type} does not exist or you do not have access to it.",
     "sectionError": "This section did not load"
   },
+  "rankings": {
+    "title": "Rankings",
+    "caption": "Tracked keywords",
+    "noun": {
+      "one": "keyword",
+      "other": "keywords"
+    },
+    "updated": "Updated {time}",
+    "tracked": "{count, plural, one {{formatted} tracked keyword} other {{formatted} tracked keywords}}",
+    "meta": "{updated} · {tracked}",
+    "search": "Search keywords",
+    "range": "Showing {from} to {to} of {total} keywords",
+    "view": {
+      "label": "Show",
+      "active": "Active",
+      "archived": "Archived"
+    },
+    "error": {
+      "title": "The keywords did not load",
+      "reason": "The list could not be loaded. Your filters are kept."
+    },
+    "incomplete": {
+      "message": "Some keywords did not load: {loaded} of {total} are shown, and sorting and search cover these only."
+    },
+    "droppedFilters": {
+      "title": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
+      "description": "{fields}: the link holds a value this list does not have."
+    },
+    "searchEmpty": {
+      "title": "No keywords match “{query}”",
+      "reason": "Clear the search to see the keywords again.",
+      "clear": "Clear search"
+    },
+    "empty": {
+      "title": "No keywords tracked yet",
+      "reason": "Keywords this project tracks appear here with their search volume, difficulty and intent."
+    },
+    "archivedEmpty": {
+      "title": "No archived keywords",
+      "reason": "Archived keywords keep their history and are not checked."
+    },
+    "noMatches": {
+      "title": "No keywords match these filters",
+      "reason": "{tracked} keywords are tracked; {count, plural, one {the active filter excludes} other {the # active filters exclude}} all of them.",
+      "reasonUnknown": "{count, plural, one {The active filter excludes} other {The # active filters exclude}} every tracked keyword.",
+      "reasonArchived": "{count, plural, one {The active filter excludes} other {The # active filters exclude}} every archived keyword.",
+      "clear": "Clear filters"
+    },
+    "columns": {
+      "keyword": "Keyword",
+      "keywordDetail": "{location} · {device} · {engine} · {language}",
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "google": "Google",
+      "volume": "Volume",
+      "volumeTooltip": "Monthly searches, an estimate from DataForSEO Labs",
+      "difficulty": "KD",
+      "difficultyTooltip": "Keyword difficulty, from 0 to 100",
+      "cpc": "CPC (USD)",
+      "cpcTooltip": "Cost per click in Google Ads, in US dollars",
+      "intent": "Intent",
+      "intents": {
+        "informational": "Informational",
+        "navigational": "Navigational",
+        "commercial": "Commercial",
+        "transactional": "Transactional",
+        "local": "Local"
+      },
+      "manual": "Manual",
+      "intentUnknown": "Unknown",
+      "priority": "Priority",
+      "priorityTooltip": "1 is the highest priority and 5 the lowest",
+      "group": "Group",
+      "tags": "Tags",
+      "none": "None",
+      "added": "Added",
+      "pending": "Pending",
+      "pendingTooltip": "Metrics arrive within minutes of adding a keyword",
+      "noData": "No data",
+      "noDataTooltip": "DataForSEO Labs has no data for this keyword at this location"
+    },
+    "filters": {
+      "group": "Group",
+      "tag": "Tags",
+      "termLabel": "{vocabulary}: {term}",
+      "device": "Device",
+      "devices": {
+        "desktop": "Desktop",
+        "mobile": "Mobile"
+      },
+      "location": "Location",
+      "language": "Language",
+      "intent": "Intent",
+      "intents": {
+        "commercial": "Commercial",
+        "informational": "Informational",
+        "navigational": "Navigational",
+        "transactional": "Transactional",
+        "local": "Local",
+        "unknown": "Unknown"
+      },
+      "stage": "Funnel stage",
+      "stages": {
+        "tofu": "Top of funnel",
+        "mofu": "Middle of funnel",
+        "bofu": "Bottom of funnel",
+        "retention": "Retention",
+        "unknown": "Unknown"
+      },
+      "priority": "Priority",
+      "source": "Source",
+      "sources": {
+        "manual": "Added by hand",
+        "csvImport": "CSV import",
+        "bulkPaste": "Paste",
+        "api": "API",
+        "gscImport": "Search Console",
+        "discovery": "Discovery"
+      },
+      "depth": "Depth profile",
+      "depths": {
+        "light": "Light",
+        "standard": "Standard",
+        "deep": "Deep",
+        "full": "Full",
+        "weekly": "Weekly",
+        "weeklyLight": "Weekly light",
+        "untilOwnMatch100": "Until own match, top 100"
+      },
+      "volume": "Volume",
+      "difficulty": "KD"
+    }
+  },
   "filters": {
+    "applied": "Applied filters",
+    "chip": "{name}: {value}",
     "bar": "Filters",
     "add": "Filter",
     "addLabel": "Add a filter",
@@ -1234,6 +1369,8 @@
     "rangeMax": "at most {max}",
     "minimum": "Minimum",
     "maximum": "Maximum",
+    "atLeast": "At least",
+    "atMost": "At most",
     "rangeOrder": "The minimum is above the maximum.",
     "wholeNumber": "Enter a whole number.",
     "wholeNumberBetween": "Enter a whole number from {min} to {max}.",

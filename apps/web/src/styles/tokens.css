@@ -289,6 +289,8 @@
   --size-row-compact: 2rem;        /* 32px: tables embedded in panels and inspectors */
   --size-row-header: 2.5rem;       /* 40px: table header row */
   --size-topbar: 3.25rem;          /* 52px */
+  --size-page-body: calc(100dvh - var(--size-topbar)); /* the window under the top bar: a T2 page's fixed height */
+  --size-page-body-min: 30rem;     /* 480px: below it a T2 page scrolls as a whole */
   --size-sidebar: 13rem;           /* 208px expanded */
   --size-sidebar-collapsed: 3.5rem;/* 56px collapsed */
   --size-sidebar-item: 2rem;       /* 32px nav item */

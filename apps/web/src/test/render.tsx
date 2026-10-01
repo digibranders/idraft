@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
-import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
+import { NuqsTestingAdapter, type OnUrlUpdateFunction } from 'nuqs/adapters/testing';
 import type { ReactElement, ReactNode } from 'react';
 
 import messages from '../../messages/en.json';
@@ -15,6 +15,8 @@ export type ProvidedRender = RenderResult & { user: UserEvent };
 export interface ProvidedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   /** The query string the component starts with, for components that keep state in the URL. */
   searchParams?: string;
+  /** Called with each URL change the component makes, so a test can read the query string it wrote. */
+  onUrlUpdate?: OnUrlUpdateFunction;
 }
 
 /**
@@ -25,7 +27,7 @@ export interface ProvidedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
  */
 export function renderWithProviders(
   ui: ReactElement,
-  { searchParams = '', ...options }: ProvidedRenderOptions = {},
+  { searchParams = '', onUrlUpdate, ...options }: ProvidedRenderOptions = {},
 ): ProvidedRender {
   // jsdom cannot navigate, so a signed-out answer only empties the cache here
   const queryClient = makeQueryClient({ retry: false, onSignedOut: () => false });
@@ -33,7 +35,12 @@ export function renderWithProviders(
     return (
       <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
         <QueryClientProvider client={queryClient}>
-          <NuqsTestingAdapter searchParams={searchParams}>
+          {/* With memory, a component reads back the URL it wrote, as it does in a browser */}
+          <NuqsTestingAdapter
+            searchParams={searchParams}
+            hasMemory
+            {...(onUrlUpdate === undefined ? {} : { onUrlUpdate })}
+          >
             <ToastProvider>
               {/* No hover delay: a test waits for the tooltip, never for a timer */}
               <TooltipProvider delay={0}>

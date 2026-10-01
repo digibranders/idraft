@@ -17,8 +17,8 @@ export interface DataTableToolbarProps {
   search: string;
   onSearchChange: (search: string) => void;
   searchPlaceholder: string;
-  /** "1,000 keywords" */
-  countText: string;
+  /** "1,000 keywords"; `null` while the first rows load, when no count is known yet. */
+  countText: string | null;
   /** "Sorted by Volume descending, then Keyword ascending", only for two keys. */
   sortSummary: string | null;
   updating: boolean;
@@ -71,7 +71,7 @@ export function DataTableToolbar({
         />
       </InputGroup>
       {/* The table announces a new count itself, so it is heard while the bulk bar is up as well */}
-      <p className="num type-meta">{countText}</p>
+      {countText === null ? null : <p className="num type-meta">{countText}</p>}
       {/* Shown from 1280 px, and always readable, since aria-sort names only the first key */}
       {sortSummary === null ? null : <p className="sr-only type-meta xl:not-sr-only">{sortSummary}</p>}
       {updating ? (

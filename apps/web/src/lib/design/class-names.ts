@@ -31,6 +31,8 @@ export const NAMED_SIZES = [
   'row-compact',
   'row-header',
   'topbar',
+  'page-body',
+  'page-body-min',
   'sidebar',
   'sidebar-collapsed',
   'sidebar-item',

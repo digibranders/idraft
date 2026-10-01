@@ -93,14 +93,14 @@ export const trackedKeywordHandlers: HttpHandler[] = [
       return invalid(request, errors);
     }
     const rows = sortRows(caller.keywords, filteredRows(caller, filter), sort);
-    // The cursor holds what it was made for: the filters and the sort, not `include` or `limit`
+    // The cursor holds what it was made for: the project, the filters and the sort, not `include` or `limit`
     const scope = new URLSearchParams(
       [...caller.url.searchParams.entries()].filter(
         ([name]) => name !== 'cursor' && name !== 'limit' && name !== 'include',
       ),
     );
     scope.sort();
-    const page = cursorPage(rows, paging, scope.toString());
+    const page = cursorPage(rows, paging, `${caller.project.project_id}?${scope.toString()}`);
     if (page === null) return problem(request, 'invalid_cursor');
     return HttpResponse.json({
       data: page.data.map((row) => trackedKeywordRowView(caller.keywords, caller.world, row, include)),

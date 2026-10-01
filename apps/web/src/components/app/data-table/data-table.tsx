@@ -657,7 +657,7 @@ export function DataTable<TRow extends RowData>({
           search={search}
           onSearchChange={onSearchChange}
           searchPlaceholder={searchPlaceholder}
-          countText={countText}
+          countText={status === 'loading' ? null : countText}
           sortSummary={sortSummary}
           updating={showUpdating}
           density={density}
@@ -895,7 +895,8 @@ export function DataTable<TRow extends RowData>({
           </tbody>
         </table>
       </div>
-      <TableFooter countText={footerCount} note={footerNote} server={server} />
+      {/* No count while the first rows load: "0 keywords" would be wrong */}
+      <TableFooter countText={status === 'loading' ? null : footerCount} note={footerNote} server={server} />
     </div>
   );
 }

@@ -909,10 +909,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Keyword groups as a tree or flat */
+        /**
+         * Keyword groups as a tree or flat
+         * @description In path order. `flat` lists every group with empty `children`. `keyword_count` counts the active tracked keywords in the group or under it, once each.
+         */
         get: operations["list_groups_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_get"];
         put?: never;
-        /** Create a group */
+        /**
+         * Create a group
+         * @description `409 duplicate` when a sibling has the name in any case. A `parent_id` that is not a group of the project is `422 validation_failed` with `group_unknown`.
+         */
         post: operations["create_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_post"];
         delete?: never;
         options?: never;
@@ -934,7 +940,10 @@ export interface paths {
         delete: operations["delete_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__delete"];
         options?: never;
         head?: never;
-        /** Rename or move a group */
+        /**
+         * Rename or move a group
+         * @description The paths of the group and its subtree follow. A parent that is the group or under it is `422 cycle_detected`; `parent_id: null` moves it to the root.
+         */
         patch: operations["update_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__patch"];
         trace?: never;
     };
@@ -947,7 +956,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add tracked keywords to a group */
+        /**
+         * Add tracked keywords to a group
+         * @description Ids that are not live tracked keywords of the project are left out; `added` counts those that were not in the group.
+         */
         post: operations["add_members_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__members_post"];
         delete?: never;
         options?: never;
@@ -1259,7 +1271,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add, remove or replace terms of tracked keywords */
+        /**
+         * Add, remove or replace terms of tracked keywords
+         * @description Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the keyword's other term of it; `replace` makes the given terms the keyword's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`; `subject_type: 'prompt'` is `subject_type_not_supported` until prompts exist.
+         */
         post: operations["assign_terms_api_v1_workspaces__workspace_id__projects__project_id__term_assignments_post"];
         delete?: never;
         options?: never;
@@ -1274,8 +1289,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The project's tracked keywords */
-        get: operations["list_tracked_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get"];
+        /**
+         * The project's tracked keywords
+         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority` and `created_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric sorts keywords without one last in both directions. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
+         */
+        get: operations["list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get"];
         put?: never;
         /**
          * Track a keyword (two rows for device both)
@@ -1297,8 +1315,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Archive or unarchive tracked keywords */
-        post: operations["bulk_archive_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post"];
+        /**
+         * Archive or unarchive tracked keywords
+         * @description Exactly one of `ids` and `filter`. Archived keywords are not collected and do not count against the quota; unarchiving is `422 quota_exceeded` when they would not fit.
+         */
+        post: operations["bulk_archive_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1334,8 +1355,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Change tracked keywords by ids or by filter */
-        post: operations["bulk_update_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post"];
+        /**
+         * Change tracked keywords by ids or by filter
+         * @description Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches, with `limit`). `set` takes the fields of a single change; a new `depth_profile` or `target_url` makes a configuration version for each row it changes (`config_versions_created`). `add_term_ids` with a term of a single-valued vocabulary replaces the keyword's other term of that vocabulary.
+         */
+        post: operations["bulk_update_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2269,6 +2293,11 @@ export interface components {
             /** Parent Entity Id */
             parent_entity_id?: string | null;
         };
+        FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[];
+        FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[];
+        FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___: ("manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste")[];
+        FilterList_Literal__tofu____mofu____bofu____retention____unknown___: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[];
+        FilterList_UUID_: string[];
         /** GroupMembers */
         GroupMembers: {
             /** Tracked Keyword Ids */
@@ -2550,7 +2579,7 @@ export interface components {
             group_id: string;
             /**
              * Keyword Count
-             * @description Live tracked keywords in the group or under it.
+             * @description Active tracked keywords in the group or under it, each keyword once.
              */
             keyword_count: number;
             /** Name */
@@ -2589,7 +2618,7 @@ export interface components {
             group_id: string;
             /**
              * Keyword Count
-             * @description Live tracked keywords in the group or under it.
+             * @description Active tracked keywords in the group or under it, each keyword once.
              */
             keyword_count: number;
             /** Name */
@@ -4194,6 +4223,11 @@ export interface components {
             created_at: string;
             /** Description */
             description: string | null;
+            /**
+             * Keyword Count
+             * @description Active tracked keywords with the term or one under it, in projects the caller can see; each keyword once.
+             */
+            keyword_count: number;
             /** Name */
             name: string;
             /** Parent Id */
@@ -4395,7 +4429,11 @@ export interface components {
              */
             on_duplicate: "skip" | "merge_terms";
         };
-        /** TrackedKeywordBulkUpdate */
+        /**
+         * TrackedKeywordBulkUpdate
+         * @description At least one of `set` and the group and term lists. `add_term_ids` with a term of a
+         *     single-valued vocabulary replaces the keyword's other term of that vocabulary.
+         */
         TrackedKeywordBulkUpdate: {
             /** Add Group Ids */
             add_group_ids?: string[];
@@ -4565,24 +4603,20 @@ export interface components {
         /**
          * TrackedKeywordFilter
          * @description The list's filters, as a body: what bulk changes and term assignments select by.
-         *     The same names as the list's `filter[...]` parameters, without the brackets.
+         *     The same names as the list's `filter[...]` parameters, without the brackets. A list holds
+         *     at least one value. `is_active` left out takes archived and active keywords alike (the
+         *     list itself defaults it to true).
          */
         TrackedKeywordFilter: {
-            /** Depth Profile In */
-            depth_profile_in?: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[] | null;
+            depth_profile_in?: components["schemas"]["FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"] | null;
             /** Device */
             device?: ("desktop" | "mobile") | null;
-            /** Funnel Stage In */
-            funnel_stage_in?: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[] | null;
+            funnel_stage_in?: components["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"] | null;
             /** Group */
             group?: string | null;
-            /** Intent In */
-            intent_in?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean | null;
+            intent_in?: components["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"] | null;
+            /** Is Active */
+            is_active?: boolean | null;
             /** Keyword Difficulty Lte */
             keyword_difficulty_lte?: number | null;
             /** Language Code */
@@ -4597,15 +4631,11 @@ export interface components {
             search_engine?: ("google" | "bing") | null;
             /** Search Volume Gte */
             search_volume_gte?: number | null;
-            /** Source In */
-            source_in?: ("manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste")[] | null;
-            /**
-             * Term
-             * @description Each term or one under it; terms of two vocabularies: both.
-             */
-            term?: string[] | null;
-            /** Term In */
-            term_in?: string[] | null;
+            source_in?: components["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"] | null;
+            /** @description Each term or one under it; terms of one vocabulary: either, of two: both. */
+            term?: components["schemas"]["FilterList_UUID_"] | null;
+            /** @description Any of these terms or one under them. */
+            term_in?: components["schemas"]["FilterList_UUID_"] | null;
         };
         /** TrackedKeywordList */
         TrackedKeywordList: {
@@ -8067,17 +8097,16 @@ export interface operations {
             };
         };
     };
-    list_tracked_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get: {
+    list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get: {
         parameters: {
             query?: {
-                /** @description Comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, each with `-` for descending. Keywords without a metric sort last both ways. */
                 sort?: string | null;
-                /** @description Comma list or repeated. */
+                /** @description Blocks to fill: a comma list, or the parameter repeated. */
                 include?: ("metrics" | "groups" | "terms" | "competitors")[] | null;
                 "filter[q]"?: string | null;
                 /** @description The group or one under it. */
                 "filter[group]"?: string | null;
-                /** @description Each given term or one under it; terms of two vocabularies must both match. */
+                /** @description Each given term or one under it; terms of one vocabulary: either, of two: both. */
                 "filter[term]"?: string[] | null;
                 /** @description Any of these terms or one under them. */
                 "filter[term_in]"?: string[] | null;
@@ -8162,7 +8191,7 @@ export interface operations {
             };
         };
     };
-    bulk_archive_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post: {
+    bulk_archive_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -8234,7 +8263,7 @@ export interface operations {
             };
         };
     };
-    bulk_update_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post: {
+    bulk_update_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -8819,6 +8848,10 @@ export const entityProjectRoleRoleValues: ReadonlyArray<FlattenedDeepRequired<co
 export const entityRefEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityRefRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["role"]> = ["own", "competitor", "watch"];
 export const entityUpdateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityUpdate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const filterList_Literal__informational____navigational____commercial____transactional____local____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const filterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const filterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const filterList_Literal__tofu____mofu____bofu____retention____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const importDefaultsDepth_profileAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const importDefaultsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["device"]> = ["desktop", "mobile", "both"];
 export const importFieldValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportField"]> = ["keyword", "country", "location", "language", "device", "tags", "topic", "group", "intent", "funnel_stage", "priority", "target_url", "depth_profile"];
@@ -8904,12 +8937,8 @@ export const trackedKeywordDetailIntent_sourceAnyOf0Values: ReadonlyArray<Flatte
 export const trackedKeywordDetailOsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["os"]> = ["windows", "macos", "android", "ios"];
 export const trackedKeywordDetailSearch_engineValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["search_engine"]> = ["google", "bing"];
 export const trackedKeywordDetailSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["source"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
-export const trackedKeywordFilterDepth_profile_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordFilter"]["depth_profile_in"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordFilterDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordFilter"]["device"]> = ["desktop", "mobile"];
-export const trackedKeywordFilterFunnel_stage_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordFilter"]["funnel_stage_in"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
-export const trackedKeywordFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordFilter"]["intent_in"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const trackedKeywordFilterSearch_engineAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordFilter"]["search_engine"]> = ["google", "bing"];
-export const trackedKeywordFilterSource_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordFilter"]["source_in"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
 export const trackedKeywordPatchDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordPatch"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordPatchFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordPatch"]["frequency"]> = ["daily", "weekly", "custom"];
 export const trackedKeywordPatchFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordPatch"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];

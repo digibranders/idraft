@@ -64,6 +64,10 @@ function submitOnEnter(event: KeyboardEvent<HTMLInputElement>): void {
 
 const RANGE_ENDS = ['min', 'max'] as const;
 
+/** The ends a range field shows: both, or the one it filters by. */
+const endsOf = (field: RangeFilterField): readonly ('min' | 'max')[] =>
+  field.ends === 'min' ? ['min'] : field.ends === 'max' ? ['max'] : RANGE_ENDS;
+
 /** A range whose minimum is above its maximum cannot be applied. */
 const rangeOutOfOrder = (draft: FilterValue): boolean =>
   draft.kind === 'range' && draft.min !== null && draft.max !== null && draft.min > draft.max;
@@ -336,13 +340,17 @@ function RangeEditor({
     setTyped((current) => ({ ...current, [end]: text }));
     onDraftChange({ ...range, [end]: parseEnd(text, field.bounds) });
   };
+  const ends = endsOf(field);
+  // A field of one end names it as the chip reads it: "At least", "At most"
+  const labelOf = (end: 'min' | 'max'): string =>
+    ends.length === 1 ? t(end === 'min' ? 'atLeast' : 'atMost') : t(end === 'min' ? 'minimum' : 'maximum');
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {RANGE_ENDS.map((end) => {
+    <div className={ends.length === 1 ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
+      {ends.map((end) => {
         const wrong = range[end] !== null && Number.isNaN(range[end]);
         return (
           <Field key={end} invalid={error !== null && (wrong || !invalid)}>
-            <FieldLabel>{t(end === 'min' ? 'minimum' : 'maximum')}</FieldLabel>
+            <FieldLabel>{labelOf(end)}</FieldLabel>
             <Input
               size="sm"
               inputMode="numeric"

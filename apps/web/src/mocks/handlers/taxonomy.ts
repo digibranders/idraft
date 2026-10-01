@@ -286,10 +286,45 @@ const isTermList = (value: TermValues[] | ValidationItem[]): value is TermValues
   value.every((item) => 'names' in item);
 
 /** The tree of `terms` under `parentId`, in path order: siblings by slug. */
-function treeOf(world: EntityWorld, terms: readonly StoredTerm[], parentId: string | null): TermNode[] {
+function treeOf(
+  world: EntityWorld,
+  terms: readonly StoredTerm[],
+  parentId: string | null,
+  countOf: (termId: string) => number,
+): TermNode[] {
   return childrenOf(terms, parentId)
     .sort((a, b) => byCodePoint(a.slug, b.slug))
-    .map((term) => ({ ...termView(world, term), children: treeOf(world, terms, term.term_id) }));
+    .map((term) => ({
+      ...termView(world, term),
+      keyword_count: countOf(term.term_id),
+      children: treeOf(world, terms, term.term_id, countOf),
+    }));
+}
+
+/**
+ * Active tracked keywords that have a term or one under it, each once, in the live projects the caller
+ * can see (step 5 as built). `terms` are all of the vocabulary's terms, whatever a search keeps.
+ */
+function keywordCounter(
+  caller: WorkspaceCaller,
+  keywordChanges: KeywordChanges,
+  terms: readonly StoredTerm[],
+): (termId: string) => number {
+  const keywords = keywordWorld(keywordChanges);
+  const projects = new Set(caller.projects.map((project) => project.project_id));
+  const counted = new Set(
+    keywords.tracked
+      .filter((row) => row.is_active && row.deleted_at === null && projects.has(row.project_id))
+      .map((row) => row.tracked_keyword_id),
+  );
+  return (termId) => {
+    const below = new Set(subtreeOf(terms, termId).map((term) => term.term_id));
+    return new Set(
+      keywords.termLinks
+        .filter((link) => below.has(link.term_id) && counted.has(link.tracked_keyword_id))
+        .map((link) => link.tracked_keyword_id),
+    ).size;
+  };
 }
 
 /**
@@ -478,11 +513,12 @@ export const taxonomyHandlers: HttpHandler[] = [
     if (errors.length > 0) return invalid(request, errors);
     const { world } = caller;
     const terms = termsOf(world, vocabulary.vocabulary_id);
+    const countOf = keywordCounter(caller, readKeywordChanges(cookies), terms);
     const needle = text?.trim().toLowerCase() ?? '';
     const matching = needle === '' ? terms : terms.filter((term) => term.name.toLowerCase().includes(needle));
     if (format === 'flat') {
       const data: TermNode[] = matching
-        .map((term) => ({ ...termView(world, term), children: [] }))
+        .map((term) => ({ ...termView(world, term), keyword_count: countOf(term.term_id), children: [] }))
         .sort((a, b) => byPath(a.path, b.path));
       return HttpResponse.json({ data });
     }
@@ -501,6 +537,7 @@ export const taxonomyHandlers: HttpHandler[] = [
         world,
         terms.filter((term) => kept.has(term.term_id)),
         null,
+        countOf,
       ),
     });
   }),

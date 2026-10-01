@@ -32,6 +32,7 @@ const FIELDS: FilterField[] = [
     ],
   },
   { id: 'vol', kind: 'range', label: 'Volume' },
+  { id: 'kd', kind: 'range', label: 'KD', ends: 'max', bounds: { min: 0, max: 100 } },
 ];
 
 let latest: FilterValues = {};
@@ -145,6 +146,16 @@ describe('FilterBar', () => {
     await user.type(screen.getByRole('textbox', { name: 'Maximum' }), '5000{Enter}');
     expect(latest).toEqual({ vol: { kind: 'range', min: 500, max: 5000 } });
     expect(screen.getByRole('button', { name: 'Volume: 500 to 5,000. Edit filter' })).toBeInTheDocument();
+  });
+
+  it('shows a field of one end as that end only', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    await user.click(await screen.findByRole('button', { name: 'KD' }));
+    expect(screen.queryByRole('textbox', { name: 'Minimum' })).not.toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: 'At most' }), '40{Enter}');
+    expect(latest).toEqual({ kd: { kind: 'range', min: null, max: 40 } });
+    expect(screen.getByRole('button', { name: 'KD: at most 40. Edit filter' })).toBeInTheDocument();
   });
 
   it('moves focus to the next chip on remove, and to + Filter when none is left', async () => {

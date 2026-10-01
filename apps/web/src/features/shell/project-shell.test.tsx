@@ -185,11 +185,11 @@ describe('ProjectShell', () => {
   });
 
   it('names no destination on the 404 page of a planned one', async () => {
-    navigation.pathname = '/digibranders/fynix/seo/rankings';
+    navigation.pathname = '/digibranders/fynix/seo/keywords';
     renderWithProviders(shell());
     await screen.findByRole('heading', { name: 'Profile' });
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).queryByText('Rankings')).toBeNull();
+    expect(within(crumbs).queryByText('Keywords')).toBeNull();
     navigation.pathname = '/digibranders/fynix/settings/profile';
   });
 

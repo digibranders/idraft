@@ -9,8 +9,8 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Select } from '@/components/ui/select';
 
 export interface TableFooterProps {
-  /** "1,000 keywords", or the loading progress in client mode. */
-  countText: string;
+  /** "1,000 keywords", or the loading progress in client mode; `null` while the first rows load. */
+  countText: string | null;
   /** "Updated 12m ago" */
   note?: string | undefined;
   server?: ServerPaging | undefined;
@@ -25,9 +25,11 @@ export function TableFooter({ countText, note, server }: TableFooterProps): Reac
   return (
     <div className="flex h-12 shrink-0 items-center gap-3 border-t border-border-subtle px-3">
       <p className="num type-meta">
-        {note === undefined
-          ? (server?.rangeText ?? countText)
-          : t('footerNote', { count: server?.rangeText ?? countText, note })}
+        {countText === null
+          ? note
+          : note === undefined
+            ? (server?.rangeText ?? countText)
+            : t('footerNote', { count: server?.rangeText ?? countText, note })}
       </p>
       {server === undefined ? null : (
         <div className="ml-auto flex items-center gap-2">
@@ -37,10 +39,13 @@ export function TableFooter({ countText, note, server }: TableFooterProps): Reac
             value={String(server.pageSize)}
             placeholder={t('pageSize')}
             onValueChange={(value) => {
-              const size = PAGE_SIZES.find((candidate) => String(candidate) === value);
+              const size = (server.pageSizes ?? PAGE_SIZES).find((candidate) => String(candidate) === value);
               if (size !== undefined) server.onPageSizeChange(size);
             }}
-            options={PAGE_SIZES.map((size) => ({ value: String(size), label: t('pageSizeValue', { size }) }))}
+            options={(server.pageSizes ?? PAGE_SIZES).map((size) => ({
+              value: String(size),
+              label: t('pageSizeValue', { size }),
+            }))}
           />
           <IconButton
             icon={ChevronLeft}

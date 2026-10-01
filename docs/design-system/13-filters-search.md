@@ -96,7 +96,7 @@ Filter semantics that must be visible, from the product rules: Topic filters inc
 
 ## 5. URL state
 
-All filter, scope and search state is in the URL through `nuqs` parsers defined once in `lib/filters/parsers.ts`.
+All filter, scope and search state is in the URL through `nuqs`: the value forms are defined once in `lib/filters/filter-values.ts`, and `useUrlFilters` (`components/app/filters/use-url-filters.ts`) keeps a filter bar's values under these keys.
 
 | Rule | Detail |
 |---|---|
@@ -104,7 +104,7 @@ All filter, scope and search state is in the URL through `nuqs` parsers defined 
 | Values | Comma-separated ids for multi values (`eng=chatgpt_web,gemini_web`); ranges as `min..max` (`vol=1000..10000`); rank buckets as ids (`rank=top3,top10`) |
 | Defaults | Omitted from the URL, so default URLs are clean |
 | History | Filter, scope, search and sort changes use `replace` (no history entry per click). Opening the inspector uses `push`, so Back closes it; previous and next record and inspector tab changes (`itab`) use `replace` ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.7). The History column below is binding per key |
-| Validation | Unknown or invalid values are dropped with a notice; the parser never throws |
+| Validation | Unknown or invalid values are dropped with a notice, including a range end outside the field's bounds; the parser never throws |
 | Sharing | "Copy link" in the page header copies the canonical URL with the current state |
 
 Key table (every query key used by the application):
@@ -114,8 +114,11 @@ Key table (every query key used by the application):
 | `from`, `to` | Custom date window bounds (`YYYY-MM-DD`), set by the top-bar date range | replace | 13 (this document), [10-forms.md](10-forms.md) section 10 |
 | `win` | Date window preset (`28d`), set by the top-bar date range | replace | 13 |
 | `cmp` | Comparison period (`CompareSelect`) | replace | 13 |
-| `dev`, `loc`, `eng` | Scope controls: device (filter bar), location (top bar), engines (filter bar) | replace | 13 |
+| `dev`, `loc`, `eng` | Scope controls: device (filter bar), location (top bar), engines (filter bar). Until the top bar has its location control, Rankings shows `loc` as a filter chip; the key and its value (a location id) stay the same when it moves | replace | 13 |
 | `topic`, `grp`, `tag`, `intent`, `rank`, `feat`, `aio`, `vol` | Filters: topic, keyword group, tag, intent, rank bucket, SERP feature, AI Overview status, volume range | replace | 13 |
+| `lang`, `stage`, `prio`, `src`, `depth`, `kd` | Filters of Rankings: language, funnel stage, priority at most (`prio=..2`), keyword source, depth profile, KD at most (`kd=..40`). On Rankings `vol` takes its lower end only (`vol=1000..`), as the API filters by `search_volume_gte` | replace | 13, [24-page-templates.md](24-page-templates.md) section 9.3 |
+| `archived` | Rankings shows archived keywords instead of active ones (`archived=true`); a view switch, not a chip | replace | 13 |
+| `cols`, `density` | Table visible columns in order (`cols=keyword,search_volume`) and row density (`density=compact`) | replace | [12-tables.md](12-tables.md) sections 10 and 11 |
 | `quad` | Matrix quadrant filter, shown as a chip | replace | [23-application-patterns.md](23-application-patterns.md) section 15 |
 | `domain` | Cited domain filter (Pages tab filtered to a registrable domain; named `domain`, not `source`, because `source` is the cited-URL inspector type) | replace | [23-application-patterns.md](23-application-patterns.md) section 15 |
 | `role` | Domain role filter (own, competitor, third party) | replace | [23-application-patterns.md](23-application-patterns.md) section 15 |

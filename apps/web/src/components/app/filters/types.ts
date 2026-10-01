@@ -19,6 +19,11 @@ export interface EnumFilterField extends FieldBase {
   kind: 'enum';
   multi: boolean;
   options: readonly FilterOption[];
+  /**
+   * The options come from the API and have not all arrived: a value from a link is kept as it is until
+   * they have, rather than dropped as unknown.
+   */
+  optionsLoading?: boolean | undefined;
 }
 
 /** "Volume: 1,000 to 10,000": whole numbers, either end open. */
@@ -28,6 +33,11 @@ export interface RangeFilterField extends FieldBase {
   bounds?: { min: number; max: number } | undefined;
   /** How a value reads on the chip; grouped integers by default. */
   format?: ((value: number) => string) | undefined;
+  /**
+   * The ends the field takes: both by default, or one when the API filters by a single bound ("Volume: at
+   * least 1,000" is `search_volume_gte`). The editor then shows that end only.
+   */
+  ends?: 'both' | 'min' | 'max' | undefined;
 }
 
 /** "Keyword contains: crm" */

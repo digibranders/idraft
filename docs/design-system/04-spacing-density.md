@@ -71,6 +71,7 @@ Values follow [reference/visual-spec.md](reference/visual-spec.md) section 4.
 | Sidebar navigation item | 32 px | `h-sidebar-item` (`--size-sidebar-item`) ([11-navigation.md](11-navigation.md) section 2) |
 | Underline tab row (page and inspector) | 44 px including the 2 px indicator | `h-tab` (`--size-tab`) |
 | Top bar | 52 px | `h-topbar` (`--size-topbar`) |
+| T2 page body: the window under the top bar, so the table body is the scroll container ([24-page-templates.md](24-page-templates.md) section 4); below its 480 px minimum the page scrolls as a whole | window height less 52 px, at least 480 px | `h-page-body`, `min-h-page-body-min` (`--size-page-body`, `--size-page-body-min`) |
 | Page header title block | 56 px: title 32 (`type-page-title`), 4 px gap, meta line 20 (`type-meta`); 20 px below the top bar ([23-application-patterns.md](23-application-patterns.md) section 3.2) | component |
 | Metric strip | 76 px, one panel; 96 px when items carry context lines ([23-application-patterns.md](23-application-patterns.md) section 2.2) | `h-metric-strip` (`--size-metric-strip`) |
 | Panel title row | 48 px | component |

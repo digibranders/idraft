@@ -2506,6 +2506,8 @@
   --size-row-compact: 2rem;
   --size-row-header: 2.5rem;
   --size-topbar: 3.25rem;
+  --size-page-body: calc(100dvh - var(--size-topbar));
+  --size-page-body-min: 30rem;
   --size-sidebar: 13rem;
   --size-sidebar-collapsed: 3.5rem;
   --size-sidebar-item: 2rem;

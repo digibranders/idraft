@@ -1914,6 +1914,79 @@
         "title": "EntityUpdate",
         "type": "object"
       },
+      "FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___": {
+        "items": {
+          "enum": [
+            "informational",
+            "navigational",
+            "commercial",
+            "transactional",
+            "local",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___": {
+        "items": {
+          "enum": [
+            "light",
+            "standard",
+            "deep",
+            "full",
+            "weekly",
+            "weekly_light",
+            "until_own_match_100"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___": {
+        "items": {
+          "enum": [
+            "manual",
+            "csv_import",
+            "api",
+            "gsc_import",
+            "discovery",
+            "bulk_paste"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_Literal__tofu____mofu____bofu____retention____unknown___": {
+        "items": {
+          "enum": [
+            "tofu",
+            "mofu",
+            "bofu",
+            "retention",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_UUID_": {
+        "items": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
       "GroupMembers": {
         "additionalProperties": false,
         "properties": {
@@ -2647,7 +2720,7 @@
             "type": "string"
           },
           "keyword_count": {
-            "description": "Live tracked keywords in the group or under it.",
+            "description": "Active tracked keywords in the group or under it, each keyword once.",
             "title": "Keyword Count",
             "type": "integer"
           },
@@ -2733,7 +2806,7 @@
             "type": "string"
           },
           "keyword_count": {
-            "description": "Live tracked keywords in the group or under it.",
+            "description": "Active tracked keywords in the group or under it, each keyword once.",
             "title": "Keyword Count",
             "type": "integer"
           },
@@ -7114,6 +7187,11 @@
             ],
             "title": "Description"
           },
+          "keyword_count": {
+            "description": "Active tracked keywords with the term or one under it, in projects the caller can see; each keyword once.",
+            "title": "Keyword Count",
+            "type": "integer"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -7170,6 +7248,7 @@
           "source",
           "description",
           "created_at",
+          "keyword_count",
           "children"
         ],
         "title": "TermNode",
@@ -7654,6 +7733,7 @@
       },
       "TrackedKeywordBulkUpdate": {
         "additionalProperties": false,
+        "description": "At least one of `set` and the group and term lists. `add_term_ids` with a term of a\nsingle-valued vocabulary replaces the keyword's other term of that vocabulary.",
         "properties": {
           "add_group_ids": {
             "items": {
@@ -8253,30 +8333,17 @@
       },
       "TrackedKeywordFilter": {
         "additionalProperties": false,
-        "description": "The list's filters, as a body: what bulk changes and term assignments select by.\nThe same names as the list's `filter[...]` parameters, without the brackets.",
+        "description": "The list's filters, as a body: what bulk changes and term assignments select by.\nThe same names as the list's `filter[...]` parameters, without the brackets. A list holds\nat least one value. `is_active` left out takes archived and active keywords alike (the\nlist itself defaults it to true).",
         "properties": {
           "depth_profile_in": {
             "anyOf": [
               {
-                "items": {
-                  "enum": [
-                    "light",
-                    "standard",
-                    "deep",
-                    "full",
-                    "weekly",
-                    "weekly_light",
-                    "until_own_match_100"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Depth Profile In"
+            ]
           },
           "device": {
             "anyOf": [
@@ -8296,23 +8363,12 @@
           "funnel_stage_in": {
             "anyOf": [
               {
-                "items": {
-                  "enum": [
-                    "tofu",
-                    "mofu",
-                    "bofu",
-                    "retention",
-                    "unknown"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_Literal__tofu____mofu____bofu____retention____unknown___"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Funnel Stage In"
+            ]
           },
           "group": {
             "anyOf": [
@@ -8329,24 +8385,12 @@
           "intent_in": {
             "anyOf": [
               {
-                "items": {
-                  "enum": [
-                    "informational",
-                    "navigational",
-                    "commercial",
-                    "transactional",
-                    "local",
-                    "unknown"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Intent In"
+            ]
           },
           "is_active": {
             "anyOf": [
@@ -8357,7 +8401,6 @@
                 "type": "null"
               }
             ],
-            "default": true,
             "title": "Is Active"
           },
           "keyword_difficulty_lte": {
@@ -8452,55 +8495,34 @@
           "source_in": {
             "anyOf": [
               {
-                "items": {
-                  "enum": [
-                    "manual",
-                    "csv_import",
-                    "api",
-                    "gsc_import",
-                    "discovery",
-                    "bulk_paste"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Source In"
+            ]
           },
           "term": {
             "anyOf": [
               {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_UUID_"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Each term or one under it; terms of two vocabularies: both.",
-            "title": "Term"
+            "description": "Each term or one under it; terms of one vocabulary: either, of two: both."
           },
           "term_in": {
             "anyOf": [
               {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_UUID_"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Term In"
+            "description": "Any of these terms or one under them."
           }
         },
         "title": "TrackedKeywordFilter",
@@ -13044,6 +13066,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups": {
       "get": {
+        "description": "In path order. `flat` lists every group with empty `children`. `keyword_count` counts the active tracked keywords in the group or under it, once each.",
         "operationId": "list_groups_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_get",
         "parameters": [
           {
@@ -13109,6 +13132,7 @@
         ]
       },
       "post": {
+        "description": "`409 duplicate` when a sibling has the name in any case. A `parent_id` that is not a group of the project is `422 validation_failed` with `group_unknown`.",
         "operationId": "create_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_post",
         "parameters": [
           {
@@ -13226,6 +13250,7 @@
         ]
       },
       "patch": {
+        "description": "The paths of the group and its subtree follow. A parent that is the group or under it is `422 cycle_detected`; `parent_id: null` moves it to the root.",
         "operationId": "update_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__patch",
         "parameters": [
           {
@@ -13299,6 +13324,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}/members": {
       "post": {
+        "description": "Ids that are not live tracked keywords of the project are left out; `added` counts those that were not in the group.",
         "operationId": "add_members_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__members_post",
         "parameters": [
           {
@@ -15161,6 +15187,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/term-assignments": {
       "post": {
+        "description": "Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the keyword's other term of it; `replace` makes the given terms the keyword's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`; `subject_type: 'prompt'` is `subject_type_not_supported` until prompts exist.",
         "operationId": "assign_terms_api_v1_workspaces__workspace_id__projects__project_id__term_assignments_post",
         "parameters": [
           {
@@ -15224,7 +15251,8 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords": {
       "get": {
-        "operationId": "list_tracked_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get",
+        "description": "Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority` and `created_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric sorts keywords without one last in both directions. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).",
+        "operationId": "list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get",
         "parameters": [
           {
             "in": "path",
@@ -15247,7 +15275,6 @@
             }
           },
           {
-            "description": "Comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, each with `-` for descending. Keywords without a metric sort last both ways.",
             "in": "query",
             "name": "sort",
             "required": false,
@@ -15261,12 +15288,11 @@
                   "type": "null"
                 }
               ],
-              "description": "Comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, each with `-` for descending. Keywords without a metric sort last both ways.",
               "title": "Sort"
             }
           },
           {
-            "description": "Comma list or repeated.",
+            "description": "Blocks to fill: a comma list, or the parameter repeated.",
             "in": "query",
             "name": "include",
             "required": false,
@@ -15288,7 +15314,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Comma list or repeated.",
+              "description": "Blocks to fill: a comma list, or the parameter repeated.",
               "title": "Include"
             }
           },
@@ -15330,7 +15356,7 @@
             }
           },
           {
-            "description": "Each given term or one under it; terms of two vocabularies must both match.",
+            "description": "Each given term or one under it; terms of one vocabulary: either, of two: both.",
             "in": "query",
             "name": "filter[term]",
             "required": false,
@@ -15347,7 +15373,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Each given term or one under it; terms of two vocabularies must both match.",
+              "description": "Each given term or one under it; terms of one vocabulary: either, of two: both.",
               "title": "Filter[Term]"
             }
           },
@@ -15741,7 +15767,8 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-archive": {
       "post": {
-        "operationId": "bulk_archive_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post",
+        "description": "Exactly one of `ids` and `filter`. Archived keywords are not collected and do not count against the quota; unarchiving is `422 quota_exceeded` when they would not fit.",
+        "operationId": "bulk_archive_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post",
         "parameters": [
           {
             "in": "path",
@@ -15868,7 +15895,8 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-update": {
       "post": {
-        "operationId": "bulk_update_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post",
+        "description": "Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches, with `limit`). `set` takes the fields of a single change; a new `depth_profile` or `target_url` makes a configuration version for each row it changes (`config_versions_created`). `add_term_ids` with a term of a single-valued vocabulary replaces the keyword's other term of that vocabulary.",
+        "operationId": "bulk_update_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post",
         "parameters": [
           {
             "in": "path",

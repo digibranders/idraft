@@ -223,6 +223,7 @@ export const TERM: z.ZodType<Term> = z.object(TERM_FIELDS);
 
 export const TERM_NODE: z.ZodType<TermNode> = z.object({
   ...TERM_FIELDS,
+  keyword_count: z.number(),
   get children(): z.ZodArray<z.ZodType<TermNode>> {
     return z.array(TERM_NODE);
   },

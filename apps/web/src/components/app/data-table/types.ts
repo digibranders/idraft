@@ -68,6 +68,8 @@ export interface ServerPaging {
   onNext: () => void;
   pageSize: PageSize;
   onPageSizeChange: (size: PageSize) => void;
+  /** The sizes the list's API answers, when it caps `limit` below 500 (`/tracked-keywords` takes 200). */
+  pageSizes?: readonly PageSize[] | undefined;
 }
 
 export type PageSize = 100 | 200 | 500;

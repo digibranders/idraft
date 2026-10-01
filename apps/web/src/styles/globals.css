@@ -187,6 +187,8 @@
   --spacing-row-compact: var(--size-row-compact);
   --spacing-row-header: var(--size-row-header);
   --spacing-topbar: var(--size-topbar);
+  --spacing-page-body: var(--size-page-body);
+  --spacing-page-body-min: var(--size-page-body-min);
   --spacing-sidebar: var(--size-sidebar);
   --spacing-sidebar-collapsed: var(--size-sidebar-collapsed);
   --spacing-sidebar-item: var(--size-sidebar-item);
