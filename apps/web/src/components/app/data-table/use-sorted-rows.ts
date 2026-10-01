@@ -10,6 +10,7 @@ import {
   useTable,
   type RowData,
 } from '@tanstack/react-table';
+import { useMemo } from 'react';
 
 import type { DataTableColumn } from './types';
 import type { SortKey } from '@/lib/tables/table-state';
@@ -39,25 +40,35 @@ export function useSortedRows<TRow extends RowData>({
   manual: boolean;
   getRowId: (row: TRow) => string;
 }): TRow[] {
-  const helper = createColumnHelper<typeof FEATURES, TRow>();
-  const sortable = columns.filter((column) => column.sortValue !== undefined);
-  const definitions = helper.columns(
-    sortable.map((column) =>
-      helper.accessor((row: TRow) => column.sortValue?.(row) ?? undefined, {
-        id: column.id,
-        sortUndefined: 'last',
-        sortFn: TEXT_TYPES.has(column.type) ? 'text' : 'basic',
-      }),
-    ),
-  );
-  const known = new Set(sortable.map((column) => column.id));
+  // TanStack rebuilds its row models when the data, the columns or the sorting state is a new object, so
+  // each is kept until what it is made from changes: a render for scrolling or focus sorts nothing
+  const definitions = useMemo(() => {
+    const helper = createColumnHelper<typeof FEATURES, TRow>();
+    return helper.columns(
+      columns
+        .filter((column) => column.sortValue !== undefined)
+        .map((column) =>
+          helper.accessor((row: TRow) => column.sortValue?.(row) ?? undefined, {
+            id: column.id,
+            sortUndefined: 'last',
+            sortFn: TEXT_TYPES.has(column.type) ? 'text' : 'basic',
+          }),
+        ),
+    );
+  }, [columns]);
+  const sorting = useMemo(() => {
+    const known = new Set(columns.filter((column) => column.sortValue !== undefined).map((column) => column.id));
+    return sort.filter((key) => known.has(key.id)).map((key) => ({ id: key.id, desc: key.desc }));
+  }, [columns, sort]);
+  const data = useMemo(() => [...rows], [rows]);
   const table = useTable({
     features: FEATURES,
     columns: definitions,
-    data: [...rows],
+    data,
     getRowId: (row: TRow) => getRowId(row),
     manualSorting: manual,
-    state: { sorting: sort.filter((key) => known.has(key.id)).map((key) => ({ id: key.id, desc: key.desc })) },
+    state: { sorting },
   });
-  return table.getRowModel().rows.map((row) => row.original);
+  const sorted = table.getRowModel().rows;
+  return useMemo(() => sorted.map((row) => row.original), [sorted]);
 }

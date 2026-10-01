@@ -12,7 +12,18 @@ export interface RecordAction<TRow> {
   group: 'open' | 'object' | 'copy' | 'destructive';
   /** Shown in place of a shortcut; the item stays focusable. */
   disabledReason?: string | null | undefined;
-  onSelect: (rows: readonly TRow[]) => void;
+  /**
+   * `rows` are the loaded rows the action applies to. `scope` holds every selected id, including rows the
+   * search hides or another page holds, and whether every matching row is selected: the action then sends
+   * the filters, not ids.
+   */
+  onSelect: (rows: readonly TRow[], scope: ActionScope) => void;
+}
+
+/** What a record action applies to beyond the rows at hand. */
+export interface ActionScope {
+  ids: ReadonlySet<string>;
+  allMatching: boolean;
 }
 
 /** A visible-at-width tier (19-responsive-behavior.md section 6.1): 1 always, 2 from 1280 px, 3 from 1440 px, 4 from 1680 px. */
@@ -49,6 +60,8 @@ export interface ColumnState {
 export interface ServerPaging {
   /** "Showing 1 to 200 of 48,210 keywords" */
   rangeText: string;
+  /** The position of the page's first row in the whole list, from 0: rows are announced as "row 201 of 48,211". */
+  offset: number;
   hasPrevious: boolean;
   hasNext: boolean;
   onPrevious: () => void;
@@ -72,6 +85,10 @@ export interface Selection {
 
 export type TableStatus = 'loading' | 'ready' | 'refetching' | 'error' | 'empty' | 'filtered-empty';
 
+/**
+ * `columns`, `getRowId` and `searchText` should keep their identity between renders (defined at module
+ * level, or memoized): the table searches and sorts again only when they, the rows or the sort change.
+ */
 export interface DataTableProps<TRow> {
   /** The grid's name ("Keywords"), as a visually hidden heading. */
   caption: string;
@@ -80,7 +97,7 @@ export interface DataTableProps<TRow> {
   getRowId: (row: TRow) => string;
   /** The loaded rows: the whole list in client mode, the current page in server mode. */
   rows: readonly TRow[];
-  /** Rows the filters match; `null` when unknown. */
+  /** Rows the filters match; `null` when unknown, which server mode announces as an unknown row count. */
   total: number | null;
   /** Server mode; without it the table sorts and searches the loaded rows itself. */
   server?: ServerPaging | undefined;

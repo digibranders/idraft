@@ -72,6 +72,9 @@ const COLUMNS = [
 ];
 
 const DEFAULT_SORT: SortKey[] = [{ id: 'search_volume', desc: true }];
+// Module-level, so the table searches and sorts again only when the rows or the sort change
+const rowId = (row: SampleRow): string => row.id;
+const keywordOf = (row: SampleRow): string => row.keyword;
 const ACTIONS: RecordAction<SampleRow>[] = [
   { id: 'tags', label: 'Add tags', icon: Tags, group: 'object', onSelect: () => undefined },
   { id: 'group', label: 'Move to group', icon: FolderInput, group: 'object', onSelect: () => undefined },
@@ -106,13 +109,14 @@ function SampleTable({
         caption={caption}
         itemNoun={{ one: 'keyword', other: 'keywords' }}
         columns={COLUMNS}
-        getRowId={(row) => row.id}
+        getRowId={rowId}
         rows={shown}
         total={rows.length}
         server={
           server === true
             ? {
                 rangeText: `Showing ${formatInteger(page * pageSize + 1)} to ${formatInteger(Math.min(rows.length, (page + 1) * pageSize))} of ${formatInteger(rows.length)} keywords`,
+                offset: page * pageSize,
                 hasPrevious: page > 0,
                 hasNext: (page + 1) * pageSize < rows.length,
                 onPrevious: () => setPage((current) => current - 1),
@@ -134,7 +138,7 @@ function SampleTable({
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search keywords"
-        searchText={(row) => row.keyword}
+        searchText={keywordOf}
         selection={{
           selectedIds: selected,
           onChange: setSelected,

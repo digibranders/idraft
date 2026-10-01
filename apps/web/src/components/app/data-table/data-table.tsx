@@ -6,8 +6,10 @@ import { useTranslations } from 'next-intl';
 import {
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
+  type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
   type ReactElement,
@@ -18,7 +20,7 @@ import { BulkActionBar } from './bulk-action-bar';
 import { ColumnChooser } from './column-chooser';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
-import type { DataTableColumn, DataTableProps, RecordAction } from './types';
+import type { ActionScope, DataTableColumn, DataTableProps, RecordAction } from './types';
 import { useSortedRows } from './use-sorted-rows';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Icon } from '@/components/ui/icon';
@@ -26,11 +28,12 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
+import { announce } from '@/lib/a11y/announcer';
 import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import { formatInteger } from '@/lib/format';
 import { COLUMN_TYPES, resolveWidths, type SizedColumn } from '@/lib/tables/column-types';
 import { moveFocus, rangeOf, type GridCell } from '@/lib/tables/grid-focus';
-import { rowWindow, scrollToRow } from '@/lib/tables/row-window';
+import { rangeGaps, rowWindow, SCROLL_STEP, scrollToRow } from '@/lib/tables/row-window';
 import { nextSort, type Density, type SortKey } from '@/lib/tables/table-state';
 import { columnsAtTier, chosenColumns, moveColumn, toggleColumn } from '@/lib/tables/visible-columns';
 import { cn } from '@/lib/utils';
@@ -70,14 +73,27 @@ function useColumnTier(): 1 | 2 | 3 | 4 {
 }
 
 /** A record action as a menu item; destructive ones are listed last by the menu. */
-const toMenuItem = <TRow,>(action: RecordAction<TRow>, rows: readonly TRow[]): MenuItemDef => ({
+const toMenuItem = <TRow,>(action: RecordAction<TRow>, rows: readonly TRow[], scope: ActionScope): MenuItemDef => ({
   id: action.id,
   label: action.label,
   icon: action.icon,
   tone: action.group === 'destructive' ? 'destructive' : 'default',
   disabledReason: action.disabledReason ?? undefined,
-  onSelect: () => action.onSelect(rows),
+  onSelect: () => action.onSelect(rows, scope),
 });
+
+/**
+ * Whether a click landed on the row itself rather than on a control in it. Clicks in a menu or tooltip
+ * portaled out of the row still reach it through React, so a target outside the row's element is not the
+ * row's either.
+ */
+const isRowClick = (event: MouseEvent<HTMLTableRowElement>): boolean =>
+  event.target instanceof Element &&
+  event.currentTarget.contains(event.target) &&
+  event.target.closest('button, a, input, label, [role="checkbox"], [role="menuitem"]') === null;
+
+/** The keys a control inside a cell hands back to the grid (20-accessibility.md section 6.3, widget mode). */
+const GRID_KEYS = new Set(['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 /**
  * The one table for record lists (12-tables.md, 20-accessibility.md section 6, 25-component-inventory.md
@@ -121,6 +137,9 @@ export function DataTable<TRow extends RowData>({
   const t = useTranslations('dataTable');
   const captionId = useId();
   const hintId = useId();
+  const gridId = useId();
+  // Announcements about one subject share a key, so a newer one replaces one still waiting
+  const selectionKey = `${captionId}-selection`;
   const region = useRef<HTMLDivElement>(null);
   const tier = useColumnTier();
 
@@ -144,12 +163,17 @@ export function DataTable<TRow extends RowData>({
 
   // Rows: searched and sorted here in client mode, as given in server mode
   const needle = search.trim().toLocaleLowerCase();
-  const searched =
-    server !== undefined || needle === '' || searchText === undefined
-      ? loaded
-      : loaded.filter((row) => searchText(row).toLocaleLowerCase().includes(needle));
-  const rows = useSortedRows({ rows: searched, columns, sort, manual: server !== undefined, getRowId });
-  const ids = rows.map(getRowId);
+  const serverMode = server !== undefined;
+  const searched = useMemo(
+    () =>
+      serverMode || needle === '' || searchText === undefined
+        ? loaded
+        : loaded.filter((row) => searchText(row).toLocaleLowerCase().includes(needle)),
+    [loaded, needle, searchText, serverMode],
+  );
+  const rows = useSortedRows({ rows: searched, columns, sort, manual: serverMode, getRowId });
+  const ids = useMemo(() => rows.map(getRowId), [rows, getRowId]);
+  const indexOfId = useMemo(() => new Map(ids.map((id, index) => [id, index])), [ids]);
   const showRows = status === 'ready' || status === 'refetching';
 
   // Geometry
@@ -186,26 +210,46 @@ export function DataTable<TRow extends RowData>({
     return null;
   };
 
-  // Focus: one cell holds the tab stop; row -1 is the header
-  const [focus, setFocus] = useState<GridCell>({ row: -1, column: 0 });
+  // Focus: one cell holds the tab stop. It follows the row's id through sorting, searching and refetches
+  // (20-accessibility.md section 6.4, rule 6); when the row goes, the row now at its index takes it.
+  // `rowId` null is the header row.
+  const [focus, setFocus] = useState<{ rowId: string | null; index: number; column: number }>({
+    rowId: null,
+    index: -1,
+    column: 0,
+  });
   // A key's move, kept apart from focus that follows a click, so only keys scroll and move focus
   const [focusRequest, setFocusRequest] = useState<{ cell: GridCell; seq: number } | null>(null);
+  const handledRequest = useRef(0);
+  const focusedIndex = focus.rowId === null ? -1 : (indexOfId.get(focus.rowId) ?? focus.index);
   const current: GridCell = {
-    row: showRows ? Math.min(focus.row, rows.length - 1) : -1,
+    row: showRows ? Math.min(focusedIndex, rows.length - 1) : -1,
     column: Math.min(focus.column, grid.length - 1),
   };
+  const cellAt = (row: number, column: number): { rowId: string | null; index: number; column: number } => ({
+    rowId: row < 0 ? null : (ids[row] ?? null),
+    index: row,
+    column,
+  });
+  // Looked up by the grid's id when a menu closes, which is after render
+  const cellElement = (row: number, column: number): HTMLElement | null =>
+    document.getElementById(gridId)?.querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`) ??
+    null;
   const rowHeight = ROW_HEIGHT[density];
-  const rendered = rowWindow({
-    count: showRows ? rows.length : 0,
+  const count = showRows ? rows.length : 0;
+  const ranges = rowWindow({
+    count,
     rowHeight,
     scrollTop,
     viewport: regionSize.height - HEADER_HEIGHT,
     keep: current.row >= 0 ? current.row : null,
   });
-  // A key moved focus: bring the cell into view and focus it
+  const gaps = rangeGaps(ranges, count, rowHeight);
+  // A key moved focus: bring the cell into view and focus it, once per move
   useEffect(() => {
     const element = region.current;
-    if (focusRequest === null || element === null) return;
+    if (focusRequest === null || element === null || focusRequest.seq === handledRequest.current) return;
+    handledRequest.current = focusRequest.seq;
     const { row, column } = focusRequest.cell;
     if (row >= 0) {
       const target = scrollToRow({
@@ -222,50 +266,105 @@ export function DataTable<TRow extends RowData>({
       ?.focus({ preventScroll: true });
   }, [focusRequest, rowHeight]);
   const moveTo = (cell: GridCell): void => {
-    setFocus(cell);
+    setFocus(cellAt(cell.row, cell.column));
     setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1 }));
   };
+  // Whether focus is in the grid, so a cell removed under it (a refetch dropped its row) hands focus on
+  // instead of leaving it on the page body
+  const focusInGrid = useRef(false);
+  useEffect(() => {
+    const element = region.current;
+    if (!focusInGrid.current || element === null || document.activeElement !== document.body) return;
+    element
+      .querySelector<HTMLElement>(`[data-cell="${String(current.row)}:${String(current.column)}"]`)
+      ?.focus({ preventScroll: true });
+  });
+  const onGridBlur = (event: FocusEvent<HTMLTableElement>): void => {
+    const next = event.relatedTarget;
+    // Focus left for somewhere else, rather than with an element the table removed
+    if (next instanceof Node ? !event.currentTarget.contains(next) : event.target.isConnected) {
+      focusInGrid.current = false;
+    }
+  };
 
-  // Selection
+  // Selection. With every matching row selected, each loaded row counts as selected too, so unticking one
+  // starts from all of them.
+  const allMatching = selection?.allMatching === true;
   const selected = selection?.selectedIds ?? EMPTY_IDS;
   const [anchor, setAnchor] = useState<string | null>(null);
-  const loadedSelected = ids.filter((id) => selected.has(id)).length;
-  const hiddenSelected = [...selected].filter((id) => !ids.includes(id)).length;
+  const loadedSelected = useMemo(() => ids.filter((id) => selected.has(id)).length, [ids, selected]);
+  const hiddenSelected = useMemo(() => {
+    let hidden = 0;
+    for (const id of selected) if (!indexOfId.has(id)) hidden += 1;
+    return hidden;
+  }, [indexOfId, selected]);
+  const allLoadedSelected = allMatching || (ids.length > 0 && loadedSelected === ids.length);
   const setSelected = (next: ReadonlySet<string>): void => {
     if (selection === undefined) return;
-    if (selection.allMatching) selection.onAllMatchingChange(false);
+    if (allMatching) selection.onAllMatchingChange(false);
     selection.onChange(next);
+    announce(t('selected', { count: formatInteger(next.size) }), { key: selectionKey, debounceMs: 250 });
   };
+  const effectiveSelected = (): Set<string> => new Set(allMatching ? [...selected, ...ids] : selected);
   const toggleRow = (id: string, range: boolean): void => {
-    const next = new Set(selected);
-    const targets = range ? rangeOf(ids, anchor, id) : [id];
-    const on = !selected.has(id);
-    for (const each of targets) {
+    const next = effectiveSelected();
+    // Shift extends the selection to the range; a plain toggle flips the row
+    const on = range || !next.has(id);
+    for (const each of range ? rangeOf(ids, anchor, id) : [id]) {
       if (on) next.add(each);
       else next.delete(each);
     }
     setAnchor(id);
     setSelected(next);
   };
+  // The header checkbox covers the rows in view: unticking it keeps the selected rows the search hides
   const toggleAll = (): void => {
-    setSelected(loadedSelected === ids.length ? new Set() : new Set([...selected, ...ids]));
+    const next = effectiveSelected();
+    if (allLoadedSelected) for (const id of ids) next.delete(id);
+    else for (const id of ids) next.add(id);
+    setSelected(next);
   };
-  const headerChecked: boolean | 'indeterminate' =
-    loadedSelected === 0 ? false : loadedSelected === ids.length ? true : 'indeterminate';
-  const selectedRows = rows.filter((row) => selected.has(getRowId(row)));
+  const selectLoaded = (): void => {
+    if (!allMatching) setSelected(new Set([...selected, ...ids]));
+  };
+  const headerChecked: boolean | 'indeterminate' = allLoadedSelected
+    ? true
+    : loadedSelected === 0
+      ? false
+      : 'indeterminate';
+  const selectedRows = useMemo(
+    () => (allMatching ? loaded : loaded.filter((row) => selected.has(getRowId(row)))),
+    [allMatching, loaded, selected, getRowId],
+  );
+  const scope: ActionScope = { ids: selected, allMatching };
 
   // Menus opened from the keyboard
   const [menu, setMenu] = useState<{ kind: 'column' | 'row'; id: string } | null>(null);
   const menuOpen = (kind: 'column' | 'row', id: string): boolean => menu?.kind === kind && menu.id === id;
   const onMenuChange = (kind: 'column' | 'row', id: string) => (open: boolean) => setMenu(open ? { kind, id } : null);
 
+  const labelOf = (id: string): string => byId.get(id)?.header ?? id;
+  const keyText = (key: SortKey): string => t(key.desc ? 'descending' : 'ascending', { column: labelOf(key.id) });
+  const sortText = (keys: readonly SortKey[]): string | null => {
+    const [first, second] = keys;
+    if (first === undefined) return null;
+    return second === undefined
+      ? t('sortedOne', { first: keyText(first) })
+      : t('sortedTwo', { first: keyText(first), second: keyText(second) });
+  };
+  // A sort change is announced in words, since aria-sort names only the first key (section 6.5, rule 3)
+  const changeSort = (next: readonly SortKey[]): void => {
+    onSortChange(next);
+    const text = sortText(next);
+    if (text !== null) announce(text, { key: `${captionId}-sort` });
+  };
   const sortBy = (column: DataTableColumn<TRow>, additive: boolean): void => {
     const defaultDesc = COLUMN_TYPES[column.type].defaultDesc;
     if (defaultDesc === null || column.sortValue === undefined) return;
-    onSortChange(nextSort(sort, { id: column.id, defaultDesc }, { additive, tableDefault: defaultSort }));
+    changeSort(nextSort(sort, { id: column.id, defaultDesc }, { additive, tableDefault: defaultSort }));
   };
   const setSortDirection = (column: DataTableColumn<TRow>, direction: 'asc' | 'desc' | null): void => {
-    onSortChange(direction === null ? [...defaultSort] : [{ id: column.id, desc: direction === 'desc' }]);
+    changeSort(direction === null ? [...defaultSort] : [{ id: column.id, desc: direction === 'desc' }]);
   };
 
   const openRow = (row: TRow, event: { metaKey: boolean; ctrlKey: boolean; button?: number }): void => {
@@ -273,8 +372,20 @@ export function DataTable<TRow extends RowData>({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTableElement>): void => {
-    // Keys pressed inside a cell's widgets, menus and tooltips are theirs
-    if (!(event.target instanceof HTMLElement) || event.target.dataset.cell === undefined) return;
+    const target = event.target;
+    // Keys in a portaled menu or tooltip reach the table through React, and are theirs
+    if (!(target instanceof HTMLElement) || !event.currentTarget.contains(target)) return;
+    if (target.dataset.cell === undefined) {
+      // A control in a cell (a checkbox, a sort button, a menu trigger) keeps its own keys, but Escape and
+      // the arrows go back to the grid: Escape to the cell, the arrows on from it
+      const cell = target.closest<HTMLElement>('[data-cell]');
+      if (cell === null || !GRID_KEYS.has(event.key) || event.altKey) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cell.focus({ preventScroll: true });
+        return;
+      }
+    }
     const size = {
       rows: showRows ? rows.length : 0,
       columns: grid.length,
@@ -295,7 +406,7 @@ export function DataTable<TRow extends RowData>({
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && selection !== undefined) {
       event.preventDefault();
-      setSelected(new Set([...selected, ...ids]));
+      selectLoaded();
       return;
     }
     if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
@@ -320,6 +431,7 @@ export function DataTable<TRow extends RowData>({
       }
       if (row === undefined) return;
       if (column?.kind === 'actions') setMenu({ kind: 'row', id: getRowId(row) });
+      else if (column?.kind === 'select' && selection !== undefined) toggleRow(getRowId(row), false);
       else openRow(row, event);
     }
   };
@@ -329,23 +441,28 @@ export function DataTable<TRow extends RowData>({
     'data-cell': `${String(row)}:${String(column)}`,
     tabIndex: current.row === row && current.column === column ? 0 : -1,
     onFocus: (): void => {
-      if (focus.row !== row || focus.column !== column) setFocus({ row, column });
+      if (current.row !== row || current.column !== column) setFocus(cellAt(row, column));
     },
   });
 
   const primarySort = sort[0];
+  // A search narrows the loaded rows here in client mode, so the count is of what it left
+  const shownCount = serverMode || needle === '' ? (total ?? rows.length) : rows.length;
   const countText = t('count', {
-    count: formatInteger(total ?? rows.length),
-    noun: (total ?? rows.length) === 1 ? itemNoun.one : itemNoun.other,
+    count: formatInteger(shownCount),
+    noun: shownCount === 1 ? itemNoun.one : itemNoun.other,
   });
-  const labelOf = (id: string): string => byId.get(id)?.header ?? id;
-  const sortSummary =
-    sort.length < 2
-      ? null
-      : t('sortedTwo', {
-          first: t(sort[0]?.desc === true ? 'descending' : 'ascending', { column: labelOf(sort[0]?.id ?? '') }),
-          second: t(sort[1]?.desc === true ? 'descending' : 'ascending', { column: labelOf(sort[1]?.id ?? '') }),
-        });
+  const sortSummary = sort.length < 2 ? null : sortText(sort);
+  // The result count is announced when it changes after the first render (13-filters-search.md section 8),
+  // whether the toolbar or the bulk bar is showing
+  const announcedCount = useRef<string | null>(null);
+  useEffect(() => {
+    if (status !== 'ready' && status !== 'filtered-empty' && status !== 'empty') return;
+    if (announcedCount.current !== null && announcedCount.current !== countText) {
+      announce(countText, { key: `${captionId}-count`, debounceMs: 500 });
+    }
+    announcedCount.current = countText;
+  }, [captionId, countText, status]);
 
   // "Updating" appears when a refetch has run for 400 ms
   const [showUpdating, setShowUpdating] = useState(false);
@@ -416,8 +533,24 @@ export function DataTable<TRow extends RowData>({
     return [...sortItems, ...layoutItems];
   };
 
+  // Row positions for assistive technology (20-accessibility.md section 6.4): in server mode the page's
+  // rows sit at their place in the whole list, and an unknown total is -1
+  const rowOffset = server?.offset ?? 0;
+  const rowCount = !showRows ? -1 : serverMode ? (total === null ? -1 : total + 1) : rows.length + 1;
+  const bodyItems: ({ kind: 'gap'; key: string; height: number } | { kind: 'row'; row: TRow; index: number })[] = [];
+  ranges.forEach((range, position) => {
+    const height = gaps[position] ?? 0;
+    if (height > 0) bodyItems.push({ kind: 'gap', key: `gap-${String(position)}`, height });
+    for (let index = range.start; index < range.end; index += 1) {
+      const row = rows[index];
+      if (row !== undefined) bodyItems.push({ kind: 'row', row, index });
+    }
+  });
+  const trailingGap = gaps[ranges.length] ?? 0;
+  if (trailingGap > 0) bodyItems.push({ kind: 'gap', key: 'gap-end', height: trailingGap });
+
   const bodyMessage = (content: ReactNode): ReactElement => (
-    <tr role="row">
+    <tr role="row" aria-rowindex={2}>
       <td role="gridcell" colSpan={grid.length} className="p-0">
         {content}
       </td>
@@ -436,14 +569,26 @@ export function DataTable<TRow extends RowData>({
         <BulkActionBar
           selectedCount={selected.size}
           matchingTotal={selection.matchingTotal}
-          allMatching={selection.allMatching}
-          onAllMatchingChange={selection.onAllMatchingChange}
+          allLoadedSelected={allLoadedSelected}
+          allMatching={allMatching}
+          onSelectAllMatching={() => {
+            selection.onAllMatchingChange(true);
+            if (selection.matchingTotal !== null) {
+              announce(
+                t('allMatchingAnnounced', { count: formatInteger(selection.matchingTotal), noun: itemNoun.other }),
+                { key: selectionKey },
+              );
+            }
+          }}
           hiddenCount={hiddenSelected}
+          hiddenReason={serverMode ? 'pages' : 'filters'}
           actions={bulkActions ?? []}
           selectedRows={selectedRows}
+          scope={scope}
           onClear={() => {
             selection.onAllMatchingChange(false);
             selection.onChange(new Set());
+            announce(t('selectionCleared'), { key: selectionKey });
           }}
         />
       ) : (
@@ -471,16 +616,22 @@ export function DataTable<TRow extends RowData>({
       <div
         ref={region}
         className="relative isolate min-h-0 flex-1 overflow-auto"
-        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        // Rounded down, so scrolling renders again every SCROLL_STEP pixels rather than on every event
+        onScroll={(event) => setScrollTop(Math.floor(event.currentTarget.scrollTop / SCROLL_STEP) * SCROLL_STEP)}
       >
         <table
           role="grid"
+          id={gridId}
           aria-labelledby={captionId}
           aria-describedby={hintId}
-          aria-rowcount={showRows ? rows.length + 1 : -1}
+          aria-rowcount={rowCount}
           aria-multiselectable={selection === undefined ? undefined : true}
           aria-busy={status === 'refetching' || status === 'loading' ? true : undefined}
           onKeyDown={onKeyDown}
+          onFocus={() => {
+            focusInGrid.current = true;
+          }}
+          onBlur={onGridBlur}
           className="table-fixed border-separate border-spacing-0 type-table"
           style={{ width: tableWidth }}
         >
@@ -539,6 +690,7 @@ export function DataTable<TRow extends RowData>({
                         onSort={(additive) => sortBy(column.column, additive)}
                         menuOpen={menuOpen('column', column.column.id)}
                         onMenuOpenChange={onMenuChange('column', column.column.id)}
+                        finalFocus={() => cellElement(-1, index) ?? true}
                         items={columnMenu(column.column, sortKey !== undefined)}
                         optionsLabel={t('columnOptions', { column: column.column.header })}
                       />
@@ -551,132 +703,134 @@ export function DataTable<TRow extends RowData>({
             </tr>
           </thead>
           <tbody role="rowgroup">
-            {status === 'loading' ? (
-              Array.from({ length: SKELETON_ROWS }, (_, index) => (
-                <tr
-                  key={index}
-                  role="row"
-                  aria-hidden="true"
-                  className={density === 'compact' ? 'h-row-compact' : 'h-row'}
-                >
-                  {grid.map((column) => (
-                    <td key={keyOf(column)} className="border-b border-border-subtle px-3">
-                      {column.kind === 'data' ? (
-                        <span
-                          className={cn('flex', COLUMN_TYPES[column.column.type].align === 'right' && 'justify-end')}
-                        >
-                          <Skeleton shape="text-13" widthPct={column.column.identity === true ? 72 : 56} />
-                        </span>
-                      ) : null}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            ) : status === 'error' ? (
-              bodyMessage(errorState)
-            ) : status === 'empty' ? (
-              bodyMessage(emptyState)
-            ) : status === 'filtered-empty' || rows.length === 0 ? (
-              bodyMessage(filteredEmptyState)
-            ) : (
-              <>
-                {rendered.before > 0 ? <tr aria-hidden="true" style={{ height: rendered.before }} /> : null}
-                {rows.slice(rendered.start, rendered.end).map((row, offset) => {
-                  const index = rendered.start + offset;
-                  const id = getRowId(row);
-                  const isSelected = selected.has(id) || selection?.allMatching === true;
-                  const isActive = activeRowId === id;
-                  const name = rowName(row);
-                  return (
-                    <tr
-                      key={id}
-                      role="row"
-                      aria-rowindex={index + 2}
-                      aria-selected={selection === undefined ? undefined : isSelected}
-                      data-selected={isSelected ? '' : undefined}
-                      data-active={isActive ? '' : undefined}
-                      className={cn('group cursor-default', density === 'compact' ? 'h-row-compact' : 'h-row')}
-                      onClick={(event: MouseEvent<HTMLTableRowElement>) => {
-                        if (
-                          event.target instanceof Element &&
-                          event.target.closest('button, a, input, [role="checkbox"]') !== null
-                        ) {
-                          return;
-                        }
-                        openRow(row, event);
-                      }}
-                      onAuxClick={(event: MouseEvent<HTMLTableRowElement>) => {
-                        if (event.button === 1) openRow(row, event);
-                      }}
-                    >
-                      {grid.map((column, columnIndex) => {
-                        const left = stickyLeft(column);
-                        const first = columnIndex === 0;
-                        const identity = column.kind === 'data' && column.column.identity === true;
-                        const Cell = cellTag(identity);
-                        return (
-                          <Cell
-                            key={keyOf(column)}
-                            role={identity ? 'rowheader' : 'gridcell'}
-                            scope={identity ? ROW_SCOPE : undefined}
-                            {...cellProps(index, columnIndex)}
-                            style={left === null ? undefined : { left }}
-                            className={cn(
-                              'border-b border-border-subtle bg-surface px-3 font-normal outline-none focus-visible:focus-ring-inset',
-                              'group-hover:bg-surface-hover group-data-active:bg-surface-selected group-data-selected:bg-surface-selected',
-                              left !== null && 'sticky z-(--z-pinned-cell)',
-                              first && 'group-data-active:row-active-edge',
-                              column.kind === 'select' && 'px-0 text-center',
-                              column.kind === 'actions' && 'px-2 text-right',
-                              column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
-                              identity && 'group-data-active:text-primary-text group-data-selected:text-primary-text',
-                            )}
+            {status === 'loading'
+              ? Array.from({ length: SKELETON_ROWS }, (_, index) => (
+                  <tr
+                    key={index}
+                    role="row"
+                    aria-hidden="true"
+                    className={density === 'compact' ? 'h-row-compact' : 'h-row'}
+                  >
+                    {grid.map((column) => (
+                      <td key={keyOf(column)} className="border-b border-border-subtle px-3">
+                        {column.kind === 'data' ? (
+                          <span
+                            className={cn('flex', COLUMN_TYPES[column.column.type].align === 'right' && 'justify-end')}
                           >
-                            {column.kind === 'select' ? (
-                              <Checkbox
-                                checked={isSelected}
-                                label={t('selectRow', { name })}
-                                labelDisplay="visually-hidden"
-                                tabIndex={-1}
-                                onCheckedChange={() => toggleRow(id, false)}
-                                onClick={(event) => {
-                                  if (event.shiftKey) {
-                                    event.preventDefault();
-                                    toggleRow(id, true);
-                                  }
-                                }}
-                                className="justify-center"
-                              />
-                            ) : column.kind === 'actions' ? (
-                              <Menu
-                                align="end"
-                                open={menuOpen('row', id)}
-                                onOpenChange={onMenuChange('row', id)}
-                                trigger={
-                                  <IconButton
-                                    icon={Ellipsis}
-                                    size="icon-xs"
-                                    variant="ghost"
-                                    tabIndex={-1}
-                                    label={t('rowActions', { name })}
-                                  />
-                                }
-                                items={[...(rowActions ?? [])]
-                                  .sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group])
-                                  .map((action) => toMenuItem(action, [row]))}
-                              />
-                            ) : (
-                              column.column.cell(row)
-                            )}
-                          </Cell>
+                            <Skeleton shape="text-13" widthPct={column.column.identity === true ? 72 : 56} />
+                          </span>
+                        ) : null}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              : status === 'error'
+                ? bodyMessage(errorState)
+                : status === 'empty'
+                  ? bodyMessage(emptyState)
+                  : status === 'filtered-empty' || rows.length === 0
+                    ? bodyMessage(filteredEmptyState)
+                    : // One flat keyed list of rows and spacers: a row that moves from the kept range into the view
+                      // keeps its element, and with it the focus
+                      bodyItems.map((item) => {
+                        if (item.kind === 'gap') {
+                          return (
+                            <tr key={item.key} aria-hidden="true" style={{ height: item.height }}>
+                              <td colSpan={grid.length} className="p-0" />
+                            </tr>
+                          );
+                        }
+                        const { row, index } = item;
+                        const id = getRowId(row);
+                        const isSelected = allMatching || selected.has(id);
+                        const isActive = activeRowId === id;
+                        const name = rowName(row);
+                        return (
+                          <tr
+                            key={id}
+                            role="row"
+                            aria-rowindex={rowOffset + index + 2}
+                            aria-selected={selection === undefined ? undefined : isSelected}
+                            data-selected={isSelected ? '' : undefined}
+                            data-active={isActive ? '' : undefined}
+                            className={cn('group cursor-default', density === 'compact' ? 'h-row-compact' : 'h-row')}
+                            onClick={(event: MouseEvent<HTMLTableRowElement>) => {
+                              if (isRowClick(event)) openRow(row, event);
+                            }}
+                            onAuxClick={(event: MouseEvent<HTMLTableRowElement>) => {
+                              if (event.button === 1 && isRowClick(event)) openRow(row, event);
+                            }}
+                          >
+                            {grid.map((column, columnIndex) => {
+                              const left = stickyLeft(column);
+                              const first = columnIndex === 0;
+                              const identity = column.kind === 'data' && column.column.identity === true;
+                              const Cell = cellTag(identity);
+                              return (
+                                <Cell
+                                  key={keyOf(column)}
+                                  role={identity ? 'rowheader' : 'gridcell'}
+                                  scope={identity ? ROW_SCOPE : undefined}
+                                  {...cellProps(index, columnIndex)}
+                                  style={left === null ? undefined : { left }}
+                                  className={cn(
+                                    'border-b border-border-subtle bg-surface px-3 font-normal outline-none focus-visible:focus-ring-inset',
+                                    'group-hover:bg-surface-hover group-data-active:bg-surface-selected group-data-selected:bg-surface-selected',
+                                    left !== null && 'sticky z-(--z-pinned-cell)',
+                                    first && 'group-data-active:row-active-edge',
+                                    column.kind === 'select' && 'px-0 text-center',
+                                    column.kind === 'actions' && 'px-2 text-right',
+                                    column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
+                                    identity &&
+                                      'group-data-active:text-primary-text group-data-selected:text-primary-text',
+                                  )}
+                                >
+                                  {column.kind === 'select' ? (
+                                    <Checkbox
+                                      checked={isSelected}
+                                      label={t('selectRow', { name })}
+                                      labelDisplay="visually-hidden"
+                                      tabIndex={-1}
+                                      onCheckedChange={() => toggleRow(id, false)}
+                                      onClick={(event) => {
+                                        if (event.shiftKey) {
+                                          event.preventDefault();
+                                          toggleRow(id, true);
+                                        }
+                                      }}
+                                      className="justify-center"
+                                    />
+                                  ) : column.kind === 'actions' ? (
+                                    <Menu
+                                      align="end"
+                                      open={menuOpen('row', id)}
+                                      onOpenChange={onMenuChange('row', id)}
+                                      // Back to the cell, not the trigger, so the arrow keys work again
+                                      finalFocus={() => cellElement(index, columnIndex) ?? true}
+                                      trigger={
+                                        <IconButton
+                                          icon={Ellipsis}
+                                          size="icon-xs"
+                                          variant="ghost"
+                                          tabIndex={-1}
+                                          label={t('rowActions', { name })}
+                                        />
+                                      }
+                                      items={[...(rowActions ?? [])]
+                                        .sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group])
+                                        .map((action) =>
+                                          toMenuItem(action, [row], { ids: new Set([id]), allMatching: false }),
+                                        )}
+                                    />
+                                  ) : (
+                                    column.column.cell(row)
+                                  )}
+                                </Cell>
+                              );
+                            })}
+                          </tr>
                         );
                       })}
-                    </tr>
-                  );
-                })}
-                {rendered.after > 0 ? <tr aria-hidden="true" style={{ height: rendered.after }} /> : null}
-              </>
-            )}
           </tbody>
         </table>
       </div>
@@ -693,6 +847,8 @@ interface HeaderContentProps<TRow> {
   onSort: (additive: boolean) => void;
   menuOpen: boolean;
   onMenuOpenChange: (open: boolean) => void;
+  /** Where focus goes when the options menu closes: the header cell. */
+  finalFocus: () => HTMLElement | true;
   items: MenuItemDef[];
   optionsLabel: string;
 }
@@ -705,6 +861,7 @@ function HeaderContent<TRow>({
   onSort,
   menuOpen,
   onMenuOpenChange,
+  finalFocus,
   items,
   optionsLabel,
 }: HeaderContentProps<TRow>): ReactElement {
@@ -755,6 +912,7 @@ function HeaderContent<TRow>({
           <Menu
             open={menuOpen}
             onOpenChange={onMenuOpenChange}
+            finalFocus={finalFocus}
             trigger={
               <IconButton icon={ChevronDown} size="icon-xs" variant="ghost" tabIndex={-1} label={optionsLabel} />
             }

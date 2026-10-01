@@ -25,8 +25,9 @@ export function TableFooter({ countText, note, server }: TableFooterProps): Reac
   return (
     <div className="flex h-12 shrink-0 items-center gap-3 border-t border-border-subtle px-3">
       <p className="num type-meta">
-        {server?.rangeText ?? countText}
-        {note === undefined ? null : <span> · {note}</span>}
+        {note === undefined
+          ? (server?.rangeText ?? countText)
+          : t('footerNote', { count: server?.rangeText ?? countText, note })}
       </p>
       {server === undefined ? null : (
         <div className="ml-auto flex items-center gap-2">

@@ -68,10 +68,10 @@ export function DataTableToolbar({
           aria-keyshortcuts="/"
         />
       </InputGroup>
-      <p className="num type-meta" aria-live="polite">
-        {countText}
-      </p>
-      {sortSummary === null ? null : <p className="hidden type-meta xl:block">{sortSummary}</p>}
+      {/* The table announces a new count itself, so it is heard while the bulk bar is up as well */}
+      <p className="num type-meta">{countText}</p>
+      {/* Shown from 1280 px, and always readable, since aria-sort names only the first key */}
+      {sortSummary === null ? null : <p className="sr-only type-meta xl:not-sr-only">{sortSummary}</p>}
       {updating ? (
         <p className="flex items-center gap-1.5 type-meta">
           <Spinner size="sm" />

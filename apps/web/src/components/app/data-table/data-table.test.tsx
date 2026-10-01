@@ -1,10 +1,10 @@
-import { act, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { col } from './columns';
 import { DataTable } from './data-table';
-import type { RecordAction, TableStatus } from './types';
+import type { RecordAction, ServerPaging, TableStatus } from './types';
 import type { Density, SortKey } from '@/lib/tables/table-state';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
@@ -38,14 +38,31 @@ const ACTIONS: RecordAction<Row>[] = [
   { id: 'open', label: 'Open', group: 'open', onSelect: vi.fn() },
 ];
 
+const rowId = (row: Row): string => row.id;
+const keywordOf = (row: Row): string => row.keyword;
+
+/** A page of 100 rows at rows 201 to 300 of 4,812. */
+const SERVER_PAGE: ServerPaging = {
+  rangeText: 'Showing 201 to 300 of 4,812 keywords',
+  offset: 200,
+  hasPrevious: true,
+  hasNext: true,
+  onPrevious: () => undefined,
+  onNext: () => undefined,
+  pageSize: 100,
+  onPageSizeChange: () => undefined,
+};
+
 function Harness({
   rows,
   status = 'ready',
   matchingTotal = null,
+  server,
 }: {
   rows: Row[];
   status?: TableStatus;
   matchingTotal?: number | null;
+  server?: ServerPaging;
 }): ReactElement {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
   const [density, setDensity] = useState<Density>('default');
@@ -59,9 +76,10 @@ function Harness({
         caption="Keywords"
         itemNoun={{ one: 'keyword', other: 'keywords' }}
         columns={COLUMNS}
-        getRowId={(row) => row.id}
+        getRowId={rowId}
         rows={rows}
-        total={rows.length}
+        total={server === undefined ? rows.length : 4812}
+        server={server}
         sort={sort}
         onSortChange={setSort}
         defaultSort={DEFAULT_SORT}
@@ -71,7 +89,7 @@ function Harness({
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search keywords"
-        searchText={(row) => row.keyword}
+        searchText={keywordOf}
         selection={{
           selectedIds: selected,
           onChange: setSelected,
@@ -123,6 +141,7 @@ afterEach(() => {
 });
 
 const grid = (): HTMLElement => screen.getByRole('grid', { name: 'Keywords' });
+const bulkBar = (): HTMLElement => screen.getByRole('group', { name: /Bulk actions/ });
 const bodyKeywords = (): string[] =>
   within(grid())
     .getAllByRole('rowheader')
@@ -153,13 +172,11 @@ describe('DataTable', () => {
 
   it('moves one tab stop with the arrows, opens with Enter and selects with Space and Shift+Space', async () => {
     const { user } = renderWithProviders(<Harness rows={rowsOf(5)} />);
-    await user.tab();
-    await user.tab();
-    await user.tab();
-    await user.tab();
-    const first = screen.getAllByRole('columnheader')[0];
-    if (first === undefined) throw new Error('no header');
-    first.focus();
+    // Search, density and columns come first; the next Tab enters the grid at the first header
+    for (let presses = 0; presses < 6 && !grid().contains(document.activeElement); presses += 1) {
+      await user.tab();
+    }
+    expect(document.activeElement).toBe(screen.getAllByRole('columnheader')[0]);
     await user.keyboard('{ArrowDown}{ArrowRight}');
     expect(document.activeElement).toBe(within(grid()).getAllByRole('rowheader')[0]);
     expect(grid().querySelectorAll('[tabindex="0"]')).toHaveLength(1);
@@ -168,21 +185,86 @@ describe('DataTable', () => {
     await user.keyboard(' ');
     await user.keyboard('{ArrowDown}{ArrowDown}');
     await user.keyboard('{Shift>} {/Shift}');
-    expect(screen.getByText('3 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).getByText('3 selected')).toBeInTheDocument();
+    // Shift+Space on a row already in the range extends the selection rather than undoing it
+    await user.keyboard('{ArrowUp}{Shift>} {/Shift}');
+    expect(within(bulkBar()).getByText('3 selected')).toBeInTheDocument();
     await user.keyboard('{Control>}a{/Control}');
-    expect(screen.getByText('5 selected')).toBeInTheDocument();
+    expect(within(bulkBar()).getByText('5 selected')).toBeInTheDocument();
   });
 
-  it('offers every matching row past the loaded ones, and runs a bulk action on the selection', async () => {
+  it('offers every matching row only once every loaded row is selected, and runs a bulk action on it', async () => {
     const { user } = renderWithProviders(<Harness rows={rowsOf(5)} matchingTotal={4812} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 000' }));
+    expect(within(bulkBar()).queryByRole('button', { name: /matching/ })).toBeNull();
     await user.click(screen.getByRole('checkbox', { name: 'Select all 5 keywords loaded' }));
-    const bar = screen.getByRole('group', { name: /Bulk actions/ });
-    await user.click(within(bar).getByRole('button', { name: 'Select all 4,812 matching' }));
-    expect(within(bar).getByText('All 4,812 matching selected')).toBeInTheDocument();
-    await user.click(within(bar).getByRole('button', { name: 'Archive' }));
-    expect(archive).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'k0' })]));
-    await user.click(within(bar).getByRole('button', { name: 'Clear selection' }));
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Select all 4,812 matching' }));
+    expect(within(bulkBar()).getByText('All 4,812 matching selected')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select all 5 keywords loaded' })).toBeChecked();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: 'k0' })]),
+      expect.objectContaining({ allMatching: true }),
+    );
+    // Unticking one row leaves the other loaded rows selected
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 002' }));
+    expect(within(bulkBar()).getByText('4 selected')).toBeInTheDocument();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Clear selection' }));
     expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull();
+  });
+
+  it('keeps selected rows a filter hides: the header checkbox leaves them, and actions still get their ids', async () => {
+    const all = rowsOf(5);
+    const { user, rerender } = renderWithProviders(<Harness rows={all} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 003' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 004' }));
+    rerender(<Harness rows={all.filter((row) => row.id !== 'k4')} />);
+    expect(within(bulkBar()).getByText('1 selected row is hidden by filters')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 4 keywords loaded' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 4 keywords loaded' }));
+    expect(within(bulkBar()).getByText('1 selected')).toBeInTheDocument();
+    await user.click(within(bulkBar()).getByRole('button', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledWith([], { ids: new Set(['k4']), allMatching: false });
+  });
+
+  it('follows the focused row through a search, not its position', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} />);
+    const second = within(grid()).getAllByRole('rowheader')[1];
+    if (second === undefined) throw new Error('no row');
+    expect(second).toHaveTextContent('keyword 003');
+    act(() => second.focus());
+    await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), '003');
+    expect(bodyKeywords()).toEqual(['keyword 003']);
+    expect(within(grid()).getByRole('rowheader')).toHaveAttribute('tabindex', '0');
+  });
+
+  it('hands Escape and the arrows from a control in a cell back to the grid', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 002' }));
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(within(grid()).getAllByRole('rowheader')[0]);
+    await user.click(within(grid()).getByRole('button', { name: 'Keyword' }));
+    await user.keyboard('{Escape}');
+    expect(document.activeElement).toBe(screen.getByRole('columnheader', { name: /Keyword/ }));
+  });
+
+  it('numbers the rows of a server page by their place in the whole list', () => {
+    renderWithProviders(<Harness rows={rowsOf(100)} server={SERVER_PAGE} />);
+    expect(grid()).toHaveAttribute('aria-rowcount', '4813');
+    const firstRow = within(grid()).getAllByRole('row')[1];
+    expect(firstRow).toHaveAttribute('aria-rowindex', '202');
+  });
+
+  it('keeps the focused row when scrolled far away, without the rows between', () => {
+    renderWithProviders(<Harness rows={rowsOf(500)} />);
+    const first = within(grid()).getAllByRole('rowheader')[0];
+    if (first === undefined) throw new Error('no row');
+    act(() => first.focus());
+    const region = grid().parentElement;
+    if (region === null) throw new Error('no scroll region');
+    fireEvent.scroll(region, { target: { scrollTop: 15_000 } });
+    expect(first).toBeInTheDocument();
+    expect(bodyKeywords().length).toBeLessThan(45);
   });
 
   it('hides, shows and moves columns, and searches the loaded rows', async () => {
@@ -216,13 +298,24 @@ describe('DataTable', () => {
     expect(screen.getByText('The keywords did not load.')).toBeInTheDocument();
   });
 
-  it('opens a row menu from the keyboard and runs its action on that row', async () => {
+  it('opens a row menu from the keyboard, runs its action on that row only, and returns to the cell', async () => {
     const { user } = renderWithProviders(<Harness rows={rowsOf(3)} />);
     const cell = within(grid()).getAllByRole('rowheader')[0];
     if (cell === undefined) throw new Error('no row');
     act(() => cell.focus());
     await user.keyboard('{Shift>}{F10}{/Shift}');
     await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
-    expect(archive).toHaveBeenCalledWith([expect.objectContaining({ id: 'k2' })]);
+    expect(archive).toHaveBeenCalledWith([expect.objectContaining({ id: 'k2' })], {
+      ids: new Set(['k2']),
+      allMatching: false,
+    });
+    // The click on the portaled item reaches the row through React, and must not open it
+    expect(onOpen).not.toHaveBeenCalled();
+    const actionsCell = within(grid())
+      .getAllByRole('gridcell')
+      .find((candidate) => candidate.querySelector('[aria-haspopup]'));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(actionsCell);
+    });
   });
 });
