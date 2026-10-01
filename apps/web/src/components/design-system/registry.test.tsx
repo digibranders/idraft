@@ -19,6 +19,7 @@ describe('the preview registry', () => {
       'forms',
       'badges',
       'tables',
+      'filters',
       'overlays',
       'feedback',
     ]);

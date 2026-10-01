@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { BadgesSection } from './badges-section';
 import { ButtonsSection } from './buttons-section';
 import { FeedbackSection } from './feedback-section';
+import { FiltersSection } from './filters-section';
 import { FormsSection } from './forms-section';
 import { IconsSection } from './icons-section';
 import { OverlaysSection } from './overlays-section';
@@ -28,6 +29,7 @@ export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'forms', title: 'Forms', render: FormsSection },
   { slug: 'badges', title: 'Badges', render: BadgesSection },
   { slug: 'tables', title: 'Tables', render: TablesSection },
+  { slug: 'filters', title: 'Filters', render: FiltersSection },
   { slug: 'overlays', title: 'Overlays', render: OverlaysSection },
   { slug: 'feedback', title: 'Feedback', render: FeedbackSection },
 ];
