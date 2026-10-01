@@ -24,6 +24,7 @@ describe('what the home page does', () => {
         email: mockUser('editor').email,
         invitation: 'expired',
         workspace: { name: 'Digibranders', slug: 'digibranders' },
+        canCreateWorkspace: false,
       },
     });
   });
@@ -31,7 +32,12 @@ describe('what the home page does', () => {
   it('says there is no workspace to someone in none', () => {
     expect(homeOutcome(outsider, null)).toEqual({
       kind: 'screen',
-      props: { email: mockUser('editor').email, invitation: null, workspace: null },
+      props: { email: mockUser('editor').email, invitation: null, workspace: null, canCreateWorkspace: false },
     });
+  });
+
+  it('lets a platform operator in no workspace create one', () => {
+    const operator = meFactory(mockUser('owner'), { memberships: [] });
+    expect(homeOutcome(operator, null)).toMatchObject({ kind: 'screen', props: { canCreateWorkspace: true } });
   });
 });

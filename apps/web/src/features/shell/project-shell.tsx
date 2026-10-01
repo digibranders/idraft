@@ -16,8 +16,8 @@ import { Drawer } from '@/components/ui/drawer';
 import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import { destinationOf, LIVE_NAVIGATION, NAVIGATION, navHref, visibleNavigation } from '@/lib/navigation/registry';
 import type { SidebarPreference } from '@/lib/navigation/sidebar-state';
-import { useMembership } from '@/lib/permissions';
-import { projectPath, workspacePath } from '@/lib/routes/paths';
+import { canCreateProjects, useMembership } from '@/lib/permissions';
+import { onboardingPath, projectPath, workspacePath } from '@/lib/routes/paths';
 import { useGuardedPush } from '@/lib/navigation/use-leave-guard';
 
 export interface ShellProject extends SwitcherProject {
@@ -53,7 +53,8 @@ export function ProjectShell({
   const nav = useTranslations('navigation');
   const pathname = usePathname();
   const push = useGuardedPush();
-  const { permissions } = useMembership();
+  const membership = useMembership();
+  const { permissions } = membership;
   const sidebarRef = useRef<HTMLElement | null>(null);
   const { rail, toggle, closePeek } = useSidebar(sidebarPreference, sidebarRef);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -100,6 +101,10 @@ export function ProjectShell({
     href: workspacePath(workspace.slug),
     label: t('projectSwitcher.allProjects', { workspace: workspace.name }),
   };
+  // A member limited to some projects cannot create one (19 section 3.3)
+  const createProject = canCreateProjects(membership)
+    ? { href: onboardingPath(workspace.slug), label: t('projectSwitcher.create') }
+    : undefined;
 
   const sidebar = (mode: 'page' | 'drawer'): ReactNode => (
     <SidebarNav
@@ -114,6 +119,7 @@ export function ProjectShell({
           presentation="sidebar"
           rail={mode === 'page' && rail}
           allProjects={allProjects}
+          createProject={createProject}
         />
       }
       toggle={
@@ -162,6 +168,7 @@ export function ProjectShell({
                     onSelect={switchTo}
                     presentation="topbar"
                     allProjects={allProjects}
+                    createProject={createProject}
                   />
                 }
                 page={pageLabel}

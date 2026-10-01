@@ -107,16 +107,24 @@ Done differently in Tasks 2 to 5, and why:
 
 **Files:** route `src/app/[workspace]/onboarding/page.tsx`, `src/features/onboarding/*`, modify `features/projects/project-list.tsx`, `components/app/shell/project-switcher.tsx`, `features/shell/project-shell.tsx`.
 
-- [ ] **Step 1:** Full page in the workspace shell, "New project", step 1 of the wizard of 20 section 5.1 only: name, slug (suggested from the name until edited, checked against `ReservedProjectSlug`), time zone (the browser's), default language, deep check weekday. "Create project" (`lg`) creates it and opens the project. `409 duplicate` on slug, `422 quota_exceeded` as a form alert with the limit, `403` for a member limited to some projects (the entry points are absent for them).
-- [ ] **Step 2:** Entry points, absent without `projects:write` or with a restricted membership: "New project" in the workspace page header, "Create project" at the foot of the project switcher. The empty list's creator sentence links to it.
-- [ ] **Step 3:** Tests, real API, Opus review, gates, commit "Add the new project page".
+- [x] **Step 1:** Full page in the workspace shell, "New project", step 1 of the wizard of 20 section 5.1 only: name, slug (suggested from the name until edited, checked against `ReservedProjectSlug`), time zone (the browser's), default language, deep check weekday. "Create project" (`lg`) creates it and opens the project. `409 duplicate` on slug, `422 quota_exceeded` as a form alert with the limit, `403` for a member limited to some projects (the entry points are absent for them).
+- [x] **Step 2:** Entry points, absent without `projects:write` or with a restricted membership: "New project" in the workspace page header, "Create project" at the foot of the project switcher. The empty list's creator sentence links to it.
+- [x] **Step 3:** Tests, real API, Opus review, gates, commit "Add the new project page".
+
+As built:
+
+- Only a member with `projects:write` and no project list may create (`canCreateProjects` in `lib/permissions`); the page is a 404 for anyone else, and the three entry points (header link, the empty list's action, the switcher's foot) use the same check.
+- The address follows the name until the person types one; clearing it hands it back to the name. The time zone starts at `UTC` on the server and becomes the browser's zone after hydration, by its current name. The shared helpers are `useSlugSuggestion`, `useBrowserTimeZoneDefault` and `useSubmitOnce` in `components/app/forms/use-form-helpers.ts`; the two General settings screens use `useSubmitOnce` and `slugMessageKey` too.
+- The new project replaces the page in the history (`router.replace`), so Back does not return to an emptied form; leaving through the discard question while the create runs does not open it. `403 workspace_suspended` and `403 forbidden` show as a form alert.
 
 ### Task 7: New workspace for an operator
 
 **Files:** route `src/app/(auth)/new/page.tsx` (`new` is a reserved workspace slug), `src/features/session/*`.
 
-- [ ] **Step 1:** For `user.is_platform_operator`: the home screen without a workspace offers "Create workspace", and the account menu has it too. The page asks for name, slug and time zone (`POST /workspaces`); the operator becomes owner and lands on the new workspace. `409 duplicate`, `429 rate_limited` (5 a day), `403 email_not_verified`. Anyone else gets the 404 page.
-- [ ] **Step 2:** Tests, real API (the walkthrough account is an operator only if the backend seed makes it one; otherwise mocks only, and say so), Opus review, gates, commit "Add workspace creation for operators".
+- [x] **Step 1:** For `user.is_platform_operator`: the home screen without a workspace offers "Create workspace", and the account menu has it too. The page asks for name, slug and time zone (`POST /workspaces`); the operator becomes owner and lands on the new workspace. `409 duplicate`, `429 rate_limited` (5 a day), `403 email_not_verified`. Anyone else gets the 404 page.
+- [x] **Step 2:** Tests, real API (the walkthrough account is an operator only if the backend seed makes it one; otherwise mocks only, and say so), Opus review, gates, commit "Add workspace creation for operators".
+
+As built: the operator made with the backend's `create-operator` command created a workspace through the real API. `429` says "Try again tomorrow" (the limit is 5 a day), and the page links back to `/`. The workspace time-zone hint now says what the zone is for: it applies where a project gives none.
 
 ### Task 8: End-to-end, visual, documents, review
 

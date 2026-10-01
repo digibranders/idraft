@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { projectQuery } from './project-query';
 import { StatusSection } from './status-section';
 import { FormField } from '@/components/app/forms/form-field';
+import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { TimeZoneCombobox } from '@/components/app/forms/time-zone-combobox';
 import { Banner } from '@/components/app/status/banner';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
@@ -29,7 +30,7 @@ import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
 import { MAX_PROJECT_NAME_LENGTH as MAX_NAME_LENGTH, NO_LANGUAGE, WEEKDAYS } from '@/lib/projects/fields';
 import { projectPath } from '@/lib/routes/paths';
-import { SLUG_MAX_LENGTH, slugProblem } from '@/lib/slugs/slug';
+import { SLUG_MAX_LENGTH, slugMessageKey, slugProblem } from '@/lib/slugs/slug';
 
 interface GeneralValues {
   name: string;
@@ -132,12 +133,10 @@ function ReadOnlyGeneral({ project, workspaceSlug }: { project: Project; workspa
 
 function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSlug: string }): ReactNode {
   const t = useTranslations('projectSettings.general');
-  const common = useTranslations('common');
   const account = useTranslations('account');
   const router = useRouter();
   const queryClient = useQueryClient();
   const formId = useId();
-  const saving = useRef(false);
   const alertRef = useRef<HTMLDivElement>(null);
   const weekdays = useWeekdayOptions();
   const languages = useLanguageOptions(project.default_language_code);
@@ -155,14 +154,7 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
           .trim()
           .superRefine((slug, context) => {
             const problem = slugProblem(slug, 'project');
-            if (problem === null) return;
-            const message =
-              problem === 'slug_reserved'
-                ? t('slugReserved')
-                : problem === 'slug_is_id'
-                  ? t('slugIsId')
-                  : t('slugInvalid');
-            context.addIssue({ code: 'custom', message });
+            if (problem !== null) context.addIssue({ code: 'custom', message: t(slugMessageKey(problem)) });
           }),
         timezone: z.string().min(1, { error: t('timezoneUnknown') }),
         deep_check_weekday: z.string(),
@@ -233,6 +225,7 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
       form.setError('root', { type: 'server', message: t('saveFailed') });
     }
   });
+  const onSubmit = useSubmitOnce(submit);
 
   const rootError = form.formState.errors.root?.message;
   // A failure of the whole form takes focus, which reads it (10-forms.md section 13.2)
@@ -246,22 +239,7 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
       {forward === null ? null : (
         <Banner tone="info" placement="region" message={t('timezoneForward', { timezone: forward })} />
       )}
-      <form
-        id={formId}
-        noValidate
-        className="flex max-w-90 flex-col gap-4"
-        onSubmit={(event) => {
-          // Two quick presses of Enter would both start a save: the mutation's state updates on the next render
-          if (saving.current) {
-            event.preventDefault();
-            return;
-          }
-          saving.current = true;
-          void submit(event).finally(() => {
-            saving.current = false;
-          });
-        }}
-      >
+      <form id={formId} noValidate className="flex max-w-90 flex-col gap-4" onSubmit={onSubmit}>
         {rootError === undefined ? null : <FormAlert ref={alertRef} tabIndex={-1} live={false} message={rootError} />}
         <FormField
           control={form.control}
@@ -300,12 +278,6 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
               aria-required={field.controlProps['aria-required']}
               value={field.value}
               onValueChange={field.onChange}
-              labels={{
-                placeholder: common('timeZone.search'),
-                empty: (query) => common('timeZone.empty', { query }),
-                clear: common('clear'),
-                open: common('timeZone.open'),
-              }}
             />
           )}
         />

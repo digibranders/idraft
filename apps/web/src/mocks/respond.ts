@@ -64,6 +64,7 @@ const PROBLEMS = {
   registration_closed: [403, 'Registration is by invitation'],
   not_found: [404, 'Resource not found'],
   email_not_verified: [403, 'Email address not verified'],
+  workspace_suspended: [403, 'Workspace is suspended'],
   duplicate: [409, 'Already exists'],
   last_owner: [409, 'The workspace needs an owner'],
   invalid_state_transition: [409, 'Not possible in this state'],

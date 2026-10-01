@@ -58,3 +58,9 @@ export function timeZoneNames(): readonly string[] {
 /** Whether the API would take `zone`: the right shape, and a zone that exists. */
 export const isKnownTimeZone = (zone: string): boolean =>
   zone.length <= TIMEZONE_MAX && TIMEZONE_PATTERN.test(zone) && runtimeKnows(zone);
+
+/** The browser's zone by the name the API stores, or `UTC` when the browser reports none the API takes. */
+export function browserTimeZoneName(): string {
+  const own = currentTimeZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  return isKnownTimeZone(own) ? own : 'UTC';
+}

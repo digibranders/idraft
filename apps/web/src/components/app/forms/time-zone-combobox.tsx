@@ -1,26 +1,19 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement, type Ref } from 'react';
 
 import { Combobox } from '@/components/ui/combobox';
+import type { InputSize } from '@/components/ui/input-variants';
 import { browserTimeZone, timeZoneAbbreviation } from '@/lib/format/date';
 import { currentTimeZoneName, timeZoneNames } from '@/lib/format/time-zone';
-
-export interface TimeZoneComboboxLabels {
-  /** "Search time zones". */
-  placeholder: string;
-  /** "No time zone matches "{query}"". */
-  empty: (query: string) => string;
-  clear: string;
-  /** "Show time zones". */
-  open: string;
-}
 
 export interface TimeZoneComboboxProps {
   /** An IANA name: "Europe/Berlin". */
   value: string;
   onValueChange: (value: string) => void;
-  labels: TimeZoneComboboxLabels;
+  /** `lg` on the onboarding pages only, like their other controls. */
+  size?: InputSize | undefined;
   name?: string | undefined;
   inputRef?: Ref<HTMLInputElement> | undefined;
   onBlur?: (() => void) | undefined;
@@ -33,13 +26,8 @@ export interface TimeZoneComboboxProps {
  * abbreviation today ("Europe/Berlin, GMT+2"). Clearing the search keeps the zone: a project and a workspace
  * always have one.
  */
-export function TimeZoneCombobox({
-  value,
-  onValueChange,
-  labels,
-  inputRef,
-  ...props
-}: TimeZoneComboboxProps): ReactElement {
+export function TimeZoneCombobox({ value, onValueChange, inputRef, ...props }: TimeZoneComboboxProps): ReactElement {
+  const t = useTranslations('common');
   // The browser's own zone leads the list: it is the likeliest answer
   const zones = useMemo(() => {
     const own = currentTimeZoneName(browserTimeZone());
@@ -68,10 +56,10 @@ export function TimeZoneCombobox({
           <span className="shrink-0 type-meta">{abbreviations.get(zone)}</span>
         </span>
       )}
-      emptyText={labels.empty}
-      placeholder={labels.placeholder}
-      clearLabel={labels.clear}
-      openLabel={labels.open}
+      emptyText={(query) => t('timeZone.empty', { query })}
+      placeholder={t('timeZone.search')}
+      clearLabel={t('clear')}
+      openLabel={t('timeZone.open')}
     />
   );
 }

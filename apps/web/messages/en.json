@@ -215,6 +215,7 @@
       "trigger": "Account menu, {name}",
       "tooltip": "Account",
       "accountSettings": "Account settings",
+      "createWorkspace": "Create workspace",
       "signOut": "Sign out",
       "signOutFailed": "You could not be signed out. Try again in a moment."
     }
@@ -224,6 +225,7 @@
       "title": "You are not in a workspace yet",
       "description": "Ask an owner or admin of your team's workspace to invite you, then open the link in the invitation email.",
       "signedInAs": "Signed in as {email}",
+      "createWorkspace": "Create a workspace",
       "signOut": "Sign out"
     },
     "signOutFailed": "You could not be signed out. Try again in a moment.",
@@ -374,7 +376,7 @@
       "slug": "Address",
       "slugHint": "Used in links: {path}",
       "timezone": "Time zone",
-      "timezoneHint": "New projects start in this time zone.",
+      "timezoneHint": "Used where a project gives no time zone of its own.",
       "saved": "Workspace settings saved",
       "saveFailed": "The settings were not saved. Try again in a moment.",
       "nameRequired": "Enter a name.",
@@ -506,7 +508,8 @@
     "create": "Create project",
     "cancel": "Back to projects",
     "quota": "This workspace has {used} of {limit} projects. Archive one, or ask for a larger plan.",
-    "forbidden": "Members limited to some projects cannot create one. Owners and admins can.",
+    "forbidden": "Members limited to some projects cannot create one. Owners, admins and editors who see every project can.",
+    "suspended": "This workspace is suspended, so no project can be created in it.",
     "failed": "The project was not created. Try again in a moment.",
     "slugExample": "client-name",
     "nameRequired": "Enter a name.",
@@ -516,7 +519,32 @@
     "slugIsId": "An address cannot look like an id. Choose another.",
     "slugTaken": "Another project in this workspace uses this address.",
     "timezoneUnknown": "Choose a time zone from the list.",
-    "discardDescription": "The project you started will not be created."
+    "discardDescription": "The project you started will not be created.",
+    "workspace": {
+      "title": "Create a workspace",
+      "pageTitle": "Create a workspace",
+      "description": "A workspace holds a team's projects and members. You become its owner and can invite the team.",
+      "name": "Name",
+      "namePlaceholder": "Agency or company name",
+      "slug": "Address",
+      "slugHint": "Used in links: {path}",
+      "slugExample": "agency-name",
+      "timezone": "Time zone",
+      "timezoneHint": "Used where a project gives no time zone of its own.",
+      "create": "Create workspace",
+      "back": "Back",
+      "nameRequired": "Enter a name.",
+      "nameTooLong": "Use at most {max} characters.",
+      "slugInvalid": "Use 3 to 40 lower-case letters, digits and hyphens, starting and ending with a letter or digit.",
+      "slugReserved": "This word is used by the app. Choose another.",
+      "slugIsId": "An address cannot look like an id. Choose another.",
+      "slugTaken": "This address is taken. Choose another.",
+      "timezoneUnknown": "Choose a time zone from the list.",
+      "rateLimited": "You created the most workspaces allowed in a day. Try again tomorrow.",
+      "notVerified": "Verify your email address first: open the link we sent you.",
+      "forbidden": "Only platform operators can create a workspace while sign-up is by invitation.",
+      "failed": "The workspace was not created. Try again in a moment."
+    }
   },
   "account": {
     "discard": {

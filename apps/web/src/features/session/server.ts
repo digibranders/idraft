@@ -27,6 +27,7 @@ export function homeOutcome(me: Me | null, invitation: string | null): HomeOutco
       email: me.user.email,
       invitation: failure,
       workspace: first === undefined ? null : { name: first.workspace.name, slug: first.workspace.slug },
+      canCreateWorkspace: me.user.is_platform_operator,
     },
   };
 }

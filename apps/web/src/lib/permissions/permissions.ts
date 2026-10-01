@@ -49,3 +49,14 @@ export function can(permissions: readonly string[], permission: Permission): boo
 export function canOpenProject(projectIds: readonly string[] | null, projectId: string): boolean {
   return projectIds === null || projectIds.includes(projectId);
 }
+
+/**
+ * Whether a membership may create a project: `projects:write`, and every project in view. The API refuses a
+ * member limited to some projects before it reads the request (19 section 3.3).
+ */
+export function canCreateProjects(membership: {
+  permissions: readonly string[];
+  project_ids: readonly string[] | null;
+}): boolean {
+  return can(membership.permissions, 'projects:write') && membership.project_ids === null;
+}

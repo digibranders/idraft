@@ -42,3 +42,9 @@ export function slugFromName(name: string): string {
     .slice(0, SLUG_MAX_LENGTH)
     .replace(/-+$/g, '');
 }
+
+/** The catalog key (namespace of the form) that says why a slug is refused. */
+export type SlugMessageKey = 'slugInvalid' | 'slugReserved' | 'slugIsId';
+
+export const slugMessageKey = (problem: SlugProblem): SlugMessageKey =>
+  problem === 'slug_reserved' ? 'slugReserved' : problem === 'slug_is_id' ? 'slugIsId' : 'slugInvalid';

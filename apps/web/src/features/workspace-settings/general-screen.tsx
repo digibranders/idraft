@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { workspaceQuery } from './workspace-queries';
 import { FormField } from '@/components/app/forms/form-field';
+import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { TimeZoneCombobox } from '@/components/app/forms/time-zone-combobox';
 import { Banner } from '@/components/app/status/banner';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
@@ -25,10 +26,9 @@ import { applyServerErrors } from '@/lib/forms';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
 import { projectPath, workspacePath } from '@/lib/routes/paths';
-import { SLUG_MAX_LENGTH, slugProblem } from '@/lib/slugs/slug';
+import { SLUG_MAX_LENGTH, slugMessageKey, slugProblem } from '@/lib/slugs/slug';
+import { MAX_WORKSPACE_NAME_LENGTH } from '@/lib/workspaces/fields';
 
-/** The API's limit on a workspace name (19 section 3.2, `WorkspaceCreate`). */
-const MAX_NAME_LENGTH = 120;
 const WORKSPACE_PATH = '/api/v1/workspaces/{workspace_id}';
 
 interface WorkspaceValues {
@@ -86,12 +86,10 @@ export function WorkspaceGeneralScreen({ workspace: initial, projectSlug }: Work
 
 function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; projectSlug: string }): ReactNode {
   const t = useTranslations('workspaceSettings.general');
-  const common = useTranslations('common');
   const account = useTranslations('account');
   const router = useRouter();
   const queryClient = useQueryClient();
   const formId = useId();
-  const saving = useRef(false);
   const alertRef = useRef<HTMLDivElement>(null);
   const schema = useMemo(
     () =>
@@ -100,20 +98,13 @@ function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; project
           .string()
           .trim()
           .min(1, { error: t('nameRequired') })
-          .max(MAX_NAME_LENGTH, { error: t('nameTooLong', { max: MAX_NAME_LENGTH }) }),
+          .max(MAX_WORKSPACE_NAME_LENGTH, { error: t('nameTooLong', { max: MAX_WORKSPACE_NAME_LENGTH }) }),
         slug: z
           .string()
           .trim()
           .superRefine((slug, context) => {
             const problem = slugProblem(slug, 'workspace');
-            if (problem === null) return;
-            const message =
-              problem === 'slug_reserved'
-                ? t('slugReserved')
-                : problem === 'slug_is_id'
-                  ? t('slugIsId')
-                  : t('slugInvalid');
-            context.addIssue({ code: 'custom', message });
+            if (problem !== null) context.addIssue({ code: 'custom', message: t(slugMessageKey(problem)) });
           }),
         timezone: z.string().min(1, { error: t('timezoneUnknown') }),
       }),
@@ -157,7 +148,7 @@ function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; project
           fields: ['name', 'slug', 'timezone'],
           messages: {
             string_too_short: t('nameRequired'),
-            string_too_long: t('nameTooLong', { max: MAX_NAME_LENGTH }),
+            string_too_long: t('nameTooLong', { max: MAX_WORKSPACE_NAME_LENGTH }),
             string_pattern_mismatch: t('slugInvalid'),
             slug_reserved: t('slugReserved'),
             slug_is_id: t('slugIsId'),
@@ -169,6 +160,7 @@ function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; project
       form.setError('root', { type: 'server', message: t('saveFailed') });
     }
   });
+  const onSubmit = useSubmitOnce(submit);
 
   const rootError = form.formState.errors.root?.message;
   // A failure of the whole form takes focus, which reads it (10-forms.md section 13.2)
@@ -179,22 +171,7 @@ function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; project
   const changed = Object.values(dirtyFields).filter(Boolean).length;
   return (
     <>
-      <form
-        id={formId}
-        noValidate
-        className="flex max-w-90 flex-col gap-4"
-        onSubmit={(event) => {
-          // Two quick presses of Enter would both start a save: the mutation's state updates on the next render
-          if (saving.current) {
-            event.preventDefault();
-            return;
-          }
-          saving.current = true;
-          void submit(event).finally(() => {
-            saving.current = false;
-          });
-        }}
-      >
+      <form id={formId} noValidate className="flex max-w-90 flex-col gap-4" onSubmit={onSubmit}>
         {rootError === undefined ? null : <FormAlert ref={alertRef} tabIndex={-1} live={false} message={rootError} />}
         <FormField
           control={form.control}
@@ -240,12 +217,6 @@ function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; project
               aria-required={field.controlProps['aria-required']}
               value={field.value}
               onValueChange={field.onChange}
-              labels={{
-                placeholder: common('timeZone.search'),
-                empty: (query) => common('timeZone.empty', { query }),
-                clear: common('clear'),
-                open: common('timeZone.open'),
-              }}
             />
           )}
         />
