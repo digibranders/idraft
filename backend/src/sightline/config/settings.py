@@ -284,8 +284,13 @@ class Settings(_DatabaseSettings):
             and (self.app_env == "production" or not _is_local_origin(self.r2_raw_endpoint))
         ):
             raise ValueError("R2_RAW_ENDPOINT must be https:// unless it is on this machine")
-        # A task sent is paid for; without the bucket its result could never be kept.
-        if self.dataforseo_login is not None and self.r2_raw_endpoint is None:
+        # A task sent is paid for; without the bucket its result could never be kept. Only the
+        # worker sends tasks, so the api may start from the same env file without a bucket.
+        if (
+            self.process_role == "worker"
+            and self.dataforseo_login is not None
+            and self.r2_raw_endpoint is None
+        ):
             raise ValueError("DATAFORSEO_LOGIN needs R2_RAW_ENDPOINT: results are kept in R2")
         # The installation is in every task's tag, so two installations on one account never
         # take each other's results. A server that spends money names it; a copy started with
