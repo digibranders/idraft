@@ -31,6 +31,13 @@ export const onboardingPath = (workspace: string): Route => `/${encodeURICompone
 export const projectPath = (workspace: string, project: string, rest: '' | `/${string}` = ''): Route =>
   `/${encodeURIComponent(workspace)}/${encodeURIComponent(project)}${rest}` as Route;
 
+/**
+ * A section of Settings outside any project: the account and the workspace, reachable from the workspace
+ * page and when the member can open no project (11-navigation.md section 5).
+ */
+export const workspaceSettingsPath = (workspace: string, section: string): Route =>
+  `/${encodeURIComponent(workspace)}/settings/${encodeURIComponent(section)}` as Route;
+
 /** The sign-in page. */
 export const SIGN_IN_PATH: Route = '/login';
 

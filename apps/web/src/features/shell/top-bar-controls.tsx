@@ -20,8 +20,8 @@ import { NEW_WORKSPACE_PATH } from '@/lib/routes/paths';
 const SHORTCUTS_SHORTCUT = 'shortcuts';
 
 export interface TopBarControlsProps {
-  /** Settings > Profile of the open project, or `null` where no project is open. */
-  accountSettings: ReactElement | null;
+  /** A link to Settings > Profile: the open project's, or the workspace's where no project is open. */
+  accountSettings: ReactElement;
   /** The shortcuts of the page besides `?`, for the shortcuts dialog. */
   shortcuts: readonly ShortcutEntry[];
 }

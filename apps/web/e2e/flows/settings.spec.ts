@@ -48,4 +48,19 @@ test.describe('account settings', () => {
     await expect(page.getByRole('switch', { name: 'Reduce motion' })).toBeChecked();
     await expectAccessible(page);
   });
+
+  test('the workspace root opens Settings outside any project, from the account menu', async ({ page }) => {
+    await page.getByRole('button', { name: /^Account menu/ }).click();
+    await page.getByRole('menuitem', { name: 'Account settings' }).click();
+    await expect(page).toHaveURL(/\/digibranders\/settings\/profile$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
+    const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(crumbs.getByRole('link', { name: 'Digibranders' })).toHaveAttribute('href', '/digibranders');
+    const sections = page.getByRole('navigation', { name: 'Settings sections' });
+    await expect(sections.getByText('Project settings')).toHaveCount(0);
+    await expectAccessible(page);
+    await sections.getByRole('link', { name: 'Members and roles' }).click();
+    await expect(page).toHaveURL(/\/digibranders\/settings\/members$/);
+    await expect(page.getByRole('table', { name: 'Members' })).toBeVisible();
+  });
 });

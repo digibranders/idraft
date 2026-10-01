@@ -136,6 +136,7 @@ Built so far (web app foundation, 2026-10-01; `apps/web/src/app`):
 | `/[workspace]/[project]/settings/general` | Project settings > General: name, address, time zone, deep check day, default language; pause, resume and archive (workspace setup, 2026-10-01) |
 | `/[workspace]/[project]/settings/workspace`, `members` | Workspace settings > General (name, address, time zone) and Members and roles (members, role and project access, removal; invitations for `members:manage`) |
 | `/[workspace]/onboarding` | New project, step 1 of 5.1 (Basics); a 404 for a member who may not create projects or is limited to some |
+| `/[workspace]/settings/profile`, `security`, `preferences`, `workspace`, `members` | Settings outside any project (settings follow-ups, 2026-10-01): the same screens in the workspace shell, without the Project settings group; `settings` redirects to Profile. The workspace root's account menu opens it, so a member who can open no project still reaches their account and the workspace |
 | `/new` (`(auth)`) | Create a workspace, for a platform operator while sign-up is by invitation; a 404 for anyone else |
 | `/[workspace]/[project]/[...rest]` | Catch-all for planned destinations: the 404 page inside the shell |
 | `/design-system`, `/design-system/[section]` (`(internal)`) | The component preview; a 404 in production builds ([26-implementation-guidelines.md](design-system/26-implementation-guidelines.md) section 10) |

@@ -30,7 +30,7 @@ export interface UserMenuProps {
    * 4); `null` from 1440 px, so the theme control never appears twice.
    */
   theme: { value: ThemeChoice; onValueChange: (value: ThemeChoice) => void } | null;
-  /** Settings > Profile; `null` where no project is open. */
+  /** Settings > Profile; `null` leaves the item out. */
   accountSettings: ReactElement | null;
   /** The link to the new-workspace page, for a platform operator; `null` for anyone else. */
   createWorkspace?: ReactElement | null | undefined;

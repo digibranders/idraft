@@ -42,4 +42,27 @@ describe('SettingsFrame', () => {
     ]);
     expect(within(nav).getByRole('link', { name: 'Members and roles' })).toHaveAttribute('aria-current', 'page');
   });
+
+  it('outside a project leaves the project group out and links to the workspace settings routes', () => {
+    renderWithProviders(
+      <LeaveGuardProvider>
+        <SettingsFrame workspace="digibranders">
+          <p>Section</p>
+        </SettingsFrame>
+      </LeaveGuardProvider>,
+    );
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+    expect(within(nav).queryByText('Project settings')).toBeNull();
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual([
+      '/digibranders/settings/profile',
+      '/digibranders/settings/security',
+      '/digibranders/settings/preferences',
+      '/digibranders/settings/workspace',
+      '/digibranders/settings/members',
+    ]);
+  });
 });

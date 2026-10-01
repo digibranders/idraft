@@ -25,7 +25,7 @@ import type { Workspace } from '@/lib/api/types';
 import { applyServerErrors } from '@/lib/forms';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
-import { projectPath, workspacePath } from '@/lib/routes/paths';
+import { projectPath, workspacePath, workspaceSettingsPath } from '@/lib/routes/paths';
 import { SLUG_MAX_LENGTH, slugMessageKey, slugProblem } from '@/lib/slugs/slug';
 import { MAX_WORKSPACE_NAME_LENGTH } from '@/lib/workspaces/fields';
 
@@ -46,8 +46,11 @@ const valuesOf = (workspace: Workspace): WorkspaceValues => ({
 export interface WorkspaceGeneralScreenProps {
   /** The workspace as the page's render read it; the screen keeps it fresh. */
   workspace: Workspace;
-  /** The slug of the project the settings are open in, to stay on this page after a new address. */
-  projectSlug: string;
+  /**
+   * The slug of the project the settings are open in, to stay on this page after a new address; null when
+   * they are open outside any project (the workspace's own settings routes).
+   */
+  projectSlug: string | null;
 }
 
 /**
@@ -84,7 +87,7 @@ export function WorkspaceGeneralScreen({ workspace: initial, projectSlug }: Work
   );
 }
 
-function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; projectSlug: string }): ReactNode {
+function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; projectSlug: string | null }): ReactNode {
   const t = useTranslations('workspaceSettings.general');
   const account = useTranslations('account');
   const router = useRouter();
@@ -137,7 +140,12 @@ function GeneralForm({ workspace, projectSlug }: { workspace: Workspace; project
       announce(t('saved'));
       // The shell shows the name, and a new address moves every page of the workspace
       if (saved.data.slug === workspace.slug) router.refresh();
-      else router.replace(projectPath(saved.data.slug, projectSlug, '/settings/workspace'));
+      else
+        router.replace(
+          projectSlug === null
+            ? workspaceSettingsPath(saved.data.slug, 'workspace')
+            : projectPath(saved.data.slug, projectSlug, '/settings/workspace'),
+        );
     } catch (error) {
       if (isApiProblem(error, 'duplicate')) {
         form.setError('slug', { type: 'server', message: t('slugTaken') }, { shouldFocus: true });
