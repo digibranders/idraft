@@ -118,7 +118,7 @@
   - The search engine is not a control: the contract allows Google only, and the dialog's description says so.
   - The device starts on the project's `seo.default_device`, and is left to the API until the settings load.
   - Lines are read by the API's text rules, which now live in `src/lib/keywords/keyword-text.ts` for both the dialog and the mocks.
-  - A restored deleted keyword cannot be told apart yet: the create answers carry no marker. The backend was asked on 2026-10-01 for `restored` ids in `BulkCreateResult`; until then the toast counts restores as added.
+  - A restored deleted keyword is told apart through `BulkCreateResult.restored` (backend a4ec77b, asked for on 2026-10-01). The toast and the result say how many came back with their old settings and history.
 
 ### Task 7: Bulk actions
 
@@ -160,6 +160,11 @@
 
 - [ ] **Step 1:** Schedules: the project's schedules (workload, selector in words, cadence, time and window in the project's time zone, next run, last run, paused); edit in a dialog: cadence (daily, weekly with weekday, monthly with day of month), time, window, selector per workload (D10); pause, resume, delete; New schedule for `keyword_metrics` and `seo_rank`. Read-only without `schedules:write`.
 - [ ] **Step 2:** General gains "Keyword defaults" from `{P}/settings` (`seo`): default device, depth profile, search engine.
+- **From the backend as built (0b6371c).**
+  - A `keyword_metrics` schedule takes `provider_mode: 'live'` only, while the default is `standard_queue` (`422 provider_mode_not_supported`), so the dialog sends it.
+  - The service answers the first failing stage: the workload, the cadence and the provider mode; then the selector (`selector_not_supported`, `selector_empty`, `selector_conflict` for `all` with `stale_days`); then the days on a change (`required`, `not_applicable`) or `cron_expr`; then `timezone_unknown`; then the groups and terms.
+  - A create's days that do not fit its cadence are one root `value_error`.
+  - Pause and cancel take an optional body.
 - [ ] **Step 3:** Tests, gates, Opus review, commit "Project settings: schedules and keyword defaults".
 
 ### Task 12: Costs and runs

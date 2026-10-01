@@ -1114,8 +1114,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refresh keyword metrics now (a manual run) */
-        post: operations["refresh_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post"];
+        /**
+         * Refresh keyword metrics now (a manual run)
+         * @description The given keywords (which the project tracks; `422 validation_failed` with `keyword_unknown` otherwise), else the project's tracked keywords whose metrics are older than `stale_days` (default 25). The run is `planned` and the worker plans it within a minute; a budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; runs the system starts for new keywords do not count.
+         */
+        post: operations["refresh_keyword_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1129,7 +1132,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The project's runs, newest first */
+        /**
+         * The project's runs
+         * @description Newest first. `meta.manual_runs_today` says how many of the day's (UTC) manual runs people have used.
+         */
         get: operations["list_runs_api_v1_workspaces__workspace_id__projects__project_id__runs_get"];
         put?: never;
         post?: never;
@@ -1146,7 +1152,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One run with its task counts */
+        /**
+         * One run
+         * @description With how many of its tasks are in each status, and the configuration it ran with.
+         */
         get: operations["get_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__get"];
         put?: never;
         post?: never;
@@ -1165,7 +1174,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel a run: pending tasks are cancelled, submitted ones still fetched */
+        /**
+         * Cancel a run
+         * @description A planned or running run (`409 invalid_state_transition` otherwise). Needs `schedules:write`, or `runs:trigger` for a manual run the caller asked for. Pending tasks are cancelled within minutes; tasks the provider already has are still fetched, since they are paid for. `reason` is audited.
+         */
         post: operations["cancel_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__cancel_post"];
         delete?: never;
         options?: never;
@@ -1183,7 +1195,10 @@ export interface paths {
         /** The project's schedules */
         get: operations["list_schedules_api_v1_workspaces__workspace_id__projects__project_id__schedules_get"];
         put?: never;
-        /** Create a schedule */
+        /**
+         * Create a schedule
+         * @description `keyword_metrics` (provider mode `live`; selector `stale_days`, `all`, `groups`, `terms`) and `seo_rank` (selector `all`, `groups`, `terms`, `priority_lte`, and not empty) are offered; others are `422 validation_failed` with `workload_not_available`. Cadence `daily`, `weekly` (with `weekday`, 0 is Sunday) or `monthly` (with `month_day`, 1 to 28); `cron` is `cadence_not_supported`. A selector member the workload does not take is `selector_not_supported` at `selector.<member>`. `next_run_at` is the next window start in the schedule's time zone.
+         */
         post: operations["create_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules_post"];
         delete?: never;
         options?: never;
@@ -1202,11 +1217,17 @@ export interface paths {
         get: operations["get_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__get"];
         put?: never;
         post?: never;
-        /** Delete a schedule no tracked keyword names */
+        /**
+         * Delete a schedule
+         * @description Its runs keep naming it. `409 schedule_in_use` while tracked keywords name it.
+         */
         delete: operations["delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__delete"];
         options?: never;
         head?: never;
-        /** Change a schedule */
+        /**
+         * Change a schedule
+         * @description `next_run_at` is computed again. A change of cadence drops the day the new cadence does not use, and a weekly or monthly cadence needs its day (`required`).
+         */
         patch: operations["update_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__patch"];
         trace?: never;
     };
@@ -1219,7 +1240,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pause a schedule */
+        /**
+         * Pause a schedule
+         * @description Not planned until resumed. The body (`reason`) is optional and audited.
+         */
         post: operations["pause_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__pause_post"];
         delete?: never;
         options?: never;
@@ -1236,7 +1260,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume a schedule (missed windows are not caught up) */
+        /**
+         * Resume a schedule
+         * @description From its next window after now: windows missed while paused are not caught up.
+         */
         post: operations["resume_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__resume_post"];
         delete?: never;
         options?: never;
@@ -1258,7 +1285,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Change the project's settings (merge patch) */
+        /**
+         * Change the project's settings
+         * @description A JSON merge patch of `seo`: members left out keep their value. The `seo` defaults apply to tracked keywords created after the change.
+         */
         patch: operations["update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch"];
         trace?: never;
     };
@@ -1857,6 +1887,11 @@ export interface components {
             created: string[];
             /** Rejected */
             rejected: components["schemas"]["BulkRejected"][];
+            /**
+             * Restored
+             * @description The ids of `created` that were deleted and came back with their settings.
+             */
+            restored: string[];
             /** Skipped */
             skipped: components["schemas"]["BulkSkipped"][];
         };
@@ -7603,7 +7638,7 @@ export interface operations {
             };
         };
     };
-    refresh_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post: {
+    refresh_keyword_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7646,6 +7681,10 @@ export interface operations {
                 "filter[workload_in]"?: ("seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync")[] | null;
                 "filter[status_in]"?: ("planned" | "running" | "completed" | "completed_with_errors" | "failed" | "cancelled" | "budget_blocked")[] | null;
                 "filter[trigger_in]"?: ("schedule" | "manual" | "backfill" | "retry")[] | null;
+                /** @description Created at or after. */
+                from?: string | null;
+                /** @description Created before. */
+                to?: string | null;
                 /** @description `page.next_cursor` of the previous page. */
                 cursor?: string | null;
                 limit?: number;
@@ -7723,9 +7762,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["RunCancel"];
+                "application/json": components["schemas"]["RunCancel"] | null;
             };
         };
         responses: {
@@ -7934,9 +7973,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["SchedulePause"];
+                "application/json": components["schemas"]["SchedulePause"] | null;
             };
         };
         responses: {

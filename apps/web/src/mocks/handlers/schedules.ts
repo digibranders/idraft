@@ -30,13 +30,15 @@ import {
 } from '../operations-state';
 import { invalid, mock, noContent, problem } from '../respond';
 import type { ValidationItem } from '@/lib/api/types';
-import { isKnownTimeZone } from '@/lib/format/time-zone';
+import { currentTimeZoneName, isKnownTimeZone, TIMEZONE_PATTERN } from '@/lib/format/time-zone';
 
 /**
  * A project's schedules (19 section 3.11, backend plan D10): `daily`, `weekly` (on a weekday, 0 is Sunday)
  * and `monthly` (on day 1 to 28) cadences, for the two workloads this step runs, with a selector checked per
  * workload. Pausing keeps the schedule; resuming does not catch up. A delete keeps the row for its runs and
- * is refused while a tracked keyword names the schedule.
+ * is refused while a tracked keyword names the schedule. As built (backend `api/operations/schedules.py`),
+ * the service answers the first stage that fails: the workload, the cadence and the provider mode; then the
+ * selector; then the days (on a change) or `cron_expr`; then the time zone; then the groups and terms.
  */
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
@@ -53,11 +55,24 @@ const TASK_WORKLOADS = [
   'cloudflare_sync',
 ] as const;
 const INPUT_CADENCES = [...CADENCES, 'cron'] as const;
+/** In the order the service checks them, so the first error found is always the same one. */
 const SELECTOR_MEMBERS = ['all', 'groups', 'terms', 'priority_lte', 'stale_days'] as const;
-/** The selector members each workload takes (D10). */
-const SELECTOR_OF: Readonly<Record<(typeof SCHEDULE_WORKLOADS)[number], readonly string[]>> = {
-  keyword_metrics: ['stale_days', 'all', 'groups', 'terms'],
-  seo_rank: ['all', 'groups', 'terms', 'priority_lte'],
+type Workload = (typeof SCHEDULE_WORKLOADS)[number];
+/** What each workload takes (D10): its selector members, its provider modes, and whether it needs a selector. */
+const WORKLOAD_RULES: Readonly<
+  Record<Workload, { selectors: readonly string[]; providerModes: readonly string[]; needsSelector: boolean }>
+> = {
+  // Labs is called live (D6)
+  keyword_metrics: {
+    selectors: ['stale_days', 'all', 'groups', 'terms'],
+    providerModes: ['live'],
+    needsSelector: false,
+  },
+  seo_rank: {
+    selectors: ['all', 'groups', 'terms', 'priority_lte'],
+    providerModes: ['standard_queue', 'priority_queue', 'live'],
+    needsSelector: true,
+  },
 };
 const CREATE_FIELDS = [
   'name',
@@ -94,8 +109,24 @@ function selectorShapeErrors(value: unknown): ValidationItem[] {
   ];
 }
 
-/** The schema checks of a `ScheduleInput` or a `ScheduleUpdate`. */
+/**
+ * The schema checks of a `ScheduleInput` or a `ScheduleUpdate`. A valid `ScheduleInput` then has its days
+ * held to its cadence, as one error for the whole body (the model's own check).
+ */
 function shapeErrors(body: Readonly<Record<string, unknown>>, create: boolean): ValidationItem[] {
+  const fields = fieldErrors(body, create);
+  if (!create || fields.length > 0) return fields;
+  const named = (name: 'weekday' | 'month_day'): boolean => body[name] !== undefined && body[name] !== null;
+  if ((body.cadence === 'weekly') !== named('weekday')) {
+    return [bodyError('', 'value_error', 'Value error, `weekday` is given exactly when the cadence is weekly')];
+  }
+  if ((body.cadence === 'monthly') !== named('month_day')) {
+    return [bodyError('', 'value_error', 'Value error, `month_day` is given exactly when the cadence is monthly')];
+  }
+  return [];
+}
+
+function fieldErrors(body: Readonly<Record<string, unknown>>, create: boolean): ValidationItem[] {
   const required = create ? (['name', 'workload', 'cadence', 'window_start_local', 'timezone'] as const) : [];
   const notNull = ['name', 'cadence', 'timezone', 'window_start_local', 'window_hours', 'priority', 'provider_mode'];
   return [
@@ -120,6 +151,9 @@ function shapeErrors(body: Readonly<Record<string, unknown>>, create: boolean): 
         : [bodyError('window_start_local', 'time_parsing', 'Input should be a valid time')]),
     ...integerError(body.window_hours ?? undefined, 'window_hours', { min: 1, max: 24 }),
     ...textError(body.timezone ?? undefined, 'timezone', { max: 64 }),
+    ...(typeof body.timezone === 'string' && body.timezone !== '' && !TIMEZONE_PATTERN.test(body.timezone)
+      ? [bodyError('timezone', 'string_pattern_mismatch', `String should match pattern '${TIMEZONE_PATTERN.source}'`)]
+      : []),
     ...(body.priority === undefined || body.priority === null
       ? []
       : enumError(body.priority, 'priority', SCHEDULE_PRIORITIES)),
@@ -146,69 +180,140 @@ function selectorOf(value: Readonly<Record<string, unknown>>): StoredSelector {
   };
 }
 
+/** What the planner cannot run, first found: the workload, then the cadence, then the provider mode. */
+function plannerErrors(workload: unknown, cadence: unknown, providerMode: string): ValidationItem[] {
+  if (!isOneOf(workload, SCHEDULE_WORKLOADS)) {
+    return [bodyError('workload', 'workload_not_available', 'Schedules of this workload come later.')];
+  }
+  if (!isOneOf(cadence, CADENCES)) {
+    return [bodyError('cadence', 'cadence_not_supported', 'A schedule runs daily, weekly or monthly.')];
+  }
+  const modes = WORKLOAD_RULES[workload].providerModes;
+  if (!modes.includes(providerMode)) {
+    return [
+      bodyError(
+        'provider_mode',
+        'provider_mode_not_supported',
+        `A ${workload} schedule takes the provider mode ${[...modes].sort().join(' or ')}.`,
+      ),
+    ];
+  }
+  return [];
+}
+
+/** The first thing wrong with a selector for its workload. */
+function selectorErrors(workload: Workload, selector: StoredSelector): ValidationItem[] {
+  const rules = WORKLOAD_RULES[workload];
+  const unsupported = SELECTOR_MEMBERS.find((name) => selector[name] !== undefined && !rules.selectors.includes(name));
+  if (unsupported !== undefined) {
+    return [
+      bodyError(
+        `selector.${unsupported}`,
+        'selector_not_supported',
+        `A ${workload} schedule does not select by ${unsupported}.`,
+      ),
+    ];
+  }
+  if (rules.needsSelector && Object.keys(selector).length === 0) {
+    return [bodyError('selector', 'selector_empty', 'Name the keywords: all, groups, terms or a priority.')];
+  }
+  if (selector.all !== undefined && selector.stale_days !== undefined) {
+    return [bodyError('selector.stale_days', 'selector_conflict', 'Give all or stale_days, not both.')];
+  }
+  return [];
+}
+
 /**
- * The schedule a valid body makes of `base` (the schedule as it is, or the defaults), or the service's
- * errors, all of them: cadences, workloads, time zones, days and selectors the planner cannot use.
+ * A change's weekday and day of the month: kept while the cadence uses them, dropped when it no longer
+ * does, and required when it starts to; one given for a cadence without one is refused.
+ */
+function changedDays(
+  body: Readonly<Record<string, unknown>>,
+  current: StoredSchedule,
+  cadence: string,
+): { weekday: number | null; monthDay: number | null; errors: ValidationItem[] } {
+  const given = (name: 'weekday' | 'month_day'): number | null | undefined =>
+    name in body ? (typeof body[name] === 'number' ? body[name] : null) : undefined;
+  const errors: ValidationItem[] = [];
+  let weekday = given('weekday') === undefined ? current.weekday : (given('weekday') ?? null);
+  let monthDay = given('month_day') === undefined ? current.month_day : (given('month_day') ?? null);
+  if (cadence === 'weekly') {
+    if (weekday === null) errors.push(bodyError('weekday', 'required', 'A weekly schedule names its day.'));
+  } else if (given('weekday') !== undefined && given('weekday') !== null) {
+    errors.push(bodyError('weekday', 'not_applicable', 'Only weekly schedules have one.'));
+  } else {
+    weekday = null;
+  }
+  if (cadence === 'monthly') {
+    if (monthDay === null) errors.push(bodyError('month_day', 'required', 'A monthly schedule names its day.'));
+  } else if (given('month_day') !== undefined && given('month_day') !== null) {
+    errors.push(bodyError('month_day', 'not_applicable', 'Only monthly schedules have one.'));
+  } else {
+    monthDay = null;
+  }
+  return { weekday, monthDay, errors };
+}
+
+/**
+ * The schedule a valid body makes of `base` (the defaults on a create, the schedule as it is on a change),
+ * or the errors of the first stage that fails, as the service checks them.
  */
 function scheduled(
   caller: OperationsProjectCaller,
   body: Readonly<Record<string, unknown>>,
   base: StoredSchedule,
-  requestedCadence: unknown,
-  requestedWorkload: unknown,
+  create: boolean,
 ): StoredSchedule | ValidationItem[] {
-  const errors: ValidationItem[] = [];
-  if (requestedCadence === 'cron') {
-    errors.push(bodyError('cadence', 'cadence_not_supported', 'Use a daily, weekly or monthly cadence.'));
+  const workload = create ? body.workload : base.workload;
+  const cadence = typeof body.cadence === 'string' ? body.cadence : base.cadence;
+  const providerMode = isOneOf(body.provider_mode, PROVIDER_MODES) ? body.provider_mode : base.provider_mode;
+  const selector = isRecord(body.selector) ? selectorOf(body.selector) : base.selector;
+  const planner = plannerErrors(workload, cadence, providerMode);
+  if (planner.length > 0) return planner;
+  const known = isOneOf(workload, SCHEDULE_WORKLOADS) ? workload : base.workload;
+  const selection = selectorErrors(known, selector);
+  if (selection.length > 0) return selection;
+  let weekday: number | null;
+  let monthDay: number | null;
+  if (create) {
+    if (body.cron_expr !== undefined && body.cron_expr !== null) {
+      return [bodyError('cron_expr', 'not_applicable', 'Only a cron schedule has an expression.')];
+    }
+    // The schema already holds the days to the cadence on a create
+    weekday = typeof body.weekday === 'number' ? body.weekday : null;
+    monthDay = typeof body.month_day === 'number' ? body.month_day : null;
+  } else {
+    const days = changedDays(body, base, cadence);
+    if (days.errors.length > 0) return days.errors;
+    weekday = days.weekday;
+    monthDay = days.monthDay;
   }
-  if (requestedWorkload !== undefined && !isOneOf(requestedWorkload, SCHEDULE_WORKLOADS)) {
-    errors.push(bodyError('workload', 'workload_not_available', 'Schedules run keyword metrics and rankings for now.'));
-  }
-  const cadence = isOneOf(body.cadence, CADENCES) ? body.cadence : base.cadence;
   const timezone = typeof body.timezone === 'string' ? body.timezone : base.timezone;
   if (typeof body.timezone === 'string' && !isKnownTimeZone(timezone)) {
-    errors.push(bodyError('timezone', 'invalid_timezone', 'Not a time zone of the IANA database.'));
+    return [bodyError('timezone', 'timezone_unknown', 'Unknown time zone.')];
   }
-  const weekday = 'weekday' in body ? (typeof body.weekday === 'number' ? body.weekday : null) : base.weekday;
-  const monthDay = 'month_day' in body ? (typeof body.month_day === 'number' ? body.month_day : null) : base.month_day;
-  if (cadence === 'weekly' && weekday === null) {
-    errors.push(bodyError('weekday', 'weekday_required', 'A weekly schedule needs its weekday.'));
+  if (create || isRecord(body.selector)) {
+    // The terms only filter: any terms of the project's vocabularies, several of one included
+    const references = [
+      ...groupErrors(caller, selector.groups ?? [], 'selector.groups'),
+      ...termErrors(caller, selector.terms ?? [], 'selector.terms', { removing: true }),
+    ];
+    if (references.length > 0) return references;
   }
-  if (cadence === 'monthly' && monthDay === null) {
-    errors.push(bodyError('month_day', 'month_day_required', 'A monthly schedule needs its day of the month.'));
-  }
-  const selector = isRecord(body.selector) ? selectorOf(body.selector) : base.selector;
-  // A selector is judged against its workload; a workload the planner cannot run has nothing to judge by
-  const workloadKnown = requestedWorkload === undefined || isOneOf(requestedWorkload, SCHEDULE_WORKLOADS);
-  if (workloadKnown) {
-    const allowed = SELECTOR_OF[base.workload];
-    for (const name of SELECTOR_MEMBERS) {
-      if (selector[name] !== undefined && !allowed.includes(name)) {
-        errors.push(
-          bodyError(`selector.${name}`, 'selector_member_not_allowed', `Not a selector of ${base.workload}.`),
-        );
-      }
-    }
-    if (base.workload === 'seo_rank' && Object.keys(selector).length === 0) {
-      errors.push(bodyError('selector', 'selector_empty', 'Choose the keywords: all, groups, terms or a priority.'));
-    }
-  }
-  errors.push(...groupErrors(caller, selector.groups ?? [], 'selector.groups'));
-  // The terms only filter: any terms of the project's vocabularies, several of one included
-  errors.push(...termErrors(caller, selector.terms ?? [], 'selector.terms', { removing: true }));
-  if (errors.length > 0) return errors;
   return {
     ...base,
+    workload: known,
     name: typeof body.name === 'string' ? body.name : base.name,
-    cadence,
-    weekday: cadence === 'weekly' ? weekday : null,
-    month_day: cadence === 'monthly' ? monthDay : null,
+    cadence: isOneOf(cadence, CADENCES) ? cadence : base.cadence,
+    weekday,
+    month_day: monthDay,
     window_start_local:
       typeof body.window_start_local === 'string' ? fullTime(body.window_start_local) : base.window_start_local,
     window_hours: typeof body.window_hours === 'number' ? body.window_hours : base.window_hours,
-    timezone,
+    // A zone that was renamed is kept by its current name
+    timezone: currentTimeZoneName(timezone),
     priority: isOneOf(body.priority, SCHEDULE_PRIORITIES) ? body.priority : base.priority,
-    provider_mode: isOneOf(body.provider_mode, PROVIDER_MODES) ? body.provider_mode : base.provider_mode,
+    provider_mode: providerMode,
     selector,
   };
 }
@@ -295,7 +400,7 @@ export const scheduleHandlers: HttpHandler[] = [
       created_at: stateTime(),
       deleted_at: null,
     };
-    const row = scheduled(caller, body, base, body.cadence, body.workload);
+    const row = scheduled(caller, body, base, true);
     if (Array.isArray(row)) return invalid(request, row);
     const changes = minter.commit(withSchedule(caller.operationChanges, row));
     const cookie = savedOperations(request, changes);
@@ -327,7 +432,7 @@ export const scheduleHandlers: HttpHandler[] = [
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const shape = shapeErrors(body, false);
     if (shape.length > 0) return invalid(request, shape);
-    const row = scheduled(caller, body, current, body.cadence, undefined);
+    const row = scheduled(caller, body, current, false);
     if (Array.isArray(row)) return invalid(request, row);
     return answer(request, caller, row);
   }),
@@ -363,8 +468,10 @@ export const scheduleHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const current = liveSchedule(caller, params.schedule_id);
     if (current === undefined) return problem(request, 'not_found');
+    // The body is optional: none, or `null`, pauses without a reason
     const text = await request.text();
-    const body: unknown = text === '' ? {} : JSON.parse(text);
+    const parsed: unknown = text === '' ? null : JSON.parse(text);
+    const body: unknown = parsed === null ? {} : parsed;
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const errors = [
       ...extraMembers(body, ['reason']),

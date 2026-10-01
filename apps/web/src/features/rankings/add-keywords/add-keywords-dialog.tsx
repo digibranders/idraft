@@ -241,18 +241,23 @@ export function AddKeywordsDialog({
         void queryClient.invalidateQueries({
           queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'keyword-groups'],
         });
-        const { created, skipped, rejected } = answer.data;
+        const { created, restored, skipped, rejected } = answer.data;
         if (skipped.length === 0 && rejected.length === 0) {
+          // A deleted keyword comes back with its old settings and history, which the person is told (D3)
           toast({
             type: 'success',
             title: t('added', { count: created.length, both }),
-            description: t('addedDescription'),
+            description:
+              restored.length === 0
+                ? t('addedDescription')
+                : t('restoredDescription', { count: restored.length, fresh: created.length - restored.length }),
           });
           close();
           return;
         }
         setOutcome({
           added: created.length,
+          restored: restored.length,
           both: both === 'yes',
           skipped: skipped.map((item) => ({ id: item.existing_id, keyword: items[item.index]?.keyword ?? '' })),
           rejected: rejected.map((item) => ({

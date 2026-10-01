@@ -67,42 +67,56 @@ describe('schedules', () => {
     });
   });
 
-  it('reports every service error at once: cadence, workload, time zone, day and selector', async () => {
+  it('answers the first stage that fails, as the service checks them', async () => {
     const editor = mockBrowser('editor');
-    const refused = await editor.call('POST', S, {
-      name: 'Hourly',
-      workload: 'ai_prompt',
-      cadence: 'cron',
-      window_start_local: '02:00',
-      timezone: 'Mars/Olympus',
-    });
-    // An unavailable workload has no selector rules to break
-    expect(fieldCodes(refused)).toEqual([
+    const daily = { name: 'Daily', cadence: 'daily', window_start_local: '02:00', timezone: 'UTC' };
+    // The workload, then the cadence, then the provider mode
+    expect(
+      fieldCodes(
+        await editor.call('POST', S, { ...daily, workload: 'ai_prompt', cadence: 'cron', timezone: 'Mars/Olympus' }),
+      ),
+    ).toEqual(['workload:workload_not_available']);
+    expect(fieldCodes(await editor.call('POST', S, { ...daily, workload: 'seo_rank', cadence: 'cron' }))).toEqual([
       'cadence:cadence_not_supported',
-      'workload:workload_not_available',
-      'timezone:invalid_timezone',
     ]);
-    const nothing = await editor.call('POST', S, {
-      name: 'No keywords',
-      workload: 'seo_rank',
-      cadence: 'daily',
-      window_start_local: '02:00',
-      timezone: 'UTC',
-      selector: { groups: [], terms: [] },
-    });
-    expect(fieldCodes(nothing)).toEqual(['selector:selector_empty']);
-    const weekly = await editor.call('POST', S, {
-      name: 'Weekly metrics',
-      workload: 'keyword_metrics',
-      cadence: 'weekly',
-      window_start_local: '04:00:00',
-      timezone: 'Europe/Berlin',
-      selector: { stale_days: 7, priority_lte: 2 },
-    });
-    expect(fieldCodes(weekly)).toEqual([
-      'weekday:weekday_required',
-      'selector.priority_lte:selector_member_not_allowed',
+    // Labs is called live: the default queue mode is refused for keyword metrics
+    expect(fieldCodes(await editor.call('POST', S, { ...daily, workload: 'keyword_metrics' }))).toEqual([
+      'provider_mode:provider_mode_not_supported',
     ]);
+    const metrics = { ...daily, workload: 'keyword_metrics', provider_mode: 'live' };
+    // Then the selector: the first member the workload does not take, an empty one, all with stale days
+    expect(
+      fieldCodes(
+        await editor.call('POST', S, { ...metrics, selector: { priority_lte: 2, groups: [MOCK_GROUP_IDS.brand] } }),
+      ),
+    ).toEqual(['selector.priority_lte:selector_not_supported']);
+    expect(
+      fieldCodes(await editor.call('POST', S, { ...daily, workload: 'seo_rank', selector: { groups: [], terms: [] } })),
+    ).toEqual(['selector:selector_empty']);
+    expect(fieldCodes(await editor.call('POST', S, { ...metrics, selector: { all: true, stale_days: 7 } }))).toEqual([
+      'selector.stale_days:selector_conflict',
+    ]);
+    // Then the time zone, which is looked up once its name has the right shape
+    expect(fieldCodes(await editor.call('POST', S, { ...metrics, timezone: 'Mars/Olympus' }))).toEqual([
+      'timezone:timezone_unknown',
+    ]);
+    // A create's days are held to its cadence by the schema, as one error for the body
+    expect(fieldCodes(await editor.call('POST', S, { ...metrics, cadence: 'weekly' }))).toEqual([':value_error']);
+    // A renamed zone is kept by its current name
+    const calcutta = await editor.call('POST', S, { ...metrics, timezone: 'Asia/Calcutta' });
+    expect(dataOf(calcutta, SCHEDULE).timezone).toBe('Asia/Kolkata');
+    // A name not shaped like a zone is refused before it is looked up
+    expect(
+      fieldCodes(
+        await editor.call('POST', S, {
+          name: 'Odd zone',
+          workload: 'keyword_metrics',
+          cadence: 'daily',
+          window_start_local: '02:00',
+          timezone: 'not a zone',
+        }),
+      ),
+    ).toEqual(['timezone:string_pattern_mismatch']);
     expect(fieldCodes(await editor.call('POST', S, { name: 'x' }))).toEqual([
       'workload:missing',
       'cadence:missing',
@@ -119,6 +133,18 @@ describe('schedules', () => {
         selector: { all: true },
       }),
     ).toMatchObject({ status: 403, code: 'forbidden' });
+  });
+
+  it('holds a change’s days to its cadence: required when it starts to use one, refused when it has none', async () => {
+    const editor = mockBrowser('editor');
+    const daily = `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`;
+    expect(fieldCodes(await editor.call('PATCH', daily, { cadence: 'weekly' }))).toEqual(['weekday:required']);
+    expect(fieldCodes(await editor.call('PATCH', daily, { weekday: 2 }))).toEqual(['weekday:not_applicable']);
+    expect(fieldCodes(await editor.call('PATCH', daily, { cadence: 'monthly' }))).toEqual(['month_day:required']);
+    const weekly = dataOf(await editor.call('PATCH', daily, { cadence: 'weekly', weekday: 3 }), SCHEDULE);
+    expect(weekly).toMatchObject({ cadence: 'weekly', weekday: 3, month_day: null });
+    // Back to daily, the weekday is dropped
+    expect(dataOf(await editor.call('PATCH', daily, { cadence: 'daily' }), SCHEDULE)).toMatchObject({ weekday: null });
   });
 
   it('changes, pauses and resumes a schedule, its next run counted again from now', async () => {

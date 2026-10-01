@@ -328,8 +328,24 @@ describe('tracked keywords: in bulk', () => {
     expect(result.rejected).toEqual([
       { index: 3, code: 'search_operator_not_allowed', message: expect.any(String) as string },
     ]);
+    expect(result.restored).toEqual([]);
     const detail = dataOf(await editor.call('GET', `${TK}/${trackedId('seo audit')}`), TRACKED_KEYWORD_DETAIL);
     expect(detail.terms.map((term) => term.name).sort()).toEqual(['Paid Search', 'Technical SEO']);
+  });
+
+  it('marks a deleted keyword that a bulk create brings back as restored', async () => {
+    const editor = mockBrowser('editor');
+    const id = trackedId('seo audit');
+    expect((await editor.call('DELETE', `${TK}/${id}`)).status).toBe(204);
+    const result = dataOf(
+      await editor.call('POST', `${TK}/bulk-create`, {
+        items: [{ keyword: 'seo audit' }, { keyword: 'seo for vets' }],
+      }),
+      BULK_CREATE_RESULT,
+    );
+    expect(result.created).toHaveLength(2);
+    expect(result.created).toContain(id);
+    expect(result.restored).toEqual([id]);
   });
 
   it('bulk-updates a filter, versioning depth changes and replacing a single-valued term', async () => {

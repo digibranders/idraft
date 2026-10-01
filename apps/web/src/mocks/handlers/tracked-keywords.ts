@@ -176,6 +176,8 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const minter = keywordIdMinter(caller.keywordChanges);
     let changes = caller.keywordChanges;
     const created: string[] = [];
+    // The created rows that were deleted and came back with their settings (backend plan D3)
+    const restored: string[] = [];
     const skipped: { index: number; existing_id: string }[] = [];
     const rejected: { index: number; code: string; message: string }[] = [];
     let requested = 0;
@@ -193,6 +195,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
       changes = written(caller, planned.changes, fresh, item);
       requested += fresh.length;
       created.push(...fresh.map((entry) => entry.row.tracked_keyword_id));
+      restored.push(...fresh.filter((entry) => entry.kind === 'restored').map((entry) => entry.row.tracked_keyword_id));
       for (const entry of planned.rows.filter((candidate) => candidate.kind === 'duplicate')) {
         skipped.push({ index, existing_id: entry.row.tracked_keyword_id });
         if (onDuplicate === 'merge_terms') changes = mergeTerms(caller, changes, entry.row.tracked_keyword_id, item);
@@ -202,7 +205,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     if (over) return over;
     const cookie = savedKeywords(request, minter.commit(changes));
     if (typeof cookie !== 'string') return cookie;
-    return HttpResponse.json({ data: { created, skipped, rejected } }, { headers: { 'set-cookie': cookie } });
+    return HttpResponse.json({ data: { created, restored, skipped, rejected } }, { headers: { 'set-cookie': cookie } });
   }),
 
   mock('get', `${P}/tracked-keywords/{tracked_keyword_id}`, ({ request, cookies, params }) => {

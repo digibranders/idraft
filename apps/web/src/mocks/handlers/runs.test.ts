@@ -162,12 +162,13 @@ describe('runs', () => {
     expect((await analyst.as('admin').call('POST', `${P}/runs/${editors.run_id}/cancel`)).status).toBe(200);
   });
 
-  it('lists the workspace runs of the projects the member sees, by project and by day', async () => {
+  it('lists the workspace runs of the projects the member sees, by project and by time', async () => {
     const analyst = mockBrowser('analyst');
+    // `from` and `to` are instants: created at or after `from`, and before `to`
     const september = dataOf(
       await analyst.call(
         'GET',
-        `${W}/runs?filter[project_id]=${fynix.project_id}&from=2026-09-20&to=2026-09-24&limit=50`,
+        `${W}/runs?filter[project_id]=${fynix.project_id}&from=2026-09-20T00:00:00Z&to=2026-09-25T00:00:00Z&limit=50`,
       ),
       RUNS,
     );
@@ -177,7 +178,27 @@ describe('runs', () => {
     const other = dataOf(await analyst.call('GET', `${W}/runs?filter[project_id]=${eventus?.project_id ?? ''}`), RUNS);
     expect(other).toEqual([]);
     expect(fieldCodes(await analyst.call('GET', `${W}/runs?from=yesterday`))).toEqual([
-      'from:date_from_datetime_parsing',
+      'from:datetime_from_date_parsing',
     ]);
+  });
+
+  it('lists a project’s runs by the time they were created, given with its zone', async () => {
+    const analyst = mockBrowser('analyst');
+    const all = dataOf(await analyst.call('GET', `${P}/runs?limit=50`), RUNS);
+    expect(all.length).toBeGreaterThan(0);
+    expect(dataOf(await analyst.call('GET', `${P}/runs?from=2100-01-01T00:00:00Z`), RUNS)).toEqual([]);
+    expect(dataOf(await analyst.call('GET', `${P}/runs?to=2000-01-01T00:00:00%2B02:00`), RUNS)).toEqual([]);
+    // A date, or a time without a zone, is not an instant
+    expect(fieldCodes(await analyst.call('GET', `${P}/runs?from=2026-09-20`))).toEqual(['from:timezone_aware']);
+    expect(fieldCodes(await analyst.call('GET', `${P}/runs?to=2026-09-20T00:00:00`))).toEqual(['to:timezone_aware']);
+    const many = Array.from({ length: 21 }, () => 'planned').join(',');
+    expect(fieldCodes(await analyst.call('GET', `${P}/runs?filter[status_in]=${many}`))).toEqual([
+      'filter[status_in]:too_long',
+    ]);
+  });
+
+  it('refuses a cancel to a member who may cancel no run, before it looks the run up', async () => {
+    const viewer = mockBrowser('viewer');
+    expect(await viewer.call('POST', `${P}/runs/${mockId('run', 999)}/cancel`)).toMatchObject({ status: 403 });
   });
 });

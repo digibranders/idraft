@@ -71,12 +71,18 @@ interface RunFilter {
   triggers: string[];
 }
 
+/** A list filter takes at most this many values (`max_length=20` in the backend's query). */
+const MAX_LIST_VALUES = 20;
+
 /** A list filter of the query, as a comma list or repeated parameters. */
 function listOf(url: URL, name: string, allowed: readonly string[]): string[] | ValidationItem {
   const values = url.searchParams
     .getAll(name)
     .flatMap((value) => value.split(','))
     .filter((value) => value !== '');
+  if (values.length > MAX_LIST_VALUES) {
+    return queryError(name, 'too_long', `List should have at most ${String(MAX_LIST_VALUES)} items.`);
+  }
   return values.every((value) => allowed.includes(value))
     ? values
     : queryError(name, 'enum', `Allowed: ${allowed.join(', ')}.`);
@@ -114,10 +120,23 @@ function scopeOf(url: URL): string {
 const queryUuidError = (value: string | null, path: string): ValidationItem[] =>
   value === null ? [] : uuidError(value, path).map((item) => queryError(path, item.code, item.message));
 
-const dateError = (value: string | null, path: string): ValidationItem[] =>
-  value === null || (/^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)))
-    ? []
-    : [queryError(path, 'date_from_datetime_parsing', 'Input should be a valid date')];
+/** `from` and `to` are instants with their zone (`AwareDatetime`): `Z` or an offset. */
+const AWARE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i;
+/** A date, or a date and time without a zone: a datetime, but not an instant. */
+const NAIVE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?$/;
+
+const instantError = (value: string | null, path: string): ValidationItem[] => {
+  if (value === null || (AWARE.test(value) && !Number.isNaN(Date.parse(value)))) return [];
+  return NAIVE.test(value)
+    ? [queryError(path, 'timezone_aware', 'Input should have timezone info')]
+    : [queryError(path, 'datetime_from_date_parsing', 'Input should be a valid datetime')];
+};
+
+/** Created at or after `from`, and before `to` (both checked by `instantError` first). */
+const createdBetween = (run: StoredRun, from: string | null, to: string | null): boolean => {
+  const created = Date.parse(run.created_at);
+  return (from === null || created >= Date.parse(from)) && (to === null || created < Date.parse(to));
+};
 
 /** The run of the project with this id. */
 const runOf = (caller: OperationsProjectCaller, id: string | readonly string[] | undefined): StoredRun | undefined =>
@@ -156,16 +175,22 @@ export const runHandlers: HttpHandler[] = [
         'filter[workload_in]',
         'filter[status_in]',
         'filter[trigger_in]',
+        'from',
+        'to',
         'cursor',
         'limit',
       ],
     });
     if (caller instanceof Response) return caller;
     const scheduleId = caller.url.searchParams.get('filter[schedule_id]');
+    const from = caller.url.searchParams.get('from');
+    const to = caller.url.searchParams.get('to');
     const filter = runFilter(caller.url);
     const paging = pageRequest(caller.url);
     const errors = [
       ...queryUuidError(scheduleId, 'filter[schedule_id]'),
+      ...instantError(from, 'from'),
+      ...instantError(to, 'to'),
       ...(Array.isArray(filter) ? filter : []),
       ...(Array.isArray(paging) ? paging : []),
     ];
@@ -176,6 +201,7 @@ export const runHandlers: HttpHandler[] = [
         (run) =>
           run.project_id === caller.project.project_id &&
           (scheduleId === null || run.schedule_id === scheduleId) &&
+          createdBetween(run, from, to) &&
           keeps(filter, run, now),
       )
       .sort(newestFirst);
@@ -216,8 +242,8 @@ export const runHandlers: HttpHandler[] = [
     const paging = pageRequest(caller.url);
     const errors = [
       ...queryUuidError(projectId, 'filter[project_id]'),
-      ...dateError(from, 'from'),
-      ...dateError(to, 'to'),
+      ...instantError(from, 'from'),
+      ...instantError(to, 'to'),
       ...(Array.isArray(filter) ? filter : []),
       ...(Array.isArray(paging) ? paging : []),
     ];
@@ -230,8 +256,7 @@ export const runHandlers: HttpHandler[] = [
         (run) =>
           visible.has(run.project_id) &&
           (projectId === null || run.project_id === projectId) &&
-          (from === null || run.created_at.slice(0, 10) >= from) &&
-          (to === null || run.created_at.slice(0, 10) <= to) &&
+          createdBetween(run, from, to) &&
           keeps(filter, run, now),
       )
       .sort(newestFirst);
@@ -263,13 +288,20 @@ export const runHandlers: HttpHandler[] = [
       permission: 'data:read',
     });
     if (caller instanceof Response) return caller;
+    // `schedules:write` cancels any run; `runs:trigger` cancels the manual runs the caller asked for. A
+    // member with neither is refused before the run is looked up, as the API does.
+    if (!can(caller.access, 'schedules:write') && !can(caller.access, 'runs:trigger')) {
+      return problem(request, 'forbidden');
+    }
     const run = runOf(caller, params.run_id);
     if (run === undefined) return problem(request, 'not_found');
-    // A member may cancel the manual runs they started; any other run takes `schedules:write`
     const own = run.trigger === 'manual' && run.created_by === caller.session.user.user_id;
-    if (!can(caller.access, own ? 'runs:trigger' : 'schedules:write')) return problem(request, 'forbidden');
+    const allowed = can(caller.access, 'schedules:write') || (own && can(caller.access, 'runs:trigger'));
+    if (!allowed) return problem(request, 'forbidden');
+    // The body is optional: none, or `null`, cancels without a reason
     const text = await request.text();
-    const body: unknown = text === '' ? {} : JSON.parse(text);
+    const parsed: unknown = text === '' ? null : JSON.parse(text);
+    const body: unknown = parsed === null ? {} : parsed;
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const errors = [
       ...extraMembers(body, ['reason']),

@@ -1270,6 +1270,8 @@
         "searchOperatorNotAllowed": "Search operators such as site: or a minus before a word are not tracked."
       },
       "addedDescription": "Their metrics arrive within minutes.",
+      "restored": "{count, plural, one {# of them was deleted before and is back with its old settings and history.} other {# of them were deleted before and are back with their old settings and history.}}",
+      "restoredDescription": "{count, plural, one {# of them was deleted before and is back with its old settings and history.} other {# of them were deleted before and are back with their old settings and history.}}{fresh, plural, =0 {} other { The new ones get their metrics within minutes.}}",
       "discardDescription": "The keywords you entered will be lost.",
       "result": {
         "title": "{added, plural, =0 {No keywords added} other {Keywords added}}",

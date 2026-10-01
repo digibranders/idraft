@@ -21,6 +21,8 @@ const SHOWN = 20;
 export interface AddOutcome {
   /** Tracked keywords written: with both devices, two of each keyword. */
   added: number;
+  /** Of `added`, the ones that were deleted and came back with their old settings. */
+  restored: number;
   both: boolean;
   /** Keywords the project tracks already, with the tracked keyword each one is. */
   skipped: readonly { id: string; keyword: string }[];
@@ -95,6 +97,7 @@ export function AddKeywordsResult({
         closeLabel={common('close')}
       />
       <DialogBody>
+        {outcome.restored === 0 ? null : <p className="type-body">{add('restored', { count: outcome.restored })}</p>}
         {outcome.skipped.length === 0 ? null : (
           <section aria-labelledby={skippedId} className="flex flex-col gap-2">
             <h3 id={skippedId} className="type-subsection-title">

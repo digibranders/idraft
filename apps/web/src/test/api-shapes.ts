@@ -440,6 +440,7 @@ export const CONFIG_VERSION: z.ZodType<ConfigVersion> = z.object({
 
 export const BULK_CREATE_RESULT: z.ZodType<BulkCreateResult> = z.object({
   created: z.array(z.string()),
+  restored: z.array(z.string()),
   skipped: z.array(z.object({ index: z.number(), existing_id: z.string() })),
   rejected: z.array(z.object({ index: z.number(), code: z.string(), message: z.string() })),
 });

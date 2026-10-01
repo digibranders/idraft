@@ -742,6 +742,15 @@
             "title": "Rejected",
             "type": "array"
           },
+          "restored": {
+            "description": "The ids of `created` that were deleted and came back with their settings.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Restored",
+            "type": "array"
+          },
           "skipped": {
             "items": {
               "$ref": "#/components/schemas/BulkSkipped"
@@ -752,6 +761,7 @@
         },
         "required": [
           "created",
+          "restored",
           "skipped",
           "rejected"
         ],
@@ -6318,6 +6328,7 @@
           "timezone": {
             "maxLength": 64,
             "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
             "title": "Timezone",
             "type": "string"
           },
@@ -6508,6 +6519,7 @@
           "timezone": {
             "maxLength": 64,
             "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
             "title": "Timezone",
             "type": "string"
           },
@@ -14183,7 +14195,8 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-metrics/refresh": {
       "post": {
-        "operationId": "refresh_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post",
+        "description": "The given keywords (which the project tracks; `422 validation_failed` with `keyword_unknown` otherwise), else the project's tracked keywords whose metrics are older than `stale_days` (default 25). The run is `planned` and the worker plans it within a minute; a budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; runs the system starts for new keywords do not count.",
+        "operationId": "refresh_keyword_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post",
         "parameters": [
           {
             "in": "path",
@@ -14240,12 +14253,13 @@
         },
         "summary": "Refresh keyword metrics now (a manual run)",
         "tags": [
-          "keywords"
+          "operations"
         ]
       }
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs": {
       "get": {
+        "description": "Newest first. `meta.manual_runs_today` says how many of the day's (UTC) manual runs people have used.",
         "operationId": "list_runs_api_v1_workspaces__workspace_id__projects__project_id__runs_get",
         "parameters": [
           {
@@ -14313,6 +14327,7 @@
                   "type": "null"
                 }
               ],
+              "maxLength": 20,
               "title": "Filter[Workload In]"
             }
           },
@@ -14341,6 +14356,7 @@
                   "type": "null"
                 }
               ],
+              "maxLength": 20,
               "title": "Filter[Status In]"
             }
           },
@@ -14366,7 +14382,46 @@
                   "type": "null"
                 }
               ],
+              "maxLength": 20,
               "title": "Filter[Trigger In]"
+            }
+          },
+          {
+            "description": "Created at or after.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Created at or after.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Created before.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Created before.",
+              "title": "To"
             }
           },
           {
@@ -14423,7 +14478,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "The project's runs, newest first",
+        "summary": "The project's runs",
         "tags": [
           "operations"
         ]
@@ -14431,6 +14486,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}": {
       "get": {
+        "description": "With how many of its tasks are in each status, and the configuration it ran with.",
         "operationId": "get_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__get",
         "parameters": [
           {
@@ -14486,7 +14542,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "One run with its task counts",
+        "summary": "One run",
         "tags": [
           "operations"
         ]
@@ -14494,6 +14550,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}/cancel": {
       "post": {
+        "description": "A planned or running run (`409 invalid_state_transition` otherwise). Needs `schedules:write`, or `runs:trigger` for a manual run the caller asked for. Pending tasks are cancelled within minutes; tasks the provider already has are still fetched, since they are paid for. `reason` is audited.",
         "operationId": "cancel_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__cancel_post",
         "parameters": [
           {
@@ -14531,11 +14588,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RunCancel"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RunCancel"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -14559,7 +14623,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Cancel a run: pending tasks are cancelled, submitted ones still fetched",
+        "summary": "Cancel a run",
         "tags": [
           "operations"
         ]
@@ -14686,6 +14750,7 @@
         ]
       },
       "post": {
+        "description": "`keyword_metrics` (provider mode `live`; selector `stale_days`, `all`, `groups`, `terms`) and `seo_rank` (selector `all`, `groups`, `terms`, `priority_lte`, and not empty) are offered; others are `422 validation_failed` with `workload_not_available`. Cadence `daily`, `weekly` (with `weekday`, 0 is Sunday) or `monthly` (with `month_day`, 1 to 28); `cron` is `cadence_not_supported`. A selector member the workload does not take is `selector_not_supported` at `selector.<member>`. `next_run_at` is the next window start in the schedule's time zone.",
         "operationId": "create_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules_post",
         "parameters": [
           {
@@ -14749,6 +14814,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}": {
       "delete": {
+        "description": "Its runs keep naming it. `409 schedule_in_use` while tracked keywords name it.",
         "operationId": "delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__delete",
         "parameters": [
           {
@@ -14797,7 +14863,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Delete a schedule no tracked keyword names",
+        "summary": "Delete a schedule",
         "tags": [
           "operations"
         ]
@@ -14864,6 +14930,7 @@
         ]
       },
       "patch": {
+        "description": "`next_run_at` is computed again. A change of cadence drops the day the new cadence does not use, and a weekly or monthly cadence needs its day (`required`).",
         "operationId": "update_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__patch",
         "parameters": [
           {
@@ -14937,6 +15004,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/pause": {
       "post": {
+        "description": "Not planned until resumed. The body (`reason`) is optional and audited.",
         "operationId": "pause_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__pause_post",
         "parameters": [
           {
@@ -14974,11 +15042,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SchedulePause"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SchedulePause"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -15010,6 +15085,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/resume": {
       "post": {
+        "description": "From its next window after now: windows missed while paused are not caught up.",
         "operationId": "resume_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__resume_post",
         "parameters": [
           {
@@ -15065,7 +15141,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Resume a schedule (missed windows are not caught up)",
+        "summary": "Resume a schedule",
         "tags": [
           "operations"
         ]
@@ -15124,6 +15200,7 @@
         ]
       },
       "patch": {
+        "description": "A JSON merge patch of `seo`: members left out keep their value. The `seo` defaults apply to tracked keywords created after the change.",
         "operationId": "update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch",
         "parameters": [
           {
@@ -15179,7 +15256,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Change the project's settings (merge patch)",
+        "summary": "Change the project's settings",
         "tags": [
           "projects"
         ]

@@ -70,6 +70,66 @@ describe('Add keywords', () => {
     await waitFor(() => expect(keywordsIn(grid)).toContain('rank tracker api'));
   }, 15_000);
 
+  it('tells a keyword that came back from deletion apart from a new one', async () => {
+    server.use(
+      http.post(mswPath(BULK_CREATE), () =>
+        HttpResponse.json({
+          data: {
+            created: ['0192d1a8-e007-7a10-8e07-000000000201', '0192d1a8-e007-7a10-8e07-000000000202'],
+            restored: ['0192d1a8-e007-7a10-8e07-000000000201'],
+            skipped: [],
+            rejected: [],
+          },
+        }),
+      ),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openDialog(user);
+    await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'old keyword{Enter}new keyword');
+    await user.click(within(dialog).getByRole('button', { name: 'Add 2 keywords' }));
+    expect(await screen.findByText('2 keywords added')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        '1 of them was deleted before and is back with its old settings and history. The new ones get their metrics within minutes.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says so when every keyword came back from deletion, and in the result beside keywords tracked already', async () => {
+    const restoredId = '0192d1a8-e007-7a10-8e07-000000000201';
+    let skip = false;
+    server.use(
+      http.post(mswPath(BULK_CREATE), () =>
+        HttpResponse.json({
+          data: {
+            created: [restoredId],
+            restored: [restoredId],
+            skipped: skip ? [{ index: 1, existing_id: '0192d1a8-e007-7a10-8e07-000000000001' }] : [],
+            rejected: [],
+          },
+        }),
+      ),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    let dialog = await openDialog(user);
+    await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'old keyword');
+    await user.click(within(dialog).getByRole('button', { name: 'Add 1 keyword' }));
+    // No new keywords: nothing is said about new ones' metrics
+    expect(
+      await screen.findByText('1 of them was deleted before and is back with its old settings and history.'),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add keywords' })).toBeNull());
+    skip = true;
+    await user.click(screen.getByRole('button', { name: 'Add keywords' }));
+    dialog = await screen.findByRole('dialog', { name: 'Add keywords' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'old keyword{Enter}seo agency');
+    await user.click(within(dialog).getByRole('button', { name: 'Add 2 keywords' }));
+    const result = await screen.findByRole('dialog', { name: 'Keywords added' });
+    expect(
+      within(result).getByText('1 of them was deleted before and is back with its old settings and history.'),
+    ).toBeInTheDocument();
+  }, 15_000);
+
   it('says by how much an add goes over the plan’s keyword limit', async () => {
     server.use(
       http.post(mswPath(BULK_CREATE), ({ request }) =>
