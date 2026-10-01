@@ -514,6 +514,148 @@
         "title": "AliasUpdate",
         "type": "object"
       },
+      "Budget": {
+        "properties": {
+          "action_on_hard": {
+            "enum": [
+              "pause",
+              "alert_only"
+            ],
+            "title": "Action On Hard",
+            "type": "string"
+          },
+          "budget_id": {
+            "format": "uuid",
+            "title": "Budget Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "limit_usd": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Limit Usd",
+            "type": "string"
+          },
+          "period": {
+            "const": "month",
+            "title": "Period",
+            "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "soft_limit_pct": {
+            "title": "Soft Limit Pct",
+            "type": "integer"
+          },
+          "workload": {
+            "enum": [
+              "seo_rank",
+              "ai_prompt",
+              "keyword_research",
+              "ai_benchmark",
+              "extraction_llm",
+              "first_party",
+              "all"
+            ],
+            "title": "Workload",
+            "type": "string"
+          }
+        },
+        "required": [
+          "budget_id",
+          "project_id",
+          "workload",
+          "period",
+          "limit_usd",
+          "soft_limit_pct",
+          "action_on_hard",
+          "created_at"
+        ],
+        "title": "Budget",
+        "type": "object"
+      },
+      "BudgetStatus": {
+        "properties": {
+          "blocked_runs": {
+            "title": "Blocked Runs",
+            "type": "integer"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/Budget"
+          },
+          "committed_estimate_usd": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Committed Estimate Usd",
+            "type": "string"
+          },
+          "pct_used": {
+            "title": "Pct Used",
+            "type": "number"
+          },
+          "spent_usd": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Spent Usd",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "soft_exceeded",
+              "hard_exceeded"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "budget",
+          "spent_usd",
+          "committed_estimate_usd",
+          "pct_used",
+          "state",
+          "blocked_runs"
+        ],
+        "title": "BudgetStatus",
+        "type": "object"
+      },
+      "BudgetStatusList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetStatus"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "BudgetStatusList",
+        "type": "object"
+      },
       "BulkArchiveResponse": {
         "properties": {
           "data": {
@@ -854,6 +996,137 @@
         ],
         "title": "ConfigVersion",
         "type": "object"
+      },
+      "CostList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CostRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/CostMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "CostList",
+        "type": "object"
+      },
+      "CostMeta": {
+        "properties": {
+          "cost_sources": {
+            "$ref": "#/components/schemas/CostSources"
+          },
+          "total_cost_usd": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Total Cost Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "total_cost_usd",
+          "cost_sources"
+        ],
+        "title": "CostMeta",
+        "type": "object"
+      },
+      "CostRow": {
+        "properties": {
+          "cost_usd": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "keys": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Keys",
+            "type": "object"
+          },
+          "request_count": {
+            "title": "Request Count",
+            "type": "integer"
+          },
+          "subjects": {
+            "title": "Subjects",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "keys",
+          "cost_usd",
+          "request_count",
+          "subjects"
+        ],
+        "title": "CostRow",
+        "type": "object"
+      },
+      "CostSources": {
+        "properties": {
+          "computed_from_tokens": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Computed From Tokens",
+            "type": "string"
+          },
+          "price_book_estimate": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Price Book Estimate",
+            "type": "string"
+          },
+          "provider_reported": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Provider Reported",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_reported",
+          "computed_from_tokens",
+          "price_book_estimate"
+        ],
+        "title": "CostSources",
+        "type": "object"
+      },
+      "CostWorkload": {
+        "enum": [
+          "seo_rank",
+          "ai_prompt",
+          "ai_mode_keyword",
+          "keyword_metrics",
+          "discovery",
+          "ai_benchmark",
+          "gsc_sync",
+          "bing_sync",
+          "ga4_sync",
+          "cloudflare_sync",
+          "ai_overview",
+          "extraction_llm",
+          "keyword_research",
+          "first_party"
+        ],
+        "title": "CostWorkload",
+        "type": "string"
       },
       "CursorPageInfo": {
         "description": "A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.",
@@ -3482,6 +3755,100 @@
           "new_password"
         ],
         "title": "PasswordResetConfirmRequest",
+        "type": "object"
+      },
+      "Price": {
+        "properties": {
+          "conditions": {
+            "additionalProperties": true,
+            "title": "Conditions",
+            "type": "object"
+          },
+          "endpoint": {
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "price_id": {
+            "format": "uuid",
+            "title": "Price Id",
+            "type": "string"
+          },
+          "price_unit": {
+            "title": "Price Unit",
+            "type": "string"
+          },
+          "provider_code": {
+            "title": "Provider Code",
+            "type": "string"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "unit_price_usd": {
+            "examples": [
+              "0.012000"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "title": "Unit Price Usd",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          },
+          "verified_at": {
+            "format": "date",
+            "title": "Verified At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price_id",
+          "provider_code",
+          "endpoint",
+          "price_unit",
+          "unit_price_usd",
+          "conditions",
+          "valid_from",
+          "valid_to",
+          "source_url",
+          "verified_at"
+        ],
+        "title": "Price",
+        "type": "object"
+      },
+      "PricePage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Price"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "PricePage",
         "type": "object"
       },
       "Problem": {
@@ -9573,6 +9940,215 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/budgets/status": {
+      "get": {
+        "description": "`month` is `YYYY-MM` (UTC; this month when left out). `spent_usd` is read from the cost events; `committed_estimate_usd` is what runs under way are still expected to spend, this month only. `state` is `hard_exceeded` from the limit and `soft_exceeded` from its soft share. A member limited to some projects sees their budgets only.",
+        "operationId": "budget_status_api_v1_workspaces__workspace_id__budgets_status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetStatusList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Each budget's spend in a month",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/costs": {
+      "get": {
+        "description": "From `from` to `to`, both included (UTC days, at most 366). `group_by` is a comma list of `project`, `workload`, `provider`, `endpoint`, `engine`, `day`, `channel`; without it there is one total row. Rows are most expensive first. Read from the hourly rollup, so up to an hour behind; `meta.cost_sources` is read from the cost events. Money has six decimal places.",
+        "operationId": "list_costs_api_v1_workspaces__workspace_id__costs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "project",
+                      "workload",
+                      "provider",
+                      "endpoint",
+                      "engine",
+                      "day",
+                      "channel"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 7,
+              "title": "Group By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[project_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Project Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[workload_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/CostWorkload"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 20,
+              "title": "Filter[Workload In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[provider_code]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Provider Code]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Costs grouped by the given keys",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/entities": {
       "get": {
         "operationId": "list_entities_api_v1_workspaces__workspace_id__entities_get",
@@ -10982,6 +11558,127 @@
         "summary": "Change a member's role or project scope",
         "tags": [
           "workspaces"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/price-book": {
+      "get": {
+        "description": "The prices valid on `valid_at` (today when left out). They give the estimates budgets are judged by; what is charged is what the provider reports.",
+        "operationId": "price_book_api_v1_workspaces__workspace_id__price_book_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[provider_code]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Provider Code]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[endpoint]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Endpoint]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Valid At"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Verified provider prices",
+        "tags": [
+          "operations"
         ]
       }
     },

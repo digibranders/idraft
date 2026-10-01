@@ -58,7 +58,7 @@ class BudgetVerdict:
         return self.blocked_by is None
 
 
-def _month(now: datetime) -> datetime:
+def billing_month(now: datetime) -> datetime:
     """The first instant of the billing month `now` is in. Billing months are UTC months."""
     if now.tzinfo is None:
         # A naive time would be read in the zone of whatever machine runs this.
@@ -77,7 +77,7 @@ def _in_scope(
     return conditions
 
 
-async def _spent(
+async def spent_in_month(
     db: AsyncSession,
     *,
     workspace_id: UUID,
@@ -85,7 +85,8 @@ async def _spent(
     group: BudgetGroup,
     month: datetime,
 ) -> Decimal:
-    """This month's cost in the budget's scope: the whole workspace, or one project."""
+    """The cost in the budget's scope (the whole workspace, or one project) in the billing
+    month starting at `month`. The API's budget status reads it too."""
     total: Decimal = (
         await db.execute(
             select(func.coalesce(func.sum(_events.c.cost_usd), 0)).where(
@@ -100,7 +101,7 @@ async def _spent(
     return Decimal(total)
 
 
-async def _committed(
+async def committed(
     db: AsyncSession, *, workspace_id: UUID, project_id: UUID | None, group: BudgetGroup
 ) -> Decimal:
     """What the runs under way in the budget's scope are still expected to spend: for each,
@@ -159,7 +160,7 @@ async def check(
 
     A budget whose action is `alert_only` never blocks.
     """
-    month = _month(now)
+    month = billing_month(now)
     planning = estimate is not None
     if planning:
         await db.execute(
@@ -200,7 +201,7 @@ async def check(
         if memo is not None and key in memo:
             spent = memo[key]
         else:
-            spent = await _spent(db, month=month, **scope)
+            spent = await spent_in_month(db, month=month, **scope)
             if memo is not None:
                 memo[key] = spent
         limit = Decimal(row.limit_usd)
@@ -208,7 +209,7 @@ async def check(
             expected = spent
             over = spent >= limit
         else:
-            expected = spent + await _committed(db, **scope) + estimate
+            expected = spent + await committed(db, **scope) + estimate
             over = spent >= limit or expected > limit
         if expected >= limit * Decimal(row.soft_limit_pct) / 100:
             past_soft.append(row.id)

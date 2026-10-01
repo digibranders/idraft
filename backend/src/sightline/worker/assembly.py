@@ -15,6 +15,7 @@ import structlog
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from sightline.collectors.costs import roll_up_costs
 from sightline.collectors.dispatcher import SubmitBatch, dispatch
 from sightline.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
 from sightline.collectors.keyword_metrics import (
@@ -60,6 +61,8 @@ RECONCILE_EVERY = timedelta(minutes=5)
 PARTITIONS_AT = "10 0 * * *"
 # docs/21-scheduler-workers.md section 10: monthly, the 2nd at 03:00 UTC.
 LOCATIONS_AT = "0 3 2 * *"
+# Plan decision D14: today's and yesterday's costs, every hour.
+COSTS_AT = "7 * * * *"
 _log = structlog.get_logger(__name__)
 
 
@@ -175,6 +178,13 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
     context.queues.register_scheduled("reconcile", reconcile_ledger, every=RECONCILE_EVERY)
     context.queues.register_scheduled("ensure_partitions", partitions, cron=PARTITIONS_AT)
     context.queues.register_scheduled("location_sync", locations, cron=LOCATIONS_AT)
+
+    async def cost_rollup() -> None:
+        now = await database_time(context.sessions)
+        written = await roll_up_costs(context.sessions, now=now)
+        _log.info("costs rolled up", rows=written)
+
+    context.queues.register_scheduled("cost_rollup", cost_rollup, cron=COSTS_AT)
 
     async def queue_new(now: datetime) -> None:
         if KEYWORD_METRICS not in parts.workloads:

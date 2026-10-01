@@ -188,6 +188,10 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/resume",
     ): "schedules:write",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings"): "data:read",
+    # Workspace routes; the service limits a member scoped to some projects to theirs.
+    ("GET", "/api/v1/workspaces/{workspace_id}/costs"): "costs:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/budgets/status"): "costs:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/price-book"): "costs:read",
     (
         "PATCH",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings",

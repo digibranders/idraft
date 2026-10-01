@@ -159,6 +159,8 @@ async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(
     assert (schedules["reconcile"].interval, schedules["reconcile"].cron) == (300, None)
     assert schedules["ensure_partitions"].cron == "10 0 * * *"
     assert schedules["location_sync"].cron == "0 3 2 * *"
+    # Hourly, the costs of today and yesterday (plan decision D14).
+    assert schedules["cost_rollup"].cron == "7 * * * *"
 
 
 def test_without_credentials_nothing_is_registered_so_the_worker_spends_nothing(

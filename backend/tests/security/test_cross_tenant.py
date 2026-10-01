@@ -157,7 +157,11 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "location_id": str(LOCATION),
         "language_code": "en",
     },
+    ("GET", _W + "/costs"): {"from": "2026-01-01", "to": "2026-12-31", "group_by": "project"},
 }
+# Lists under a workspace's path that hold the platform's data, the same for every workspace:
+# they have no tenant data of their own to show.
+PLATFORM_LISTS = {_W + "/price-book"}
 
 
 @dataclass(frozen=True)
@@ -182,6 +186,8 @@ class Tenant:
     schedule_id: uuid.UUID
     # A running run, so cancelling it would succeed.
     run_id: uuid.UUID
+    # The project's budget; the project has costs too.
+    budget_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -200,6 +206,7 @@ class Tenant:
             "group_id": str(self.group_id),
             "schedule_id": str(self.schedule_id),
             "run_id": str(self.run_id),
+            "budget_id": str(self.budget_id),
         }
 
     def secrets(self) -> list[str]:
@@ -375,6 +382,22 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         project_id,
         schedule["id"],
     )
+    # The same budget and the same costs in both.
+    budget = await fetchrow(
+        pg,
+        "INSERT INTO ops.budgets (workspace_id, project_id, workload, limit_usd) "
+        "VALUES ($1, $2, 'keyword_research', 10) RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO ops.cost_daily (cost_date, workspace_id, project_id, provider_code, "
+        "endpoint, workload, request_count, cost_usd, subjects) VALUES ('2026-09-30', $1, $2, "
+        "'dataforseo', 'dataforseo_labs/google/keyword_overview', 'keyword_metrics', 1, 0.012, 1)",
+        workspace.id,
+        project_id,
+    )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -396,6 +419,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         group_id=group["id"],
         schedule_id=schedule["id"],
         run_id=run["id"],
+        budget_id=budget["id"],
     )
 
 
@@ -470,6 +494,8 @@ _TENANT_ROWS = {
     "seo.keyword_group_members": "workspace_id",
     "seo.tracked_keyword_terms": "workspace_id",
     "ops.schedules": "workspace_id",
+    "ops.budgets": "workspace_id",
+    "ops.cost_daily": "workspace_id",
     "ops.collection_runs": "workspace_id",
     "ops.audit_logs": "workspace_id",
 }
@@ -597,13 +623,16 @@ async def test_a_list_holds_nothing_of_another_workspace(
     """XT-04: every list for A is scanned for every id, slug and address of B."""
     a, b = tenants
 
-    response = await api.get(_fill(path, a.ids()), headers=a.headers)
+    response = await api.get(
+        _fill(path, a.ids()), params=QUERIES.get((method, path)), headers=a.headers
+    )
 
     assert response.status_code == 200, response.text
     for secret in b.secrets():
         assert secret not in response.text, f"{path} shows {secret} of another workspace"
     # The list is not empty for a trivial reason: it shows A's own data.
-    assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])
+    if path not in PLATFORM_LISTS:
+        assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])
 
 
 async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_both(

@@ -15,6 +15,7 @@ from sightline.api.entities.project_service import ProjectEntityService
 from sightline.api.entities.service import EntityService
 from sightline.api.keywords.group_service import GroupService
 from sightline.api.keywords.service import KeywordService
+from sightline.api.operations.costs import CostService
 from sightline.api.operations.runs import RunService
 from sightline.api.operations.schedules import ScheduleService
 from sightline.api.operations.settings import SettingsService
@@ -51,6 +52,7 @@ class Resources:
     runs: RunService
     schedules: ScheduleService
     project_settings: SettingsService
+    costs: CostService
 
 
 def get_resources(request: Request) -> Resources:
