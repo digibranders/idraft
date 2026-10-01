@@ -17,7 +17,24 @@ from typing import Any, Final, Literal
 from uuid import UUID
 
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy import ColumnElement, Select, and_, case, exists, false, func, literal, or_, select
+from sqlalchemy import (
+    BigInteger,
+    ColumnElement,
+    DateTime,
+    Numeric,
+    Select,
+    Text,
+    Uuid,
+    and_,
+    case,
+    exists,
+    false,
+    func,
+    literal,
+    or_,
+    select,
+)
+from sqlalchemy.types import TypeEngine
 
 from sightline.api.keywords.repository import LABS_CURRENT, among_ids
 from sightline.api.pagination import KeyValue, invalid_cursor
@@ -44,6 +61,13 @@ SORT_FIELDS: Final[tuple[SortField, ...]] = (
     "created_at",
 )
 type Kind = Literal["text", "int", "decimal", "time", "id"]
+_BOUND_TYPES: Final[dict[Kind, TypeEngine[Any]]] = {
+    "text": Text(),
+    "int": BigInteger(),
+    "decimal": Numeric(),
+    "time": DateTime(timezone=True),
+    "id": Uuid(),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,32 +108,34 @@ def parse_sort(raw: str | None) -> tuple[SortKey, ...]:
 @dataclass(frozen=True, slots=True)
 class TermGroups:
     """`term` resolved: one tuple of terms per vocabulary, and every tuple must match. A term
-    that does not exist is a tuple of its own, so it matches nothing."""
+    that does not exist makes the filter match nothing."""
 
     groups: tuple[tuple[UUID, ...], ...]
+    unknown: bool = False
 
 
 def term_groups(term_ids: Sequence[UUID], vocabulary_of: dict[UUID, UUID]) -> TermGroups:
     by_vocabulary: dict[UUID, list[UUID]] = {}
-    unknown: list[tuple[UUID, ...]] = []
     for term_id in term_ids:
         vocabulary_id = vocabulary_of.get(term_id)
-        if vocabulary_id is None:
-            unknown.append((term_id,))
-        else:
+        if vocabulary_id is not None:
             by_vocabulary.setdefault(vocabulary_id, []).append(term_id)
-    return TermGroups((*(tuple(ids) for ids in by_vocabulary.values()), *unknown))
+    return TermGroups(
+        tuple(tuple(ids) for ids in by_vocabulary.values()),
+        unknown=any(term_id not in vocabulary_of for term_id in term_ids),
+    )
 
 
-def scope(given: TrackedKeywordFilter) -> dict[str, object]:
-    """What a cursor is bound to, besides the sort."""
-    return given.model_dump(mode="json")
+def scope(given: TrackedKeywordFilter, project_id: UUID) -> dict[str, object]:
+    """What a cursor is bound to, besides the sort: the project and the filter."""
+    return {"project_id": str(project_id), **given.model_dump(mode="json")}
 
 
 def _descendants(
     kind: Literal["group", "term"], roots: Collection[UUID], workspace_id: UUID, name: str
 ) -> Select[tuple[UUID]]:
-    """The ids of the given groups or terms and of every one under them, through `parent_id`."""
+    """The ids of the given groups or terms and of every one under them, through `parent_id`.
+    `UNION` drops repeats, so even a cycle in the data could not make the query loop."""
     table = keyword_groups if kind == "group" else taxonomy_terms
     start = (
         select(table.c.id)
@@ -117,7 +143,7 @@ def _descendants(
         .cte(name=name, recursive=True)
     )
     child = table.alias(f"{name}_child")
-    tree = start.union_all(
+    tree = start.union(
         select(child.c.id).where(
             child.c.parent_id == start.c.id, child.c.workspace_id == workspace_id
         )
@@ -152,9 +178,17 @@ def conditions(
     t = tracked_keywords.c
     found: list[ColumnElement[bool]] = [t.workspace_id == workspace_id, t.project_id == project_id]
     if given.is_active is not None:
-        found.append(t.is_active.is_(given.is_active))
+        # A plain column, not `IS true`, so the partial index on live rows applies.
+        found.append(t.is_active if given.is_active else ~t.is_active)
     if given.q is not None:
-        found.append(keywords.c.normalized_text.contains(normalize(given.q), autoescape=True))
+        needle = normalize(given.q)
+        # Text that normalizes to nothing (spaces, format characters) matches no keyword,
+        # rather than every one.
+        found.append(
+            keywords.c.normalized_text.contains(needle, autoescape=True) if needle else false()
+        )
+    if terms.unknown:
+        found.append(false())
     if given.group is not None:
         found.append(
             exists().where(
@@ -168,11 +202,7 @@ def conditions(
     for index, group in enumerate(terms.groups):
         found.append(_has_term_under(group, workspace_id, f"term_tree_{index}"))
     if given.term_in is not None:
-        found.append(
-            _has_term_under(given.term_in, workspace_id, "term_in_tree")
-            if given.term_in
-            else false()
-        )
+        found.append(_has_term_under(given.term_in, workspace_id, "term_in_tree"))
     equal: tuple[tuple[ColumnElement[Any], object | None], ...] = (
         (t.device, given.device),
         (t.location_id, given.location_id),
@@ -246,9 +276,11 @@ def order_by(parts: Sequence[Component]) -> list[ColumnElement[Any]]:
 
 
 def after(parts: Sequence[Component], values: Sequence[object]) -> ColumnElement[bool]:
-    """Rows that come after the row whose components had these values."""
+    """Rows that come after the row whose components had these values. The values are bound
+    as wide types (any 64-bit integer, any numeric), so a cursor's value never overflows the
+    column's own type; PostgreSQL compares across them."""
     bound = [
-        literal(value, type_=part.expression.type)
+        literal(value, type_=_BOUND_TYPES[part.kind])
         for part, value in zip(parts, values, strict=True)
     ]
     alternatives = []
@@ -289,7 +321,10 @@ def _decode(kind: Kind, value: KeyValue) -> object:
     try:
         match kind:
             case "decimal":
-                return Decimal(str(value))
+                number = Decimal(str(value))
+                if not number.is_finite():
+                    raise invalid_cursor()
+                return number
             case "time":
                 parsed = datetime.fromisoformat(str(value))
                 if parsed.tzinfo is None:

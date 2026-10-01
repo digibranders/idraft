@@ -1606,6 +1606,79 @@
         "title": "EntityUpdate",
         "type": "object"
       },
+      "FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___": {
+        "items": {
+          "enum": [
+            "informational",
+            "navigational",
+            "commercial",
+            "transactional",
+            "local",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___": {
+        "items": {
+          "enum": [
+            "light",
+            "standard",
+            "deep",
+            "full",
+            "weekly",
+            "weekly_light",
+            "until_own_match_100"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___": {
+        "items": {
+          "enum": [
+            "manual",
+            "csv_import",
+            "api",
+            "gsc_import",
+            "discovery",
+            "bulk_paste"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_Literal__tofu____mofu____bofu____retention____unknown___": {
+        "items": {
+          "enum": [
+            "tofu",
+            "mofu",
+            "bofu",
+            "retention",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_UUID_": {
+        "items": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
       "GroupMembers": {
         "additionalProperties": false,
         "properties": {
@@ -5760,30 +5833,17 @@
       },
       "TrackedKeywordFilter": {
         "additionalProperties": false,
-        "description": "The list's filters, as a body: what bulk changes and term assignments select by.\nThe same names as the list's `filter[...]` parameters, without the brackets.",
+        "description": "The list's filters, as a body: what bulk changes and term assignments select by.\nThe same names as the list's `filter[...]` parameters, without the brackets. A list holds\nat least one value. `is_active` left out takes archived and active keywords alike (the\nlist itself defaults it to true).",
         "properties": {
           "depth_profile_in": {
             "anyOf": [
               {
-                "items": {
-                  "enum": [
-                    "light",
-                    "standard",
-                    "deep",
-                    "full",
-                    "weekly",
-                    "weekly_light",
-                    "until_own_match_100"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Depth Profile In"
+            ]
           },
           "device": {
             "anyOf": [
@@ -5803,23 +5863,12 @@
           "funnel_stage_in": {
             "anyOf": [
               {
-                "items": {
-                  "enum": [
-                    "tofu",
-                    "mofu",
-                    "bofu",
-                    "retention",
-                    "unknown"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_Literal__tofu____mofu____bofu____retention____unknown___"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Funnel Stage In"
+            ]
           },
           "group": {
             "anyOf": [
@@ -5836,24 +5885,12 @@
           "intent_in": {
             "anyOf": [
               {
-                "items": {
-                  "enum": [
-                    "informational",
-                    "navigational",
-                    "commercial",
-                    "transactional",
-                    "local",
-                    "unknown"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Intent In"
+            ]
           },
           "is_active": {
             "anyOf": [
@@ -5864,7 +5901,6 @@
                 "type": "null"
               }
             ],
-            "default": true,
             "title": "Is Active"
           },
           "keyword_difficulty_lte": {
@@ -5959,55 +5995,34 @@
           "source_in": {
             "anyOf": [
               {
-                "items": {
-                  "enum": [
-                    "manual",
-                    "csv_import",
-                    "api",
-                    "gsc_import",
-                    "discovery",
-                    "bulk_paste"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Source In"
+            ]
           },
           "term": {
             "anyOf": [
               {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_UUID_"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Each term or one under it; terms of two vocabularies: both.",
-            "title": "Term"
+            "description": "Each term or one under it; terms of one vocabulary: either, of two: both."
           },
           "term_in": {
             "anyOf": [
               {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/FilterList_UUID_"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Term In"
+            "description": "Any of these terms or one under them."
           }
         },
         "title": "TrackedKeywordFilter",
@@ -10801,7 +10816,7 @@
             }
           },
           {
-            "description": "Each given term or one under it; terms of two vocabularies must both match.",
+            "description": "Each given term or one under it; terms of one vocabulary: either, of two: both.",
             "in": "query",
             "name": "filter[term]",
             "required": false,
@@ -10818,7 +10833,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Each given term or one under it; terms of two vocabularies must both match.",
+              "description": "Each given term or one under it; terms of one vocabulary: either, of two: both.",
               "title": "Filter[Term]"
             }
           },

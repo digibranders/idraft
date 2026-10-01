@@ -29,6 +29,7 @@ from sightline.api.schemas.common import (
     LanguageCode,
     LocationRef,
     Patch,
+    QueryText,
     UserRef,
     printable,
     refuse_null,
@@ -67,6 +68,8 @@ TargetUrl = Annotated[
 BusinessValue = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
 Priority = Annotated[int, Field(ge=1, le=5)]
 Links = Annotated[list[UUID], Field(max_length=LINKS_MAX)]
+# A filter's list of values: one at least, so an empty list never reads as "no filter".
+type FilterList[T] = Annotated[list[T], Field(min_length=1, max_length=LINKS_MAX)]
 
 
 def _no_slash(name: str) -> str:
@@ -328,24 +331,29 @@ class BulkCreateResponse(BaseModel):
 
 class TrackedKeywordFilter(Body):
     """The list's filters, as a body: what bulk changes and term assignments select by.
-    The same names as the list's `filter[...]` parameters, without the brackets."""
+    The same names as the list's `filter[...]` parameters, without the brackets. A list holds
+    at least one value. `is_active` left out takes archived and active keywords alike (the
+    list itself defaults it to true)."""
 
-    q: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+    q: QueryText | None = None
     group: UUID | None = None
-    term: list[UUID] | None = Field(
-        default=None, description="Each term or one under it; terms of two vocabularies: both."
+    term: FilterList[UUID] | None = Field(
+        default=None,
+        description="Each term or one under it; terms of one vocabulary: either, of two: both.",
     )
-    term_in: list[UUID] | None = None
+    term_in: FilterList[UUID] | None = Field(
+        default=None, description="Any of these terms or one under them."
+    )
     device: Device | None = None
     location_id: int | None = None
     language_code: LanguageCode | None = None
     search_engine: Literal["google", "bing"] | None = None
-    intent_in: list[Intent] | None = None
-    funnel_stage_in: list[FunnelStage] | None = None
+    intent_in: FilterList[Intent] | None = None
+    funnel_stage_in: FilterList[FunnelStage] | None = None
     priority_lte: Priority | None = None
-    is_active: bool | None = True
-    source_in: list[KeywordSource] | None = None
-    depth_profile_in: list[DepthProfile] | None = None
+    is_active: bool | None = None
+    source_in: FilterList[KeywordSource] | None = None
+    depth_profile_in: FilterList[DepthProfile] | None = None
     search_volume_gte: Annotated[int, Field(ge=0)] | None = None
     keyword_difficulty_lte: Annotated[int, Field(ge=0, le=100)] | None = None
 

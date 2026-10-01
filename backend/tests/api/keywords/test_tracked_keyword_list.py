@@ -8,7 +8,10 @@ from typing import Any
 import httpx
 import pytest
 
+from sightline.api.keywords import filters
+from sightline.api.pagination import encode_cursor
 from sightline.api.resources import Resources
+from sightline.api.schemas.keywords import TrackedKeywordFilter
 from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import (
@@ -213,7 +216,8 @@ async def test_every_sort_pages_through_every_keyword_once(
                 created,
                 search_volume=100 * (index % 3),
                 keyword_difficulty=10,
-                cpc_usd="1.5000",
+                # Distinct values with fractions, so a cursor carries a decimal it must keep.
+                cpc_usd=f"{index}.2575",
             )
     whole = _texts(await _list(api, workspace, project, owner, sort=sort))
 
@@ -293,3 +297,75 @@ async def test_an_unknown_or_repeated_sort_is_refused(
 
     assert response.status_code == 422
     assert errors(response) == [("sort", "invalid_sort")]
+
+
+async def test_list_filters_take_comma_lists_and_odd_values_match_nothing(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    topics = await vocabulary(migrated, workspace)
+    crm_term = await term(migrated, workspace, topics, "crm")
+    await tracked_id(
+        api, workspace, project, owner, "crm", intent="commercial", term_ids=[crm_term]
+    )
+    await tracked_id(api, workspace, project, owner, "erp", intent="local")
+    await tracked_id(api, workspace, project, owner, "hr")
+
+    commas = await _list(
+        api, workspace, project, owner, **{"filter[intent_in]": "commercial,local"}
+    )
+    unknown = await _list(
+        api, workspace, project, owner, **{"filter[term]": [crm_term, str(uuid.uuid4())]}
+    )
+    blank = await _list(api, workspace, project, owner, **{"filter[q]": "   "})
+    too_many = await _list(
+        api,
+        workspace,
+        project,
+        owner,
+        **{"filter[term_in]": ",".join(str(uuid.uuid4()) for _ in range(101))},
+    )
+
+    assert _texts(commas) == ["crm", "erp"]
+    assert _texts(unknown) == []
+    assert _texts(blank) == []
+    assert too_many.status_code == 422
+    assert errors(too_many) == [("filter[term_in]", "too_long")]
+
+
+async def test_a_cursor_with_values_beyond_the_columns_types_is_read_safely(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    created = await tracked_id(api, workspace, project, owner, "crm")
+    await set_metrics(migrated, workspace, created, search_volume=10, keyword_difficulty=10)
+    scope = {
+        "sort": ["keyword_difficulty"],
+        **filters.scope(TrackedKeywordFilter(is_active=True), project),
+    }
+    # Past what a smallint or a 4-digit numeric holds.
+    cursor = encode_cursor([0, 2**40, str(uuid.uuid4())], scope=scope)
+    decimal = encode_cursor([0, "1e40", str(uuid.uuid4())], scope={**scope, "sort": ["cpc_usd"]})
+
+    response = await _list(api, workspace, project, owner, sort="keyword_difficulty", cursor=cursor)
+    by_cpc = await _list(api, workspace, project, owner, sort="cpc_usd", cursor=decimal)
+
+    assert (response.status_code, by_cpc.status_code) == (200, 200)
+    assert _texts(response) == []
+
+
+async def test_a_cursor_is_bound_to_its_project(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    other = await keyword_project(migrated, workspace)
+    for text in ("a", "b"):
+        await tracked_id(api, workspace, project, owner, text)
+        await tracked_id(api, workspace, other, owner, text)
+    first = await _list(api, workspace, project, owner, limit=1)
+
+    elsewhere = await _list(
+        api, workspace, other, owner, limit=1, cursor=first.json()["page"]["next_cursor"]
+    )
+
+    assert problem(elsewhere) == (400, "invalid_cursor")

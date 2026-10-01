@@ -37,6 +37,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.dml import ReturningDelete, ReturningInsert
 
 from sightline.db.tables import (
     domains,
@@ -728,33 +729,52 @@ async def new_config_versions(
     return changed
 
 
+type PerKeyword = dict[UUID, int]
+
+
+async def _per_keyword(
+    db: AsyncSession, changing: ReturningDelete[tuple[UUID]] | ReturningInsert[tuple[UUID]]
+) -> PerKeyword:
+    """Runs a statement that returns `tracked_keyword_id` for each link it changes, and counts
+    them per keyword in the database: a change of 20,000 keywords times 100 links sends back
+    at most 20,000 rows."""
+    changed = changing.cte("changed")
+    rows = await db.execute(
+        select(changed.c.tracked_keyword_id, func.count().label("links")).group_by(
+            changed.c.tracked_keyword_id
+        )
+    )
+    return {row.tracked_keyword_id: row.links for row in rows}
+
+
 async def remove_members(
     db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], group_ids: Collection[UUID]
-) -> set[UUID]:
-    """Takes the rows among `ids` out of these groups; the ids changed."""
+) -> PerKeyword:
+    """Takes the rows among `ids` out of these groups."""
     if not ids or not group_ids:
-        return set()
+        return {}
     m = keyword_group_members.c
-    rows = await db.execute(
+    return await _per_keyword(
+        db,
         delete(keyword_group_members)
         .where(
             m.workspace_id == workspace_id,
             among_ids(m.tracked_keyword_id, ids),
             among_ids(m.group_id, group_ids),
         )
-        .returning(m.tracked_keyword_id)
+        .returning(m.tracked_keyword_id),
     )
-    return {row.tracked_keyword_id for row in rows}
 
 
 async def add_members_to(
     db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], group_ids: Collection[UUID]
-) -> set[UUID]:
-    """Puts the rows among `ids` in these groups of their project; the ids changed."""
+) -> PerKeyword:
+    """Puts the rows among `ids` in these groups of their project."""
     if not ids or not group_ids:
-        return set()
+        return {}
     t, g, m = tracked_keywords.c, keyword_groups.c, keyword_group_members.c
-    rows = await db.execute(
+    return await _per_keyword(
+        db,
         upsert(keyword_group_members)
         .from_select(
             ["group_id", "tracked_keyword_id", "project_id", "workspace_id"],
@@ -772,28 +792,27 @@ async def add_members_to(
             ),
         )
         .on_conflict_do_nothing()
-        .returning(m.tracked_keyword_id)
+        .returning(m.tracked_keyword_id),
     )
-    return {row.tracked_keyword_id for row in rows}
 
 
 async def remove_terms(
     db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], term_ids: Collection[UUID]
-) -> list[UUID]:
-    """Takes these terms from the rows among `ids`: the row's id for each term taken."""
+) -> PerKeyword:
+    """Takes these terms from the rows among `ids`."""
     if not ids or not term_ids:
-        return []
+        return {}
     k = tracked_keyword_terms.c
-    rows = await db.execute(
+    return await _per_keyword(
+        db,
         delete(tracked_keyword_terms)
         .where(
             k.workspace_id == workspace_id,
             among_ids(k.tracked_keyword_id, ids),
             among_ids(k.term_id, term_ids),
         )
-        .returning(k.tracked_keyword_id)
+        .returning(k.tracked_keyword_id),
     )
-    return [row.tracked_keyword_id for row in rows]
 
 
 async def drop_other_terms(
@@ -803,12 +822,12 @@ async def drop_other_terms(
     term_ids: Collection[UUID],
     *,
     single_valued_only: bool,
-) -> list[UUID]:
+) -> PerKeyword:
     """Takes from the rows among `ids` their terms of the vocabularies of `term_ids` that are
     not among them (only of the single-valued ones with `single_valued_only`), so the given
-    terms can take their place: the row's id for each term taken."""
+    terms can take their place."""
     if not ids or not term_ids:
-        return []
+        return {}
     k, terms, vocabularies = tracked_keyword_terms.c, taxonomy_terms.c, taxonomy_vocabularies.c
     touched = (
         select(terms.vocabulary_id)
@@ -823,7 +842,8 @@ async def drop_other_terms(
     )
     if single_valued_only:
         touched = touched.where(vocabularies.is_single_valued)
-    rows = await db.execute(
+    return await _per_keyword(
+        db,
         delete(tracked_keyword_terms)
         .where(
             k.workspace_id == workspace_id,
@@ -835,9 +855,8 @@ async def drop_other_terms(
                 )
             ),
         )
-        .returning(k.tracked_keyword_id)
+        .returning(k.tracked_keyword_id),
     )
-    return [row.tracked_keyword_id for row in rows]
 
 
 async def add_terms_to(
@@ -847,12 +866,13 @@ async def add_terms_to(
     term_ids: Collection[UUID],
     *,
     assigned_by: str,
-) -> list[UUID]:
-    """Gives the rows among `ids` these terms: the row's id for each term given."""
+) -> PerKeyword:
+    """Gives the rows among `ids` these terms."""
     if not ids or not term_ids:
-        return []
+        return {}
     t, terms, k = tracked_keywords.c, taxonomy_terms.c, tracked_keyword_terms.c
-    rows = await db.execute(
+    return await _per_keyword(
+        db,
         upsert(tracked_keyword_terms)
         .from_select(
             ["tracked_keyword_id", "term_id", "workspace_id", "assigned_by"],
@@ -867,9 +887,8 @@ async def add_terms_to(
             ),
         )
         .on_conflict_do_nothing()
-        .returning(k.tracked_keyword_id)
+        .returning(k.tracked_keyword_id),
     )
-    return [row.tracked_keyword_id for row in rows]
 
 
 async def update_tracked(

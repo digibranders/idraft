@@ -331,3 +331,134 @@ async def test_a_viewer_cannot_change_in_bulk(
             403,
             "forbidden",
         )
+
+
+# Review of step 5 task 4.
+
+
+async def test_a_new_target_url_in_bulk_versions_each_row_without_a_gap(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    crm = await tracked_id(api, workspace, project, owner, "crm")
+    erp = await tracked_id(api, workspace, project, owner, "erp", target_url="https://acme.io/x")
+
+    response = await _bulk(
+        api,
+        workspace,
+        project,
+        owner,
+        "bulk-update",
+        {"ids": [crm, erp], "set": {"target_url": "https://acme.io/x"}},
+    )
+
+    assert response.json()["data"] == {"matched": 2, "updated": 1, "config_versions_created": 1}
+    history = await fetch(
+        migrated,
+        "SELECT config_version, valid_from, valid_to, target_url_id IS NOT NULL AS targeted "
+        "FROM seo.tracked_keyword_config_history WHERE tracked_keyword_id = $1 "
+        "ORDER BY config_version",
+        uuid.UUID(crm),
+    )
+    first, second = history
+    assert (first["targeted"], second["targeted"]) == (False, True)
+    assert first["valid_to"] == second["valid_from"]
+    assert second["valid_to"] is None
+
+
+async def test_unarchiving_through_set_respects_the_quota(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    await execute(
+        migrated,
+        "INSERT INTO core.workspace_quotas (workspace_id, max_tracked_keywords) VALUES ($1, 1)",
+        workspace.id,
+    )
+    crm = await tracked_id(api, workspace, project, owner, "crm")
+    await _bulk(api, workspace, project, owner, "bulk-archive", {"ids": [crm], "archive": True})
+    await tracked_id(api, workspace, project, owner, "erp")
+
+    response = await _bulk(
+        api, workspace, project, owner, "bulk-update", {"ids": [crm], "set": {"is_active": True}}
+    )
+
+    assert problem(response) == (422, "quota_exceeded")
+
+
+async def test_a_body_filter_takes_archived_keywords_unless_it_says_otherwise(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    pricing = await group(migrated, workspace, project, "Pricing")
+    crm = await tracked_id(api, workspace, project, owner, "crm", group_ids=[pricing])
+    await tracked_id(api, workspace, project, owner, "erp", group_ids=[pricing])
+    await _bulk(api, workspace, project, owner, "bulk-archive", {"ids": [crm], "archive": True})
+
+    back = await _bulk(
+        api,
+        workspace,
+        project,
+        owner,
+        "bulk-archive",
+        {"filter": {"group": pricing}, "archive": False},
+    )
+
+    assert back.json()["data"] == {"matched": 2, "updated": 1}
+
+
+async def test_a_change_that_matches_nothing_writes_nothing(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    other = await keyword_project(migrated, workspace)
+    foreign_group = await group(migrated, workspace, other, "Elsewhere")
+    created = await tracked_id(api, workspace, project, owner, "crm")
+
+    nothing = await _bulk(
+        api,
+        workspace,
+        project,
+        owner,
+        "bulk-update",
+        {"filter": {"q": "no such keyword"}, "set": {"priority": 1}},
+    )
+    foreign = await _bulk(
+        api,
+        workspace,
+        project,
+        owner,
+        "bulk-update",
+        {"ids": [created], "remove_group_ids": [foreign_group]},
+    )
+
+    assert nothing.json()["data"] == {"matched": 0, "updated": 0, "config_versions_created": 0}
+    assert foreign.json()["data"] == {"matched": 1, "updated": 0, "config_versions_created": 0}
+    entries = await fetch(
+        migrated,
+        "SELECT action, after FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action LIKE 'tracked_keyword.%' AND action <> 'tracked_keyword.created' ORDER BY id",
+        workspace.id,
+    )
+    assert [row["action"] for row in entries] == ["tracked_keyword.bulk_changed"] * 2
+
+
+async def test_links_times_rows_are_capped(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    topics = await vocabulary(migrated, workspace)
+    terms = [await term(migrated, workspace, topics, slug) for slug in ("a", "b")]
+    for text in ("crm", "erp"):
+        await tracked_id(api, workspace, project, owner, text)
+    monkeypatch.setattr(service, "LINK_CHANGES_MAX", 3)
+
+    response = await _bulk(
+        api, workspace, project, owner, "bulk-update", {"filter": {}, "add_term_ids": terms}
+    )
+
+    assert problem(response) == (422, "too_many_subjects")
+    assert response.json()["limit"] == 1

@@ -13,7 +13,8 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
-from pydantic import BeforeValidator
+from fastapi.exceptions import RequestValidationError
+from pydantic import BeforeValidator, ValidationError
 
 from sightline.api.keywords import filters, metric_values
 from sightline.api.keywords.repository import (
@@ -217,15 +218,34 @@ def _config_version(record: ConfigRecord) -> ConfigVersion:
 
 
 def _split(value: object) -> object:
-    """`include` as a comma list, repeated, or both."""
+    """A list parameter as a comma list, repeated, or both."""
     if isinstance(value, list):
         return [part for item in value for part in str(item).split(",") if part]
     return value
 
 
+def _query_filter(values: dict[str, object]) -> TrackedKeywordFilter:
+    """The list's query parameters as the filter the bulk routes take in a body. What the
+    filter refuses (too many values in a list) is a `422` on that parameter."""
+    try:
+        return TrackedKeywordFilter.model_validate(values)
+    except ValidationError as error:
+        raise RequestValidationError(
+            [
+                {
+                    "loc": ("query", f"filter[{item['loc'][0]}]"),
+                    "type": item["type"],
+                    "msg": item["msg"],
+                }
+                for item in error.errors()
+            ]
+        ) from None
+
+
+Commas = BeforeValidator(_split)
 Include = Annotated[
     list[TrackedInclude] | None,
-    BeforeValidator(_split),
+    Commas,
     Query(description="Blocks to fill: a comma list, or the parameter repeated."),
 ]
 
@@ -252,14 +272,16 @@ async def list_tracked_keywords(
     ] = None,
     term: Annotated[
         list[UUID] | None,
+        Commas,
         Query(
             alias="filter[term]",
-            description="Each given term or one under it; terms of two vocabularies must both "
-            "match.",
+            description="Each given term or one under it; terms of one vocabulary: either, of "
+            "two: both.",
         ),
     ] = None,
     term_in: Annotated[
         list[UUID] | None,
+        Commas,
         Query(alias="filter[term_in]", description="Any of these terms or one under them."),
     ] = None,
     device: Annotated[Device | None, Query(alias="filter[device]")] = None,
@@ -268,38 +290,42 @@ async def list_tracked_keywords(
     search_engine: Annotated[
         Literal["google", "bing"] | None, Query(alias="filter[search_engine]")
     ] = None,
-    intent_in: Annotated[list[Intent] | None, Query(alias="filter[intent_in]")] = None,
+    intent_in: Annotated[list[Intent] | None, Commas, Query(alias="filter[intent_in]")] = None,
     funnel_stage_in: Annotated[
-        list[FunnelStage] | None, Query(alias="filter[funnel_stage_in]")
+        list[FunnelStage] | None, Commas, Query(alias="filter[funnel_stage_in]")
     ] = None,
     priority_lte: Annotated[int | None, Query(alias="filter[priority_lte]", ge=1, le=5)] = None,
     is_active: Annotated[bool, Query(alias="filter[is_active]")] = True,
-    source_in: Annotated[list[KeywordSource] | None, Query(alias="filter[source_in]")] = None,
+    source_in: Annotated[
+        list[KeywordSource] | None, Commas, Query(alias="filter[source_in]")
+    ] = None,
     depth_profile_in: Annotated[
-        list[DepthProfile] | None, Query(alias="filter[depth_profile_in]")
+        list[DepthProfile] | None, Commas, Query(alias="filter[depth_profile_in]")
     ] = None,
     search_volume_gte: Annotated[int | None, Query(alias="filter[search_volume_gte]", ge=0)] = None,
     keyword_difficulty_lte: Annotated[
         int | None, Query(alias="filter[keyword_difficulty_lte]", ge=0, le=100)
     ] = None,
 ) -> TrackedKeywordPage:
-    given = TrackedKeywordFilter(
-        q=q,
-        group=group,
-        term=term,
-        term_in=term_in,
-        device=device,
-        location_id=location_id,
-        language_code=language_code,
-        search_engine=search_engine,
-        intent_in=intent_in,
-        funnel_stage_in=funnel_stage_in,
-        priority_lte=priority_lte,
-        is_active=is_active,
-        source_in=source_in,
-        depth_profile_in=depth_profile_in,
-        search_volume_gte=search_volume_gte,
-        keyword_difficulty_lte=keyword_difficulty_lte,
+    given = _query_filter(
+        {
+            "q": q,
+            "group": group,
+            "term": term,
+            "term_in": term_in,
+            "device": device,
+            "location_id": location_id,
+            "language_code": language_code,
+            "search_engine": search_engine,
+            "intent_in": intent_in,
+            "funnel_stage_in": funnel_stage_in,
+            "priority_lte": priority_lte,
+            "is_active": is_active,
+            "source_in": source_in,
+            "depth_profile_in": depth_profile_in,
+            "search_volume_gte": search_volume_gte,
+            "keyword_difficulty_lte": keyword_difficulty_lte,
+        }
     )
     result = await keywords.page(
         access, project_id, given, filters.parse_sort(sort), frozenset(include or ()), page

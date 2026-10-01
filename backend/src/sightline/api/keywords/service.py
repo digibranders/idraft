@@ -74,6 +74,8 @@ _COMPARED: Final = (
 )
 # The rows one bulk change may touch by filter (docs/19 section 3.6.1); id lists stop at 5,000.
 SUBJECTS_MAX = 20_000
+# Groups and terms gained or lost in one bulk change or assignment: rows times links.
+LINK_CHANGES_MAX = 200_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -678,7 +680,7 @@ class KeywordService:
     ) -> TrackedPageResult:
         """A page of the project's tracked keywords, with `page.total` for the filter."""
         parts = filters.components(sort)
-        bound = {"sort": [key.label() for key in sort], **filters.scope(given)}
+        bound = {"sort": [key.label() for key in sort], **filters.scope(given, project_id)}
         after = None
         if page.cursor is not None:
             values = filters.decode_key(parts, decode_cursor(page.cursor, scope=bound))
@@ -775,7 +777,15 @@ class KeywordService:
                 if given.get("is_active") is True
                 else None
             )
-            ids = await self._subjects(db, access, project_id, body.ids, body.filter)
+            links = (
+                body.add_group_ids,
+                body.remove_group_ids,
+                body.add_term_ids,
+                body.remove_term_ids,
+            )
+            ids = await self._subjects(
+                db, access, project_id, body.ids, body.filter, links=sum(map(len, links))
+            )
             if quota is not None:
                 await self._fits(db, access, ids, quota)
             plain: dict[str, object] = {
@@ -801,35 +811,32 @@ class KeywordService:
                 now=now,
             )
             changed |= versioned
-            changed |= await repository.remove_members(db, workspace_id, ids, body.remove_group_ids)
-            changed |= await repository.add_members_to(db, workspace_id, ids, body.add_group_ids)
-            changed.update(
-                await repository.remove_terms(db, workspace_id, ids, body.remove_term_ids)
-            )
-            changed.update(
+            for per_keyword in (
+                await repository.remove_members(db, workspace_id, ids, body.remove_group_ids),
+                await repository.add_members_to(db, workspace_id, ids, body.add_group_ids),
+                await repository.remove_terms(db, workspace_id, ids, body.remove_term_ids),
                 await repository.drop_other_terms(
                     db, workspace_id, ids, body.add_term_ids, single_valued_only=True
-                )
-            )
-            changed.update(
+                ),
                 await repository.add_terms_to(
                     db, workspace_id, ids, body.add_term_ids, assigned_by="manual"
-                )
-            )
-            change: dict[str, str | int | bool | list[str] | None] = {
+                ),
+            ):
+                changed.update(per_keyword)
+            fields: dict[str, str | int | bool | list[str] | None] = {
                 field: _audit_value(value) for field, value in given.items()
             }
-            for name, links in (
-                ("add_group_ids", body.add_group_ids),
-                ("remove_group_ids", body.remove_group_ids),
-                ("add_term_ids", body.add_term_ids),
-                ("remove_term_ids", body.remove_term_ids),
-            ):
-                if links:
-                    change[name] = sorted(map(str, links))
             if reason is not None:
-                change["change_reason"] = str(reason)
-            await self._audit_bulk(db, access, changed, change, info)
+                fields["change_reason"] = str(reason)
+            summary = dict(fields)
+            for name, linked in zip(
+                ("add_group_ids", "remove_group_ids", "add_term_ids", "remove_term_ids"),
+                links,
+                strict=True,
+            ):
+                if linked:
+                    summary[name] = sorted(map(str, linked))
+            await self._audit_bulk(db, access, project_id, ids, changed, fields, summary, info)
         return BulkUpdateOutcome(matched=len(ids), updated=len(changed), versions=len(versioned))
 
     async def bulk_archive(
@@ -851,7 +858,8 @@ class KeywordService:
             changed = await repository.set_fields(
                 db, access.workspace_id, ids, {"is_active": not body.archive}, now
             )
-            await self._audit_bulk(db, access, changed, {"is_active": not body.archive}, info)
+            change = {"is_active": not body.archive}
+            await self._audit_bulk(db, access, project_id, ids, changed, change, change, info)
         return len(ids), len(changed)
 
     async def assign_terms(
@@ -890,10 +898,15 @@ class KeywordService:
                     message="At most one term of a single-valued vocabulary.",
                 )
             ids = await self._subjects(
-                db, access, project_id, body.subject_ids, body.subject_filter
+                db,
+                access,
+                project_id,
+                body.subject_ids,
+                body.subject_filter,
+                links=len(body.term_ids),
             )
-            removed: list[UUID] = []
-            added: list[UUID] = []
+            removed: repository.PerKeyword = {}
+            added: repository.PerKeyword = {}
             if body.op == "remove":
                 removed = await repository.remove_terms(db, workspace_id, ids, body.term_ids)
             else:
@@ -906,11 +919,16 @@ class KeywordService:
             await self._audit_bulk(
                 db,
                 access,
+                project_id,
+                ids,
                 {*removed, *added},
+                {"term_assignment": body.op},
                 {"term_assignment": body.op, "term_ids": sorted(map(str, body.term_ids))},
                 info,
             )
-        return AssignmentOutcome(matched=len(ids), added=len(added), removed=len(removed))
+        return AssignmentOutcome(
+            matched=len(ids), added=sum(added.values()), removed=sum(removed.values())
+        )
 
     async def _term_groups(
         self, db: AsyncSession, access: WorkspaceAccess, term_ids: Sequence[UUID]
@@ -927,9 +945,13 @@ class KeywordService:
         project_id: UUID,
         ids: Sequence[UUID] | None,
         given: TrackedKeywordFilter | None,
+        *,
+        links: int = 0,
     ) -> list[UUID]:
         """The chosen rows, locked: the given ids of the project's live tracked keywords, or
-        the rows the filter matches, at most `SUBJECTS_MAX`."""
+        the rows the filter matches. At most `SUBJECTS_MAX`, and when each row gains or loses
+        `links` groups and terms, at most `LINK_CHANGES_MAX` link changes in all."""
+        limit = SUBJECTS_MAX if links == 0 else min(SUBJECTS_MAX, LINK_CHANGES_MAX // links)
         if ids is not None:
             where = filters.chosen(workspace_id=access.workspace_id, project_id=project_id, ids=ids)
         else:
@@ -940,11 +962,11 @@ class KeywordService:
                 project_id=project_id,
                 terms=await self._term_groups(db, access, chosen_by.term or []),
             )
-        found = await repository.lock_subjects(db, access.workspace_id, where, SUBJECTS_MAX + 1)
-        if len(found) > SUBJECTS_MAX:
+        found = await repository.lock_subjects(db, access.workspace_id, where, limit + 1)
+        if len(found) > limit:
             raise TooManySubjectsError(
-                f"The filter matches more than {SUBJECTS_MAX} tracked keywords; narrow it.",
-                limit=SUBJECTS_MAX,
+                f"This change takes at most {limit} tracked keywords; choose fewer.",
+                limit=limit,
             )
         return found
 
@@ -964,11 +986,25 @@ class KeywordService:
     async def _audit_bulk(
         db: AsyncSession,
         access: WorkspaceAccess,
+        project_id: UUID,
+        matched: Collection[UUID],
         changed: Collection[UUID],
-        change: audit.Snapshot,
+        row_change: audit.Snapshot,
+        summary: audit.Snapshot,
         info: RequestInfo,
     ) -> None:
-        """One entry per changed row, each with the change the request asked for."""
+        """One entry for the request on the project, with the whole change, and one small
+        entry per changed row, without the id lists the request named."""
+        await audit.record(
+            db,
+            workspace_id=access.workspace_id,
+            actor_id=access.user_id,
+            action="tracked_keyword.bulk_changed",
+            target_type="project",
+            target_id=project_id,
+            info=info,
+            after={**summary, "matched": len(matched), "changed": len(changed)},
+        )
         await audit.record_each(
             db,
             workspace_id=access.workspace_id,
@@ -977,7 +1013,7 @@ class KeywordService:
             target_type="tracked_keyword",
             info=info,
             entries=[
-                audit.Entry(target_id=tracked_id, after={**change, "bulk": True})
+                audit.Entry(target_id=tracked_id, after={**row_change, "bulk": True})
                 for tracked_id in sorted(changed)
             ],
         )
