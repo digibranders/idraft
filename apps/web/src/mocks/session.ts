@@ -41,6 +41,19 @@ function documentCookie(name: string): string | undefined {
   return pair?.slice(name.length + 1);
 }
 
+/**
+ * A cookie's text as the mocks wrote it. MSW gives request cookies decoded and the page's cookie comes
+ * encoded, so a value that does not decode is already plain text (a saved name may hold a `%`).
+ */
+export function plainCookieText(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    if (error instanceof URIError) return value;
+    throw error;
+  }
+}
+
 /** A cookie of the request, or of the page. */
 export const cookieOf = (cookies: Readonly<Record<string, string>>, name: string): string | undefined =>
   cookies[name] ?? documentCookie(name);
@@ -85,8 +98,17 @@ export const inviteeCookie = (password: string): string => memoryCookie(INVITEE_
 export const JOINED_COOKIE = 'mock-joined';
 export const joinedCookie = memoryCookie(JOINED_COOKIE, 'yes');
 
+/** What a browser changed in the workspace (./workspace-state.ts). */
+export const WORKSPACE_COOKIE = 'mock-workspace';
+
 /** Every cookie of the mocks: a test expires them all, so it starts from the fixtures, signed out. */
-export const MOCK_COOKIES: readonly string[] = [SESSION_COOKIE, NAME_COOKIE, INVITEE_COOKIE, JOINED_COOKIE];
+export const MOCK_COOKIES: readonly string[] = [
+  SESSION_COOKIE,
+  NAME_COOKIE,
+  INVITEE_COOKIE,
+  JOINED_COOKIE,
+  WORKSPACE_COOKIE,
+];
 
 /** The `Set-Cookie` that expires cookie `name`. */
 export const expiredCookie = (name: string): string => `${name}=; Path=/; Secure; SameSite=Lax; Max-Age=0`;
@@ -94,7 +116,7 @@ export const expiredCookie = (name: string): string => `${name}=; Path=/; Secure
 /** The password the invited person registered with, if they did. */
 export function inviteePassword(cookies: Readonly<Record<string, string>>): string | undefined {
   const saved = cookieOf(cookies, INVITEE_COOKIE);
-  return saved === undefined || saved === '' ? undefined : decodeURIComponent(saved);
+  return saved === undefined || saved === '' ? undefined : plainCookieText(saved);
 }
 
 /** Whether the invited person has joined the workspace. */

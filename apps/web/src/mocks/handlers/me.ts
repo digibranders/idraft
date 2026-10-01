@@ -1,19 +1,20 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
-import { meFactory } from '../factories/identity';
-import { MOCK_INVITED_USER, MOCK_PASSWORD, MOCK_TOTP_CODE } from '../fixtures';
+import { meFactory, membershipFactory, workspaceFactory } from '../factories/identity';
+import { MOCK_PASSWORD, MOCK_TOTP_CODE } from '../fixtures';
 import { checkBody, invalidField, mock, problem } from '../respond';
 import {
   activeSessionCookie,
   cookieOf,
   FRESH_MS,
-  hasJoined,
   isFresh,
   NAME_COOKIE,
   nameCookie,
+  plainCookieText,
   readSession,
   type MockSession,
 } from '../session';
+import { readChanges, workspacesOf } from '../workspace-state';
 import type { Me } from '@/lib/api/types';
 
 /** The API allows names up to 120 characters. */
@@ -21,16 +22,22 @@ const MAX_NAME_LENGTH = 120;
 
 /**
  * `/me` for the signed-in fixture user, with the name they last saved (kept in a cookie, so the server's
- * MSW sees it as well as the browser's) and the freshness of their session. The invited person belongs to
- * no workspace until they accept the invitation.
+ * MSW sees it as well as the browser's), the freshness of their session, and their workspaces as this
+ * browser changed them (../workspace-state.ts). The invited person belongs to no workspace until they
+ * accept the invitation.
  */
 export function currentMe(session: MockSession, cookies: Readonly<Record<string, string>>): Me {
   const saved = cookieOf(cookies, NAME_COOKIE);
-  const outside = session.user.user_id === MOCK_INVITED_USER.user_id && !hasJoined(cookies);
+  const memberships = workspacesOf(session.user, readChanges(cookies), cookies).map(({ workspace, membership }) =>
+    membershipFactory(membership.role, {
+      projectIds: membership.project_ids,
+      workspace: workspaceFactory(workspace),
+    }),
+  );
   return meFactory(session.user, {
-    user: saved === undefined || saved === '' ? {} : { name: decodeURIComponent(saved) },
+    user: saved === undefined || saved === '' ? {} : { name: plainCookieText(saved) },
     session: { fresh_until: isFresh(session) ? new Date(session.until).toISOString() : null },
-    ...(outside ? { memberships: [] } : {}),
+    memberships,
   });
 }
 

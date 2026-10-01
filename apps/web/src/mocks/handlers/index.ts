@@ -5,6 +5,7 @@ import { invitationHandlers } from './invitations';
 import { meHandlers } from './me';
 import { pendingHandlers } from './pending';
 import { projectHandlers } from './projects';
+import { workspaceHandlers } from './workspaces';
 
 /**
  * The two mock modes (NEXT_PUBLIC_API_MOCKING). `all` answers every API route and needs no backend;
@@ -16,6 +17,7 @@ export const handlers: readonly HttpHandler[] = [
   ...authHandlers,
   ...meHandlers,
   ...invitationHandlers,
+  ...workspaceHandlers,
   ...projectHandlers,
   ...pendingHandlers,
 ];

@@ -63,7 +63,11 @@ const PROBLEMS = {
   second_factor_required: [403, 'A two-factor code is required'],
   registration_closed: [403, 'Registration is by invitation'],
   not_found: [404, 'Resource not found'],
+  email_not_verified: [403, 'Email address not verified'],
   duplicate: [409, 'Already exists'],
+  last_owner: [409, 'The workspace needs an owner'],
+  invalid_state_transition: [409, 'Not possible in this state'],
+  quota_exceeded: [422, 'Quota exceeded'],
   weak_password: [422, 'Password is not strong enough'],
   rate_limited: [429, 'Too many requests'],
 } as const satisfies Record<string, readonly [number, string]>;
@@ -164,6 +168,18 @@ export function checkBody(request: Request, body: unknown, rules: BodyRules): Ht
     });
   }
   return errors.length === 0 ? null : invalid(request, errors);
+}
+
+/** The `extra_forbidden` errors for members of `body` outside `allowed`, as every request model of the API gives. */
+export function unknownMembers(body: Readonly<Record<string, unknown>>, allowed: readonly string[]): ValidationItem[] {
+  return Object.keys(body)
+    .filter((name) => !allowed.includes(name))
+    .map((name) => ({
+      location: 'body',
+      path: name,
+      code: 'extra_forbidden',
+      message: 'Extra inputs are not permitted',
+    }));
 }
 
 /** A `204 No Content`. */
