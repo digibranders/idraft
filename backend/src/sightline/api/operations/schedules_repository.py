@@ -13,7 +13,7 @@ from uuid import UUID
 from sqlalchemy import Row, Select, exists, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.db.tables import schedules, tracked_keywords
+from sightline.db.tables import collection_runs, schedules, tracked_keywords
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +163,22 @@ async def delete_schedule(db: AsyncSession, workspace_id: UUID, schedule_id: UUI
         .where(schedules.c.workspace_id == workspace_id, schedules.c.id == schedule_id)
         .values(deleted_at=func.now(), is_active=False)
     )
+
+
+async def last_window_start(
+    db: AsyncSession, workspace_id: UUID, schedule_id: UUID
+) -> datetime | None:
+    """The start of the latest window a run of the schedule was made for, whatever became of
+    it; None before the first."""
+    r = collection_runs.c
+    found: datetime | None = (
+        await db.execute(
+            select(func.max(r.window_start)).where(
+                r.workspace_id == workspace_id, r.schedule_id == schedule_id
+            )
+        )
+    ).scalar_one()
+    return found
 
 
 async def schedule_in_use(db: AsyncSession, workspace_id: UUID, schedule_id: UUID) -> bool:

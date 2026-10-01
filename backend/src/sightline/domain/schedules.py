@@ -90,6 +90,30 @@ def next_occurrence(rule: ScheduleRule, after: datetime) -> datetime:
     raise AssertionError("a schedule rule has a window at least once a month")  # pragma: no cover
 
 
+def _period(rule: ScheduleRule, instant: datetime) -> tuple[int, ...]:
+    """The local day, week (ISO) or month an instant is in, by the rule's cadence."""
+    day = instant.astimezone(ZoneInfo(rule.timezone)).date()
+    if rule.cadence is Cadence.WEEKLY:
+        year, week, _ = day.isocalendar()
+        return (year, week)
+    if rule.cadence is Cadence.MONTHLY:
+        return (day.year, day.month)
+    return (day.year, day.month, day.day)
+
+
+def next_after_change(rule: ScheduleRule, now: datetime, last_window: datetime | None) -> datetime:
+    """The first window start after `now` under a rule that was just changed, outside the
+    period a window of the schedule already started in (`last_window`): moving today's window
+    later does not collect today twice."""
+    candidate = next_occurrence(rule, now)
+    if last_window is None:
+        return candidate
+    done = _period(rule, last_window)
+    while _period(rule, candidate) == done:
+        candidate = next_occurrence(rule, candidate)
+    return candidate
+
+
 def occurrences_until(rule: ScheduleRule, first: datetime, now: datetime) -> list[datetime]:
     """The window starts from `first` up to `now`, oldest first. `first` is an occurrence itself
     (a schedule's `next_run_at`); the list is empty while it is still in the future."""

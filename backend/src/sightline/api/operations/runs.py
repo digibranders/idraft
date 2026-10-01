@@ -67,6 +67,12 @@ async def _today(db: AsyncSession) -> datetime:
     return now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+async def _live_project(db: AsyncSession, access: WorkspaceAccess, project_id: UUID) -> None:
+    """A deleted project has no runs to show or cancel."""
+    if await keywords.project_defaults(db, access.workspace_id, project_id) is None:
+        raise NotFoundError
+
+
 def _scope(project_id: UUID, given: RunFilter) -> dict[str, object]:
     """What a cursor is bound to: the project and the filter."""
     return {
@@ -111,8 +117,7 @@ class RunService:
         """A manual keyword metrics run: the given keywords (tracked by the project), else
         the project's keywords whose metrics are older than `stale_days`."""
         async with self._transaction(access) as db:
-            if await keywords.project_defaults(db, access.workspace_id, project_id) is None:
-                raise NotFoundError
+            await _live_project(db, access, project_id)
             selector: dict[str, object] = {}
             if body.keyword_ids is not None:
                 tracked = await runs.tracked_keyword_ids(
@@ -181,8 +186,7 @@ class RunService:
         scope = _scope(project_id, given)
         after = None if cursor is None else _after(cursor, scope)
         async with self._transaction(access) as db:
-            if await keywords.project_defaults(db, access.workspace_id, project_id) is None:
-                raise NotFoundError
+            await _live_project(db, access, project_id)
             found = await runs.list_runs(
                 db, access.workspace_id, project_id, given, after=after, limit=limit + 1
             )
@@ -198,6 +202,7 @@ class RunService:
 
     async def detail(self, access: WorkspaceAccess, project_id: UUID, run_id: UUID) -> RunDetail:
         async with self._transaction(access) as db:
+            await _live_project(db, access, project_id)
             found = await runs.get_run(db, access.workspace_id, project_id, run_id)
             if found is None:
                 raise NotFoundError
@@ -213,7 +218,11 @@ class RunService:
         info: RequestInfo,
     ) -> RunRecord:
         """`409 invalid_state_transition` for a run that has ended."""
+        if not (access.holds(Permission.SCHEDULES_WRITE) or access.holds(Permission.RUNS_TRIGGER)):
+            # Refused before the run is locked: a reader holds up nothing.
+            raise ForbiddenError("Cancelling a run needs schedules:write or runs:trigger.")
         async with self._transaction(access) as db:
+            await _live_project(db, access, project_id)
             found = await runs.lock_run(db, access.workspace_id, project_id, run_id)
             if found is None:
                 raise NotFoundError

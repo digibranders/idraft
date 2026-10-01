@@ -37,7 +37,12 @@ from sightline.api.schemas.operations import ScheduleInput, SchedulePause, Sched
 from sightline.api.timezones import check_timezone
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.db.engine import workspace_transaction
-from sightline.domain.schedules import Cadence, ScheduleRule, next_occurrence
+from sightline.domain.schedules import (
+    Cadence,
+    ScheduleRule,
+    next_after_change,
+    next_occurrence,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +110,19 @@ def _selector_errors(workload: str, selector: Selector) -> list[FieldError]:
                 "Name the keywords: all, groups, terms or a priority.",
             )
         ]
+    if "all" in given and "stale_days" in given:
+        # `all` takes keywords however fresh their metrics; `stale_days` only the stale ones.
+        return [
+            FieldError(
+                "selector.stale_days",
+                "selector_conflict",
+                "Give all or stale_days, not both.",
+            )
+        ]
     return []
+
+
+_CADENCES: Final = frozenset(cadence.value for cadence in Cadence)
 
 
 def _shape_errors(workload: str, cadence: str, provider_mode: str) -> list[FieldError]:
@@ -116,7 +133,7 @@ def _shape_errors(workload: str, cadence: str, provider_mode: str) -> list[Field
                 "workload", "workload_not_available", "Schedules of this workload come later."
             )
         ]
-    if cadence not in {cadence.value for cadence in Cadence}:
+    if cadence not in _CADENCES:
         return [
             FieldError(
                 "cadence",
@@ -193,10 +210,12 @@ class ScheduleService:
         if await keywords.project_defaults(db, access.workspace_id, project_id) is None:
             raise NotFoundError
 
-    @staticmethod
+    @classmethod
     async def _found(
-        db: AsyncSession, access: WorkspaceAccess, project_id: UUID, schedule_id: UUID
+        cls, db: AsyncSession, access: WorkspaceAccess, project_id: UUID, schedule_id: UUID
     ) -> ScheduleRecord:
+        """The live schedule of a live project, locked for a change."""
+        await cls._project(db, access, project_id)
         found = await repository.get_schedule(
             db, access.workspace_id, project_id, schedule_id, lock=True
         )
@@ -250,6 +269,7 @@ class ScheduleService:
         self, access: WorkspaceAccess, project_id: UUID, schedule_id: UUID
     ) -> ScheduleRecord:
         async with self._transaction(access) as db:
+            await self._project(db, access, project_id)
             found = await repository.get_schedule(
                 db, access.workspace_id, project_id, schedule_id, lock=False
             )
@@ -263,6 +283,10 @@ class ScheduleService:
         errors = _shape_errors(body.workload, body.cadence, body.provider_mode) or (
             _selector_errors(body.workload, body.selector)
         )
+        if not errors and body.cron_expr is not None:
+            errors = [
+                FieldError("cron_expr", "not_applicable", "Only a cron schedule has an expression.")
+            ]
         if errors:
             raise invalid_fields(errors)
         async with self._transaction(access) as db:
@@ -345,6 +369,25 @@ class ScheduleService:
                 weekday=weekday,
                 month_day=month_day,
             )
+            same_rule = (cadence, timezone, window_start_local, weekday, month_day) == (
+                current.cadence,
+                current.timezone,
+                current.window_start_local,
+                current.weekday,
+                current.month_day,
+            )
+            # A change that leaves the rule alone leaves the next window alone, so a window
+            # that is due and not yet planned is still planned. A new rule starts after now,
+            # outside the period a window of the schedule already started in.
+            next_run_at = (
+                current.next_run_at
+                if same_rule
+                else next_after_change(
+                    rule,
+                    await _now(db),
+                    await repository.last_window_start(db, access.workspace_id, schedule_id),
+                )
+            )
             changed = await repository.update_schedule(
                 db,
                 access.workspace_id,
@@ -360,20 +403,21 @@ class ScheduleService:
                     "priority": body.priority or current.priority,
                     "provider_mode": provider_mode,
                     "selector": _given(selector),
-                    "next_run_at": next_occurrence(rule, await _now(db)),
+                    "next_run_at": next_run_at,
                 },
             )
-            await audit.record(
-                db,
-                workspace_id=access.workspace_id,
-                actor_id=access.user_id,
-                action="schedule.updated",
-                target_type="schedule",
-                target_id=schedule_id,
-                info=info,
-                before=_snapshot(current),
-                after=_snapshot(changed),
-            )
+            if _snapshot(changed) != _snapshot(current):
+                await audit.record(
+                    db,
+                    workspace_id=access.workspace_id,
+                    actor_id=access.user_id,
+                    action="schedule.updated",
+                    target_type="schedule",
+                    target_id=schedule_id,
+                    info=info,
+                    before=_snapshot(current),
+                    after=_snapshot(changed),
+                )
         return changed
 
     async def delete(
@@ -421,7 +465,8 @@ class ScheduleService:
                 target_type="schedule",
                 target_id=schedule_id,
                 info=info,
-                after={"reason": body.reason},
+                before={"is_active": True},
+                after={"is_active": False, "reason": body.reason},
             )
         return paused
 
@@ -455,7 +500,8 @@ class ScheduleService:
                 target_type="schedule",
                 target_id=schedule_id,
                 info=info,
-                after={"next_run_at": resumed.next_run_at.isoformat()},
+                before={"is_active": False},
+                after={"is_active": True, "next_run_at": resumed.next_run_at.isoformat()},
             )
         return resumed
 

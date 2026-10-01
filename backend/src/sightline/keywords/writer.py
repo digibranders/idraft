@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Final, Literal
 from uuid import UUID
 
-from sqlalchemy import and_, func, insert, literal, select, tuple_, update
+from sqlalchemy import and_, case, func, insert, literal, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -227,6 +227,27 @@ async def _create_keywords(
     return await _known_keywords(db, workspace_id, first_text)
 
 
+async def _live_schedules_of(
+    db: AsyncSession, workspace_id: UUID, tracked_ids: Collection[UUID]
+) -> list[UUID]:
+    """The schedules these tracked keywords name that are not deleted, held (FOR KEY SHARE)
+    until the transaction ends: a schedule being deleted is either deleted first (and left
+    out here) or sees the keyword brought back and refuses."""
+    s, t = schedules.c, tracked_keywords.c
+    rows = await db.execute(
+        select(s.id)
+        .select_from(schedules.join(tracked_keywords, t.schedule_id == s.id))
+        .where(
+            t.workspace_id == workspace_id,
+            t.id.in_(list(tracked_ids)),
+            s.workspace_id == workspace_id,
+            s.deleted_at.is_(None),
+        )
+        .with_for_update(of=schedules, read=True, key_share=True)
+    )
+    return sorted({row.id for row in rows})
+
+
 async def _rows_of(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, identities: Collection[Identity]
 ) -> dict[Identity, tuple[UUID, bool, bool]]:
@@ -342,13 +363,19 @@ async def write_tracked_keywords(
 
     created_ids: dict[int, UUID] = {}
     if to_restore:
+        restored_ids = [row_id for _, row_id in to_restore]
+        live = await _live_schedules_of(db, workspace_id, restored_ids)
+        t = tracked_keywords.c
         await db.execute(
             update(tracked_keywords)
-            .where(
-                tracked_keywords.c.workspace_id == workspace_id,
-                tracked_keywords.c.id.in_([row_id for _, row_id in to_restore]),
+            .where(t.workspace_id == workspace_id, t.id.in_(restored_ids))
+            .values(
+                deleted_at=None,
+                is_active=True,
+                updated_at=now,
+                # A schedule deleted while the keyword was: it comes back without one.
+                schedule_id=case((t.schedule_id.in_(live), t.schedule_id), else_=None),
             )
-            .values(deleted_at=None, is_active=True, updated_at=now)
         )
         created_ids.update(dict(to_restore))
     if to_insert:

@@ -37,6 +37,18 @@ Workload = Literal[
 Cadence = Literal["daily", "weekly", "monthly", "cron"]
 SchedulePriority = Literal["high", "standard", "low"]
 ProviderMode = Literal["standard_queue", "priority_queue", "live"]
+
+
+def _local_minute(value: time) -> time:
+    """A wall-clock `HH:MM` in the schedule's zone: no offset of its own, no seconds."""
+    if value.tzinfo is not None:
+        raise ValueError("a local time, without an offset: the schedule's zone gives it")
+    if value.second or value.microsecond:
+        raise ValueError("hours and minutes only")
+    return value
+
+
+LocalMinute = Annotated[time, AfterValidator(_local_minute)]
 ScheduleName = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
@@ -61,7 +73,7 @@ class ScheduleInput(Body):
     cadence: Cadence
     cron_expr: Annotated[str, StringConstraints(max_length=100)] | None = None
     timezone: Timezone
-    window_start_local: time = Field(description="Local `HH:MM`.")
+    window_start_local: LocalMinute = Field(description="Local `HH:MM`.")
     window_hours: Annotated[int, Field(ge=1, le=24)] = 6
     weekday: Annotated[int, Field(ge=0, le=6)] | None = Field(
         default=None, description="Weekly cadence: 0 is Sunday."
@@ -87,7 +99,7 @@ class ScheduleUpdate(Patch):
 
     name: ScheduleName | None = None
     timezone: Timezone | None = None
-    window_start_local: time | None = None
+    window_start_local: LocalMinute | None = None
     window_hours: Annotated[int, Field(ge=1, le=24)] | None = None
     weekday: Annotated[int, Field(ge=0, le=6)] | None = None
     month_day: Annotated[int, Field(ge=1, le=28)] | None = None

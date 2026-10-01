@@ -113,6 +113,47 @@ async def test_the_list_is_newest_first_in_pages(
     assert second.json()["page"] == {"limit": 2, "next_cursor": None, "has_more": False}
 
 
+async def test_runs_made_at_the_same_moment_are_paged_by_id(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    made = [await _run(migrated, workspace, project, age_minutes=5) for _ in range(3)]
+    await execute(
+        migrated,
+        "UPDATE ops.collection_runs SET created_at = date_trunc('second', now()) "
+        "WHERE project_id = $1",
+        project,
+    )
+    url = project_url(workspace, project, "runs")
+
+    seen: list[str] = []
+    cursor = None
+    for _ in range(4):
+        params: dict[str, Any] = {"limit": 1} if cursor is None else {"limit": 1, "cursor": cursor}
+        response = await api.get(url, params=params, headers=owner.headers)
+        seen += _ids(response)
+        cursor = response.json()["page"]["next_cursor"]
+        if cursor is None:
+            break
+
+    # Each once, newest id first.
+    assert seen == sorted(made, reverse=True)
+
+
+async def test_the_runs_of_a_deleted_project_are_not_found(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    run_id = await _run(migrated, workspace, project)
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", project)
+
+    found = await api.get(project_url(workspace, project, "runs", run_id), headers=owner.headers)
+    cancelled = await _cancel(api, workspace, project, owner, run_id)
+
+    assert problem(found) == (404, "not_found")
+    assert problem(cancelled) == (404, "not_found")
+
+
 async def test_the_list_filters_by_schedule_status_workload_and_trigger(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

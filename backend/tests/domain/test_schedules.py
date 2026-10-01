@@ -11,6 +11,7 @@ from sightline.domain.schedules import (
     MONTH_DAY_MAX,
     Cadence,
     ScheduleRule,
+    next_after_change,
     next_occurrence,
     occurrences_until,
 )
@@ -192,6 +193,50 @@ def test_a_rule_that_makes_no_sense_is_refused(fields: dict[str, object], reason
     values: dict[str, object] = {"timezone": "UTC", "window_start_local": time(2, 0), **fields}
     with pytest.raises(ValueError, match=reason):
         ScheduleRule(**values)  # type: ignore[arg-type]
+
+
+def test_a_changed_rule_does_not_collect_a_period_twice() -> None:
+    later_today = _daily("UTC", time(5, 0))
+    # Today's 03:00 window ran; at 04:00 the window moves to 05:00: tomorrow, not today.
+    ran = _utc("2026-10-01T03:00:00")
+    at = _utc("2026-10-01T04:00:00")
+
+    assert next_after_change(later_today, at, ran) == _utc("2026-10-02T05:00:00")
+    # With no window yet, today's is next.
+    assert next_after_change(later_today, at, None) == _utc("2026-10-01T05:00:00")
+    # A window from yesterday leaves today free.
+    assert next_after_change(later_today, at, ran - timedelta(days=1)) == _utc(
+        "2026-10-01T05:00:00"
+    )
+
+
+def test_a_changed_weekly_or_monthly_rule_skips_the_period_that_ran() -> None:
+    # Thursday 2026-10-01, the week's window ran on Monday 2026-09-28.
+    friday = ScheduleRule(
+        cadence=Cadence.WEEKLY, timezone="UTC", window_start_local=time(3, 0), weekday=5
+    )
+    twentieth = ScheduleRule(
+        cadence=Cadence.MONTHLY, timezone="UTC", window_start_local=time(3, 0), month_day=20
+    )
+    at = _utc("2026-10-01T04:00:00")
+
+    assert next_after_change(friday, at, _utc("2026-09-28T03:00:00")) == _utc("2026-10-09T03:00:00")
+    # September's ran; October's 20th is still to come.
+    assert next_after_change(twentieth, at, _utc("2026-09-20T03:00:00")) == _utc(
+        "2026-10-20T03:00:00"
+    )
+
+
+@given(rule=rules(), after=instants, last=instants)
+def test_after_a_change_the_next_window_is_later_and_outside_the_last_ones_period(
+    rule: ScheduleRule, after: datetime, last: datetime
+) -> None:
+    upcoming = next_after_change(rule, after, last)
+
+    assert upcoming > after
+    zone = ZoneInfo(rule.timezone)
+    if rule.cadence is Cadence.DAILY:
+        assert upcoming.astimezone(zone).date() != last.astimezone(zone).date()
 
 
 def test_the_instant_asked_about_must_carry_a_zone() -> None:

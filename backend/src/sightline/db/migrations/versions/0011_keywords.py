@@ -395,7 +395,8 @@ _TRACKED_KEYWORD_API_UPDATE = (
     "updated_at",
     "deleted_at",
 )
-_TRACKED_KEYWORD_WORKER_UPDATE = ("is_active", "updated_at", "deleted_at")
+# An import that brings back a deleted keyword drops a schedule deleted since.
+_TRACKED_KEYWORD_WORKER_UPDATE = ("is_active", "updated_at", "deleted_at", "schedule_id")
 _IMPORT_API_UPDATE = ("column_mapping", "defaults", "status", "duplicate_action", "finished_at")
 _IMPORT_WORKER_UPDATE = ("column_mapping", "status", "counts", "error_code", "finished_at")
 _RUN_WORKER_UPDATE = ("window_start", "window_end", "config_snapshot")

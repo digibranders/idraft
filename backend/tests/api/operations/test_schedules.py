@@ -150,6 +150,10 @@ async def test_weekly_and_monthly_schedules_run_on_their_day(
             "selector.stale_days",
             "selector_not_supported",
         ),
+        ({"selector": {"all": True, "stale_days": 3}}, "selector.stale_days", "selector_conflict"),
+        ({"cron_expr": "0 3 * * *"}, "cron_expr", "not_applicable"),
+        ({"window_start_local": "03:30:15"}, "window_start_local", "value_error"),
+        ({"window_start_local": "03:30Z"}, "window_start_local", "value_error"),
         ({"selector": {"groups": [str(uuid.uuid4())]}}, "selector.groups", "group_unknown"),
         ({"selector": {"terms": [str(uuid.uuid4())]}}, "selector.terms", "term_unknown"),
     ],
@@ -293,6 +297,60 @@ async def test_a_change_recomputes_when_it_runs_next(
     assert json.loads(entry["after"])["cadence"] == "daily"
 
 
+async def test_a_change_that_leaves_the_rule_keeps_a_due_window_for_the_planner(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    data = await _created(api, workspace, project, owner)
+    # Due an hour ago; the worker has not planned it yet.
+    await execute(
+        migrated,
+        "UPDATE ops.schedules SET next_run_at = now() - interval '1 hour' WHERE id = $1",
+        uuid.UUID(data["schedule_id"]),
+    )
+    due = (
+        await fetchrow(
+            migrated,
+            "SELECT next_run_at FROM ops.schedules WHERE id = $1",
+            uuid.UUID(data["schedule_id"]),
+        )
+    )["next_run_at"]
+
+    renamed = await _patch(
+        api, workspace, project, owner, data["schedule_id"], {"name": "Monthly metrics"}
+    )
+
+    assert datetime.fromisoformat(renamed.json()["data"]["next_run_at"]) == due
+
+
+async def test_a_window_moved_later_the_same_day_does_not_collect_that_day_twice(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    now = datetime.now(UTC)
+    data = await _created(api, workspace, project, owner, timezone="UTC")
+    # Today's window ran a minute ago.
+    await execute(
+        migrated,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, schedule_id, workload, "
+        "window_start, window_end, trigger, status, config_snapshot) VALUES ($1, $2, $3, "
+        "'keyword_metrics', now() - interval '1 minute', now() + interval '1 hour', 'schedule', "
+        "'running', '{}')",
+        workspace.id,
+        project,
+        uuid.UUID(data["schedule_id"]),
+    )
+    later = (now + timedelta(minutes=30)).strftime("%H:%M")
+
+    moved = await _patch(
+        api, workspace, project, owner, data["schedule_id"], {"window_start_local": later}
+    )
+
+    upcoming = datetime.fromisoformat(moved.json()["data"]["next_run_at"])
+    # Not today's later time: tomorrow's (a run near midnight may move it two days).
+    assert upcoming.date() > (now - timedelta(minutes=1)).date()
+
+
 async def test_a_change_the_rule_cannot_hold_is_refused(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -392,6 +450,51 @@ async def test_a_schedule_tracked_keywords_name_cannot_be_deleted(
     )
 
     assert problem(response) == (409, "schedule_in_use")
+
+
+async def test_a_keyword_brought_back_after_its_schedule_was_deleted_has_no_schedule(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    data = await _created(
+        api,
+        workspace,
+        project,
+        owner,
+        workload="seo_rank",
+        provider_mode="standard_queue",
+        selector={"all": True},
+    )
+    tracked = await tracked_id(
+        api, workspace, project, owner, "crm", schedule_id=data["schedule_id"]
+    )
+    url = project_url(workspace, project, "tracked-keywords", tracked)
+    await api.delete(url, headers=owner.headers)
+    gone = await api.delete(
+        project_url(workspace, project, "schedules", data["schedule_id"]), headers=owner.headers
+    )
+
+    back = await tracked_id(api, workspace, project, owner, "crm")
+    detail = await api.get(url, headers=owner.headers)
+
+    assert gone.status_code == 204
+    assert back == tracked
+    assert detail.json()["data"]["schedule"] is None
+
+
+async def test_the_schedules_of_a_deleted_project_are_not_found(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    data = await _created(api, workspace, project, owner)
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", project)
+    url = project_url(workspace, project, "schedules", data["schedule_id"])
+
+    found = await api.get(url, headers=owner.headers)
+    resumed = await api.post(f"{url}/resume", headers=owner.headers)
+
+    assert problem(found) == (404, "not_found")
+    assert problem(resumed) == (404, "not_found")
 
 
 async def test_a_viewer_reads_schedules_and_an_analyst_cannot_write_them(
