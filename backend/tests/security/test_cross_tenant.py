@@ -91,6 +91,10 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     },
     ("PATCH", _W + "/projects/{project_id}/entities/{entity_id}"): {"track_ai": False},
     ("POST", _W + "/projects/{project_id}/alias-test"): {"text": "Acme"},
+    ("POST", _W + "/vocabularies"): {"kind": "topic", "name": "Planted"},
+    ("PATCH", _W + "/vocabularies/{vocabulary_id}"): {"name": "Taken over"},
+    ("POST", _W + "/vocabularies/{vocabulary_id}/terms"): {"name": "Planted"},
+    ("PATCH", _W + "/terms/{term_id}"): {"name": "Taken over"},
 }
 
 
@@ -108,6 +112,8 @@ class Tenant:
     entity_domain_id: uuid.UUID
     # An entity whose role in the project was removed: giving it a role again succeeds.
     spare_entity_id: uuid.UUID
+    vocabulary_id: uuid.UUID
+    term_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -119,6 +125,8 @@ class Tenant:
             "alias_id": str(self.alias_id),
             "entity_domain_id": str(self.entity_domain_id),
             "spare_entity_id": str(self.spare_entity_id),
+            "vocabulary_id": str(self.vocabulary_id),
+            "term_id": str(self.term_id),
         }
 
     def secrets(self) -> list[str]:
@@ -203,6 +211,20 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         spare["id"],
         workspace.id,
     )
+    # The same workspace-wide vocabulary and term in both.
+    vocabulary = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, kind, name, is_hierarchical) "
+        "VALUES ($1, 'topic', 'Topics', true) RETURNING id",
+        workspace.id,
+    )
+    term = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, name, slug, path) "
+        "VALUES ($1, $2, 'CRM', 'crm', 'crm') RETURNING id",
+        workspace.id,
+        vocabulary["id"],
+    )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -217,6 +239,8 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         alias_id=alias["id"],
         entity_domain_id=entity_domain["id"],
         spare_entity_id=spare["id"],
+        vocabulary_id=vocabulary["id"],
+        term_id=term["id"],
     )
 
 
@@ -267,6 +291,8 @@ _TENANT_ROWS = {
     "core.entity_aliases": "workspace_id",
     "core.entity_domains": "workspace_id",
     "core.project_entities": "workspace_id",
+    "core.taxonomy_vocabularies": "workspace_id",
+    "core.taxonomy_terms": "workspace_id",
     "ops.audit_logs": "workspace_id",
 }
 
@@ -419,7 +445,14 @@ async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_bot
     await add_member(migrated, a.workspace, both, "owner")
     await add_member(migrated, b.workspace, both, "owner")
     token, _ = await open_session(resources, both, fresh=True)
-    for path in (_W + "/members", _W + "/projects", _W + "/invitations", _W + "/entities"):
+    for path in (
+        _W + "/members",
+        _W + "/projects",
+        _W + "/invitations",
+        _W + "/entities",
+        _W + "/vocabularies",
+        _W + "/vocabularies/{vocabulary_id}/terms",
+    ):
         response = await api.get(_fill(path, a.ids()), headers=cookie(token))
         assert response.status_code == 200
         for secret in (
@@ -428,6 +461,8 @@ async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_bot
             str(b.invitation_id),
             b.invitee,
             str(b.entity_id),
+            str(b.vocabulary_id),
+            str(b.term_id),
         ):
             assert secret not in response.text, path
     # B's children are not reachable through A's path even for a member of both.

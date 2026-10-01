@@ -14,6 +14,7 @@ from sightline.api.auth.sessions import SessionStore
 from sightline.api.entities.project_service import ProjectEntityService
 from sightline.api.entities.service import EntityService
 from sightline.api.projects.service import ProjectService
+from sightline.api.taxonomy.service import TaxonomyService
 from sightline.api.workspaces.invitations import InvitationService
 from sightline.api.workspaces.members import MemberService
 from sightline.api.workspaces.service import WorkspaceService
@@ -39,6 +40,7 @@ class Resources:
     projects: ProjectService
     entities: EntityService
     project_entities: ProjectEntityService
+    taxonomy: TaxonomyService
 
 
 def get_resources(request: Request) -> Resources:

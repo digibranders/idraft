@@ -187,6 +187,12 @@ class CycleDetectedError(ProblemError):
     status, code, title = 422, "cycle_detected", "That would make a cycle"
 
 
+class HasChildrenError(ProblemError):
+    """A term with children is deleted only with `cascade=true`."""
+
+    status, code, title = 409, "has_children", "The term has children"
+
+
 class PrimaryOwnExistsError(ProblemError):
     status, code, title = 409, "primary_own_exists", "The project has a primary own entity"
 

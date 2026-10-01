@@ -32,6 +32,8 @@ from sightline.api.registries import router as registries_router
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
 from sightline.api.schema import install_openapi
+from sightline.api.taxonomy.routes import router as taxonomy_router
+from sightline.api.taxonomy.service import TaxonomyService
 from sightline.api.workspaces.invitations import InvitationService
 from sightline.api.workspaces.members import MemberService
 from sightline.api.workspaces.routes import router as workspaces_router
@@ -124,6 +126,7 @@ def create_app(
                 projects=ProjectService(sessions=sessions),
                 entities=EntityService(sessions=sessions),
                 project_entities=ProjectEntityService(sessions=sessions),
+                taxonomy=TaxonomyService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -155,6 +158,7 @@ def create_app(
     app.include_router(projects_router)
     app.include_router(entities_router)
     app.include_router(project_entities_router)
+    app.include_router(taxonomy_router)
     app.include_router(registries_router)
     app.include_router(document_router)
     install_openapi(app)

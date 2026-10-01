@@ -108,6 +108,22 @@ EXPECTED: dict[tuple[str, str], str] = {
         "DELETE",
         "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains/{entity_domain_id}",
     ): "entities:write every-project",
+    # A vocabulary may belong to one project, so a member limited to it may change it; the
+    # service refuses that member the workspace-wide ones.
+    ("GET", "/api/v1/workspaces/{workspace_id}/vocabularies"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/vocabularies"): "taxonomy:write",
+    ("PATCH", "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}"): "taxonomy:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}",
+    ): "taxonomy:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms"): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms",
+    ): "taxonomy:write",
+    ("PATCH", "/api/v1/workspaces/{workspace_id}/terms/{term_id}"): "taxonomy:write",
+    ("DELETE", "/api/v1/workspaces/{workspace_id}/terms/{term_id}"): "taxonomy:write",
 }
 
 
@@ -148,6 +164,10 @@ PATH_PARAMETERS = {
     "entity_id",
     "alias_id",
     "entity_domain_id",
+    # A vocabulary may belong to a project, but its routes check that project's scope in the
+    # service: a vocabulary id is not a project id, and a workspace-wide one has none.
+    "vocabulary_id",
+    "term_id",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

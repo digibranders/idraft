@@ -40,6 +40,12 @@ AuditAction = Literal[
     "project_entity.created",
     "project_entity.updated",
     "project_entity.removed",
+    "vocabulary.created",
+    "vocabulary.updated",
+    "vocabulary.deleted",
+    "term.created",
+    "term.updated",
+    "term.deleted",
 ]
 
 

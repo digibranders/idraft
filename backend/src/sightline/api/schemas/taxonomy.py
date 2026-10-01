@@ -35,6 +35,9 @@ SLUG_MAX = 100
 TERM_PATH_MAX = 1000
 TERM_DESCRIPTION_MAX = 2000
 TERM_BATCH_MAX = 500
+# Levels from a root term down. Deep enough for a product catalogue, and it bounds the nesting
+# of the tree a list returns.
+TERM_DEPTH_MAX = 10
 SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
 
 VocabularyName = Annotated[
@@ -59,6 +62,10 @@ def _term_path(value: str) -> str:
     if any(not name or len(name) > TERM_NAME_MAX for name in names):
         raise PydanticCustomError(
             "invalid_term_path", "A path is term names separated by `/`, none of them empty."
+        )
+    if len(names) > TERM_DEPTH_MAX:
+        raise PydanticCustomError(
+            "too_deep", "A path has at most {limit} levels.", {"limit": TERM_DEPTH_MAX}
         )
     return "/".join(names)
 
