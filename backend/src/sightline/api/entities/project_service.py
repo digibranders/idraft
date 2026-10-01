@@ -135,7 +135,8 @@ class ProjectEntityService:
             found = await entities.get_entity(
                 db, access.workspace_id, entity_id, visible=access.project_ids
             )
-            if found is None:
+            # Held, so a delete racing this request waits for the role and is then refused.
+            if found is None or not await entities.hold_entity(db, access.workspace_id, entity_id):
                 raise invalid_field("entity_id", code="entity_unknown", message="No such entity.")
             current = await roles.get_role(db, access.workspace_id, project_id, entity_id)
             if current is not None and current.removed_at is None:

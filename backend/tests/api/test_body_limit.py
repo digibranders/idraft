@@ -97,3 +97,15 @@ async def test_the_application_refuses_a_body_over_1_mb(api: httpx.AsyncClient) 
     )
     assert response.status_code == 413
     assert response.json()["code"] == "payload_too_large"
+    assert response.headers["x-request-id"] == response.json()["request_id"]
+
+
+async def test_the_origin_is_checked_before_the_size(api: httpx.AsyncClient) -> None:
+    """A page on another site learns nothing from the body limit."""
+    response = await api.post(
+        "/api/v1/auth/sign-in",
+        content=_body(JSON_BODY_MAX_BYTES + 1),
+        headers={"content-type": "application/json", "origin": "https://elsewhere.example"},
+    )
+    assert response.status_code == 403
+    assert response.json()["code"] == "origin_not_allowed"

@@ -249,7 +249,9 @@ class EntityService:
                     aliases=[_new_alias(alias) for alias in aliases],
                     created_by=access.user_id,
                 )
-                for domain in domains:
+                # Hosts in one order, so two requests adding the same new hosts cannot each
+                # wait on a host the other inserted first.
+                for domain in sorted(domains, key=lambda given: stored_host(given).name):
                     await repository.insert_entity_domain(
                         db,
                         workspace_id=access.workspace_id,
@@ -616,7 +618,7 @@ class EntityService:
         db: AsyncSession, access: WorkspaceAccess, parent_entity_id: UUID
     ) -> None:
         """The parent exists, and cannot be deleted before this transaction ends."""
-        if not await repository.hold_parent(db, access.workspace_id, parent_entity_id):
+        if not await repository.hold_entity(db, access.workspace_id, parent_entity_id):
             raise invalid_field(
                 "parent_entity_id", code="parent_unknown", message="No such entity."
             )

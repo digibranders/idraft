@@ -254,9 +254,10 @@ async def lock_parent_changes(db: AsyncSession, workspace_id: UUID) -> None:
     )
 
 
-async def hold_parent(db: AsyncSession, workspace_id: UUID, entity_id: UUID) -> bool:
+async def hold_entity(db: AsyncSession, workspace_id: UUID, entity_id: UUID) -> bool:
     """Whether the entity exists, kept from being deleted until the transaction ends (FOR KEY
-    SHARE), so a parent read here is still there when the child is written."""
+    SHARE), so an entity read here is still there when a row naming it (a product, a project
+    role) is written. A delete waits, then finds the new row and is refused."""
     statement = (
         select(entities.c.id)
         .where(entities.c.workspace_id == workspace_id, entities.c.id == entity_id)

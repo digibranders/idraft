@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from typing import Any
 
+import asyncpg
 import httpx
 import pytest
 
+from sightline.api.entities import project_repository
 from sightline.api.resources import Resources
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import (
@@ -169,6 +172,38 @@ async def test_a_live_role_is_a_duplicate_and_a_removed_one_comes_back_on_its_ro
     }
     assert (returned["role"], returned["color_index"]) == ("competitor", 4)
     assert returned["removed_at"] is not None
+
+
+async def test_an_entity_being_given_a_role_cannot_be_deleted_meanwhile(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The delete starts after the entity was read: it waits for the role, then is refused,
+    instead of the role's insert failing on a missing entity."""
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await make_project(migrated, workspace.id)
+    entity_id = await _entity(api, workspace, owner, "Rival")
+    deleting: list[asyncio.Task[str]] = []
+    get_role = project_repository.get_role
+
+    async def get_role_while_deleting(*args: Any, **kwargs: Any) -> Any:
+        deleting.append(
+            asyncio.create_task(
+                execute(migrated, "DELETE FROM core.entities WHERE id = $1", uuid.UUID(entity_id))
+            )
+        )
+        await asyncio.sleep(0.3)  # long enough for the delete to reach the entity's row
+        return await get_role(*args, **kwargs)
+
+    monkeypatch.setattr(project_repository, "get_role", get_role_while_deleting)
+    response = await _give(api, workspace, project, owner, entity_id)
+
+    assert response.status_code == 201, response.text
+    with pytest.raises(asyncpg.ForeignKeyViolationError):
+        await deleting[0]
 
 
 async def _primary(

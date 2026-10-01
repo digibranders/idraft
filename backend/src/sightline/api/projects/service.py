@@ -86,19 +86,21 @@ async def _create_own_entity(
         skip_taken=True,
     )
     stored = await entities.aliases_of(db, access.workspace_id, [entity_id])
-    hosts = []
-    for domain in own.domains:
-        host = stored_host(DomainInput(domain=domain))
-        if host.name not in hosts:
-            hosts.append(host.name)
-            await entities.insert_entity_domain(
-                db,
-                workspace_id=access.workspace_id,
-                entity_id=entity_id,
-                domain_id=await entities.domain_id_for(db, host),
-                match_scope="registrable",
-                path_prefix=None,
-            )
+    # Each host once, in one order, so two requests adding the same new hosts cannot each wait
+    # on a host the other inserted first.
+    by_name = {
+        host.name: host for host in (stored_host(DomainInput(domain=d)) for d in own.domains)
+    }
+    hosts = sorted(by_name)
+    for name in hosts:
+        await entities.insert_entity_domain(
+            db,
+            workspace_id=access.workspace_id,
+            entity_id=entity_id,
+            domain_id=await entities.domain_id_for(db, by_name[name]),
+            match_scope="registrable",
+            path_prefix=None,
+        )
     await project_roles.insert_role(
         db,
         workspace_id=access.workspace_id,
@@ -259,21 +261,23 @@ class ProjectService:
             async with workspace_transaction(
                 self._sessions, access.workspace_id, user_id=access.user_id
             ) as db:
-                current = await repository.get_project(
-                    db, access.workspace_id, project_id, for_update=True
-                )
-                if current is None:
-                    raise NotFoundError
                 columns = dict(changes)
                 new_host: str | None = None
                 if "primary_domain" in columns:
-                    # The host a person typed becomes the row of its domain.
+                    # The host a person typed becomes the row of its domain. Inserted before
+                    # the project is locked: an entity domain write inserts its host first and
+                    # locks the projects after, so the other order could deadlock with it.
                     given = columns.pop("primary_domain")
                     host = None if given is None else normalize_host(str(given))
                     new_host = None if host is None else host.name
                     columns["primary_domain_id"] = (
                         None if host is None else await entities.domain_id_for(db, host)
                     )
+                current = await repository.get_project(
+                    db, access.workspace_id, project_id, for_update=True
+                )
+                if current is None:
+                    raise NotFoundError
                 differing = {
                     field: value
                     for field, value in columns.items()
