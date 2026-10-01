@@ -9,6 +9,12 @@ Table definitions follow docs/04-data-model.md sections 5.1 to 5.3 and 6, with t
   parents through (id, workspace_id), so a row can never point into another workspace (D2).
 - `core.project_domain_roles` is a plain view that runs with the reader's rights, so the base
   tables' policies apply to it; a materialized view cannot have row-level security (D3).
+- The API may insert a host into `core.domains` but not set its classification, and checks
+  keep its registrable domain and public suffix consistent with the host, because every
+  workspace reads the row the first writer created.
+- A project role does not cascade from its entity: deleting an entity a project has named, even
+  in the past, is refused, so its history survives a racing or missing check in the API.
+- An entity may claim several path prefixes on one host, so entity domains have their own id.
 - `core.urls` and `core.url_remap` wait for SERP ingest, their first writer.
 
 Revision ID: 0010
@@ -20,7 +26,7 @@ from __future__ import annotations
 from alembic import op
 from sqlalchemy import text
 
-from sightline.db.ddl import grants, statements, tenant_isolation
+from sightline.db.ddl import column_grant, grants, statements, tenant_isolation
 
 revision: str = "0010"
 down_revision: str | None = "0009"
@@ -55,7 +61,8 @@ CREATE TABLE core.domain_categories (
 
 CREATE TABLE core.domains (
     id                  integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    host                text NOT NULL CHECK (host = lower(host) AND host <> ''),
+    host                text NOT NULL
+                        CHECK (host = lower(host) AND length(host) BETWEEN 1 AND 255),
     registrable_domain  text NOT NULL,
     public_suffix       text NOT NULL,
     is_ip               boolean NOT NULL DEFAULT false,
@@ -63,7 +70,17 @@ CREATE TABLE core.domains (
     category_source     text CHECK (category_source IN ('seed_list','rule','llm','manual')),
     category_version    smallint,
     first_seen_at       timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (host)
+    UNIQUE (host),
+    -- The registrable domain is the host or a dot-suffix of it, and the public suffix is the
+    -- registrable domain or a dot-suffix of it; an IP is its own registrable domain.
+    CHECK (registrable_domain = host
+           OR right(host, length(registrable_domain) + 1) = '.' || registrable_domain),
+    CHECK (CASE WHEN is_ip THEN public_suffix = '' AND registrable_domain = host
+                ELSE public_suffix <> ''
+                     AND (public_suffix = registrable_domain
+                          OR right(registrable_domain, length(public_suffix) + 1)
+                             = '.' || public_suffix)
+           END)
 );
 
 CREATE INDEX domains_registrable_domain ON core.domains (registrable_domain);
@@ -71,7 +88,7 @@ CREATE INDEX domains_registrable_domain ON core.domains (registrable_domain);
 CREATE TABLE core.locations (
     id             integer PRIMARY KEY,
     name           text NOT NULL,
-    country_iso    char(2) NOT NULL,
+    country_iso    char(2) NOT NULL CHECK (country_iso ~ '^[A-Z]{2}$'),
     location_type  text NOT NULL,
     parent_id      integer REFERENCES core.locations(id),
     is_active      boolean NOT NULL DEFAULT true
@@ -99,7 +116,8 @@ CREATE TABLE core.entities (
     workspace_id          uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE CASCADE,
     entity_type           text NOT NULL CHECK (entity_type IN ('brand','product',
                                                                 'organization','person','other')),
-    canonical_name        text NOT NULL CHECK (length(canonical_name) BETWEEN 1 AND 200),
+    canonical_name        text NOT NULL CHECK (canonical_name = btrim(canonical_name)
+                                               AND length(canonical_name) BETWEEN 1 AND 200),
     parent_entity_id      uuid,
     description           text,
     is_ambiguous          boolean NOT NULL DEFAULT false,
@@ -113,6 +131,8 @@ CREATE TABLE core.entities (
 
 CREATE UNIQUE INDEX entities_workspace_name_type
     ON core.entities (workspace_id, lower(canonical_name), entity_type);
+
+CREATE INDEX entities_parent_entity_id ON core.entities (parent_entity_id);
 
 CREATE TABLE core.entity_aliases (
     id                uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -128,18 +148,26 @@ CREATE TABLE core.entity_aliases (
     created_by        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at        timestamptz NOT NULL DEFAULT now(),
     UNIQUE (entity_id, alias, match_mode, is_negative),
+    -- Spaces at the ends of a pattern can mean something; anywhere else they are a typo.
+    CHECK (match_mode = 'regex' OR alias = btrim(alias)),
     FOREIGN KEY (entity_id, workspace_id) REFERENCES core.entities(id, workspace_id)
         ON DELETE CASCADE
 );
 
+-- An alias that ignores case is the same alias whatever its case.
+CREATE UNIQUE INDEX entity_aliases_folded
+    ON core.entity_aliases (entity_id, lower(alias), match_mode, is_negative)
+    WHERE match_mode IN ('word_boundary','substring') AND NOT case_sensitive;
+
 CREATE TABLE core.entity_domains (
+    id            uuid PRIMARY KEY DEFAULT uuidv7(),
     entity_id     uuid NOT NULL,
     workspace_id  uuid NOT NULL,
     domain_id     integer NOT NULL REFERENCES core.domains(id),
     match_scope   text NOT NULL DEFAULT 'registrable'
                   CHECK (match_scope IN ('host','registrable','path_prefix')),
-    path_prefix   text,
-    PRIMARY KEY (entity_id, domain_id, match_scope),
+    path_prefix   text CHECK (path_prefix ~ '^/([^?#]*[^/?#])?$'),
+    UNIQUE NULLS NOT DISTINCT (entity_id, domain_id, match_scope, path_prefix),
     CHECK ((match_scope = 'path_prefix') = (path_prefix IS NOT NULL)),
     FOREIGN KEY (entity_id, workspace_id) REFERENCES core.entities(id, workspace_id)
         ON DELETE CASCADE
@@ -162,8 +190,8 @@ CREATE TABLE core.project_entities (
     CHECK (NOT is_primary OR role = 'own'),
     FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id)
         ON DELETE CASCADE,
+    -- No cascade: a role, removed or not, keeps the entity it names (and its history) alive.
     FOREIGN KEY (entity_id, workspace_id) REFERENCES core.entities(id, workspace_id)
-        ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX project_one_primary_own ON core.project_entities (project_id)
@@ -185,38 +213,53 @@ CREATE TABLE core.taxonomy_vocabularies (
     project_id        uuid,
     kind              text NOT NULL CHECK (kind IN ('topic','cluster','product','service','market',
                                                      'campaign','persona','tag','custom')),
-    name              text NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
+    name              text NOT NULL CHECK (name = btrim(name) AND length(name) BETWEEN 1 AND 100),
     is_hierarchical   boolean NOT NULL DEFAULT false,
     is_single_valued  boolean NOT NULL DEFAULT false,
-    UNIQUE NULLS NOT DISTINCT (workspace_id, project_id, kind, name),
     UNIQUE (id, workspace_id),
     FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id)
         ON DELETE CASCADE
 );
 
+-- Names compare without case, like entity names; one workspace-wide vocabulary per name too.
+CREATE UNIQUE INDEX taxonomy_vocabularies_scope_kind_name
+    ON core.taxonomy_vocabularies (workspace_id, project_id, kind, lower(name)) NULLS NOT DISTINCT;
+
+CREATE INDEX taxonomy_vocabularies_project_id ON core.taxonomy_vocabularies (project_id);
+
+-- A slug is lower case; a path is the slugs from the root down, joined by '/', ending in the
+-- term's own slug, with a parent exactly when it has a '/'. citext would match the slug
+-- pattern without case, so the checks read it as text.
 CREATE TABLE core.taxonomy_terms (
     id             uuid PRIMARY KEY DEFAULT uuidv7(),
     workspace_id   uuid NOT NULL,
     vocabulary_id  uuid NOT NULL,
     parent_id      uuid,
-    name           text NOT NULL CHECK (length(name) BETWEEN 1 AND 200),
-    slug           citext NOT NULL CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
-    path           text NOT NULL,
+    name           text NOT NULL CHECK (name = btrim(name) AND length(name) BETWEEN 1 AND 200),
+    slug           citext NOT NULL CHECK (slug::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+    path           text NOT NULL
+                   CHECK (path ~ '^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*$'),
     source         text NOT NULL DEFAULT 'manual'
                    CHECK (source IN ('manual','import','auto_cluster','ai_suggestion')),
     description    text,
     created_at     timestamptz NOT NULL DEFAULT now(),
     UNIQUE NULLS NOT DISTINCT (vocabulary_id, parent_id, slug),
     UNIQUE (id, workspace_id),
+    UNIQUE (id, vocabulary_id),
     CHECK (parent_id IS DISTINCT FROM id),
+    CHECK (CASE WHEN parent_id IS NULL THEN path = slug::text
+                ELSE right(path, length(slug) + 1) = '/' || slug::text END),
     FOREIGN KEY (vocabulary_id, workspace_id)
         REFERENCES core.taxonomy_vocabularies(id, workspace_id) ON DELETE CASCADE,
-    FOREIGN KEY (parent_id, workspace_id) REFERENCES core.taxonomy_terms(id, workspace_id)
+    -- A parent is in the same vocabulary, so in the same workspace too.
+    FOREIGN KEY (parent_id, vocabulary_id) REFERENCES core.taxonomy_terms(id, vocabulary_id)
         ON DELETE CASCADE
 );
 
 CREATE INDEX taxonomy_terms_vocabulary_path
-    ON core.taxonomy_terms (vocabulary_id, path text_pattern_ops)
+    ON core.taxonomy_terms (vocabulary_id, path text_pattern_ops);
+
+CREATE INDEX taxonomy_terms_parent_id ON core.taxonomy_terms (parent_id)
 """
 
 _TENANT_TABLES = (
@@ -228,6 +271,7 @@ _TENANT_TABLES = (
     "core.taxonomy_terms",
 )
 _CRUD = "SELECT, INSERT, UPDATE, DELETE"
+_DOMAIN_INSERT_COLUMNS = ("host", "registrable_domain", "public_suffix", "is_ip")
 
 
 def upgrade() -> None:
@@ -244,7 +288,14 @@ def upgrade() -> None:
             op.execute(statement)
     script = [
         *grants("core.domain_categories", api="SELECT"),
-        *grants("core.domains", api="SELECT, INSERT"),
+        # The API adds the hosts users type; classification columns are written elsewhere.
+        *grants("core.domains", api="SELECT"),
+        column_grant(
+            "core.domains",
+            role="app_api",
+            privilege="INSERT",
+            columns=_DOMAIN_INSERT_COLUMNS,
+        ),
         *grants("core.locations", api="SELECT", worker="SELECT, INSERT, UPDATE"),
         *grants("core.provider_location_map", api="SELECT", worker="SELECT, INSERT, UPDATE"),
         *grants("core.entities", api=_CRUD),

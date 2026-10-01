@@ -113,7 +113,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 - [ ] Tables per Phase 2 list; seeds for domain categories and PSL snapshot pinned
 - [ ] URL canonicalizer v1 with test vectors ([14](14-citation-intelligence.md) section 3)
-- [ ] Domain resolver with specificity rules; `core.project_domain_roles` refresh
+- [ ] Domain resolver with specificity rules; `core.project_domain_roles` view
 - [ ] Alias automaton compiler (Aho-Corasick, negatives, possessives, domain-shaped aliases, RE2 for regex mode)
 - [ ] Location sync job (DataForSEO locations and languages)
 - [ ] Entities, aliases, taxonomy APIs and screens; alias test tool

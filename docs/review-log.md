@@ -529,3 +529,18 @@ Carried:
 | F64 | Looks the resolver cannot decide (an untagged task on the account in the window) or cannot make are tried again first on every pass; ten of them fill a pass and newer unknown submissions wait. Give each look a backoff | before `RESOLVE_UNKNOWN_SUBMISSIONS` is turned on |
 | F65 | The end to end test does not cover the sweeper, a storage failure, a rate limit or a call never made; the collector tests do | when the first real workload is added |
 | F63 | The web session's CI and image proposal (`apps/web/Dockerfile`, Playwright projects, the `web.yml` steps, the Compose `web` service with `API_INTERNAL_ORIGIN`) goes into the deploy plan. Playwright runs inside `mcr.microsoft.com/playwright:v1.63.0-noble`, pinned by digest (doc 22 section 8.6), with `corepack enable && pnpm install --frozen-lockfile` first and no `E2E_BASE_URL`: the config builds and serves the test build on 127.0.0.1:3100 itself, since a server on another host is not a secure context (no mock service worker, no `__Host-` cookie) | 7 (droplet and deploy) |
+
+### Brands, entities, domains, locations and taxonomy (2026-10-01)
+
+Plan `docs/superpowers/plans/2026-10-01-entities-taxonomy.md`, branch `backend/entities`. Each task was reviewed on the Opus model before its commit.
+
+| Task | Found and fixed |
+|---|---|
+| 1. Schema | Deleting an entity cascaded into its project roles, so the API (which may not delete roles) could erase a role and its history (now refused by the key); a term's parent could sit in another vocabulary, so deleting one vocabulary deleted terms of another (the parent key is now on the vocabulary); the slug check passed upper case on a `citext` column and paths were not checked; the API could set any column of the shared `core.domains`, classification included, and a registrable domain unrelated to its host (now four columns, with consistency checks); an entity could claim only one path prefix per host (entity domains now have their own id); views were outside the grant tests (a view a runtime role reads must now run with the reader's rights, and no materialized view may be readable); most workspace keys could be dropped without a test failing (now one test per key, and a catalog rule that keys between tenant tables carry the workspace); names and aliases took surrounding spaces, aliases that ignore case could repeat in another case, and vocabulary names compared with case; `country_iso` took lower case; parents had no index; docs 19, 21, 23, 29 and 31 still described a materialized view |
+
+Carried:
+
+| Id | Item | Plan |
+|---|---|---|
+| F66 | Four step 2 keys between tenant tables do not carry the workspace: `ops.budgets.project_id`, `ops.schedules.project_id`, `ops.collection_runs.schedule_id` and `blocked_by_budget_id`. Only the worker writes them today; make them composite (as `tests/db/test_rls.py` lists) before a route writes budgets or schedules | the schedules and budgets routes |
+| F67 | Migration 0010 adds constraints with plain `ALTER TABLE`, fine on small tables. On a large table, use `CREATE UNIQUE INDEX CONCURRENTLY` with `ADD CONSTRAINT ... USING INDEX`, and foreign keys `NOT VALID` then `VALIDATE` | the first constraint on a large table |

@@ -503,11 +503,20 @@ entity_aliases = Table(
 entity_domains = Table(
     "entity_domains",
     metadata,
-    Column("entity_id", Uuid, primary_key=True),
+    _id(),
+    Column("entity_id", Uuid, nullable=False),
     Column("workspace_id", Uuid, nullable=False),
-    Column("domain_id", Integer, ForeignKey(domains.c.id), primary_key=True),
-    Column("match_scope", Text, primary_key=True, server_default=FetchedValue()),
+    Column("domain_id", Integer, ForeignKey(domains.c.id), nullable=False),
+    Column("match_scope", Text, nullable=False, server_default=FetchedValue()),
     Column("path_prefix", Text),
+    UniqueConstraint(
+        "entity_id",
+        "domain_id",
+        "match_scope",
+        "path_prefix",
+        name="entity_domains_entity_id_domain_id_match_scope_path_prefix_key",
+        postgresql_nulls_not_distinct=True,
+    ),
     ForeignKeyConstraint(
         ["entity_id", "workspace_id"],
         [entities.c.id, entities.c.workspace_id],
@@ -534,11 +543,8 @@ project_entities = Table(
         [projects.c.id, projects.c.workspace_id],
         ondelete="CASCADE",
     ),
-    ForeignKeyConstraint(
-        ["entity_id", "workspace_id"],
-        [entities.c.id, entities.c.workspace_id],
-        ondelete="CASCADE",
-    ),
+    # No cascade: a role keeps the entity it names alive.
+    ForeignKeyConstraint(["entity_id", "workspace_id"], [entities.c.id, entities.c.workspace_id]),
     schema="core",
 )
 
@@ -567,14 +573,7 @@ taxonomy_vocabularies = Table(
     Column("name", Text, nullable=False),
     Column("is_hierarchical", Boolean, nullable=False, server_default=FetchedValue()),
     Column("is_single_valued", Boolean, nullable=False, server_default=FetchedValue()),
-    UniqueConstraint(
-        "workspace_id",
-        "project_id",
-        "kind",
-        "name",
-        name="taxonomy_vocabularies_workspace_id_project_id_kind_name_key",
-        postgresql_nulls_not_distinct=True,
-    ),
+    # Names are unique without case through the index taxonomy_vocabularies_scope_kind_name.
     UniqueConstraint("id", "workspace_id", name="taxonomy_vocabularies_id_workspace_id_key"),
     ForeignKeyConstraint(
         ["project_id", "workspace_id"],
@@ -605,14 +604,16 @@ taxonomy_terms = Table(
         postgresql_nulls_not_distinct=True,
     ),
     UniqueConstraint("id", "workspace_id", name="taxonomy_terms_id_workspace_id_key"),
+    UniqueConstraint("id", "vocabulary_id", name="taxonomy_terms_id_vocabulary_id_key"),
     ForeignKeyConstraint(
         ["vocabulary_id", "workspace_id"],
         [taxonomy_vocabularies.c.id, taxonomy_vocabularies.c.workspace_id],
         ondelete="CASCADE",
     ),
+    # A parent is in the same vocabulary, so in the same workspace too.
     ForeignKeyConstraint(
-        ["parent_id", "workspace_id"],
-        ["core.taxonomy_terms.id", "core.taxonomy_terms.workspace_id"],
+        ["parent_id", "vocabulary_id"],
+        ["core.taxonomy_terms.id", "core.taxonomy_terms.vocabulary_id"],
         ondelete="CASCADE",
     ),
     schema="core",

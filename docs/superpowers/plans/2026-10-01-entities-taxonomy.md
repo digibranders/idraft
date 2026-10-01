@@ -78,12 +78,14 @@ Not here, and where it arrives:
 ### Task 4: Entities, aliases and entity domains
 
 - [ ] Tests first: create with aliases and domains in one request; list with filters and cursor; detail; change; delete only when never attached (`409 entity_in_use`); duplicates (`409 duplicate`); aliases singly and in batches of up to 200, `422 invalid_regex`; entity domains canonicalized, `domain_role_conflict` warning; every change audited and bumping `entity_config_version` of the projects using the entity; another workspace's entity is `404`; permissions (`data:read`, `entities:write`).
+- [ ] From the Task 1 review: `409 entity_in_use` comes from the key violation on delete (race-safe; a removed role counts), and deleting a brand that has products is `409 entity_in_use` too; a parent that would make a cycle is `422 cycle_detected`; names and aliases are trimmed (the database refuses surrounding spaces) and an alias that ignores case is a duplicate in any case; hosts go into `core.domains` with `ON CONFLICT (host) DO NOTHING` then a SELECT (the API cannot update the row); entity domains are addressed by their own id.
 - [ ] `api/entities/`, `api/schemas/entities.py`, router registration, doc 19 notes (what is left out, D5, D6).
 - [ ] Gates, Opus review, fixes, commit.
 
 ### Task 5: Project entities, project domains, alias test, project fields
 
 - [ ] Tests first: attach with a role, one primary own (`409 primary_own_exists`), more than 10 SEO competitors (`422 competitor_limit`), change, remove keeps history (`409 cannot_remove_primary_own`); `GET {P}/domains` from the view; the alias test over a project's entities with spans, statuses and negatives applied, `413` over 100 KB, `observation_id` refused until step 8; project create with `primary_domain`, `default_location_id` (must exist) and `own_entity` (entity, domains, aliases, primary own role, one transaction).
+- [ ] From the Task 1 review: colors are lower-cased before they are stored; re-attaching or changing a role updates the one row per project and entity, and the audit log keeps the earlier role.
 - [ ] The routes, the project service changes, doc 19 "what is accepted today".
 - [ ] Gates, Opus review, fixes, commit.
 

@@ -305,7 +305,6 @@ All jobs below run on the `process` queue, scheduled by Taskiq's scheduler insid
 | `price_book_drift` | monthly, 1st 02:00 | actual vs price book deviation check |
 | `location_sync` | monthly, 2nd 03:00 | provider location lists |
 | `analyze_hot_partitions` | daily 04:00 | `ANALYZE` current month partitions of hot tables |
-| `refresh_domain_roles` | on change + nightly | `REFRESH MATERIALIZED VIEW CONCURRENTLY core.project_domain_roles` |
 | `ops_health` | every 5 min | disk, queue depths (lengths of `collect` and `process`), stale ratios, collection window overruns; emits alerts ([25-observability.md](25-observability.md)) |
 | `ops_health_hourly` | hourly | spend anomaly, provider error rates, reconciliation drift, cost vs budget ([25-observability.md](25-observability.md)) |
 | `dq_daily` | daily 05:00 | data quality monitors and flags ([26-testing-quality.md](26-testing-quality.md) section 9) |

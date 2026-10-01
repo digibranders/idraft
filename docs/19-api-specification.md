@@ -94,7 +94,7 @@ Rules 1 to 4 describe the planned API key behavior and apply only once API keys 
 
 Partitioned observation tables have composite primary keys `(id, observed_at)`. The API addresses them by `id` alone. Responses always include `observed_at`, and detail links carry it as a hint (`?observed_at=2026-09-22T03:14:07Z`) so the server can prune partitions. Without the hint the lookup probes each monthly partition's primary key index, which is correct but slower.
 
-Composite keys without a surrogate id are addressed by their natural key in the path, URL-encoded: entity candidates by `normalized_name`, entity domains by `domain_id` plus `match_scope`, project engines by `engine_code`.
+Composite keys without a surrogate id are addressed by their natural key in the path, URL-encoded: entity candidates by `normalized_name`, project engines by `engine_code`. Entity domains have their own id, since one entity may claim several path prefixes on a host.
 
 ### 2.4 Pagination, sorting, filtering
 
@@ -724,7 +724,7 @@ Changing `timezone` affects only future business dates; already computed `observ
 
 ### 3.4 Entities: brands, competitors, aliases, domains, candidates (Phase 2, candidates Phase 8)
 
-Entities are workspace-scoped; roles are per project (doc 04 section 6). Any change to an entity, alias, entity domain or project role increments `entity_config_version` for every project that uses the entity, refreshes `core.project_domain_roles`, and schedules re-derivation of the last 90 days (doc 13 section 6). Mutating responses list the triggered work in `meta.rederivations: Array<{ project_id, derivation_log_id, links }>` and `meta.backfills` (competitor SEO backfill, doc 08 section 4).
+Entities are workspace-scoped; roles are per project (doc 04 section 6). Any change to an entity, alias, entity domain or project role increments `entity_config_version` for every project that uses the entity (`core.project_domain_roles` is a plain view, so it is current at once), and schedules re-derivation of the last 90 days (doc 13 section 6). Mutating responses list the triggered work in `meta.rederivations: Array<{ project_id, derivation_log_id, links }>` and `meta.backfills` (competitor SEO backfill, doc 08 section 4).
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
@@ -739,7 +739,7 @@ Entities are workspace-scoped; roles are per project (doc 04 section 6). Any cha
 | DELETE | `{W}/entities/{entity_id}/aliases/{alias_id}` | `entities:write` | none | `204` | no | | 2 |
 | GET | `{W}/entities/{entity_id}/domains` | `data:read` | none | `{ data: EntityDomain[] }` | no | | 2 |
 | POST | `{W}/entities/{entity_id}/domains` | `entities:write` | `{ domain: string (host or URL), match_scope: 'host' \| 'registrable' \| 'path_prefix', path_prefix? }` | `201 One<EntityDomain>`; domain canonicalized (doc 14 section 3); `meta.warnings: ['domain_role_conflict']` when another entity in a shared project claims it at the same specificity (doc 13 stage 2) | no | `409 duplicate` | 2 |
-| DELETE | `{W}/entities/{entity_id}/domains/{domain_id}` | `entities:write` | `match_scope` (query) | `204` | no | | 2 |
+| DELETE | `{W}/entities/{entity_id}/domains/{entity_domain_id}` | `entities:write` | none | `204` | no | | 2 |
 | GET | `{P}/entities` | `data:read` | `filter[role]?`, `filter[include_removed]?` | `{ data: ProjectEntity[] }` | no | | 2 |
 | POST | `{P}/entities` | `entities:write` | `{ entity_id, role: 'own' \| 'competitor' \| 'watch', is_primary?, track_seo?, track_ai?, color? }` | `201 One<ProjectEntity>`; for `competitor` with `track_seo`, `meta.backfills` lists the historical rank backfill | no | `409 duplicate`, `422 competitor_limit`, `409 primary_own_exists` | 2 |
 | PATCH | `{P}/entities/{entity_id}` | `entities:write` | `{ role?, is_primary?, track_seo?, track_ai?, color? }` | `One<ProjectEntity>` | no | | 2 |
