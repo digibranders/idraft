@@ -7,6 +7,7 @@ import {
   workspaceKeyword,
   type CreateItem,
   type KeywordProjectCaller,
+  type ScheduleCheck,
 } from './keyword-rules';
 import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
@@ -38,6 +39,7 @@ export function plan(
   item: CreateItem,
   changes: KeywordChanges,
   next: (kind: 'keyword' | 'tracked') => string,
+  scheduleIsLive: ScheduleCheck,
   source: StoredTracked['source'] = 'manual',
 ): Planned {
   const world = keywordWorld(changes);
@@ -73,7 +75,15 @@ export function plan(
       };
     }
     if (existing.deleted_at !== null) {
-      return { row: { ...existing, deleted_at: null, is_active: true, updated_at: now() }, kind: 'restored' };
+      // It comes back with its settings, less a schedule deleted meanwhile
+      const scheduleId =
+        existing.schedule_id !== null && scheduleIsLive(caller.project.project_id, existing.schedule_id)
+          ? existing.schedule_id
+          : null;
+      return {
+        row: { ...existing, deleted_at: null, is_active: true, schedule_id: scheduleId, updated_at: now() },
+        kind: 'restored',
+      };
     }
     return { row: existing, kind: 'duplicate' };
   });

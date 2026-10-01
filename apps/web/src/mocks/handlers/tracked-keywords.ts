@@ -34,7 +34,7 @@ import {
   trackedKeywordView,
 } from '../factories/keyword';
 import { entityRefView } from '../factories/entity';
-import { nextRunAt } from '../factories/operations';
+import { currentNextRunAt } from '../factories/operations';
 import { operationWorld, readOperationChanges } from '../operations-state';
 import {
   keywordIdMinter,
@@ -121,7 +121,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const service = createServiceErrors(caller, item, '', scheduleCheckFor(cookies));
     if (service.length > 0) return invalid(request, service);
     const minter = keywordIdMinter(caller.keywordChanges);
-    const planned = plan(caller, item, caller.keywordChanges, minter.next);
+    const planned = plan(caller, item, caller.keywordChanges, minter.next, scheduleCheckFor(cookies));
     const duplicate = planned.rows.find((entry) => entry.kind === 'duplicate');
     if (duplicate !== undefined) {
       return problem(request, 'duplicate', {
@@ -190,7 +190,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
         return;
       }
       // Each item sees the ones before it, so a repeat in the request is skipped like an existing row
-      const planned = plan(caller, item, changes, minter.next);
+      const planned = plan(caller, item, changes, minter.next, scheduleIsKnown);
       const fresh = planned.rows.filter((entry) => entry.kind !== 'duplicate');
       changes = written(caller, planned.changes, fresh, item);
       requested += fresh.length;
@@ -222,7 +222,11 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const scheduleRef =
       schedule === undefined
         ? null
-        : { schedule_id: schedule.schedule_id, name: schedule.name, next_run_at: nextRunAt(schedule, Date.now()) };
+        : {
+            schedule_id: schedule.schedule_id,
+            name: schedule.name,
+            next_run_at: currentNextRunAt(schedule, Date.now()),
+          };
     return HttpResponse.json({ data: trackedKeywordDetailView(caller.keywords, caller.world, row, scheduleRef) });
   }),
 

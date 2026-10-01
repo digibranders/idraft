@@ -3910,10 +3910,9 @@ export interface components {
             priority: "high" | "standard" | "low";
             /**
              * Provider Mode
-             * @default standard_queue
-             * @enum {string}
+             * @description Left out: `live` for `keyword_metrics`, `standard_queue` for `seo_rank`.
              */
-            provider_mode: "standard_queue" | "priority_queue" | "live";
+            provider_mode?: ("standard_queue" | "priority_queue" | "live") | null;
             selector?: components["schemas"]["Selector"];
             /** Timezone */
             timezone: string;
@@ -8931,7 +8930,7 @@ export const scheduleProvider_modeValues: ReadonlyArray<FlattenedDeepRequired<co
 export const scheduleWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Schedule"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
 export const scheduleInputCadenceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["cadence"]> = ["daily", "weekly", "monthly", "cron"];
 export const scheduleInputPriorityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["priority"]> = ["high", "standard", "low"];
-export const scheduleInputProvider_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["provider_mode"]> = ["standard_queue", "priority_queue", "live"];
+export const scheduleInputProvider_modeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["provider_mode"]> = ["standard_queue", "priority_queue", "live"];
 export const scheduleInputWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
 export const scheduleUpdateCadenceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleUpdate"]["cadence"]> = ["daily", "weekly", "monthly", "cron"];
 export const scheduleUpdatePriorityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleUpdate"]["priority"]> = ["high", "standard", "low"];

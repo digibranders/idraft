@@ -22,8 +22,10 @@ import {
   savedKeywords,
   type CreateItem,
   type KeywordProjectCaller,
+  type ScheduleCheck,
 } from './keyword-rules';
 import { mergeTerms, plan, written } from './keyword-writes';
+import { scheduleCheckFor } from './operations-rules';
 import {
   at,
   bodyError,
@@ -498,6 +500,7 @@ function writeRows(
   caller: KeywordProjectCaller,
   entry: StoredImport,
   duplicateAction: 'skip' | 'merge_terms',
+  scheduleIsLive: ScheduleCheck,
 ): {
   keywords: KeywordChanges;
   entities: EntityChanges;
@@ -639,7 +642,7 @@ function writeRows(
       include: [],
       exclude: [],
     };
-    const planned = plan(writer, item, keywords, keywordIds.next, SOURCE_OF[entry.source]);
+    const planned = plan(writer, item, keywords, keywordIds.next, scheduleIsLive, SOURCE_OF[entry.source]);
     const fresh = planned.rows.filter((candidate) => candidate.kind !== 'duplicate');
     keywords = written(writer, planned.changes, fresh, item);
     const [made] = planned.rows;
@@ -926,7 +929,7 @@ export const keywordImportHandlers: HttpHandler[] = [
     // Nothing is written when the import would pass the quota (D4)
     const over = quotaProblem(request, caller, requested);
     if (over) return over;
-    const result = writeRows(caller, entry, duplicateAction);
+    const result = writeRows(caller, entry, duplicateAction, scheduleCheckFor(cookies));
     // Nothing is saved yet: an import that would make terms needs the right to make them
     if (result.termsCreated > 0 && !can(caller.access, 'taxonomy:write')) {
       return problem(request, 'forbidden', { detail: 'Making the terms of this import needs taxonomy:write.' });

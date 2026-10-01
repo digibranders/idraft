@@ -16,7 +16,7 @@ import {
   textError,
 } from './rules';
 import { stateTime } from '../entities-codec';
-import { scheduleView } from '../factories/operations';
+import { lastWindowStart, nextAfterChange, nextOccurrence, scheduleView } from '../factories/operations';
 import {
   CADENCES,
   operationIdMinter,
@@ -89,10 +89,38 @@ const CREATE_FIELDS = [
   'selector',
 ] as const;
 const UPDATE_FIELDS = CREATE_FIELDS.filter((name) => name !== 'workload' && name !== 'cron_expr');
-const TIME = /^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/;
+/** A time as Pydantic parses it: hours, minutes, seconds with a fraction, an offset. */
+const TIME = /^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d)(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/i;
+
+/**
+ * A window's start is a wall-clock `HH:MM` in the schedule's zone (backend `_local_minute`): a time with
+ * an offset of its own, or with seconds, is a `value_error` at the field.
+ */
+function localMinuteError(value: unknown): ValidationItem[] {
+  if (value === undefined || value === null) return [];
+  const parsed = typeof value === 'string' ? TIME.exec(value) : null;
+  if (parsed === null) return [bodyError('window_start_local', 'time_parsing', 'Input should be a valid time')];
+  if (parsed[6] !== undefined) {
+    return [
+      bodyError(
+        'window_start_local',
+        'value_error',
+        "Value error, a local time, without an offset: the schedule's zone gives it",
+      ),
+    ];
+  }
+  const seconds = Number(parsed[4] ?? '0') + Number(parsed[5] ?? '0');
+  return seconds === 0 ? [] : [bodyError('window_start_local', 'value_error', 'Value error, hours and minutes only')];
+}
 
 /** `HH:MM:SS`, as the API writes a time. */
-const fullTime = (value: string): string => (value.length === 5 ? `${value}:00` : value);
+const fullTime = (value: string): string => `${value.slice(0, 5)}:00`;
+
+/** A schedule's provider mode when the body leaves it out: its workload's own. */
+const DEFAULT_PROVIDER_MODE: Readonly<Record<Workload, (typeof PROVIDER_MODES)[number]>> = {
+  keyword_metrics: 'live',
+  seo_rank: 'standard_queue',
+};
 
 function selectorShapeErrors(value: unknown): ValidationItem[] {
   if (value === undefined || value === null) return [];
@@ -128,7 +156,16 @@ function shapeErrors(body: Readonly<Record<string, unknown>>, create: boolean): 
 
 function fieldErrors(body: Readonly<Record<string, unknown>>, create: boolean): ValidationItem[] {
   const required = create ? (['name', 'workload', 'cadence', 'window_start_local', 'timezone'] as const) : [];
-  const notNull = ['name', 'cadence', 'timezone', 'window_start_local', 'window_hours', 'priority', 'provider_mode'];
+  // A create may leave the provider mode out or null: the workload's own applies
+  const notNull = [
+    'name',
+    'cadence',
+    'timezone',
+    'window_start_local',
+    'window_hours',
+    'priority',
+    ...(create ? [] : ['provider_mode']),
+  ];
   return [
     ...extraMembers(body, create ? CREATE_FIELDS : UPDATE_FIELDS),
     ...required.filter((name) => body[name] === undefined).map((name) => bodyError(name, 'missing', 'Field required')),
@@ -144,11 +181,7 @@ function fieldErrors(body: Readonly<Record<string, unknown>>, create: boolean): 
       : textError(body.cron_expr, 'cron_expr', { max: 100 })),
     ...integerError(body.weekday, 'weekday', { min: 0, max: 6, nullable: true }),
     ...integerError(body.month_day, 'month_day', { min: 1, max: 28, nullable: true }),
-    ...(body.window_start_local === undefined || body.window_start_local === null
-      ? []
-      : typeof body.window_start_local === 'string' && TIME.test(body.window_start_local)
-        ? []
-        : [bodyError('window_start_local', 'time_parsing', 'Input should be a valid time')]),
+    ...localMinuteError(body.window_start_local),
     ...integerError(body.window_hours ?? undefined, 'window_hours', { min: 1, max: 24 }),
     ...textError(body.timezone ?? undefined, 'timezone', { max: 64 }),
     ...(typeof body.timezone === 'string' && body.timezone !== '' && !TIMEZONE_PATTERN.test(body.timezone)
@@ -266,7 +299,11 @@ function scheduled(
 ): StoredSchedule | ValidationItem[] {
   const workload = create ? body.workload : base.workload;
   const cadence = typeof body.cadence === 'string' ? body.cadence : base.cadence;
-  const providerMode = isOneOf(body.provider_mode, PROVIDER_MODES) ? body.provider_mode : base.provider_mode;
+  const providerMode = isOneOf(body.provider_mode, PROVIDER_MODES)
+    ? body.provider_mode
+    : create && isOneOf(workload, SCHEDULE_WORKLOADS)
+      ? DEFAULT_PROVIDER_MODE[workload]
+      : base.provider_mode;
   const selector = isRecord(body.selector) ? selectorOf(body.selector) : base.selector;
   const planner = plannerErrors(workload, cadence, providerMode);
   if (planner.length > 0) return planner;
@@ -399,9 +436,11 @@ export const scheduleHandlers: HttpHandler[] = [
       is_active: true,
       created_at: stateTime(),
       deleted_at: null,
+      next_run_at: null,
     };
-    const row = scheduled(caller, body, base, true);
-    if (Array.isArray(row)) return invalid(request, row);
+    const made = scheduled(caller, body, base, true);
+    if (Array.isArray(made)) return invalid(request, made);
+    const row: StoredSchedule = { ...made, next_run_at: new Date(nextOccurrence(made, Date.now())).toISOString() };
     const changes = minter.commit(withSchedule(caller.operationChanges, row));
     const cookie = savedOperations(request, changes);
     if (typeof cookie !== 'string') return cookie;
@@ -432,8 +471,20 @@ export const scheduleHandlers: HttpHandler[] = [
     if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const shape = shapeErrors(body, false);
     if (shape.length > 0) return invalid(request, shape);
-    const row = scheduled(caller, body, current, false);
-    if (Array.isArray(row)) return invalid(request, row);
+    const changed = scheduled(caller, body, current, false);
+    if (Array.isArray(changed)) return invalid(request, changed);
+    // A change that leaves the rule alone leaves the next window alone; a new rule starts after now,
+    // outside the period a window of the schedule already started in
+    const sameRule =
+      changed.cadence === current.cadence &&
+      changed.timezone === current.timezone &&
+      changed.window_start_local === current.window_start_local &&
+      changed.weekday === current.weekday &&
+      changed.month_day === current.month_day;
+    const now = Date.now();
+    const row: StoredSchedule = sameRule
+      ? changed
+      : { ...changed, next_run_at: nextAfterChange(changed, now, lastWindowStart(caller.operations, current, now)) };
     return answer(request, caller, row);
   }),
 
@@ -489,6 +540,10 @@ export const scheduleHandlers: HttpHandler[] = [
     const current = liveSchedule(caller, params.schedule_id);
     if (current === undefined) return problem(request, 'not_found');
     // The next run is the next window from now: missed ones are not caught up
-    return answer(request, caller, { ...current, is_active: true });
+    return answer(request, caller, {
+      ...current,
+      is_active: true,
+      next_run_at: new Date(nextOccurrence(current, Date.now())).toISOString(),
+    });
   }),
 ];

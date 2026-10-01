@@ -160,8 +160,10 @@
 
 - [ ] **Step 1:** Schedules: the project's schedules (workload, selector in words, cadence, time and window in the project's time zone, next run, last run, paused); edit in a dialog: cadence (daily, weekly with weekday, monthly with day of month), time, window, selector per workload (D10); pause, resume, delete; New schedule for `keyword_metrics` and `seo_rank`. Read-only without `schedules:write`.
 - [ ] **Step 2:** General gains "Keyword defaults" from `{P}/settings` (`seo`): default device, depth profile, search engine.
-- **From the backend as built (0b6371c).**
-  - A `keyword_metrics` schedule takes `provider_mode: 'live'` only, while the default is `standard_queue` (`422 provider_mode_not_supported`), so the dialog sends it.
+- **From the backend as built (0b6371c, 4f99d3b, ecafcbc).**
+  - A `keyword_metrics` schedule takes `provider_mode: 'live'` only. Left out, the mode is the workload's own (`live` for keyword metrics, `standard_queue` for rankings), so the dialog offers it only for rankings.
+  - `window_start_local` is `HH:MM`: seconds or an offset are a `value_error` at the field.
+  - A change recomputes `next_run_at` only when the rule changes, after now and outside the period the last window ran in. A restored keyword whose schedule was deleted comes back with `schedule: null`.
   - The service answers the first failing stage: the workload, the cadence and the provider mode; then the selector (`selector_not_supported`, `selector_empty`, `selector_conflict` for `all` with `stale_days`); then the days on a change (`required`, `not_applicable`) or `cron_expr`; then `timezone_unknown`; then the groups and terms.
   - A create's days that do not fit its cadence are one root `value_error`.
   - Pause and cancel take an optional body.

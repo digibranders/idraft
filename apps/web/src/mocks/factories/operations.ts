@@ -1,4 +1,5 @@
 import { TZDate } from '@date-fns/tz';
+import { getISOWeek, getISOWeekYear } from 'date-fns';
 
 import { MOCK_USERS } from '../fixtures';
 import { LABS_ITEM_MICROS, LABS_TASK_MICROS } from '../operations-fixtures';
@@ -23,31 +24,91 @@ export const RUN_PLANNED_MS = 3_000;
 export const RUN_WORKING_MS = 12_000;
 const HOUR_MS = 60 * 60 * 1000;
 
+/** What decides a schedule's windows. */
+export type ScheduleRule = Pick<
+  StoredSchedule,
+  'cadence' | 'weekday' | 'month_day' | 'window_start_local' | 'timezone'
+>;
+
 /**
- * The next start of a schedule's window after `now`, in its time zone: every day, on its weekday (0 is
- * Sunday) or on its day of the month. A paused schedule still has one; resuming does not catch up.
+ * The first window start strictly after `after` (backend `next_occurrence`): every day, on the weekday (0
+ * is Sunday) or on the day of the month, at the wall-clock time in the rule's zone. It looks from the day
+ * before, since where clocks go forward over midnight a late window of one day starts early on the next.
  */
-export function nextRunAt(schedule: StoredSchedule, now: number): string {
-  const today = new TZDate(now, schedule.timezone);
-  const [hour = 0, minute = 0] = schedule.window_start_local.split(':').map(Number);
-  // Two months of days always hold the next day of the month
-  for (let offset = 0; offset <= 62; offset += 1) {
+export function nextOccurrence(rule: ScheduleRule, after: number): number {
+  const local = new TZDate(after, rule.timezone);
+  const [hour = 0, minute = 0] = rule.window_start_local.split(':').map(Number);
+  // A rule has a window at least every 31 days: the day before, `after`'s day and 31 more hold the next
+  for (let offset = -1; offset <= 32; offset += 1) {
     // The wall clock time in the zone; a time a clock change skips moves forward
-    const at = new TZDate(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate() + offset,
-      hour,
-      minute,
-      schedule.timezone,
-    );
+    const at = new TZDate(local.getFullYear(), local.getMonth(), local.getDate() + offset, hour, minute, rule.timezone);
     const fits =
-      schedule.cadence === 'daily' ||
-      (schedule.cadence === 'weekly' && at.getDay() === schedule.weekday) ||
-      (schedule.cadence === 'monthly' && at.getDate() === schedule.month_day);
-    if (fits && at.getTime() > now) return new Date(at.getTime()).toISOString();
+      rule.cadence === 'daily' ||
+      (rule.cadence === 'weekly' && at.getDay() === rule.weekday) ||
+      (rule.cadence === 'monthly' && at.getDate() === rule.month_day);
+    if (fits && at.getTime() > after) return at.getTime();
   }
-  throw new Error(`No next run for schedule ${schedule.schedule_id}`);
+  throw new Error('A schedule rule has a window at least once a month');
+}
+
+/** The local day, ISO week or month an instant is in, by the rule's cadence (backend `_period`). */
+function periodOf(rule: ScheduleRule, instant: number): string {
+  const day = new TZDate(instant, rule.timezone);
+  if (rule.cadence === 'weekly') return `${String(getISOWeekYear(day))}-W${String(getISOWeek(day))}`;
+  if (rule.cadence === 'monthly') return `${String(day.getFullYear())}-${String(day.getMonth() + 1)}`;
+  return `${String(day.getFullYear())}-${String(day.getMonth() + 1)}-${String(day.getDate())}`;
+}
+
+/** The window the schedule's chain starts from: its stored next window, or for a fixture its first. */
+const firstWindow = (schedule: StoredSchedule): number =>
+  schedule.next_run_at === null
+    ? nextOccurrence(schedule, Date.parse(schedule.created_at))
+    : Date.parse(schedule.next_run_at);
+
+/**
+ * The schedule's next window as the API answers it at `now`. The mocks have no planner, so this does its
+ * part: an active schedule's windows that came due were planned, and each moved the next one on. A paused
+ * schedule is not planned, so its next window stays where it was until it resumes.
+ */
+export function currentNextRunAt(schedule: StoredSchedule, now: number): string {
+  let next = firstWindow(schedule);
+  if (schedule.is_active) {
+    while (next <= now) next = nextOccurrence(schedule, next);
+  }
+  return new Date(next).toISOString();
+}
+
+/**
+ * The start of the latest window the schedule ran (backend `last_window_start`): its newest scheduled run,
+ * or a window the planner would have planned by `now`, whichever is later; `null` before the first.
+ */
+export function lastWindowStart(world: OperationWorld, schedule: StoredSchedule, now: number): number | null {
+  const runs = world.runs
+    .filter((run) => run.schedule_id === schedule.schedule_id && run.trigger === 'schedule')
+    .map((run) => Date.parse(run.created_at))
+    .filter((at) => at <= now);
+  let planned: number | null = null;
+  if (schedule.is_active) {
+    for (let window = firstWindow(schedule); window <= now; window = nextOccurrence(schedule, window)) {
+      planned = window;
+    }
+  }
+  const latest = Math.max(...runs, planned ?? Number.NEGATIVE_INFINITY);
+  return Number.isFinite(latest) ? latest : null;
+}
+
+/**
+ * The next window under a rule that was just changed (backend `next_after_change`): after `now`, and
+ * outside the period a window of the schedule already started in, so moving today's window later does
+ * not collect today twice.
+ */
+export function nextAfterChange(rule: ScheduleRule, now: number, lastWindow: number | null): string {
+  let candidate = nextOccurrence(rule, now);
+  if (lastWindow !== null) {
+    const done = periodOf(rule, lastWindow);
+    while (periodOf(rule, candidate) === done) candidate = nextOccurrence(rule, candidate);
+  }
+  return new Date(candidate).toISOString();
 }
 
 export function scheduleView(world: OperationWorld, schedule: StoredSchedule, now: number): Schedule {
@@ -76,7 +137,7 @@ export function scheduleView(world: OperationWorld, schedule: StoredSchedule, no
       stale_days: schedule.selector.stale_days ?? null,
     },
     is_active: schedule.is_active,
-    next_run_at: nextRunAt(schedule, now),
+    next_run_at: currentNextRunAt(schedule, now),
     last_run_id: last?.run_id ?? null,
     created_at: schedule.created_at,
   };

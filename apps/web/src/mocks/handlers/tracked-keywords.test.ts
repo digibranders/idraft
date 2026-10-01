@@ -9,6 +9,7 @@ import { MOCK_GROUP_IDS, MOCK_TRACKED_KEYWORDS } from '../keyword-fixtures';
 import { KEYWORD_TABLE } from '../keyword-table';
 import { KEYWORDS_COOKIE, keywordWorld, readKeywordChanges } from '../keywords-state';
 import { mockId } from '../mock-ids';
+import { MOCK_SCHEDULE_IDS } from '../operations-fixtures';
 import { SESSION_COOKIE } from '../session';
 import { TEST_API_ORIGIN } from '@/test/api-server';
 import {
@@ -346,6 +347,23 @@ describe('tracked keywords: in bulk', () => {
     expect(result.created).toHaveLength(2);
     expect(result.created).toContain(id);
     expect(result.restored).toEqual([id]);
+  });
+
+  it('brings a deleted keyword back without the schedule that was deleted meanwhile', async () => {
+    const editor = mockBrowser('editor');
+    const id = trackedId('seo audit');
+    const scheduleId = MOCK_SCHEDULE_IDS.dailyRanks;
+    expect((await editor.call('PATCH', `${TK}/${id}`, { schedule_id: scheduleId })).status).toBe(200);
+    expect((await editor.call('DELETE', `${TK}/${id}`)).status).toBe(204);
+    // No live keyword names the schedule now, so it may go
+    expect((await editor.call('DELETE', `${P}/schedules/${scheduleId}`)).status).toBe(204);
+    const result = dataOf(
+      await editor.call('POST', `${TK}/bulk-create`, { items: [{ keyword: 'seo audit' }] }),
+      BULK_CREATE_RESULT,
+    );
+    expect(result.restored).toEqual([id]);
+    const detail = dataOf(await editor.call('GET', `${TK}/${id}`), TRACKED_KEYWORD_DETAIL);
+    expect(detail).toMatchObject({ schedule_id: null, schedule: null });
   });
 
   it('bulk-updates a filter, versioning depth changes and replacing a single-valued term', async () => {

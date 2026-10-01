@@ -44,6 +44,7 @@ export const MOCK_SCHEDULES: readonly StoredSchedule[] = [
     is_active: true,
     created_at: FIRST_TRACKED_AT,
     deleted_at: null,
+    next_run_at: null,
   },
   {
     schedule_id: MOCK_SCHEDULE_IDS.dailyRanks,
@@ -62,6 +63,7 @@ export const MOCK_SCHEDULES: readonly StoredSchedule[] = [
     is_active: true,
     created_at: '2026-09-29T10:00:00.000Z',
     deleted_at: null,
+    next_run_at: null,
   },
   {
     schedule_id: MOCK_SCHEDULE_IDS.weeklyContent,
@@ -80,6 +82,7 @@ export const MOCK_SCHEDULES: readonly StoredSchedule[] = [
     is_active: false,
     created_at: '2026-09-29T10:05:00.000Z',
     deleted_at: null,
+    next_run_at: null,
   },
 ];
 

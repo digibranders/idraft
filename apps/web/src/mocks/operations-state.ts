@@ -60,6 +60,11 @@ export interface StoredSchedule {
   is_active: boolean;
   created_at: string;
   deleted_at: string | null;
+  /**
+   * The next window as the API stores it: set on a create, a change of the rule and a resume, and moved on
+   * by the planner once it is due. `null` for a fixture, whose next window follows from its rule.
+   */
+  next_run_at: string | null;
 }
 
 export interface StoredRun {
@@ -172,6 +177,7 @@ const SCHEDULE = z.tuple([
   z.number().int(), // active, 1 or 0
   z.number().int(), // created, minutes
   z.number().int().nullable(), // deleted, minutes
+  z.number().int().nullable().optional(), // next window, minutes; left out by cookies written before it
 ]);
 const RUN = z.tuple([
   ID, // run
@@ -232,6 +238,7 @@ function encode(changes: OperationChanges): Compact {
     row.is_active ? 1 : 0,
     minutesOf(row.created_at),
     row.deleted_at === null ? null : minutesOf(row.deleted_at),
+    row.next_run_at === null ? null : minutesOf(row.next_run_at),
   ]);
   const runs = (changes.runs ?? []).map((row): z.infer<typeof RUN> => [
     idCell(row.run_id, 'run'),
@@ -285,6 +292,7 @@ function decode(compact: Compact): OperationChanges {
       active,
       created,
       deleted,
+      next,
     ]): StoredSchedule => ({
       schedule_id: idOf(id, 'schedule'),
       project_id: idAt(project),
@@ -302,6 +310,7 @@ function decode(compact: Compact): OperationChanges {
       is_active: active === 1,
       created_at: timeOf(created),
       deleted_at: deleted === null ? null : timeOf(deleted),
+      next_run_at: next === null || next === undefined ? null : timeOf(next),
     }),
   );
   const runs = (compact.r ?? []).map(

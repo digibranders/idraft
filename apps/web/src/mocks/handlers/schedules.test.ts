@@ -79,10 +79,12 @@ describe('schedules', () => {
     expect(fieldCodes(await editor.call('POST', S, { ...daily, workload: 'seo_rank', cadence: 'cron' }))).toEqual([
       'cadence:cadence_not_supported',
     ]);
-    // Labs is called live: the default queue mode is refused for keyword metrics
-    expect(fieldCodes(await editor.call('POST', S, { ...daily, workload: 'keyword_metrics' }))).toEqual([
-      'provider_mode:provider_mode_not_supported',
-    ]);
+    // Labs is called live: a queue mode is refused for keyword metrics
+    expect(
+      fieldCodes(
+        await editor.call('POST', S, { ...daily, workload: 'keyword_metrics', provider_mode: 'standard_queue' }),
+      ),
+    ).toEqual(['provider_mode:provider_mode_not_supported']);
     const metrics = { ...daily, workload: 'keyword_metrics', provider_mode: 'live' };
     // Then the selector: the first member the workload does not take, an empty one, all with stale days
     expect(
@@ -135,6 +137,59 @@ describe('schedules', () => {
     ).toMatchObject({ status: 403, code: 'forbidden' });
   });
 
+  it('takes the workload’s own provider mode when none is given, and a window start in hours and minutes', async () => {
+    const editor = mockBrowser('editor');
+    const base = { name: 'Defaults', cadence: 'daily', timezone: 'UTC' };
+    const metrics = await editor.call('POST', S, { ...base, workload: 'keyword_metrics', window_start_local: '04:00' });
+    expect(dataOf(metrics, SCHEDULE)).toMatchObject({ provider_mode: 'live', window_start_local: '04:00:00' });
+    const ranks = await editor.call('POST', S, {
+      ...base,
+      workload: 'seo_rank',
+      window_start_local: '05:30:00',
+      provider_mode: null,
+      selector: { all: true },
+    });
+    expect(dataOf(ranks, SCHEDULE)).toMatchObject({ provider_mode: 'standard_queue', window_start_local: '05:30:00' });
+    // A change cannot clear the provider mode: only a create falls back to the workload's own
+    expect(
+      fieldCodes(await editor.call('PATCH', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`, { provider_mode: null })),
+    ).toEqual(['provider_mode:null_not_allowed']);
+    for (const time of ['04:00:30', '04:00:00.5', '04:00+02:00']) {
+      expect(
+        fieldCodes(await editor.call('POST', S, { ...base, workload: 'keyword_metrics', window_start_local: time })),
+      ).toEqual(['window_start_local:value_error']);
+    }
+    expect(
+      fieldCodes(await editor.call('POST', S, { ...base, workload: 'keyword_metrics', window_start_local: '4 am' })),
+    ).toEqual(['window_start_local:time_parsing']);
+  });
+
+  it('moves a changed rule past the day the last window ran in, but not a resumed one', async () => {
+    const editor = mockBrowser('editor');
+    // Daily rankings ran today at 02:00 in Berlin; moved to 15:00 it does not run today again
+    const daily = dataOf(
+      await editor.call('PATCH', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`, { window_start_local: '15:00' }),
+      SCHEDULE,
+    );
+    expect(daily.next_run_at).toBe('2026-10-02T13:00:00.000Z');
+    // Resuming starts from the next window, whatever ran today
+    await editor.call('POST', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}/pause`);
+    const resumed = dataOf(await editor.call('POST', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}/resume`), SCHEDULE);
+    expect(resumed.next_run_at).toBe('2026-10-01T13:00:00.000Z');
+  });
+
+  it('counts weeks from Monday and months by the calendar when it moves a changed rule on', async () => {
+    const editor = mockBrowser('editor');
+    const id = MOCK_SCHEDULE_IDS.keywordMetrics;
+    // Sunday 20 September: the monthly window of the 20th ran at 03:00 in Berlin
+    at('2026-09-20T12:00:00Z');
+    const later = dataOf(await editor.call('PATCH', `${S}/${id}`, { window_start_local: '23:00' }), SCHEDULE);
+    expect(later.next_run_at).toBe('2026-10-20T21:00:00.000Z');
+    // Weekly on Mondays: Monday the 21st is in the next ISO week, so it is not skipped
+    const weekly = dataOf(await editor.call('PATCH', `${S}/${id}`, { cadence: 'weekly', weekday: 1 }), SCHEDULE);
+    expect(weekly.next_run_at).toBe('2026-09-21T21:00:00.000Z');
+  });
+
   it('holds a change’s days to its cadence: required when it starts to use one, refused when it has none', async () => {
     const editor = mockBrowser('editor');
     const daily = `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`;
@@ -154,12 +209,17 @@ describe('schedules', () => {
       month_day: 3,
       selector: { groups: [MOCK_GROUP_IDS.local] },
     });
+    // The daily windows of 30 September and 1 October ran, so October is done for the monthly rule:
+    // the 3rd of November at 02:00 in Berlin, winter time by then
     expect(dataOf(changed, SCHEDULE)).toMatchObject({
       cadence: 'monthly',
       month_day: 3,
-      next_run_at: '2026-10-03T00:00:00.000Z',
+      next_run_at: '2026-11-03T01:00:00.000Z',
       selector: { groups: [MOCK_GROUP_IDS.local] },
     });
+    // A rename leaves the next window as it is
+    const renamed = await editor.call('PATCH', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`, { name: 'Monthly rankings' });
+    expect(dataOf(renamed, SCHEDULE).next_run_at).toBe('2026-11-03T01:00:00.000Z');
     expect(fieldCodes(await editor.call('PATCH', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`, {}))).toEqual([
       ':value_error',
     ]);
