@@ -8,6 +8,7 @@ import { IconsSection } from './icons-section';
 import { OverlaysSection } from './overlays-section';
 import type { PreviewSectionSlug } from './section-slugs';
 import { SizesSection } from './sizes-section';
+import { TablesSection } from './tables-section';
 import { TokensSection } from './tokens-section';
 import { TypographySection } from './typography-section';
 
@@ -26,6 +27,7 @@ export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'buttons', title: 'Buttons and controls', render: ButtonsSection },
   { slug: 'forms', title: 'Forms', render: FormsSection },
   { slug: 'badges', title: 'Badges', render: BadgesSection },
+  { slug: 'tables', title: 'Tables', render: TablesSection },
   { slug: 'overlays', title: 'Overlays', render: OverlaysSection },
   { slug: 'feedback', title: 'Feedback', render: FeedbackSection },
 ];

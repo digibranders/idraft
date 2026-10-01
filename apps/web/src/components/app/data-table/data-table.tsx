@@ -1,0 +1,767 @@
+'use client';
+
+import type { RowData } from '@tanstack/react-table';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, Ellipsis } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
+
+import { BulkActionBar } from './bulk-action-bar';
+import { ColumnChooser } from './column-chooser';
+import { TableFooter } from './table-footer';
+import { DataTableToolbar } from './toolbar';
+import type { DataTableColumn, DataTableProps, RecordAction } from './types';
+import { useSortedRows } from './use-sorted-rows';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Icon } from '@/components/ui/icon';
+import { IconButton } from '@/components/ui/icon-button';
+import { Menu, type MenuItemDef } from '@/components/ui/menu';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip } from '@/components/ui/tooltip';
+import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
+import { formatInteger } from '@/lib/format';
+import { COLUMN_TYPES, resolveWidths, type SizedColumn } from '@/lib/tables/column-types';
+import { moveFocus, rangeOf, type GridCell } from '@/lib/tables/grid-focus';
+import { rowWindow, scrollToRow } from '@/lib/tables/row-window';
+import { nextSort, type Density, type SortKey } from '@/lib/tables/table-state';
+import { columnsAtTier, chosenColumns, moveColumn, toggleColumn } from '@/lib/tables/visible-columns';
+import { cn } from '@/lib/utils';
+
+/** Row heights per density, as `h-row` and `h-row-compact` draw them (04-spacing-density.md). */
+const ROW_HEIGHT: Readonly<Record<Density, number>> = { default: 40, compact: 32 };
+const HEADER_HEIGHT = 40;
+const SKELETON_ROWS = 12;
+const EMPTY_IDS: ReadonlySet<string> = new Set();
+const GROUP_ORDER: Readonly<Record<RecordAction<unknown>['group'], number>> = {
+  open: 0,
+  object: 1,
+  copy: 2,
+  destructive: 3,
+};
+
+/** The identity cell is the row header (20-accessibility.md section 6.2, rule 1). */
+const cellTag = (identity: boolean): 'th' | 'td' => (identity ? 'th' : 'td');
+const ROW_SCOPE = 'row';
+
+type GridColumn<TRow> = { kind: 'select' } | { kind: 'data'; column: DataTableColumn<TRow> } | { kind: 'actions' };
+
+const keyOf = <TRow,>(column: GridColumn<TRow>): string => (column.kind === 'data' ? column.column.id : column.kind);
+
+const ALIGN: Readonly<Record<'left' | 'right' | 'center', string>> = {
+  left: 'text-left',
+  right: 'text-right',
+  center: 'text-center',
+};
+
+/** The column tier the viewport shows (19-responsive-behavior.md section 6.1). */
+function useColumnTier(): 1 | 2 | 3 | 4 {
+  const xl = useMediaQuery(MEDIA.xl);
+  const wide = useMediaQuery(MEDIA['2xl']);
+  const widest = useMediaQuery(MEDIA['3xl']);
+  return widest ? 4 : wide ? 3 : xl ? 2 : 1;
+}
+
+/** A record action as a menu item; destructive ones are listed last by the menu. */
+const toMenuItem = <TRow,>(action: RecordAction<TRow>, rows: readonly TRow[]): MenuItemDef => ({
+  id: action.id,
+  label: action.label,
+  icon: action.icon,
+  tone: action.group === 'destructive' ? 'destructive' : 'default',
+  disabledReason: action.disabledReason ?? undefined,
+  onSelect: () => action.onSelect(rows),
+});
+
+/**
+ * The one table for record lists (12-tables.md, 20-accessibility.md section 6, 25-component-inventory.md
+ * section 7.1). A native table with `role="grid"` and one roving tab stop: arrows move between cells, Enter
+ * opens the row (sorts on a header), Space selects, Shift+Space selects a range, Ctrl+A selects what is
+ * loaded, Shift+F10 opens the row menu, Alt+Down Arrow opens a column's options. Client mode sorts and
+ * searches the loaded rows; server mode shows a page the caller sorted. Rows beyond 100 are rendered only
+ * near the view, and the focused row always is. The identity column is the row header and stays pinned.
+ */
+export function DataTable<TRow extends RowData>({
+  caption,
+  itemNoun,
+  columns,
+  getRowId,
+  rows: loaded,
+  total,
+  server,
+  loadProgress,
+  sort,
+  onSortChange,
+  defaultSort,
+  density,
+  onDensityChange,
+  columnState,
+  search,
+  onSearchChange,
+  searchPlaceholder,
+  searchText,
+  selection,
+  bulkActions,
+  rowActions,
+  rowName,
+  onRowOpen,
+  activeRowId,
+  status,
+  errorState,
+  emptyState,
+  filteredEmptyState,
+  footerNote,
+}: DataTableProps<TRow>): ReactNode {
+  const t = useTranslations('dataTable');
+  const captionId = useId();
+  const hintId = useId();
+  const region = useRef<HTMLDivElement>(null);
+  const tier = useColumnTier();
+
+  // Columns: the chosen set at this width, framed by the selection and actions columns
+  const meta = columns.map((column) => ({
+    id: column.id,
+    priority: column.priority,
+    identity: column.identity === true,
+    defaultVisible: column.defaultVisible !== false,
+  }));
+  const byId = new Map(columns.map((column) => [column.id, column]));
+  const shown = columnsAtTier(meta, columnState.visible, tier).flatMap((id) => {
+    const column = byId.get(id);
+    return column === undefined ? [] : [column];
+  });
+  const grid: GridColumn<TRow>[] = [
+    ...(selection === undefined ? [] : [{ kind: 'select' as const }]),
+    ...shown.map((column) => ({ kind: 'data' as const, column })),
+    ...(rowActions === undefined || rowActions.length === 0 ? [] : [{ kind: 'actions' as const }]),
+  ];
+
+  // Rows: searched and sorted here in client mode, as given in server mode
+  const needle = search.trim().toLocaleLowerCase();
+  const searched =
+    server !== undefined || needle === '' || searchText === undefined
+      ? loaded
+      : loaded.filter((row) => searchText(row).toLocaleLowerCase().includes(needle));
+  const rows = useSortedRows({ rows: searched, columns, sort, manual: server !== undefined, getRowId });
+  const ids = rows.map(getRowId);
+  const showRows = status === 'ready' || status === 'refetching';
+
+  // Geometry
+  const [regionSize, setRegionSize] = useState({ width: 1200, height: 600 });
+  const [scrollTop, setScrollTop] = useState(0);
+  useEffect(() => {
+    const element = region.current;
+    if (element === null || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) setRegionSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const sized: SizedColumn[] = grid.map((column) => {
+    if (column.kind !== 'data') return { id: column.kind, ...COLUMN_TYPES[column.kind] };
+    const spec = COLUMN_TYPES[column.column.type];
+    return {
+      id: column.column.id,
+      ...spec,
+      width: column.column.width ?? spec.width,
+      flex: column.column.identity === true,
+    };
+  });
+  const widths = resolveWidths(sized, regionSize.width);
+  const widthOf = (column: GridColumn<TRow>): number => widths.get(keyOf(column)) ?? 0;
+  const tableWidth = sized.reduce((sum, column) => sum + (widths.get(column.id) ?? column.width), 0);
+  // Pinned on the left: the selection column, then the identity column
+  const stickyLeft = (column: GridColumn<TRow>): number | null => {
+    if (column.kind === 'select') return 0;
+    if (column.kind === 'data' && column.column.identity === true) {
+      return selection === undefined ? 0 : (widths.get('select') ?? COLUMN_TYPES.select.width);
+    }
+    return null;
+  };
+
+  // Focus: one cell holds the tab stop; row -1 is the header
+  const [focus, setFocus] = useState<GridCell>({ row: -1, column: 0 });
+  // A key's move, kept apart from focus that follows a click, so only keys scroll and move focus
+  const [focusRequest, setFocusRequest] = useState<{ cell: GridCell; seq: number } | null>(null);
+  const current: GridCell = {
+    row: showRows ? Math.min(focus.row, rows.length - 1) : -1,
+    column: Math.min(focus.column, grid.length - 1),
+  };
+  const rowHeight = ROW_HEIGHT[density];
+  const rendered = rowWindow({
+    count: showRows ? rows.length : 0,
+    rowHeight,
+    scrollTop,
+    viewport: regionSize.height - HEADER_HEIGHT,
+    keep: current.row >= 0 ? current.row : null,
+  });
+  // A key moved focus: bring the cell into view and focus it
+  useEffect(() => {
+    const element = region.current;
+    if (focusRequest === null || element === null) return;
+    const { row, column } = focusRequest.cell;
+    if (row >= 0) {
+      const target = scrollToRow({
+        row,
+        rowHeight,
+        scrollTop: element.scrollTop,
+        viewport: element.clientHeight,
+        header: HEADER_HEIGHT,
+      });
+      if (target !== null) element.scrollTop = target;
+    }
+    element
+      .querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`)
+      ?.focus({ preventScroll: true });
+  }, [focusRequest, rowHeight]);
+  const moveTo = (cell: GridCell): void => {
+    setFocus(cell);
+    setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1 }));
+  };
+
+  // Selection
+  const selected = selection?.selectedIds ?? EMPTY_IDS;
+  const [anchor, setAnchor] = useState<string | null>(null);
+  const loadedSelected = ids.filter((id) => selected.has(id)).length;
+  const hiddenSelected = [...selected].filter((id) => !ids.includes(id)).length;
+  const setSelected = (next: ReadonlySet<string>): void => {
+    if (selection === undefined) return;
+    if (selection.allMatching) selection.onAllMatchingChange(false);
+    selection.onChange(next);
+  };
+  const toggleRow = (id: string, range: boolean): void => {
+    const next = new Set(selected);
+    const targets = range ? rangeOf(ids, anchor, id) : [id];
+    const on = !selected.has(id);
+    for (const each of targets) {
+      if (on) next.add(each);
+      else next.delete(each);
+    }
+    setAnchor(id);
+    setSelected(next);
+  };
+  const toggleAll = (): void => {
+    setSelected(loadedSelected === ids.length ? new Set() : new Set([...selected, ...ids]));
+  };
+  const headerChecked: boolean | 'indeterminate' =
+    loadedSelected === 0 ? false : loadedSelected === ids.length ? true : 'indeterminate';
+  const selectedRows = rows.filter((row) => selected.has(getRowId(row)));
+
+  // Menus opened from the keyboard
+  const [menu, setMenu] = useState<{ kind: 'column' | 'row'; id: string } | null>(null);
+  const menuOpen = (kind: 'column' | 'row', id: string): boolean => menu?.kind === kind && menu.id === id;
+  const onMenuChange = (kind: 'column' | 'row', id: string) => (open: boolean) => setMenu(open ? { kind, id } : null);
+
+  const sortBy = (column: DataTableColumn<TRow>, additive: boolean): void => {
+    const defaultDesc = COLUMN_TYPES[column.type].defaultDesc;
+    if (defaultDesc === null || column.sortValue === undefined) return;
+    onSortChange(nextSort(sort, { id: column.id, defaultDesc }, { additive, tableDefault: defaultSort }));
+  };
+  const setSortDirection = (column: DataTableColumn<TRow>, direction: 'asc' | 'desc' | null): void => {
+    onSortChange(direction === null ? [...defaultSort] : [{ id: column.id, desc: direction === 'desc' }]);
+  };
+
+  const openRow = (row: TRow, event: { metaKey: boolean; ctrlKey: boolean; button?: number }): void => {
+    onRowOpen?.(row, event.metaKey || event.ctrlKey || event.button === 1 ? 'new-tab' : 'inspector');
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTableElement>): void => {
+    // Keys pressed inside a cell's widgets, menus and tooltips are theirs
+    if (!(event.target instanceof HTMLElement) || event.target.dataset.cell === undefined) return;
+    const size = {
+      rows: showRows ? rows.length : 0,
+      columns: grid.length,
+      pageRows: Math.floor((regionSize.height - HEADER_HEIGHT) / rowHeight),
+    };
+    const column = grid[current.column];
+    const row = current.row >= 0 ? rows[current.row] : undefined;
+    if (event.altKey && event.key === 'ArrowDown' && current.row < 0 && column?.kind === 'data') {
+      event.preventDefault();
+      setMenu({ kind: 'column', id: column.column.id });
+      return;
+    }
+    const moved = event.altKey ? null : moveFocus(current, event.key, size, { ctrl: event.ctrlKey || event.metaKey });
+    if (moved !== null) {
+      event.preventDefault();
+      moveTo(moved);
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && selection !== undefined) {
+      event.preventDefault();
+      setSelected(new Set([...selected, ...ids]));
+      return;
+    }
+    if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
+      if (row !== undefined && rowActions !== undefined && rowActions.length > 0) {
+        event.preventDefault();
+        setMenu({ kind: 'row', id: getRowId(row) });
+      }
+      return;
+    }
+    if (event.key === ' ' && selection !== undefined) {
+      event.preventDefault();
+      if (row !== undefined) toggleRow(getRowId(row), event.shiftKey);
+      else if (column?.kind === 'select') toggleAll();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (current.row < 0) {
+        if (column?.kind === 'data') sortBy(column.column, event.shiftKey);
+        else if (column?.kind === 'select') toggleAll();
+        return;
+      }
+      if (row === undefined) return;
+      if (column?.kind === 'actions') setMenu({ kind: 'row', id: getRowId(row) });
+      else openRow(row, event);
+    }
+  };
+
+  // The focusable cell's attributes
+  const cellProps = (row: number, column: number) => ({
+    'data-cell': `${String(row)}:${String(column)}`,
+    tabIndex: current.row === row && current.column === column ? 0 : -1,
+    onFocus: (): void => {
+      if (focus.row !== row || focus.column !== column) setFocus({ row, column });
+    },
+  });
+
+  const primarySort = sort[0];
+  const countText = t('count', {
+    count: formatInteger(total ?? rows.length),
+    noun: (total ?? rows.length) === 1 ? itemNoun.one : itemNoun.other,
+  });
+  const labelOf = (id: string): string => byId.get(id)?.header ?? id;
+  const sortSummary =
+    sort.length < 2
+      ? null
+      : t('sortedTwo', {
+          first: t(sort[0]?.desc === true ? 'descending' : 'ascending', { column: labelOf(sort[0]?.id ?? '') }),
+          second: t(sort[1]?.desc === true ? 'descending' : 'ascending', { column: labelOf(sort[1]?.id ?? '') }),
+        });
+
+  // "Updating" appears when a refetch has run for 400 ms
+  const [showUpdating, setShowUpdating] = useState(false);
+  useEffect(() => {
+    if (status !== 'refetching') return undefined;
+    const timer = setTimeout(() => setShowUpdating(true), 400);
+    return () => {
+      clearTimeout(timer);
+      setShowUpdating(false);
+    };
+  }, [status]);
+
+  const chooserColumns = (() => {
+    const chosen = chosenColumns(meta, columnState.visible);
+    const rest = columns.filter((column) => !chosen.includes(column.id)).map((column) => column.id);
+    return [...chosen, ...rest].map((id) => ({
+      id,
+      label: labelOf(id),
+      visible: chosen.includes(id),
+      locked: byId.get(id)?.identity === true,
+    }));
+  })();
+
+  const selecting = selection !== undefined && (selected.size > 0 || selection.allMatching);
+  const footerCount =
+    loadProgress === null || loadProgress === undefined
+      ? countText
+      : t('loadProgress', {
+          loaded: formatInteger(loadProgress.loaded),
+          total: formatInteger(loadProgress.total),
+          noun: itemNoun.other,
+        });
+
+  // A column's options: sort, then moving and hiding it (12-tables.md section 10)
+  const columnMenu = (column: DataTableColumn<TRow>, sorted: boolean): MenuItemDef[] => {
+    const change = (visible: readonly string[]): void => columnState.onChange(visible);
+    const sortItems: MenuItemDef[] =
+      column.sortValue === undefined
+        ? []
+        : [
+            { id: 'asc', label: t('sortAscending'), onSelect: () => setSortDirection(column, 'asc') },
+            { id: 'desc', label: t('sortDescending'), onSelect: () => setSortDirection(column, 'desc') },
+            ...(sorted ? [{ id: 'clear', label: t('clearSort'), onSelect: () => setSortDirection(column, null) }] : []),
+          ];
+    const layoutItems: MenuItemDef[] =
+      column.identity === true
+        ? []
+        : [
+            {
+              id: 'left',
+              label: t('moveLeft'),
+              group: t('columns'),
+              onSelect: () => change(moveColumn(meta, columnState.visible, column.id, -1)),
+            },
+            {
+              id: 'right',
+              label: t('moveRight'),
+              group: t('columns'),
+              onSelect: () => change(moveColumn(meta, columnState.visible, column.id, 1)),
+            },
+            {
+              id: 'hide',
+              label: t('hide'),
+              group: t('columns'),
+              onSelect: () => change(toggleColumn(meta, columnState.visible, column.id, false)),
+            },
+          ];
+    return [...sortItems, ...layoutItems];
+  };
+
+  const bodyMessage = (content: ReactNode): ReactElement => (
+    <tr role="row">
+      <td role="gridcell" colSpan={grid.length} className="p-0">
+        {content}
+      </td>
+    </tr>
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-surface">
+      <h2 id={captionId} className="sr-only">
+        {caption}
+      </h2>
+      <p id={hintId} className="sr-only">
+        {t('hint')}
+      </p>
+      {selecting && selection !== undefined ? (
+        <BulkActionBar
+          selectedCount={selected.size}
+          matchingTotal={selection.matchingTotal}
+          allMatching={selection.allMatching}
+          onAllMatchingChange={selection.onAllMatchingChange}
+          hiddenCount={hiddenSelected}
+          actions={bulkActions ?? []}
+          selectedRows={selectedRows}
+          onClear={() => {
+            selection.onAllMatchingChange(false);
+            selection.onChange(new Set());
+          }}
+        />
+      ) : (
+        <DataTableToolbar
+          caption={caption}
+          search={search}
+          onSearchChange={onSearchChange}
+          searchPlaceholder={searchPlaceholder}
+          countText={countText}
+          sortSummary={sortSummary}
+          updating={showUpdating}
+          density={density}
+          onDensityChange={onDensityChange}
+          columns={(trigger) => (
+            <ColumnChooser
+              trigger={trigger}
+              columns={chooserColumns}
+              onToggle={(id, visible) => columnState.onChange(toggleColumn(meta, columnState.visible, id, visible))}
+              onMove={(id, direction) => columnState.onChange(moveColumn(meta, columnState.visible, id, direction))}
+              onReset={() => columnState.onChange(null)}
+            />
+          )}
+        />
+      )}
+      <div
+        ref={region}
+        className="relative isolate min-h-0 flex-1 overflow-auto"
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
+        <table
+          role="grid"
+          aria-labelledby={captionId}
+          aria-describedby={hintId}
+          aria-rowcount={showRows ? rows.length + 1 : -1}
+          aria-multiselectable={selection === undefined ? undefined : true}
+          aria-busy={status === 'refetching' || status === 'loading' ? true : undefined}
+          onKeyDown={onKeyDown}
+          className="table-fixed border-separate border-spacing-0 type-table"
+          style={{ width: tableWidth }}
+        >
+          <colgroup>
+            {grid.map((column) => (
+              <col key={keyOf(column)} style={{ width: widthOf(column) }} />
+            ))}
+          </colgroup>
+          <thead role="rowgroup">
+            <tr role="row" aria-rowindex={1} className="h-row-header">
+              {grid.map((column, index) => {
+                const left = stickyLeft(column);
+                const sortKey = column.kind === 'data' ? sort.find((key) => key.id === column.column.id) : undefined;
+                return (
+                  <th
+                    key={keyOf(column)}
+                    role="columnheader"
+                    scope="col"
+                    {...cellProps(-1, index)}
+                    aria-sort={
+                      column.kind === 'data' && primarySort?.id === column.column.id
+                        ? primarySort.desc
+                          ? 'descending'
+                          : 'ascending'
+                        : undefined
+                    }
+                    style={left === null ? undefined : { left }}
+                    className={cn(
+                      'sticky top-0 z-(--z-table-header) border-b border-border bg-surface-subtle px-3 align-middle font-normal outline-none focus-visible:focus-ring-inset',
+                      'not-last:border-r not-last:border-r-border-subtle',
+                      left !== null && 'z-(--z-sticky)',
+                      // The refetch bar: 2 px under the header while a refetch runs (17 section 3.4)
+                      status === 'refetching' &&
+                        'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary',
+                      column.kind === 'select' && 'px-0 text-center',
+                      column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
+                    )}
+                  >
+                    {column.kind === 'select' ? (
+                      <Checkbox
+                        checked={headerChecked}
+                        label={t('selectAll', {
+                          count: formatInteger(ids.length),
+                          noun: ids.length === 1 ? itemNoun.one : itemNoun.other,
+                        })}
+                        labelDisplay="visually-hidden"
+                        tabIndex={-1}
+                        onCheckedChange={toggleAll}
+                        className="justify-center"
+                      />
+                    ) : column.kind === 'data' ? (
+                      <HeaderContent
+                        column={column.column}
+                        sortKey={sortKey ?? null}
+                        sortIndex={sortKey === undefined || sort.length < 2 ? null : sort.indexOf(sortKey) + 1}
+                        onSort={(additive) => sortBy(column.column, additive)}
+                        menuOpen={menuOpen('column', column.column.id)}
+                        onMenuOpenChange={onMenuChange('column', column.column.id)}
+                        items={columnMenu(column.column, sortKey !== undefined)}
+                        optionsLabel={t('columnOptions', { column: column.column.header })}
+                      />
+                    ) : (
+                      <span className="sr-only">{t('actionsColumn')}</span>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            {status === 'loading' ? (
+              Array.from({ length: SKELETON_ROWS }, (_, index) => (
+                <tr
+                  key={index}
+                  role="row"
+                  aria-hidden="true"
+                  className={density === 'compact' ? 'h-row-compact' : 'h-row'}
+                >
+                  {grid.map((column) => (
+                    <td key={keyOf(column)} className="border-b border-border-subtle px-3">
+                      {column.kind === 'data' ? (
+                        <span
+                          className={cn('flex', COLUMN_TYPES[column.column.type].align === 'right' && 'justify-end')}
+                        >
+                          <Skeleton shape="text-13" widthPct={column.column.identity === true ? 72 : 56} />
+                        </span>
+                      ) : null}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : status === 'error' ? (
+              bodyMessage(errorState)
+            ) : status === 'empty' ? (
+              bodyMessage(emptyState)
+            ) : status === 'filtered-empty' || rows.length === 0 ? (
+              bodyMessage(filteredEmptyState)
+            ) : (
+              <>
+                {rendered.before > 0 ? <tr aria-hidden="true" style={{ height: rendered.before }} /> : null}
+                {rows.slice(rendered.start, rendered.end).map((row, offset) => {
+                  const index = rendered.start + offset;
+                  const id = getRowId(row);
+                  const isSelected = selected.has(id) || selection?.allMatching === true;
+                  const isActive = activeRowId === id;
+                  const name = rowName(row);
+                  return (
+                    <tr
+                      key={id}
+                      role="row"
+                      aria-rowindex={index + 2}
+                      aria-selected={selection === undefined ? undefined : isSelected}
+                      data-selected={isSelected ? '' : undefined}
+                      data-active={isActive ? '' : undefined}
+                      className={cn('group cursor-default', density === 'compact' ? 'h-row-compact' : 'h-row')}
+                      onClick={(event: MouseEvent<HTMLTableRowElement>) => {
+                        if (
+                          event.target instanceof Element &&
+                          event.target.closest('button, a, input, [role="checkbox"]') !== null
+                        ) {
+                          return;
+                        }
+                        openRow(row, event);
+                      }}
+                      onAuxClick={(event: MouseEvent<HTMLTableRowElement>) => {
+                        if (event.button === 1) openRow(row, event);
+                      }}
+                    >
+                      {grid.map((column, columnIndex) => {
+                        const left = stickyLeft(column);
+                        const first = columnIndex === 0;
+                        const identity = column.kind === 'data' && column.column.identity === true;
+                        const Cell = cellTag(identity);
+                        return (
+                          <Cell
+                            key={keyOf(column)}
+                            role={identity ? 'rowheader' : 'gridcell'}
+                            scope={identity ? ROW_SCOPE : undefined}
+                            {...cellProps(index, columnIndex)}
+                            style={left === null ? undefined : { left }}
+                            className={cn(
+                              'border-b border-border-subtle bg-surface px-3 font-normal outline-none focus-visible:focus-ring-inset',
+                              'group-hover:bg-surface-hover group-data-active:bg-surface-selected group-data-selected:bg-surface-selected',
+                              left !== null && 'sticky z-(--z-pinned-cell)',
+                              first && 'group-data-active:row-active-edge',
+                              column.kind === 'select' && 'px-0 text-center',
+                              column.kind === 'actions' && 'px-2 text-right',
+                              column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
+                              identity && 'group-data-active:text-primary-text group-data-selected:text-primary-text',
+                            )}
+                          >
+                            {column.kind === 'select' ? (
+                              <Checkbox
+                                checked={isSelected}
+                                label={t('selectRow', { name })}
+                                labelDisplay="visually-hidden"
+                                tabIndex={-1}
+                                onCheckedChange={() => toggleRow(id, false)}
+                                onClick={(event) => {
+                                  if (event.shiftKey) {
+                                    event.preventDefault();
+                                    toggleRow(id, true);
+                                  }
+                                }}
+                                className="justify-center"
+                              />
+                            ) : column.kind === 'actions' ? (
+                              <Menu
+                                align="end"
+                                open={menuOpen('row', id)}
+                                onOpenChange={onMenuChange('row', id)}
+                                trigger={
+                                  <IconButton
+                                    icon={Ellipsis}
+                                    size="icon-xs"
+                                    variant="ghost"
+                                    tabIndex={-1}
+                                    label={t('rowActions', { name })}
+                                  />
+                                }
+                                items={[...(rowActions ?? [])]
+                                  .sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group])
+                                  .map((action) => toMenuItem(action, [row]))}
+                              />
+                            ) : (
+                              column.column.cell(row)
+                            )}
+                          </Cell>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+                {rendered.after > 0 ? <tr aria-hidden="true" style={{ height: rendered.after }} /> : null}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <TableFooter countText={footerCount} note={footerNote} server={server} />
+    </div>
+  );
+}
+
+interface HeaderContentProps<TRow> {
+  column: DataTableColumn<TRow>;
+  sortKey: SortKey | null;
+  /** 1 or 2 when two keys sort the table. */
+  sortIndex: number | null;
+  onSort: (additive: boolean) => void;
+  menuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
+  items: MenuItemDef[];
+  optionsLabel: string;
+}
+
+/** A column header: the label (a sort button when the column sorts), its sort state and its options menu. */
+function HeaderContent<TRow>({
+  column,
+  sortKey,
+  sortIndex,
+  onSort,
+  menuOpen,
+  onMenuOpenChange,
+  items,
+  optionsLabel,
+}: HeaderContentProps<TRow>): ReactElement {
+  const right = COLUMN_TYPES[column.type].align === 'right';
+  const label = (
+    <span className={cn('truncate type-label', sortKey === null ? 'text-foreground-tertiary' : 'text-foreground')}>
+      {column.header}
+    </span>
+  );
+  const sortable = column.sortValue !== undefined;
+  return (
+    <span className={cn('group/header relative flex min-w-0 items-center gap-1', right && 'flex-row-reverse')}>
+      {sortable ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={(event) => onSort(event.shiftKey)}
+          className={cn('flex min-w-0 items-center gap-1 rounded-sm', right && 'flex-row-reverse')}
+        >
+          {column.headerTooltip === undefined ? (
+            label
+          ) : (
+            <Tooltip content={column.headerTooltip} side="bottom">
+              {label}
+            </Tooltip>
+          )}
+          {sortKey === null ? null : (
+            <Icon
+              icon={sortKey.desc ? ArrowDownWideNarrow : ArrowUpNarrowWide}
+              size="sm"
+              className="shrink-0 text-foreground"
+            />
+          )}
+          {sortIndex === null ? null : <span className="num type-micro text-foreground-tertiary">{sortIndex}</span>}
+        </button>
+      ) : (
+        label
+      )}
+      {items.length === 0 ? null : (
+        // Over the inner edge, so a short label keeps its width while the chevron is hidden
+        <span
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 bg-surface-subtle opacity-0 group-focus-within/header:opacity-100 group-hover/header:opacity-100',
+            right ? 'left-0' : 'right-0',
+            menuOpen && 'opacity-100',
+          )}
+        >
+          <Menu
+            open={menuOpen}
+            onOpenChange={onMenuOpenChange}
+            trigger={
+              <IconButton icon={ChevronDown} size="icon-xs" variant="ghost" tabIndex={-1} label={optionsLabel} />
+            }
+            items={items}
+          />
+        </span>
+      )}
+    </span>
+  );
+}

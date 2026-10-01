@@ -270,6 +270,15 @@ export default tseslint.config(
       'jsx-a11y/no-noninteractive-element-to-interactive-role': ['error', { ul: ['tree'], li: ['treeitem'] }],
     },
   },
+  // The data table is the WAI-ARIA grid on a native table (20-accessibility.md section 6.2). Virtualized rows
+  // can lose native table semantics in WebKit, so every part carries its role explicitly; only it may.
+  {
+    files: ['src/components/app/data-table/data-table.tsx'],
+    rules: {
+      'jsx-a11y/no-noninteractive-element-to-interactive-role': ['error', { table: ['grid'] }],
+      'jsx-a11y/no-redundant-roles': ['error', { thead: ['rowgroup'], tbody: ['rowgroup'], tr: ['row'] }],
+    },
+  },
   { files: SOURCES, ...nextPlugin.configs['core-web-vitals'] },
   // The primitives' tests render plain anchors on purpose (a link primitive takes any element), and the
   // app's `[workspace]/[project]` routes make every two-segment path look like a page to this rule.

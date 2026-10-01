@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PREVIEW_SECTIONS, previewSection } from './registry';
 import { PREVIEW_SECTION_SLUGS } from './section-slugs';
@@ -9,7 +9,7 @@ import { renderWithProviders } from '@/test/render';
 const SECTION_TIMEOUT_MS = 30_000;
 
 describe('the preview registry', () => {
-  it('lists the nine sections of the foundation, in order, each once', () => {
+  it('lists the sections, in order, each once', () => {
     expect(PREVIEW_SECTIONS.map((section) => section.slug)).toEqual([
       'tokens',
       'typography',
@@ -18,6 +18,7 @@ describe('the preview registry', () => {
       'buttons',
       'forms',
       'badges',
+      'tables',
       'overlays',
       'feedback',
     ]);
@@ -39,8 +40,18 @@ describe('the preview registry', () => {
  * contrast in both themes, and the Playwright run checks it on the rendered pages.
  */
 describe.each(PREVIEW_SECTIONS)('the $slug section', ({ title, render: Section }) => {
+  // jsdom has no media queries; a table hides columns by the viewport's width
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  });
   afterEach(() => {
     document.documentElement.className = '';
+    vi.unstubAllGlobals();
   });
 
   it.each(['light', 'dark'])(

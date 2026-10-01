@@ -348,6 +348,11 @@
   outline-offset: -2px;
 }
 
+/* The row open in the inspector: a 2 px primary edge inside its first cell (12-tables.md section 3). */
+@utility row-active-edge {
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
 /* A mention highlight keeps the system's own mark colors when the user forces colors (23 section 5.3). */
 @utility forced-mark {
   @media (forced-colors: active) {

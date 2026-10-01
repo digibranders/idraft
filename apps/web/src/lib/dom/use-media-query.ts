@@ -30,4 +30,6 @@ export const MEDIA = {
   xl: '(width >= 80rem)',
   /** 1440 px: the theme switch is in the top bar. */
   '2xl': '(width >= 90rem)',
+  /** 1680 px: the widest column tier of a table (19-responsive-behavior.md section 6.1). */
+  '3xl': '(width >= 105rem)',
 } as const;
