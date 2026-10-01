@@ -11,10 +11,6 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Final
 
-_ZERO_WIDTH: Final = frozenset(
-    "\N{ZERO WIDTH SPACE}\N{ZERO WIDTH NON-JOINER}\N{ZERO WIDTH JOINER}\N{WORD JOINER}"
-    "\N{ZERO WIDTH NO-BREAK SPACE}\N{SOFT HYPHEN}"
-)
 # Curly quotes, primes and dashes become their ASCII forms.
 _PUNCTUATION: Final = str.maketrans(
     {
@@ -37,12 +33,26 @@ _PUNCTUATION: Final = str.maketrans(
         "\N{MINUS SIGN}": "-",
     }
 )
+# The combining diacritical mark blocks: accents on Latin, Greek and Cyrillic letters, folded
+# away. Other marks (Indic vowel signs and viramas, the kana voicing marks) tell letters apart
+# and are kept.
+_DIACRITIC_BLOCKS: Final = (
+    (0x0300, 0x036F),
+    (0x1AB0, 0x1AFF),
+    (0x1DC0, 0x1DFF),
+    (0x20D0, 0x20FF),
+    (0xFE20, 0xFE2F),
+)
+# Symbols and other numbers separate words: compatibility decomposition would glue `™` onto a
+# name as `tm`, and a footnote digit as a digit.
+_SEPARATING_CATEGORIES: Final = frozenset({"So", "No"})
 
 
 @dataclass(frozen=True, slots=True)
 class NormalizedText:
     text: str
-    # For each character of `text`, the original characters it came from: [start, end).
+    # For each character of `text`, the original characters it came from: [start, end). Both
+    # never decrease.
     starts: tuple[int, ...]
     ends: tuple[int, ...]
 
@@ -54,39 +64,57 @@ class NormalizedText:
 
 
 def normalize(text: str, *, fold_case: bool) -> NormalizedText:
-    """NFKC compatibility forms, diacritics removed, ASCII quotes and dashes, no zero-width
-    characters, whitespace runs as one space, and case folded when asked.
+    """Compatibility forms, Latin, Greek and Cyrillic accents removed, ASCII quotes and dashes,
+    no format characters (zero-width, soft hyphen, direction marks), whitespace runs as one
+    space, and case folded when asked.
 
-    Each original character is normalized on its own (decomposed, then its combining marks
-    dropped), so a character's output never depends on its neighbours and offsets stay exact.
+    Each original character is normalized on its own, so a character's output never depends on
+    its neighbours and offsets stay exact.
     """
     out: list[str] = []
     starts: list[int] = []
     ends: list[int] = []
     for index, char in enumerate(text):
-        if char in _ZERO_WIDTH:
-            continue
-        if char.isspace():
-            if out and out[-1] == " ":
+        for piece in _normalized(char, fold_case=fold_case):
+            if piece == " " and out and out[-1] == " ":
                 ends[-1] = index + 1  # the one space stands for the whole run
-            else:
-                out.append(" ")
-                starts.append(index)
-                ends.append(index + 1)
-            continue
-        for piece in _fold(char.translate(_PUNCTUATION), fold_case=fold_case):
-            if piece.isspace() and out and out[-1] == " ":
-                ends[-1] = index + 1
                 continue
-            out.append(" " if piece.isspace() else piece)
+            out.append(piece)
             starts.append(index)
             ends.append(index + 1)
     return NormalizedText("".join(out), tuple(starts), tuple(ends))
 
 
-def _fold(char: str, *, fold_case: bool) -> str:
-    decomposed = unicodedata.normalize("NFKD", char)
+def normalize_pattern(pattern: str) -> str:
+    """A regex alias written the way the text it runs on is (case kept): each character that is
+    not ASCII is normalized as text is, so `Nestl\N{LATIN SMALL LETTER E WITH ACUTE}` finds
+    `Nestle`. RE2's own syntax is ASCII and is left alone."""
+    return "".join(
+        char if char.isascii() else _normalized(char, fold_case=False) for char in pattern
+    )
+
+
+def is_word_character(char: str) -> bool:
+    """Letters, digits and the marks that are part of letters (Indic vowel signs)."""
+    return char.isalnum() or unicodedata.category(char).startswith("M")
+
+
+def _normalized(char: str, *, fold_case: bool) -> str:
+    category = unicodedata.category(char)
+    if category == "Cf":
+        return ""
+    if category == "Cs":  # a lone surrogate: neither UTF-8 nor RE2 can carry it
+        return "\N{REPLACEMENT CHARACTER}"
+    if char.isspace() or category in _SEPARATING_CATEGORIES:
+        return " "
+    decomposed = unicodedata.normalize("NFKD", char.translate(_PUNCTUATION))
     if fold_case:
-        # Folding can bring marks back (U+0130 folds to i and a combining dot).
-        decomposed = unicodedata.normalize("NFKD", decomposed.casefold())
-    return "".join(piece for piece in decomposed if not unicodedata.combining(piece))
+        decomposed = decomposed.casefold()
+    return "".join(
+        " " if piece.isspace() else piece for piece in decomposed if not _is_diacritic(piece)
+    )
+
+
+def _is_diacritic(char: str) -> bool:
+    code = ord(char)
+    return any(low <= code <= high for low, high in _DIACRITIC_BLOCKS)

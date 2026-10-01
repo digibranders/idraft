@@ -7,7 +7,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.extraction.text import normalize
+from sightline.extraction.text import normalize, normalize_pattern
 
 SHARP_S = "\N{LATIN SMALL LETTER SHARP S}"
 APOSTROPHE = "\N{RIGHT SINGLE QUOTATION MARK}"
@@ -32,6 +32,21 @@ APOSTROPHE = "\N{RIGHT SINGLE QUOTATION MARK}"
         ("Acme\N{NO-BREAK SPACE}CRM", "acme crm"),
         # A spacing diacritic decomposes to a space, which joins the run before it.
         ("Acme \N{DIAERESIS}CRM", "acme crm"),
+        # Symbols and footnote digits separate words instead of decomposing into letters.
+        ("Acme\N{TRADE MARK SIGN}CRM", "acme crm"),
+        ("Acme\N{SUPERSCRIPT ONE}", "acme "),
+        # Direction marks are format characters, dropped like zero-width ones.
+        ("Ac\N{LEFT-TO-RIGHT MARK}me\N{RIGHT-TO-LEFT EMBEDDING}", "acme"),
+        ("a\ud800b", "a\N{REPLACEMENT CHARACTER}b"),
+        # Marks that are not Latin, Greek or Cyrillic accents stay.
+        (
+            "\N{KATAKANA LETTER GA}",
+            "\N{KATAKANA LETTER KA}\N{COMBINING KATAKANA-HIRAGANA VOICED SOUND MARK}",
+        ),
+        (
+            "\N{DEVANAGARI LETTER KA}\N{DEVANAGARI SIGN VIRAMA}",
+            "\N{DEVANAGARI LETTER KA}\N{DEVANAGARI SIGN VIRAMA}",
+        ),
     ],
 )
 def test_each_rule_of_stage_4(text: str, folded: str) -> None:
@@ -58,9 +73,16 @@ def test_a_span_maps_back_to_the_original_characters() -> None:
 
 
 def test_collapsed_whitespace_spans_the_whole_run() -> None:
-    original = "Acme \t\n CRM"
+    original = "Acme \t\N{ZERO WIDTH SPACE}\n CRM"
     normalized = normalize(original, fold_case=True)
+    assert normalized.text == "acme crm"
+    assert normalized.original_span(4, 5) == (4, 9)
     assert normalized.original_span(0, len(normalized.text)) == (0, len(original))
+
+
+def test_a_pattern_is_normalized_where_it_is_not_ascii() -> None:
+    pattern = f"Nestl\N{LATIN SMALL LETTER E WITH ACUTE}[ ]?{APOSTROPHE}s\\b"
+    assert normalize_pattern(pattern) == "Nestle[ ]?'s\\b"
 
 
 def test_empty_text_normalizes_to_empty() -> None:
@@ -87,3 +109,15 @@ def test_every_span_slices_the_original_to_text_that_normalizes_to_it(
     # A span cut inside a folded character maps to the whole character, which normalizes to
     # at least the piece; whole tokens map exactly.
     assert piece.strip() in normalize(text[original_start:original_end], fold_case=fold_case).text
+
+
+@given(st.text(max_size=60), st.booleans())
+def test_each_character_comes_from_its_own_slice_and_the_maps_never_go_back(
+    text: str, fold_case: bool
+) -> None:
+    normalized = normalize(text, fold_case=fold_case)
+    starts, ends = normalized.starts, normalized.ends
+    assert list(starts) == sorted(starts)
+    assert list(ends) == sorted(ends)
+    for index, char in enumerate(normalized.text):
+        assert char in normalize(text[starts[index] : ends[index]], fold_case=fold_case).text

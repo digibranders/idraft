@@ -122,14 +122,18 @@ class EntityRef(BaseModel):
 # Aliases.
 
 
-def _alias_shape(alias: str, match_mode: MatchMode) -> str:
-    """Spaces around a word alias are a typo; around a pattern they can mean something."""
+def alias_shape(alias: str, match_mode: MatchMode, *, case_sensitive: bool) -> str:
+    """Spaces around a word alias are a typo; around a pattern they can mean something. A
+    pattern is compiled with its own case setting, which changes the program's size. The
+    alias routes call this again on the result of a partial change."""
     if match_mode == "regex":
         try:
-            check_pattern(alias)
+            check_pattern(alias, case_sensitive=case_sensitive)
         except InvalidAliasPatternError as error:
             raise PydanticCustomError(
-                "invalid_regex", "RE2 cannot compile this pattern (doc 13 stage 4)."
+                "invalid_regex",
+                "RE2 cannot run this pattern: no backreferences or lookaround, and not too "
+                "large (doc 13 stage 4).",
             ) from error
         return alias
     alias = alias.strip()
@@ -150,7 +154,7 @@ class AliasInput(Body):
 
     @model_validator(mode="after")
     def _shaped(self) -> AliasInput:
-        self.alias = _alias_shape(self.alias, self.match_mode)
+        self.alias = alias_shape(self.alias, self.match_mode, case_sensitive=self.case_sensitive)
         return self
 
 
@@ -446,6 +450,8 @@ class AliasTestSpan(BaseModel):
     end: int
     alias_id: UUID | None = Field(description="None for a domain-shaped alias.")
     match_method: MatchMethod
+    score: float
+    status: MentionStatus = Field(description="This span's own status; see doc 13 stage 5.")
 
 
 class AliasTestMention(BaseModel):
@@ -464,6 +470,9 @@ class AliasTestNegative(BaseModel):
 class AliasTestResult(BaseModel):
     mentions: list[AliasTestMention]
     negatives_applied: list[AliasTestNegative]
+    skipped_alias_ids: list[UUID] = Field(
+        description="Stored patterns the matcher cannot run (doc 13 stage 4), left out."
+    )
 
 
 class AliasTestResponse(BaseModel):

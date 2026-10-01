@@ -11,6 +11,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from sightline.extraction.aliases import (
+    MAX_HITS,
     AliasMatcher,
     AliasRule,
     EntityMention,
@@ -18,6 +19,7 @@ from sightline.extraction.aliases import (
     InvalidAliasPatternError,
     MatchMode,
     MatchResult,
+    TooManyMatchesError,
     check_pattern,
 )
 from sightline.extraction.text import normalize
@@ -27,6 +29,11 @@ HUBSPOT = uuid.UUID(int=2)
 CLOUD = uuid.UUID(int=3)
 APPLE = uuid.UUID(int=4)
 MONDAY = uuid.UUID(int=5)
+
+E_ACUTE = "\N{LATIN SMALL LETTER E WITH ACUTE}"
+U_UMLAUT = "\N{LATIN SMALL LETTER U WITH DIAERESIS}"
+SHARP_S = "\N{LATIN SMALL LETTER SHARP S}"
+APOSTROPHE = "\N{RIGHT SINGLE QUOTATION MARK}"
 
 
 def _alias(
@@ -87,34 +94,64 @@ def _match(text: str, entities: list[EntityRule], aliases: list[AliasRule]) -> M
     return AliasMatcher(entities, aliases).match(text)
 
 
+def _hubspot(text: str) -> list[str]:
+    return _texts(
+        _match(text, [_entity(HUBSPOT, "HubSpot")], [_alias(HUBSPOT, "HubSpot")]), text, HUBSPOT
+    )
+
+
 # Match modes.
 
 
 def test_word_boundary_ignores_case_and_needs_a_boundary_each_side() -> None:
     text = "HubSpot, hubspot and HUBSPOT beat MyHubSpot and HubSpotter."
-    result = _match(text, [_entity(HUBSPOT, "HubSpot")], [_alias(HUBSPOT, "HubSpot")])
-    assert _texts(result, text, HUBSPOT) == ["HubSpot", "hubspot", "HUBSPOT"]
+    assert _hubspot(text) == ["HubSpot", "hubspot", "HUBSPOT"]
 
 
 def test_word_boundary_allows_possessives_and_plurals() -> None:
     text = (
-        "HubSpot's pricing, two HubSpots, the HubSpots' plans and "
-        "HubSpot\N{RIGHT SINGLE QUOTATION MARK}s CRM."
+        "HubSpot's pricing, two HubSpots, the HubSpots' plans, "
+        f"HubSpot{APOSTROPHE}s CRM and HubSpotes."
     )
-    result = _match(text, [_entity(HUBSPOT, "HubSpot")], [_alias(HUBSPOT, "HubSpot")])
-    assert _texts(result, text, HUBSPOT) == ["HubSpot"] * 4
+    assert _hubspot(text) == ["HubSpot"] * 5
 
 
-def test_anything_but_a_letter_or_digit_is_a_boundary() -> None:
-    text = "(acme) acme. acme-crm 'acme' acme_x acme2 éacme"
+def test_anything_but_a_letter_digit_or_mark_is_a_boundary() -> None:
+    text = f"(acme) acme. acme-crm 'acme' acme_x acme2 {E_ACUTE}acme"
     result = _match(text, [_entity(ACME, "Acme")], [_alias(ACME, "acme")])
     assert len(_texts(result, text, ACME)) == 5
 
 
-def test_an_alias_ending_in_a_symbol_needs_no_boundary_after_it() -> None:
-    text = "We use C++17 and C++."
-    result = _match(text, [_entity(ACME, "C++")], [_alias(ACME, "C++")])
+def test_symbols_and_footnote_digits_end_a_name() -> None:
+    for after in (
+        "\N{TRADE MARK SIGN}",
+        "\N{SERVICE MARK}",
+        "\N{SUPERSCRIPT ONE}",
+        "\N{REGISTERED SIGN}",
+    ):
+        assert _hubspot(f"Try HubSpot{after} today") == ["HubSpot"]
+
+
+def test_an_indic_vowel_sign_is_part_of_the_word() -> None:
+    ka_ma = "\N{DEVANAGARI LETTER KA}\N{DEVANAGARI LETTER MA}"
+    word = ka_ma + "\N{DEVANAGARI VOWEL SIGN AA}\N{DEVANAGARI LETTER LA}"
+    result = _match(f"{word} {ka_ma}", [_entity(ACME, ka_ma)], [_alias(ACME, ka_ma)])
+    assert _texts(result, f"{word} {ka_ma}", ACME) == [ka_ma]
+
+
+def test_kana_voicing_marks_tell_letters_apart() -> None:
+    gasu = "\N{KATAKANA LETTER GA}\N{KATAKANA LETTER SU}"
+    kasu = "\N{KATAKANA LETTER KA}\N{KATAKANA LETTER SU}"
+    result = _match(gasu, [_entity(ACME, kasu)], [_alias(ACME, kasu, "substring")])
+    assert result.mentions == ()
+
+
+def test_an_alias_ending_in_a_symbol_needs_no_boundary_on_that_side() -> None:
+    text = "We use C++17 and C++. Mail x@acme."
+    entities = [_entity(ACME, "C++"), _entity(HUBSPOT, "@acme")]
+    result = _match(text, entities, [_alias(ACME, "C++"), _alias(HUBSPOT, "@acme")])
     assert _texts(result, text, ACME) == ["C++", "C++"]
+    assert _texts(result, text, HUBSPOT) == ["@acme"]
 
 
 def test_case_sensitive_and_exact_case_compare_the_original_case() -> None:
@@ -134,14 +171,17 @@ def test_substring_needs_no_boundary() -> None:
 
 
 def test_matching_sees_through_normalization_and_reports_original_offsets() -> None:
-    first = "Caf\N{LATIN SMALL LETTER E WITH ACUTE}\N{NO-BREAK SPACE} Bot"
+    first = f"Caf{E_ACUTE}\N{NO-BREAK SPACE} Bot"
     second = "cafe\N{COMBINING ACUTE ACCENT} bot"
     text = (
         f"Try \N{LEFT DOUBLE QUOTATION MARK}{first}\N{RIGHT DOUBLE QUOTATION MARK} "
-        f"or {second} today"
+        f"or {second} \N{LEFT-TO-RIGHT MARK}today"
     )
     result = _match(text, [_entity(ACME, "Cafe Bot")], [_alias(ACME, "cafe bot")])
     assert _texts(result, text, ACME) == [first, second]
+
+
+# Patterns.
 
 
 def test_regex_runs_through_re2_on_the_normalized_text() -> None:
@@ -152,27 +192,47 @@ def test_regex_runs_through_re2_on_the_normalized_text() -> None:
     assert _texts(_match(text, [_entity(ACME, "Acme")], [sensitive]), text, ACME) == ["Acme CRM"]
 
 
+def test_a_pattern_is_normalized_like_the_text() -> None:
+    text = f"Nestl{E_ACUTE} and Acme{APOSTROPHE}s"
+    entities = [_entity(ACME, "Nestle"), _entity(HUBSPOT, "Acme")]
+    aliases = [
+        _alias(ACME, f"Nestl{E_ACUTE}", "regex"),
+        _alias(HUBSPOT, f"Acme{APOSTROPHE}s", "regex"),
+    ]
+    result = _match(text, entities, aliases)
+    assert _texts(result, text, ACME) == [f"Nestl{E_ACUTE}"]
+    assert _texts(result, text, HUBSPOT) == [f"Acme{APOSTROPHE}s"]
+
+
 def test_a_regex_that_matches_nothing_wide_is_skipped() -> None:
     result = _match("acme", [_entity(ACME, "Acme")], [_alias(ACME, "x*", "regex")])
     assert result.mentions == ()
 
 
-@pytest.mark.parametrize("pattern", ["(acme", r"(a)\1", "(?<=a)b", "a{2000000}"])
-def test_an_invalid_pattern_is_refused(pattern: str) -> None:
-    with pytest.raises(InvalidAliasPatternError):
-        check_pattern(pattern)
-    with pytest.raises(InvalidAliasPatternError):
-        AliasMatcher([_entity(ACME, "Acme")], [_alias(ACME, pattern, "regex")])
+def test_a_lone_surrogate_does_not_reach_re2() -> None:
+    result = _match("\ud800 acme", [_entity(ACME, "Acme")], [_alias(ACME, "acme", "regex")])
+    assert _texts(result, "\ud800 acme", ACME) == ["acme"]
 
 
-def test_overlapping_matches_on_a_long_text_resolve_quickly() -> None:
-    """A substring alias of one letter on the alias test's 100 KB limit."""
-    entities = [_entity(ACME, "A"), _entity(HUBSPOT, "Aa")]
-    aliases = [_alias(ACME, "a", "substring"), _alias(HUBSPOT, "aa", "substring")]
-    started = time.monotonic()
-    result = _match("a" * 100_000, entities, aliases)
-    assert time.monotonic() - started < 5.0
-    assert [len(m.spans) for m in result.mentions] == [50_000]
+@pytest.mark.parametrize("pattern", ["(acme", r"(a)\1", "(?<=a)b", "a{2000000}", "[a-z]{1000}" * 3])
+def test_a_pattern_the_matcher_cannot_run_is_refused(pattern: str) -> None:
+    for case_sensitive in (True, False):
+        with pytest.raises(InvalidAliasPatternError):
+            check_pattern(pattern, case_sensitive=case_sensitive)
+
+
+def test_a_pattern_is_checked_with_its_own_case_setting() -> None:
+    """Ignoring case makes `[a-z]{400}` a program six times larger."""
+    check_pattern("[a-z]{400}", case_sensitive=True)
+    with pytest.raises(InvalidAliasPatternError):
+        check_pattern("[a-z]{400}", case_sensitive=False)
+
+
+def test_a_stored_pattern_the_matcher_cannot_run_is_left_out_not_fatal() -> None:
+    bad = _alias(ACME, "[a-z]{400}", "regex")
+    matcher = AliasMatcher([_entity(ACME, "Acme")], [bad, _alias(ACME, "acme")])
+    assert matcher.skipped_alias_ids == (bad.id,)
+    assert [m.entity_id for m in matcher.match("acme").mentions] == [ACME]
 
 
 def test_a_pathological_pattern_runs_in_linear_time() -> None:
@@ -194,17 +254,38 @@ def test_the_longest_match_wins() -> None:
     assert _texts(result, text, ACME) == ["Salesforce"]
 
 
+def test_a_span_that_would_be_discarded_takes_no_text_from_one_that_counts() -> None:
+    text = "we use salesforce marketing cloud"
+    entities = [
+        _entity(ACME, "Salesforce"),
+        _entity(CLOUD, "Salesforce Marketing Cloud", is_ambiguous=True),
+    ]
+    aliases = [_alias(ACME, "Salesforce"), _alias(CLOUD, "salesforce marketing cloud")]
+    result = _match(text, entities, aliases)
+    assert _texts(result, text, ACME) == ["salesforce"]
+    assert _mention(result, CLOUD) is None
+
+
+def test_discarded_spans_are_still_reported_where_nothing_counts() -> None:
+    entities = [_entity(MONDAY, "Monday", is_ambiguous=True)]
+    mention = _mention(_match("see you monday", entities, [_alias(MONDAY, "Monday")]), MONDAY)
+    assert mention is not None
+    assert [(span.status, span.score) for span in mention.spans] == [("discarded", 0.05)]
+
+
 def test_a_product_counts_toward_its_parent_brand() -> None:
     text = "Salesforce Marketing Cloud is good."
     entities = [
         _entity(ACME, "Salesforce"),
         _entity(CLOUD, "Salesforce Marketing Cloud", parent_entity_id=ACME),
     ]
-    aliases = [_alias(ACME, "Salesforce"), _alias(CLOUD, "Salesforce Marketing Cloud")]
-    result = _match(text, entities, aliases)
+    product_alias = _alias(CLOUD, "Salesforce Marketing Cloud")
+    result = _match(text, entities, [_alias(ACME, "Salesforce"), product_alias])
     brand = _mention(result, ACME)
     assert brand is not None
-    assert [(s.start, s.end, s.match_method) for s in brand.spans] == [(0, 26, "via_product")]
+    assert [(s.start, s.end, s.match_method, s.via_entity_id, s.alias_id) for s in brand.spans] == [
+        (0, 26, "via_product", CLOUD, product_alias.id)
+    ]
     product = _mention(result, CLOUD)
     assert product is not None
     assert [s.match_method for s in product.spans] == ["alias_word"]
@@ -232,17 +313,61 @@ def test_a_span_inside_a_negative_span_is_dropped() -> None:
     ]
 
 
+def test_every_negative_that_covers_a_span_is_reported() -> None:
+    pie = _alias(APPLE, "apple pie", negative=True)
+    tart = _alias(APPLE, "apple pie tart", negative=True)
+    result = _match(
+        "apple pie tart", [_entity(APPLE, "Apple")], [_alias(APPLE, "apple"), pie, tart]
+    )
+    assert result.mentions == ()
+    assert {n.alias_id for n in result.negatives_applied} == {pie.id, tart.id}
+
+
 def test_a_negative_that_drops_nothing_is_not_reported() -> None:
     result = _match(
         "apple pie", [_entity(APPLE, "Apple")], [_alias(APPLE, "apple pie", negative=True)]
     )
     assert result.negatives_applied == ()
+    # A positive elsewhere does not make a negative that holds nothing count.
+    elsewhere = _match(
+        "apple, then pie tart",
+        [_entity(APPLE, "Apple")],
+        [_alias(APPLE, "apple"), _alias(APPLE, "pie tart", negative=True)],
+    )
+    assert _texts(elsewhere, "apple, then pie tart", APPLE) == ["apple"]
+    assert elsewhere.negatives_applied == ()
+
+
+def test_many_negatives_on_a_long_text_are_quick() -> None:
+    entities = [_entity(APPLE, "Apple")]
+    aliases = [_alias(APPLE, "apple"), _alias(APPLE, "apple pie", negative=True)]
+    started = time.monotonic()
+    result = _match("apple pie " * 10_000, entities, aliases)
+    assert time.monotonic() - started < 2.0
+    assert result.mentions == ()
+    assert len(result.negatives_applied) == 10_000
+
+
+def test_overlapping_matches_on_a_long_text_resolve_quickly() -> None:
+    """A substring alias of one letter on the alias test's 100 KB limit."""
+    entities = [_entity(ACME, "A"), _entity(HUBSPOT, "Aa")]
+    aliases = [_alias(ACME, "a", "substring"), _alias(HUBSPOT, "aa", "substring")]
+    started = time.monotonic()
+    result = _match("a" * 100_000, entities, aliases)
+    assert time.monotonic() - started < 5.0
+    assert [len(m.spans) for m in result.mentions] == [50_000]
+
+
+def test_more_matches_than_the_limit_are_refused() -> None:
+    aliases = [_alias(ACME, "a" * length, "substring") for length in range(1, 4)]
+    with pytest.raises(TooManyMatchesError):
+        _match("a" * (MAX_HITS // 3 + 10), [_entity(ACME, "A")], aliases)
 
 
 def test_domain_shaped_aliases_come_from_the_entity_domains() -> None:
     text = (
         "Visit acme.io, www.acme.io or Acme.IO/pricing; "
-        "not acme.io.evil.com, acme.ios, acme.io-x or notacme.io."
+        "not acme.io.evil.com, acme.ios, acme.io-x, my-acme.io or notacme.io."
     )
     entities = [_entity(ACME, "Acme", domains=("www.acme.io", "acme.io"))]
     result = _match(text, entities, [])
@@ -254,14 +379,18 @@ def test_domain_shaped_aliases_come_from_the_entity_domains() -> None:
 
 
 def test_an_international_domain_matches_as_it_is_written() -> None:
-    text = "Siehe bücher.de"
-    result = _match(text, [_entity(ACME, "Bücher", domains=("xn--bcher-kva.de",))], [])
-    assert _texts(result, text, ACME) == ["bücher.de"]
+    text = f"Siehe b{U_UMLAUT}cher.de"
+    entities = [_entity(ACME, f"B{U_UMLAUT}cher", domains=("xn--bcher-kva.de",))]
+    assert _texts(_match(text, entities, []), text, ACME) == [f"b{U_UMLAUT}cher.de"]
 
 
 def test_a_host_idna_refuses_is_matched_as_it_is() -> None:
     result = _match("see my_app.acme.io", [_entity(ACME, "Acme", domains=("my_app.acme.io",))], [])
     assert _texts(result, "see my_app.acme.io", ACME) == ["my_app.acme.io"]
+
+
+def test_a_host_that_leaves_nothing_to_match_is_ignored() -> None:
+    assert _match("www.", [_entity(ACME, "Acme", domains=("www.",))], []).mentions == ()
 
 
 def test_one_entity_matched_twice_on_one_span_reports_it_once() -> None:
@@ -287,34 +416,47 @@ def test_a_plain_entity_is_accepted_at_095() -> None:
     mention = _mention(result, ACME)
     assert mention is not None
     assert (mention.confidence, mention.status) == (0.95, "accepted")
+    assert mention.spans[0].status == "accepted"
+
+
+def _monday(text: str, hints: tuple[str, ...] = ("project management",)) -> tuple[float, str]:
+    entities = [_entity(MONDAY, "Monday", is_ambiguous=True, hints=hints)]
+    mention = _mention(_match(text, entities, [_alias(MONDAY, "Monday")]), MONDAY)
+    assert mention is not None
+    return mention.confidence, mention.status
 
 
 def test_an_ambiguous_name_needs_context() -> None:
-    entities = [_entity(MONDAY, "Monday", is_ambiguous=True, hints=("project management",))]
-    aliases = [_alias(MONDAY, "Monday")]
-
-    def scored(text: str) -> tuple[float, str]:
-        mention = _mention(_match(text, entities, aliases), MONDAY)
-        assert mention is not None
-        return mention.confidence, mention.status
-
-    # Base 0.30, a hint +0.35, capitalized mid-sentence +0.15.
-    assert scored("For project management we use Monday daily.") == (0.80, "accepted")
-    assert scored("Monday is fine for project management.") == (0.65, "uncertain")
-    assert scored("We use Monday.") == (0.45, "uncertain")
-    assert scored("see you monday") == (0.05, "discarded")
+    # Base 0.30, a hint +0.35, capitalized mid-sentence +0.15, lowercase -0.25.
+    assert _monday("For project management we use Monday daily.") == (0.80, "accepted")
+    assert _monday("Monday is fine for project management.") == (0.65, "uncertain")
+    assert _monday("We use Monday.") == (0.45, "uncertain")
+    assert _monday("project management with monday") == (0.40, "uncertain")
+    # The whole hint, not its first word.
+    assert _monday("For project planning we use Monday daily.") == (0.45, "uncertain")
+    assert _monday("see you monday") == (0.05, "discarded")
 
 
-def test_a_hint_further_than_40_tokens_does_not_count() -> None:
+def test_lowercase_costs_only_a_name_that_is_capitalized() -> None:
+    entities = [_entity(MONDAY, "monday", is_ambiguous=True)]
+    mention = _mention(_match("see you monday", entities, [_alias(MONDAY, "monday")]), MONDAY)
+    assert mention is not None
+    assert mention.confidence == 0.30
+
+
+def test_a_hint_counts_within_40_tokens_of_either_end() -> None:
     entities = [_entity(MONDAY, "Monday", is_ambiguous=True, hints=("crm",))]
-    filler = " ".join(["word"] * 40)
     near = _match(f"crm {' '.join(['word'] * 39)} Monday", entities, [_alias(MONDAY, "Monday")])
-    far = _match(f"crm {filler} Monday", entities, [_alias(MONDAY, "Monday")])
+    far = _match(f"crm {' '.join(['word'] * 40)} Monday", entities, [_alias(MONDAY, "Monday")])
     # Both are capitalized mid-sentence (+0.15); only the near one has the hint (+0.35).
     assert [_confidence(near, MONDAY), _confidence(far, MONDAY)] == [0.80, 0.45]
+    # 40 tokens from the hint's last token, and 40 to its first.
+    assert _monday(f"Use project management {' '.join(['word'] * 39)} Monday")[0] == 0.80
+    assert _monday(f"Monday {' '.join(['word'] * 38)} then project management")[0] == 0.65
 
 
-def test_an_alias_that_requires_context_scores_like_an_ambiguous_name() -> None:
+def test_an_alias_that_requires_context_gets_no_capital_bonus() -> None:
+    """The bonus is for common-word names; an abbreviation is capitalized anyway."""
     entities = [_entity(ACME, "Acme", hints=("crm",))]
     aliases = [_alias(ACME, "AC", requires_context=True)]
     mention = _mention(_match("We like AC.", entities, aliases), ACME)
@@ -327,27 +469,61 @@ def test_the_best_span_sets_the_status_and_spans_keep_their_own_scores() -> None
     text = "monday. " + " ".join(["word"] * 50) + " The crm we use is Monday."
     mention = _mention(_match(text, entities, [_alias(MONDAY, "Monday")]), MONDAY)
     assert mention is not None
-    assert [span.score for span in mention.spans] == [0.05, 0.80]
+    assert [(span.score, span.status) for span in mention.spans] == [
+        (0.05, "discarded"),
+        (0.80, "accepted"),
+    ]
     assert (mention.confidence, mention.status) == (0.80, "accepted")
 
 
-def test_a_list_item_starts_a_sentence() -> None:
-    entities = [_entity(MONDAY, "Monday", is_ambiguous=True)]
-    for text in ("1. Monday", "- Monday", "* Monday", "Tools:\nMonday"):
-        mention = _mention(_match(text, entities, [_alias(MONDAY, "Monday")]), MONDAY)
-        assert mention is not None
-        assert mention.confidence == 0.30
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Monday",
+        "1. Monday",
+        "12) Monday",
+        "- Monday",
+        "* Monday",
+        "Tools:\nMonday",
+        "Tools: Monday",
+        "Done.\N{NO-BREAK SPACE}Monday",
+        "Wait\N{HORIZONTAL ELLIPSIS} Monday",
+        "\N{LEFT DOUBLE QUOTATION MARK}Monday",
+        "| Monday |",
+        "_Monday_",
+        "`Monday`",
+        "(Monday)",
+    ],
+)
+def test_a_name_that_opens_a_sentence_or_item_gets_no_capital_bonus(text: str) -> None:
+    assert _monday(text, hints=())[0] == 0.30
+
+
+@pytest.mark.parametrize("text", ["We use Monday", "see a) Monday", "x1) Monday", "is **Monday**"])
+def test_a_name_inside_a_sentence_gets_the_capital_bonus(text: str) -> None:
+    assert _monday(text, hints=())[0] == 0.45
 
 
 # Results and properties.
 
 
-def test_mentions_come_in_text_order_with_their_spans_in_order() -> None:
-    text = "HubSpot then Acme then HubSpot"
-    entities = [_entity(ACME, "Acme"), _entity(HUBSPOT, "HubSpot")]
-    result = _match(text, entities, [_alias(ACME, "Acme"), _alias(HUBSPOT, "HubSpot")])
-    assert [m.entity_id for m in result.mentions] == [HUBSPOT, ACME]
-    assert [s.start for s in result.mentions[0].spans] == [0, 23]
+def test_mentions_come_in_text_order_of_their_first_counting_span() -> None:
+    text = "monday then HubSpot then Acme then HubSpot then We use Monday"
+    entities = [
+        _entity(ACME, "Acme"),
+        _entity(HUBSPOT, "HubSpot"),
+        _entity(MONDAY, "Monday", is_ambiguous=True),
+    ]
+    aliases = [_alias(ACME, "Acme"), _alias(HUBSPOT, "HubSpot"), _alias(MONDAY, "Monday")]
+    result = _match(text, entities, aliases)
+    assert [m.entity_id for m in result.mentions] == [HUBSPOT, ACME, MONDAY]
+    assert [s.start for s in result.mentions[0].spans] == [12, 35]
+
+
+def test_an_entity_with_only_discarded_spans_comes_last() -> None:
+    entities = [_entity(ACME, "Acme"), _entity(MONDAY, "Monday", is_ambiguous=True)]
+    result = _match("monday, then Acme", entities, [_alias(ACME, "Acme"), _alias(MONDAY, "Monday")])
+    assert [m.entity_id for m in result.mentions] == [ACME, MONDAY]
 
 
 def test_an_alias_for_an_entity_that_is_not_given_is_refused() -> None:
@@ -365,9 +541,21 @@ def test_no_aliases_match_nothing() -> None:
     assert AliasMatcher([], []).match("anything").mentions == ()
 
 
-words = st.sampled_from(["Acme", "acme", "ACME", "Café", "Straße", "HubSpot", "x"])
+words = st.sampled_from(
+    ["Acme", "acme", "ACME", f"Caf{E_ACUTE}", f"Stra{SHARP_S}e", "HubSpot", "x", "acmes"]
+)
 separators = st.sampled_from(
-    [" ", ", ", "\N{NO-BREAK SPACE}", "\N{ZERO WIDTH SPACE}", "'s ", "-", "\n", ""]
+    [
+        " ",
+        ", ",
+        "\N{NO-BREAK SPACE}",
+        "\N{ZERO WIDTH SPACE}",
+        "'s ",
+        "-",
+        "\n",
+        "",
+        "\N{TRADE MARK SIGN}",
+    ]
 )
 
 
