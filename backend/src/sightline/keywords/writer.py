@@ -7,14 +7,14 @@ write one after the other (plan decision D4).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, time
 from decimal import Decimal
 from typing import Final, Literal
 from uuid import UUID
 
-from sqlalchemy import func, insert, literal, select, tuple_, update
+from sqlalchemy import and_, func, insert, literal, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,6 +51,9 @@ METRICS_SCHEDULE: Final = MetricsSchedule()
 # `core.workspace_quotas.max_tracked_keywords` when a workspace has no row yet; a test keeps
 # the two equal.
 DEFAULT_TRACKED_KEYWORD_LIMIT: Final = 5000
+# Items per call: an insert of 1,000 rows stays well under the 32,767 parameters a statement
+# may carry. Imports write in batches of this size.
+WRITE_MAX: Final = 1000
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +98,14 @@ class WriteResult:
     existing: list[Existing]
 
 
+class ProjectGoneError(LookupError):
+    """The project does not exist in the workspace, or was deleted; nothing was written."""
+
+    def __init__(self, project_id: UUID) -> None:
+        super().__init__(f"no live project {project_id}")
+        self.project_id = project_id
+
+
 class QuotaExceededError(Exception):
     """Writing would take the workspace over its tracked keyword limit; nothing was written."""
 
@@ -125,14 +136,25 @@ async def lock_quota(db: AsyncSession, workspace_id: UUID) -> tuple[int, int]:
         )
     ).scalar_one_or_none()
     limit = DEFAULT_TRACKED_KEYWORD_LIMIT if stored is None else stored
+    # A deleted project's keywords are gone for the count; an archived project's still hold
+    # their place, so bringing a project back never takes the workspace over its limit.
     used: int = (
         await db.execute(
             select(func.count())
-            .select_from(tracked_keywords)
+            .select_from(
+                tracked_keywords.join(
+                    projects,
+                    and_(
+                        projects.c.id == tracked_keywords.c.project_id,
+                        projects.c.workspace_id == tracked_keywords.c.workspace_id,
+                    ),
+                )
+            )
             .where(
                 tracked_keywords.c.workspace_id == workspace_id,
                 tracked_keywords.c.deleted_at.is_(None),
                 tracked_keywords.c.is_active,
+                projects.c.deleted_at.is_(None),
             )
         )
     ).scalar_one()
@@ -151,14 +173,34 @@ def check_quota(limit: int, used: int, requested: int) -> None:
         raise QuotaExceededError(limit=limit, used=used, requested=requested)
 
 
-async def _keyword_ids(
-    db: AsyncSession, workspace_id: UUID, items: Sequence[NewTrackedKeyword]
-) -> dict[tuple[str, str], UUID]:
-    """The keyword of each item, by (normalized text, language), creating the missing ones
-    with the text as entered first."""
-    first: dict[tuple[str, str], str] = {}
-    for item in items:
-        first.setdefault((normalize(item.text), item.language_code), item.text)
+type KeywordKey = tuple[str, str]  # (normalized text, language)
+type Identity = tuple[UUID, str, int, str, str]  # keyword, engine, location, language, device
+
+
+def _keyword_key(item: NewTrackedKeyword) -> KeywordKey:
+    return (normalize(item.text), item.language_code)
+
+
+async def _known_keywords(
+    db: AsyncSession, workspace_id: UUID, wanted: Collection[KeywordKey]
+) -> dict[KeywordKey, UUID]:
+    """The workspace's keywords among `wanted`; read only."""
+    rows = await db.execute(
+        select(keywords.c.id, keywords.c.normalized_text, keywords.c.language_code).where(
+            keywords.c.workspace_id == workspace_id,
+            tuple_(keywords.c.normalized_text, keywords.c.language_code).in_(list(wanted)),
+        )
+    )
+    return {(row.normalized_text, row.language_code): row.id for row in rows}
+
+
+async def _create_keywords(
+    db: AsyncSession, workspace_id: UUID, first_text: Mapping[KeywordKey, str]
+) -> dict[KeywordKey, UUID]:
+    """Keywords for these keys, with the text entered first. Writers of the workspace hold its
+    lock, so none of them exists yet; the conflict clause is a second guard."""
+    if not first_text:
+        return {}
     await db.execute(
         upsert(keywords)
         .values(
@@ -169,31 +211,20 @@ async def _keyword_ids(
                     "normalized_text": normalized,
                     "language_code": language,
                 }
-                for (normalized, language), text in first.items()
+                for (normalized, language), text in first_text.items()
             ]
         )
         .on_conflict_do_nothing()
     )
-    rows = await db.execute(
-        select(keywords.c.id, keywords.c.normalized_text, keywords.c.language_code).where(
-            keywords.c.workspace_id == workspace_id,
-            tuple_(keywords.c.normalized_text, keywords.c.language_code).in_(list(first)),
-        )
-    )
-    return {(row.normalized_text, row.language_code): row.id for row in rows}
-
-
-def _identity(keyword_id: UUID, item: NewTrackedKeyword) -> tuple[UUID, str, int, str, str]:
-    return (keyword_id, item.search_engine, item.location_id, item.language_code, item.device)
+    return await _known_keywords(db, workspace_id, first_text)
 
 
 async def _rows_of(
-    db: AsyncSession,
-    workspace_id: UUID,
-    project_id: UUID,
-    identities: Sequence[tuple[UUID, str, int, str, str]],
-) -> dict[tuple[UUID, str, int, str, str], tuple[UUID, bool, bool]]:
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, identities: Collection[Identity]
+) -> dict[Identity, tuple[UUID, bool, bool]]:
     """The project's rows for these identities, deleted ones included: id, active, deleted."""
+    if not identities:
+        return {}
     t = tracked_keywords.c
     key = tuple_(t.keyword_id, t.search_engine, t.location_id, t.language_code, t.device)
     rows = await db.execute(
@@ -206,7 +237,9 @@ async def _rows_of(
             t.device,
             t.is_active,
             t.deleted_at,
-        ).where(t.workspace_id == workspace_id, t.project_id == project_id, key.in_(identities))
+        ).where(
+            t.workspace_id == workspace_id, t.project_id == project_id, key.in_(list(identities))
+        )
     )
     return {
         (row.keyword_id, row.search_engine, row.location_id, row.language_code, row.device): (
@@ -216,6 +249,18 @@ async def _rows_of(
         )
         for row in rows
     }
+
+
+async def _check_project(db: AsyncSession, workspace_id: UUID, project_id: UUID) -> None:
+    found = await db.execute(
+        select(projects.c.id).where(
+            projects.c.workspace_id == workspace_id,
+            projects.c.id == project_id,
+            projects.c.deleted_at.is_(None),
+        )
+    )
+    if found.first() is None:
+        raise ProjectGoneError(project_id)
 
 
 async def write_tracked_keywords(
@@ -230,27 +275,44 @@ async def write_tracked_keywords(
 ) -> WriteResult:
     """Adds the items that are new and brings back deleted ones, under the quota; reports the
     ones the project tracks already (live or archived), an identity repeated in `items`
-    included. Raises `QuotaExceededError` with nothing written when they would not fit."""
+    included.
+
+    Raises `QuotaExceededError` when they would not fit and `ProjectGoneError` for a project
+    that does not exist or was deleted; nothing is written before either is raised. At most
+    `WRITE_MAX` items per call (a statement carries a bounded number of parameters)."""
     if not items:
         return WriteResult(created=[], existing=[])
+    if len(items) > WRITE_MAX:
+        raise ValueError(f"at most {WRITE_MAX} tracked keywords are written per call")
     limit, used = await lock_quota(db, workspace_id)
-    keyword_of = await _keyword_ids(db, workspace_id, items)
-    identities = [
-        _identity(keyword_of[(normalize(item.text), item.language_code)], item) for item in items
-    ]
-    stored = await _rows_of(db, workspace_id, project_id, identities)
+    await _check_project(db, workspace_id, project_id)
+    keys = [_keyword_key(item) for item in items]
+    known = await _known_keywords(db, workspace_id, set(keys))
 
+    # Classified before anything is written: a keyword the workspace does not have yet is a
+    # new identity in this project.
+    stored = await _rows_of(
+        db,
+        workspace_id,
+        project_id,
+        {
+            _identity(known[key], item)
+            for key, item in zip(keys, items, strict=True)
+            if key in known
+        },
+    )
     existing: dict[int, Existing] = {}
     to_restore: list[tuple[int, UUID]] = []
     to_insert: list[int] = []
-    first_of: dict[tuple[UUID, str, int, str, str], int] = {}
+    first_of: dict[tuple[KeywordKey, str, int, str], int] = {}
     repeats: list[tuple[int, int]] = []  # (index, index of the first item with its identity)
-    for index, identity in enumerate(identities):
-        if identity in first_of:
-            repeats.append((index, first_of[identity]))
+    for index, (key, item) in enumerate(zip(keys, items, strict=True)):
+        same = (key, item.search_engine, item.location_id, item.device)
+        if same in first_of:
+            repeats.append((index, first_of[same]))
             continue
-        first_of[identity] = index
-        row = stored.get(identity)
+        first_of[same] = index
+        row = stored.get(_identity(known[key], item)) if key in known else None
         if row is None:
             to_insert.append(index)
         elif row[2]:
@@ -258,6 +320,12 @@ async def write_tracked_keywords(
         else:
             existing[index] = Existing(index, row[0], "live" if row[1] else "archived")
     check_quota(limit, used, len(to_insert) + len(to_restore))
+
+    first_text: dict[KeywordKey, str] = {}
+    for index in to_insert:
+        if keys[index] not in known:
+            first_text.setdefault(keys[index], items[index].text)
+    keyword_of = {**known, **await _create_keywords(db, workspace_id, first_text)}
 
     created_ids: dict[int, UUID] = {}
     if to_restore:
@@ -271,47 +339,22 @@ async def write_tracked_keywords(
         )
         created_ids.update(dict(to_restore))
     if to_insert:
-        inserted = await db.execute(
-            insert(tracked_keywords)
-            .values(
-                [
-                    _row(
-                        items[index],
-                        identities[index][0],
-                        workspace_id=workspace_id,
-                        project_id=project_id,
-                        source=source,
-                        created_by=created_by,
-                        now=now,
-                    )
-                    for index in to_insert
-                ]
-            )
-            .returning(tracked_keywords.c.id)
-        )
-        new_ids = list(inserted.scalars())
-        created_ids.update(zip(to_insert, new_ids, strict=True))
-        await db.execute(
-            insert(tracked_keyword_config_history).values(
-                [
-                    {
-                        "tracked_keyword_id": tracked_id,
-                        "workspace_id": workspace_id,
-                        "config_version": 1,
-                        "depth_profile": items[index].depth_profile,
-                        "target_url_id": items[index].target_url_id,
-                        "valid_from": now,
-                        "changed_by": created_by,
-                    }
-                    for index, tracked_id in zip(to_insert, new_ids, strict=True)
-                ]
+        created_ids.update(
+            await _insert(
+                db,
+                {index: (items[index], keyword_of[keys[index]]) for index in to_insert},
+                workspace_id=workspace_id,
+                project_id=project_id,
+                source=source,
+                created_by=created_by,
+                now=now,
             )
         )
         await ensure_metrics_schedule(db, workspace_id=workspace_id, project_id=project_id, now=now)
 
     restored = {index for index, _ in to_restore}
     created = [
-        Created(index, created_ids[index], identities[index][0], index in restored)
+        Created(index, created_ids[index], keyword_of[keys[index]], index in restored)
         for index in sorted(created_ids)
     ]
     for index, first in repeats:
@@ -322,6 +365,67 @@ async def write_tracked_keywords(
                 index, existing[first].tracked_keyword_id, existing[first].state
             )
     return WriteResult(created=created, existing=[existing[index] for index in sorted(existing)])
+
+
+def _identity(keyword_id: UUID, item: NewTrackedKeyword) -> Identity:
+    return (keyword_id, item.search_engine, item.location_id, item.language_code, item.device)
+
+
+async def _insert(
+    db: AsyncSession,
+    new: Mapping[int, tuple[NewTrackedKeyword, UUID]],
+    *,
+    workspace_id: UUID,
+    project_id: UUID,
+    source: Source,
+    created_by: UUID | None,
+    now: datetime,
+) -> dict[int, UUID]:
+    """Inserts the new rows and their first configuration version; their ids by item index.
+    Rows are matched back by identity: RETURNING promises no order."""
+    t = tracked_keywords.c
+    inserted = await db.execute(
+        insert(tracked_keywords)
+        .values(
+            [
+                _row(
+                    item,
+                    keyword_id,
+                    workspace_id=workspace_id,
+                    project_id=project_id,
+                    source=source,
+                    created_by=created_by,
+                    now=now,
+                )
+                for item, keyword_id in new.values()
+            ]
+        )
+        .returning(t.id, t.keyword_id, t.search_engine, t.location_id, t.language_code, t.device)
+    )
+    by_identity = {
+        (row.keyword_id, row.search_engine, row.location_id, row.language_code, row.device): row.id
+        for row in inserted
+    }
+    ids = {
+        index: by_identity[_identity(keyword_id, item)] for index, (item, keyword_id) in new.items()
+    }
+    await db.execute(
+        insert(tracked_keyword_config_history).values(
+            [
+                {
+                    "tracked_keyword_id": ids[index],
+                    "workspace_id": workspace_id,
+                    "config_version": 1,
+                    "depth_profile": item.depth_profile,
+                    "target_url_id": item.target_url_id,
+                    "valid_from": now,
+                    "changed_by": created_by,
+                }
+                for index, (item, _) in new.items()
+            ]
+        )
+    )
+    return ids
 
 
 def _row(

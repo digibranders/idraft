@@ -12,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sightline.db.engine import workspace_transaction
 from sightline.keywords.writer import (
     DEFAULT_TRACKED_KEYWORD_LIMIT,
+    WRITE_MAX,
     Device,
     NewTrackedKeyword,
+    ProjectGoneError,
     QuotaExceededError,
     WriteResult,
     devices,
@@ -253,6 +255,148 @@ async def test_the_first_tracked_keyword_creates_the_projects_metrics_schedule(
     )
     # 03:00 in Kolkata on 20 October is 21:30 UTC on the 19th.
     assert schedule["next_run_at"] == datetime(2026, 10, 19, 21, 30, tzinfo=UTC)
+
+
+@pytest.mark.usefixtures("location")
+async def test_what_was_written_is_reported_and_stored_exactly(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    other_workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    other_project = await make_project(migrated, other_workspace.id)
+    user = await make_user(migrated)
+    # The same keyword in another workspace is another keyword.
+    await _write(sessions, other_workspace, other_project, [_item("crm")])
+    await _write(sessions, workspace, project, [_item("CRM")])
+    later = NOW.replace(hour=13)
+
+    async with workspace_transaction(sessions, workspace.id) as db:
+        result = await write_tracked_keywords(
+            db,
+            workspace_id=workspace.id,
+            project_id=project,
+            items=[_item("crm", "mobile"), _item("Crm", "mobile"), _item("new one")],
+            source="bulk_paste",
+            created_by=user.id,
+            now=later,
+        )
+
+    rows = await fetch(
+        migrated,
+        "SELECT t.id, t.keyword_id, t.source, t.created_at, k.text, h.changed_by "
+        "FROM seo.tracked_keywords t JOIN seo.keywords k ON k.id = t.keyword_id "
+        "JOIN seo.tracked_keyword_config_history h ON h.tracked_keyword_id = t.id "
+        "WHERE t.project_id = $1 AND t.created_at = $2",
+        project,
+        later,
+    )
+    by_id = {row["id"]: row for row in rows}
+    assert [(c.index, c.restored) for c in result.created] == [(0, False), (2, False)]
+    # A repeat of an identity created in the same call names the new row.
+    assert [(e.index, e.tracked_keyword_id) for e in result.existing] == [
+        (1, result.created[0].tracked_keyword_id)
+    ]
+    for created in result.created:
+        row = by_id[created.tracked_keyword_id]
+        assert (row["keyword_id"], row["source"], row["changed_by"]) == (
+            created.keyword_id,
+            "bulk_paste",
+            user.id,
+        )
+    # The keyword keeps the casing of the earlier request.
+    assert by_id[result.created[0].tracked_keyword_id]["text"] == "CRM"
+    counts = await fetch(
+        migrated,
+        "SELECT workspace_id, count(*) AS n FROM seo.keywords WHERE workspace_id = ANY($1) "
+        "GROUP BY workspace_id",
+        [workspace.id, other_workspace.id],
+    )
+    assert {row["workspace_id"]: row["n"] for row in counts} == {
+        workspace.id: 2,
+        other_workspace.id: 1,
+    }
+
+
+@pytest.mark.usefixtures("location")
+async def test_a_restored_row_is_stamped_now(sessions: Sessions, migrated: PostgresServer) -> None:
+    workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    first = await _write(sessions, workspace, project, [_item("a")])
+    tracked_id = first.created[0].tracked_keyword_id
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keywords SET deleted_at = now(), is_active = false WHERE id = $1",
+        tracked_id,
+    )
+    later = NOW.replace(day=2)
+
+    async with workspace_transaction(sessions, workspace.id) as db:
+        await write_tracked_keywords(
+            db,
+            workspace_id=workspace.id,
+            project_id=project,
+            items=[_item("a")],
+            source="manual",
+            created_by=None,
+            now=later,
+        )
+
+    rows = await fetch(
+        migrated, "SELECT updated_at FROM seo.tracked_keywords WHERE id = $1", tracked_id
+    )
+    assert rows[0]["updated_at"] == later
+
+
+@pytest.mark.usefixtures("location")
+async def test_a_deleted_project_gets_nothing_and_its_keywords_stop_counting(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    gone = await make_project(migrated, workspace.id)
+    live = await make_project(migrated, workspace.id)
+    await _set_quota(migrated, workspace, 2)
+    await _write(sessions, workspace, gone, [_item("a"), _item("b")])
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", gone)
+
+    with pytest.raises(ProjectGoneError):
+        await _write(sessions, workspace, gone, [_item("c")])
+    written = await _write(sessions, workspace, live, [_item("c"), _item("d")])
+
+    assert len(written.created) == 2
+    rows = await fetch(
+        migrated, "SELECT count(*) AS n FROM seo.tracked_keywords WHERE project_id = $1", gone
+    )
+    assert rows[0]["n"] == 2
+
+
+@pytest.mark.usefixtures("location")
+async def test_a_deleted_metrics_schedule_is_not_made_again(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    await _write(sessions, workspace, project, [_item("a")])
+    await execute(
+        migrated, "UPDATE ops.schedules SET deleted_at = now() WHERE project_id = $1", project
+    )
+
+    await _write(sessions, workspace, project, [_item("b")])
+
+    rows = await fetch(
+        migrated, "SELECT deleted_at FROM ops.schedules WHERE project_id = $1", project
+    )
+    assert len(rows) == 1
+    assert rows[0]["deleted_at"] is not None
+
+
+async def test_a_call_writes_at_most_its_limit(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    with pytest.raises(ValueError, match="at most"):
+        await _write(sessions, workspace, project, [_item(f"k{n}") for n in range(WRITE_MAX + 1)])
 
 
 @pytest.mark.usefixtures("location")
