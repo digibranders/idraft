@@ -80,3 +80,101 @@ async def tracked_id(
 
 def errors(response: httpx.Response) -> list[tuple[str, str]]:
     return [(error["path"], error["code"]) for error in response.json()["errors"]]
+
+
+async def set_metrics(
+    pg: PostgresServer,
+    workspace: Workspace,
+    tracked_keyword_id: str,
+    *,
+    search_volume: int | None,
+    keyword_difficulty: int | None = None,
+    cpc_usd: str | None = None,
+) -> None:
+    """Current Labs metrics for the tracked keyword's keyword, location and language."""
+    tracked = await fetchrow(
+        pg,
+        "SELECT keyword_id, location_id, language_code FROM seo.tracked_keywords WHERE id = $1",
+        uuid.UUID(tracked_keyword_id),
+    )
+    snapshot = await fetchrow(
+        pg,
+        "INSERT INTO seo.keyword_metric_snapshots (workspace_id, keyword_id, location_id, "
+        "language_code, source, fetched_at, search_volume, cpc_usd, keyword_difficulty, "
+        "is_material_change) VALUES ($1, $2, $3, $4, 'dataforseo_labs', now(), $5, "
+        "$6::numeric, $7, true) RETURNING id",
+        workspace.id,
+        tracked["keyword_id"],
+        tracked["location_id"],
+        tracked["language_code"],
+        search_volume,
+        cpc_usd,
+        keyword_difficulty,
+    )
+    await execute(
+        pg,
+        "INSERT INTO seo.keyword_metrics_current (keyword_id, location_id, language_code, "
+        "source, workspace_id, snapshot_id, search_volume, cpc_usd, keyword_difficulty, "
+        "fetched_at) VALUES ($1, $2, $3, 'dataforseo_labs', $4, $5, $6, $7::numeric, $8, now())",
+        tracked["keyword_id"],
+        tracked["location_id"],
+        tracked["language_code"],
+        workspace.id,
+        snapshot["id"],
+        search_volume,
+        cpc_usd,
+        keyword_difficulty,
+    )
+
+
+async def group(
+    pg: PostgresServer,
+    workspace: Workspace,
+    project_id: uuid.UUID,
+    name: str,
+    parent: str | None = None,
+) -> str:
+    row = await fetchrow(
+        pg,
+        "INSERT INTO seo.keyword_groups (workspace_id, project_id, parent_id, name, path) "
+        "VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        workspace.id,
+        project_id,
+        None if parent is None else uuid.UUID(parent),
+        name,
+        name,
+    )
+    return str(row["id"])
+
+
+async def vocabulary(pg: PostgresServer, workspace: Workspace, *, single: bool = False) -> str:
+    row = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, kind, name, is_hierarchical, "
+        "is_single_valued) VALUES ($1, 'topic', $2, true, $3) RETURNING id",
+        workspace.id,
+        f"Topics {uuid.uuid4().hex[:6]}",
+        single,
+    )
+    return str(row["id"])
+
+
+async def term(
+    pg: PostgresServer,
+    workspace: Workspace,
+    vocabulary_id: str,
+    slug: str,
+    parent: str | None = None,
+) -> str:
+    row = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, parent_id, name, slug, "
+        "path) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        workspace.id,
+        uuid.UUID(vocabulary_id),
+        None if parent is None else uuid.UUID(parent),
+        slug,
+        slug,
+        slug,
+    )
+    return str(row["id"])

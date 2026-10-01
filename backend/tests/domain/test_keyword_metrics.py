@@ -13,6 +13,7 @@ from sightline.domain.keyword_metrics import (
     is_material_change,
     seasonality,
     trend_pct_per_month,
+    year_span,
 )
 
 
@@ -91,6 +92,25 @@ def test_seasonality_indexes_each_month_against_the_years_mean() -> None:
     assert seasonal is True
     # A peak alone is not enough: the quiet months must also be low.
     assert seasonality(_months([100] * 11 + [300]))[1] is False
+
+
+def test_a_missing_month_is_left_out_of_the_trend_and_makes_seasonality_unknown() -> None:
+    # 100, 110, ... 210 from September 2025, February 2026 without a volume, and a month
+    # thirteen months back that is outside the year.
+    volumes: list[int | None] = [100 + 10 * n for n in range(12)]
+    volumes[5] = None
+    months = [Month(2025, 8, 5000), *_months(volumes)]
+    known = [v for v in volumes if v is not None]
+
+    assert trend_pct_per_month(months) == pytest.approx(10 / (sum(known) / len(known)) * 100)
+    assert seasonality(months) == ({}, None)
+    assert year_span(months) == ((2025, 9), (2026, 8))
+
+
+def test_the_year_ends_with_the_latest_month_that_has_a_volume() -> None:
+    months = _months([100] * 12 + [None])
+    assert year_span(months) == ((2025, 9), (2026, 8))
+    assert year_span(_months([None, None])) is None
 
 
 def test_a_flat_year_is_not_seasonal_and_a_short_one_is_unknown() -> None:

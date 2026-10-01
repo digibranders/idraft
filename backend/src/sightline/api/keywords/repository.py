@@ -12,14 +12,17 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Final
 from uuid import UUID
 
 from sqlalchemy import (
     ColumnElement,
+    Integer,
     Row,
     Select,
+    Uuid,
     and_,
+    any_,
     delete,
     exists,
     func,
@@ -30,6 +33,7 @@ from sqlalchemy import (
     tuple_,
     update,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,6 +60,19 @@ from sightline.db.tables import (
 )
 
 LABS = "dataforseo_labs"
+# Rows per multi-row insert of links: 4 parameters a row stays well under the 32,767 a
+# statement may carry.
+LINKS_PER_STATEMENT: Final = 5000
+
+
+def _among_ids(column: ColumnElement[UUID], ids: Collection[UUID]) -> ColumnElement[bool]:
+    """`column = ANY($1)`: one array parameter however many ids, so a long list never reaches
+    the driver's parameter limit."""
+    return column == any_(literal(list(ids), type_=ARRAY(Uuid)))
+
+
+def _among_ints(column: ColumnElement[int], values: Collection[int]) -> ColumnElement[bool]:
+    return column == any_(literal(list(values), type_=ARRAY(Integer)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +170,7 @@ class GroupRecord:
 class TermRecord:
     term_id: UUID
     vocabulary_id: UUID
+    vocabulary_kind: str
     name: str
     path: str
     is_single_valued: bool
@@ -188,7 +206,7 @@ class ConfigRecord:
 class ProjectDefaults:
     location_id: int | None
     language_code: str | None
-    settings: Mapping[str, Any]
+    settings: Mapping[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,7 +256,9 @@ async def project_defaults(
 
 async def active_locations(db: AsyncSession, location_ids: Collection[int]) -> set[int]:
     rows = await db.execute(
-        select(locations.c.id).where(locations.c.id.in_(list(location_ids)), locations.c.is_active)
+        select(locations.c.id).where(
+            _among_ints(locations.c.id, location_ids), locations.c.is_active
+        )
     )
     return {row.id for row in rows}
 
@@ -251,7 +271,7 @@ async def rank_schedules(
         select(schedules.c.id).where(
             schedules.c.workspace_id == workspace_id,
             schedules.c.project_id == project_id,
-            schedules.c.id.in_(list(schedule_ids)),
+            _among_ids(schedules.c.id, schedule_ids),
             schedules.c.workload == "seo_rank",
             schedules.c.deleted_at.is_(None),
         )
@@ -266,7 +286,7 @@ async def project_groups(
         select(keyword_groups.c.id).where(
             keyword_groups.c.workspace_id == workspace_id,
             keyword_groups.c.project_id == project_id,
-            keyword_groups.c.id.in_(list(group_ids)),
+            _among_ids(keyword_groups.c.id, group_ids),
         )
     )
     return {row.id for row in rows}
@@ -285,30 +305,42 @@ async def project_terms(
 ) -> list[TermRecord]:
     """The terms among these that the project may use."""
     rows = await db.execute(
-        select(
-            taxonomy_terms.c.id,
-            taxonomy_terms.c.vocabulary_id,
-            taxonomy_terms.c.name,
-            taxonomy_terms.c.path,
-            taxonomy_vocabularies.c.is_single_valued,
-        )
-        .join(
-            taxonomy_vocabularies,
-            and_(
-                taxonomy_vocabularies.c.id == taxonomy_terms.c.vocabulary_id,
-                taxonomy_vocabularies.c.workspace_id == taxonomy_terms.c.workspace_id,
-            ),
-        )
-        .where(
+        _terms().where(
             taxonomy_terms.c.workspace_id == workspace_id,
-            taxonomy_terms.c.id.in_(list(term_ids)),
+            _among_ids(taxonomy_terms.c.id, term_ids),
             _project_vocabulary(project_id),
         )
     )
-    return [
-        TermRecord(row.id, row.vocabulary_id, row.name, row.path, row.is_single_valued)
-        for row in rows
-    ]
+    return [_term(row) for row in rows]
+
+
+def _terms() -> Select[tuple[object, ...]]:
+    """Terms with what a reference to one shows and the rule of their vocabulary."""
+    return select(
+        taxonomy_terms.c.id.label("term_id"),
+        taxonomy_terms.c.vocabulary_id,
+        taxonomy_vocabularies.c.kind.label("vocabulary_kind"),
+        taxonomy_terms.c.name.label("term_name"),
+        taxonomy_terms.c.path.label("term_path"),
+        taxonomy_vocabularies.c.is_single_valued,
+    ).join(
+        taxonomy_vocabularies,
+        and_(
+            taxonomy_vocabularies.c.id == taxonomy_terms.c.vocabulary_id,
+            taxonomy_vocabularies.c.workspace_id == taxonomy_terms.c.workspace_id,
+        ),
+    )
+
+
+def _term(row: Row[tuple[object, ...]]) -> TermRecord:
+    return TermRecord(
+        term_id=row.term_id,
+        vocabulary_id=row.vocabulary_id,
+        vocabulary_kind=row.vocabulary_kind,
+        name=row.term_name,
+        path=row.term_path,
+        is_single_valued=row.is_single_valued,
+    )
 
 
 async def entities_with_role(
@@ -319,7 +351,7 @@ async def entities_with_role(
         select(project_entities.c.entity_id).where(
             project_entities.c.workspace_id == workspace_id,
             project_entities.c.project_id == project_id,
-            project_entities.c.entity_id.in_(list(entity_ids)),
+            _among_ids(project_entities.c.entity_id, entity_ids),
             project_entities.c.removed_at.is_(None),
         )
     )
@@ -329,7 +361,7 @@ async def entities_with_role(
 # Tracked keywords.
 
 
-def _tracked(workspace_id: UUID) -> Select[tuple[Any, ...]]:
+def _tracked(workspace_id: UUID) -> Select[tuple[object, ...]]:
     t = tracked_keywords.c
     return (
         select(
@@ -374,16 +406,25 @@ def _tracked(workspace_id: UUID) -> Select[tuple[Any, ...]]:
                 keywords,
                 and_(keywords.c.id == t.keyword_id, keywords.c.workspace_id == t.workspace_id),
             )
+            .join(
+                projects,
+                and_(projects.c.id == t.project_id, projects.c.workspace_id == t.workspace_id),
+            )
             .join(locations, locations.c.id == t.location_id)
             .outerjoin(urls, urls.c.id == t.target_url_id)
             .outerjoin(domains, domains.c.id == urls.c.domain_id)
             .outerjoin(users, users.c.id == t.created_by)
         )
-        .where(t.workspace_id == workspace_id, t.deleted_at.is_(None))
+        # A deleted project's keywords are gone with it (plan decision D4).
+        .where(
+            t.workspace_id == workspace_id,
+            t.deleted_at.is_(None),
+            projects.c.deleted_at.is_(None),
+        )
     )
 
 
-def _url(row: Row[Any], id_column: str, prefix: str) -> UrlRecord | None:
+def _url(row: Row[tuple[object, ...]], id_column: str, prefix: str) -> UrlRecord | None:
     fields = row._mapping
     url_id = fields[id_column]
     if url_id is None:
@@ -397,7 +438,7 @@ def _url(row: Row[Any], id_column: str, prefix: str) -> UrlRecord | None:
     )
 
 
-def _user(row: Row[Any], id_column: str, prefix: str) -> UserRecord | None:
+def _user(row: Row[tuple[object, ...]], id_column: str, prefix: str) -> UserRecord | None:
     fields = row._mapping
     user_id = fields[id_column]
     if user_id is None or fields[f"{prefix}_name"] is None:
@@ -407,7 +448,7 @@ def _user(row: Row[Any], id_column: str, prefix: str) -> UserRecord | None:
     )
 
 
-def tracked_record(row: Row[Any]) -> TrackedRecord:
+def tracked_record(row: Row[tuple[object, ...]]) -> TrackedRecord:
     fields = row._mapping
     return TrackedRecord(
         id=fields["id"],
@@ -445,11 +486,6 @@ def tracked_record(row: Row[Any]) -> TrackedRecord:
     )
 
 
-def tracked_query(workspace_id: UUID) -> Select[tuple[Any, ...]]:
-    """Live (not deleted) tracked keywords with what a response shows; the list adds to it."""
-    return _tracked(workspace_id)
-
-
 async def get_tracked(
     db: AsyncSession,
     workspace_id: UUID,
@@ -471,7 +507,7 @@ async def tracked_by_ids(
     db: AsyncSession, workspace_id: UUID, ids: Sequence[UUID]
 ) -> list[TrackedRecord]:
     """In the order of `ids`."""
-    rows = await db.execute(_tracked(workspace_id).where(tracked_keywords.c.id.in_(list(ids))))
+    rows = await db.execute(_tracked(workspace_id).where(_among_ids(tracked_keywords.c.id, ids)))
     found = {record.id: record for record in map(tracked_record, rows)}
     return [found[tracked_id] for tracked_id in ids if tracked_id in found]
 
@@ -501,17 +537,22 @@ async def new_config_version(
     change_reason: str | None,
     now: datetime,
 ) -> None:
-    """Ends the current version and starts the next."""
+    """Ends the current version and starts the next, at `now` or at the current version's
+    start if that is later: API instances' clocks may differ a little, and a version never ends
+    before it began."""
     history = tracked_keyword_config_history.c
-    await db.execute(
-        update(tracked_keyword_config_history)
-        .where(
-            history.workspace_id == workspace_id,
-            history.tracked_keyword_id == tracked_keyword_id,
-            history.valid_to.is_(None),
+    ended = (
+        await db.execute(
+            update(tracked_keyword_config_history)
+            .where(
+                history.workspace_id == workspace_id,
+                history.tracked_keyword_id == tracked_keyword_id,
+                history.valid_to.is_(None),
+            )
+            .values(valid_to=func.greatest(literal(now), history.valid_from))
+            .returning(history.valid_to)
         )
-        .values(valid_to=now)
-    )
+    ).scalar_one_or_none()
     await db.execute(
         insert(tracked_keyword_config_history).values(
             tracked_keyword_id=tracked_keyword_id,
@@ -519,7 +560,7 @@ async def new_config_version(
             config_version=version,
             depth_profile=depth_profile,
             target_url_id=target_url_id,
-            valid_from=now,
+            valid_from=now if ended is None else ended,
             changed_by=changed_by,
             change_reason=change_reason,
         )
@@ -595,25 +636,25 @@ async def add_members(
     pairs: Collection[tuple[UUID, UUID]],
 ) -> int:
     """(group, tracked keyword) pairs; those that exist are left. How many were added."""
-    if not pairs:
-        return 0
-    result = await db.execute(
-        upsert(keyword_group_members)
-        .values(
-            [
-                {
-                    "group_id": group_id,
-                    "tracked_keyword_id": tracked_id,
-                    "project_id": project_id,
-                    "workspace_id": workspace_id,
-                }
-                for group_id, tracked_id in pairs
-            ]
+    rows = [
+        {
+            "group_id": group_id,
+            "tracked_keyword_id": tracked_id,
+            "project_id": project_id,
+            "workspace_id": workspace_id,
+        }
+        for group_id, tracked_id in sorted(pairs)
+    ]
+    added = 0
+    for start in range(0, len(rows), LINKS_PER_STATEMENT):
+        result = await db.execute(
+            upsert(keyword_group_members)
+            .values(rows[start : start + LINKS_PER_STATEMENT])
+            .on_conflict_do_nothing()
+            .returning(keyword_group_members.c.group_id)
         )
-        .on_conflict_do_nothing()
-        .returning(keyword_group_members.c.group_id)
-    )
-    return len(result.all())
+        added += len(result.all())
+    return added
 
 
 async def add_terms(
@@ -624,25 +665,25 @@ async def add_terms(
     assigned_by: str,
 ) -> int:
     """(tracked keyword, term) pairs; those that exist are left. How many were added."""
-    if not pairs:
-        return 0
-    result = await db.execute(
-        upsert(tracked_keyword_terms)
-        .values(
-            [
-                {
-                    "tracked_keyword_id": tracked_id,
-                    "term_id": term_id,
-                    "workspace_id": workspace_id,
-                    "assigned_by": assigned_by,
-                }
-                for tracked_id, term_id in pairs
-            ]
+    rows = [
+        {
+            "tracked_keyword_id": tracked_id,
+            "term_id": term_id,
+            "workspace_id": workspace_id,
+            "assigned_by": assigned_by,
+        }
+        for tracked_id, term_id in sorted(pairs)
+    ]
+    added = 0
+    for start in range(0, len(rows), LINKS_PER_STATEMENT):
+        result = await db.execute(
+            upsert(tracked_keyword_terms)
+            .values(rows[start : start + LINKS_PER_STATEMENT])
+            .on_conflict_do_nothing()
+            .returning(tracked_keyword_terms.c.term_id)
         )
-        .on_conflict_do_nothing()
-        .returning(tracked_keyword_terms.c.term_id)
-    )
-    return len(result.all())
+        added += len(result.all())
+    return added
 
 
 async def replace_overrides(
@@ -693,7 +734,7 @@ async def groups_of(
         )
         .where(
             keyword_group_members.c.workspace_id == workspace_id,
-            keyword_group_members.c.tracked_keyword_id.in_(list(tracked_ids)),
+            _among_ids(keyword_group_members.c.tracked_keyword_id, tracked_ids),
         )
         .order_by(keyword_groups.c.path, keyword_groups.c.id)
     )
@@ -707,43 +748,28 @@ async def terms_of(
     db: AsyncSession, workspace_id: UUID, tracked_ids: Collection[UUID]
 ) -> dict[UUID, list[TermRecord]]:
     rows = await db.execute(
-        select(
-            tracked_keyword_terms.c.tracked_keyword_id,
-            taxonomy_terms.c.id,
-            taxonomy_terms.c.vocabulary_id,
-            taxonomy_terms.c.name,
-            taxonomy_terms.c.path,
-            taxonomy_vocabularies.c.is_single_valued,
-        )
+        _terms()
+        .add_columns(tracked_keyword_terms.c.tracked_keyword_id)
         .join(
-            taxonomy_terms,
+            tracked_keyword_terms,
             and_(
-                taxonomy_terms.c.id == tracked_keyword_terms.c.term_id,
-                taxonomy_terms.c.workspace_id == tracked_keyword_terms.c.workspace_id,
-            ),
-        )
-        .join(
-            taxonomy_vocabularies,
-            and_(
-                taxonomy_vocabularies.c.id == taxonomy_terms.c.vocabulary_id,
-                taxonomy_vocabularies.c.workspace_id == taxonomy_terms.c.workspace_id,
+                tracked_keyword_terms.c.term_id == taxonomy_terms.c.id,
+                tracked_keyword_terms.c.workspace_id == taxonomy_terms.c.workspace_id,
             ),
         )
         .where(
             tracked_keyword_terms.c.workspace_id == workspace_id,
-            tracked_keyword_terms.c.tracked_keyword_id.in_(list(tracked_ids)),
+            _among_ids(tracked_keyword_terms.c.tracked_keyword_id, tracked_ids),
         )
         .order_by(taxonomy_terms.c.vocabulary_id, taxonomy_terms.c.path, taxonomy_terms.c.id)
     )
     found: dict[UUID, list[TermRecord]] = {}
     for row in rows:
-        found.setdefault(row.tracked_keyword_id, []).append(
-            TermRecord(row.id, row.vocabulary_id, row.name, row.path, row.is_single_valued)
-        )
+        found.setdefault(row.tracked_keyword_id, []).append(_term(row))
     return found
 
 
-def _entity_ref(project_id: UUID) -> Select[tuple[Any, ...]]:
+def _entity_ref(project_id: UUID) -> Select[tuple[object, ...]]:
     """Entities with their live role in the project, if any."""
     return select(
         entities.c.id,
@@ -762,7 +788,7 @@ def _entity_ref(project_id: UUID) -> Select[tuple[Any, ...]]:
     )
 
 
-def _competitor(row: Row[Any]) -> CompetitorRecord:
+def _competitor(row: Row[tuple[object, ...]]) -> CompetitorRecord:
     return CompetitorRecord(row.id, row.canonical_name, row.entity_type, row.role, row.color_index)
 
 
@@ -783,7 +809,7 @@ async def overrides_of(
         )
         .where(
             tracked_keyword_competitors.c.workspace_id == workspace_id,
-            tracked_keyword_competitors.c.tracked_keyword_id.in_(list(tracked_ids)),
+            _among_ids(tracked_keyword_competitors.c.tracked_keyword_id, tracked_ids),
         )
         .order_by(func.lower(entities.c.canonical_name), entities.c.id)
     )
@@ -826,7 +852,7 @@ async def config_counts(db: AsyncSession, workspace_id: UUID, tracked_keyword_id
 # Metrics.
 
 
-def _metrics(row: Row[Any]) -> MetricsRecord:
+def _metrics(row: Row[tuple[object, ...]]) -> MetricsRecord:
     return MetricsRecord(
         keyword_id=row.keyword_id,
         location_id=row.location_id,
@@ -844,7 +870,7 @@ def _metrics(row: Row[Any]) -> MetricsRecord:
     )
 
 
-def _current() -> Select[tuple[Any, ...]]:
+def _current() -> Select[tuple[object, ...]]:
     s = keyword_metric_snapshots.c
     return select(
         s.keyword_id,
@@ -977,7 +1003,7 @@ def _keyword_visible(visible: Collection[UUID] | None) -> ColumnElement[bool]:
     )
 
 
-def _keyword(row: Row[Any]) -> KeywordRecord:
+def _keyword(row: Row[tuple[object, ...]]) -> KeywordRecord:
     return KeywordRecord(
         id=row.id,
         text=row.text,

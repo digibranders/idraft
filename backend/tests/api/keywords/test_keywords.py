@@ -11,7 +11,13 @@ import httpx
 from sightline.api.resources import Resources
 from tests.api.auth.support import execute, fetchrow, make_workspace
 from tests.api.entities.support import member, problem
-from tests.api.keywords.support import LOCATION, keyword_project, keywords_url, tracked_id
+from tests.api.keywords.support import (
+    LOCATION,
+    OTHER_LOCATION,
+    keyword_project,
+    keywords_url,
+    tracked_id,
+)
 from tests.conftest import PostgresServer
 
 
@@ -23,6 +29,7 @@ async def _snapshot(
     volumes: list[int],
     *,
     current: bool = False,
+    location_id: int = LOCATION,
 ) -> None:
     """A Labs snapshot whose monthly volumes end in August 2026."""
     fetched = datetime.fromisoformat(fetched_at)
@@ -39,7 +46,7 @@ async def _snapshot(
         "$4, '2026-08-01', $5, $6, 40, true) RETURNING id",
         workspace_id,
         keyword_id,
-        LOCATION,
+        location_id,
         fetched,
         volumes[-1],
         json.dumps(monthly),
@@ -51,7 +58,7 @@ async def _snapshot(
             "source, workspace_id, snapshot_id, search_volume, keyword_difficulty, fetched_at) "
             "VALUES ($1, $2, 'en', 'dataforseo_labs', $3, $4, $5, 40, $6)",
             keyword_id,
-            LOCATION,
+            location_id,
             workspace_id,
             row["id"],
             volumes[-1],
@@ -113,6 +120,46 @@ async def test_a_member_limited_to_a_project_sees_its_keywords_only(
     # Only the variant of the member's project.
     assert [v["project_id"] for v in detail.json()["data"]["tracked"]] == [str(mine)]
     assert problem(refused) == (404, "not_found")
+
+
+async def test_a_member_limited_to_a_project_sees_metrics_where_it_tracks_the_keyword(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    mine = await keyword_project(migrated, workspace)
+    theirs = await keyword_project(migrated, workspace)
+    created = await tracked_id(api, workspace, mine, owner, "crm")
+    await tracked_id(api, workspace, theirs, owner, "crm", location_id=OTHER_LOCATION)
+    scoped = await member(resources, migrated, workspace, "editor", project_ids=[mine])
+    keyword = await fetchrow(
+        migrated, "SELECT keyword_id FROM seo.tracked_keywords WHERE id = $1", uuid.UUID(created)
+    )
+    keyword_id = keyword["keyword_id"]
+    for location in (LOCATION, OTHER_LOCATION):
+        await _snapshot(
+            migrated,
+            workspace.id,
+            keyword_id,
+            "2026-09-20T03:00:00Z",
+            [100] * 12,
+            current=True,
+            location_id=location,
+        )
+
+    detail = await api.get(keywords_url(workspace, keyword_id), headers=scoped.headers)
+    elsewhere = await api.get(
+        keywords_url(workspace, keyword_id, "metrics-history"),
+        params={"location_id": OTHER_LOCATION, "language_code": "en"},
+        headers=scoped.headers,
+    )
+    everywhere = await api.get(keywords_url(workspace, keyword_id), headers=owner.headers)
+
+    assert [m["location_id"] for m in detail.json()["data"]["metrics"]] == [LOCATION]
+    assert elsewhere.json()["data"]["snapshots"] == []
+    assert sorted(m["location_id"] for m in everywhere.json()["data"]["metrics"]) == sorted(
+        [LOCATION, OTHER_LOCATION]
+    )
 
 
 async def test_a_keyword_shows_its_current_metrics_and_tracked_variants(

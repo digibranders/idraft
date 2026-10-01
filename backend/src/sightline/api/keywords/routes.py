@@ -257,6 +257,7 @@ async def get_tracked_keyword(
                     TermRef(
                         term_id=term.term_id,
                         vocabulary_id=term.vocabulary_id,
+                        vocabulary_kind=term.vocabulary_kind,
                         name=term.name,
                         path=term.path,
                     )

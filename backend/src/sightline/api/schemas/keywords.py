@@ -210,6 +210,7 @@ class GroupRef(BaseModel):
 class TermRef(BaseModel):
     term_id: UUID
     vocabulary_id: UUID
+    vocabulary_kind: str
     name: str
     path: str
 

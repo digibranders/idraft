@@ -271,6 +271,25 @@ def _check(
     )
 
 
+def _terms_to_add(
+    have: Sequence[TermRecord], wanted: Sequence[UUID], refs: _References
+) -> list[TermRecord]:
+    """The wanted terms a keyword holding `have` can take, in order: not held already, and not
+    of a single-valued vocabulary in which it holds another term."""
+    held = {term.term_id for term in have}
+    taken = {term.vocabulary_id for term in have if term.is_single_valued}
+    found: list[TermRecord] = []
+    for term_id in wanted:
+        term = refs.terms[term_id]
+        if term_id in held or (term.is_single_valued and term.vocabulary_id in taken):
+            continue
+        found.append(term)
+        held.add(term_id)
+        if term.is_single_valued:
+            taken.add(term.vocabulary_id)
+    return found
+
+
 def _two_in_a_single_valued_vocabulary(
     term_ids: Collection[UUID], terms: Mapping[UUID, TermRecord]
 ) -> bool:
@@ -327,8 +346,9 @@ class KeywordService:
                 raise _quota(error.limit, error.used, error.requested) from None
             except writer.ProjectGoneError:
                 raise NotFoundError from None
-            created = [(entry.tracked_keyword_id, checked) for entry in result.created]
-            await self._link(db, access, project_id, created)
+            await self._link(
+                db, access, project_id, [(entry, checked) for entry in result.created], refs
+            )
             records = await repository.tracked_by_ids(
                 db, access.workspace_id, [entry.tracked_keyword_id for entry in result.created]
             )
@@ -386,10 +406,7 @@ class KeywordService:
                 created.extend((chunk[entry.index][0], entry) for entry in result.created)
                 existing.extend((chunk[entry.index][0], entry) for entry in result.existing)
             await self._link(
-                db,
-                access,
-                project_id,
-                [(entry.tracked_keyword_id, plans[index]) for index, entry in created],
+                db, access, project_id, [(entry, plans[index]) for index, entry in created], refs
             )
             if body.on_duplicate == "merge_terms":
                 await self._merge(db, access, project_id, existing, plans, refs, info)
@@ -441,16 +458,6 @@ class KeywordService:
         given = dict(changes)
         reason = given.pop("change_reason", None)
         async with self._transaction(access) as db:
-            quota: tuple[int, int] | None = None
-            if given.get("is_active") is True:
-                # Taken before the row, in the order every writer takes them.
-                quota = await writer.lock_quota(db, access.workspace_id)
-            current = await self._tracked(db, access, project_id, tracked_keyword_id, lock=True)
-            values: dict[str, object] = {
-                field: given[field]
-                for field in _COMPARED
-                if field in given and getattr(current, field) != given[field]
-            }
             found: list[FieldError] = []
             target: CanonicalUrl | None = None
             raw_target = given.get("target_url")
@@ -459,7 +466,7 @@ class KeywordService:
                     target = canonicalize(raw_target)
                 except UrlRejectedError:
                     found.append(FieldError("target_url", "invalid_url", "Not an http(s) URL."))
-            schedule_id = values.get("schedule_id")
+            schedule_id = given.get("schedule_id")
             if isinstance(schedule_id, UUID) and not await repository.rank_schedules(
                 db, access.workspace_id, project_id, [schedule_id]
             ):
@@ -470,13 +477,21 @@ class KeywordService:
                 )
             if found:
                 raise invalid_fields(found)
+            # In the order every writer takes them: the URL, the quota, then the row.
+            new_target_id = None if target is None else (await dictionaries.url_for(db, target)).id
+            quota: tuple[int, int] | None = None
+            if given.get("is_active") is True:
+                quota = await writer.lock_quota(db, access.workspace_id)
+            current = await self._tracked(db, access, project_id, tracked_keyword_id, lock=True)
+            values: dict[str, object] = {
+                field: given[field]
+                for field in _COMPARED
+                if field in given and getattr(current, field) != given[field]
+            }
             target_url_id = _target_id(current)
-            if "target_url" in given:
-                target_url_id = (
-                    None if target is None else (await dictionaries.url_for(db, target)).id
-                )
-                if target_url_id != _target_id(current):
-                    values["target_url_id"] = target_url_id
+            if "target_url" in given and new_target_id != target_url_id:
+                target_url_id = new_target_id
+                values["target_url_id"] = new_target_id
             if "intent" in given and ("intent" in values or current.intent_source != "manual"):
                 values["intent_source"] = "manual"
             if values.get("is_active") is True and quota is not None:
@@ -642,15 +657,18 @@ class KeywordService:
         return KeywordPageResult(rows=shown, next_cursor=next_cursor)
 
     async def keyword(self, access: WorkspaceAccess, keyword_id: UUID) -> KeywordDetailResult:
+        """A member limited to some projects sees the metrics of the locations and languages
+        those projects track the keyword in."""
         async with self._transaction(access) as db:
             keyword = await self._keyword(db, access, keyword_id)
-            return KeywordDetailResult(
-                keyword=keyword,
-                metrics=await repository.keyword_metrics(db, access.workspace_id, keyword_id),
-                variants=await repository.variants(
-                    db, access.workspace_id, keyword_id, visible=access.project_ids
-                ),
+            variants = await repository.variants(
+                db, access.workspace_id, keyword_id, visible=access.project_ids
             )
+            metrics = await repository.keyword_metrics(db, access.workspace_id, keyword_id)
+        if access.project_ids is not None:
+            tracked = {(variant.location_id, variant.language_code) for variant in variants}
+            metrics = [m for m in metrics if (m.location_id, m.language_code) in tracked]
+        return KeywordDetailResult(keyword=keyword, metrics=metrics, variants=variants)
 
     async def metrics_history(
         self,
@@ -663,9 +681,19 @@ class KeywordService:
         since: date | None,
         until: date | None,
     ) -> list[SnapshotRecord]:
-        """Oldest first."""
+        """Oldest first. Empty for a member limited to some projects when none of them tracks
+        the keyword at this location and language."""
         async with self._transaction(access) as db:
             await self._keyword(db, access, keyword_id)
+            if access.project_ids is not None:
+                variants = await repository.variants(
+                    db, access.workspace_id, keyword_id, visible=access.project_ids
+                )
+                if all(
+                    (variant.location_id, variant.language_code) != (location_id, language_code)
+                    for variant in variants
+                ):
+                    return []
             return await repository.snapshots(
                 db,
                 access.workspace_id,
@@ -733,13 +761,12 @@ class KeywordService:
 
     @staticmethod
     async def _targets(db: AsyncSession, given: Sequence[CanonicalUrl | None]) -> dict[bytes, int]:
-        """The `core.urls` id of each target URL, by its hash. Added in one order, so two
-        requests adding the same new URLs cannot each wait on one the other added first."""
+        """The `core.urls` id of each target URL, by its hash. Hosts and URLs are added in one
+        order (host, then URL), so two requests adding the same new ones cannot each wait on
+        one the other added first."""
         distinct = {url.url_hash: url for url in given if url is not None}
-        return {
-            url_hash: (await dictionaries.url_for(db, distinct[url_hash])).id
-            for url_hash in sorted(distinct)
-        }
+        ordered = sorted(distinct.values(), key=lambda url: (url.host.name, url.url_hash))
+        return {url.url_hash: (await dictionaries.url_for(db, url)).id for url in ordered}
 
     @staticmethod
     def _target_of(plan: _Plan, targets: Mapping[bytes, int]) -> int | None:
@@ -750,16 +777,21 @@ class KeywordService:
         db: AsyncSession,
         access: WorkspaceAccess,
         project_id: UUID,
-        written: Sequence[tuple[UUID, _Plan]],
+        written: Sequence[tuple[writer.Created, _Plan]],
+        refs: _References,
     ) -> None:
-        """Groups, terms and competitor overrides of new or restored tracked keywords."""
+        """Groups, terms and competitor overrides of new tracked keywords. A restored one keeps
+        its stored links and overrides (plan decision D3): the item's groups are added, and its
+        terms where they fit, so a single-valued vocabulary keeps the stored term."""
+        restored = [entry.tracked_keyword_id for entry, _ in written if entry.restored]
+        stored = await repository.terms_of(db, access.workspace_id, restored) if restored else {}
         await repository.add_members(
             db,
             workspace_id=access.workspace_id,
             project_id=project_id,
             pairs={
-                (group_id, tracked_id)
-                for tracked_id, plan in written
+                (group_id, entry.tracked_keyword_id)
+                for entry, plan in written
                 for group_id in plan.item.group_ids
             },
         )
@@ -767,18 +799,20 @@ class KeywordService:
             db,
             workspace_id=access.workspace_id,
             pairs={
-                (tracked_id, term_id)
-                for tracked_id, plan in written
-                for term_id in plan.item.term_ids
+                (entry.tracked_keyword_id, term.term_id)
+                for entry, plan in written
+                for term in _terms_to_add(
+                    stored.get(entry.tracked_keyword_id, []), plan.item.term_ids, refs
+                )
             },
             assigned_by="manual",
         )
-        for tracked_id, plan in written:
-            if plan.overrides is not None:
+        for entry, plan in written:
+            if plan.overrides is not None and not entry.restored:
                 await repository.replace_overrides(
                     db,
                     workspace_id=access.workspace_id,
-                    tracked_keyword_id=tracked_id,
+                    tracked_keyword_id=entry.tracked_keyword_id,
                     modes=plan.overrides,
                 )
 
@@ -793,35 +827,26 @@ class KeywordService:
         info: RequestInfo,
     ) -> None:
         """`on_duplicate: merge_terms`: a duplicate item's groups and terms are added to the
-        tracked keyword it duplicates. A term of a single-valued vocabulary is not added when
-        the keyword has another term of that vocabulary."""
+        tracked keyword it duplicates, in the order of the items. A term of a single-valued
+        vocabulary is not added when the keyword has, or has just been given, another term of
+        that vocabulary."""
         workspace_id = access.workspace_id
         tracked_ids = {entry.tracked_keyword_id for _, entry in existing}
         groups = await repository.groups_of(db, workspace_id, tracked_ids)
-        terms = await repository.terms_of(db, workspace_id, tracked_ids)
+        held = await repository.terms_of(db, workspace_id, tracked_ids)
         added_groups: dict[UUID, set[UUID]] = {}
         added_terms: dict[UUID, set[UUID]] = {}
         for index, entry in existing:
             tracked_id = entry.tracked_keyword_id
             item = plans[index].item
             have_groups = {group.group_id for group in groups.get(tracked_id, [])}
-            have_terms = terms.get(tracked_id, [])
-            taken = {term.vocabulary_id for term in have_terms if term.is_single_valued}
-            have_term_ids = {term.term_id for term in have_terms} | added_terms.get(
-                tracked_id, set()
-            )
             for group_id in item.group_ids:
                 if group_id not in have_groups:
                     added_groups.setdefault(tracked_id, set()).add(group_id)
-            for term_id in item.term_ids:
-                term = refs.terms[term_id]
-                if term_id in have_term_ids or (
-                    term.is_single_valued and term.vocabulary_id in taken
-                ):
-                    continue
-                added_terms.setdefault(tracked_id, set()).add(term_id)
-                if term.is_single_valued:
-                    taken.add(term.vocabulary_id)
+            have_terms = held.setdefault(tracked_id, [])
+            for term in _terms_to_add(have_terms, item.term_ids, refs):
+                added_terms.setdefault(tracked_id, set()).add(term.term_id)
+                have_terms.append(term)
         await repository.add_members(
             db,
             workspace_id=workspace_id,

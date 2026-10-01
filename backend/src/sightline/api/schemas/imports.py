@@ -8,6 +8,7 @@ A CSV upload is a `multipart/form-data` request with parts `file` and `options` 
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -36,21 +37,27 @@ ImportStatus = Literal[
 ]
 Outcome = Literal["new", "duplicate", "variant", "conflict", "invalid"]
 RowAction = Literal["create", "skip", "merge", "force_separate"]
-Field_ = Literal[
-    "keyword",
-    "country",
-    "location",
-    "language",
-    "device",
-    "tags",
-    "topic",
-    "group",
-    "intent",
-    "funnel_stage",
-    "priority",
-    "target_url",
-    "depth_profile",
-]
+
+
+class ImportField(StrEnum):
+    """A field a column maps to. A named enum, so the API document gives the mapping's values a
+    schema of their own that generated clients can index."""
+
+    KEYWORD = "keyword"
+    COUNTRY = "country"
+    LOCATION = "location"
+    LANGUAGE = "language"
+    DEVICE = "device"
+    TAGS = "tags"
+    TOPIC = "topic"
+    GROUP = "group"
+    INTENT = "intent"
+    FUNNEL_STAGE = "funnel_stage"
+    PRIORITY = "priority"
+    TARGET_URL = "target_url"
+    DEPTH_PROFILE = "depth_profile"
+
+
 Cell = Annotated[str, StringConstraints(max_length=CELL_MAX), AfterValidator(printable)]
 Header = Annotated[str, StringConstraints(min_length=1, max_length=200), AfterValidator(printable)]
 
@@ -73,7 +80,7 @@ class ImportDefaults(Body):
 
 
 class ImportOptions(Body):
-    column_mapping: Annotated[dict[Header, Field_], Field(max_length=50)] | None = Field(
+    column_mapping: Annotated[dict[Header, ImportField], Field(max_length=50)] | None = Field(
         default=None, description="File header to field; headers are matched by name otherwise."
     )
     defaults: ImportDefaults = Field(default_factory=ImportDefaults)
@@ -112,7 +119,7 @@ class KeywordImportUpdate(Body):
     """A new mapping or new defaults read the source again; row actions apply to the current
     preview."""
 
-    column_mapping: Annotated[dict[Header, Field_], Field(max_length=50)] | None = None
+    column_mapping: Annotated[dict[Header, ImportField], Field(max_length=50)] | None = None
     defaults: ImportDefaults | None = None
     row_actions: Annotated[list[RowActionInput], Field(max_length=IMPORT_ROWS_MAX * 2)] | None = (
         None

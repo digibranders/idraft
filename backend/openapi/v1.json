@@ -4265,11 +4265,16 @@
             "format": "uuid",
             "title": "Vocabulary Id",
             "type": "string"
+          },
+          "vocabulary_kind": {
+            "title": "Vocabulary Kind",
+            "type": "string"
           }
         },
         "required": [
           "term_id",
           "vocabulary_id",
+          "vocabulary_kind",
           "name",
           "path"
         ],

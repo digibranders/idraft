@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 import pytest
 
+from sightline.api.keywords import repository
 from sightline.api.resources import Resources
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
@@ -404,7 +405,7 @@ async def test_groups_terms_and_competitor_overrides_are_attached(
 
     data = detail.json()["data"]
     assert [g["group_id"] for g in data["groups"]] == [group]
-    assert [t["term_id"] for t in data["terms"]] == [term]
+    assert [(t["term_id"], t["vocabulary_kind"]) for t in data["terms"]] == [(term, "topic")]
     assert [(c["entity"]["entity_id"], c["mode"]) for c in data["competitor_overrides"]] == [
         (rival, "exclude")
     ]
@@ -702,3 +703,155 @@ async def test_a_viewer_reads_and_a_member_of_another_project_sees_nothing(
             project_url(workspace, project, "tracked-keywords", foreign), headers=owner.headers
         )
     ) == (404, "not_found")
+
+
+async def test_a_deleted_projects_keywords_are_gone_with_it(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    created = await tracked_id(api, workspace, project, owner, "crm")
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", project)
+    url = project_url(workspace, project, "tracked-keywords", created)
+
+    for method, path, body in (
+        ("GET", url, None),
+        ("PATCH", url, {"is_active": False}),
+        ("DELETE", url, None),
+        ("GET", f"{url}/config-history", None),
+        ("PUT", f"{url}/competitors", {"include": []}),
+        ("POST", project_url(workspace, project, "tracked-keywords"), {"keyword": "erp"}),
+    ):
+        response = await api.request(method, path, json=body, headers=owner.headers)
+        assert problem(response) == (404, "not_found"), (method, path)
+
+
+# Restores, merges and large batches (review of step 5 task 3).
+
+
+async def test_a_restored_keyword_keeps_its_links_and_takes_only_terms_that_fit(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    early, late = await _vocabulary(migrated, workspace, single=True, terms=("early", "late"))
+    (topic,) = await _vocabulary(migrated, workspace, terms=("crm",))
+    pricing = await _group(migrated, workspace, project, "Pricing")
+    zoho = await _entity(api, workspace, owner, "Zoho")
+    hubspot = await _entity(api, workspace, owner, "HubSpot")
+    await _give(api, workspace, project, owner, zoho)
+    await _give(api, workspace, project, owner, hubspot)
+    created = await tracked_id(
+        api,
+        workspace,
+        project,
+        owner,
+        "crm",
+        term_ids=[early],
+        competitor_overrides={"exclude": [zoho]},
+    )
+    url = project_url(workspace, project, "tracked-keywords", created)
+    await api.delete(url, headers=owner.headers)
+
+    back = await tracked_id(
+        api,
+        workspace,
+        project,
+        owner,
+        "crm",
+        term_ids=[late, topic],
+        group_ids=[pricing],
+        competitor_overrides={"exclude": [hubspot]},
+    )
+    detail = (await api.get(url, headers=owner.headers)).json()["data"]
+
+    assert back == created
+    assert sorted(t["term_id"] for t in detail["terms"]) == sorted([early, topic])
+    assert [g["group_id"] for g in detail["groups"]] == [pricing]
+    assert [(o["entity"]["entity_id"], o["mode"]) for o in detail["competitor_overrides"]] == [
+        (zoho, "exclude")
+    ]
+
+
+async def test_merging_two_duplicates_keeps_one_term_per_single_valued_vocabulary(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    first, second = await _vocabulary(migrated, workspace, single=True, terms=("a", "b"))
+    existing = await tracked_id(api, workspace, project, owner, "crm")
+
+    response = await api.post(
+        project_url(workspace, project, "tracked-keywords", "bulk-create"),
+        json={
+            "items": [
+                {"keyword": "crm", "term_ids": [first]},
+                {"keyword": "CRM", "term_ids": [second]},
+            ],
+            "on_duplicate": "merge_terms",
+        },
+        headers=owner.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    terms = await fetch(
+        migrated,
+        "SELECT term_id FROM seo.tracked_keyword_terms WHERE tracked_keyword_id = $1",
+        uuid.UUID(existing),
+    )
+    assert [str(row["term_id"]) for row in terms] == [first]
+
+
+async def test_a_bulk_create_of_more_than_a_write_batch_links_every_row(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    pricing = await _group(migrated, workspace, project, "Pricing")
+    (topic,) = await _vocabulary(migrated, workspace)
+    # Several insert statements for the links, as a batch near the parameter limit would need.
+    monkeypatch.setattr(repository, "LINKS_PER_STATEMENT", 300)
+
+    response = await api.post(
+        project_url(workspace, project, "tracked-keywords", "bulk-create"),
+        json={
+            "items": [
+                {
+                    "keyword": f"keyword {n}",
+                    "device": "both",
+                    "group_ids": [pricing],
+                    "term_ids": [topic],
+                }
+                for n in range(501)
+            ]
+        },
+        headers=owner.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(response.json()["data"]["created"]) == 1002
+    counts = await fetch(
+        migrated,
+        "SELECT (SELECT count(*) FROM seo.keyword_group_members WHERE group_id = $1) AS groups, "
+        "(SELECT count(*) FROM seo.tracked_keyword_terms WHERE term_id = $2) AS terms",
+        uuid.UUID(pricing),
+        uuid.UUID(topic),
+    )
+    assert (counts[0]["groups"], counts[0]["terms"]) == (1002, 1002)
+
+
+async def test_unarchiving_with_a_new_target_url(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    created = await tracked_id(api, workspace, project, owner, "crm")
+    url = project_url(workspace, project, "tracked-keywords", created)
+    await api.patch(url, json={"is_active": False}, headers=owner.headers)
+
+    response = await api.patch(
+        url, json={"is_active": True, "target_url": "https://acme.io/crm"}, headers=owner.headers
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert (data["is_active"], data["config_version"]) == (True, 2)
+    assert data["target_url"]["canonical_url"] == "https://acme.io/crm"

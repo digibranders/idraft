@@ -64,35 +64,58 @@ def is_material_change(previous: MetricsReading | None, current: MetricsReading)
     return previous.intent_main != current.intent_main
 
 
+def _position(year: int, month: int) -> int:
+    """Months since year zero, so consecutive calendar months are consecutive numbers."""
+    return year * 12 + month - 1
+
+
+def year_span(months: Sequence[Month]) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """The twelve calendar months ending with the latest month that has a volume, as (year,
+    month) of the first and the last; None when no month has one."""
+    known = [_position(m.year, m.month) for m in months if m.search_volume is not None]
+    if not known:
+        return None
+    end = max(known)
+    start = end - TREND_MONTHS + 1
+    return (start // 12, start % 12 + 1), (end // 12, end % 12 + 1)
+
+
 def _last_year(months: Sequence[Month]) -> list[Month]:
-    """The latest twelve months with a volume, oldest first."""
-    known = sorted(
-        (month for month in months if month.search_volume is not None),
-        key=lambda month: (month.year, month.month),
-    )
-    return known[-TREND_MONTHS:]
+    """The months with a volume within `year_span`, oldest first. A month given twice counts
+    once, as given last."""
+    span = year_span(months)
+    if span is None:
+        return []
+    start, end = _position(*span[0]), _position(*span[1])
+    by_position = {
+        _position(m.year, m.month): m
+        for m in months
+        if m.search_volume is not None and start <= _position(m.year, m.month) <= end
+    }
+    return [by_position[position] for position in sorted(by_position)]
 
 
 def trend_pct_per_month(months: Sequence[Month]) -> float | None:
-    """The least-squares slope of the latest twelve volumes over their mean, in percent a month.
-    None with fewer than three months or a mean of zero."""
+    """The least-squares slope of the volumes within `year_span` over their mean, in percent a
+    month. A month without a volume is left out, not counted as zero, and the slope is over the
+    calendar positions of the others. None with fewer than three months or a mean of zero."""
     year = _last_year(months)
     if len(year) < TREND_MONTHS_MIN:
         return None
+    positions = [float(_position(month.year, month.month)) for month in year]
     volumes = [float(month.search_volume or 0) for month in year]
     mean = sum(volumes) / len(volumes)
     if mean == 0:
         return None
-    positions = range(len(volumes))
-    middle = (len(volumes) - 1) / 2
+    middle = sum(positions) / len(positions)
     covariance = sum((x - middle) * (y - mean) for x, y in zip(positions, volumes, strict=True))
     variance = sum((x - middle) ** 2 for x in positions)
     return covariance / variance / mean * 100
 
 
 def seasonality(months: Sequence[Month]) -> tuple[dict[int, float], bool | None]:
-    """Each calendar month's index over the latest twelve months, and whether the keyword is
-    seasonal. Empty and None without twelve months of volume, or with none at all."""
+    """Each calendar month's index over `year_span`, and whether the keyword is seasonal. Empty
+    and None unless each of those twelve months has a volume, or when they are all zero."""
     year = _last_year(months)
     if len(year) < TREND_MONTHS:
         return {}, None

@@ -22,10 +22,10 @@ from sightline.api.schemas.keywords import (
 from sightline.api.schemas.metrics import MetricValue, MetricWindow
 from sightline.domain.keyword_metrics import (
     SEASONALITY_METHOD,
-    TREND_MONTHS,
     Month,
     seasonality,
     trend_pct_per_month,
+    year_span,
 )
 
 # The sources `seo.keyword_metric_snapshots.source` allows, with the name `method` gives them.
@@ -57,14 +57,31 @@ def _month_end(day: date) -> date:
 
 
 def _window(months: Sequence[Month], fallback: date) -> MetricWindow:
-    """The calendar months the volumes cover: the latest twelve, else the fallback's month."""
-    latest = list(months)[-TREND_MONTHS:]
-    if latest:
-        start = date(latest[0].year, latest[0].month, 1)
-        end = _month_end(date(latest[-1].year, latest[-1].month, 1))
-    else:
+    """The twelve calendar months the trend and seasonality read (`year_span`), else the
+    fallback's month."""
+    span = year_span(months)
+    if span is None:
         start, end = fallback.replace(day=1), _month_end(fallback)
+    else:
+        (first_year, first_month), (last_year, last_month) = span
+        start = date(first_year, first_month, 1)
+        end = _month_end(date(last_year, last_month, 1))
     return MetricWindow(from_=start.isoformat(), to=end.isoformat(), timezone="UTC")
+
+
+def _observations(months: Sequence[Month]) -> int:
+    """The months with a volume within `year_span`."""
+    span = year_span(months)
+    if span is None:
+        return 0
+    first, last = span
+    return len(
+        {
+            (month.year, month.month)
+            for month in months
+            if month.search_volume is not None and first <= (month.year, month.month) <= last
+        }
+    )
 
 
 def _filters(location_id: int, language_code: str) -> dict[str, object]:
@@ -126,7 +143,6 @@ def history(
     """The snapshots, oldest first, with the trend and seasonality of the latest one."""
     latest = snapshots[-1] if snapshots else None
     months = [] if latest is None else months_of(latest.monthly_searches)
-    known = [month for month in months if month.search_volume is not None][-TREND_MONTHS:]
     trend = trend_pct_per_month(months)
     index, is_seasonal = seasonality(months)
     fallback = today if latest is None else latest.data_month or latest.fetched_at.date()
@@ -155,7 +171,7 @@ def history(
             numerator=None,
             denominator=None,
             unit="ratio",
-            n_observations=len(known),
+            n_observations=_observations(months),
             n_keywords=1,
             window=_window(months, fallback),
             filters=_filters(location_id, language_code),
