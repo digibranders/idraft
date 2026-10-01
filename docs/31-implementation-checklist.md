@@ -111,12 +111,13 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ## Phase 2: Entities and taxonomy
 
-- [ ] Tables per Phase 2 list; seeds for domain categories and PSL snapshot pinned
-- [ ] URL canonicalizer v1 with test vectors ([14](14-citation-intelligence.md) section 3)
-- [ ] Domain resolver with specificity rules; `core.project_domain_roles` view
-- [ ] Alias automaton compiler (Aho-Corasick, negatives, possessives, domain-shaped aliases, RE2 for regex mode)
-- [ ] Location sync job (DataForSEO locations and languages)
-- [ ] Entities, aliases, taxonomy APIs and screens; alias test tool
+- [x] Tables per Phase 2 list; seeds for domain categories and PSL snapshot pinned. `core.urls` and `core.url_remap` wait for SERP ingest (step 5), publishers and domain classification rules for source intelligence (step 11)
+- [x] URL canonicalizer v1 with test vectors ([14](14-citation-intelligence.md) section 3)
+- [x] Domain resolver with specificity rules; `core.project_domain_roles` view
+- [x] Alias automaton compiler (Aho-Corasick, negatives, possessives, domain-shaped aliases, RE2 for regex mode)
+- [x] Location sync job (DataForSEO locations; a language code is checked as two ISO 639-1 letters, so no language list is synced yet)
+- [x] Entities, aliases, taxonomy APIs; alias test tool. The screens are the web session's
+- [x] Acceptance through the API: an own brand with domains and 5 competitors, the alias test on 20 sample answers, locations searchable after a sync (`backend/tests/api/test_onboarding.py`)
 
 ## Phase 3: SEO keyword system
 

@@ -157,6 +157,8 @@ Grants are least privilege. Give a role `UPDATE` on a whole table only when it m
 uv run python -m sightline.api.openapi > openapi/v1.json
 ```
 
+Request bodies under `/api/` are limited to 1 MB (`413 payload_too_large`), checked before they are parsed (`sightline.api.body_limit`). Put a reverse proxy's limit at least as high.
+
 ## Logs
 
 Every line on stdout is one JSON object (`ts`, `level`, `msg`, `service`, `version`, plus context such as `request_id`), including the lines of uvicorn, SQLAlchemy and Alembic. Keys that name a credential (`password`, `session_token`, `authorization`, `DATAFORSEO_*`, ...) are redacted at any depth, in dicts, header lists, models and dataclasses. Request lines carry the route template, never the raw URL. Database errors name the statement and never its bound values. Sentry receives no request bodies, cookies, query strings or frame locals.
