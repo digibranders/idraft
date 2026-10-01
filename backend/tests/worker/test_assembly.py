@@ -15,6 +15,7 @@ from sightline.collectors.registry import Registry
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
 from sightline.domain.workloads import TaskWorkload
+from sightline.worker import assembly
 from sightline.worker.app import WorkerContext
 from sightline.worker.assembly import assemble, fetch_handler, production_registry
 from sightline.worker.queues import Queues
@@ -83,6 +84,37 @@ async def test_a_schedule_goes_from_the_planner_through_the_queue_to_the_provide
     assert len(provider.calls) == 1
     (costs,) = await fetch(migrated, "SELECT count(*) AS events FROM ops.provider_cost_events")
     assert costs["events"] == 3
+
+
+async def test_a_failed_planner_step_does_not_hold_up_the_due_schedules(
+    context: WorkerContext, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry = Registry()
+    registry.add_workload(FakeWorkload(subjects=2))
+    registry.add_provider(FakeProvider())
+    project = await make_tenant(migrated)
+    began = (datetime.now(UTC) - timedelta(hours=2)).replace(second=0, microsecond=0)
+    schedule_id = await make_schedule(
+        migrated,
+        project,
+        next_run_at=began,
+        window_start_local=began.strftime("%H:%M"),
+        window_hours=1,
+    )
+
+    async def broken(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("manual runs could not be read")
+
+    monkeypatch.setattr(assembly, "plan_manual_runs", broken)
+    ticks = ticks_of(context, registry)
+
+    # The tick fails, so its failure is seen; the schedule is planned all the same.
+    with pytest.raises(RuntimeError, match="manual runs"):
+        await ticks["planner"].action()
+    runs = await fetch(
+        migrated, "SELECT status FROM ops.collection_runs WHERE schedule_id = $1", schedule_id
+    )
+    assert [row["status"] for row in runs] == ["running"]
 
 
 async def _submitted(pg: PostgresServer, schedule_id: object, expected: int) -> bool:

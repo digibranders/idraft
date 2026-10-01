@@ -267,6 +267,11 @@ class ManualReport:
 
 NOT_COLLECTING = "project_not_collecting"
 NOT_PLANNED = "not_planned"
+WORKLOAD_UNAVAILABLE = "workload_unavailable"
+# A manual run of a workload this worker cannot plan (its provider has no credentials) is
+# cancelled once it has waited this long, so it does not show as queued forever. The wait
+# leaves room for a worker that can plan it, as during a deploy.
+UNPLANNABLE_AFTER = timedelta(minutes=10)
 
 
 async def _next_manual(
@@ -306,20 +311,29 @@ async def _plan_manual(
     if not run.collecting:
         await ledger.cancel_run(db, run.id, code=NOT_COLLECTING, now=now)
         return "cancelled"
-    hours = max(1, math.ceil((run.window_end - run.window_start) / timedelta(hours=1)))
+    # The window opens now: a run planned late still has all of it to send its tasks.
+    length = run.window_end - run.window_start
+    selector = (run.config_snapshot or {}).get("selector", {})
     window = ScheduleWindow(
         schedule_id=None,
         workspace_id=run.workspace_id,
         project_id=run.project_id,
         workload=workload,
         provider_mode="live",
-        selector=(run.config_snapshot or {}).get("selector", {}),
-        window_start=run.window_start,
-        window_end=run.window_end,
-        window_hours=hours,
+        selector=selector,
+        window_start=now,
+        window_end=now + length,
+        window_hours=max(1, math.ceil(length / timedelta(hours=1))),
     )
     async with read_only(db):
         plan = await registry.workload(workload).plan(db, window)
+    await ledger.open_manual_run(
+        db,
+        run.id,
+        window_start=window.window_start,
+        window_end=window.window_end,
+        config_snapshot={**plan.config_snapshot, "selector": selector},
+    )
     verdict = await budget.check(
         db,
         workspace_id=run.workspace_id,
@@ -358,8 +372,16 @@ async def plan_manual_runs(
     started, in its own transaction. A run whose plan fails is cancelled, so it does not
     block the project's next one."""
     counts = dict.fromkeys(("planned", "blocked", "cancelled"), 0)
+    async with sessions() as db, db.begin():
+        counts["cancelled"] += await ledger.cancel_unplannable_runs(
+            db,
+            planned_by=registry.workloads,
+            before=now - UNPLANNABLE_AFTER,
+            code=WORKLOAD_UNAVAILABLE,
+            now=now,
+        )
     if not registry.workloads:
-        return ManualReport()
+        return ManualReport(**counts)
     skip: set[UUID] = set()
     for _ in range(limit):
         current: UUID | None = None

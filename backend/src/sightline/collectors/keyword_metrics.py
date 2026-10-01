@@ -19,7 +19,7 @@ from typing import Any, Final
 from uuid import UUID
 
 import structlog
-from sqlalchemy import ColumnElement, and_, exists, func, select, tuple_
+from sqlalchemy import ColumnElement, and_, exists, func, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -59,7 +59,14 @@ NEW_KEYWORD_QUIET: Final = timedelta(hours=24)
 MANUAL_WINDOW: Final = timedelta(hours=1)
 # Fetched tasks one ingest pass reads.
 INGEST_LIMIT: Final = 5000
+# An answer that could not be ingested (not read from storage, or not written) is tried again
+# after `INGEST_RETRY`, and its tasks fail once they have waited `INGEST_GIVE_UP` since they
+# were fetched, so their run can finish.
+INGEST_RETRY: Final = timedelta(minutes=5)
+INGEST_GIVE_UP: Final = timedelta(days=1)
 UNREADABLE: Final = "unreadable_answer"
+NOT_READ: Final = "answer_not_read"
+NOT_WRITTEN: Final = "answer_not_written"
 ADAPTER: Final = "dataforseo_labs_keyword_overview@1"
 _log = structlog.get_logger(__name__)
 
@@ -322,8 +329,10 @@ async def _location_codes(db: AsyncSession, location_ids: Collection[int | None]
 async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now: datetime) -> int:
     """A planned run for each collecting project with keywords that have no metrics yet, once
     (plan decision D8): trigger `manual`, made by the system, selector `{"new": true}`. The
-    planner plans it on the same tick. A project with such a run still waiting gets no other.
-    Returns how many runs were made."""
+    planner plans it on the same tick. A project with a keyword metrics run still waiting gets
+    no other, nor does one whose run a budget blocked in the last `NEW_KEYWORD_QUIET`: the
+    blocked run made no task, and would otherwise be made again every minute. Returns how many
+    runs were made."""
     t, k, p, w, r = (
         tracked_keywords.c,
         keywords.c,
@@ -335,7 +344,10 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
         r.project_id == t.project_id,
         r.workspace_id == t.workspace_id,
         r.workload == WORKLOAD.value,
-        r.status == "planned",
+        or_(
+            r.status == "planned",
+            and_(r.status == "budget_blocked", r.created_at >= now - NEW_KEYWORD_QUIET),
+        ),
     )
     async with sessions() as db, db.begin():
         rows = await db.execute(
@@ -387,7 +399,7 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
 class IngestReport:
     ingested: int = 0
     failed: int = 0
-    # Whose stored answer could not be read this time: tried again on the next pass.
+    # Whose answer could not be ingested this time: tried again after `INGEST_RETRY`.
     waiting: int = 0
 
     @property
@@ -399,10 +411,13 @@ async def ingest(
     sessions: async_sessionmaker[AsyncSession], store: ObjectStore, *, limit: int = INGEST_LIMIT
 ) -> IngestReport:
     """Read fetched keyword metrics tasks into snapshots (plan decision D7), one stored answer
-    at a time. Safe to run twice: a task is ingested once, and a snapshot is written once per
-    task."""
+    at a time, each in its own transaction. Safe to run twice: a task is ingested once, and a
+    snapshot is written once per task. An answer that is not a Labs answer fails its tasks; one
+    that cannot be read or written now waits (`INGEST_RETRY`, up to `INGEST_GIVE_UP`), so it
+    holds up neither the other answers nor its run."""
     async with sessions() as db:
-        fetched = await ledger.fetched_tasks(db, workload=WORKLOAD, limit=limit)
+        now = await ledger.transaction_time(db)
+        fetched = await ledger.fetched_tasks(db, workload=WORKLOAD, limit=limit, now=now)
     by_payload: dict[int, list[FetchedTask]] = {}
     for task in fetched:
         by_payload.setdefault(task.raw_payload_id, []).append(task)
@@ -412,7 +427,10 @@ async def ingest(
             body = await load_raw_payload(sessions, store, payload_id)
         except RawStorageError as error:
             _log.warning("stored answer not read", payload_id=payload_id, error=str(error))
-            waiting += len(tasks)
+            later, gave_up = await _not_now(
+                sessions, tasks, code=NOT_READ, message="The stored answer could not be read."
+            )
+            waiting, failed = waiting + later, failed + gave_up
             continue
         try:
             overviews = labs.read_overview(body)
@@ -425,24 +443,59 @@ async def ingest(
                         db, task.ref, code=UNREADABLE, message=str(error), now=now
                     )
             continue
-        async with sessions() as db, db.begin():
-            now = await ledger.transaction_time(db)
-            for task in tasks:
-                await _keep(db, task, overviews, now=now)
-                ingested += await ledger.mark_ingested(db, task.ref, now=now)
+        try:
+            async with sessions() as db, db.begin():
+                now = await ledger.transaction_time(db)
+                kept = 0
+                for task in tasks:
+                    await _keep(db, task, overviews)
+                    kept += await ledger.mark_ingested(db, task.ref, now=now)
+        except Exception:
+            # Rolled back as a whole: nothing of this answer is kept, and the next answers
+            # are still ingested.
+            _log.exception("stored answer not ingested", payload_id=payload_id)
+            later, gave_up = await _not_now(
+                sessions, tasks, code=NOT_WRITTEN, message="The answer could not be written."
+            )
+            waiting, failed = waiting + later, failed + gave_up
+            continue
+        ingested += kept
     return IngestReport(ingested=ingested, failed=failed, waiting=waiting)
 
 
-async def _keep(
-    db: AsyncSession,
-    task: FetchedTask,
-    overviews: Mapping[str, KeywordOverview],
+async def _not_now(
+    sessions: async_sessionmaker[AsyncSession],
+    tasks: Sequence[FetchedTask],
     *,
-    now: datetime,
+    code: str,
+    message: str,
+) -> tuple[int, int]:
+    """Tasks whose answer could not be ingested: those fetched `INGEST_GIVE_UP` ago fail, the
+    others wait `INGEST_RETRY`. Returns how many wait and how many failed."""
+    async with sessions() as db, db.begin():
+        now = await ledger.transaction_time(db)
+        stale = [task for task in tasks if task.fetched_at <= now - INGEST_GIVE_UP]
+        failed = 0
+        for task in stale:
+            failed += await ledger.ingest_failed(db, task.ref, code=code, message=message, now=now)
+        later = await ledger.ingest_later(
+            db,
+            [task.ref for task in tasks if task not in stale],
+            code=code,
+            message=message,
+            wait=INGEST_RETRY,
+            now=now,
+        )
+    return later, failed
+
+
+async def _keep(
+    db: AsyncSession, task: FetchedTask, overviews: Mapping[str, KeywordOverview]
 ) -> None:
     """One task's snapshot, and the keyword's current metrics when it is the newest. A keyword
     Labs knew nothing of gets a snapshot with every metric null, so it is not asked about
-    again until the next refresh. A keyword deleted since gets nothing."""
+    again until the next refresh; that empty reading is no material change and does not
+    replace current metrics. A keyword deleted since gets nothing."""
     parsed = parse_subject(task.subject_id)
     if parsed is None or task.location_id is None:
         return
@@ -457,19 +510,30 @@ async def _keep(
     if text is None:
         return
     item = overviews.get(labs.match_key(text))
+    if item is not None and _empty(item):
+        item = None
     current = keyword_metrics_current.c
-    key = and_(
-        current.keyword_id == keyword_id,
-        current.location_id == task.location_id,
-        current.language_code == language,
-        current.source == SOURCE,
-        current.workspace_id == task.workspace_id,
-    )
+    s = keyword_metric_snapshots
+    # The reading before this one, by when it was fetched: an older answer ingested late is
+    # judged against what came before it, not against a newer one.
     before = (
         await db.execute(
-            select(current.search_volume, current.keyword_difficulty, current.intent_main).where(
-                key
+            select(s.c.search_volume, s.c.keyword_difficulty, s.c.intent_main)
+            .where(
+                s.c.workspace_id == task.workspace_id,
+                s.c.keyword_id == keyword_id,
+                s.c.location_id == task.location_id,
+                s.c.language_code == language,
+                s.c.source == SOURCE,
+                s.c.fetched_at < task.fetched_at,
+                or_(
+                    s.c.search_volume.is_not(None),
+                    s.c.keyword_difficulty.is_not(None),
+                    s.c.intent_main.is_not(None),
+                ),
             )
+            .order_by(s.c.fetched_at.desc(), s.c.id.desc())
+            .limit(1)
         )
     ).one_or_none()
     reading = MetricsReading(
@@ -483,7 +547,6 @@ async def _keep(
         else MetricsReading(before.search_volume, before.keyword_difficulty, before.intent_main)
     )
     snapshot = _snapshot(item, reading, previous)
-    s = keyword_metric_snapshots
     inserted = (
         await db.execute(
             upsert(s)
@@ -517,6 +580,11 @@ async def _keep(
         intent_main=reading.intent_main,
         fetched_at=task.fetched_at,
     )
+    if item is None:
+        # Labs knew nothing this time: a keyword with no metrics yet gets an empty current
+        # row, saying when it was asked; one with metrics keeps them.
+        await db.execute(statement.on_conflict_do_nothing())
+        return
     await db.execute(
         statement.on_conflict_do_update(
             index_elements=[
@@ -561,5 +629,18 @@ def _snapshot(
         "intent_detail": None
         if item is None or item.main_intent is None
         else {"main": item.main_intent, "foreign": list(item.foreign_intents)},
-        "is_material_change": is_material_change(previous, reading),
+        # An empty reading says Labs knew nothing this time, not that the keyword changed.
+        "is_material_change": item is not None and is_material_change(previous, reading),
     }
+
+
+def _empty(item: KeywordOverview) -> bool:
+    """Labs named the keyword with no value at all: read as not knowing it."""
+    return (
+        item.search_volume is None
+        and item.keyword_difficulty is None
+        and item.main_intent is None
+        and item.cpc_usd is None
+        and item.competition is None
+        and not item.monthly_searches
+    )

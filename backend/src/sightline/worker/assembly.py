@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import httpx
 import structlog
@@ -176,19 +176,37 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
     context.queues.register_scheduled("ensure_partitions", partitions, cron=PARTITIONS_AT)
     context.queues.register_scheduled("location_sync", locations, cron=LOCATIONS_AT)
 
-    async def plan() -> None:
-        now = await database_time(context.sessions)
-        if KEYWORD_METRICS in parts.workloads:
-            # New keywords get a run of their own, which is planned right below.
-            queued = await queue_new_keywords(context.sessions, now=now)
-            if queued:
-                _log.info("new keywords queued", runs=queued)
+    async def queue_new(now: datetime) -> None:
+        if KEYWORD_METRICS not in parts.workloads:
+            return
+        queued = await queue_new_keywords(context.sessions, now=now)
+        if queued:
+            _log.info("new keywords queued", runs=queued)
+
+    async def plan_manual(now: datetime) -> None:
         manual = await plan_manual_runs(context.sessions, parts, now=now)
         if not manual.quiet:
             _log.info("manual runs planned", **asdict(manual))
+
+    async def plan_schedules(now: datetime) -> None:
         report = await plan_due(context.sessions, parts, now=now)
         if not report.quiet:
             _log.info("planner tick", **asdict(report))
+
+    async def plan() -> None:
+        """New keywords first, so their run is planned on this tick, then manual runs, then due
+        schedules. A step that fails is logged and the others still run; the tick then fails
+        with the first error."""
+        now = await database_time(context.sessions)
+        first: Exception | None = None
+        for step in (queue_new, plan_manual, plan_schedules):
+            try:
+                await step(now)
+            except Exception as error:
+                _log.exception("planner step failed", step=step.__name__)
+                first = first or error
+        if first is not None:
+            raise first
 
     async def ingest_metrics() -> None:
         if context.raw_store is None:

@@ -40,6 +40,9 @@ KEYWORD_MAX: Final = 80
 # What one call can cost: $0.012 a call and $0.00012 a keyword (docs/27), with room for a
 # price rise. A larger reported cost is not believed, and the run's estimate is charged.
 CALL_COST_MAX: Final = Decimal("1.00")
+# The years a month of search volume may be in; Labs data starts in the 2010s.
+YEAR_MIN: Final = 2000
+YEAR_MAX: Final = 2100
 _COST_STEP: Final = Decimal("0.000001")
 _LEVELS: Final = frozenset({"LOW", "MEDIUM", "HIGH"})
 # The intents Labs documents for `main_intent`.
@@ -179,6 +182,9 @@ def _months(value: object) -> tuple[MonthlyVolume, ...]:
     for entry in value:
         year, month = _count(_field(entry, "year")), _count(_field(entry, "month"))
         if year is None or month is None or not 1 <= month <= 12:
+            continue
+        # A year no keyword data has: left out, so the month can always be a date.
+        if not YEAR_MIN <= year <= YEAR_MAX:
             continue
         found[(year, month)] = MonthlyVolume(year, month, _count(_field(entry, "search_volume")))
     return tuple(found[key] for key in sorted(found))

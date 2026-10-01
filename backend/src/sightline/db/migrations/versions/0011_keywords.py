@@ -398,6 +398,7 @@ _TRACKED_KEYWORD_API_UPDATE = (
 _TRACKED_KEYWORD_WORKER_UPDATE = ("is_active", "updated_at", "deleted_at")
 _IMPORT_API_UPDATE = ("column_mapping", "defaults", "status", "duplicate_action", "finished_at")
 _IMPORT_WORKER_UPDATE = ("column_mapping", "status", "counts", "error_code", "finished_at")
+_RUN_WORKER_UPDATE = ("window_start", "window_end", "config_snapshot")
 
 
 def upgrade() -> None:
@@ -498,6 +499,14 @@ def upgrade() -> None:
         ),
         # A schedule is deleted by setting `deleted_at`: its runs keep naming it.
         "REVOKE DELETE ON ops.schedules FROM app_api",
+        # The planner opens a manual run's window when it plans it, and records the
+        # configuration its plan used (plan decision D9).
+        column_grant(
+            "ops.collection_runs",
+            role="app_worker",
+            privilege="UPDATE",
+            columns=_RUN_WORKER_UPDATE,
+        ),
     ]
     for statement in script:
         op.execute(statement)
@@ -529,6 +538,9 @@ def downgrade() -> None:
         "DROP CONSTRAINT schedules_id_project_id_workspace_id_key, "
         "DROP CONSTRAINT schedules_id_workspace_id_key, "
         "DROP COLUMN deleted_at"
+    )
+    op.execute(
+        f"REVOKE UPDATE ({', '.join(_RUN_WORKER_UPDATE)}) ON ops.collection_runs FROM app_worker"
     )
     op.execute("GRANT DELETE ON ops.schedules TO app_api")
     op.execute("REVOKE INSERT ON ops.schedules FROM app_worker")

@@ -109,14 +109,26 @@ async def test_a_keyword_the_project_does_not_track_is_refused(
     workspace, project, owner = await _owner(resources, migrated)
     other = await keyword_project(migrated, workspace)
     elsewhere = await _keyword_id(migrated, await tracked_id(api, workspace, other, owner, "crm"))
-    archived = await tracked_id(api, workspace, project, owner, "erp")
+    deleted = await tracked_id(api, workspace, project, owner, "erp")
     await execute(
         migrated,
         "UPDATE seo.tracked_keywords SET deleted_at = now() WHERE id = $1",
+        uuid.UUID(deleted),
+    )
+    # An archived keyword is not collected, so a run for it would do nothing.
+    archived = await tracked_id(api, workspace, project, owner, "hr")
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keywords SET is_active = false WHERE id = $1",
         uuid.UUID(archived),
     )
 
-    for keyword_id in (elsewhere, await _keyword_id(migrated, archived), str(uuid.uuid4())):
+    for keyword_id in (
+        elsewhere,
+        await _keyword_id(migrated, deleted),
+        await _keyword_id(migrated, archived),
+        str(uuid.uuid4()),
+    ):
         response = await _refresh(api, workspace, project, owner, {"keyword_ids": [keyword_id]})
         assert problem(response) == (422, "validation_failed")
         assert errors(response) == [("keyword_ids", "keyword_unknown")]

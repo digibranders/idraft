@@ -214,6 +214,10 @@ MATRIX: dict[str, tuple[Access, Access]] = {
                 "estimated_cost_usd",
                 "actual_cost_usd",
                 "completed_at",
+                # A manual run's window and configuration, set when it is planned.
+                "window_start",
+                "window_end",
+                "config_snapshot",
             ),
         ),
     ),

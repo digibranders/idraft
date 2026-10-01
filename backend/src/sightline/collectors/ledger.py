@@ -478,6 +478,27 @@ def _budget_of_the_runs_workspace(budget_id: UUID) -> Any:
     )
 
 
+async def open_manual_run(
+    db: AsyncSession,
+    run_id: UUID,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+    config_snapshot: Mapping[str, object],
+) -> None:
+    """A planned manual run's window, which starts when it is planned rather than when it was
+    asked for, and the configuration its plan used."""
+    await db.execute(
+        update(_runs)
+        .where(_runs.c.id == run_id, _runs.c.status == "planned")
+        .values(
+            window_start=_aware(window_start),
+            window_end=_aware(window_end),
+            config_snapshot=dict(config_snapshot),
+        )
+    )
+
+
 async def cancel_run(db: AsyncSession, run_id: UUID, *, code: str, now: datetime) -> bool:
     """A run still `planned` that will not be planned (its project stopped collecting, or its
     plan failed): cancelled with `code` as its reason. False when it was not `planned`."""
@@ -488,6 +509,31 @@ async def cancel_run(db: AsyncSession, run_id: UUID, *, code: str, now: datetime
         .returning(_runs.c.id)
     )
     return result.one_or_none() is not None
+
+
+async def cancel_unplannable_runs(
+    db: AsyncSession,
+    *,
+    planned_by: Collection[TaskWorkload],
+    before: datetime,
+    code: str,
+    now: datetime,
+) -> int:
+    """Manual runs still `planned` since before `before` whose workload is not among
+    `planned_by`: cancelled with `code`. Returns how many."""
+    result = await db.execute(
+        update(_runs)
+        .where(
+            _runs.c.status == "planned",
+            _runs.c.trigger == "manual",
+            _runs.c.schedule_id.is_(None),
+            _runs.c.workload.not_in(sorted(workload.value for workload in planned_by)),
+            _runs.c.created_at < _aware(before),
+        )
+        .values(status="cancelled", status_reason=code, completed_at=_aware(now))
+        .returning(_runs.c.id)
+    )
+    return len(result.all())
 
 
 async def block_run(
@@ -1512,9 +1558,11 @@ class FetchedTask:
 
 
 async def fetched_tasks(
-    db: AsyncSession, *, workload: TaskWorkload, limit: int
+    db: AsyncSession, *, workload: TaskWorkload, limit: int, now: datetime
 ) -> list[FetchedTask]:
-    """Tasks of the workload waiting to be ingested, those sharing a payload together."""
+    """Tasks of the workload waiting to be ingested, those sharing a payload together. A task
+    whose answer could not be ingested waits until its `next_attempt_at`, so it does not take
+    the head of every pass."""
     rows = await db.execute(
         select(
             _tasks.c.id,
@@ -1531,6 +1579,10 @@ async def fetched_tasks(
             _tasks.c.status == "fetched",
             _tasks.c.workload == workload.value,
             _tasks.c.raw_payload_id.is_not(None),
+            or_(
+                _tasks.c.next_attempt_at.is_(None),
+                _tasks.c.next_attempt_at <= literal(_aware(now), DateTime(timezone=True)),
+            ),
         )
         .order_by(_tasks.c.raw_payload_id, _tasks.c.id)
         .limit(limit)
@@ -1558,6 +1610,32 @@ async def mark_ingested(db: AsyncSession, ref: TaskRef, *, now: datetime) -> boo
         .returning(_tasks.c.id)
     )
     return done.one_or_none() is not None
+
+
+async def ingest_later(
+    db: AsyncSession,
+    refs: Sequence[TaskRef],
+    *,
+    code: str,
+    message: str,
+    wait: timedelta,
+    now: datetime,
+) -> int:
+    """The tasks' answer could not be ingested this time: they stay `fetched` and are left
+    out of passes for `wait`. Returns how many were still `fetched`."""
+    if not refs:
+        return 0
+    done = await db.execute(
+        update(_tasks)
+        .where(_named(refs), _tasks.c.status == "fetched")
+        .values(
+            next_attempt_at=_aware(now) + wait,
+            last_error_code=code,
+            last_error_message=message[:ERROR_MESSAGE_MAX],
+        )
+        .returning(_tasks.c.id)
+    )
+    return len(done.all())
 
 
 async def ingest_failed(

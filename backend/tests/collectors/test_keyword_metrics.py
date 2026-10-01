@@ -99,8 +99,10 @@ async def _metrics(
     volume: int | None = 100,
     difficulty: int = 40,
     location: int = LOCATION,
+    current: bool = True,
 ) -> None:
-    """Current Labs metrics as of `fetched_at`."""
+    """A Labs snapshot as of `fetched_at`, and the keyword's current metrics from it when
+    `current`."""
     snapshot = await fetchrow(
         pg,
         "INSERT INTO seo.keyword_metric_snapshots (workspace_id, keyword_id, location_id, "
@@ -114,6 +116,8 @@ async def _metrics(
         volume,
         difficulty,
     )
+    if not current:
+        return
     await execute(
         pg,
         "INSERT INTO seo.keyword_metrics_current (keyword_id, location_id, language_code, "
@@ -379,6 +383,53 @@ async def test_a_later_answer_is_a_material_change_only_when_it_moves_enough(
     assert rows[-1]["is_material_change"] is False
 
 
+async def _current(pg: PostgresServer, keyword_id: uuid.UUID) -> tuple[Any, ...]:
+    row = await fetchrow(
+        pg,
+        "SELECT search_volume, keyword_difficulty FROM seo.keyword_metrics_current "
+        "WHERE keyword_id = $1",
+        keyword_id,
+    )
+    return (row["search_volume"], row["keyword_difficulty"])
+
+
+async def test_an_older_answer_ingested_late_is_judged_against_the_reading_before_it(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    best = await _track(migrated, project, "best crm")
+    store = MemoryStore()
+    # Before the answer: close to it. After it (already ingested): far from it.
+    await _metrics(
+        migrated, project, best, NOW - 40 * DAY, volume=1850, difficulty=56, current=False
+    )
+    await _metrics(migrated, project, best, NOW + DAY, volume=200, difficulty=10)
+    await _fetched_run(worker_db, migrated, project, fixture_bytes("keyword_overview_live"), store)
+
+    await ingest(worker_db, store)
+
+    (late,) = [row for row in await _snapshots(migrated, best) if row["task_id"] is not None]
+    assert late["is_material_change"] is False
+    # The newer reading stays current.
+    assert await _current(migrated, best) == (200, 10)
+
+
+async def test_an_empty_reading_keeps_the_current_metrics_and_is_no_change(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    software = await _track(migrated, project, "crm software")
+    store = MemoryStore()
+    await _metrics(migrated, project, software, NOW - 40 * DAY, volume=500, difficulty=30)
+    await _fetched_run(worker_db, migrated, project, fixture_bytes("keyword_overview_live"), store)
+
+    await ingest(worker_db, store)
+
+    rows = await _snapshots(migrated, software)
+    assert (rows[-1]["search_volume"], rows[-1]["is_material_change"]) == (None, False)
+    assert await _current(migrated, software) == (500, 30)
+
+
 class LosingStore(MemoryStore):
     """Storage that cannot read the objects under `lost`."""
 
@@ -411,7 +462,62 @@ async def test_an_answer_that_is_not_labs_fails_its_tasks_and_a_missing_one_wait
     (failed,) = await task_rows(migrated, run_id)
     assert (failed["status"], failed["last_error_code"]) == ("failed", keyword_metrics.UNREADABLE)
     (waiting,) = await task_rows(migrated, lost)
-    assert waiting["status"] == "fetched"
+    assert (waiting["status"], waiting["last_error_code"]) == ("fetched", keyword_metrics.NOT_READ)
+    # It waits out the retry, so it does not take the head of every pass.
+    assert waiting["next_attempt_at"] > NOW
+    assert (await ingest(worker_db, store)).quiet
+
+
+async def test_an_answer_not_read_for_a_day_fails_its_tasks_so_the_run_can_finish(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    await _track(migrated, project, "crm")
+    store = LosingStore()
+    run_id = await _fetched_run(worker_db, migrated, project, b'{"tasks": []}', store)
+    store.lost = set(store.objects)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET ready_at = now() - interval '25 hours' WHERE run_id = $1",
+        run_id,
+    )
+
+    report = await ingest(worker_db, store)
+
+    assert report == keyword_metrics.IngestReport(failed=1)
+    (task,) = await task_rows(migrated, run_id)
+    assert (task["status"], task["last_error_code"]) == ("failed", keyword_metrics.NOT_READ)
+
+
+async def test_an_answer_that_cannot_be_written_waits_and_the_others_are_ingested(
+    worker_db: Ledger, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = await make_tenant(migrated)
+    await _track(migrated, project, "best crm")
+    other = await make_tenant(migrated)
+    await _track(migrated, other, "best crm")
+    store = MemoryStore()
+    body = fixture_bytes("keyword_overview_live")
+    broken = await _fetched_run(worker_db, migrated, project, body + b" ", store)
+    fine = await _fetched_run(worker_db, migrated, other, body, store)
+    keep = keyword_metrics._keep
+
+    async def fails_for_one(db: AsyncSession, task: Any, overviews: Any) -> None:
+        if task.workspace_id == project.workspace_id:
+            raise ValueError("a value the snapshot cannot hold")
+        await keep(db, task, overviews)
+
+    monkeypatch.setattr(keyword_metrics, "_keep", fails_for_one)
+
+    report = await ingest(worker_db, store)
+
+    assert (report.ingested, report.waiting) == (1, 1)
+    (waiting,) = await task_rows(migrated, broken)
+    assert (waiting["status"], waiting["last_error_code"]) == (
+        "fetched",
+        keyword_metrics.NOT_WRITTEN,
+    )
+    assert [task["status"] for task in await task_rows(migrated, fine)] == ["ingested"]
 
 
 # New keywords and manual runs.
@@ -442,8 +548,9 @@ async def test_new_keywords_get_one_run_which_the_planner_plans_at_once(
 
     queued = await queue_new_keywords(worker_db, now=NOW)
     waiting = await queue_new_keywords(worker_db, now=NOW)
-    planned = await plan_manual_runs(worker_db, _registry(), now=NOW)
-    asked_already = await queue_new_keywords(worker_db, now=NOW + timedelta(minutes=1))
+    later = NOW + timedelta(minutes=5)
+    planned = await plan_manual_runs(worker_db, _registry(), now=later)
+    asked_already = await queue_new_keywords(worker_db, now=NOW + timedelta(minutes=6))
 
     assert (queued, waiting, asked_already) == (1, 0, 0)
     assert planned == ManualReport(planned=1)
@@ -453,6 +560,11 @@ async def test_new_keywords_get_one_run_which_the_planner_plans_at_once(
         "system",
         "running",
     )
+    # Its window opens when it is planned, and it keeps the configuration its plan used.
+    assert (run["window_start"], run["window_end"]) == (later, later + timedelta(hours=1))
+    snapshot = json.loads(run["config_snapshot"])
+    assert (snapshot["selector"], snapshot["provider_mode"]) == ({"new": True}, "live")
+    assert snapshot["adapter"] == keyword_metrics.ADAPTER
     # Only the keyword with no metrics; the stale one waits for the monthly run.
     assert [task["subject_id"] for task in await task_rows(migrated, run["id"])] == [
         subject_id(new, "en")
@@ -476,6 +588,29 @@ async def test_a_manual_run_over_a_used_up_budget_is_blocked(
     assert report == ManualReport(blocked=1)
     (run,) = await _runs(migrated, project)
     assert (await run_row(migrated, run["id"]))["status"] == "budget_blocked"
+    # The blocked run made no task; the next ticks of the day make no other run.
+    assert await queue_new_keywords(worker_db, now=NOW + timedelta(minutes=1)) == 0
+    assert await queue_new_keywords(worker_db, now=NOW + 2 * DAY) == 1
+
+
+async def test_a_manual_run_no_worker_can_plan_is_cancelled_after_a_while(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    await _track(migrated, project, "crm")
+    await queue_new_keywords(worker_db, now=NOW)
+    # The run's age is by the database clock, which made it.
+    (queued,) = await _runs(migrated, project)
+    made: datetime = queued["created_at"]
+    # A worker without DataForSEO credentials registers no keyword metrics.
+    nothing = Registry()
+
+    soon = await plan_manual_runs(worker_db, nothing, now=made + timedelta(minutes=1))
+    later = await plan_manual_runs(worker_db, nothing, now=made + timedelta(minutes=11))
+
+    assert (soon, later) == (ManualReport(), ManualReport(cancelled=1))
+    (run,) = await _runs(migrated, project)
+    assert (run["status"], run["status_reason"]) == ("cancelled", "workload_unavailable")
 
 
 async def test_a_manual_run_of_a_project_that_stopped_collecting_is_cancelled(

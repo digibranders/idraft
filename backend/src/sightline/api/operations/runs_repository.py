@@ -127,7 +127,8 @@ async def manual_runs_since(
 async def tracked_keyword_ids(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, keyword_ids: Collection[UUID]
 ) -> set[UUID]:
-    """The keywords among these that the project tracks (archived ones included)."""
+    """The keywords among these that the project tracks actively: an archived keyword is not
+    collected, so a run for it would do nothing."""
     t = tracked_keywords.c
     rows = await db.execute(
         select(t.keyword_id)
@@ -136,6 +137,7 @@ async def tracked_keyword_ids(
             t.workspace_id == workspace_id,
             t.project_id == project_id,
             t.deleted_at.is_(None),
+            t.is_active,
             t.keyword_id.in_(list(keyword_ids)),
         )
     )

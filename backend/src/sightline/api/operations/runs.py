@@ -61,7 +61,7 @@ class RunService:
                     raise invalid_field(
                         "keyword_ids",
                         code="keyword_unknown",
-                        message="A keyword the project does not track.",
+                        message="A keyword the project does not track, or has archived.",
                     )
                 selector["keyword_ids"] = sorted(
                     str(keyword_id) for keyword_id in set(body.keyword_ids)
