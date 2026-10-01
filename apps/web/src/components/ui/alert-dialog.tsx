@@ -2,7 +2,7 @@
 
 import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog';
 import { Field as FieldPrimitive } from '@base-ui/react/field';
-import { useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 
 import { Button } from './button';
 import { Field } from './field';
@@ -33,9 +33,20 @@ interface AlertShellProps {
   safe: { label: string; onPress: () => void; disabled?: boolean | undefined };
   action: ReactElement;
   slot: 'confirm-dialog' | 'discard-changes-dialog';
+  finalFocus?: RefObject<HTMLElement | null> | undefined;
 }
 
-function AlertShell({ open, onDismiss, title, description, body, safe, action, slot }: AlertShellProps): ReactElement {
+function AlertShell({
+  open,
+  onDismiss,
+  title,
+  description,
+  body,
+  safe,
+  action,
+  slot,
+  finalFocus,
+}: AlertShellProps): ReactElement {
   const safeButton = useRef<HTMLButtonElement>(null);
   return (
     <AlertDialogPrimitive.Root
@@ -52,7 +63,12 @@ function AlertShell({ open, onDismiss, title, description, body, safe, action, s
           onMouseDown={(event) => event.preventDefault()}
           className={BACKDROP}
         />
-        <AlertDialogPrimitive.Popup data-slot={slot} initialFocus={safeButton} className={POPUP}>
+        <AlertDialogPrimitive.Popup
+          data-slot={slot}
+          initialFocus={safeButton}
+          {...(finalFocus === undefined ? {} : { finalFocus })}
+          className={POPUP}
+        >
           <div className="flex flex-col gap-1 px-6 pt-6 pb-4">
             <AlertDialogPrimitive.Title className="type-section-title">{title}</AlertDialogPrimitive.Title>
             <AlertDialogPrimitive.Description className="type-body text-foreground-secondary">
@@ -128,6 +144,11 @@ export interface ConfirmDialogProps {
   typedConfirmation?: { expected: string; label: ReactNode } | undefined;
   /** `neutral` for a confirmation that destroys nothing, such as "Stay signed in". */
   tone?: 'destructive' | 'neutral' | undefined;
+  /**
+   * Where focus goes when the dialog closes; by default back to what opened it. Set it once the action
+   * removed that control (a row and its button), so focus does not fall to the page (16 section 6).
+   */
+  finalFocus?: RefObject<HTMLElement | null> | undefined;
 }
 
 /**
@@ -146,6 +167,7 @@ export function ConfirmDialog({
   error,
   typedConfirmation,
   tone = 'destructive',
+  finalFocus,
 }: ConfirmDialogProps): ReactElement {
   const [pending, setPending] = useState(false);
   const [typed, setTyped] = useState('');
@@ -176,6 +198,7 @@ export function ConfirmDialog({
     <AlertShell
       slot="confirm-dialog"
       open={open}
+      finalFocus={finalFocus}
       onDismiss={close}
       title={title}
       description={description}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { SettingsFrame } from '@/features/account';
+import { SettingsFrame } from '@/features/settings';
 
 /** Settings: the local navigation and the form column, inside the shell. */
 export default async function SettingsLayout({

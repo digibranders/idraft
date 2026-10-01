@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { cache } from 'react';
+
 import { unwrap } from '@/lib/api/client';
 import { serverApi } from '@/lib/api/server';
 import type { components } from '@/lib/api/schema';
@@ -17,9 +19,10 @@ const MAX_PAGES = 50;
  * Every active or paused project of the membership's workspace that the member can open, read page by
  * page until the API's `total`. The API lists only the projects the member may open; `project_ids` is
  * applied as well, so the app never links to a project the API would answer 404 for. A workspace's project
- * limit is set by an operator and has no upper bound, so one page is not enough.
+ * limit is set by an operator and has no upper bound, so one page is not enough. Once per request and
+ * membership: the project layout and a settings page share the answer.
  */
-export async function projectsOfMembership(membership: MeMembership): Promise<Project[]> {
+export const projectsOfMembership = cache(async (membership: MeMembership): Promise<Project[]> => {
   const client = await serverApi();
   const projects: Project[] = [];
   for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -35,4 +38,4 @@ export async function projectsOfMembership(membership: MeMembership): Promise<Pr
     if (data.length === 0 || projects.length >= info.total) break;
   }
   return projects.filter((project) => canOpenProject(membership.project_ids, project.project_id));
-}
+});

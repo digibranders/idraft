@@ -63,34 +63,45 @@ Done differently, and why:
 
 **Files:** modify `src/features/account/settings-frame.tsx` (or move the frame to `features/settings`), create `src/features/project-settings/*`, route `src/app/[workspace]/[project]/settings/general/page.tsx`, messages `settings.*`, `projectSettings.*`.
 
-- [ ] **Step 1:** `SettingsNav` lists "Your account", then "Project settings" (General) and "Workspace settings" (General, Members and roles), in that order. Every member sees every section; a section the person may not change renders read-only with one `Banner` naming the missing permission (24 T4 states). `/settings` still opens Profile.
-- [ ] **Step 2:** General form with the `SaveBar`: name, slug (changing it moves the page to the new address after the save, and the switcher follows), time zone (searchable list of IANA zones, the browser's first), deep check weekday, default language. `PATCH {P}`; `409 duplicate` on slug; `timezone_unknown` on the zone; the `timezone_change_applies_forward` warning is a `Banner` after the save ("New business dates use the new time zone; past dates keep theirs").
-- [ ] **Step 3:** Status section: "Pause tracking" or "Resume tracking", and a danger zone with "Archive project" (an `AlertDialog`; an archived project leaves the list and its pages answer as before until the API changes that). No delete: deferred.
-- [ ] **Step 4:** Tests (each mutation's success and problem, read-only state for an analyst, the slug move), against the real API, Opus review, fixes, gates, commit "Add project settings: general and status".
+- [x] **Step 1:** `SettingsNav` lists "Your account", then "Project settings" (General) and "Workspace settings" (General, Members and roles), in that order. Every member sees every section; a section the person may not change renders read-only with one `Banner` naming the missing permission (24 T4 states). `/settings` still opens Profile.
+- [x] **Step 2:** General form with the `SaveBar`: name, slug (changing it moves the page to the new address after the save, and the switcher follows), time zone (searchable list of IANA zones, the browser's first), deep check weekday, default language. `PATCH {P}`; `409 duplicate` on slug; `timezone_unknown` on the zone; the `timezone_change_applies_forward` warning is a `Banner` after the save ("New business dates use the new time zone; past dates keep theirs").
+- [x] **Step 3:** Status section: "Pause tracking" or "Resume tracking", and a danger zone with "Archive project" (an `AlertDialog`; an archived project leaves the list and its pages answer as before until the API changes that). No delete: deferred.
+- [x] **Step 4:** Tests (each mutation's success and problem, read-only state for an analyst, the slug move), against the real API, Opus review, fixes, gates, commit "Add project settings: general and status".
 
 ### Task 3: Workspace settings > General
 
 **Files:** `src/features/workspace-settings/general-*.tsx`, route `settings/workspace/page.tsx`.
 
-- [ ] **Step 1:** Name, slug and time zone through the `SaveBar` (`PATCH {W}`); a new slug moves every open page to the new address; `409 duplicate` on slug. Read-only with a `Banner` without `workspace:update`. The logo waits for an upload route.
-- [ ] **Step 2:** Tests, real API, Opus review, gates, commit "Add workspace settings: general".
+- [x] **Step 1:** Name, slug and time zone through the `SaveBar` (`PATCH {W}`); a new slug moves every open page to the new address; `409 duplicate` on slug. Read-only with a `Banner` without `workspace:update`. The logo waits for an upload route.
+- [x] **Step 2:** Tests, real API, Opus review, gates, commit "Add workspace settings: general".
 
 ### Task 4: Members and roles
 
 **Files:** `src/features/workspace-settings/members-*.tsx`, route `settings/members/page.tsx`.
 
-- [ ] **Step 1:** Members table (32 px rows, 12-tables row anatomy): name and email, role, project access ("All projects" or "n projects"), two-factor, last active (both blank when the API sends null), and a row menu. Every member sees the table; the menu is there with `members:manage`.
-- [ ] **Step 2:** "Change role" and "Project access" in one dialog (role radio list with each role's description from 24 section 3; access "All projects" or a checklist of the workspace's projects). Only an owner sees `owner` as a choice and can change an owner. `PATCH` through `withFreshSession`; `409 last_owner` and `scope_not_allowed` as the dialog's alert.
-- [ ] **Step 3:** "Remove from workspace" (`AlertDialog`, `destructive-solid`), fresh session, `409 last_owner`. Removing oneself is not offered (leaving is deferred).
-- [ ] **Step 4:** Tests, real API, Opus review, gates, commit "Add members and roles".
+- [x] **Step 1:** Members table (32 px rows, 12-tables row anatomy): name and email, role, project access ("All projects" or "n projects"), two-factor, last active (both blank when the API sends null), and a row menu. Every member sees the table; the menu is there with `members:manage`.
+- [x] **Step 2:** "Change role" and "Project access" in one dialog (role radio list with each role's description from 24 section 3; access "All projects" or a checklist of the workspace's projects). Only an owner sees `owner` as a choice and can change an owner. `PATCH` through `withFreshSession`; `409 last_owner` and `scope_not_allowed` as the dialog's alert.
+- [x] **Step 3:** "Remove from workspace" (`AlertDialog`, `destructive-solid`), fresh session, `409 last_owner`. Removing oneself is not offered (leaving is deferred).
+- [x] **Step 4:** Tests, real API, Opus review, gates, commit "Add members and roles".
 
 ### Task 5: Invitations
 
 **Files:** `src/features/workspace-settings/invitations-*.tsx`.
 
-- [ ] **Step 1:** "Invite people" (dialog, 560 px): email, role, project access; fresh session when the role is owner or admin; `409 duplicate` on the email field ("already a member or invited"); the hourly limits as the dialog's alert with the wait. The invitation link is emailed by the API; the dialog never shows it.
-- [ ] **Step 2:** Pending invitations under the members (email, role, access, invited by, expires), with "Withdraw" (`AlertDialog`). `409 invalid_state_transition` refreshes the list and says it was already used or expired.
-- [ ] **Step 3:** Tests, real API, Opus review, gates, commit "Add invitations".
+- [x] **Step 1:** "Invite people" (dialog, 560 px): email, role, project access; fresh session when the role is owner or admin; `409 duplicate` on the email field ("already a member or invited"); the hourly limits as the dialog's alert with the wait. The invitation link is emailed by the API; the dialog never shows it.
+- [x] **Step 2:** Pending invitations under the members (email, role, access, invited by, expires), with "Withdraw" (`AlertDialog`). `409 invalid_state_transition` refreshes the list and says it was already used or expired.
+- [x] **Step 3:** Tests, real API, Opus review, gates, commit "Add invitations".
+
+Done differently in Tasks 2 to 5, and why:
+
+- One commit for Tasks 2 to 5: the settings navigation lists all three groups, so its first commit needs the sections it links to. Tasks 3 to 5 had one Opus review together, after Task 2's own.
+- `SettingsFrame` moved to `features/settings` (it owns every group). `Banner` (`components/app/status/banner.tsx`) is new: tone, placement, lead, at most two actions, a live role only for one that appears during the session. `TimeZoneCombobox` (`components/app/forms`) lists the runtime's zones by their current names, the browser's first, with today's abbreviation. Languages (`lib/format/language.ts`) are a list of 20 two-letter codes named through `Intl.DisplayNames`, plus the project's own code when the API holds another. The project fields shared by settings and the new-project form are `lib/projects/fields.ts`.
+- Saves follow the profile form: only the fields that changed are sent, `form.reset` with the saved values (no `keepDirtyValues`: react-hook-form keeps stale `dirtyFields` with it, and the real API may return the same row), a polite announcement, `router.refresh()` so the shell shows the new name, and `router.replace` to the new address when the slug changed. A failure of the whole form takes focus. A second Enter during a save is ignored in the form's `onSubmit` (the mutation's state lags a render). The time-zone warning (`timezone_change_applies_forward`) is announced with the save and shown as a `Banner`; a save that also moves the page keeps only the announcement.
+- Project status: pause and resume run at once; archive asks (`ConfirmDialog`) and then opens the workspace's list, since the project layout answers 404 for an archived project. A member who may not change the project sees its values and its tracking state read-only, with one `Banner`.
+- Members: 40 px rows; the menu has "Change role and access" and "Remove from workspace" (not on one's own row: leaving is deferred); an owner's row is disabled for an admin with the reason. The dialog sends only what changed (an unchanged project list is not judged again by the API), counts projects the member keeps that the list no longer shows (archived or deleted), and refreshes the page after a change to one's own role. Project restriction has a UI already, although doc 24 section 3.1 places it in Phase 12: the API has it, and an agency needs it for client access from the start.
+- Removals and withdrawals hand focus to the section's heading through the new `finalFocus` of `ConfirmDialog`, since the row and its button are gone. A member or invitation that someone else removed meanwhile (`404`, or `409 invalid_state_transition`) closes the dialog with a toast and refreshes the list. A change to a member refreshes the invitations too: the API withdraws what someone sent when they stop managing members.
+- Invitations are a section of their own under Members and roles, for `members:manage` only (the API lists them to those members alone). Inviting an owner or admin asks "Confirm it is you" when the session is not fresh.
+- Not done: the real-API walkthrough of Tasks 2 to 5 is done once for the branch in Task 8. A second refusal after "Confirm it is you" is passed through by `withFreshSession` and the dialogs treat it as a cancel; telling the two apart is an open point for the fresh-session helper.
 
 ### Task 6: New project
 
