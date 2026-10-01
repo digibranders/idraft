@@ -129,7 +129,7 @@ Canonicalization rules (full list and test vectors in [14-citation-intelligence.
 - Remove trailing slash on non-root paths.
 - `www.` is **kept** in `host` (some sites serve different content), but `registrable_domain` groups it.
 
-Output: `canonical_url`, `url_hash`, `host`, `registrable_domain` (via `tldextract` with a pinned, bundled Public Suffix List snapshot and no network fetch, private domains enabled so `user.github.io` is its own registrable domain).
+Output: `canonical_url`, `url_hash`, `host`, `registrable_domain` (via `publicsuffixlist` with a pinned, bundled Public Suffix List snapshot and no network fetch, private domains enabled so `user.github.io` is its own registrable domain). Built in `sightline/extraction/urls.py`; stage 2 is `sightline/extraction/domains.py`.
 
 ### Stage 2: Domain role resolution
 
@@ -158,10 +158,22 @@ Answer engines return markdown or HTML-derived text with lists, headings, bold n
 - Matching uses an Aho-Corasick automaton compiled from all positive aliases of all project entities. One pass over the text finds all candidate spans, O(text length + matches).
 - `word_boundary` mode requires Unicode word boundaries on both sides (letters and digits are word characters; `.` `-` `'` are boundaries). Possessives and plural suffixes are allowed after the boundary (`HubSpot's`, `HubSpots`).
 - `exact_case` mode compares the original-case text.
-- `regex` mode is allowed for power users, compiled with a timeout-safe engine (RE2 via `re2-wasm`) to prevent catastrophic backtracking from user-entered patterns.
+- `regex` mode is allowed for power users, compiled with RE2 (`google-re2`), which runs in time linear in the text whatever the pattern, so user-entered patterns cannot backtrack catastrophically.
 - Domain-shaped aliases are auto-generated for every entity domain (`acme.com`, `acme.io`), so "visit acme.com" counts as a brand mention.
 - **Overlap resolution:** longest match wins (`Salesforce Marketing Cloud` beats `Salesforce` when both are aliases of different entities, for example a product and its parent brand). A product mention also counts toward its parent brand (`parent_entity_id`) with `match_method = 'via_product'`.
 - **Negative aliases** (`is_negative`): any positive span fully inside a negative span is dropped (`Apple pie`, `Monday morning`).
+
+As built (`sightline/extraction/text.py` and `aliases.py`, step 4):
+
+- Each original character is normalized on its own (NFKD, case folded for the folded text), so every normalized character maps back to exactly the characters it came from. Only the Latin, Greek and Cyrillic accent blocks are dropped: other marks (Indic vowel signs and viramas, the kana voicing marks) tell letters apart and stay. Format characters (zero-width, soft hyphen, direction marks) are dropped, symbols and other numbers (`™`, a footnote `¹`) become a space so they cannot glue onto a name, and a lone surrogate becomes U+FFFD. Spans are offsets into the text as given, in code points.
+- `exact_case` is a word-boundary match on the original case; `case_sensitive` makes `word_boundary` and `substring` compare case too. Letters, digits and marks are word characters; anything else (`_` included) is a boundary, checked only on a side where the alias itself ends in a word character (`C++` matches `C++17`). The plurals `s` and `es` may stand before the closing boundary; a possessive needs nothing, since its apostrophe is a boundary. Scripts written without spaces need `substring` mode.
+- `regex` patterns run on the normalized text with case kept, case-insensitive unless `case_sensitive`, and the pattern's own characters that are not ASCII are normalized the same way (a pattern `Nestlé` finds `Nestle`); empty matches are ignored. A pattern is refused (`422 invalid_regex`) when RE2 cannot compile it (no backreferences or lookaround) or its program, compiled with the alias's own case setting, is larger than 2,000 instructions. A stored pattern the matcher cannot run is left out of the project's matcher and reported, never fatal.
+- An entity's canonical name is matched by itself as a word alias that ignores case (`alias_name`), so an entity with no stored aliases is still found. A stored alias of the entity whose text folds to the name's, in any mode (case-sensitive, context-bound and negative ones included), replaces the name's own match, so its rules stand for the name; a regex alias never does. The name goes through stage 5 like any alias of the entity: an ambiguous entity's name needs context.
+- Domain-shaped aliases come from each entity domain's host, `www.` left off and punycode shown as Unicode; they match after a `.` (`www.acme.io`) but not after a word character or `-`, and not before one followed by a letter (`acme.io.evil.com`).
+- Negatives are applied first. Each remaining span is scored (stage 5), and overlaps are resolved among the spans that count before the discarded ones, so a discarded span never takes text from one that counts; discarded spans are still reported where they overlap nothing. Several entities matched on exactly the same span all keep it; one entity matched twice on a span keeps the most specific method. Span methods are `alias_exact`, `alias_word`, `alias_substring`, `alias_regex`, `alias_name`, `alias_domain` and `via_product`; a `via_product` span names the product.
+- More than 250,000 matches in one text is refused (`TooManyMatchesError`; the alias test answers `422 too_many_matches`) rather than held in memory.
+- `language_code` on an alias is stored but not used until answers carry a language (step 8).
+- Stage 5 is scored per span from the text alone (the signals of the first, third and sixth rows of the table below), and each span carries its own status. A hint counts within 40 tokens of either end of the hint. The capital bonus is for ambiguous entities only: an alias that merely requires context is often an abbreviation, capitalized anyway. A span opens a sentence when only whitespace, opening brackets and quotes, markdown markers (`*`, `#`, `>`, `-`, `_`, `` ` ``, `|`, `•`) or a list marker (`1)`) stand between it and the start of the text, a line, or `.`, `!`, `?`, `:` or `…`. A domain-shaped alias always scores 0.95. An entity's confidence is its best span's score, and mentions come in the order of their first span that counts.
 
 ### Stage 5: Disambiguation
 

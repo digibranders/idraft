@@ -8,13 +8,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Row, Select, func, insert, select, update
+from sqlalchemy import Row, Select, exists, func, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sightline.db.errors import violated_unique_constraint
-from sightline.db.tables import projects, users, workspace_quotas
+from sightline.db.tables import domains, locations, projects, users, workspace_quotas
 
 
 class ProjectSlugTakenError(Exception):
@@ -27,7 +27,15 @@ class ProjectRecord:
     workspace_id: UUID
     name: str
     slug: str
+    primary_domain_id: int | None
+    primary_host: str | None
+    primary_registrable_domain: str | None
+    primary_category: str | None
+    primary_category_source: str | None
     default_location_id: int | None
+    default_location_name: str | None
+    default_location_country: str | None
+    default_location_type: str | None
     default_language_code: str | None
     timezone: str
     deep_check_weekday: int
@@ -49,7 +57,15 @@ def _projects(workspace_id: UUID) -> Select[tuple[object, ...]]:
             projects.c.workspace_id,
             projects.c.name,
             projects.c.slug,
+            projects.c.primary_domain_id,
+            domains.c.host.label("primary_host"),
+            domains.c.registrable_domain.label("primary_registrable_domain"),
+            domains.c.default_category.label("primary_category"),
+            domains.c.category_source.label("primary_category_source"),
             projects.c.default_location_id,
+            locations.c.name.label("default_location_name"),
+            locations.c.country_iso.label("default_location_country"),
+            locations.c.location_type.label("default_location_type"),
             projects.c.default_language_code,
             projects.c.timezone,
             projects.c.deep_check_weekday,
@@ -63,6 +79,8 @@ def _projects(workspace_id: UUID) -> Select[tuple[object, ...]]:
             users.c.email.label("created_by_email"),
         )
         .outerjoin(users, users.c.id == projects.c.created_by)
+        .outerjoin(domains, domains.c.id == projects.c.primary_domain_id)
+        .outerjoin(locations, locations.c.id == projects.c.default_location_id)
         .where(projects.c.workspace_id == workspace_id, projects.c.deleted_at.is_(None))
     )
 
@@ -75,7 +93,15 @@ def _project(row: Row[tuple[object, ...]]) -> ProjectRecord:
         workspace_id=fields["workspace_id"],
         name=fields["name"],
         slug=str(fields["slug"]),
+        primary_domain_id=fields["primary_domain_id"],
+        primary_host=fields["primary_host"],
+        primary_registrable_domain=fields["primary_registrable_domain"],
+        primary_category=fields["primary_category"],
+        primary_category_source=fields["primary_category_source"],
         default_location_id=fields["default_location_id"],
+        default_location_name=fields["default_location_name"],
+        default_location_country=fields["default_location_country"],
+        default_location_type=fields["default_location_type"],
         default_language_code=fields["default_language_code"],
         timezone=fields["timezone"],
         deep_check_weekday=fields["deep_check_weekday"],
@@ -157,6 +183,16 @@ async def count_projects(db: AsyncSession, workspace_id: UUID) -> int:
     return count
 
 
+async def location_is_active(db: AsyncSession, location_id: int) -> bool:
+    """Whether a project may name the location: it exists and the provider still lists it."""
+    found: bool = (
+        await db.execute(
+            select(exists().where(locations.c.id == location_id, locations.c.is_active))
+        )
+    ).scalar_one()
+    return found
+
+
 def _raise_if_slug_taken(error: IntegrityError) -> None:
     if violated_unique_constraint(error) == "projects_workspace_id_slug_key":
         raise ProjectSlugTakenError from None
@@ -171,6 +207,8 @@ async def insert_project(
     timezone: str,
     deep_check_weekday: int,
     default_language_code: str | None,
+    primary_domain_id: int | None,
+    default_location_id: int | None,
     created_by: UUID,
 ) -> UUID:
     statement = (
@@ -182,6 +220,8 @@ async def insert_project(
             timezone=timezone,
             deep_check_weekday=deep_check_weekday,
             default_language_code=default_language_code,
+            primary_domain_id=primary_domain_id,
+            default_location_id=default_location_id,
             created_by=created_by,
         )
         .returning(projects.c.id)

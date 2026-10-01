@@ -275,17 +275,26 @@ These tables are **not** tenant-scoped. A URL is a public fact. Deduplicating UR
 ```sql
 CREATE TABLE core.domains (
     id                  integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    host                text NOT NULL,         -- lowercased, punycode (IDNA), no trailing dot, 'www.' kept
-    registrable_domain  text NOT NULL,         -- eTLD+1 via Public Suffix List (tldts), e.g. 'example.co.uk'
-    public_suffix       text NOT NULL,
+    host                text NOT NULL          -- lowercased, punycode (IDNA), no trailing dot, 'www.' kept
+                        CHECK (host = lower(host) AND length(host) BETWEEN 1 AND 255),
+    registrable_domain  text NOT NULL,         -- eTLD+1 via Public Suffix List (publicsuffixlist), e.g. 'example.co.uk'; the host itself for an IP
+    public_suffix       text NOT NULL,         -- '' for an IP
     is_ip               boolean NOT NULL DEFAULT false,
     default_category    text REFERENCES core.domain_categories(code),  -- global classification, see 14-citation-intelligence
     category_source     text CHECK (category_source IN ('seed_list','rule','llm','manual')),
     category_version    smallint,
     first_seen_at       timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (host)
+    UNIQUE (host),
+    -- registrable_domain is host or a dot-suffix of it; public_suffix is registrable_domain or a
+    -- dot-suffix of it; an IP is its own registrable domain with an empty public suffix
+    CHECK (registrable_domain = host OR right(host, length(registrable_domain) + 1) = '.' || registrable_domain),
+    CHECK (CASE WHEN is_ip THEN public_suffix = '' AND registrable_domain = host
+                ELSE public_suffix <> '' AND (public_suffix = registrable_domain
+                     OR right(registrable_domain, length(public_suffix) + 1) = '.' || public_suffix) END)
 );
 CREATE INDEX ON core.domains (registrable_domain);
+-- app_api: SELECT, and INSERT of (host, registrable_domain, public_suffix, is_ip) only. Every
+-- workspace reads the row its first writer created, so the API never sets a classification.
 
 CREATE TABLE core.domain_categories (
     code        text PRIMARY KEY,      -- 'brand_owned','competitor', are tenant roles, NOT categories
@@ -329,7 +338,7 @@ Provider location codes differ. We store our own `core.locations` keyed by a sta
 CREATE TABLE core.locations (
     id                integer PRIMARY KEY,         -- we adopt Google Ads geo target criteria ids (also used by DataForSEO location_code)
     name              text NOT NULL,               -- 'Austin,Texas,United States'
-    country_iso       char(2) NOT NULL,
+    country_iso       char(2) NOT NULL CHECK (country_iso ~ '^[A-Z]{2}$'),
     location_type     text NOT NULL,               -- 'Country','State','City','DMA Region',...
     parent_id         integer REFERENCES core.locations(id),
     is_active         boolean NOT NULL DEFAULT true
@@ -351,28 +360,41 @@ Using Google Ads geo target ids as our primary key is a deliberate shortcut: Dat
 CREATE TABLE core.taxonomy_vocabularies (
     id            uuid PRIMARY KEY DEFAULT uuidv7(),
     workspace_id  uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE CASCADE,
-    project_id    uuid REFERENCES core.projects(id) ON DELETE CASCADE,   -- NULL = workspace-wide vocabulary
+    project_id    uuid,                      -- NULL = workspace-wide vocabulary
     kind          text NOT NULL CHECK (kind IN ('topic','cluster','product','service','market','campaign','persona','tag','custom')),
-    name          text NOT NULL,             -- display name, e.g. 'Topics'
+    name          text NOT NULL CHECK (name = btrim(name) AND length(name) BETWEEN 1 AND 100),  -- e.g. 'Topics'
     is_hierarchical boolean NOT NULL DEFAULT false,
     is_single_valued boolean NOT NULL DEFAULT false,  -- e.g. cluster: one per keyword
-    UNIQUE NULLS NOT DISTINCT (workspace_id, project_id, kind, name)
+    UNIQUE (id, workspace_id),
+    FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE
 );
+CREATE UNIQUE INDEX ON core.taxonomy_vocabularies (workspace_id, project_id, kind, lower(name)) NULLS NOT DISTINCT;
+CREATE INDEX ON core.taxonomy_vocabularies (project_id);
 
 CREATE TABLE core.taxonomy_terms (
     id             uuid PRIMARY KEY DEFAULT uuidv7(),
     workspace_id   uuid NOT NULL,
-    vocabulary_id  uuid NOT NULL REFERENCES core.taxonomy_vocabularies(id) ON DELETE CASCADE,
-    parent_id      uuid REFERENCES core.taxonomy_terms(id) ON DELETE CASCADE,
-    name           text NOT NULL,
-    slug           citext NOT NULL,
-    path           text NOT NULL,            -- materialized path 'crm/crm-for-startups' for subtree queries
+    vocabulary_id  uuid NOT NULL,
+    parent_id      uuid,                     -- in the same vocabulary
+    name           text NOT NULL CHECK (name = btrim(name) AND length(name) BETWEEN 1 AND 200),
+    slug           citext NOT NULL CHECK (slug::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+    path           text NOT NULL             -- materialized path 'crm/crm-for-startups' for subtree queries
+                   CHECK (path ~ '^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*$'),
     source         text NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','import','auto_cluster','ai_suggestion')),
     description    text,
     created_at     timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (vocabulary_id, parent_id, slug)
+    UNIQUE NULLS NOT DISTINCT (vocabulary_id, parent_id, slug),
+    UNIQUE (id, workspace_id),
+    UNIQUE (id, vocabulary_id),
+    CHECK (parent_id IS DISTINCT FROM id),
+    -- a root's path is its slug; a child's path ends in '/' and its slug
+    CHECK (CASE WHEN parent_id IS NULL THEN path = slug::text
+                ELSE right(path, length(slug) + 1) = '/' || slug::text END),
+    FOREIGN KEY (vocabulary_id, workspace_id) REFERENCES core.taxonomy_vocabularies(id, workspace_id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id, vocabulary_id) REFERENCES core.taxonomy_terms(id, vocabulary_id) ON DELETE CASCADE
 );
 CREATE INDEX ON core.taxonomy_terms (vocabulary_id, path text_pattern_ops);
+CREATE INDEX ON core.taxonomy_terms (parent_id);
 ```
 
 Intent, funnel stage and priority are **columns** on keywords and prompts, not taxonomy terms, because they are single-valued, analytics-critical, and have a fixed value set:
@@ -392,71 +414,92 @@ CREATE TABLE core.entities (
     id             uuid PRIMARY KEY DEFAULT uuidv7(),
     workspace_id   uuid NOT NULL REFERENCES auth.workspaces(id) ON DELETE CASCADE,
     entity_type    text NOT NULL CHECK (entity_type IN ('brand','product','organization','person','other')),
-    canonical_name text NOT NULL,
-    parent_entity_id uuid REFERENCES core.entities(id),   -- product -> brand
+    canonical_name text NOT NULL CHECK (canonical_name = btrim(canonical_name) AND length(canonical_name) BETWEEN 1 AND 200),
+    parent_entity_id uuid,                                  -- product -> brand
     description    text,
     is_ambiguous   boolean NOT NULL DEFAULT false,         -- name is a common word ('Notion','Monday','Apple')
     disambiguation_hints text[] NOT NULL DEFAULT '{}',      -- context words that confirm the entity ('crm','project management')
     created_at     timestamptz NOT NULL DEFAULT now(),
     updated_at     timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (workspace_id, canonical_name, entity_type)
+    UNIQUE (id, workspace_id),
+    CHECK (parent_entity_id IS DISTINCT FROM id),
+    FOREIGN KEY (parent_entity_id, workspace_id) REFERENCES core.entities(id, workspace_id)
 );
+CREATE UNIQUE INDEX ON core.entities (workspace_id, lower(canonical_name), entity_type);
+CREATE INDEX ON core.entities (parent_entity_id);
 
 CREATE TABLE core.entity_aliases (
     id              uuid PRIMARY KEY DEFAULT uuidv7(),
     workspace_id    uuid NOT NULL,
-    entity_id       uuid NOT NULL REFERENCES core.entities(id) ON DELETE CASCADE,
-    alias           text NOT NULL,
+    entity_id       uuid NOT NULL,
+    alias           text NOT NULL CHECK (length(alias) BETWEEN 1 AND 200),
     match_mode      text NOT NULL DEFAULT 'word_boundary'
                     CHECK (match_mode IN ('word_boundary','exact_case','substring','regex')),
     case_sensitive  boolean NOT NULL DEFAULT false,
     language_code   text,                        -- NULL = any language
     is_negative     boolean NOT NULL DEFAULT false,  -- phrases that must NOT count ('apple pie' for Apple)
     requires_context boolean NOT NULL DEFAULT false, -- only counts if a disambiguation hint is within N tokens
-    created_by      uuid REFERENCES auth.users(id),
+    created_by      uuid REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (entity_id, alias, match_mode, is_negative)
+    UNIQUE (entity_id, alias, match_mode, is_negative),
+    CHECK (match_mode = 'regex' OR alias = btrim(alias)),   -- a pattern may start or end with a space
+    FOREIGN KEY (entity_id, workspace_id) REFERENCES core.entities(id, workspace_id) ON DELETE CASCADE
 );
+-- an alias that ignores case is the same alias whatever its case
+CREATE UNIQUE INDEX ON core.entity_aliases (entity_id, lower(alias), match_mode, is_negative)
+    WHERE match_mode IN ('word_boundary','substring') AND NOT case_sensitive;
 
 CREATE TABLE core.entity_domains (
-    entity_id      uuid NOT NULL REFERENCES core.entities(id) ON DELETE CASCADE,
+    id             uuid PRIMARY KEY DEFAULT uuidv7(),  -- an entity may claim several path prefixes on a host
+    entity_id      uuid NOT NULL,
+    workspace_id   uuid NOT NULL,                  -- for row-level security, as on every tenant table
     domain_id      integer NOT NULL REFERENCES core.domains(id),
     match_scope    text NOT NULL DEFAULT 'registrable'
                    CHECK (match_scope IN ('host','registrable','path_prefix')),
-    path_prefix    text,                           -- for 'path_prefix' scope, e.g. medium.com/@brand
-    PRIMARY KEY (entity_id, domain_id, match_scope)
+    path_prefix    text CHECK (path_prefix ~ '^/([^?#]*[^/?#])?$'),  -- for 'path_prefix' scope, e.g. '/@brand' on medium.com
+    UNIQUE NULLS NOT DISTINCT (entity_id, domain_id, match_scope, path_prefix),
+    CHECK ((match_scope = 'path_prefix') = (path_prefix IS NOT NULL)),
+    FOREIGN KEY (entity_id, workspace_id) REFERENCES core.entities(id, workspace_id) ON DELETE CASCADE
 );
+CREATE INDEX ON core.entity_domains (domain_id);
 
 CREATE TABLE core.project_entities (
-    project_id     uuid NOT NULL REFERENCES core.projects(id) ON DELETE CASCADE,
-    entity_id      uuid NOT NULL REFERENCES core.entities(id) ON DELETE CASCADE,
+    project_id     uuid NOT NULL,
+    entity_id      uuid NOT NULL,
     workspace_id   uuid NOT NULL,
     role           text NOT NULL CHECK (role IN ('own','competitor','watch')),
-    is_primary     boolean NOT NULL DEFAULT false,  -- exactly one 'own' entity per project is primary
+    is_primary     boolean NOT NULL DEFAULT false,  -- at most one live 'own' entity per project; once one is, another takes over, it is never cleared
     track_seo      boolean NOT NULL DEFAULT true,
     track_ai       boolean NOT NULL DEFAULT true,
-    color          text,                             -- UI series color
+    color_index    smallint CHECK (color_index BETWEEN 1 AND 6),  -- series colour --chart-1 to --chart-6, so it follows the theme; NULL lets the UI choose
     added_at       timestamptz NOT NULL DEFAULT now(),
     removed_at     timestamptz,                      -- history is kept for longitudinal SOV integrity
-    PRIMARY KEY (project_id, entity_id)
+    PRIMARY KEY (project_id, entity_id),
+    CHECK (NOT is_primary OR role = 'own'),
+    FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE,
+    -- no cascade: a role, removed or not, keeps the entity it names alive
+    FOREIGN KEY (entity_id, workspace_id) REFERENCES core.entities(id, workspace_id)
 );
 CREATE UNIQUE INDEX project_one_primary_own ON core.project_entities (project_id)
     WHERE role = 'own' AND is_primary AND removed_at IS NULL;
+CREATE INDEX ON core.project_entities (entity_id);
 ```
 
 Owned domains for a project are the `core.entity_domains` of entities with `role = 'own'`. There is no separate "owned domains" table; that would create two sources of truth.
 
-A materialized helper keeps resolution fast in ingest:
+A helper view joins the two for `GET {P}/domains` and for ingest:
 
 ```sql
-CREATE MATERIALIZED VIEW core.project_domain_roles AS
+CREATE VIEW core.project_domain_roles WITH (security_invoker = true) AS
 SELECT pe.project_id, pe.workspace_id, pe.entity_id, pe.role, ed.domain_id, ed.match_scope, ed.path_prefix
 FROM core.project_entities pe
-JOIN core.entity_domains ed ON ed.entity_id = pe.entity_id
+JOIN core.entity_domains ed ON ed.entity_id = pe.entity_id AND ed.workspace_id = pe.workspace_id
 WHERE pe.removed_at IS NULL;
-CREATE UNIQUE INDEX ON core.project_domain_roles (project_id, entity_id, domain_id, match_scope);
--- Refreshed CONCURRENTLY by the API after any entity/domain change (low frequency).
 ```
+
+It is a plain view, not a materialized one: a materialized view cannot have row-level security, so the API could read every workspace's rows through it, while a view run with the reader's rights applies the base tables' policies (migration 0010). Ingest keeps its own in-process cache of a project's domain rules; if it ever needs a materialized view, that one is readable by the worker only.
+
+As built (migration 0010), every tenant table of sections 5.3 and 6 refers to its parents through `(id, workspace_id)` rather than `id` alone (`core.entities`, `core.projects`, `core.taxonomy_vocabularies` and `core.taxonomy_terms` have `UNIQUE (id, workspace_id)` for it), so a row cannot point into another workspace even for a role that bypasses row-level security; a term's parent is keyed by `(id, vocabulary_id)` instead, which keeps it in the same vocabulary and so the same workspace. `tests/db/test_rls.py` reads every key between tenant tables from the catalog and fails on one without the workspace. Entity, alias and vocabulary names compare without case where case does not matter, and a term's slug is unique among its siblings, roots included (`UNIQUE NULLS NOT DISTINCT`). An entity that a project role names, even a removed one, cannot be deleted: the API answers `409 entity_in_use` from the key violation, which also settles a race with a concurrent attach. Role history is the role row plus the audit log: re-attaching an entity or changing its role updates the one row per project and entity.
 
 ## 7. SEO tables
 
@@ -1077,7 +1120,7 @@ CREATE TABLE ai.citations (
     answer_block_index  smallint,                     -- paragraph / list item index the citation is attached to
     occurrences         smallint NOT NULL DEFAULT 1,  -- times the same URL is cited within this answer
     domain_role         text NOT NULL CHECK (domain_role IN ('own','competitor','third_party')),
-    role_entity_id      uuid,                         -- entity when own/competitor
+    role_entity_id      uuid,                         -- entity whose domain rule matched: own, competitor, or watch (then domain_role is third_party)
     referral_tag        text,                         -- e.g. utm_source value stripped from the URL ('chatgpt.com')
     flags               text[] NOT NULL DEFAULT '{}', -- 'unresolved_redirect','engine_internal','redirect_unwrapped','text_fragment_removed' (14 sections 3.2 and 9)
     PRIMARY KEY (observation_id, observed_at, citation_index),
@@ -1153,7 +1196,7 @@ CREATE TABLE ai.entity_mentions (
     recommendation_method text,                  -- 'rule','local_model','llm'
     sentiment           text CHECK (sentiment IN ('positive','neutral','negative','mixed')),
     sentiment_method    text,
-    match_method        text NOT NULL,           -- 'alias_exact','alias_word','via_product','fuzzy','ner','llm'
+    match_method        text NOT NULL,           -- 'alias_exact','alias_word','alias_substring','alias_regex','alias_name','alias_domain','via_product','fuzzy','ner','llm'
     mention_status      text NOT NULL DEFAULT 'accepted' CHECK (mention_status IN ('accepted','uncertain')),  -- uncertain rows are excluded from rates (13 section 1)
     structured_list_index smallint,              -- which ordered list in the answer carries structured_rank (13 stage 6)
     confidence          numeric(4,3) NOT NULL,
@@ -2117,6 +2160,13 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `auth.api_keys` | SELECT | none |
 | `core.projects` | SELECT, INSERT, UPDATE | SELECT; UPDATE (`data_version`) |
 | `core.workspace_quotas` | SELECT, INSERT, UPDATE | SELECT |
+| `core.domain_categories` | SELECT | none |
+| `core.domains` | SELECT; INSERT of `host`, `registrable_domain`, `public_suffix`, `is_ip` only (an entity domain or a project's primary domain adds its host; no route lists the table; `ON CONFLICT (host) DO NOTHING` then a SELECT, since the API cannot update the row) | none until SERP ingest (step 5) |
+| `core.locations`, `core.provider_location_map` | SELECT | SELECT, INSERT, UPDATE (the location sync) |
+| `core.entities`, `core.entity_aliases`, `core.taxonomy_vocabularies`, `core.taxonomy_terms` | SELECT, INSERT, UPDATE, DELETE | none until ingest and extraction read them |
+| `core.entity_domains` | SELECT, INSERT, DELETE | none |
+| `core.project_entities` | SELECT, INSERT, UPDATE (a removed role keeps its row; `removed_at` is set) | none |
+| `core.project_domain_roles` (view, `security_invoker`; `tests/db/test_grants.py` refuses any view a runtime role reads that is not, and any readable materialized view) | SELECT | none |
 | `ops.budgets` | SELECT, INSERT, UPDATE, DELETE | SELECT |
 | `ops.schedules` | SELECT, INSERT, UPDATE, DELETE | SELECT; UPDATE (`next_run_at`, `last_run_id`) |
 | `ops.collection_runs` | SELECT; INSERT (what a manual run asks for: scope, workload, window, trigger, status, creator, request id, estimated cost, config snapshot); UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns) |

@@ -11,7 +11,13 @@ dependencies = [
     "asyncpg>=0.31.0",
     "cryptography>=50.0.1",
     "fastapi>=0.142.1",
+    "google-re2==1.1.20251105",
     "httpx>=0.28.1",
+    # Pinned, like publicsuffixlist: its UTS 46 tables decide canonical hosts.
+    "idna==3.20",
+    # Pinned: its bundled Public Suffix List is part of the URL canonicalizer version.
+    "publicsuffixlist==1.0.2.20260925",
+    "pyahocorasick==2.3.1",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
     "pyotp>=2.10.0",
@@ -54,12 +60,19 @@ known-first-party = ["sightline", "spikes"]
 python_version = "3.13"
 strict = true
 warn_unreachable = true
+# Stubs for C extensions that ship no type information (re2, ahocorasick).
+mypy_path = "stubs"
 files = ["src", "tests", "spikes"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = ["testcontainers.*", "asgi_lifespan.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Annotated inline but ships no py.typed marker.
+module = ["publicsuffixlist", "publicsuffixlist.*"]
+follow_untyped_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

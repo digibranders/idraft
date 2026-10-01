@@ -10,16 +10,22 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
 from datetime import timedelta
 
+import httpx
 import structlog
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors.dispatcher import SubmitBatch, dispatch
 from sightline.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
 from sightline.collectors.ledger import database_time
+from sightline.collectors.locations import LocationSyncReport, sync_locations
 from sightline.collectors.planner import plan_due
 from sightline.collectors.reconciler import ensure_partitions, reconcile
 from sightline.collectors.registry import Registry
 from sightline.collectors.submission import submit_batch
+from sightline.config.settings import Settings
 from sightline.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
+from sightline.providers.dataforseo.locations import fetch_locations
 from sightline.providers.dataforseo.provider import CODE as DATAFORSEO
 from sightline.providers.dataforseo.provider import DataForSeo
 from sightline.worker.app import WorkerContext
@@ -41,7 +47,21 @@ SUBMIT_JOB = "submit_batch"
 # docs/21-scheduler-workers.md section 10.
 RECONCILE_EVERY = timedelta(minutes=5)
 PARTITIONS_AT = "10 0 * * *"
+# docs/21-scheduler-workers.md section 10: monthly, the 2nd at 03:00 UTC.
+LOCATIONS_AT = "0 3 2 * *"
 _log = structlog.get_logger(__name__)
+
+
+def dataforseo_client(
+    settings: Settings, http: httpx.AsyncClient | None, redis: Redis
+) -> DataForSeoClient | None:
+    """The account's client, its calls paced by the shared limiter; None without credentials."""
+    credentials = settings.dataforseo_credentials
+    if credentials is None or http is None:
+        return None
+    login, password = credentials
+    gate = RedisCallGate(redis, DATAFORSEO, all_calls=ALL_CALLS, families=FAMILY_LIMITS)
+    return DataForSeoClient(http, gate, login=login, password=password)
 
 
 def production_registry(context: WorkerContext) -> Registry:
@@ -49,13 +69,23 @@ def production_registry(context: WorkerContext) -> Registry:
     credentials are set; no workload is registered yet, so the worker still plans and spends
     nothing (rank collection arrives with step 5)."""
     registry = Registry()
-    credentials = context.settings.dataforseo_credentials
-    if credentials is not None and context.http is not None:
-        login, password = credentials
-        gate = RedisCallGate(context.redis, DATAFORSEO, all_calls=ALL_CALLS, families=FAMILY_LIMITS)
-        client = DataForSeoClient(context.http, gate, login=login, password=password)
+    client = dataforseo_client(context.settings, context.http, context.redis)
+    if client is not None:
         registry.add_provider(DataForSeo(client, installation=context.settings.installation_id))
     return registry
+
+
+async def sync_dataforseo_locations(
+    sessions: async_sessionmaker[AsyncSession], client: DataForSeoClient | None
+) -> LocationSyncReport | None:
+    """DataForSEO's free location list into `core.locations`. None without credentials:
+    there is nothing to sync, and the list stays as it is."""
+    if client is None:
+        _log.info("location sync skipped", reason="no DataForSEO credentials")
+        return None
+    report = await sync_locations(sessions, await fetch_locations(client))
+    _log.info("locations synced", **asdict(report))
+    return report
 
 
 class _QueueSender:
@@ -126,8 +156,13 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         if made:
             _log.info("partitions made", partitions=made)
 
+    async def locations() -> None:
+        client = dataforseo_client(context.settings, context.http, context.redis)
+        await sync_dataforseo_locations(context.sessions, client)
+
     context.queues.register_scheduled("reconcile", reconcile_ledger, every=RECONCILE_EVERY)
     context.queues.register_scheduled("ensure_partitions", partitions, cron=PARTITIONS_AT)
+    context.queues.register_scheduled("location_sync", locations, cron=LOCATIONS_AT)
 
     async def plan() -> None:
         now = await database_time(context.sessions)

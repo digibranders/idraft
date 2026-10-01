@@ -122,9 +122,10 @@ async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(
     await source.startup()
     schedules = {task.task_name: task for task in await source.get_schedules()}
 
-    # Every five minutes, and at ten past midnight UTC (docs/21 section 10).
+    # Every five minutes, at ten past midnight UTC, and monthly on the 2nd (docs/21 section 10).
     assert (schedules["reconcile"].interval, schedules["reconcile"].cron) == (300, None)
     assert schedules["ensure_partitions"].cron == "10 0 * * *"
+    assert schedules["location_sync"].cron == "0 3 2 * *"
 
 
 def test_without_credentials_nothing_is_registered_so_the_worker_spends_nothing(

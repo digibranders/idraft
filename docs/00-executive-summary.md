@@ -82,7 +82,7 @@ Yes for V1. Collection is I/O-bound and runs well under 5% of DataForSEO's rate 
 |---|---|---|---|
 | Keyword and prompt inventories, taxonomy, links | Google SERPs, features, AI Overviews (DataForSEO SERP) | PostgreSQL 18, Redis 8, Taskiq, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic | ClickHouse |
 | Scheduling, task ledger, cost metering, budgets | Google AI Mode (DataForSEO) | Next.js, React, TanStack Query/Table, ECharts, shadcn/ui, Tailwind | Fallback provider adapters (until triggered) |
-| Normalization, canonicalization, versioning | ChatGPT and Gemini consumer answers (DataForSEO LLM Scraper) | tldextract (PSL), rapidfuzz, url-normalize, scipy, statsmodels, remark/react-markdown, rehype-sanitize | Official API benchmarks (Phase 14) |
+| Normalization, canonicalization, versioning | ChatGPT and Gemini consumer answers (DataForSEO LLM Scraper) | publicsuffixlist (PSL), idna, rapidfuzz, scipy, statsmodels, remark/react-markdown, rehype-sanitize | Official API benchmarks (Phase 14) |
 | Entity extraction, recommendation, structured rank, sentiment rules | Keyword metrics and discovery data (DataForSEO Labs, Keywords Data, AI Keyword Data) | Caddy, rclone, age | Claims analysis, experiments, diagnostics (Phase 15) |
 | Metrics, statistics, rollups, matrices, diagnostics | First-party data (GSC, Bing, GA4, Cloudflare APIs) | pytest, Testcontainers, Hypothesis, import-linter, openapi-typescript, Vitest, Playwright | Hyperlocal and pixel-position tracking |
 | Citation and source intelligence, publisher opportunities | LLM adjudication (cheap model, budgeted) | Ideas (not code) from MIT/Apache projects: Lettertrace, Limelit Open, OpenSEO, AEO Radar (see research/06) | Local ML classifiers |

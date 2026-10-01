@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse
 
 from sightline.api.request_id import HEADER, new_request_id
 from sightline.api.routing import route_template
+from sightline.api.schemas.common import BODY_SHAPE_TAGS
 
 MEDIA_TYPE = "application/problem+json"
 MAX_VALIDATION_ERRORS = 50
@@ -177,6 +178,42 @@ class InvalidStateTransitionError(ProblemError):
     status, code, title = 409, "invalid_state_transition", "Not possible in the current state"
 
 
+class EntityInUseProblemError(ProblemError):
+    """A project role, current or removed, or a product still names the entity."""
+
+    status, code, title = 409, "entity_in_use", "The entity is in use"
+
+
+class CycleDetectedError(ProblemError):
+    status, code, title = 422, "cycle_detected", "That would make a cycle"
+
+
+class HasChildrenError(ProblemError):
+    """A term with children is deleted only with `cascade=true`."""
+
+    status, code, title = 409, "has_children", "The term has children"
+
+
+class CannotRemovePrimaryOwnError(ProblemError):
+    status, code, title = 409, "cannot_remove_primary_own", "The primary own entity stays"
+
+
+class CompetitorLimitError(ProblemError):
+    """Carries `limit`."""
+
+    status, code, title = 422, "competitor_limit", "Too many SEO competitors"
+
+
+class TooManyMatchesError(ProblemError):
+    status, code, title = 422, "too_many_matches", "The text matched too many times"
+
+
+class PayloadTooLargeError(ProblemError):
+    """Carries `limit_bytes`."""
+
+    status, code, title = 413, "payload_too_large", "Payload too large"
+
+
 class LastOwnerError(ProblemError):
     status, code, title = 409, "last_owner", "A workspace needs an owner"
 
@@ -276,11 +313,12 @@ def problem_response(
 
 
 def _validation_items(error: RequestValidationError) -> list[dict[str, str]]:
-    """Location, path, Pydantic error type and message. The submitted value is never included."""
+    """Location, path, Pydantic error type and message. The submitted value is never included.
+    The tag of a one-or-batch body's shape is not part of the path."""
     return [
         {
             "location": str(item["loc"][0]),
-            "path": ".".join(str(part) for part in item["loc"][1:]),
+            "path": ".".join(str(part) for part in item["loc"][1:] if part not in BODY_SHAPE_TAGS),
             "code": str(item["type"]),
             "message": str(item["msg"]),
         }

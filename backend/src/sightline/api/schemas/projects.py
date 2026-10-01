@@ -1,8 +1,6 @@
 """Bodies of the project routes (docs/19-api-specification.md section 3.3).
 
-`primary_domain`, `default_location_id`, the settings and the own entity are taken by later
-phases, when the tables they point at exist. Until then the first two are always null in a
-response and none of them is accepted in a request. `deep_check_weekday` and `status` are
+The settings arrive with their first reader (Phase 3). `deep_check_weekday` and `status` are
 stored and have no effect yet: the schedules they steer arrive with rank collection.
 """
 
@@ -12,26 +10,28 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from sightline.api.pagination import OffsetPageInfo
-from sightline.api.schemas.common import Body, Name, Patch, UserRef, refuse_null
+from sightline.api.schemas.common import (
+    Body,
+    DomainRef,
+    LanguageCode,
+    LocationRef,
+    Name,
+    Patch,
+    UserRef,
+    refuse_null,
+)
+from sightline.api.schemas.entities import DomainText, OwnEntityInput
 from sightline.api.slugs import ProjectSlug
 from sightline.api.timezones import Timezone
 
 ProjectStatus = Literal["active", "paused", "archived"]
-# ISO 639-1.
-LanguageCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2}$")]
 # 0 is Sunday.
 Weekday = Annotated[int, Field(ge=0, le=6, strict=True)]
-
-
-class DomainRef(BaseModel):
-    domain_id: int
-    host: str
-    registrable_domain: str
-    category: str | None
-    category_source: Literal["seed_list", "rule", "llm", "manual", "tenant_override"] | None
+# Location ids are an `integer` column.
+LocationId = Annotated[int, Field(gt=0, le=2_147_483_647, strict=True)]
 
 
 class Project(BaseModel):
@@ -41,6 +41,9 @@ class Project(BaseModel):
     slug: str
     primary_domain: DomainRef | None
     default_location_id: int | None
+    default_location: LocationRef | None = Field(
+        description="The location `default_location_id` names."
+    )
     default_language_code: str | None
     timezone: str
     deep_check_weekday: int = Field(description="Day of the weekly top-100 check. 0 is Sunday.")
@@ -81,10 +84,20 @@ class ProjectCreate(Body):
     )
     deep_check_weekday: Weekday = 1
     default_language_code: LanguageCode | None = None
+    primary_domain: DomainText | None = Field(
+        default=None, description="A host or URL; its host is stored."
+    )
+    default_location_id: LocationId | None = Field(
+        default=None, description="A `location_id` of `GET /api/v1/locations`."
+    )
+    own_entity: OwnEntityInput | None = Field(
+        default=None, description="Created with role `own`, primary."
+    )
 
 
 class ProjectUpdate(Patch):
-    """At least one member. `default_language_code: null` removes it; the others cannot be null."""
+    """At least one member. `default_language_code`, `primary_domain` and `default_location_id`
+    may be null to remove them; the others cannot be null."""
 
     name: Name | None = None
     slug: ProjectSlug | None = None
@@ -92,8 +105,10 @@ class ProjectUpdate(Patch):
     deep_check_weekday: Weekday | None = None
     default_language_code: LanguageCode | None = None
     status: ProjectStatus | None = None
+    primary_domain: DomainText | None = None
+    default_location_id: LocationId | None = None
 
-    nullable = frozenset({"default_language_code"})
+    nullable = frozenset({"default_language_code", "primary_domain", "default_location_id"})
     _not_null = field_validator("name", "slug", "timezone", "deep_check_weekday", "status")(
         refuse_null
     )
