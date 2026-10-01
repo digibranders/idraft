@@ -75,7 +75,7 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
   const md = size === 'md';
   // A list of terms has no role that takes a name, so a group around it carries the name and the busy state
   return (
-    <div role="group" aria-label={label} aria-busy={status === 'refetching' ? true : undefined}>
+    <div role="group" aria-label={label} aria-busy={status === 'ready' ? undefined : true}>
       <dl
         ref={panel}
         style={{ gridTemplateColumns: `repeat(${String(columns)}, minmax(0, 1fr))` }}

@@ -87,7 +87,14 @@ function StepperSpecimen(): ReactNode {
           return Promise.resolve('ok');
         }}
         finalLabel="Import 1,204 keywords"
-        labels={{ steps: 'Import steps', close: 'Close', back: 'Back', cancel: 'Cancel', continue: 'Continue' }}
+        labels={{
+          steps: 'Import steps',
+          close: 'Close',
+          back: 'Back',
+          cancel: 'Cancel',
+          continue: 'Continue',
+          completed: 'completed',
+        }}
         discard={{
           title: 'Discard this import?',
           description: 'The file and the column mapping are not kept.',

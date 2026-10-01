@@ -25,6 +25,14 @@ describe('the inspector width store', () => {
     expect(readInspectorWidth('keyword')).toBeNull();
   });
 
+  it('holds the width in memory when storage is full but still readable', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError');
+    });
+    writeInspectorWidth('page', 456);
+    expect(readInspectorWidth('page')).toBe(456);
+  });
+
   it('holds the width in memory while storage is blocked', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('blocked', 'SecurityError');

@@ -22,9 +22,10 @@ export interface RowRange {
 }
 
 /**
- * The ranges of rows to render at `scrollTop` in a view `viewport` pixels tall, in order. The focused row
- * (`keep`) is always rendered, as a range of its own when it is out of view, so keyboard focus never lands
- * on a row that is not in the document and the rows between it and the view are not rendered.
+ * The ranges of rows to render at `scrollTop` in a view `viewport` pixels tall, in order. The rows in
+ * `keep` (the focused row, and the row focus is about to return to) are always rendered, each as a range
+ * of its own when it is out of view, so keyboard focus never lands on a row that is not in the document
+ * and the rows between them and the view are not rendered.
  */
 export function rowWindow({
   count,
@@ -37,20 +38,25 @@ export function rowWindow({
   rowHeight: number;
   scrollTop: number;
   viewport: number;
-  keep: number | null;
+  keep: readonly number[];
 }): RowRange[] {
   if (count <= WINDOW_FROM) return [{ start: 0, end: count }];
   const first = Math.floor(Math.max(0, scrollTop) / rowHeight);
   const visible = Math.ceil(Math.max(0, viewport) / rowHeight) + 1;
   const start = Math.min(Math.max(0, first - OVERSCAN), count);
   const end = Math.min(count, first + visible + OVERSCAN);
-  const view: RowRange = { start, end };
-  if (keep === null || keep < 0 || keep >= count || (keep >= start && keep < end)) return [view];
-  const kept: RowRange = { start: keep, end: keep + 1 };
-  // A kept row next to the view joins it, so no zero-height spacer sits between them
-  if (keep === end) return [{ start, end: end + 1 }];
-  if (keep === start - 1) return [{ start: keep, end }];
-  return keep < start ? [kept, view] : [view, kept];
+  const ranges: RowRange[] = [
+    { start, end },
+    ...keep.filter((row) => row >= 0 && row < count).map((row) => ({ start: row, end: row + 1 })),
+  ].sort((a, b) => a.start - b.start);
+  // Overlapping or touching ranges join, so no zero-height spacer sits between them
+  const merged: RowRange[] = [];
+  for (const range of ranges) {
+    const last = merged.at(-1);
+    if (last !== undefined && range.start <= last.end) last.end = Math.max(last.end, range.end);
+    else merged.push({ ...range });
+  }
+  return merged;
 }
 
 /** The space, in pixels, before each range and after the last, so the scroll height matches every row. */

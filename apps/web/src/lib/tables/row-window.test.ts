@@ -4,40 +4,48 @@ import { OVERSCAN, rangeGaps, rowWindow, SCROLL_STEP, scrollToRow, WINDOW_FROM }
 
 describe('rowWindow', () => {
   it('renders every row of a small table', () => {
-    expect(rowWindow({ count: WINDOW_FROM, rowHeight: 40, scrollTop: 900, viewport: 400, keep: null })).toEqual([
+    expect(rowWindow({ count: WINDOW_FROM, rowHeight: 40, scrollTop: 900, viewport: 400, keep: [] })).toEqual([
       { start: 0, end: WINDOW_FROM },
     ]);
   });
 
   it('renders the rows in view plus the overscan', () => {
-    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 4000, viewport: 400, keep: null })).toEqual([
+    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 4000, viewport: 400, keep: [] })).toEqual([
       { start: 100 - OVERSCAN, end: 100 + 11 + OVERSCAN },
     ]);
   });
 
   it('stops at the ends of the table', () => {
-    expect(rowWindow({ count: 1000, rowHeight: 32, scrollTop: 0, viewport: 320, keep: null })[0]?.start).toBe(0);
-    expect(rowWindow({ count: 1000, rowHeight: 32, scrollTop: 40_000, viewport: 320, keep: null })).toEqual([
+    expect(rowWindow({ count: 1000, rowHeight: 32, scrollTop: 0, viewport: 320, keep: [] })[0]?.start).toBe(0);
+    expect(rowWindow({ count: 1000, rowHeight: 32, scrollTop: 40_000, viewport: 320, keep: [] })).toEqual([
       { start: 1000, end: 1000 },
     ]);
   });
 
   it('renders a focused row far from the view on its own, not the rows between', () => {
-    expect(rowWindow({ count: 10_000, rowHeight: 40, scrollTop: 360_000, viewport: 400, keep: 0 })).toEqual([
+    expect(rowWindow({ count: 10_000, rowHeight: 40, scrollTop: 360_000, viewport: 400, keep: [0] })).toEqual([
       { start: 0, end: 1 },
       { start: 9000 - OVERSCAN, end: 9000 + 11 + OVERSCAN },
     ]);
-    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 0, viewport: 400, keep: 900 })).toEqual([
+    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 0, viewport: 400, keep: [900] })).toEqual([
       { start: 0, end: 21 },
       { start: 900, end: 901 },
     ]);
   });
 
+  it('keeps two rows far apart, each on its own', () => {
+    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 0, viewport: 400, keep: [900, 500, 500] })).toEqual([
+      { start: 0, end: 21 },
+      { start: 500, end: 501 },
+      { start: 900, end: 901 },
+    ]);
+  });
+
   it('joins a focused row next to the view to it', () => {
-    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 0, viewport: 400, keep: 21 })).toEqual([
+    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 0, viewport: 400, keep: [21] })).toEqual([
       { start: 0, end: 22 },
     ]);
-    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 4000, viewport: 400, keep: 89 })).toEqual([
+    expect(rowWindow({ count: 1000, rowHeight: 40, scrollTop: 4000, viewport: 400, keep: [89] })).toEqual([
       { start: 89, end: 121 },
     ]);
   });
@@ -50,7 +58,7 @@ describe('rowWindow', () => {
         rowHeight,
         scrollTop: Math.floor(scrollTop / SCROLL_STEP) * SCROLL_STEP,
         viewport: 600,
-        keep: null,
+        keep: [],
       });
       expect((range?.end ?? 0) * rowHeight).toBeGreaterThanOrEqual(scrollTop + 600);
     }

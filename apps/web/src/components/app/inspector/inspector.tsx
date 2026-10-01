@@ -45,6 +45,10 @@ export interface InspectorProps {
   children: ReactNode;
 }
 
+/** Layers that close before the inspector does, one per Escape (16 section 2.8, rule 5). */
+const OPEN_LAYERS =
+  '[data-slot="tooltip"]:not([data-ending-style]), :is([role="listbox"], [role="menu"], [role="dialog"])[data-open], [role="combobox"][aria-expanded="true"]';
+
 const FRAME = cn('relative flex flex-col rounded-xl border border-border bg-background shadow-inspector');
 
 /**
@@ -108,8 +112,10 @@ export function Inspector({
     const element = aside.current;
     if (element === null) return undefined;
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || event.defaultPrevented || event.repeat) return;
-      if (document.querySelector('[data-slot="tooltip"]') !== null) return;
+      if (event.key !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing) return;
+      // An open popup takes this Escape: a tooltip still showing, or a list or menu (one whose focus stays
+      // in its combobox field too)
+      if (document.querySelector(OPEN_LAYERS) !== null) return;
       event.preventDefault();
       latestClose.current();
     };

@@ -4,7 +4,6 @@ import { BarChart, LineChart } from 'echarts/charts';
 import { AriaComponent, GridComponent, TooltipComponent } from 'echarts/components';
 import { init, use as registerModules, type ECharts } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { useTheme } from 'next-themes';
 import { useEffect, useRef, type ReactElement } from 'react';
 
 import { readChartTokens, type ChartTokens } from '@/lib/design/read-tokens';
@@ -21,32 +20,38 @@ export interface EChartProps {
 
 /**
  * The ECharts canvas (15-data-visualization.md section 3): the instance lives with the element, follows
- * its size, redraws without animation when the option changes, takes the theme's colours again when the
- * theme changes, and is disposed on unmount. It is loaded on the client only, through `ChartFrame`.
+ * its size, redraws without animation when the option changes, and is disposed on unmount. The theme is a
+ * class and a colour scheme on `<html>`, which the theme switch writes after React commits, so the canvas
+ * watches `<html>` and reads the colours again once they have changed.
  */
 export function EChart({ option, height }: EChartProps): ReactElement {
   const element = useRef<HTMLDivElement>(null);
   const chart = useRef<ECharts | null>(null);
-  const { resolvedTheme } = useTheme();
+  const latestOption = useRef(option);
 
   useEffect(() => {
     const node = element.current;
     if (node === null) return undefined;
     const instance = init(node, null, { renderer: 'canvas' });
     chart.current = instance;
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => instance.resize());
-    observer?.observe(node);
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => instance.resize());
+    resize?.observe(node);
+    const theme = new MutationObserver(() => {
+      instance.setOption(latestOption.current(readChartTokens()), { notMerge: true });
+    });
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
     return () => {
-      observer?.disconnect();
+      resize?.disconnect();
+      theme.disconnect();
       instance.dispose();
       chart.current = null;
     };
   }, []);
 
   useEffect(() => {
-    // The theme class is on <html> before this runs, so the tokens read are the theme's
+    latestOption.current = option;
     chart.current?.setOption(option(readChartTokens()), { notMerge: true });
-  }, [option, resolvedTheme]);
+  }, [option]);
 
   return <div ref={element} style={{ height }} className="w-full" />;
 }

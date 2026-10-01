@@ -12,7 +12,14 @@ const STEPS = [
   { id: 'map', label: 'Map columns' },
   { id: 'review', label: 'Review' },
 ] as const;
-const LABELS = { steps: 'Import steps', close: 'Close', back: 'Back', cancel: 'Cancel', continue: 'Continue' };
+const LABELS = {
+  steps: 'Import steps',
+  close: 'Close',
+  back: 'Back',
+  cancel: 'Cancel',
+  continue: 'Continue',
+  completed: 'completed',
+};
 const DISCARD = {
   title: 'Discard this import?',
   description: 'The file and the mapping are lost.',
@@ -36,14 +43,16 @@ function Harness({ invalidOn = null }: { invalidOn?: Step | null }): ReactElemen
       current={current}
       completed={completed}
       onStepChange={setCurrent}
-      onContinue={() => {
+      onContinue={async () => {
+        // As a server check would: the answer, and the error it shows, come after an await
+        await Promise.resolve();
         if (current === invalidOn) {
           setError(true);
-          return Promise.resolve('invalid');
+          return 'invalid';
         }
         setCompleted((done) => new Set([...done, current]));
         if (current === 'review') finish();
-        return Promise.resolve('ok');
+        return 'ok';
       }}
       finalLabel="Import 1,204 keywords"
       labels={LABELS}
@@ -85,10 +94,10 @@ describe('StepperDialog', () => {
     const { user } = renderWithProviders(<Harness />);
     await user.click(await screen.findByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await user.click(screen.getByRole('button', { name: 'Upload' }));
+    await user.click(screen.getByRole('button', { name: 'Upload, completed' }));
     expect(screen.getByText('Upload')).toHaveAttribute('aria-current', 'step');
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Map columns' }));
+    await user.click(screen.getByRole('button', { name: 'Map columns, completed' }));
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByText('Upload')).toHaveAttribute('aria-current', 'step');
   });

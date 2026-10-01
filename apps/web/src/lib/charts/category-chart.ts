@@ -66,7 +66,8 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
   const label = { color: tokens.label, fontSize: 12, fontFamily: tokens.fontFamily };
   return {
     animation: false,
-    aria: { enabled: true, decal: { show: patterns } },
+    // Decal patterns only: the frame names and describes the chart, so ECharts writes no label of its own
+    aria: { enabled: true, label: { enabled: false }, decal: { show: patterns } },
     grid: { left: 40, right: 16, top: 8, bottom: 24, outerBoundsMode: 'none' },
     textStyle: label,
     xAxis: {
@@ -87,6 +88,10 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: kind === 'bar' ? 'shadow' : 'line', lineStyle: { color: tokens.borderStrong, width: 1 } },
+      // Kept inside the chart, so a card that clips its content does not cut it off
+      confine: true,
+      borderRadius: 8,
+      extraCssText: 'box-shadow: var(--shadow-popover);',
       backgroundColor: tokens.surfaceElevated,
       borderColor: tokens.border,
       borderWidth: 1,
@@ -103,7 +108,7 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
             const value = typeof param.value === 'number' ? formatValue(param.value) : '';
             return `<div style="display:flex;gap:8px;align-items:center"><span style="width:8px;height:8px;border-radius:50%;background:${color}"></span><span style="color:${tokens.foregroundSecondary}">${escapeHtml(param.seriesName ?? '')}</span><span style="margin-left:auto;font-variant-numeric:tabular-nums">${escapeHtml(value)}</span></div>`;
           });
-        return `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(first?.axisValueLabel ?? '')}</div>${rows.join('')}`;
+        return `<div style="font-size:14px;line-height:20px;font-weight:600;margin-bottom:4px">${escapeHtml(first?.axisValueLabel ?? '')}</div>${rows.join('')}`;
       },
     },
     series: shown.map((entry) => {

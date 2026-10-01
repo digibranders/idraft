@@ -254,7 +254,11 @@ export function DataTable<TRow extends RowData>({
     rowHeight,
     scrollTop,
     viewport: regionSize.height - HEADER_HEIGHT,
-    keep: current.row >= 0 ? current.row : null,
+    // The focused row, and the row focus returns to when the inspector closes, which may be far from view
+    keep: [
+      ...(current.row >= 0 ? [current.row] : []),
+      ...(focusRequest?.ifLost === true && focusRequest.cell.row >= 0 ? [focusRequest.cell.row] : []),
+    ],
   });
   const gaps = rangeGaps(ranges, count, rowHeight);
   // A key moved focus: bring the cell into view and focus it, once per move

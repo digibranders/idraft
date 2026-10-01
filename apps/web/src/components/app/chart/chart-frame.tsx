@@ -95,11 +95,20 @@ export function ChartFrame({
                   onClick={() => toggleSeries(entry.id)}
                   className="inline-flex items-center gap-1.5 rounded-xs type-label outline-none focus-visible:focus-ring aria-[pressed=false]:opacity-50"
                 >
-                  <span
-                    aria-hidden="true"
-                    className="size-2 rounded-full"
-                    style={{ backgroundColor: seriesColorVar(entry.role) }}
-                  />
+                  {entry.role.kind === 'reference' || entry.role.kind === 'other' ? (
+                    // A dashed series shows a 12 x 2 px line in its dash, not a dot (15 section 2)
+                    <span
+                      aria-hidden="true"
+                      className="w-3 border-t-2 border-dashed"
+                      style={{ borderColor: seriesColorVar(entry.role) }}
+                    />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: seriesColorVar(entry.role) }}
+                    />
+                  )}
                   {entry.name}
                 </button>
               </li>

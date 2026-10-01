@@ -101,7 +101,8 @@ export function CollectionProgress({
           role="progressbar"
           aria-label={text}
           aria-valuemin={0}
-          aria-valuemax={counts.total}
+          // Work of no size yet still has a range, so the bar never reads as both empty and full
+          aria-valuemax={Math.max(counts.total, 1)}
           aria-valuenow={counts.done}
           aria-valuetext={progressText}
           className="flex h-1 overflow-hidden rounded-sm bg-surface-subtle"

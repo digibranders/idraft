@@ -7,28 +7,30 @@ import { INSPECTOR_WIDTH, type InspectorType } from './placement';
  */
 const keyOf = (type: InspectorType): string => `inspector-width:${type}`;
 const listeners = new Set<() => void>();
-// Where a width lives when storage is blocked: until the page reloads
+// Where a width lives when storage refused it (blocked, or full): until the page reloads
 const memory = new Map<InspectorType, number | null>();
 
 export function readInspectorWidth(type: InspectorType): number | null {
+  if (memory.has(type)) return memory.get(type) ?? null;
   try {
     const stored = window.localStorage.getItem(keyOf(type));
     if (stored === null) return null;
     const width = Number(stored);
     return Number.isInteger(width) && width >= INSPECTOR_WIDTH.min && width <= INSPECTOR_WIDTH.max ? width : null;
   } catch {
-    return memory.get(type) ?? null;
+    return null;
   }
 }
 
 /** Stores a width, or forgets it with `null` (Reset width). */
 export function writeInspectorWidth(type: InspectorType, width: number | null): void {
-  memory.set(type, width);
   try {
     if (width === null) window.localStorage.removeItem(keyOf(type));
     else window.localStorage.setItem(keyOf(type), String(width));
+    memory.delete(type);
   } catch {
     // Storage is blocked or full: the width in memory serves until the page reloads
+    memory.set(type, width);
   }
   for (const listener of listeners) listener();
 }

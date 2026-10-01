@@ -111,8 +111,8 @@ export function InspectorResizeHandle({
       <span
         aria-hidden="true"
         className={cn(
-          // Over the card's 1 px border, which sits at the middle of the hit area
-          'absolute inset-y-0 left-1 w-0.5 bg-border-strong opacity-0 group-hover/resize:opacity-100',
+          // 2 px from x -2 to 0 of the card's padding box: over its 1 px border and 1 px outside it
+          'absolute inset-y-0 left-0.5 w-0.5 bg-border-strong opacity-0 group-hover/resize:opacity-100',
           dragging && 'opacity-100',
         )}
       />

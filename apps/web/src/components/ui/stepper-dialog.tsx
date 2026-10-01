@@ -28,6 +28,8 @@ export interface StepperDialogLabels {
   back: string;
   cancel: string;
   continue: string;
+  /** Read after a completed step's name, since its check mark is not read: "completed". */
+  completed: string;
 }
 
 export interface StepperDialogProps<TStep extends string> {
@@ -42,7 +44,7 @@ export interface StepperDialogProps<TStep extends string> {
   onStepChange: (step: TStep) => void;
   /**
    * Checks the current step and, on the last one, does the work. `invalid` keeps the step and moves focus
-   * to its first error, which the step shows itself.
+   * to its first error, which the step shows itself. A rejection keeps the step too; the caller shows why.
    */
   onContinue: () => Promise<'ok' | 'invalid'>;
   /** The last step's button names the result: "Import 1,204 keywords". */
@@ -94,24 +96,41 @@ export function StepperDialog<TStep extends string>({
     };
   }, [pending]);
 
-  // A new step starts at its first field, so the keyboard does not stay on a button of the last one
+  // A new step starts at its first field, or at its name in the list when it has none, so the keyboard
+  // does not stay on a button of the last step (or on a step button that just went away)
   const shownStep = useRef(current);
+  const currentStep = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (shownStep.current === current) return;
     shownStep.current = current;
-    body.current?.querySelector<HTMLElement>(FIELDS)?.focus();
+    (body.current?.querySelector<HTMLElement>(FIELDS) ?? currentStep.current)?.focus();
   }, [current]);
+
+  // A check that fails focuses the first error once the step has drawn it, which for an answer from the
+  // server is a render after this one
+  const [failedChecks, setFailedChecks] = useState(0);
+  useEffect(() => {
+    if (failedChecks > 0) body.current?.querySelector<HTMLElement>(ERRORS)?.focus();
+  }, [failedChecks]);
+
+  // What the dialog shows now, for a check that returns after the person moved on or closed it
+  const live = useRef({ current, open });
+  useEffect(() => {
+    live.current = { current, open };
+  }, [current, open]);
 
   const proceed = async (): Promise<void> => {
     if (pending) return;
+    const startedOn = current;
     setPending(true);
     try {
       const outcome = await onContinue();
-      if (outcome === 'invalid') {
-        body.current?.querySelector<HTMLElement>(ERRORS)?.focus();
-        return;
-      }
-      if (next !== undefined) onStepChange(next.id);
+      // The answer belongs to a step that is no longer shown: it moves nothing
+      if (live.current.current !== startedOn || !live.current.open) return;
+      if (outcome === 'invalid') setFailedChecks((count) => count + 1);
+      else if (next !== undefined) onStepChange(next.id);
+    } catch {
+      // The step stays; the caller has shown what went wrong
     } finally {
       setPending(false);
     }
@@ -136,16 +155,23 @@ export function StepperDialog<TStep extends string>({
                   {done ? (
                     <button
                       type="button"
+                      // No jumping while Continue is checking: its answer would land on the wrong step
+                      disabled={pending}
                       onClick={() => onStepChange(step.id)}
-                      className="inline-flex items-center gap-1 rounded-xs text-foreground-secondary outline-none hover:text-foreground focus-visible:focus-ring"
+                      className="inline-flex items-center gap-1 rounded-xs text-foreground-secondary outline-none not-disabled:hover:text-foreground focus-visible:focus-ring"
                     >
                       <Icon icon={CircleCheck} size="sm" />
                       {step.label}
+                      <span className="sr-only">{`, ${labels.completed}`}</span>
                     </button>
                   ) : (
                     <span
+                      ref={isCurrent ? currentStep : undefined}
+                      tabIndex={isCurrent ? -1 : undefined}
                       aria-current={isCurrent ? 'step' : undefined}
-                      className={cn(isCurrent ? 'type-inline-strong text-foreground' : 'text-foreground-tertiary')}
+                      className={cn(
+                        isCurrent ? 'type-inline-strong text-foreground outline-none' : 'text-foreground-tertiary',
+                      )}
                     >
                       {step.label}
                     </span>
