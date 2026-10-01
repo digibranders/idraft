@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { MOCK_TERMS, MOCK_TERM_IDS } from '../entity-fixtures';
+import { placeErrors } from './keyword-groups';
+import { MOCK_TERMS, MOCK_TERM_IDS, MOCK_VOCABULARY_IDS } from '../entity-fixtures';
+import { keywordWorld } from '../keywords-state';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
 import { MOCK_GROUP_IDS } from '../keyword-fixtures';
 import { KEYWORD_TABLE } from '../keyword-table';
@@ -92,6 +94,44 @@ describe('keyword groups', () => {
     // The name is trimmed before it is measured
     expect(fieldCodes(await editor.call('POST', G, { name: '   ' }))).toEqual(['name:string_too_short']);
     expect((await editor.call('POST', G, { name: ` ${'y'.repeat(100)} ` })).status).toBe(201);
+    expect(fieldCodes(await editor.call('POST', G, { name: 'Audits/US' }))).toEqual(['name:slash_not_allowed']);
+  });
+
+  it('keeps the tree within 10 levels and a path within 2,048 bytes', async () => {
+    const editor = mockBrowser('editor');
+    // Nine levels under Local make ten
+    let parent: string = MOCK_GROUP_IDS.local;
+    for (let level = 2; level <= 10; level += 1) {
+      const made = await editor.call('POST', G, { name: `Level ${String(level)}`, parent_id: parent });
+      parent = dataOf(made, KEYWORD_GROUP).group_id;
+    }
+    expect(fieldCodes(await editor.call('POST', G, { name: 'Level 11', parent_id: parent }))).toEqual([
+      'parent_id:too_deep',
+    ]);
+    // Moving Services (two levels) under Level 9 would take its subgroups to level 11
+    const level9 = dataOf(await editor.call('GET', `${G}?format=flat`), TREE).find((group) => group.name === 'Level 9');
+    expect(
+      fieldCodes(await editor.call('PATCH', `${G}/${MOCK_GROUP_IDS.services}`, { parent_id: level9?.group_id })),
+    ).toEqual(['parent_id:too_deep']);
+  });
+
+  it('counts a path in bytes: six levels of 100 three-byte characters fit 2,048, seven do not', () => {
+    // Long multi-byte names fill a browser's cookie before the path does, so the rule is checked directly
+    const wide = '€'.repeat(100);
+    const groups = Array.from({ length: 7 }, (_, index) => ({
+      group_id: mockId('group', 500 + index),
+      project_id: fynix.project_id,
+      name: wide,
+      parent_id: index === 0 ? null : mockId('group', 500 + index - 1),
+      created_at: '2026-10-01T00:00:00.000Z',
+    }));
+    const world = keywordWorld({});
+    const deep = { ...world, groups: [...world.groups, ...groups] };
+    // Under the fifth: six names, 1,805 bytes. Under the sixth: seven names, 2,106 bytes
+    expect(placeErrors(deep, mockId('group', 504), wide, null)).toEqual([]);
+    expect(placeErrors(deep, mockId('group', 505), wide, null).map((item) => `${item.path}:${item.code}`)).toEqual([
+      'name:path_too_long',
+    ]);
   });
 
   it('moves a group but never under itself or a group below it', async () => {
@@ -153,21 +193,53 @@ describe('term assignments', () => {
     expect(detail.terms.map((term) => term.name).sort()).toEqual(['Paid Search', 'SEO Audit']);
   });
 
-  it('refuses to add a second term of a single-valued vocabulary, and removes several at once', async () => {
+  it('adds a term of a single-valued vocabulary in place of the other one, and removes several at once', async () => {
     const editor = mockBrowser('editor');
+    const id = trackedId('seo audit');
     const assign = (op: string, termIds: string[]): Promise<Awaited<ReturnType<MockBrowser['call']>>> =>
       editor.call('POST', `${P}/term-assignments`, {
         subject_type: 'tracked_keyword',
-        subject_ids: [trackedId('seo audit')],
+        subject_ids: [id],
         term_ids: termIds,
         op,
       });
     expect((await assign('add', [serviceTerm('seo-audit')])).status).toBe(200);
-    expect(fieldCodes(await assign('add', [serviceTerm('link-building')]))).toEqual([
+    const swapped = await assign('add', [serviceTerm('link-building')]);
+    expect(dataOf(swapped, TERM_ASSIGNMENT_RESULT)).toMatchObject({ assignments_added: 1, assignments_removed: 1 });
+    const detail = dataOf(await editor.call('GET', `${P}/tracked-keywords/${id}`), TRACKED_KEYWORD_DETAIL);
+    expect(detail.terms.filter((term) => term.vocabulary_kind === 'service').map((term) => term.name)).toEqual([
+      'Link Building',
+    ]);
+    // Two terms of the vocabulary at once cannot both fit
+    expect(fieldCodes(await assign('add', [serviceTerm('seo-audit'), serviceTerm('content-strategy')]))).toEqual([
       'term_ids:single_valued_vocabulary',
     ]);
     const removed = await assign('remove', [serviceTerm('seo-audit'), serviceTerm('link-building')]);
     expect(dataOf(removed, TERM_ASSIGNMENT_RESULT)).toMatchObject({ assignments_removed: 1 });
+  });
+
+  it('keeps a vocabulary from turning single-valued while a keyword holds two of its terms', async () => {
+    const editor = mockBrowser('editor');
+    const id = trackedId('seo audit');
+    await editor.call('POST', `${P}/term-assignments`, {
+      subject_type: 'tracked_keyword',
+      subject_ids: [id],
+      term_ids: [MOCK_TERM_IDS.paidSearch],
+      op: 'add',
+    });
+    const topics = `${W}/vocabularies/${MOCK_VOCABULARY_IDS.topics}`;
+    expect(await editor.call('PATCH', topics, { is_single_valued: true })).toMatchObject({
+      status: 409,
+      code: 'single_valued_violation',
+      body: { tracked_keyword_id: id },
+    });
+    await editor.call('POST', `${P}/term-assignments`, {
+      subject_type: 'tracked_keyword',
+      subject_ids: [id],
+      term_ids: [MOCK_TERM_IDS.paidSearch],
+      op: 'remove',
+    });
+    expect((await editor.call('PATCH', topics, { is_single_valued: true })).status).toBe(200);
   });
 
   it('selects by filter and refuses prompts until the AI step', async () => {

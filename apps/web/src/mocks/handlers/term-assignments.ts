@@ -15,9 +15,10 @@ import { invalid, mock } from '../respond';
 import type { ValidationItem } from '@/lib/api/types';
 
 /**
- * Terms given to tracked keywords in bulk (19 section 3.5): `add`, `remove`, or `replace` (the subjects'
- * terms in the vocabularies of `term_ids` give way to them; other vocabularies are kept), over a list of
- * ids or a filter. And a project's keyword defaults, `settings.seo`.
+ * Terms given to tracked keywords in bulk (19 section 3.5, as built in step 5): `add` (a term of a
+ * single-valued vocabulary takes the place of the keyword's other term of it), `remove`, or `replace` (the
+ * subjects' terms in the vocabularies of `term_ids` give way to them; other vocabularies are kept), over a
+ * list of ids or a filter. And a project's keyword defaults, `settings.seo`.
  */
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
@@ -82,25 +83,13 @@ export const termAssignmentHandlers: HttpHandler[] = [
     const vocabularyOf = (termId: string): string | undefined =>
       caller.world.terms.find((term) => term.term_id === termId)?.vocabulary_id;
     const replaced = new Set(termIds.map(vocabularyOf));
-    // `add` never leaves a subject with two terms of a single-valued vocabulary; `replace` swaps them
-    if (body.op === 'add') {
-      const single = new Set(
-        caller.world.vocabularies.filter((v) => v.is_single_valued === true).map((v) => v.vocabulary_id),
-      );
-      const given = new Set(termIds);
-      const clash = subjects.some((row) =>
-        caller.keywords.termLinks.some((link) => {
-          if (link.tracked_keyword_id !== row.tracked_keyword_id || given.has(link.term_id)) return false;
-          const vocabulary = vocabularyOf(link.term_id);
-          return vocabulary !== undefined && single.has(vocabulary) && replaced.has(vocabulary);
-        }),
-      );
-      if (clash) {
-        return invalid(request, [
-          bodyError('term_ids', 'single_valued_vocabulary', 'A subject already has a term of this vocabulary.'),
-        ]);
-      }
-    }
+    // `add` with a term of a single-valued vocabulary replaces the keyword's other term of it (as built)
+    const single = new Set(
+      caller.world.vocabularies.filter((v) => v.is_single_valued === true).map((v) => v.vocabulary_id),
+    );
+    const displacedBy = new Set(
+      [...replaced].filter((vocabulary) => vocabulary !== undefined && single.has(vocabulary)),
+    );
     let added = 0;
     let removed = 0;
     const adds: { term_id: string; tracked_keyword_id: string }[] = [];
@@ -115,7 +104,7 @@ export const termAssignmentHandlers: HttpHandler[] = [
           ? termIds.filter((termId) => held.has(termId))
           : body.op === 'replace'
             ? [...held].filter((termId) => replaced.has(vocabularyOf(termId)) && !termIds.includes(termId))
-            : [];
+            : [...held].filter((termId) => displacedBy.has(vocabularyOf(termId)) && !termIds.includes(termId));
       const give = body.op === 'remove' ? [] : termIds.filter((termId) => !held.has(termId));
       removes.push(...takeAway.map((term_id) => ({ term_id, tracked_keyword_id: id })));
       adds.push(...give.map((term_id) => ({ term_id, tracked_keyword_id: id })));

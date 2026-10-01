@@ -567,8 +567,26 @@ interface FilterSource {
   fromQuery: boolean;
 }
 
-function readFilter(source: FilterSource): TrackedFilter | ValidationItem[] {
+/** The most values a list filter takes (19 section 2.4). */
+const MAX_FILTER_VALUES = 100;
+
+function readFilter(source: FilterSource, defaultActive: boolean | null): TrackedFilter | ValidationItem[] {
   const errors: ValidationItem[] = [];
+  /** A list's values, checked for count: a body list holds 1 to 100, a query list at most 100. */
+  const listOf = (name: string): unknown[] => {
+    const values = source.list(name);
+    if (values === undefined) return [];
+    if (values.length > MAX_FILTER_VALUES || (!source.fromQuery && values.length === 0)) {
+      errors.push(
+        source.error(
+          name,
+          values.length === 0 ? 'too_short' : 'too_long',
+          `From 1 to ${String(MAX_FILTER_VALUES)} values.`,
+        ),
+      );
+    }
+    return values;
+  };
   const text = (name: string, { min = 1, max = 200 } = {}): string | null => {
     const value = source.text(name);
     if (value === undefined || value === null) return null;
@@ -614,13 +632,13 @@ function readFilter(source: FilterSource): TrackedFilter | ValidationItem[] {
     return null;
   };
   const manyOf = <T extends string>(name: string, allowed: readonly T[]): T[] => {
-    const values = source.list(name) ?? [];
+    const values = listOf(name);
     const bad = values.filter((value) => !isOneOf(value, allowed));
     if (bad.length > 0) errors.push(source.error(name, 'enum', `Allowed: ${allowed.join(', ')}.`));
     return values.filter((value): value is T => isOneOf(value, allowed));
   };
   const ids = (name: string): string[] => {
-    const values = source.list(name) ?? [];
+    const values = listOf(name);
     if (values.some((value) => typeof value !== 'string' || uuidError(value, name).length > 0)) {
       errors.push(source.error(name, 'uuid_parsing', 'Input should be a valid UUID'));
       return [];
@@ -632,8 +650,7 @@ function readFilter(source: FilterSource): TrackedFilter | ValidationItem[] {
     errors.push(source.error('group', 'uuid_parsing', 'Input should be a valid UUID'));
   }
   const activeRaw = source.text('is_active');
-  // Left out: active rows only; sent as null (a body only): any
-  let isActive: boolean | null = activeRaw === null ? null : true;
+  let isActive: boolean | null = defaultActive;
   if (activeRaw !== undefined && activeRaw !== null) {
     if (activeRaw === true || activeRaw === 'true') isActive = true;
     else if (activeRaw === false || activeRaw === 'false') isActive = false;
@@ -663,34 +680,40 @@ function readFilter(source: FilterSource): TrackedFilter | ValidationItem[] {
 /** The list's filter from its `filter[...]` query parameters; `is_active` defaults to true. */
 export function queryFilter(url: URL): TrackedFilter | ValidationItem[] {
   const key = (name: string): string => `filter[${name}]`;
-  return readFilter({
-    text: (name) => url.searchParams.get(key(name)) ?? undefined,
-    list: (name) => {
-      const values = url.searchParams.getAll(key(name)).flatMap((value) => value.split(','));
-      return values.length === 0 ? undefined : values.filter((value) => value !== '');
+  return readFilter(
+    {
+      text: (name) => url.searchParams.get(key(name)) ?? undefined,
+      list: (name) => {
+        const values = url.searchParams.getAll(key(name)).flatMap((value) => value.split(','));
+        return values.length === 0 ? undefined : values.filter((value) => value !== '');
+      },
+      error: (name, code, message) => queryError(key(name), code, message),
+      fromQuery: true,
     },
-    error: (name, code, message) => queryError(key(name), code, message),
-    fromQuery: true,
-  });
+    true,
+  );
 }
 
 /**
- * A filter given in a body (bulk routes, term assignments), at `path`. `is_active` left out means active rows,
- * as in the list; `null` means any.
+ * A filter given in a body (bulk routes, term assignments), at `path`. `is_active` left out takes archived and
+ * active keywords alike, unlike the list (backend as built).
  */
 export function bodyFilter(value: unknown, path: string): TrackedFilter | ValidationItem[] {
   if (!isRecord(value)) return [bodyError(path, 'model_attributes_type', 'Input should be an object')];
   const extra = extraMembers(value, FILTER_NAMES, path);
   if (extra.length > 0) return extra;
-  return readFilter({
-    text: (name) => value[name],
-    list: (name) => {
-      const list = value[name];
-      return list === undefined || list === null ? undefined : Array.isArray(list) ? list : [list];
+  return readFilter(
+    {
+      text: (name) => value[name],
+      list: (name) => {
+        const list = value[name];
+        return list === undefined || list === null ? undefined : Array.isArray(list) ? list : [list];
+      },
+      error: (name, code, message) => bodyError(at(path, name), code, message),
+      fromQuery: false,
     },
-    error: (name, code, message) => bodyError(at(path, name), code, message),
-    fromQuery: false,
-  });
+    null,
+  );
 }
 
 /** A term and every term under it. */
@@ -735,7 +758,8 @@ export function filteredRows(caller: KeywordProjectCaller, filter: TrackedFilter
   const termAny = new Set(filter.termIn.flatMap((termId) => [...termAndBelow(caller, termId)]));
   return liveTrackedOf(world, caller.project.project_id).filter((row) => {
     if (filter.isActive !== null && row.is_active !== filter.isActive) return false;
-    if (needle !== null && !(keywordText.get(row.keyword_id) ?? '').includes(needle)) return false;
+    // A `q` that normalizes to nothing (spaces only) matches no keyword
+    if (needle !== null && (needle === '' || !(keywordText.get(row.keyword_id) ?? '').includes(needle))) return false;
     if (inGroup !== null && !inGroup.has(row.tracked_keyword_id)) return false;
     if (termGroups.size > 0 || termAny.size > 0) {
       const links = linksOf(row.tracked_keyword_id);
@@ -782,7 +806,10 @@ export function parseSort(raw: string | null): { key: SortKey; desc: boolean }[]
   const keys = text.split(',').map((part) => part.trim());
   const parsed = keys.map((part) => ({ key: part.replace(/^-/, ''), desc: part.startsWith('-') }));
   const unknown = parsed.find((part) => !isOneOf(part.key, SORT_KEYS));
-  if (unknown !== undefined) return queryError('sort', 'invalid_sort', `Sort by ${SORT_KEYS.join(', ')}.`);
+  const repeated = new Set(parsed.map((part) => part.key)).size < parsed.length;
+  if (unknown !== undefined || repeated) {
+    return queryError('sort', 'invalid_sort', `Sort by ${SORT_KEYS.join(', ')}, each at most once.`);
+  }
   return parsed.flatMap((part) => (isOneOf(part.key, SORT_KEYS) ? [{ key: part.key, desc: part.desc }] : []));
 }
 

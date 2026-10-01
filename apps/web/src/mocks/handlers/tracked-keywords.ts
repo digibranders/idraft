@@ -367,6 +367,19 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     if (shape.length > 0) return invalid(request, shape);
     const ids = (name: (typeof LINKS)[number]): string[] =>
       Array.isArray(body[name]) ? body[name].filter((id): id is string => typeof id === 'string') : [];
+    // A change needs `set` or a list, and an id is added or removed, not both (backend as built)
+    const intent: ValidationItem[] = [
+      ...(set === null && LINKS.every((name) => ids(name).length === 0)
+        ? [bodyError('', 'nothing_to_change', 'Give set, or groups or terms to add or remove.')]
+        : []),
+      ...(ids('add_group_ids').some((id) => ids('remove_group_ids').includes(id))
+        ? [bodyError('add_group_ids', 'added_and_removed', 'A group is both added and removed.')]
+        : []),
+      ...(ids('add_term_ids').some((id) => ids('remove_term_ids').includes(id))
+        ? [bodyError('add_term_ids', 'added_and_removed', 'A term is both added and removed.')]
+        : []),
+    ];
+    if (intent.length > 0) return invalid(request, intent);
     const service = [
       ...(isRecord(set) ? patchServiceErrors(set, 'set', caller.project.project_id, scheduleCheckFor(cookies)) : []),
       ...groupErrors(caller, ids('add_group_ids'), 'add_group_ids'),

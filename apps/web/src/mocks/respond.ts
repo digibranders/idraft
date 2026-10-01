@@ -90,6 +90,7 @@ const PROBLEMS = {
   cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
   has_children: [409, 'Term has children'],
   schedule_in_use: [409, 'Schedule is in use'],
+  single_valued_violation: [409, 'A keyword has two terms of this vocabulary'],
   payload_too_large: [413, 'Payload too large'],
   unsupported_media_type: [415, 'Unsupported media type'],
   quota_exceeded: [422, 'Workspace limit reached'],

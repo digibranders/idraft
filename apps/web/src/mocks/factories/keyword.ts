@@ -374,12 +374,25 @@ export function groupView(world: KeywordWorld, row: StoredGroup): KeywordGroup {
 }
 
 /** A project's groups as a tree, siblings by name. */
+const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/** Path order level by level (backend as built): a group's subtree comes right after it. */
+export function byGroupPath(a: string, b: string): number {
+  const left = a.split('/');
+  const right = b.split('/');
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    const order = byCodePoint(left[index] ?? '', right[index] ?? '');
+    if (order !== 0) return order;
+  }
+  return left.length - right.length;
+}
+
 export function groupTree(world: KeywordWorld, projectId: string): KeywordGroupNode[] {
   const groups = world.groups.filter((group) => group.project_id === projectId);
   const nodesUnder = (parentId: string | null): KeywordGroupNode[] =>
     groups
       .filter((group) => group.parent_id === parentId)
-      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.group_id.localeCompare(b.group_id))
+      .sort((a, b) => byCodePoint(a.name, b.name) || byCodePoint(a.group_id, b.group_id))
       .map((group) => ({ ...groupView(world, group), children: nodesUnder(group.group_id) }));
   return nodesUnder(null);
 }

@@ -2,7 +2,7 @@ import { HttpResponse, type HttpHandler } from 'msw';
 
 import { idListError, keywordProjectCaller, liveTrackedOf, now, savedKeywords } from './keyword-rules';
 import { bodyError, extraMembers, isRecord, notAnObject, queryError, textError, uuidError } from './rules';
-import { groupAndBelow, groupTree, groupView } from '../factories/keyword';
+import { byGroupPath, groupAndBelow, groupPath, groupTree, groupView } from '../factories/keyword';
 import {
   keywordIdMinter,
   keywordWorld,
@@ -50,9 +50,66 @@ const shapeErrors = (body: Readonly<Record<string, unknown>>, { create }: { crea
   ...(create && body.name === undefined ? [bodyError('name', 'missing', 'Field required')] : []),
   ...(body.name === null ? [bodyError('name', 'null_not_allowed', 'Cannot be null.')] : []),
   ...textError(trimmedName(body.name) ?? undefined, 'name', { max: MAX_NAME }),
+  // A path joins names with "/", so a name cannot hold one
+  ...(typeof body.name === 'string' && body.name.includes('/')
+    ? [bodyError('name', 'slash_not_allowed', 'A group name cannot hold "/".')]
+    : []),
   ...uuidError(body.parent_id, 'parent_id', { nullable: true }),
   ...(!create && Object.keys(body).length === 0 ? [bodyError('', 'value_error', 'Change at least one field.')] : []),
 ];
+
+/** Levels a tree may have, and the bytes a path may hold (backend as built). */
+const MAX_DEPTH = 10;
+const MAX_PATH_BYTES = 2048;
+const pathBytes = (path: string): number => new TextEncoder().encode(path).length;
+
+/** Levels from the root down to a group: a root group is level 1, no group is level 0. */
+function levelOf(world: KeywordWorld, groupId: string | null): number {
+  let level = 0;
+  let current = groupId;
+  while (current !== null && level <= MAX_DEPTH * 2) {
+    const group = world.groups.find((candidate) => candidate.group_id === current);
+    if (group === undefined) break;
+    level += 1;
+    current = group.parent_id;
+  }
+  return level;
+}
+
+/**
+ * The errors of putting a group named `name` under `parentId`: too deep for its subtree, or a path too long
+ * for its longest descendant. `current` is the group being moved or renamed, if any.
+ */
+export function placeErrors(
+  world: KeywordWorld,
+  parentId: string | null,
+  name: string,
+  current: StoredGroup | null,
+): ValidationItem[] {
+  const parent = parentId === null ? undefined : world.groups.find((group) => group.group_id === parentId);
+  const path = parent === undefined ? name : `${groupPath(world, parent)}/${name}`;
+  const below =
+    current === null ? [] : [...groupAndBelow(world, current.group_id)].filter((id) => id !== current.group_id);
+  const ownLevel = current === null ? 0 : levelOf(world, current.group_id);
+  // The subtree's height and its longest path below the group, as they will hang under the new place
+  let height = 1;
+  let longest = path;
+  for (const id of below) {
+    const group = world.groups.find((candidate) => candidate.group_id === id);
+    if (group === undefined || current === null) continue;
+    height = Math.max(height, levelOf(world, id) - ownLevel + 1);
+    const suffix = groupPath(world, group).slice(groupPath(world, current).length);
+    if (pathBytes(path + suffix) > pathBytes(longest)) longest = path + suffix;
+  }
+  return [
+    ...(levelOf(world, parentId) + height > MAX_DEPTH
+      ? [bodyError('parent_id', 'too_deep', `Groups are at most ${String(MAX_DEPTH)} levels deep.`)]
+      : []),
+    ...(pathBytes(longest) > MAX_PATH_BYTES
+      ? [bodyError('name', 'path_too_long', `A group path holds at most ${String(MAX_PATH_BYTES)} bytes.`)]
+      : []),
+  ];
+}
 
 const duplicateName = (request: Request): Response =>
   problem(request, 'duplicate', { detail: 'A group next to it already has this name.' });
@@ -73,7 +130,7 @@ export const keywordGroupHandlers: HttpHandler[] = [
     // Flat: every group, by path, without children
     const flat = groupsOf(caller.keywords, caller.project.project_id)
       .map((group) => ({ ...groupView(caller.keywords, group), children: [] }))
-      .sort((a, b) => a.path.localeCompare(b.path) || a.group_id.localeCompare(b.group_id));
+      .sort((a, b) => byGroupPath(a.path, b.path) || a.group_id.localeCompare(b.group_id));
     return HttpResponse.json({ data: flat });
   }),
 
@@ -92,6 +149,8 @@ export const keywordGroupHandlers: HttpHandler[] = [
       return invalid(request, [bodyError('parent_id', 'group_unknown', 'No group of this project has this id.')]);
     }
     const name = body.name.trim();
+    const place = placeErrors(caller.keywords, parentId, name, null);
+    if (place.length > 0) return invalid(request, place);
     if (sibling(caller.keywords, projectId, parentId, name, null)) return duplicateName(request);
     const minter = keywordIdMinter(caller.keywordChanges);
     const row: StoredGroup = {
@@ -131,6 +190,8 @@ export const keywordGroupHandlers: HttpHandler[] = [
       return problem(request, 'cycle_detected', { detail: 'A group cannot move under itself or a group under it.' });
     }
     const name = typeof body.name === 'string' ? body.name.trim() : current.name;
+    const place = placeErrors(caller.keywords, parentId, name, current);
+    if (place.length > 0) return invalid(request, place);
     if (sibling(caller.keywords, projectId, parentId, name, current.group_id)) return duplicateName(request);
     const row: StoredGroup = { ...current, name, parent_id: parentId };
     if (row.name === current.name && row.parent_id === current.parent_id) {

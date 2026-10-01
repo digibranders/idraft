@@ -95,6 +95,7 @@ describe('tracked keywords: the list', () => {
       expect(volumes).toEqual([...volumes].sort((a, b) => (sort.startsWith('-') ? b - a : a - b)));
     }
     expect(fieldCodes(await viewer.call('GET', `${TK}?sort=rank`))).toEqual(['sort:invalid_sort']);
+    expect(fieldCodes(await viewer.call('GET', `${TK}?sort=priority,-priority`))).toEqual(['sort:invalid_sort']);
   });
 
   it('filters by a group with its subgroups, by terms with the terms under them, and by text and metrics', async () => {
@@ -105,6 +106,8 @@ describe('tracked keywords: the list', () => {
     const seoFamily = ACTIVE.filter((row) => ['seo', 'technical', 'local'].includes(row.topic ?? '')).length;
     expect(await listOf(viewer, `filter[term_in]=${MOCK_TERM_IDS.seo}`)).toHaveLength(seoFamily);
     expect(await textsOf(viewer, 'filter[q]=SEO  Agentur')).toEqual(['seo agentur', 'seo agentur berlin']);
+    // Spaces only normalize to nothing, which matches no keyword
+    expect(await textsOf(viewer, 'filter[q]=%20%20')).toEqual([]);
     expect(await textsOf(viewer, 'filter[is_active]=false')).toEqual([
       'seo meme',
       'seo newsletter',
@@ -361,6 +364,16 @@ describe('tracked keywords: in bulk', () => {
     expect(
       fieldCodes(await editor.call('POST', `${TK}/bulk-update`, { remove_group_ids: [mockId('group', 99)], ids })),
     ).toEqual(['remove_group_ids:group_unknown']);
+    expect(fieldCodes(await editor.call('POST', `${TK}/bulk-update`, { ids }))).toEqual([':nothing_to_change']);
+    expect(
+      fieldCodes(
+        await editor.call('POST', `${TK}/bulk-update`, {
+          ids,
+          add_group_ids: [MOCK_GROUP_IDS.brand],
+          remove_group_ids: [MOCK_GROUP_IDS.brand],
+        }),
+      ),
+    ).toEqual(['add_group_ids:added_and_removed']);
   });
 
   it('counts a row whose links were swapped as updated, and clears a vocabulary by removing its terms', async () => {
@@ -389,15 +402,18 @@ describe('tracked keywords: in bulk', () => {
     const archived = await editor.call('POST', `${TK}/bulk-archive`, { ...brand, archive: true });
     expect(dataOf(archived, BULK_ARCHIVE_RESULT)).toEqual({ matched: 4, updated: 4 });
     expect(await listOf(editor, `filter[group]=${MOCK_GROUP_IDS.brand}`)).toHaveLength(0);
-    // A filter without `is_active` selects active rows, as the list does
+    // A body filter without `is_active` takes archived and active rows alike, unlike the list
     const again = await editor.call('POST', `${TK}/bulk-archive`, { ...brand, archive: true });
-    expect(dataOf(again, BULK_ARCHIVE_RESULT)).toEqual({ matched: 0, updated: 0 });
+    expect(dataOf(again, BULK_ARCHIVE_RESULT)).toEqual({ matched: 4, updated: 0 });
     const archivedBrand = { filter: { group: MOCK_GROUP_IDS.brand, is_active: false } };
     const back = await editor.call('POST', `${TK}/bulk-archive`, { ...archivedBrand, archive: false });
     expect(dataOf(back, BULK_ARCHIVE_RESULT)).toEqual({ matched: 4, updated: 4 });
-    // `null` selects either
-    const any = await editor.call('POST', `${TK}/bulk-archive`, { filter: { is_active: null }, archive: false });
-    expect(dataOf(any, BULK_ARCHIVE_RESULT)).toEqual({ matched: KEYWORD_TABLE.length, updated: 3 });
+    const all = await editor.call('POST', `${TK}/bulk-archive`, { filter: {}, archive: false });
+    expect(dataOf(all, BULK_ARCHIVE_RESULT)).toEqual({ matched: KEYWORD_TABLE.length, updated: 3 });
+    // A list in a body filter holds 1 to 100 values
+    expect(
+      fieldCodes(await editor.call('POST', `${TK}/bulk-archive`, { filter: { intent_in: [] }, archive: true })),
+    ).toEqual(['filter.intent_in:too_short']);
     expect(
       fieldCodes(
         await editor.call('POST', `${TK}/bulk-archive`, { ...brand, ids: [trackedId('fynix')], archive: true }),

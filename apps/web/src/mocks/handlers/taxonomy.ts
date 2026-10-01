@@ -31,6 +31,8 @@ import {
 } from '../entities-state';
 import { termView, vocabularyView } from '../factories/entity';
 import { MOCK_CREATED_AT, MOCK_WORKSPACE } from '../fixtures';
+import { keywordWorld, readKeywordChanges, type KeywordChanges } from '../keywords-state';
+import { projectList } from '../workspace-state';
 import { invalid, mock, noContent, problem } from '../respond';
 import { MAX_SLUG, termSlug } from '../term-slug';
 import type { Problem, TermNode, ValidationItem } from '@/lib/api/types';
@@ -101,6 +103,29 @@ function visibleVocabularies(caller: WorkspaceCaller): StoredVocabulary[] {
       workspaceOfRow(vocabulary) === caller.access.workspace.workspace_id && (project === null || projects.has(project))
     );
   });
+}
+
+/**
+ * A live tracked keyword of a live project of the workspace that has two terms of the vocabulary, or `null`
+ * (step 5 as built: such a keyword blocks turning `is_single_valued` on).
+ */
+function twoTermsOf(caller: WorkspaceCaller, keywordChanges: KeywordChanges, vocabularyId: string): string | null {
+  const keywords = keywordWorld(keywordChanges);
+  const terms = new Set(termsOf(caller.world, vocabularyId).map((term) => term.term_id));
+  const projects = new Set(projectList(caller.changes, caller.access.workspace.workspace_id).map((p) => p.project_id));
+  const live = new Set(
+    keywords.tracked
+      .filter((row) => row.deleted_at === null && projects.has(row.project_id))
+      .map((row) => row.tracked_keyword_id),
+  );
+  const counts = new Map<string, number>();
+  for (const link of keywords.termLinks) {
+    if (!terms.has(link.term_id) || !live.has(link.tracked_keyword_id)) continue;
+    const count = (counts.get(link.tracked_keyword_id) ?? 0) + 1;
+    if (count > 1) return link.tracked_keyword_id;
+    counts.set(link.tracked_keyword_id, count);
+  }
+  return null;
 }
 
 /** The terms of a vocabulary. */
@@ -398,7 +423,16 @@ export const taxonomyHandlers: HttpHandler[] = [
     ) {
       return problem(request, 'duplicate', { detail: VOCABULARY_TAKEN });
     }
-    // Turning on single-valued cannot fail yet: no subject has terms until keywords and prompts exist
+    // Turning on single-valued fails while a live tracked keyword of a live project holds two of its terms
+    if (body.is_single_valued === true && vocabulary.is_single_valued !== true) {
+      const offender = twoTermsOf(caller, readKeywordChanges(cookies), vocabulary.vocabulary_id);
+      if (offender !== null) {
+        return problem(request, 'single_valued_violation', {
+          detail: 'A tracked keyword has two terms of this vocabulary. Give it one first.',
+          tracked_keyword_id: offender,
+        });
+      }
+    }
     const next = withEdited(caller.entityChanges, 'vocabularies', vocabulary, {
       name,
       is_single_valued: typeof body.is_single_valued === 'boolean' ? body.is_single_valued : undefined,
