@@ -189,9 +189,7 @@ class EntityService:
         next_cursor = None
         if len(found) > page.limit:
             last = shown[-1]
-            next_cursor = encode_cursor(
-                [last.canonical_name.lower(), str(last.id)], scope=filters.scope()
-            )
+            next_cursor = encode_cursor([last.sort_key, str(last.id)], scope=filters.scope())
         return EntityPageResult(
             rows=[
                 EntityRow(entity, [d for d in claimed if d.entity_id == entity.id])
@@ -233,7 +231,7 @@ class EntityService:
         try:
             async with self._transaction(access) as db:
                 if parent_entity_id is not None:
-                    await self._check_parent_exists(db, access, parent_entity_id)
+                    await self._hold_parent(db, access, parent_entity_id)
                 entity_id = await repository.insert_entity(
                     db,
                     workspace_id=access.workspace_id,
@@ -311,7 +309,10 @@ class EntityService:
                 if differing:
                     parent = differing.get("parent_entity_id")
                     if isinstance(parent, UUID):
-                        await self._check_parent_exists(db, access, parent)
+                        # One parent change at a time per workspace: two at once could each
+                        # pass the check below and together write a cycle.
+                        await repository.lock_parent_changes(db, access.workspace_id)
+                        await self._hold_parent(db, access, parent)
                         if entity_id in await repository.ancestors(db, access.workspace_id, parent):
                             raise CycleDetectedError(
                                 "The parent is this entity or one of its products."
@@ -395,17 +396,24 @@ class EntityService:
                     aliases=[_new_alias(alias) for alias in aliases],
                     created_by=access.user_id,
                 )
-                for alias_id, alias in zip(added, aliases, strict=True):
-                    await audit.record(
-                        db,
-                        workspace_id=access.workspace_id,
-                        actor_id=access.user_id,
-                        action="entity_alias.created",
-                        target_type="entity_alias",
-                        target_id=alias_id,
-                        info=info,
-                        after={"entity_id": str(entity_id), **_alias_snapshot(_new_alias(alias))},
-                    )
+                await audit.record_each(
+                    db,
+                    workspace_id=access.workspace_id,
+                    actor_id=access.user_id,
+                    action="entity_alias.created",
+                    target_type="entity_alias",
+                    info=info,
+                    entries=[
+                        audit.Entry(
+                            target_id=alias_id,
+                            after={
+                                "entity_id": str(entity_id),
+                                **_alias_snapshot(_new_alias(alias)),
+                            },
+                        )
+                        for alias_id, alias in zip(added, aliases, strict=True)
+                    ],
+                )
                 await self._changed(db, access, entity_id)
                 every = await repository.aliases_of(db, access.workspace_id, [entity_id])
         except AliasTakenError:
@@ -543,7 +551,7 @@ class EntityService:
                 )
                 warnings = await self._conflicts(db, access, entity_id, claim)
                 created = await repository.get_entity_domain(
-                    db, access.workspace_id, entity_domain_id
+                    db, access.workspace_id, entity_id, entity_domain_id
                 )
         except EntityDomainTakenError:
             raise _domain_taken() from None
@@ -560,7 +568,9 @@ class EntityService:
     ) -> None:
         async with self._transaction(access) as db:
             await self._locked(db, access, entity_id)
-            current = await repository.get_entity_domain(db, access.workspace_id, entity_domain_id)
+            current = await repository.get_entity_domain(
+                db, access.workspace_id, entity_id, entity_domain_id
+            )
             if current is None or not await repository.delete_entity_domain(
                 db, access.workspace_id, entity_id, entity_domain_id
             ):
@@ -602,10 +612,11 @@ class EntityService:
             raise NotFoundError
 
     @staticmethod
-    async def _check_parent_exists(
+    async def _hold_parent(
         db: AsyncSession, access: WorkspaceAccess, parent_entity_id: UUID
     ) -> None:
-        if not await repository.entity_exists(db, access.workspace_id, parent_entity_id):
+        """The parent exists, and cannot be deleted before this transaction ends."""
+        if not await repository.hold_parent(db, access.workspace_id, parent_entity_id):
             raise invalid_field(
                 "parent_entity_id", code="parent_unknown", message="No such entity."
             )

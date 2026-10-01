@@ -79,6 +79,9 @@ class EntityRecord:
     alias_count: int
     created_at: datetime
     updated_at: datetime
+    # The list's sort key as PostgreSQL computes it: Python's lower() differs for some letters
+    # (U+0130), and a cursor made from it would skip rows.
+    sort_key: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +152,7 @@ def _entities(workspace_id: UUID, visible: Collection[UUID] | None) -> Select[tu
         alias_count.label("alias_count"),
         entities.c.created_at,
         entities.c.updated_at,
+        func.lower(entities.c.canonical_name).label("sort_key"),
     ).where(entities.c.workspace_id == workspace_id, visible_to(visible))
 
 
@@ -165,6 +169,7 @@ def _entity(row: Row[tuple[object, ...]]) -> EntityRecord:
         alias_count=fields["alias_count"],
         created_at=fields["created_at"],
         updated_at=fields["updated_at"],
+        sort_key=fields["sort_key"],
     )
 
 
@@ -237,12 +242,27 @@ async def get_entity(
     return None if row is None else _entity(row)
 
 
-async def entity_exists(db: AsyncSession, workspace_id: UUID, entity_id: UUID) -> bool:
-    statement = select(
-        exists().where(entities.c.workspace_id == workspace_id, entities.c.id == entity_id)
+async def lock_parent_changes(db: AsyncSession, workspace_id: UUID) -> None:
+    """Parent changes in a workspace run one at a time until the transaction ends, so two
+    cannot each pass the cycle check and together write a cycle."""
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(literal(f"entity_parent:{workspace_id}"), 0)
+            )
+        )
     )
-    found: bool = (await db.execute(statement)).scalar_one()
-    return found
+
+
+async def hold_parent(db: AsyncSession, workspace_id: UUID, entity_id: UUID) -> bool:
+    """Whether the entity exists, kept from being deleted until the transaction ends (FOR KEY
+    SHARE), so a parent read here is still there when the child is written."""
+    statement = (
+        select(entities.c.id)
+        .where(entities.c.workspace_id == workspace_id, entities.c.id == entity_id)
+        .with_for_update(read=True, key_share=True)
+    )
+    return (await db.execute(statement)).first() is not None
 
 
 async def ancestors(db: AsyncSession, workspace_id: UUID, entity_id: UUID) -> list[UUID]:
@@ -591,9 +611,11 @@ async def domains_of(
 
 
 async def get_entity_domain(
-    db: AsyncSession, workspace_id: UUID, entity_domain_id: UUID
+    db: AsyncSession, workspace_id: UUID, entity_id: UUID, entity_domain_id: UUID
 ) -> EntityDomainRecord | None:
-    statement = _entity_domains(workspace_id).where(entity_domains.c.id == entity_domain_id)
+    statement = _entity_domains(workspace_id).where(
+        entity_domains.c.entity_id == entity_id, entity_domains.c.id == entity_domain_id
+    )
     row = (await db.execute(statement)).one_or_none()
     return None if row is None else _entity_domain(row)
 

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
 import httpx
+import pytest
 
 from sightline.api.entities.service import EntityFilters
 from sightline.api.pagination import encode_cursor
@@ -169,6 +171,34 @@ async def test_the_list_is_by_name_and_pages_by_cursor(
     assert seen == ["Alpha", "Bravo", "charlie", "delta", "echo"]
 
 
+async def test_paging_misses_no_name_postgresql_lowers_differently_and_ties_go_by_id(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """Python lowers U+0130 to `i` and a combining dot; PostgreSQL to `i`. A cursor made from
+    the first would skip `istanbul`."""
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    names = [
+        ("brand", "\N{LATIN CAPITAL LETTER I WITH DOT ABOVE}stanbul"),
+        ("organization", "istanbul"),
+        ("brand", "Same"),
+        ("organization", "Same"),
+        ("brand", "Zeta"),
+    ]
+    for entity_type, name in names:
+        await _create(api, workspace, owner, {"entity_type": entity_type, "canonical_name": name})
+
+    seen: list[tuple[str, str]] = []
+    params: dict[str, Any] = {"limit": 1}
+    while True:
+        body = (await api.get(entities_url(workspace), params=params, headers=owner.headers)).json()
+        seen += [(row["entity_type"], row["canonical_name"]) for row in body["data"]]
+        if not body["page"]["has_more"]:
+            break
+        params = {"limit": 1, "cursor": body["page"]["next_cursor"]}
+    assert sorted(seen) == sorted(names)
+
+
 async def test_a_cursor_only_works_with_its_own_filters(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -271,6 +301,59 @@ async def test_an_editor_changes_an_entity_and_the_projects_naming_it_are_bumped
     assert await config_version(migrated, unrelated_id) == 1
 
 
+@pytest.mark.parametrize(
+    "write",
+    [
+        "update entity",
+        "add alias",
+        "update alias",
+        "delete alias",
+        "add domain",
+        "delete domain",
+    ],
+)
+async def test_every_write_bumps_the_projects_naming_the_entity_and_no_others(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, write: str
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    naming, removed, unrelated = [await make_project(migrated, workspace.id) for _ in range(3)]
+    created = await _create(api, workspace, owner)
+    entity_id = created["entity_id"]
+    await attach(migrated, workspace, naming, entity_id)
+    await attach(migrated, workspace, removed, entity_id, removed=True)
+    detail = (await api.get(entities_url(workspace, entity_id), headers=owner.headers)).json()
+    alias_id = detail["data"]["aliases"][0]["alias_id"]
+    domain_id = detail["data"]["domains"][0]["entity_domain_id"]
+    method, path, body = {
+        "update entity": ("PATCH", entities_url(workspace, entity_id), {"description": "x"}),
+        "add alias": ("POST", entities_url(workspace, entity_id, "aliases"), {"alias": "New"}),
+        "update alias": (
+            "PATCH",
+            entities_url(workspace, entity_id, "aliases", alias_id),
+            {"alias": "Changed"},
+        ),
+        "delete alias": ("DELETE", entities_url(workspace, entity_id, "aliases", alias_id), None),
+        "add domain": (
+            "POST",
+            entities_url(workspace, entity_id, "domains"),
+            {"domain": "new.example"},
+        ),
+        "delete domain": (
+            "DELETE",
+            entities_url(workspace, entity_id, "domains", domain_id),
+            None,
+        ),
+    }[write]
+
+    response = await api.request(method, path, json=body, headers=owner.headers)
+
+    assert response.status_code < 300, response.text
+    assert [
+        await config_version(migrated, project) for project in (naming, removed, unrelated)
+    ] == [2, 2, 1]
+
+
 async def test_a_parent_cannot_make_a_cycle(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -313,6 +396,48 @@ async def test_a_parent_cannot_make_a_cycle(
         workspace.id,
     )
     assert '"disambiguation_hints": ["crm", "sales"]' in rows[0]["after"]
+
+
+async def test_a_parent_change_to_an_unknown_entity_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    entity_id = await _named(api, workspace, owner, "Acme")
+    response = await api.patch(
+        entities_url(workspace, entity_id),
+        json={"parent_entity_id": str(uuid.uuid4())},
+        headers=owner.headers,
+    )
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["code"] == "parent_unknown"
+
+
+async def test_two_parent_changes_at_once_cannot_write_a_cycle(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    first = await _named(api, workspace, owner, "First")
+    second = await _named(api, workspace, owner, "Second")
+
+    responses = await asyncio.gather(
+        api.patch(
+            entities_url(workspace, first), json={"parent_entity_id": second}, headers=owner.headers
+        ),
+        api.patch(
+            entities_url(workspace, second), json={"parent_entity_id": first}, headers=owner.headers
+        ),
+    )
+
+    assert sorted(response.status_code for response in responses) == [200, 422]
+    rows = await fetch(
+        migrated,
+        "SELECT count(*) AS n FROM core.entities WHERE workspace_id = $1 "
+        "AND parent_entity_id IS NOT NULL",
+        workspace.id,
+    )
+    assert rows[0]["n"] == 1
 
 
 async def test_a_change_to_a_taken_name_is_a_duplicate(
@@ -547,6 +672,26 @@ async def test_a_domain_is_canonicalized_and_removed_by_its_own_id(
     assert [d["path_prefix"] for d in listed.json()["data"]] == ["/acme-labs"]
 
 
+async def test_another_entitys_domain_cannot_be_removed_through_this_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    mine = await _named(api, workspace, owner, "Mine")
+    theirs = (await _create(api, workspace, owner))["entity_id"]
+    their_domain = (
+        await api.get(entities_url(workspace, theirs, "domains"), headers=owner.headers)
+    ).json()["data"][0]["entity_domain_id"]
+
+    response = await api.delete(
+        entities_url(workspace, mine, "domains", their_domain), headers=owner.headers
+    )
+
+    assert problem(response) == (404, "not_found")
+    kept = await api.get(entities_url(workspace, theirs, "domains"), headers=owner.headers)
+    assert their_domain in [d["entity_domain_id"] for d in kept.json()["data"]]
+
+
 async def test_a_domain_another_entity_of_a_shared_project_claims_is_a_warning(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -637,10 +782,13 @@ async def test_a_member_limited_to_some_projects_sees_only_their_entities(
         entities_url(workspace), params={"filter[project_id]": str(theirs)}, headers=scoped.headers
     )
     assert other_project.json()["data"] == []
-    # A role counts only in the member's own projects.
+    # A role counts only in the member's own projects, even for an entity the member sees.
     await attach(
         migrated, workspace, theirs, await _named(api, workspace, owner, "Watched"), "watch"
     )
+    both = await _named(api, workspace, owner, "Both")
+    await attach(migrated, workspace, mine, both, "competitor")
+    await attach(migrated, workspace, theirs, both, "watch")
     by_role = await api.get(
         entities_url(workspace), params={"filter[role]": "watch"}, headers=scoped.headers
     )

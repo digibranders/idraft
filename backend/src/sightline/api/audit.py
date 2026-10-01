@@ -7,7 +7,8 @@ have no workspace and go through `ops.record_auth_event` instead (sightline.api.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
@@ -37,6 +38,50 @@ AuditAction = Literal[
     "entity_domain.created",
     "entity_domain.deleted",
 ]
+
+
+@dataclass(frozen=True, slots=True)
+class Entry:
+    """One target of `record_each`."""
+
+    target_id: UUID
+    before: Snapshot | None = None
+    after: Snapshot | None = None
+
+
+async def record_each(
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    actor_id: UUID,
+    action: AuditAction,
+    target_type: str,
+    info: RequestInfo,
+    entries: Sequence[Entry],
+) -> None:
+    """One entry per target, in one statement (a batch of aliases is one request)."""
+    if not entries:
+        return
+    await db.execute(
+        insert(audit_logs).values(
+            [
+                {
+                    "workspace_id": workspace_id,
+                    "actor_type": "user",
+                    "actor_id": str(actor_id),
+                    "action": action,
+                    "target_type": target_type,
+                    "target_id": str(entry.target_id),
+                    "before": None if entry.before is None else dict(entry.before),
+                    "after": None if entry.after is None else dict(entry.after),
+                    "ip": info.ip,
+                    "user_agent": info.user_agent,
+                    "request_id": info.request_id,
+                }
+                for entry in entries
+            ]
+        )
+    )
 
 
 async def record(
