@@ -17,7 +17,7 @@ const GENERATION_TIMEOUT_MS = 30_000;
  */
 describe('the generated schema', () => {
   it(
-    'is what `pnpm gen:api` makes of backend/openapi/v1.json',
+    'is what `pnpm gen:api` makes of the OpenAPI document it names',
     () => {
       const directory = mkdtempSync(path.join(tmpdir(), 'schema-'));
       try {

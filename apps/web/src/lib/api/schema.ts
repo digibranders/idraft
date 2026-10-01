@@ -349,6 +349,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/domain-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Domain categories */
+        get: operations["list_domain_categories_api_v1_domain_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invitations/accept": {
         parameters: {
             query?: never;
@@ -363,6 +380,23 @@ export interface paths {
          * @description For a signed-in account whose verified address is the one the invitation was sent to. Accepting again returns the same membership.
          */
         post: operations["accept_invitation_api_v1_invitations_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Locations collection can target, by name */
+        get: operations["list_locations_api_v1_locations_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -444,6 +478,114 @@ export interface paths {
         head?: never;
         /** Change a workspace's name, slug, logo or time zone */
         patch: operations["update_workspace_api_v1_workspaces__workspace_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's entities, by name */
+        get: operations["list_entities_api_v1_workspaces__workspace_id__entities_get"];
+        put?: never;
+        /** Create an entity, with aliases and domains */
+        post: operations["create_entity_api_v1_workspaces__workspace_id__entities_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One entity, with aliases, domains and project roles */
+        get: operations["get_entity_api_v1_workspaces__workspace_id__entities__entity_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete an entity no project has ever named */
+        delete: operations["delete_entity_api_v1_workspaces__workspace_id__entities__entity_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change an entity */
+        patch: operations["update_entity_api_v1_workspaces__workspace_id__entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An entity's aliases */
+        get: operations["list_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_get"];
+        put?: never;
+        /** Add one alias or a batch */
+        post: operations["add_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases/{alias_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an alias */
+        delete: operations["delete_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change an alias */
+        patch: operations["update_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An entity's domains */
+        get: operations["list_entity_domains_api_v1_workspaces__workspace_id__entities__entity_id__domains_get"];
+        put?: never;
+        /** Add a domain */
+        post: operations["add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains/{entity_domain_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a domain */
+        delete: operations["delete_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains__entity_domain_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/invitations": {
@@ -538,10 +680,7 @@ export interface paths {
         /** The projects of a workspace that the caller can see */
         get: operations["list_projects_api_v1_workspaces__workspace_id__projects_get"];
         put?: never;
-        /**
-         * Create a project
-         * @description Counts against the workspace's project limit, as every active or paused project does; an archived one does not. A member limited to some projects cannot create one.
-         */
+        /** Create a project */
         post: operations["create_project_api_v1_workspaces__workspace_id__projects_post"];
         delete?: never;
         options?: never;
@@ -563,11 +702,150 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Change a project
-         * @description A new time zone applies to business dates from now on; dates already computed stay, and the response says so in `meta.warnings`. Bringing a project back from the archive needs a free slot in the workspace's project limit.
-         */
+        /** Change a project */
         patch: operations["update_project_api_v1_workspaces__workspace_id__projects__project_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** What extraction would count in a text, with today's aliases */
+        post: operations["alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The domains of the project's entities, with their roles */
+        get: operations["list_project_domains_api_v1_workspaces__workspace_id__projects__project_id__domains_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The entities a project has given a role */
+        get: operations["list_project_entities_api_v1_workspaces__workspace_id__projects__project_id__entities_get"];
+        put?: never;
+        /** Give an entity a role in the project */
+        post: operations["add_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an entity's role; its history is kept */
+        delete: operations["remove_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change an entity's role in the project */
+        patch: operations["update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/terms/{term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a term */
+        delete: operations["delete_term_api_v1_workspaces__workspace_id__terms__term_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change or move a term */
+        patch: operations["update_term_api_v1_workspaces__workspace_id__terms__term_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/vocabularies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vocabularies */
+        get: operations["list_vocabularies_api_v1_workspaces__workspace_id__vocabularies_get"];
+        put?: never;
+        /** Create a vocabulary */
+        post: operations["create_vocabulary_api_v1_workspaces__workspace_id__vocabularies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a vocabulary and its terms */
+        delete: operations["delete_vocabulary_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change a vocabulary */
+        patch: operations["update_vocabulary_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A vocabulary's terms, as a tree or flat */
+        get: operations["list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get"];
+        put?: never;
+        /** Add one term or a batch */
+        post: operations["add_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -596,6 +874,215 @@ export interface components {
         AcceptedInvitationResponse: {
             data: components["schemas"]["AcceptedInvitation"];
         };
+        /** Alias */
+        Alias: {
+            /** Alias */
+            alias: string;
+            /**
+             * Alias Id
+             * Format: uuid
+             */
+            alias_id: string;
+            /** Case Sensitive */
+            case_sensitive: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Is Negative */
+            is_negative: boolean;
+            /** Language Code */
+            language_code: string | null;
+            /**
+             * Match Mode
+             * @enum {string}
+             */
+            match_mode: "word_boundary" | "exact_case" | "substring" | "regex";
+            /** Requires Context */
+            requires_context: boolean;
+        };
+        /** AliasBatch */
+        AliasBatch: {
+            /** Items */
+            items: components["schemas"]["AliasInput"][];
+        };
+        /** AliasInput */
+        AliasInput: {
+            /** Alias */
+            alias: string;
+            /**
+             * Case Sensitive
+             * @default false
+             */
+            case_sensitive: boolean;
+            /**
+             * Is Negative
+             * @description A phrase that must not count.
+             * @default false
+             */
+            is_negative: boolean;
+            /** Language Code */
+            language_code?: string | null;
+            /**
+             * Match Mode
+             * @default word_boundary
+             * @enum {string}
+             */
+            match_mode: "word_boundary" | "exact_case" | "substring" | "regex";
+            /**
+             * Requires Context
+             * @description Counts only near a disambiguation hint.
+             * @default false
+             */
+            requires_context: boolean;
+        };
+        /** AliasList */
+        AliasList: {
+            /** Data */
+            data: components["schemas"]["Alias"][];
+        };
+        /** AliasResponse */
+        AliasResponse: {
+            data: components["schemas"]["Alias"];
+        };
+        /** AliasTestMention */
+        AliasTestMention: {
+            /** Confidence */
+            confidence: number;
+            entity: components["schemas"]["EntityRef"];
+            /** Spans */
+            spans: components["schemas"]["AliasTestSpan"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "accepted" | "uncertain" | "discarded";
+        };
+        /** AliasTestNegative */
+        AliasTestNegative: {
+            /**
+             * Alias Id
+             * Format: uuid
+             */
+            alias_id: string;
+            /** End */
+            end: number;
+            /** Start */
+            start: number;
+        };
+        /**
+         * AliasTestRequest
+         * @description Exactly one of `text` and `markdown`, at most 100 KB as UTF-8 (`413 payload_too_large`
+         *     beyond). Markdown is matched as its source text for now; an observation id is taken once
+         *     observations exist (step 8).
+         */
+        AliasTestRequest: {
+            /** Markdown */
+            markdown?: string | null;
+            /** Text */
+            text?: string | null;
+        };
+        /** AliasTestResponse */
+        AliasTestResponse: {
+            data: components["schemas"]["AliasTestResult"];
+        };
+        /** AliasTestResult */
+        AliasTestResult: {
+            /** Mentions */
+            mentions: components["schemas"]["AliasTestMention"][];
+            /** Negatives Applied */
+            negatives_applied: components["schemas"]["AliasTestNegative"][];
+        };
+        /** AliasTestSpan */
+        AliasTestSpan: {
+            /**
+             * Alias Id
+             * @description None for a domain-shaped alias.
+             */
+            alias_id: string | null;
+            /** End */
+            end: number;
+            /**
+             * Match Method
+             * @enum {string}
+             */
+            match_method: "alias_word" | "alias_exact" | "alias_substring" | "alias_regex" | "alias_domain" | "via_product";
+            /**
+             * Start
+             * @description Offset into the text sent, in UTF-16 code units.
+             */
+            start: number;
+        };
+        /**
+         * AliasUpdate
+         * @description At least one member. `language_code: null` removes it; the others cannot be null.
+         */
+        AliasUpdate: {
+            /** Alias */
+            alias?: string;
+            /** Case Sensitive */
+            case_sensitive?: boolean;
+            /** Is Negative */
+            is_negative?: boolean;
+            /** Language Code */
+            language_code?: string | null;
+            /**
+             * Match Mode
+             * @enum {string}
+             */
+            match_mode?: "word_boundary" | "exact_case" | "substring" | "regex";
+            /** Requires Context */
+            requires_context?: boolean;
+        };
+        /**
+         * CursorPageInfo
+         * @description A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.
+         */
+        CursorPageInfo: {
+            /** Has More */
+            has_more: boolean;
+            /** Limit */
+            limit: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DomainCategory */
+        DomainCategory: {
+            /** Code */
+            code: string;
+            /** Description */
+            description: string;
+            /** Label */
+            label: string;
+        };
+        /** DomainCategoryList */
+        DomainCategoryList: {
+            /** Data */
+            data: components["schemas"]["DomainCategory"][];
+        };
+        /** DomainInput */
+        DomainInput: {
+            /** Domain */
+            domain: string;
+            /**
+             * Match Scope
+             * @default registrable
+             * @enum {string}
+             */
+            match_scope: "path_prefix" | "host" | "registrable";
+            /**
+             * Path Prefix
+             * @description Given exactly when `match_scope` is `path_prefix`.
+             */
+            path_prefix?: string | null;
+        };
         /** DomainRef */
         DomainRef: {
             /** Category */
@@ -622,6 +1109,232 @@ export interface components {
         EmailRequest: {
             /** Email */
             email: string;
+        };
+        /** Entity */
+        Entity: {
+            /** Alias Count */
+            alias_count: number;
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Disambiguation Hints */
+            disambiguation_hints: string[];
+            /** Domains */
+            domains: components["schemas"]["EntityDomain"][];
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "brand" | "product" | "organization" | "person" | "other";
+            /** Is Ambiguous */
+            is_ambiguous: boolean;
+            /** Parent Entity Id */
+            parent_entity_id: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EntityCreate */
+        EntityCreate: {
+            /** Aliases */
+            aliases?: components["schemas"]["AliasInput"][];
+            /** Canonical Name */
+            canonical_name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Disambiguation Hints
+             * @description Words that confirm the entity nearby (`crm`).
+             */
+            disambiguation_hints?: string[];
+            /** Domains */
+            domains?: components["schemas"]["DomainInput"][];
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "brand" | "product" | "organization" | "person" | "other";
+            /**
+             * Is Ambiguous
+             * @description The name is also a common word (`Notion`, `Monday`).
+             * @default false
+             */
+            is_ambiguous: boolean;
+            /** Parent Entity Id */
+            parent_entity_id?: string | null;
+        };
+        /** EntityDetail */
+        EntityDetail: {
+            /** Alias Count */
+            alias_count: number;
+            /** Aliases */
+            aliases: components["schemas"]["Alias"][];
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Disambiguation Hints */
+            disambiguation_hints: string[];
+            /** Domains */
+            domains: components["schemas"]["EntityDomain"][];
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "brand" | "product" | "organization" | "person" | "other";
+            /** Is Ambiguous */
+            is_ambiguous: boolean;
+            /** Parent Entity Id */
+            parent_entity_id: string | null;
+            /**
+             * Projects
+             * @description Every project that has given the entity a role, removed roles included.
+             */
+            projects: components["schemas"]["EntityProjectRole"][];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EntityDetailResponse */
+        EntityDetailResponse: {
+            data: components["schemas"]["EntityDetail"];
+        };
+        /** EntityDomain */
+        EntityDomain: {
+            domain: components["schemas"]["DomainRef"];
+            /**
+             * Entity Domain Id
+             * Format: uuid
+             */
+            entity_domain_id: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Match Scope
+             * @enum {string}
+             */
+            match_scope: "path_prefix" | "host" | "registrable";
+            /** Path Prefix */
+            path_prefix: string | null;
+        };
+        /** EntityDomainCreated */
+        EntityDomainCreated: {
+            data: components["schemas"]["EntityDomain"];
+            meta: components["schemas"]["EntityDomainMeta"];
+        };
+        /** EntityDomainList */
+        EntityDomainList: {
+            /** Data */
+            data: components["schemas"]["EntityDomain"][];
+        };
+        /** EntityDomainMeta */
+        EntityDomainMeta: {
+            /**
+             * Warnings
+             * @description `domain_role_conflict`: another entity in a project that has this one claims the same domain at the same specificity (doc 13 stage 2).
+             */
+            warnings: "domain_role_conflict"[];
+        };
+        /** EntityPage */
+        EntityPage: {
+            /** Data */
+            data: components["schemas"]["Entity"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** EntityProjectRole */
+        EntityProjectRole: {
+            /** Is Primary */
+            is_primary: boolean;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Removed At */
+            removed_at: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch";
+        };
+        /** EntityRef */
+        EntityRef: {
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Color Index
+             * @description `--chart-1` to `--chart-6`; null lets the client choose.
+             */
+            color_index: number | null;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "brand" | "product" | "organization" | "person" | "other";
+            /**
+             * Role
+             * @description The role in the project asked about, if any.
+             */
+            role: ("own" | "competitor" | "watch") | null;
+        };
+        /** EntityResponse */
+        EntityResponse: {
+            data: components["schemas"]["Entity"];
+        };
+        /**
+         * EntityUpdate
+         * @description At least one member. `parent_entity_id` and `description` may be null to remove them.
+         */
+        EntityUpdate: {
+            /** Canonical Name */
+            canonical_name?: string;
+            /** Description */
+            description?: string | null;
+            /** Disambiguation Hints */
+            disambiguation_hints?: string[];
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type?: "brand" | "product" | "organization" | "person" | "other";
+            /** Is Ambiguous */
+            is_ambiguous?: boolean;
+            /** Parent Entity Id */
+            parent_entity_id?: string | null;
         };
         /** Health */
         Health: {
@@ -700,6 +1413,39 @@ export interface components {
              * Format: uuid
              */
             workspace_id: string;
+        };
+        /** Location */
+        Location: {
+            /** Country Iso */
+            country_iso: string;
+            /**
+             * Location Id
+             * @description The Google Ads geo target id, as DataForSEO uses it.
+             */
+            location_id: number;
+            /**
+             * Location Type
+             * @description As DataForSEO gives it: `Country`, `State`, `City`, `DMA Region`, ...
+             */
+            location_type: string;
+            /**
+             * Name
+             * @description As DataForSEO gives it: `Austin,Texas,United States`.
+             */
+            name: string;
+            /** Parent Id */
+            parent_id: number | null;
+            /**
+             * Supports
+             * @description Surfaces a provider can collect there: `serp`.
+             */
+            supports: string[];
+        };
+        /** LocationPage */
+        LocationPage: {
+            /** Data */
+            data: components["schemas"]["Location"][];
+            page: components["schemas"]["CursorPageInfo"];
         };
         /** Me */
         Me: {
@@ -838,6 +1584,21 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** OwnEntityInput */
+        OwnEntityInput: {
+            /**
+             * Aliases
+             * @description Word aliases that ignore case.
+             */
+            aliases?: string[];
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Domains
+             * @description Hosts or URLs, each matched by registrable domain.
+             */
+            domains?: string[];
+        };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
             /** Current Password */
@@ -954,8 +1715,20 @@ export interface components {
             deep_check_weekday: number;
             /** Default Language Code */
             default_language_code?: string | null;
+            /**
+             * Default Location Id
+             * @description A `location_id` of `GET /api/v1/locations`.
+             */
+            default_location_id?: number | null;
             /** Name */
             name: string;
+            /** @description Created with role `own`, primary. */
+            own_entity?: components["schemas"]["OwnEntityInput"] | null;
+            /**
+             * Primary Domain
+             * @description A host or URL; its host is stored.
+             */
+            primary_domain?: string | null;
             /** Slug */
             slug: string;
             /**
@@ -963,6 +1736,115 @@ export interface components {
              * @description An IANA time zone name. Defaults to the workspace's.
              */
             timezone?: string | null;
+        };
+        /** ProjectDomain */
+        ProjectDomain: {
+            domain: components["schemas"]["DomainRef"];
+            entity: components["schemas"]["EntityRef"];
+            /**
+             * Match Scope
+             * @enum {string}
+             */
+            match_scope: "path_prefix" | "host" | "registrable";
+            /** Path Prefix */
+            path_prefix: string | null;
+        };
+        /** ProjectDomainList */
+        ProjectDomainList: {
+            /** Data */
+            data: components["schemas"]["ProjectDomain"][];
+        };
+        /** ProjectEntity */
+        ProjectEntity: {
+            /**
+             * Added At
+             * Format: date-time
+             */
+            added_at: string;
+            /** Alias Count */
+            alias_count: number;
+            /** Color Index */
+            color_index: number | null;
+            /** Domains */
+            domains: components["schemas"]["EntityDomain"][];
+            entity: components["schemas"]["EntityRef"];
+            /** Is Primary */
+            is_primary: boolean;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Removed At */
+            removed_at: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch";
+            /** Track Ai */
+            track_ai: boolean;
+            /** Track Seo */
+            track_seo: boolean;
+        };
+        /** ProjectEntityCreate */
+        ProjectEntityCreate: {
+            /** Color Index */
+            color_index?: number | null;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Is Primary
+             * @description Only for `own`; one per project.
+             * @default false
+             */
+            is_primary: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch";
+            /**
+             * Track Ai
+             * @default true
+             */
+            track_ai: boolean;
+            /**
+             * Track Seo
+             * @default true
+             */
+            track_seo: boolean;
+        };
+        /** ProjectEntityList */
+        ProjectEntityList: {
+            /** Data */
+            data: components["schemas"]["ProjectEntity"][];
+        };
+        /** ProjectEntityResponse */
+        ProjectEntityResponse: {
+            data: components["schemas"]["ProjectEntity"];
+        };
+        /**
+         * ProjectEntityUpdate
+         * @description At least one member. `color_index: null` removes it; the others cannot be null.
+         */
+        ProjectEntityUpdate: {
+            /** Color Index */
+            color_index?: number | null;
+            /** Is Primary */
+            is_primary?: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role?: "own" | "competitor" | "watch";
+            /** Track Ai */
+            track_ai?: boolean;
+            /** Track Seo */
+            track_seo?: boolean;
         };
         /** ProjectPage */
         ProjectPage: {
@@ -974,17 +1856,18 @@ export interface components {
         ProjectResponse: {
             data: components["schemas"]["Project"];
         };
-        /**
-         * ProjectUpdate
-         * @description At least one member. `default_language_code: null` removes it; the others cannot be null.
-         */
+        /** ProjectUpdate */
         ProjectUpdate: {
             /** Deep Check Weekday */
             deep_check_weekday?: number;
             /** Default Language Code */
             default_language_code?: string | null;
+            /** Default Location Id */
+            default_location_id?: number | null;
             /** Name */
             name?: string;
+            /** Primary Domain */
+            primary_domain?: string | null;
             /** Slug */
             slug?: string;
             /**
@@ -1122,6 +2005,135 @@ export interface components {
              */
             status: "signed_in" | "totp_required";
         };
+        /** Term */
+        Term: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /**
+             * Path
+             * @description Slugs from the root down, joined by `/`.
+             */
+            path: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "import" | "auto_cluster" | "ai_suggestion";
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+            /**
+             * Vocabulary Id
+             * Format: uuid
+             */
+            vocabulary_id: string;
+        };
+        /** TermBatch */
+        TermBatch: {
+            /** Items */
+            items: components["schemas"]["TermInput"][];
+        };
+        /**
+         * TermInput
+         * @description One term: a `name` under `parent_id` (a root when left out), or a `path` of names from
+         *     the root (`CRM/CRM for Startups`), which creates any missing parent. `slug` is made from the
+         *     name when left out; with `path` it is the last term's.
+         */
+        TermInput: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Path */
+            path?: string | null;
+            /** Slug */
+            slug?: string | null;
+        };
+        /** TermList */
+        TermList: {
+            /** Data */
+            data: components["schemas"]["Term"][];
+        };
+        /** TermNode */
+        TermNode: {
+            /**
+             * Children
+             * @description Empty in the flat format.
+             */
+            children: components["schemas"]["TermNode"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /**
+             * Path
+             * @description Slugs from the root down, joined by `/`.
+             */
+            path: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "import" | "auto_cluster" | "ai_suggestion";
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+            /**
+             * Vocabulary Id
+             * Format: uuid
+             */
+            vocabulary_id: string;
+        };
+        /** TermResponse */
+        TermResponse: {
+            data: components["schemas"]["Term"];
+        };
+        /** TermTree */
+        TermTree: {
+            /** Data */
+            data: components["schemas"]["TermNode"][];
+        };
+        /**
+         * TermUpdate
+         * @description At least one member. `parent_id: null` moves the term to the root, which recomputes the
+         *     path of its whole subtree; `description: null` removes it.
+         */
+        TermUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Slug */
+            slug?: string;
+        };
         /** TotpConfirmRequest */
         TotpConfirmRequest: {
             /** Code */
@@ -1177,6 +2189,75 @@ export interface components {
         VerifyEmailRequest: {
             /** Token */
             token: string;
+        };
+        /** Vocabulary */
+        Vocabulary: {
+            /** Is Hierarchical */
+            is_hierarchical: boolean;
+            /** Is Single Valued */
+            is_single_valued: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "topic" | "cluster" | "product" | "service" | "market" | "campaign" | "persona" | "tag" | "custom";
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string | null;
+            /** Term Count */
+            term_count: number;
+            /**
+             * Vocabulary Id
+             * Format: uuid
+             */
+            vocabulary_id: string;
+        };
+        /** VocabularyCreate */
+        VocabularyCreate: {
+            /**
+             * Is Hierarchical
+             * @default false
+             */
+            is_hierarchical: boolean;
+            /**
+             * Is Single Valued
+             * @description A subject has at most one term of this vocabulary.
+             * @default false
+             */
+            is_single_valued: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "topic" | "cluster" | "product" | "service" | "market" | "campaign" | "persona" | "tag" | "custom";
+            /** Name */
+            name: string;
+            /**
+             * Project Id
+             * @description null: workspace-wide.
+             */
+            project_id?: string | null;
+        };
+        /** VocabularyPage */
+        VocabularyPage: {
+            /** Data */
+            data: components["schemas"]["Vocabulary"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** VocabularyResponse */
+        VocabularyResponse: {
+            data: components["schemas"]["Vocabulary"];
+        };
+        /**
+         * VocabularyUpdate
+         * @description At least one member; neither can be null.
+         */
+        VocabularyUpdate: {
+            /** Is Single Valued */
+            is_single_valued?: boolean;
+            /** Name */
+            name?: string;
         };
         /** Workspace */
         Workspace: {
@@ -1816,6 +2897,35 @@ export interface operations {
             };
         };
     };
+    list_domain_categories_api_v1_domain_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainCategoryList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     accept_invitation_api_v1_invitations_accept_post: {
         parameters: {
             query?: never;
@@ -1836,6 +2946,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AcceptedInvitationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_locations_api_v1_locations_get: {
+        parameters: {
+            query?: {
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+                "filter[q]"?: string | null;
+                "filter[country_iso]"?: string | null;
+                "filter[location_type]"?: string | null;
+                "filter[supports]"?: ("serp" | "ai_mode" | "llm_scraper") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationPage"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -2060,6 +3207,414 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WorkspaceResponse"];
                 };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_entities_api_v1_workspaces__workspace_id__entities_get: {
+        parameters: {
+            query?: {
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+                "filter[entity_type]"?: ("brand" | "product" | "organization" | "person" | "other") | null;
+                "filter[q]"?: string | null;
+                "filter[project_id]"?: string | null;
+                /** @description With `filter[project_id]`. */
+                "filter[role]"?: ("own" | "competitor" | "watch") | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_entity_api_v1_workspaces__workspace_id__entities_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_entity_api_v1_workspaces__workspace_id__entities__entity_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_entity_api_v1_workspaces__workspace_id__entities__entity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_entity_api_v1_workspaces__workspace_id__entities__entity_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasInput"] | components["schemas"]["AliasBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                alias_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                alias_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_entity_domains_api_v1_workspaces__workspace_id__entities__entity_id__domains_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityDomainList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityDomainCreated"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains__entity_domain_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                entity_domain_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
             default: {
@@ -2410,6 +3965,496 @@ export interface operations {
             };
         };
     };
+    alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasTestResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_project_domains_api_v1_workspaces__workspace_id__projects__project_id__domains_get: {
+        parameters: {
+            query?: {
+                "filter[role]"?: ("own" | "competitor" | "watch") | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDomainList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_project_entities_api_v1_workspaces__workspace_id__projects__project_id__entities_get: {
+        parameters: {
+            query?: {
+                "filter[role]"?: ("own" | "competitor" | "watch") | null;
+                "filter[include_removed]"?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEntityList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectEntityCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectEntityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_term_api_v1_workspaces__workspace_id__terms__term_id__delete: {
+        parameters: {
+            query?: {
+                /** @description Delete its subtree too. */
+                cascade?: boolean;
+            };
+            header?: never;
+            path: {
+                term_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_term_api_v1_workspaces__workspace_id__terms__term_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_vocabularies_api_v1_workspaces__workspace_id__vocabularies_get: {
+        parameters: {
+            query?: {
+                /** @description That project's and the workspace-wide ones. */
+                "filter[project_id]"?: string | null;
+                "filter[kind]"?: ("topic" | "cluster" | "product" | "service" | "market" | "campaign" | "persona" | "tag" | "custom") | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VocabularyPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_vocabulary_api_v1_workspaces__workspace_id__vocabularies_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VocabularyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VocabularyResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_vocabulary_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vocabulary_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_vocabulary_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vocabulary_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VocabularyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VocabularyResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get: {
+        parameters: {
+            query?: {
+                format?: "tree" | "flat";
+                /** @description Matching terms, with their ancestors in the tree format. */
+                "filter[q]"?: string | null;
+            };
+            header?: never;
+            path: {
+                vocabulary_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermTree"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vocabulary_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermInput"] | components["schemas"]["TermBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
 }
 type FlattenedDeepRequired<T> = {
     [K in keyof T]-?: FlattenedDeepRequired<T[K] extends unknown[] | undefined | null ? Extract<T[K], unknown[]>[number] : T[K]>;
@@ -2419,14 +4464,43 @@ type ReadonlyArray<T> = [
 ] extends [
     unknown[]
 ] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
+export const pathsApiV1LocationsGetParametersQueryFilterSupportsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/locations"]["get"]["parameters"]["query"]["filter[supports]"]> = ["serp", "ai_mode", "llm_scraper"];
+export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEntity_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[entity_type]"]> = ["brand", "product", "organization", "person", "other"];
+export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idVocabulariesGetParametersQueryFilterKindAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies"]["get"]["parameters"]["query"]["filter[kind]"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
+export const pathsApiV1WorkspacesWorkspace_idVocabulariesVocabulary_idTermsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
+export const aliasMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Alias"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
+export const aliasInputMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasInput"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
+export const aliasTestMentionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestMention"]["status"]> = ["accepted", "uncertain", "discarded"];
+export const aliasTestSpanMatch_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["match_method"]> = ["alias_word", "alias_exact", "alias_substring", "alias_regex", "alias_domain", "via_product"];
+export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
+export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
+export const entityEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Entity"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const entityCreateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityCreate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const entityDetailEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityDetail"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const entityDomainMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityDomain"]["match_scope"]> = ["path_prefix", "host", "registrable"];
+export const entityProjectRoleRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityProjectRole"]["role"]> = ["own", "competitor", "watch"];
+export const entityRefEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const entityRefRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["role"]> = ["own", "competitor", "watch"];
+export const entityUpdateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityUpdate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
 export const projectStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Project"]["status"]> = ["active", "paused", "archived"];
+export const projectDomainMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectDomain"]["match_scope"]> = ["path_prefix", "host", "registrable"];
+export const projectEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntity"]["role"]> = ["own", "competitor", "watch"];
+export const projectEntityCreateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityCreate"]["role"]> = ["own", "competitor", "watch"];
+export const projectEntityUpdateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityUpdate"]["role"]> = ["own", "competitor", "watch"];
 export const projectUpdateStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectUpdate"]["status"]> = ["active", "paused", "archived"];
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];
 export const reservedProjectSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedProjectSlug"]> = ["billing", "costs", "members", "new", "onboarding", "ops", "projects", "settings"];
 export const reservedWorkspaceSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedWorkspaceSlug"]> = ["account", "admin", "api", "assets", "design-system", "docs", "favicon", "forgot-password", "health", "healthz", "help", "icon", "invite", "login", "logout", "new", "null", "onboarding", "public", "reset-password", "robots", "settings", "sign-in", "sign-up", "signup", "sitemap", "static", "two-factor", "undefined", "verify-email", "www"];
 export const roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Role"]> = ["owner", "admin", "editor", "analyst", "viewer", "billing"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
+export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
+export const termNodeSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermNode"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
+export const vocabularyKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Vocabulary"]["kind"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
+export const vocabularyCreateKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["VocabularyCreate"]["kind"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
 export const workspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Workspace"]["status"]> = ["active", "suspended", "deleting"];
