@@ -8,6 +8,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
+import asyncpg
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -309,14 +310,15 @@ async def test_a_schedule_that_names_another_workspaces_project_is_never_planned
     worker_db: Ledger, migrated: PostgresServer
 ) -> None:
     """The worker bypasses row-level security. A schedule whose workspace is not its
-    project's would make a run that bills one tenant for another's work."""
+    project's would make a run that bills one tenant for another's work, so the key refuses
+    one (migration 0011) and the planner never meets it."""
     project = await make_tenant(migrated)
     other = await make_tenant(migrated)
     crossed = Project(workspace_id=other.workspace_id, id=project.id)
-    schedule_id = await _due_schedule(migrated, crossed)
 
+    with pytest.raises(asyncpg.ForeignKeyViolationError):
+        await _due_schedule(migrated, crossed)
     assert await plan_due(worker_db, _registry(), now=NOW) == PlannerReport()
-    assert await _runs(migrated, schedule_id) == []
 
 
 async def test_a_schedule_that_cannot_be_planned_does_not_hold_up_the_others(

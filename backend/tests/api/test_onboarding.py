@@ -17,7 +17,7 @@ from sightline.db.engine import create_engine, create_session_factory
 from sightline.providers.dataforseo.client import DataForSeoClient
 from sightline.providers.dataforseo.locations import LOCATIONS_PATH
 from sightline.worker.assembly import sync_dataforseo_locations
-from tests.api.auth.support import Workspace, execute, make_workspace
+from tests.api.auth.support import Workspace, clear_locations, make_workspace
 from tests.api.entities.support import Caller, member
 from tests.conftest import BASE_URL, PostgresServer
 from tests.providers.dataforseo.support import LOGIN, ORIGIN, PASSWORD, Api, FakeGate, fixture
@@ -96,9 +96,7 @@ def _utf16_slice(text: str, start: int, end: int) -> str:
 async def test_a_project_is_onboarded_and_its_aliases_tested(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, redis_url: str
 ) -> None:
-    await execute(migrated, "UPDATE core.projects SET default_location_id = NULL")
-    await execute(migrated, "DELETE FROM core.provider_location_map")
-    await execute(migrated, "DELETE FROM core.locations")
+    await clear_locations(migrated)
     await _sync_locations(migrated, redis_url)
     workspace = await make_workspace(migrated)
     owner = await member(resources, migrated, workspace, "owner")

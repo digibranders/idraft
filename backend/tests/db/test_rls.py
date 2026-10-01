@@ -50,10 +50,8 @@ SINGLE_WORKSPACE_KEYS = {
     # A parent term is in the same vocabulary, and the vocabulary key carries the workspace.
     ("core.taxonomy_terms", "taxonomy_terms_parent_id_vocabulary_id_fkey"),
     # Only the worker writes these today; they gain the workspace before a route writes them
-    # (docs/review-log.md F66).
+    # (docs/review-log.md F66). Schedules gained it with their routes (migration 0011).
     ("ops.budgets", "budgets_project_id_fkey"),
-    ("ops.schedules", "schedules_project_id_fkey"),
-    ("ops.collection_runs", "collection_runs_schedule_id_fkey"),
     ("ops.collection_runs", "collection_runs_blocked_by_budget_id_fkey"),
 }
 

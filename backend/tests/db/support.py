@@ -35,6 +35,17 @@ TENANT_TABLES: dict[str, str] = {
     "ops.provider_cost_events": "workspace_id",
     "ops.cost_daily": "workspace_id",
     "ops.audit_logs": "workspace_id",
+    "seo.keywords": "workspace_id",
+    "seo.tracked_keywords": "workspace_id",
+    "seo.tracked_keyword_config_history": "workspace_id",
+    "seo.keyword_groups": "workspace_id",
+    "seo.keyword_group_members": "workspace_id",
+    "seo.tracked_keyword_terms": "workspace_id",
+    "seo.tracked_keyword_competitors": "workspace_id",
+    "seo.keyword_metric_snapshots": "workspace_id",
+    "seo.keyword_metrics_current": "workspace_id",
+    "seo.keyword_imports": "workspace_id",
+    "seo.keyword_import_rows": "workspace_id",
 }
 
 
@@ -142,16 +153,17 @@ async def seed_tenant(pg: PostgresServer, label: str) -> Tenant:
         await db.execute(
             "INSERT INTO core.workspace_quotas (workspace_id) VALUES ($1)", workspace_id
         )
-        await seed_vocabulary(db, workspace_id, project_id, label)
+        entity_id, term_id = await seed_vocabulary(db, workspace_id, project_id, label)
         schedule_id, run_id = await seed_operations(db, workspace_id, project_id)
+        await seed_keywords(db, workspace_id, project_id, owner_id, entity_id, term_id)
     return Tenant(workspace_id, owner_id, project_id, token_hash, schedule_id, run_id)
 
 
 async def seed_vocabulary(
     db: asyncpg.Connection[Any], workspace_id: uuid.UUID, project_id: uuid.UUID, label: str
-) -> None:
+) -> tuple[uuid.UUID, uuid.UUID]:
     """One row in every entity and taxonomy table: an own brand with an alias and a domain,
-    and a topic with one term."""
+    and a topic with one term. Returns the entity and the term."""
     entity_id: uuid.UUID = await db.fetchval(
         "INSERT INTO core.entities (workspace_id, entity_type, canonical_name) "
         "VALUES ($1, 'brand', $2) RETURNING id",
@@ -188,11 +200,112 @@ async def seed_vocabulary(
         "VALUES ($1, 'topic', 'Topics') RETURNING id",
         workspace_id,
     )
-    await db.execute(
+    term_id: uuid.UUID = await db.fetchval(
         "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, name, slug, path) "
-        "VALUES ($1, $2, 'CRM', 'crm', 'crm')",
+        "VALUES ($1, $2, 'CRM', 'crm', 'crm') RETURNING id",
         workspace_id,
         vocabulary_id,
+    )
+    return entity_id, term_id
+
+
+SEED_LOCATION = 2840
+
+
+async def seed_keywords(
+    db: asyncpg.Connection[Any],
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    entity_id: uuid.UUID,
+    term_id: uuid.UUID,
+) -> None:
+    """One row in every keyword table: a tracked keyword in a group, with a term, a competitor
+    override, its config history and a metrics snapshot, and an import with one row."""
+    await db.execute(
+        "INSERT INTO core.locations (id, name, country_iso, location_type) "
+        "VALUES ($1, 'United States', 'US', 'Country') ON CONFLICT (id) DO NOTHING",
+        SEED_LOCATION,
+    )
+    keyword_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO seo.keywords (workspace_id, text, normalized_text, language_code) "
+        "VALUES ($1, 'CRM Software', 'crm software', 'en') RETURNING id",
+        workspace_id,
+    )
+    tracked_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO seo.tracked_keywords (workspace_id, project_id, keyword_id, location_id, "
+        "language_code, device, created_by) VALUES ($1, $2, $3, $4, 'en', 'desktop', $5) "
+        "RETURNING id",
+        workspace_id,
+        project_id,
+        keyword_id,
+        SEED_LOCATION,
+        owner_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.tracked_keyword_config_history (tracked_keyword_id, workspace_id, "
+        "config_version, depth_profile, valid_from) VALUES ($1, $2, 1, 'standard', now())",
+        tracked_id,
+        workspace_id,
+    )
+    group_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO seo.keyword_groups (workspace_id, project_id, name, path) "
+        "VALUES ($1, $2, 'Product', 'Product') RETURNING id",
+        workspace_id,
+        project_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.keyword_group_members (group_id, tracked_keyword_id, project_id, "
+        "workspace_id) VALUES ($1, $2, $3, $4)",
+        group_id,
+        tracked_id,
+        project_id,
+        workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.tracked_keyword_terms (tracked_keyword_id, term_id, workspace_id) "
+        "VALUES ($1, $2, $3)",
+        tracked_id,
+        term_id,
+        workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.tracked_keyword_competitors (tracked_keyword_id, entity_id, "
+        "workspace_id, mode) VALUES ($1, $2, $3, 'exclude')",
+        tracked_id,
+        entity_id,
+        workspace_id,
+    )
+    snapshot_id: int = await db.fetchval(
+        "INSERT INTO seo.keyword_metric_snapshots (workspace_id, keyword_id, location_id, "
+        "language_code, source, fetched_at, search_volume, is_material_change) "
+        "VALUES ($1, $2, $3, 'en', 'dataforseo_labs', now(), 1900, true) RETURNING id",
+        workspace_id,
+        keyword_id,
+        SEED_LOCATION,
+    )
+    await db.execute(
+        "INSERT INTO seo.keyword_metrics_current (keyword_id, location_id, language_code, "
+        "source, workspace_id, snapshot_id, search_volume, fetched_at) "
+        "VALUES ($1, $2, 'en', 'dataforseo_labs', $3, $4, 1900, now())",
+        keyword_id,
+        SEED_LOCATION,
+        workspace_id,
+        snapshot_id,
+    )
+    import_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO seo.keyword_imports (workspace_id, project_id, source, status, created_by, "
+        "expires_at) VALUES ($1, $2, 'paste', 'preview_ready', $3, now() + interval '7 days') "
+        "RETURNING id",
+        workspace_id,
+        project_id,
+        owner_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.keyword_import_rows (import_id, row_no, workspace_id, raw, outcome, "
+        "action) VALUES ($1, 1, $2, '{\"keyword\": \"crm\"}', 'new', 'create')",
+        import_id,
+        workspace_id,
     )
 
 

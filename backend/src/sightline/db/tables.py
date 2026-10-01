@@ -307,7 +307,7 @@ schedules = Table(
     metadata,
     _id(),
     Column("workspace_id", Uuid, nullable=False),
-    Column("project_id", Uuid, ForeignKey(projects.c.id, ondelete="CASCADE"), nullable=False),
+    Column("project_id", Uuid, nullable=False),
     Column("workload", Text, nullable=False),
     Column("name", Text, nullable=False),
     Column("cadence", Text, nullable=False),
@@ -324,6 +324,13 @@ schedules = Table(
     Column("next_run_at", DateTime(timezone=True), nullable=False),
     Column("last_run_id", Uuid),
     _created_at(),
+    UniqueConstraint("id", "workspace_id", name="schedules_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        name="schedules_project_id_workspace_id_fkey",
+        ondelete="CASCADE",
+    ),
     schema="ops",
 )
 
@@ -333,7 +340,7 @@ collection_runs = Table(
     _id(),
     Column("workspace_id", Uuid, nullable=False),
     Column("project_id", Uuid, nullable=False),
-    Column("schedule_id", Uuid, ForeignKey(schedules.c.id)),
+    Column("schedule_id", Uuid),
     Column("workload", Text, nullable=False),
     Column("window_start", DateTime(timezone=True), nullable=False),
     Column("window_end", DateTime(timezone=True), nullable=False),
@@ -352,6 +359,11 @@ collection_runs = Table(
     Column("config_snapshot", JSONB, nullable=False),
     _created_at(),
     Column("completed_at", DateTime(timezone=True)),
+    ForeignKeyConstraint(
+        ["schedule_id", "workspace_id"],
+        [schedules.c.id, schedules.c.workspace_id],
+        name="collection_runs_schedule_id_workspace_id_fkey",
+    ),
     schema="ops",
 )
 
@@ -424,6 +436,40 @@ provider_cost_events = Table(
     Column("cost_usd", Numeric(14, 6), nullable=False),
     Column("cost_source", Text, nullable=False),
     Column("billing_period", Date, nullable=False),
+    schema="ops",
+)
+
+# Verified prices, for estimates only; actual costs come from the provider.
+provider_price_book = Table(
+    "provider_price_book",
+    metadata,
+    _id(),
+    Column("provider_code", Text, ForeignKey(providers.c.code), nullable=False),
+    Column("endpoint", Text, nullable=False),
+    Column("price_unit", Text, nullable=False),
+    Column("unit_price_usd", Numeric(14, 8), nullable=False),
+    Column("conditions", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("valid_from", Date, nullable=False),
+    Column("valid_to", Date),
+    Column("source_url", Text, nullable=False),
+    Column("verified_at", Date, nullable=False),
+    schema="ops",
+)
+
+# Cost events per day, rolled up hourly (docs/27-cost-model.md section 10.1).
+cost_daily = Table(
+    "cost_daily",
+    metadata,
+    Column("cost_date", Date, primary_key=True),
+    Column("workspace_id", Uuid, primary_key=True),
+    Column("project_id", Uuid, primary_key=True),
+    Column("provider_code", Text, primary_key=True),
+    Column("endpoint", Text, primary_key=True),
+    Column("workload", Text, primary_key=True),
+    Column("engine_code", Text, primary_key=True, server_default=FetchedValue()),
+    Column("request_count", BigInteger, nullable=False),
+    Column("cost_usd", Numeric(14, 6), nullable=False),
+    Column("subjects", Integer, nullable=False),
     schema="ops",
 )
 
@@ -617,4 +663,333 @@ taxonomy_terms = Table(
         ondelete="CASCADE",
     ),
     schema="core",
+)
+
+# A global dictionary of canonical URLs (docs/04-data-model.md section 5.1).
+urls = Table(
+    "urls",
+    metadata,
+    Column("id", BigInteger, primary_key=True, server_default=FetchedValue()),
+    Column("url_hash", LargeBinary, nullable=False),
+    Column("canonical_url", Text, nullable=False),
+    Column("domain_id", Integer, ForeignKey(domains.c.id), nullable=False),
+    Column("path", Text, nullable=False),
+    Column("first_seen_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    Column("canonicalizer_version", SmallInteger, nullable=False),
+    UniqueConstraint("url_hash", name="urls_url_hash_key"),
+    schema="core",
+)
+
+# Keywords (docs/04-data-model.md sections 7.1 and 7.2). Each refers to its parents through
+# keys that carry the workspace, so no row can point into another workspace.
+keywords = Table(
+    "keywords",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="CASCADE"), nullable=False),
+    Column("text", Text, nullable=False),
+    Column("normalized_text", Text, nullable=False),
+    Column("language_code", Text, nullable=False),
+    _created_at(),
+    UniqueConstraint(
+        "workspace_id",
+        "normalized_text",
+        "language_code",
+        name="keywords_workspace_id_normalized_text_language_code_key",
+    ),
+    UniqueConstraint("id", "workspace_id", name="keywords_id_workspace_id_key"),
+    UniqueConstraint(
+        "id", "workspace_id", "language_code", name="keywords_id_workspace_id_language_code_key"
+    ),
+    schema="seo",
+)
+
+tracked_keywords = Table(
+    "tracked_keywords",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("keyword_id", Uuid, nullable=False),
+    Column("search_engine", Text, nullable=False, server_default=FetchedValue()),
+    Column("location_id", Integer, ForeignKey(locations.c.id), nullable=False),
+    Column("language_code", Text, nullable=False),
+    Column("device", Text, nullable=False),
+    Column("os", Text),
+    Column("config_version", Integer, nullable=False, server_default=FetchedValue()),
+    Column("depth_profile", Text, nullable=False, server_default=FetchedValue()),
+    Column("target_url_id", BigInteger, ForeignKey(urls.c.id)),
+    Column("intent", Text, nullable=False, server_default=FetchedValue()),
+    Column("intent_source", Text),
+    Column("funnel_stage", Text, nullable=False, server_default=FetchedValue()),
+    Column("priority", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("business_value", Numeric(12, 2)),
+    Column("frequency", Text, nullable=False, server_default=FetchedValue()),
+    Column("schedule_id", Uuid),
+    Column("source", Text, nullable=False, server_default=FetchedValue()),
+    Column("is_active", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("created_by", Uuid, ForeignKey(users.c.id)),
+    _created_at(),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    Column("deleted_at", DateTime(timezone=True)),
+    UniqueConstraint(
+        "project_id",
+        "keyword_id",
+        "search_engine",
+        "location_id",
+        "language_code",
+        "device",
+        name="tracked_keyword_identity",
+    ),
+    UniqueConstraint("id", "workspace_id", name="tracked_keywords_id_workspace_id_key"),
+    UniqueConstraint(
+        "id", "project_id", "workspace_id", name="tracked_keywords_id_project_id_workspace_id_key"
+    ),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["keyword_id", "workspace_id", "language_code"],
+        [keywords.c.id, keywords.c.workspace_id, keywords.c.language_code],
+    ),
+    ForeignKeyConstraint(
+        ["schedule_id", "workspace_id"], [schedules.c.id, schedules.c.workspace_id]
+    ),
+    schema="seo",
+)
+
+tracked_keyword_config_history = Table(
+    "tracked_keyword_config_history",
+    metadata,
+    Column("tracked_keyword_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("config_version", Integer, primary_key=True),
+    Column("depth_profile", Text, nullable=False),
+    Column("target_url_id", BigInteger, ForeignKey(urls.c.id)),
+    Column("valid_from", DateTime(timezone=True), nullable=False),
+    Column("valid_to", DateTime(timezone=True)),
+    Column("changed_by", Uuid, ForeignKey(users.c.id)),
+    Column("change_reason", Text),
+    ForeignKeyConstraint(
+        ["tracked_keyword_id", "workspace_id"],
+        [tracked_keywords.c.id, tracked_keywords.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
+)
+
+keyword_groups = Table(
+    "keyword_groups",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("parent_id", Uuid),
+    Column("name", Text, nullable=False),
+    Column("path", Text, nullable=False),
+    _created_at(),
+    UniqueConstraint("id", "workspace_id", name="keyword_groups_id_workspace_id_key"),
+    UniqueConstraint(
+        "id", "project_id", "workspace_id", name="keyword_groups_id_project_id_workspace_id_key"
+    ),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    # A parent is in the same project, so in the same workspace too.
+    ForeignKeyConstraint(
+        ["parent_id", "project_id", "workspace_id"],
+        [
+            "seo.keyword_groups.id",
+            "seo.keyword_groups.project_id",
+            "seo.keyword_groups.workspace_id",
+        ],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
+)
+
+keyword_group_members = Table(
+    "keyword_group_members",
+    metadata,
+    Column("group_id", Uuid, primary_key=True),
+    Column("tracked_keyword_id", Uuid, primary_key=True),
+    Column("project_id", Uuid, nullable=False),
+    Column("workspace_id", Uuid, nullable=False),
+    ForeignKeyConstraint(
+        ["group_id", "project_id", "workspace_id"],
+        [keyword_groups.c.id, keyword_groups.c.project_id, keyword_groups.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["tracked_keyword_id", "project_id", "workspace_id"],
+        [tracked_keywords.c.id, tracked_keywords.c.project_id, tracked_keywords.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
+)
+
+tracked_keyword_terms = Table(
+    "tracked_keyword_terms",
+    metadata,
+    Column("tracked_keyword_id", Uuid, primary_key=True),
+    Column("term_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("assigned_by", Text, nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["tracked_keyword_id", "workspace_id"],
+        [tracked_keywords.c.id, tracked_keywords.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["term_id", "workspace_id"],
+        [taxonomy_terms.c.id, taxonomy_terms.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
+)
+
+tracked_keyword_competitors = Table(
+    "tracked_keyword_competitors",
+    metadata,
+    Column("tracked_keyword_id", Uuid, primary_key=True),
+    Column("entity_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("mode", Text, nullable=False),
+    ForeignKeyConstraint(
+        ["tracked_keyword_id", "workspace_id"],
+        [tracked_keywords.c.id, tracked_keywords.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["entity_id", "workspace_id"],
+        [entities.c.id, entities.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
+)
+
+keyword_metric_snapshots = Table(
+    "keyword_metric_snapshots",
+    metadata,
+    Column("id", BigInteger, primary_key=True, server_default=FetchedValue()),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("keyword_id", Uuid, nullable=False),
+    Column("location_id", Integer, ForeignKey(locations.c.id), nullable=False),
+    Column("language_code", Text, nullable=False),
+    Column("source", Text, nullable=False),
+    Column("fetched_at", DateTime(timezone=True), nullable=False),
+    Column("data_month", Date),
+    Column("search_volume", Integer),
+    Column("monthly_searches", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("cpc_usd", Numeric(10, 4)),
+    Column("competition", Numeric(5, 4)),
+    Column("competition_level", Text),
+    Column("keyword_difficulty", SmallInteger),
+    Column("intent_main", Text),
+    Column("intent_detail", JSONB),
+    Column("serp_item_types", ARRAY(Text)),
+    Column("raw_payload_id", BigInteger),
+    Column("task_id", BigInteger),
+    Column("cost_event_id", BigInteger),
+    Column("is_material_change", Boolean, nullable=False),
+    UniqueConstraint(
+        "keyword_id",
+        "location_id",
+        "language_code",
+        "source",
+        "fetched_at",
+        name="keyword_metric_snapshots_one_per_fetch",
+    ),
+    UniqueConstraint("id", "workspace_id", name="keyword_metric_snapshots_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["keyword_id", "workspace_id", "language_code"],
+        [keywords.c.id, keywords.c.workspace_id, keywords.c.language_code],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
+)
+
+keyword_metrics_current = Table(
+    "keyword_metrics_current",
+    metadata,
+    Column("keyword_id", Uuid, primary_key=True),
+    Column("location_id", Integer, primary_key=True),
+    Column("language_code", Text, primary_key=True),
+    Column("source", Text, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("snapshot_id", BigInteger, nullable=False),
+    Column("search_volume", Integer),
+    Column("cpc_usd", Numeric(10, 4)),
+    Column("keyword_difficulty", SmallInteger),
+    Column("intent_main", Text),
+    Column("fetched_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["keyword_id", "workspace_id", "language_code"],
+        [keywords.c.id, keywords.c.workspace_id, keywords.c.language_code],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["snapshot_id", "workspace_id"],
+        [keyword_metric_snapshots.c.id, keyword_metric_snapshots.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
+)
+
+keyword_imports = Table(
+    "keyword_imports",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("source", Text, nullable=False),
+    Column("original_filename", Text),
+    Column("upload_object_key", Text),
+    Column("status", Text, nullable=False),
+    Column("column_mapping", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("defaults", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("counts", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("duplicate_action", Text),
+    Column("error_code", Text),
+    Column("created_by", Uuid, ForeignKey(users.c.id), nullable=False),
+    _created_at(),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("finished_at", DateTime(timezone=True)),
+    UniqueConstraint("id", "workspace_id", name="keyword_imports_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
+)
+
+keyword_import_rows = Table(
+    "keyword_import_rows",
+    metadata,
+    Column("import_id", Uuid, primary_key=True),
+    Column("row_no", Integer, primary_key=True),
+    Column("part", SmallInteger, primary_key=True, server_default=FetchedValue()),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("raw", JSONB, nullable=False),
+    Column("keyword_text", Text),
+    Column("normalized_text", Text),
+    Column("language_code", Text),
+    Column("device", Text),
+    Column("location_id", Integer),
+    Column("outcome", Text, nullable=False),
+    Column("reason_code", Text),
+    Column("reason", Text),
+    Column("existing_tracked_keyword_id", Uuid),
+    Column("action", Text, nullable=False),
+    ForeignKeyConstraint(
+        ["import_id", "workspace_id"],
+        [keyword_imports.c.id, keyword_imports.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="seo",
 )

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors.locations import sync_locations
 from sightline.providers.dataforseo.locations import LocationList, ProviderLocation, read_locations
-from tests.api.auth.support import execute, fetch
+from tests.api.auth.support import clear_locations, execute, fetch
 from tests.conftest import PostgresServer
 from tests.providers.dataforseo.support import fixture_bytes
 
@@ -16,9 +16,7 @@ from tests.providers.dataforseo.support import fixture_bytes
 @pytest.fixture
 async def no_locations(migrated: PostgresServer) -> None:
     """Locations are global, so each test starts without any."""
-    await execute(migrated, "UPDATE core.projects SET default_location_id = NULL")
-    await execute(migrated, "DELETE FROM core.provider_location_map")
-    await execute(migrated, "DELETE FROM core.locations")
+    await clear_locations(migrated)
 
 
 def _location(code: int, parent: int | None = None, name: str | None = None) -> ProviderLocation:

@@ -35,6 +35,7 @@ DECLARED = {
     "core.project_entities",
     "core.taxonomy_vocabularies",
     "core.taxonomy_terms",
+    "core.urls",
     "ops.providers",
     "ops.audit_logs",
     "ops.budgets",
@@ -42,7 +43,20 @@ DECLARED = {
     "ops.collection_runs",
     "ops.collection_tasks",
     "ops.provider_cost_events",
+    "ops.provider_price_book",
+    "ops.cost_daily",
     "ops.raw_payloads",
+    "seo.keywords",
+    "seo.tracked_keywords",
+    "seo.tracked_keyword_config_history",
+    "seo.keyword_groups",
+    "seo.keyword_group_members",
+    "seo.tracked_keyword_terms",
+    "seo.tracked_keyword_competitors",
+    "seo.keyword_metric_snapshots",
+    "seo.keyword_metrics_current",
+    "seo.keyword_imports",
+    "seo.keyword_import_rows",
 }
 # Alembic reports a difference as a tuple, or as a list of tuples for one column.
 Difference = tuple[object, ...] | list[tuple[object, ...]]

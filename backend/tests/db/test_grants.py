@@ -45,6 +45,9 @@ AUDIT_COLUMNS = (
     "request_id",
 )
 
+URL_COLUMNS = ("url_hash", "canonical_url", "domain_id", "path", "canonicalizer_version")
+KEYWORD_COLUMNS = ("workspace_id", "text", "normalized_text", "language_code")
+
 # table or view: (app_api, app_worker). Every one in the six schemas must appear here.
 MATRIX: dict[str, tuple[Access, Access]] = {
     "auth.users": (
@@ -97,7 +100,12 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "core.domain_categories": (READ, NONE),
     "core.domains": (
         access("SELECT", INSERT=("host", "registrable_domain", "public_suffix", "is_ip")),
-        NONE,
+        # Imports add the hosts of target URLs.
+        access("SELECT", INSERT=("host", "registrable_domain", "public_suffix", "is_ip")),
+    ),
+    "core.urls": (
+        access("SELECT", INSERT=URL_COLUMNS),
+        access("SELECT", INSERT=URL_COLUMNS),
     ),
     "core.locations": (READ, access("SELECT, INSERT, UPDATE")),
     "core.provider_location_map": (READ, access("SELECT, INSERT, UPDATE")),
@@ -105,8 +113,57 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "core.entity_aliases": (CRUD, NONE),
     "core.entity_domains": (access("SELECT, INSERT, DELETE"), NONE),
     "core.project_entities": (access("SELECT, INSERT, UPDATE"), NONE),
-    "core.taxonomy_vocabularies": (CRUD, NONE),
-    "core.taxonomy_terms": (CRUD, NONE),
+    # Imports file keywords under terms, creating the missing ones.
+    "core.taxonomy_vocabularies": (CRUD, READ),
+    "core.taxonomy_terms": (CRUD, access("SELECT, INSERT")),
+    "seo.keywords": (
+        access("SELECT", INSERT=KEYWORD_COLUMNS),
+        access("SELECT", INSERT=KEYWORD_COLUMNS),
+    ),
+    "seo.tracked_keywords": (
+        access(
+            "SELECT, INSERT",
+            UPDATE=(
+                "config_version",
+                "depth_profile",
+                "target_url_id",
+                "intent",
+                "intent_source",
+                "funnel_stage",
+                "priority",
+                "business_value",
+                "frequency",
+                "schedule_id",
+                "is_active",
+                "updated_at",
+                "deleted_at",
+            ),
+        ),
+        access("SELECT, INSERT", UPDATE=("is_active", "updated_at", "deleted_at")),
+    ),
+    "seo.tracked_keyword_config_history": (
+        access("SELECT, INSERT", UPDATE=("valid_to",)),
+        access("SELECT, INSERT"),
+    ),
+    "seo.keyword_groups": (CRUD, access("SELECT, INSERT")),
+    "seo.keyword_group_members": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT")),
+    "seo.tracked_keyword_terms": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT")),
+    "seo.tracked_keyword_competitors": (access("SELECT, INSERT, DELETE"), NONE),
+    "seo.keyword_metric_snapshots": (READ, access("SELECT, INSERT")),
+    "seo.keyword_metrics_current": (READ, access("SELECT, INSERT, UPDATE")),
+    "seo.keyword_imports": (
+        access(
+            "SELECT, INSERT",
+            UPDATE=("column_mapping", "defaults", "status", "duplicate_action", "finished_at"),
+        ),
+        access(
+            "SELECT", UPDATE=("column_mapping", "status", "counts", "error_code", "finished_at")
+        ),
+    ),
+    "seo.keyword_import_rows": (
+        access("SELECT", UPDATE=("action",)),
+        access("SELECT, INSERT, DELETE"),
+    ),
     # A view read with the reader's rights (see the view test below).
     "core.project_domain_roles": (READ, NONE),
     "ops.alembic_version": (READ, READ),
@@ -115,7 +172,9 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "ops.provider_price_book": (READ, access("SELECT, INSERT, UPDATE")),
     "ops.component_versions": (READ, READ),
     "ops.partitioned_tables": (NONE, NONE),
-    "ops.schedules": (CRUD, access("SELECT", UPDATE=("next_run_at", "last_run_id"))),
+    # The worker creates a project's keyword metrics schedule when an import adds its first
+    # tracked keyword.
+    "ops.schedules": (CRUD, access("SELECT, INSERT", UPDATE=("next_run_at", "last_run_id"))),
     "ops.collection_runs": (
         access(
             "SELECT",

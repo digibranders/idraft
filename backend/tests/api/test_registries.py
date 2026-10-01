@@ -10,7 +10,7 @@ import pytest
 
 from sightline.api.pagination import encode_cursor
 from sightline.api.resources import Resources
-from tests.api.auth.support import cookie, execute, make_user, open_session
+from tests.api.auth.support import clear_locations, cookie, execute, make_user, open_session
 from tests.conftest import PostgresServer
 from tests.providers.dataforseo.support import FIXTURES
 
@@ -27,9 +27,7 @@ async def headers(resources: Resources, migrated: PostgresServer) -> dict[str, s
 async def located(migrated: PostgresServer) -> None:
     """The nine locations of the fixture, one more that is no longer listed, and one a
     second provider can collect AI answers in."""
-    await execute(migrated, "UPDATE core.projects SET default_location_id = NULL")
-    await execute(migrated, "DELETE FROM core.provider_location_map")
-    await execute(migrated, "DELETE FROM core.locations")
+    await clear_locations(migrated)
     body = (FIXTURES / "locations.json").read_text()
     await execute(
         migrated,

@@ -15,7 +15,7 @@ from sightline.providers.dataforseo.client import DataForSeoClient
 from sightline.providers.dataforseo.locations import LOCATIONS_PATH
 from sightline.worker import sync_locations as command
 from sightline.worker.assembly import sync_dataforseo_locations
-from tests.api.auth.support import execute, fetch
+from tests.api.auth.support import clear_locations, fetch
 from tests.conftest import PostgresServer
 from tests.providers.dataforseo.support import (
     FIXTURES,
@@ -32,9 +32,7 @@ SAMPLE = FIXTURES / "locations.json"
 
 @pytest.fixture
 async def no_locations(migrated: PostgresServer) -> None:
-    await execute(migrated, "UPDATE core.projects SET default_location_id = NULL")
-    await execute(migrated, "DELETE FROM core.provider_location_map")
-    await execute(migrated, "DELETE FROM core.locations")
+    await clear_locations(migrated)
 
 
 @pytest.fixture

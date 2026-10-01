@@ -330,6 +330,11 @@ SELECT id, url_hash FROM core.urls WHERE url_hash = ANY($1::bytea[]);
 
 Workers keep a process-local LRU (50,000 entries) of `url_hash -> id` and `host -> domain_id`.
 
+**As built (migration 0011).** `core.urls` arrives with tracked keywords:
+- **Writers.** The API adds a tracked keyword's target URL, and keyword imports add the target URLs of their rows. Both use the upsert above, with the canonicalizer v1 of doc 14 section 3.
+- **Checks.** `url_hash` is 32 bytes and `canonicalizer_version` at least 1.
+- **Remapping.** `core.url_remap` waits for the first canonicalizer change.
+
 ### 5.2 Locations and languages
 
 Provider location codes differ. We store our own `core.locations` keyed by a stable internal id and map to each provider.
@@ -613,6 +618,20 @@ CREATE TABLE seo.tracked_keyword_competitors (
 ```
 
 Taxonomy terms attach to `tracked_keywords` rather than `keywords` because a workspace-level keyword can be tracked by two projects that classify it differently.
+
+**As built (migration 0011).** The tables of sections 7.1, 7.2 and 11.8 follow the tenancy rule of section 5.3:
+- **Workspace keys.** Every one carries `workspace_id`, the link tables too (`tracked_keyword_config_history`, `keyword_group_members`, `tracked_keyword_terms`, `tracked_keyword_competitors`, `keyword_metrics_current`, `keyword_import_rows`). Each refers to its parents through keys that include it, so row-level security covers them and no row can point into another workspace.
+- **Same project.** A group member and a group's parent carry `project_id` as well, so a group and its members stay in one project.
+- **Language.** A tracked keyword's `language_code` is its keyword's: the key to `seo.keywords` is `(keyword_id, workspace_id, language_code)`.
+- **Schedules.** `schedule_id` refers to `ops.schedules(id, workspace_id)`, and from this revision on schedules refer to their project, and runs to their schedule, through the workspace too.
+- **Checks.**
+  - `intent`, `funnel_stage` and `os` take only the values of section 5.3 and doc 19.
+  - `business_value` is not negative.
+  - Keyword `text` is trimmed and 1 to 700 characters.
+- **Groups.**
+  - A group name has no `/` (its `path` is the names from the root joined by `/`).
+  - Names are unique among siblings without case, roots included (`NULLS NOT DISTINCT`).
+- **Identity.** The identity key includes deleted rows: adding a deleted identity again brings its row back, so its history stays on one id.
 
 ### 7.2 Keyword metrics (append-only snapshots)
 
@@ -1960,6 +1979,15 @@ CREATE TABLE ops.maintenance_windows (
 );
 ```
 
+**As built (migration 0011): imports.**
+- **`seo.keyword_imports`**:
+  - gains `expires_at` (previews expire after 7 days), `duplicate_action` and `error_code`;
+  - has no `report_object_key`, since the report is made from the rows on request.
+- **`seo.keyword_import_rows`**:
+  - is keyed by `(import_id, row_no, part)`: a row with `device = both` becomes parts 1 (desktop) and 2 (mobile) of one file row;
+  - gains `keyword_text`, `language_code` and a readable `reason` next to `reason_code`.
+- **`ops.exports`** and **`ops.jobs`** wait for their first writers (exports with step 7).
+
 ## 12. Partitioning, retention and maintenance
 
 ### 12.1 Partitioned tables
@@ -2161,14 +2189,26 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `core.projects` | SELECT, INSERT, UPDATE | SELECT; UPDATE (`data_version`) |
 | `core.workspace_quotas` | SELECT, INSERT, UPDATE | SELECT |
 | `core.domain_categories` | SELECT | none |
-| `core.domains` | SELECT; INSERT of `host`, `registrable_domain`, `public_suffix`, `is_ip` only (an entity domain or a project's primary domain adds its host; no route lists the table; `ON CONFLICT (host) DO NOTHING` then a SELECT, since the API cannot update the row) | none until SERP ingest (step 5) |
+| `core.domains` | SELECT; INSERT of `host`, `registrable_domain`, `public_suffix`, `is_ip` only (an entity domain or a project's primary domain adds its host; no route lists the table; `ON CONFLICT (host) DO NOTHING` then a SELECT, since the API cannot update the row) | the same (a keyword import adds the hosts of target URLs) |
+| `core.urls` | SELECT; INSERT of `url_hash`, `canonical_url`, `domain_id`, `path`, `canonicalizer_version` (a tracked keyword's target URL) | the same (imports now, SERP ingest next) |
 | `core.locations`, `core.provider_location_map` | SELECT | SELECT, INSERT, UPDATE (the location sync) |
-| `core.entities`, `core.entity_aliases`, `core.taxonomy_vocabularies`, `core.taxonomy_terms` | SELECT, INSERT, UPDATE, DELETE | none until ingest and extraction read them |
+| `core.entities`, `core.entity_aliases` | SELECT, INSERT, UPDATE, DELETE | none until ingest and extraction read them |
+| `core.taxonomy_vocabularies`, `core.taxonomy_terms` | SELECT, INSERT, UPDATE, DELETE | SELECT; INSERT on terms (an import creates the terms its rows name) |
+| `seo.keywords` | SELECT; INSERT (`workspace_id`, `text`, `normalized_text`, `language_code`) | the same (imports) |
+| `seo.tracked_keywords` | SELECT, INSERT; UPDATE of the mutable columns (identity columns never change; deleting sets `deleted_at`) | SELECT, INSERT; UPDATE (`is_active`, `updated_at`, `deleted_at`: an import brings back or unarchives a row) |
+| `seo.tracked_keyword_config_history` | SELECT, INSERT; UPDATE (`valid_to`) | SELECT, INSERT |
+| `seo.keyword_groups` | SELECT, INSERT, UPDATE, DELETE | SELECT, INSERT |
+| `seo.keyword_group_members`, `seo.tracked_keyword_terms` | SELECT, INSERT, DELETE | SELECT, INSERT |
+| `seo.tracked_keyword_competitors` | SELECT, INSERT, DELETE | none |
+| `seo.keyword_metric_snapshots` | SELECT | SELECT, INSERT |
+| `seo.keyword_metrics_current` | SELECT | SELECT, INSERT, UPDATE |
+| `seo.keyword_imports` | SELECT, INSERT; UPDATE (`column_mapping`, `defaults`, `status`, `duplicate_action`, `finished_at`) | SELECT; UPDATE (`column_mapping`, `status`, `counts`, `error_code`, `finished_at`) |
+| `seo.keyword_import_rows` | SELECT; UPDATE (`action`) | SELECT, INSERT, DELETE (a new preview replaces the rows) |
 | `core.entity_domains` | SELECT, INSERT, DELETE | none |
 | `core.project_entities` | SELECT, INSERT, UPDATE (a removed role keeps its row; `removed_at` is set) | none |
 | `core.project_domain_roles` (view, `security_invoker`; `tests/db/test_grants.py` refuses any view a runtime role reads that is not, and any readable materialized view) | SELECT | none |
 | `ops.budgets` | SELECT, INSERT, UPDATE, DELETE | SELECT |
-| `ops.schedules` | SELECT, INSERT, UPDATE, DELETE | SELECT; UPDATE (`next_run_at`, `last_run_id`) |
+| `ops.schedules` | SELECT, INSERT, UPDATE, DELETE | SELECT, INSERT (a project's keyword metrics schedule, made with its first tracked keyword); UPDATE (`next_run_at`, `last_run_id`) |
 | `ops.collection_runs` | SELECT; INSERT (what a manual run asks for: scope, workload, window, trigger, status, creator, request id, estimated cost, config snapshot); UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns) |
 | `ops.collection_tasks` | SELECT | SELECT, INSERT; UPDATE (lifecycle, attempt, result and error columns) |
 | `ops.raw_payloads` | none | SELECT, INSERT; UPDATE (`expires_at`) |
@@ -2185,7 +2225,7 @@ What the narrow lines are for:
 - **`is_platform_operator` is set only by the ops CLI**, which connects as `migrator`. The API cannot insert or update it, so an injection bug cannot mint an operator. The same holds for `email` and `disabled_at` until the routes that change them exist and bring their grant with them.
 - **A session, token or TOTP secret cannot be re-pointed.** The API can create them and move them through their lifecycle, but `user_id`, `token_hash` and `absolute_expires_at` are fixed at insert.
 - **The API cannot forge a run's counters or actual cost.** It inserts what was asked for; the worker fills in what happened.
-- **Nothing is hard-deleted by the API** except a membership (remove a member), a TOTP secret (disable), a budget and a schedule. Users, sessions, tokens, workspaces and projects are disabled, revoked, consumed or soft-deleted. Purges belong to worker maintenance, and that plan adds the `DELETE` grants it needs.
+- **Nothing is hard-deleted by the API** except a membership (remove a member), a TOTP secret (disable), a budget, a schedule, and links between configuration rows: an entity's alias or domain, a keyword group (its subgroups go with it, its members are unlinked), a group membership, a term assignment, a competitor override, a vocabulary or term. Users, sessions, tokens, workspaces, projects and tracked keywords are disabled, revoked, consumed or soft-deleted. Purges belong to worker maintenance, and that plan adds the `DELETE` grants it needs.
 - **The API cannot read `ops.raw_payloads`.** The table is a cache shared by every workspace with no `workspace_id` to filter on, so RLS cannot scope it. The two raw routes (19: `serp-snapshots/{id}/raw`, Phase 4; `ai/observations/{id}/raw`, Phase 7) will read one registry row through a `SECURITY DEFINER` function that joins it to a snapshot or observation row of the current workspace. Each function is created by the revision that creates the table it joins.
 - **The worker cannot move a row between workspaces**, and reads from `auth.users` only what an email notification needs. It has no access to password hashes, sessions, verification tokens, invitation token hashes, API key hashes or TOTP secrets.
 - **Audit entries are numbered and timed by the database.** `INSERT` excludes `id` and `occurred_at`, and neither role has `UPDATE` or `DELETE`.

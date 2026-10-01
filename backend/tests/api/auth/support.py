@@ -95,6 +95,20 @@ async def fetch(pg: PostgresServer, statement: str, *arguments: Any) -> list[asy
         await db.close()
 
 
+async def clear_locations(pg: PostgresServer) -> None:
+    """Locations are global, so a test that needs a known list starts from none. Tracked
+    keywords and metrics of earlier tests name locations, so they go first."""
+    for statement in (
+        "DELETE FROM seo.keyword_metrics_current",
+        "DELETE FROM seo.keyword_metric_snapshots",
+        "DELETE FROM seo.tracked_keywords",
+        "UPDATE core.projects SET default_location_id = NULL",
+        "DELETE FROM core.provider_location_map",
+        "DELETE FROM core.locations",
+    ):
+        await execute(pg, statement)
+
+
 async def open_session(
     resources: Resources,
     user: User,
