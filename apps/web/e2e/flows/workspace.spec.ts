@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-import { expectAccessible, signIn } from '../support';
+import { MOCK_PASSWORD } from '../../src/mocks/fixtures';
+import { ageSession, expectAccessible, signIn } from '../support';
 
 const ADMIN = 'tomas@digibranders.test';
 const EDITOR = 'priya@digibranders.test';
@@ -40,6 +41,26 @@ test.describe('setting up the workspace', () => {
     await page.reload();
     const row = page.getByRole('row', { name: /Mei Chen/ });
     await expect(row.getByText('Analyst')).toBeVisible();
+  });
+
+  test('an admin whose sign-in is old confirms it is them, and the change goes through', async ({ page }) => {
+    await signIn(page, ADMIN);
+    await page.goto('/digibranders/fynix/settings/members');
+    await expect(page.getByRole('table', { name: 'Members' })).toBeVisible();
+    await ageSession(page);
+    await page.getByRole('button', { name: 'Actions for Mei Chen' }).click();
+    await page.getByRole('menuitem', { name: 'Change role and access' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Change role and access' });
+    await dialog.getByRole('radio', { name: /^Editor/ }).check();
+    await dialog.getByRole('button', { name: 'Save changes' }).click();
+    const confirm = page.getByRole('dialog', { name: 'Confirm it is you' });
+    await expect(confirm).toBeVisible();
+    await expectAccessible(page);
+    await confirm.getByRole('textbox', { name: 'Password', exact: true }).fill(MOCK_PASSWORD);
+    await confirm.getByRole('button', { name: 'Confirm' }).click();
+    await expect(confirm).toBeHidden();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('row', { name: /Mei Chen/ }).getByText('Editor')).toBeVisible();
   });
 
   test('an editor creates a project and lands on it', async ({ page }) => {
