@@ -169,7 +169,8 @@ CREATE TABLE seo.keyword_groups (
     parent_id     uuid,
     name          text NOT NULL CHECK (name = btrim(name) AND length(name) BETWEEN 1 AND 100
                                        AND strpos(name, '/') = 0),
-    path          text NOT NULL CHECK (length(path) >= 1),
+    -- At most 2,048 bytes: under the 2,704 a btree entry of keyword_groups_project_path holds.
+    path          text NOT NULL CHECK (length(path) >= 1 AND octet_length(path) <= 2048),
     created_at    timestamptz NOT NULL DEFAULT now(),
     UNIQUE (id, workspace_id),
     UNIQUE (id, project_id, workspace_id),

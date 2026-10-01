@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
+from typing import Final
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -23,6 +24,11 @@ from sightline.api.problems import CycleDetectedError, DuplicateError, NotFoundE
 from sightline.api.request_info import RequestInfo
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.db.engine import workspace_transaction
+
+# As deep as taxonomy terms go (docs/19 section 3.5).
+GROUP_DEPTH_MAX: Final = 10
+# The check on `seo.keyword_groups.path` in migration 0011.
+PATH_BYTES_MAX: Final = 2048
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +51,28 @@ def arrange(found: Sequence[GroupRecord], *, tree: bool) -> list[GroupBranch]:
 
 def _taken() -> DuplicateError:
     return DuplicateError("A group under this parent has this name.")
+
+
+def _bytes(path: str) -> int:
+    return len(path.encode())
+
+
+def _fits(path: str, *, deepest: int, longest: int) -> None:
+    """Groups are at most `GROUP_DEPTH_MAX` levels deep, and a path holds at most
+    `PATH_BYTES_MAX` bytes (the database checks the same, under its index's row limit).
+    `deepest` counts the `/` of the deepest path the change makes."""
+    if deepest + 1 > GROUP_DEPTH_MAX:
+        raise invalid_field(
+            "parent_id",
+            code="too_deep",
+            message=f"Groups are at most {GROUP_DEPTH_MAX} levels deep.",
+        )
+    if longest > PATH_BYTES_MAX:
+        raise invalid_field(
+            "name",
+            code="path_too_long",
+            message=f"A group's path holds at most {PATH_BYTES_MAX} bytes; use shorter names.",
+        )
 
 
 def _snapshot(group: GroupRecord) -> dict[str, str | None]:
@@ -86,13 +114,15 @@ class GroupService:
                 parent = None
                 if parent_id is not None:
                     parent = await self._parent(db, access, project_id, parent_id)
+                path = name if parent is None else f"{parent.path}/{name}"
+                _fits(path, deepest=path.count("/"), longest=_bytes(path))
                 group_id = await groups.insert_group(
                     db,
                     workspace_id=access.workspace_id,
                     project_id=project_id,
                     parent_id=parent_id,
                     name=name,
-                    path=name if parent is None else f"{parent.path}/{name}",
+                    path=path,
                 )
                 created = await self._group(db, access, project_id, group_id)
                 await audit.record(
@@ -137,6 +167,17 @@ class GroupService:
                     parent = await self._parent(db, access, project_id, parent_id)
                     if parent.path.startswith(f"{current.path}/"):
                         raise CycleDetectedError("The parent is under this group.")
+                new_path = name if parent is None else f"{parent.path}/{name}"
+                # The subtree moves with the group: its deepest and longest paths change by
+                # what the group's own path changes by.
+                deepest, longest = await groups.subtree_extent(
+                    db, access.workspace_id, project_id, current.path
+                )
+                _fits(
+                    new_path,
+                    deepest=deepest - current.path.count("/") + new_path.count("/"),
+                    longest=longest - _bytes(current.path) + _bytes(new_path),
+                )
                 await groups.change_group(
                     db,
                     workspace_id=access.workspace_id,
@@ -144,7 +185,7 @@ class GroupService:
                     values={"name": name, "parent_id": parent_id},
                     project_id=project_id,
                     old_path=current.path,
-                    new_path=name if parent is None else f"{parent.path}/{name}",
+                    new_path=new_path,
                 )
                 updated = await self._group(db, access, project_id, group_id)
                 await audit.record(
@@ -193,7 +234,8 @@ class GroupService:
         were not in it."""
         async with self._transaction(access) as db:
             await self._project(db, access, project_id)
-            await self._group(db, access, project_id, group_id)
+            # Held, so a delete of the group waits for the members to be added.
+            await self._group(db, access, project_id, group_id, hold=True)
             added = await groups.add_members(
                 db,
                 workspace_id=access.workspace_id,
@@ -232,9 +274,14 @@ class GroupService:
 
     @staticmethod
     async def _group(
-        db: AsyncSession, access: WorkspaceAccess, project_id: UUID, group_id: UUID
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        group_id: UUID,
+        *,
+        hold: bool = False,
     ) -> GroupRecord:
-        found = await groups.get_group(db, access.workspace_id, project_id, group_id)
+        found = await groups.get_group(db, access.workspace_id, project_id, group_id, hold=hold)
         if found is None:
             raise NotFoundError
         return found

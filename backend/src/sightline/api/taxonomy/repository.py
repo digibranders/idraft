@@ -446,18 +446,24 @@ async def keyword_counts(
             )
             .join(projects, and_(p.id == t.project_id, p.workspace_id == t.workspace_id))
         )
-        .where(term.c.workspace_id == workspace_id, term.c.vocabulary_id == vocabulary_id, *live)
+        .where(
+            term.c.workspace_id == workspace_id,
+            under.c.workspace_id == workspace_id,
+            term.c.vocabulary_id == vocabulary_id,
+            *live,
+        )
         .group_by(term.c.id)
     )
     return {row.id: row.keywords for row in rows}
 
 
-async def a_keyword_has_two_terms(
+async def a_keyword_with_two_terms(
     db: AsyncSession, workspace_id: UUID, vocabulary_id: UUID
-) -> bool:
-    """Whether some tracked keyword, deleted ones included, has two terms of the vocabulary:
-    then it cannot become single-valued."""
-    k = tracked_keyword_terms.c
+) -> UUID | None:
+    """A live tracked keyword, in a project that is not deleted, with two terms of the
+    vocabulary: while there is one, it cannot become single-valued. Deleted keywords do not
+    count; one that comes back keeps one term of each single-valued vocabulary."""
+    k, t, p = tracked_keyword_terms.c, tracked_keywords.c, projects.c
     found = await db.execute(
         select(k.tracked_keyword_id)
         .join(
@@ -467,12 +473,24 @@ async def a_keyword_has_two_terms(
                 taxonomy_terms.c.workspace_id == k.workspace_id,
             ),
         )
-        .where(k.workspace_id == workspace_id, taxonomy_terms.c.vocabulary_id == vocabulary_id)
+        .join(
+            tracked_keywords,
+            and_(t.id == k.tracked_keyword_id, t.workspace_id == k.workspace_id),
+        )
+        .join(projects, and_(p.id == t.project_id, p.workspace_id == t.workspace_id))
+        .where(
+            k.workspace_id == workspace_id,
+            taxonomy_terms.c.vocabulary_id == vocabulary_id,
+            t.deleted_at.is_(None),
+            p.deleted_at.is_(None),
+        )
         .group_by(k.tracked_keyword_id)
         .having(func.count() > 1)
+        .order_by(k.tracked_keyword_id)
         .limit(1)
     )
-    return found.first() is not None
+    row = found.first()
+    return None if row is None else row.tracked_keyword_id
 
 
 async def delete_term(db: AsyncSession, workspace_id: UUID, term_id: UUID) -> None:

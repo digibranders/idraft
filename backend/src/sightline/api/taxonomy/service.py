@@ -243,13 +243,16 @@ class TaxonomyService:
                 }
                 if not differing:
                     return current
-                if differing.get("is_single_valued") is True and (
-                    await repository.a_keyword_has_two_terms(db, access.workspace_id, vocabulary_id)
-                ):
-                    raise SingleValuedViolationError(
-                        "A tracked keyword has two terms of this vocabulary. Leave it one, then "
-                        "try again."
+                if differing.get("is_single_valued") is True:
+                    offending = await repository.a_keyword_with_two_terms(
+                        db, access.workspace_id, vocabulary_id
                     )
+                    if offending is not None:
+                        raise SingleValuedViolationError(
+                            "A tracked keyword has two terms of this vocabulary. Leave it one, "
+                            "then try again.",
+                            tracked_keyword_id=offending,
+                        )
                 await repository.update_vocabulary(
                     db, access.workspace_id, vocabulary_id, differing
                 )

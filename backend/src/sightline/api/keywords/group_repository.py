@@ -72,10 +72,16 @@ async def lock_groups(db: AsyncSession, project_id: UUID) -> None:
 
 
 async def list_groups(
-    db: AsyncSession, workspace_id: UUID, project_id: UUID, *, group_id: UUID | None = None
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    *,
+    group_id: UUID | None = None,
+    hold: bool = False,
 ) -> list[GroupRecord]:
     """The project's groups (or the one given), each with the active tracked keywords in it or
-    under it, a keyword counted once."""
+    under it, a keyword counted once, in path order (level by level). With `hold`, the rows
+    cannot be deleted before this transaction ends (FOR KEY SHARE)."""
     g = keyword_groups.alias("g")
     under = keyword_groups.alias("under")
     m, t = keyword_group_members.c, tracked_keywords.c
@@ -104,7 +110,10 @@ async def list_groups(
     ).where(g.c.workspace_id == workspace_id, g.c.project_id == project_id)
     if group_id is not None:
         statement = statement.where(g.c.id == group_id)
-    rows = await db.execute(statement.order_by(g.c.path, g.c.id))
+    if hold:
+        statement = statement.with_for_update(of=g, read=True, key_share=True)
+    # By the names of each level, so `A B` cannot sort between `A` and `A/C`.
+    rows = await db.execute(statement.order_by(func.string_to_array(g.c.path, "/"), g.c.id))
     return [_group(row) for row in rows]
 
 
@@ -120,10 +129,31 @@ def _group(row: Row[tuple[object, ...]]) -> GroupRecord:
 
 
 async def get_group(
-    db: AsyncSession, workspace_id: UUID, project_id: UUID, group_id: UUID
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, group_id: UUID, *, hold: bool = False
 ) -> GroupRecord | None:
-    found = await list_groups(db, workspace_id, project_id, group_id=group_id)
+    found = await list_groups(db, workspace_id, project_id, group_id=group_id, hold=hold)
     return found[0] if found else None
+
+
+async def subtree_extent(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, path: str
+) -> tuple[int, int]:
+    """Of the group at `path` and every group under it: the most `/` in a path, and the most
+    bytes in one."""
+    g = keyword_groups.c
+    row = (
+        await db.execute(
+            select(
+                func.max(func.length(g.path) - func.length(func.replace(g.path, "/", ""))),
+                func.max(func.octet_length(g.path)),
+            ).where(
+                g.workspace_id == workspace_id,
+                g.project_id == project_id,
+                _under_or_at(g.path, literal(path)),
+            )
+        )
+    ).one()
+    return int(row[0] or 0), int(row[1] or 0)
 
 
 async def insert_group(

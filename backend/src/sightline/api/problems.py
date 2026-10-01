@@ -196,7 +196,8 @@ class HasChildrenError(ProblemError):
 
 
 class SingleValuedViolationError(ProblemError):
-    """A vocabulary cannot become single-valued while a tracked keyword has two of its terms."""
+    """A vocabulary cannot become single-valued while a tracked keyword has two of its terms.
+    Carries `tracked_keyword_id`: one such keyword."""
 
     status, code, title = 409, "single_valued_violation", "A keyword has two of its terms"
 

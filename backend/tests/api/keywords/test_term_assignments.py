@@ -249,4 +249,96 @@ async def test_a_vocabulary_becomes_single_valued_only_when_no_keyword_has_two_o
     allowed = await api.patch(url, json={"is_single_valued": True}, headers=owner.headers)
 
     assert problem(refused) == (409, "single_valued_violation")
+    assert refused.json()["tracked_keyword_id"] == created
     assert allowed.json()["data"]["is_single_valued"] is True
+
+
+# Review of step 5 task 5.
+
+
+async def test_a_deleted_keyword_does_not_block_the_rule_and_comes_back_with_one_term(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    topics = await vocabulary(migrated, workspace)
+    first = await term(migrated, workspace, topics, "first")
+    second = await term(migrated, workspace, topics, "second")
+    created = await tracked_id(api, workspace, project, owner, "crm", term_ids=[first, second])
+    await api.delete(
+        project_url(workspace, project, "tracked-keywords", created), headers=owner.headers
+    )
+
+    single = await api.patch(
+        f"/api/v1/workspaces/{workspace.id}/vocabularies/{topics}",
+        json={"is_single_valued": True},
+        headers=owner.headers,
+    )
+    back = await tracked_id(api, workspace, project, owner, "crm")
+
+    assert single.status_code == 200, single.text
+    assert back == created
+    assert await _terms_of(migrated, created) == [first]
+
+
+async def test_assignments_count_what_changed_and_skip_other_projects_terms(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    other = await keyword_project(migrated, workspace)
+    topics = await vocabulary(migrated, workspace)
+    crm_term = await term(migrated, workspace, topics, "crm")
+    theirs = await fetch(
+        migrated,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, project_id, kind, name) "
+        "VALUES ($1, $2, 'topic', 'Theirs') RETURNING id",
+        workspace.id,
+        other,
+    )
+    foreign_term = await term(migrated, workspace, str(theirs[0]["id"]), "elsewhere")
+    with_term = await tracked_id(api, workspace, project, owner, "crm", term_ids=[crm_term])
+    without = await tracked_id(api, workspace, project, owner, "erp")
+    archived = await tracked_id(api, workspace, project, owner, "hr")
+    await api.patch(
+        project_url(workspace, project, "tracked-keywords", archived),
+        json={"is_active": False},
+        headers=owner.headers,
+    )
+    deleted = await tracked_id(api, workspace, project, owner, "pos")
+    await api.delete(
+        project_url(workspace, project, "tracked-keywords", deleted), headers=owner.headers
+    )
+
+    removed = await _assign(
+        api,
+        workspace,
+        project,
+        owner,
+        {"op": "remove", "subject_ids": [with_term, without], "term_ids": [crm_term]},
+    )
+    added = await _assign(
+        api,
+        workspace,
+        project,
+        owner,
+        {"op": "add", "subject_ids": [archived, deleted], "term_ids": [crm_term]},
+    )
+    foreign = await _assign(
+        api,
+        workspace,
+        project,
+        owner,
+        {"op": "add", "subject_ids": [without], "term_ids": [foreign_term]},
+    )
+
+    assert removed.json()["data"] == {
+        "subjects_matched": 2,
+        "assignments_added": 0,
+        "assignments_removed": 1,
+    }
+    assert added.json()["data"] == {
+        "subjects_matched": 1,
+        "assignments_added": 1,
+        "assignments_removed": 0,
+    }
+    assert foreign.status_code == 422
+    assert errors(foreign) == [("term_ids", "term_unknown")]

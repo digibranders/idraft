@@ -47,7 +47,7 @@
     "keyword_groups_name_not_null": "NOT NULL name",
     "keyword_groups_parent_id": "CREATE INDEX keyword_groups_parent_id ON seo.keyword_groups USING btree (parent_id)",
     "keyword_groups_parent_id_project_id_workspace_id_fkey": "FOREIGN KEY (parent_id, project_id, workspace_id) REFERENCES seo.keyword_groups(id, project_id, workspace_id) ON DELETE CASCADE",
-    "keyword_groups_path_check": "CHECK ((length(path) >= 1))",
+    "keyword_groups_path_check": "CHECK (((length(path) >= 1) AND (octet_length(path) <= 2048)))",
     "keyword_groups_path_not_null": "NOT NULL path",
     "keyword_groups_pkey": "CREATE UNIQUE INDEX keyword_groups_pkey ON seo.keyword_groups USING btree (id)",
     "keyword_groups_project_id_not_null": "NOT NULL project_id",

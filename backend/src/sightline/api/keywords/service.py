@@ -338,6 +338,23 @@ def _terms_to_add(
     return found
 
 
+def _one_per_single_valued_vocabulary(
+    terms: Sequence[TermRecord],
+) -> tuple[list[TermRecord], list[UUID]]:
+    """The terms to keep (the first of each single-valued vocabulary, in the order given, and
+    every other term) and the ids of the rest."""
+    kept: list[TermRecord] = []
+    surplus: list[UUID] = []
+    seen: set[UUID] = set()
+    for term in terms:
+        if term.is_single_valued and term.vocabulary_id in seen:
+            surplus.append(term.term_id)
+            continue
+        seen.add(term.vocabulary_id)
+        kept.append(term)
+    return kept, surplus
+
+
 def _two_in_a_single_valued_vocabulary(
     term_ids: Collection[UUID], terms: Mapping[UUID, TermRecord]
 ) -> bool:
@@ -770,7 +787,8 @@ class KeywordService:
                 )
             if found:
                 raise invalid_fields(found)
-            # In the order every writer takes them: the URL, the quota, then the rows.
+            # In the order every writer takes them: vocabularies and groups (held above), the
+            # URL, the quota, then the rows.
             target_url_id = None if target is None else (await dictionaries.url_for(db, target)).id
             quota = (
                 await writer.lock_quota(db, access.workspace_id)
@@ -872,19 +890,21 @@ class KeywordService:
         """`add` gives the terms (a term of a single-valued vocabulary replaces the keyword's
         other one of it), `remove` takes them, and `replace` makes them the keyword's only
         terms within their vocabularies."""
-        if body.subject_type != "tracked_keyword":
-            raise invalid_field(
-                "subject_type",
-                code="subject_type_not_supported",
-                message="Terms are assigned to tracked keywords; prompts arrive later.",
-            )
         async with self._transaction(access) as db:
             await self._defaults(db, access, project_id)
+            if body.subject_type != "tracked_keyword":
+                raise invalid_field(
+                    "subject_type",
+                    code="subject_type_not_supported",
+                    message="Terms are assigned to tracked keywords; prompts arrive later.",
+                )
             workspace_id = access.workspace_id
+            # Taking terms away cannot break a vocabulary's rule, so only additions hold the
+            # vocabularies against a change to `is_single_valued`.
             terms = {
                 term.term_id: term
                 for term in await repository.project_terms(
-                    db, workspace_id, project_id, body.term_ids
+                    db, workspace_id, project_id, body.term_ids, hold=body.op != "remove"
                 )
             }
             if any(term_id not in terms for term_id in body.term_ids):
@@ -1221,9 +1241,16 @@ class KeywordService:
     ) -> None:
         """Groups, terms and competitor overrides of new tracked keywords. A restored one keeps
         its stored links and overrides (plan decision D3): the item's groups are added, and its
-        terms where they fit, so a single-valued vocabulary keeps the stored term."""
+        terms where they fit, so a single-valued vocabulary keeps the stored term. A vocabulary
+        that became single-valued while the keyword was deleted keeps its first stored term
+        in path order; the others are taken away."""
         restored = [entry.tracked_keyword_id for entry, _ in written if entry.restored]
         stored = await repository.terms_of(db, access.workspace_id, restored) if restored else {}
+        for tracked_id, terms in stored.items():
+            kept, surplus = _one_per_single_valued_vocabulary(terms)
+            if surplus:
+                await repository.remove_terms(db, access.workspace_id, [tracked_id], surplus)
+                stored[tracked_id] = kept
         await repository.add_members(
             db,
             workspace_id=access.workspace_id,
@@ -1271,6 +1298,9 @@ class KeywordService:
         that vocabulary."""
         workspace_id = access.workspace_id
         tracked_ids = {entry.tracked_keyword_id for _, entry in existing}
+        # Locked before their terms are read, so an assignment to the same keywords cannot
+        # slip a term in between the check and the write.
+        await repository.lock_rows(db, workspace_id, tracked_ids)
         groups = await repository.groups_of(db, workspace_id, tracked_ids)
         held = await repository.terms_of(db, workspace_id, tracked_ids)
         added_groups: dict[UUID, set[UUID]] = {}

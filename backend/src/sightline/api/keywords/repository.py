@@ -287,12 +287,18 @@ async def rank_schedules(
 async def project_groups(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, group_ids: Collection[UUID]
 ) -> set[UUID]:
+    """The project's groups among these, held (FOR KEY SHARE) so that none is deleted before
+    the keywords put in it are."""
+    if not group_ids:
+        return set()
     rows = await db.execute(
-        select(keyword_groups.c.id).where(
+        select(keyword_groups.c.id)
+        .where(
             keyword_groups.c.workspace_id == workspace_id,
             keyword_groups.c.project_id == project_id,
             among_ids(keyword_groups.c.id, group_ids),
         )
+        .with_for_update(read=True, key_share=True)
     )
     return {row.id for row in rows}
 
@@ -306,23 +312,42 @@ def _project_vocabulary(project_id: UUID) -> ColumnElement[bool]:
 
 
 async def project_terms(
-    db: AsyncSession, workspace_id: UUID, project_id: UUID, term_ids: Collection[UUID]
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    term_ids: Collection[UUID],
+    *,
+    hold: bool = True,
 ) -> list[TermRecord]:
-    """The terms among these that the project may use. Their vocabularies are held (FOR
-    SHARE) until the transaction ends, so a vocabulary cannot become single-valued between the
-    check of an assignment and its write."""
+    """The terms among these that the project may use. With `hold`, their vocabularies are
+    held (FOR SHARE) until the transaction ends, so a vocabulary cannot become single-valued
+    between the check of an assignment and its write, nor a term be deleted meanwhile."""
     if not term_ids:
         return []
-    rows = await db.execute(
-        _terms()
-        .where(
-            taxonomy_terms.c.workspace_id == workspace_id,
-            among_ids(taxonomy_terms.c.id, term_ids),
-            _project_vocabulary(project_id),
-        )
-        .with_for_update(of=taxonomy_vocabularies, read=True)
+    statement = _terms().where(
+        taxonomy_terms.c.workspace_id == workspace_id,
+        among_ids(taxonomy_terms.c.id, term_ids),
+        _project_vocabulary(project_id),
     )
-    return [_term(row) for row in rows]
+    if hold:
+        statement = statement.with_for_update(of=taxonomy_vocabularies, read=True)
+    return [_term(row) for row in await db.execute(statement)]
+
+
+async def lock_rows(db: AsyncSession, workspace_id: UUID, ids: Collection[UUID]) -> None:
+    """Locks these tracked keywords in id order (FOR NO KEY UPDATE), as bulk changes do, so
+    their terms are read and changed by one request at a time."""
+    if not ids:
+        return
+    await db.execute(
+        select(tracked_keywords.c.id)
+        .where(
+            tracked_keywords.c.workspace_id == workspace_id,
+            among_ids(tracked_keywords.c.id, ids),
+        )
+        .order_by(tracked_keywords.c.id)
+        .with_for_update(key_share=True)
+    )
 
 
 def _terms() -> Select[tuple[object, ...]]:

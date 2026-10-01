@@ -265,3 +265,136 @@ async def test_a_viewer_reads_and_another_projects_group_is_not_found(
     assert listed.status_code == 200
     assert problem(refused) == (403, "forbidden")
     assert problem(hidden) == (404, "not_found")
+
+
+# Review of step 5 task 5.
+
+
+async def test_groups_stop_at_ten_levels_and_a_path_of_2048_bytes(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    parent = None
+    for level in range(10):
+        parent = await _group(api, workspace, project, owner, f"L{level}", parent=parent)
+    eleventh = await _create(api, workspace, project, owner, "L10", parent=parent)
+    # Names of 100 three-byte characters: the seventh level makes a path of 2,106 bytes.
+    wide = None
+    for _ in range(10):
+        response = await _create(
+            api, workspace, project, owner, "\N{CJK UNIFIED IDEOGRAPH-4E00}" * 100, parent=wide
+        )
+        if response.status_code != 201:
+            break
+        wide = response.json()["data"]["group_id"]
+    root = await _group(api, workspace, project, owner, "Root")
+    moved = await api.patch(
+        project_url(workspace, project, "keyword-groups", root),
+        json={"parent_id": parent},
+        headers=owner.headers,
+    )
+
+    assert eleventh.status_code == 422
+    assert errors(eleventh) == [("parent_id", "too_deep")]
+    assert response.status_code == 422
+    assert errors(response) == [("name", "path_too_long")]
+    assert moved.status_code == 422
+    assert errors(moved) == [("parent_id", "too_deep")]
+
+
+async def test_a_move_carries_its_subtree_past_the_depth_limit_only_when_it_fits(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    deep = None
+    for level in range(8):
+        deep = await _group(api, workspace, project, owner, f"D{level}", parent=deep)
+    top = await _group(api, workspace, project, owner, "Top")
+    middle = await _group(api, workspace, project, owner, "Middle", parent=top)
+    await _group(api, workspace, project, owner, "Bottom", parent=middle)
+
+    # Top would sit at level 9, its subtree reaching level 11.
+    too_deep = await api.patch(
+        project_url(workspace, project, "keyword-groups", top),
+        json={"parent_id": deep},
+        headers=owner.headers,
+    )
+
+    assert too_deep.status_code == 422
+    assert errors(too_deep) == [("parent_id", "too_deep")]
+
+
+async def test_a_rename_leaves_siblings_with_a_similar_name_alone(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    product = await _group(api, workspace, project, owner, "Product")
+    await _group(api, workspace, project, owner, "Pricing", parent=product)
+    products = await _group(api, workspace, project, owner, "Products")
+    await _group(api, workspace, project, owner, "Plans", parent=products)
+    odd = await _group(api, workspace, project, owner, "100% off_sale")
+    await _group(api, workspace, project, owner, "Child", parent=odd)
+
+    cased = await api.patch(
+        project_url(workspace, project, "keyword-groups", product),
+        json={"name": "PRODUCT"},
+        headers=owner.headers,
+    )
+    await api.patch(
+        project_url(workspace, project, "keyword-groups", odd),
+        json={"name": "50% off_sale"},
+        headers=owner.headers,
+    )
+    flat = await api.get(
+        project_url(workspace, project, "keyword-groups"),
+        params={"format": "flat"},
+        headers=owner.headers,
+    )
+
+    assert cased.json()["data"]["path"] == "PRODUCT"
+    assert {name: path for name, (path, _) in _flat(flat).items()} == {
+        "PRODUCT": "PRODUCT",
+        "Pricing": "PRODUCT/Pricing",
+        "Products": "Products",
+        "Plans": "Products/Plans",
+        "50% off_sale": "50% off_sale",
+        "Child": "50% off_sale/Child",
+    }
+
+
+async def test_the_flat_list_keeps_each_subtree_together(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    a = await _group(api, workspace, project, owner, "A")
+    await _group(api, workspace, project, owner, "C", parent=a)
+    await _group(api, workspace, project, owner, "A B")
+
+    flat = await api.get(
+        project_url(workspace, project, "keyword-groups"),
+        params={"format": "flat"},
+        headers=owner.headers,
+    )
+
+    assert [g["path"] for g in flat.json()["data"]] == ["A", "A/C", "A B"]
+
+
+async def test_archived_keywords_join_a_group_and_deleted_ones_do_not(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    pricing = await _group(api, workspace, project, owner, "Pricing")
+    archived = await tracked_id(api, workspace, project, owner, "crm")
+    await api.patch(
+        project_url(workspace, project, "tracked-keywords", archived),
+        json={"is_active": False},
+        headers=owner.headers,
+    )
+    deleted = await tracked_id(api, workspace, project, owner, "erp")
+    await api.delete(
+        project_url(workspace, project, "tracked-keywords", deleted), headers=owner.headers
+    )
+
+    added = await _members(api, workspace, project, owner, pricing, [archived, deleted])
+
+    assert added.json()["data"] == {"added": 1}
