@@ -1,4 +1,5 @@
 import type { StoredAlias, StoredDomain, StoredEntity } from './entities-state';
+import { foldName } from '@/lib/entities/aliases';
 
 /**
  * The alias test's matcher (19 section 3.4, `POST {P}/alias-test`), a small model of the backend's stages 4
@@ -6,8 +7,9 @@ import type { StoredAlias, StoredDomain, StoredEntity } from './entities-state';
  *
  * - word aliases match between word boundaries and allow a plural `s` or `es`; exact-case aliases too, with
  *   case; substrings anywhere; regex aliases as written; every entity's name by itself, as a word alias that
- *   ignores case (`alias_name`), unless a stored alias other than a regex has the name's text in any case,
- *   whose case, context and negative rules then stand for the name; and each host or registrable
+ *   ignores case (`alias_name`), unless a stored alias other than a regex has the name's text as the
+ *   backend folds it (`foldName`: case, accents, quotes, dashes), whose case, context and negative rules then
+ *   stand for the name; and each host or registrable
  *   domain of an entity is a domain-shaped alias (`acme.io`, without `www.`);
  * - a positive span inside a negative alias's span is dropped, and the negative is reported;
  * - a span scores 0.95, or 0.30 for an ambiguous entity or an alias that needs context, plus 0.35 when one of
@@ -157,9 +159,9 @@ function patternsOf(entities: readonly MatcherEntity[], skipped: string[]): Patt
       patterns.push({ regex, entityId: entity.entity_id, alias, method: METHOD[mode] });
     }
     // The name by itself, so an entity with no aliases is still found, unless an alias restates it
-    const name = entity.canonical_name.trim().toLowerCase();
+    const name = foldName(entity.canonical_name);
     const restated = aliases.some(
-      (alias) => (alias.match_mode ?? 'word_boundary') !== 'regex' && alias.alias.trim().toLowerCase() === name,
+      (alias) => (alias.match_mode ?? 'word_boundary') !== 'regex' && foldName(alias.alias) === name,
     );
     if (name !== '' && !restated) {
       patterns.push({

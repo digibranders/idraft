@@ -254,6 +254,19 @@ export const projectEntityHandlers: HttpHandler[] = [
       const full = competitorLimit(request, caller.world, projectId, entityId);
       if (full) return full;
     }
+    const trackAi = typeof body.track_ai === 'boolean' ? body.track_ai : (current.track_ai ?? true);
+    const colorIndex =
+      'color_index' in body ? (typeof body.color_index === 'number' ? body.color_index : null) : current.color_index;
+    // Nothing is written, and the version stays, when nothing differs
+    if (
+      role === current.role &&
+      primary === wasPrimary &&
+      trackSeo === (current.track_seo ?? true) &&
+      trackAi === (current.track_ai ?? true) &&
+      (colorIndex ?? null) === (current.color_index ?? null)
+    ) {
+      return HttpResponse.json({ data: projectEntityView(caller.world, current) });
+    }
     const changes =
       primary && !wasPrimary
         ? withPrimaryHandedOver(caller.entityChanges, caller.world, projectId, entityId)
@@ -283,9 +296,8 @@ export const projectEntityHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const current = roleIn(caller, params.entity_id);
-    if (!current) return problem(request, 'not_found');
-    // Removing twice answers the removed row again
-    if (!isActiveRole(current)) return HttpResponse.json({ data: projectEntityView(caller.world, current) });
+    // A role removed already is not there to remove
+    if (!current || !isActiveRole(current)) return problem(request, 'not_found');
     if (current.role === 'own' && (current.is_primary ?? false)) return problem(request, 'cannot_remove_primary_own');
     const projectId = caller.project.project_id;
     const next = withVersionsBumped(withEdited(caller.entityChanges, 'roles', current, { removed_at: stateTime() }), [

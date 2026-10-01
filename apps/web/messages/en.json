@@ -1133,10 +1133,13 @@
       "pasteRequired": "Enter at least one term.",
       "pasteTooMany": "Paste at most {max} terms at a time.",
       "pasteTooDeep": "A line has more than {max} levels. Shorten it and try again.",
+      "pasteTooLong": "A term name has at most {max} characters. Shorten the longer ones and try again.",
+      "pasteTooLarge": "This list is too large to send at once. Paste it in parts.",
       "pasteCount": "{count, plural, one {# term} other {# terms}}",
       "pasteDuplicate": "Some of these terms already exist at their level. Remove them and try again.",
       "pasteSubmit": "Add terms",
       "pasted": "{count, plural, one {# term added} other {# terms added}}",
+      "pastedNone": "These terms are all there already, so none was added.",
       "tooDeep": "A term is at most {max} levels from the top. Choose a place higher up.",
       "parentGone": "The term to place it under no longer exists. Choose another place.",
       "forbidden": "Workspace vocabularies are shared by every project. Members limited to some projects change only their projects' vocabularies."

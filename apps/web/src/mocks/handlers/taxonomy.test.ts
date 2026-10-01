@@ -139,6 +139,15 @@ describe('terms', () => {
     expect(fieldCodes(await viewer.call('GET', `${TOPICS}/terms?format=list`))).toEqual(['format:enum']);
   });
 
+  it('lists terms level by level, so a parent comes right before its subtree', async () => {
+    const editor = mockBrowser('editor');
+    await editor.call('POST', `${TOPICS}/terms`, { items: [{ path: 'A' }, { path: 'A/B' }, { path: 'A-B' }] });
+    const paths = termNodes(await editor.call('GET', `${TOPICS}/terms?format=flat`))
+      .map((term) => term.path)
+      .filter((path) => path.startsWith('a'));
+    expect(paths).toEqual(['a', 'a/b', 'a-b']);
+  });
+
   it('finds terms by name, with their ancestors in the tree', async () => {
     const viewer = mockBrowser('viewer');
     expect(shape(termNodes(await viewer.call('GET', `${TOPICS}/terms?filter[q]=BLOG`)))).toEqual([
@@ -210,6 +219,9 @@ describe('terms', () => {
     const editor = owner.as('editor');
     expect((await editor.call('POST', `${W}/vocabularies`, { kind: 'tag', name: 'Tags' })).code).toBe('forbidden');
     expect((await editor.call('PATCH', TOPICS, { name: 'Themes' })).code).toBe('forbidden');
+    // The body is checked first, as the API validates it before its service runs
+    expect(fieldCodes(await editor.call('PATCH', TOPICS, {}))).toEqual([':value_error']);
+    expect((await editor.call('DELETE', TOPICS)).code).toBe('forbidden');
     expect((await editor.call('POST', `${TOPICS}/terms`, { name: 'Ads' })).code).toBe('forbidden');
     expect((await editor.call('PATCH', `${W}/terms/${terms.seo}`, { name: 'Search' })).code).toBe('forbidden');
     expect((await editor.call('DELETE', `${W}/terms/${terms.paidSearch}`)).code).toBe('forbidden');

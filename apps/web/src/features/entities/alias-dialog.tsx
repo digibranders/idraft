@@ -17,7 +17,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
-import { MAX_ALIAS_LENGTH } from '@/lib/entities/aliases';
+import { foldName, MAX_ALIAS_LENGTH } from '@/lib/entities/aliases';
+import { textLength } from '@/lib/text/length';
 
 const ADD = apiMutation('post', '/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases');
 const CHANGE = apiMutation('patch', '/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases/{alias_id}');
@@ -72,12 +73,12 @@ function AliasForm({
   const blank = text.trim() === '';
   const localError = blank
     ? t('textRequired')
-    : trimmed.length > MAX_ALIAS_LENGTH
+    : textLength(trimmed) > MAX_ALIAS_LENGTH
       ? t('textTooLong', { max: MAX_ALIAS_LENGTH })
       : null;
   const shownError = textError ?? (submitted ? localError : null);
   // An alias of the name's own text, other than a pattern, sets how the name itself is matched
-  const restatesName = mode !== 'regex' && !blank && trimmed.toLowerCase() === entityName.trim().toLowerCase();
+  const restatesName = mode !== 'regex' && !blank && foldName(trimmed) === foldName(entityName);
   const values: AliasInput = {
     alias: trimmed,
     match_mode: mode,
@@ -295,7 +296,7 @@ function PasteAliasesForm({
         : t('pasteRequired')
       : lines.length > MAX_ALIAS_BATCH
         ? t('pasteTooMany', { max: MAX_ALIAS_BATCH })
-        : lines.some((line) => line.length > MAX_ALIAS_LENGTH)
+        : lines.some((line) => textLength(line) > MAX_ALIAS_LENGTH)
           ? t('textTooLong', { max: MAX_ALIAS_LENGTH })
           : null;
 

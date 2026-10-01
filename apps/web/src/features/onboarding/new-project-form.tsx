@@ -33,6 +33,7 @@ import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { DEFAULT_DEEP_CHECK_WEEKDAY, MAX_PROJECT_NAME_LENGTH, NO_LANGUAGE, WEEKDAYS } from '@/lib/projects/fields';
 import { projectPath, workspacePath } from '@/lib/routes/paths';
 import { SLUG_MAX_LENGTH, slugMessageKey, slugProblem } from '@/lib/slugs/slug';
+import { textLength } from '@/lib/text/length';
 
 type LocationRef = components['schemas']['LocationRef'];
 
@@ -106,13 +107,21 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
           aliases: z
             .array(z.string())
             .readonly()
-            .refine((aliases) => aliases.every((alias) => alias.trim().length <= MAX_ALIAS_LENGTH), {
+            .refine((aliases) => aliases.every((alias) => textLength(alias.trim()) <= MAX_ALIAS_LENGTH), {
               error: t('aliasTooLong', { max: MAX_ALIAS_LENGTH }),
             }),
         })
         .refine((values) => otherNames(values.brand, values.aliases).length <= MAX_OWN_ALIASES, {
           path: ['aliases'],
           error: t('aliasesTooMany', { max: MAX_OWN_ALIASES }),
+          // Checked while other fields are still wrong too, so the person hears of it at once
+          when: ({ value }) =>
+            typeof value === 'object' &&
+            value !== null &&
+            'brand' in value &&
+            typeof value.brand === 'string' &&
+            'aliases' in value &&
+            Array.isArray(value.aliases),
         }),
     [t, domainCopy],
   );

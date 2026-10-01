@@ -465,6 +465,8 @@ describe('project entities', () => {
     );
     const removed = dataOf(await editor.call('DELETE', `${P}/entities/${ids.fynixAudit}`), PROJECT_ENTITY);
     expect(removed.removed_at).not.toBeNull();
+    // A role removed already is not there to remove
+    expect((await editor.call('DELETE', `${P}/entities/${ids.fynixAudit}`)).code).toBe('not_found');
     expect(
       dataOf(await editor.call('GET', `${P}/entities`), PROJECT_ENTITIES).map((row) => row.entity.entity_id),
     ).not.toContain(ids.fynixAudit);
@@ -547,6 +549,11 @@ describe('project entities', () => {
 
   it('changes a role, refuses an empty change, and answers 404 for an entity the project has not', async () => {
     const editor = mockBrowser('editor');
+    const before = await versionOf(editor);
+    // A change to what the role already is writes nothing, so the version stays
+    const same = await editor.call('PATCH', `${P}/entities/${ids.fynix}`, { is_primary: true, role: 'own' });
+    expect(dataOf(same, PROJECT_ENTITY)).toMatchObject({ is_primary: true });
+    expect(await versionOf(editor)).toBe(before);
     const changed = await editor.call('PATCH', `${P}/entities/${ids.northlight}`, {
       color_index: null,
       track_ai: false,
@@ -683,6 +690,28 @@ describe('the alias test', () => {
     ]);
     const product = result.mentions.find((mention) => mention.entity.entity_id === ids.fynixAudit);
     expect(product?.spans).toEqual([expect.objectContaining({ match_method: 'alias_word', via_entity_id: null })]);
+  });
+
+  it('lets a negative alias of the name, written another way, rule the name out', async () => {
+    const editor = mockBrowser('editor');
+    const entity = dataOf(
+      await editor.call('POST', `${W}/entities`, { entity_type: 'brand', canonical_name: 'Café Orbit' }),
+      ENTITY,
+    );
+    await editor.call('POST', `${P}/entities`, { entity_id: entity.entity_id, role: 'watch' });
+    await editor.call('POST', `${W}/entities/${entity.entity_id}/aliases`, { alias: 'CAFE  ORBIT', is_negative: true });
+    const result = await test({ text: 'We met at Café Orbit.' }, editor);
+    expect(result.mentions.map((mention) => mention.entity.canonical_name)).not.toContain('Café Orbit');
+  });
+
+  it('refuses any body over 1 MB, as the API does', async () => {
+    const editor = mockBrowser('editor');
+    const answer = await editor.call('POST', `${W}/entities`, {
+      entity_type: 'brand',
+      canonical_name: 'Large',
+      description: 'x'.repeat(1024 * 1024),
+    });
+    expect(answer).toMatchObject({ status: 413, code: 'payload_too_large' });
   });
 
   it('drops a mention inside a negative alias and says which one', async () => {
