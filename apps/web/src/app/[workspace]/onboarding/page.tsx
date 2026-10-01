@@ -20,10 +20,10 @@ export async function generateMetadata({ params }: PageProps<'/[workspace]/onboa
  */
 export default async function OnboardingPage({ params }: PageProps<'/[workspace]/onboarding'>): Promise<ReactNode> {
   const { workspace } = await params;
-  const { membership } = await requireMembership(workspace);
+  const [{ membership }, t] = await Promise.all([requireMembership(workspace), getTranslations('onboarding')]);
   if (!canCreateProjects(membership)) notFound();
   return (
-    <WorkspaceShell workspace={{ slug: membership.workspace.slug, name: membership.workspace.name }}>
+    <WorkspaceShell workspace={{ slug: membership.workspace.slug, name: membership.workspace.name }} page={t('title')}>
       <NewProjectPage workspace={{ id: membership.workspace.workspace_id, slug: membership.workspace.slug }} />
     </WorkspaceShell>
   );

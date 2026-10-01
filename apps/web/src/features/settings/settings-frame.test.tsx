@@ -5,9 +5,10 @@ import { SettingsFrame } from './settings-frame';
 import { LeaveGuardProvider } from '@/lib/navigation/use-leave-guard';
 import { renderWithProviders } from '@/test/render';
 
+const location = vi.hoisted(() => ({ pathname: '/digibranders/fynix/settings/members' }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => '/digibranders/fynix/settings/members',
+  usePathname: () => location.pathname,
 }));
 
 describe('SettingsFrame', () => {
@@ -44,9 +45,10 @@ describe('SettingsFrame', () => {
   });
 
   it('outside a project leaves the project group out and links to the workspace settings routes', () => {
+    location.pathname = '/digibranders/settings/security';
     renderWithProviders(
       <LeaveGuardProvider>
-        <SettingsFrame workspace="digibranders">
+        <SettingsFrame workspace="digibranders" project={null}>
           <p>Section</p>
         </SettingsFrame>
       </LeaveGuardProvider>,
@@ -64,5 +66,6 @@ describe('SettingsFrame', () => {
       '/digibranders/settings/workspace',
       '/digibranders/settings/members',
     ]);
+    expect(within(nav).getByRole('link', { name: 'Security' })).toHaveAttribute('aria-current', 'page');
   });
 });

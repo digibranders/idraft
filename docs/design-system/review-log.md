@@ -815,7 +815,7 @@ Open points:
 | Playwright browser and pinned Docker image | user | The browser is installed; the image is needed for the baselines |
 | Compose `web` service, Caddy routes, `web.yml` | backend session | The job steps and the image were sent for its deploy plan |
 | Re-authentication rotates the session and revokes the old one at once, so a request still carrying the old cookie gets 401 and signs the person out | backend session | A short grace period for the replaced session would close it |
-| An account route that needs no project (`/account/...`) | settings plan | Account settings live under a project, so the workspace page's account menu links to Settings > Profile of the first listed project, and has no item while the list loads, is empty or failed |
+| An account route that needs no project (`/account/...`) | settings plan | Settled (settings follow-ups, 2026-10-01): Settings has workspace-level routes, `/{workspace}/settings/{section}`, and the account menu on the workspace root and New project always links to its Profile |
 
 | Doc | Section | Change | Reason |
 |---|---|---|---|

@@ -30,8 +30,8 @@ export interface UserMenuProps {
    * 4); `null` from 1440 px, so the theme control never appears twice.
    */
   theme: { value: ThemeChoice; onValueChange: (value: ThemeChoice) => void } | null;
-  /** Settings > Profile; `null` leaves the item out. */
-  accountSettings: ReactElement | null;
+  /** The link to Settings > Profile. */
+  accountSettings: ReactElement;
   /** The link to the new-workspace page, for a platform operator; `null` for anyone else. */
   createWorkspace?: ReactElement | null | undefined;
   onSignOut: () => void;
@@ -64,17 +64,7 @@ export function UserMenu({
         }));
   const items: MenuItemDef[] = [
     ...themeItems,
-    ...(accountSettings === null
-      ? []
-      : [
-          {
-            id: 'account',
-            label: labels.accountSettings,
-            icon: UserRound,
-            kind: 'link' as const,
-            link: accountSettings,
-          },
-        ]),
+    { id: 'account', label: labels.accountSettings, icon: UserRound, kind: 'link', link: accountSettings },
     ...(createWorkspace === null
       ? []
       : [
