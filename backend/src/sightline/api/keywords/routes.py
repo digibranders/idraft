@@ -40,6 +40,8 @@ from sightline.api.schemas.keywords import (
     BulkArchiveResult,
     BulkCreateResponse,
     BulkCreateResult,
+    BulkDeleteResponse,
+    BulkDeleteResult,
     BulkRejected,
     BulkSkipped,
     BulkUpdateResponse,
@@ -68,6 +70,7 @@ from sightline.api.schemas.keywords import (
     TrackedKeyword,
     TrackedKeywordBulkArchive,
     TrackedKeywordBulkCreate,
+    TrackedKeywordBulkDelete,
     TrackedKeywordBulkUpdate,
     TrackedKeywordCreate,
     TrackedKeywordDetail,
@@ -389,6 +392,24 @@ async def bulk_archive_tracked_keywords(
 ) -> BulkArchiveResponse:
     matched, updated = await keywords.bulk_archive(access, project_id, body, info)
     return BulkArchiveResponse(data=BulkArchiveResult(matched=matched, updated=updated))
+
+
+@router.post(
+    "/bulk-delete",
+    summary="Delete tracked keywords",
+    description="Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over "
+    "20,000 matches). As the single delete: history stays, and tracking the same keyword again "
+    "brings the row back with its settings.",
+)
+async def bulk_delete_tracked_keywords(
+    project_id: UUID,
+    body: TrackedKeywordBulkDelete,
+    access: WriteKeywords,
+    keywords: Keywords,
+    info: Info,
+) -> BulkDeleteResponse:
+    matched, deleted = await keywords.bulk_delete(access, project_id, body, info)
+    return BulkDeleteResponse(data=BulkDeleteResult(matched=matched, deleted=deleted))
 
 
 @router.post(

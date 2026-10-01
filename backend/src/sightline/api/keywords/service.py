@@ -49,6 +49,7 @@ from sightline.api.schemas.keywords import (
     TermAssignment,
     TrackedKeywordBulkArchive,
     TrackedKeywordBulkCreate,
+    TrackedKeywordBulkDelete,
     TrackedKeywordBulkUpdate,
     TrackedKeywordCreate,
     TrackedKeywordFilter,
@@ -882,6 +883,46 @@ class KeywordService:
             change = {"is_active": not body.archive}
             await self._audit_bulk(db, access, project_id, ids, changed, change, change, info)
         return len(ids), len(changed)
+
+    async def bulk_delete(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        body: TrackedKeywordBulkDelete,
+        info: RequestInfo,
+    ) -> tuple[int, int]:
+        """Deletes the chosen rows as `delete` does one: soft, history kept. How many matched
+        and how many were deleted."""
+        now = datetime.now(UTC)
+        async with self._transaction(access) as db:
+            await self._defaults(db, access, project_id)
+            ids = await self._subjects(db, access, project_id, body.ids, body.filter)
+            deleted = await repository.set_fields(
+                db, access.workspace_id, ids, {"deleted_at": now}, now
+            )
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="tracked_keyword.bulk_changed",
+                target_type="project",
+                target_id=project_id,
+                info=info,
+                after={"deleted": True, "matched": len(ids), "changed": len(deleted)},
+            )
+            await audit.record_each(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="tracked_keyword.deleted",
+                target_type="tracked_keyword",
+                info=info,
+                entries=[
+                    audit.Entry(target_id=tracked_id, after={"bulk": True})
+                    for tracked_id in sorted(deleted)
+                ],
+            )
+        return len(ids), len(deleted)
 
     async def assign_terms(
         self,

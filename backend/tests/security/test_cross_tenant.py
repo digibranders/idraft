@@ -129,6 +129,9 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "ids": ["{tracked_keyword_id}"],
         "archive": True,
     },
+    ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-delete"): {
+        "ids": ["{tracked_keyword_id}"],
+    },
     ("PATCH", _W + "/projects/{project_id}/tracked-keywords/{tracked_keyword_id}"): {
         "priority": 1,
     },

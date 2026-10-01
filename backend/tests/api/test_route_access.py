@@ -225,6 +225,10 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-archive",
     ): "keywords:write",
     (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-delete",
+    ): "keywords:write",
+    (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
         "{tracked_keyword_id}",

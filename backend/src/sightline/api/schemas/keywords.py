@@ -423,6 +423,20 @@ class BulkArchiveResponse(BaseModel):
     data: BulkArchiveResult
 
 
+class TrackedKeywordBulkDelete(Selection):
+    """The chosen rows are deleted as one by one: their history stays, and tracking the same
+    keyword again brings the row back (plan decision D3)."""
+
+
+class BulkDeleteResult(BaseModel):
+    matched: int
+    deleted: int
+
+
+class BulkDeleteResponse(BaseModel):
+    data: BulkDeleteResult
+
+
 class ConfigVersion(BaseModel):
     config_version: int
     depth_profile: DepthProfile

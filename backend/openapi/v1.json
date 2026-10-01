@@ -741,6 +741,36 @@
         "title": "BulkCreateResult",
         "type": "object"
       },
+      "BulkDeleteResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkDeleteResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "BulkDeleteResponse",
+        "type": "object"
+      },
+      "BulkDeleteResult": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "deleted"
+        ],
+        "title": "BulkDeleteResult",
+        "type": "object"
+      },
       "BulkRejected": {
         "properties": {
           "code": {
@@ -7016,6 +7046,41 @@
           "items"
         ],
         "title": "TrackedKeywordBulkCreate",
+        "type": "object"
+      },
+      "TrackedKeywordBulkDelete": {
+        "additionalProperties": false,
+        "description": "The chosen rows are deleted as one by one: their history stays, and tracking the same\nkeyword again brings the row back (plan decision D3).",
+        "properties": {
+          "filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackedKeywordFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 5000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ids"
+          }
+        },
+        "title": "TrackedKeywordBulkDelete",
         "type": "object"
       },
       "TrackedKeywordBulkUpdate": {
@@ -14534,6 +14599,70 @@
           }
         },
         "summary": "Track up to 1,000 keywords",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-delete": {
+      "post": {
+        "description": "Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches). As the single delete: history stays, and tracking the same keyword again brings the row back with its settings.",
+        "operationId": "bulk_delete_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_delete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackedKeywordBulkDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete tracked keywords",
         "tags": [
           "keywords"
         ]

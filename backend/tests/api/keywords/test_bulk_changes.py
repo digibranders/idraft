@@ -273,6 +273,51 @@ async def test_ids_of_other_projects_and_deleted_keywords_are_not_matched(
     assert priorities[0]["priority"] == 3
 
 
+async def test_bulk_delete_by_ids_or_by_filter_keeps_history_and_restores(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    crm = await tracked_id(api, workspace, project, owner, "crm")
+    erp = await tracked_id(api, workspace, project, owner, "erp", priority=1)
+    hr = await tracked_id(api, workspace, project, owner, "hr", priority=1)
+
+    by_ids = await _bulk(api, workspace, project, owner, "bulk-delete", {"ids": [crm, crm]})
+    by_filter = await _bulk(
+        api, workspace, project, owner, "bulk-delete", {"filter": {"priority_lte": 1}}
+    )
+    again = await _bulk(api, workspace, project, owner, "bulk-delete", {"ids": [crm]})
+    back = await tracked_id(api, workspace, project, owner, "crm")
+
+    assert by_ids.json()["data"] == {"matched": 1, "deleted": 1}
+    assert by_filter.json()["data"] == {"matched": 2, "deleted": 2}
+    # A deleted keyword is no longer the project's to delete.
+    assert again.json()["data"] == {"matched": 0, "deleted": 0}
+    # As the single delete: the row is kept, and comes back.
+    assert back == crm
+    rows = await fetch(
+        migrated,
+        "SELECT id::text, deleted_at IS NOT NULL AS deleted FROM seo.tracked_keywords "
+        "WHERE project_id = $1",
+        project,
+    )
+    assert {row["id"]: row["deleted"] for row in rows} == {crm: False, erp: True, hr: True}
+    entries = await fetch(
+        migrated,
+        "SELECT action FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action IN ('tracked_keyword.deleted', 'tracked_keyword.bulk_changed')",
+        workspace.id,
+    )
+    # One entry per request (the last matched nothing), one per row deleted.
+    assert sorted(entry["action"] for entry in entries) == [
+        "tracked_keyword.bulk_changed",
+        "tracked_keyword.bulk_changed",
+        "tracked_keyword.bulk_changed",
+        "tracked_keyword.deleted",
+        "tracked_keyword.deleted",
+        "tracked_keyword.deleted",
+    ]
+
+
 async def test_bulk_archive_and_unarchive_within_the_quota(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
