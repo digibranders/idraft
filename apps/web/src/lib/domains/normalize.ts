@@ -34,7 +34,15 @@ function isPrivate(host: string): boolean {
   return PRIVATE_SUFFIXES.some((suffix) => host.endsWith(suffix));
 }
 
-export function normalizeDomain(raw: string): NormalizedDomain {
+export interface NormalizeOptions {
+  /**
+   * Keep a leading `www.`: a rule for one host or one path keeps the host as typed, while a rule for the
+   * whole domain does not need it (19 section 3.4, as built).
+   */
+  keepWww?: boolean | undefined;
+}
+
+export function normalizeDomain(raw: string, { keepWww = false }: NormalizeOptions = {}): NormalizedDomain {
   const value = raw.trim();
   if (value === '') return refuse('empty');
   if (/\s/.test(value)) return refuse('spaces');
@@ -53,7 +61,7 @@ export function normalizeDomain(raw: string): NormalizedDomain {
   if (url.username !== '' || url.password !== '') return refuse('host');
 
   const withoutDot = url.hostname.toLowerCase().replace(/\.$/, '');
-  const host = withoutDot.startsWith('www.') ? withoutDot.slice('www.'.length) : withoutDot;
+  const host = !keepWww && withoutDot.startsWith('www.') ? withoutDot.slice('www.'.length) : withoutDot;
   if (host === '') return refuse('host');
   if (isPrivate(host)) return refuse('private');
   if (!HOST.test(host)) return refuse('host');
@@ -63,7 +71,7 @@ export function normalizeDomain(raw: string): NormalizedDomain {
   return {
     ok: true,
     domain: host,
-    display: typedHost(value, hasScheme, host),
+    display: typedHost(value, hasScheme, host, keepWww),
     ignoredPath: ignored === '' ? null : ignored,
   };
 }
@@ -81,10 +89,10 @@ function readable(encoded: string): string {
  * The host in the letters it was typed in, when it is the same host as `ascii`: the URL parser turns an
  * international name into punycode, which nobody reads.
  */
-function typedHost(value: string, hasScheme: boolean, ascii: string): string {
+function typedHost(value: string, hasScheme: boolean, ascii: string, keepWww: boolean): string {
   const withoutScheme = hasScheme ? value.replace(/^[a-z][a-z0-9+.-]*:\/*/i, '') : value;
   const hostPart = (withoutScheme.split(/[/?#]/, 1)[0] ?? '').replace(/:\d*$/, '').toLowerCase().replace(/\.$/, '');
-  const typed = hostPart.startsWith('www.') ? hostPart.slice('www.'.length) : hostPart;
+  const typed = !keepWww && hostPart.startsWith('www.') ? hostPart.slice('www.'.length) : hostPart;
   try {
     return new URL(`https://${typed}`).hostname === ascii ? typed : ascii;
   } catch {

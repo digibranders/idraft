@@ -17,6 +17,8 @@ export interface DomainInputProps {
   onValueChange: (value: string) => void;
   /** Helper text shown until the value can be previewed. */
   description?: string | undefined;
+  /** `host` keeps a leading `www.` in the preview, for a rule on one host or one path. */
+  scope?: 'domain' | 'host' | undefined;
   /** The field shows an error: the preview gives its line to it. */
   invalid?: boolean | undefined;
   size?: InputSize | undefined;
@@ -38,13 +40,14 @@ export function DomainInput({
   onValueChange,
   description,
   invalid = false,
+  scope = 'domain',
   size,
   inputRef,
   ...props
 }: DomainInputProps): ReactElement {
   const t = useTranslations('common.domain');
   const settled = useDebouncedValue(value, PREVIEW_DELAY_MS);
-  const preview = normalizeDomain(settled);
+  const preview = normalizeDomain(settled, { keepWww: scope === 'host' });
   // The value that will be stored stands out from the words around it
   const stored = (chunks: ReactNode): ReactNode => <span className="text-foreground">{chunks}</span>;
   const line = invalid

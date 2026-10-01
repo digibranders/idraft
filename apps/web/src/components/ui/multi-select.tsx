@@ -2,9 +2,10 @@
 
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox';
 import { Check, Plus, X } from 'lucide-react';
-import { useMemo, useState, type FocusEvent, type ReactElement, type Ref } from 'react';
+import { useMemo, useRef, useState, type FocusEvent, type ReactElement, type Ref } from 'react';
 
 import { Icon } from './icon';
+import { nameListAfterField } from './popup-label';
 import { POPUP_COLLISION, POPUP_ITEM, POPUP_MOTION, POPUP_SURFACE } from './popup-styles';
 import { TAG_CLASS, TAG_REMOVE_CLASS } from './tag';
 import { cn } from '@/lib/utils';
@@ -83,6 +84,8 @@ export function MultiSelect<TItem>({
   className,
 }: MultiSelectProps<TItem>): ReactElement {
   const [query, setQuery] = useState('');
+  // The element around the text field, which names the list after the field's label
+  const field = useRef<HTMLDivElement>(null);
   const toOption = useMemo(
     () =>
       (item: TItem): Option<TItem> => ({ key: itemKey(item), label: itemToString(item), kind: 'item', item }),
@@ -140,6 +143,7 @@ export function MultiSelect<TItem>({
       disabled={disabled}
     >
       <ComboboxPrimitive.InputGroup
+        ref={field}
         data-slot="multi-select"
         // Moving between the chips and the text field is not leaving the field
         onBlur={leave}
@@ -196,7 +200,10 @@ export function MultiSelect<TItem>({
             <ComboboxPrimitive.Empty className="shrink-0">
               <span className="flex min-h-8 items-center px-3 py-1.5 type-meta">{emptyText(typed)}</span>
             </ComboboxPrimitive.Empty>
-            <ComboboxPrimitive.List className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 outline-none data-empty:hidden">
+            <ComboboxPrimitive.List
+              ref={(list) => nameListAfterField(field.current, list)}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 outline-none data-empty:hidden"
+            >
               {(option: Option<TItem>) => (
                 <ComboboxPrimitive.Item
                   key={option.key}

@@ -34,6 +34,9 @@ describe('SettingsFrame', () => {
       '/digibranders/fynix/settings/security',
       '/digibranders/fynix/settings/preferences',
       '/digibranders/fynix/settings/general',
+      '/digibranders/fynix/settings/entities',
+      '/digibranders/fynix/settings/domains',
+      '/digibranders/fynix/settings/taxonomy',
       '/digibranders/fynix/settings/workspace',
       '/digibranders/fynix/settings/members',
     ]);

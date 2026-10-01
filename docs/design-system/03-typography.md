@@ -27,6 +27,7 @@ Every text element uses exactly one composite utility. Composites set size, line
 | `type-subsection-title` | 14 / 20 px | 600 | 0 | `foreground` | Section titles inside panels and inspectors ("Position history (90 days)", "Sources"), day headers in the change feed ("Today"), rule titles, the project switcher name in the sidebar, the chart tooltip date |
 | `type-body` | 14 / 20 px | 400 | 0 | inherits | Default UI text: sidebar labels, buttons, inputs, tabs, menu items, form values |
 | `type-body-strong` | 14 / 20 px | 500 | 0 | inherits | Button labels, active tab, active nav item, emphasized inline values, entity names in feeds |
+| `type-inline-strong` | inherits | 500 | inherits | inherits | A span inside running text that must keep the size and line height of its text: the own brand's mention highlight in answers ([23-application-patterns.md](23-application-patterns.md) section 5.3) |
 | `type-prose` | 14 / 22 px | 400 | 0 | inherits | AI answer text in inspectors, methodology text, help articles, empty-state explanations longer than two lines |
 | `type-table` | 13 / 20 px | 400 | 0 | inherits | Table body cells |
 | `type-meta` | 13 / 20 px | 400 | 0 | `foreground-tertiary` | Meta line under titles, timestamps ("6h ago"), metric strip labels, descriptions, helper text, values after bar-list bars |

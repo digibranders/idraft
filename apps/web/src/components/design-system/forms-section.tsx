@@ -31,6 +31,7 @@ import { SettingRow } from '@/components/ui/setting-row';
 import { Switch } from '@/components/ui/switch';
 import { Tag } from '@/components/ui/tag';
 import { Textarea } from '@/components/ui/textarea';
+import { TreeView, type TreeViewNode } from '@/components/ui/tree-view';
 
 type Workload = 'rank' | 'ai' | 'audit' | 'backlinks' | 'content';
 type Device = 'desktop' | 'mobile' | 'both';
@@ -61,6 +62,22 @@ const PROJECTS: readonly Project[] = [
   { id: 'eventus', name: 'eventussecurity.com', workspace: 'Digibranders' },
   { id: 'oyechats', name: 'oyechats.com', workspace: 'Digibranders' },
   { id: 'firstfold', name: 'firstfold.io', workspace: 'Digibranders' },
+];
+const TOPICS: readonly TreeViewNode[] = [
+  {
+    id: 'crm',
+    label: 'CRM',
+    children: [
+      { id: 'crm-startups', label: 'CRM for startups', children: [] },
+      { id: 'crm-agencies', label: 'CRM for agencies', children: [] },
+    ],
+  },
+  {
+    id: 'email',
+    label: 'Email marketing',
+    children: [{ id: 'email-automation', label: 'Automation', children: [] }],
+  },
+  { id: 'seo', label: 'SEO tools', children: [] },
 ];
 const TAG_SUGGESTIONS: readonly string[] = ['brand', 'comparison', 'pricing', 'q4-launch', 'support'];
 const PROMPT =
@@ -180,6 +197,8 @@ export function FormsSection(): ReactNode {
   const [tags, setTags] = useState<readonly string[]>(['pricing', 'q4-launch']);
   const [chosenTags, setChosenTags] = useState<readonly string[]>(['brand']);
   const [aliases, setAliases] = useState<readonly string[]>(['HubSpot CRM']);
+  const [topic, setTopic] = useState<string | null>('crm-agencies');
+  const [openTopics, setOpenTopics] = useState<ReadonlySet<string>>(new Set(['crm']));
   return (
     <>
       <SpecimenGroup title="Field" note="10 section 2. Label, control, then helper text or error, 6 px apart.">
@@ -389,6 +408,24 @@ export function FormsSection(): ReactNode {
             />
             <FieldDescription>Other names AI answers use for this brand</FieldDescription>
           </Field>
+        </SpecimenRow>
+      </SpecimenGroup>
+
+      <SpecimenGroup
+        title="Tree view"
+        note="WAI-ARIA tree, single selection following focus. Arrows move and open; actions sit outside the tree."
+      >
+        <SpecimenRow label="Nested terms">
+          <div className="w-full max-w-90 rounded-lg border border-border bg-surface p-1">
+            <TreeView
+              label="Topics"
+              nodes={TOPICS}
+              selected={topic}
+              onSelect={setTopic}
+              expanded={openTopics}
+              onExpandedChange={setOpenTopics}
+            />
+          </div>
         </SpecimenRow>
       </SpecimenGroup>
 

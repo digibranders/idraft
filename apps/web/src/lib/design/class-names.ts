@@ -11,6 +11,7 @@ export const TYPE_STYLES = [
   'body',
   'input-touch',
   'body-strong',
+  'inline-strong',
   'prose',
   'table',
   'meta',

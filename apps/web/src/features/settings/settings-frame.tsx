@@ -15,7 +15,7 @@ import { projectPath } from '@/lib/routes/paths';
  */
 const GROUPS = {
   account: ['profile', 'security', 'preferences'],
-  project: ['general'],
+  project: ['general', 'entities', 'domains', 'taxonomy'],
   workspace: ['workspace', 'members'],
 } as const;
 
@@ -43,7 +43,11 @@ export function SettingsFrame({
       href: projectPath(workspace, project, `/settings/${section}`),
     })),
   }));
-  const current = SECTIONS.find((section) => pathname.endsWith(`/settings/${section}`)) ?? 'profile';
+  // A section's own pages (an entity's editor) keep the section current
+  const current =
+    SECTIONS.find(
+      (section) => pathname.endsWith(`/settings/${section}`) || pathname.includes(`/settings/${section}/`),
+    ) ?? 'profile';
   return (
     <div className="flex flex-1 flex-col gap-5 px-3 pt-5 pb-8 md:px-4 lg:px-5">
       <h1 tabIndex={-1} className="type-page-title outline-none">

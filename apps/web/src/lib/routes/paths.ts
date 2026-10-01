@@ -14,6 +14,10 @@ import type { Route } from 'next';
  */
 export const isSlugShaped = (value: string): boolean => /^[a-z0-9-]+$/.test(value);
 
+/** Whether `value` is a UUID as the API writes ids in paths: hyphenated, in either case. */
+export const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
 /** The root of a workspace. */
 export const workspacePath = (slug: string): Route => `/${encodeURIComponent(slug)}` as Route;
 

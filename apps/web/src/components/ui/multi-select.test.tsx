@@ -150,6 +150,13 @@ describe('MultiSelect', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('names its open list after the field', async () => {
+    const { user } = renderWithProviders(<TagField />);
+    await user.click(input());
+    await user.keyboard('p');
+    expect(await screen.findByRole('listbox', { name: 'Tags' })).toBeInTheDocument();
+  });
+
   it('says so when nothing matches what was typed', async () => {
     const { user } = renderWithProviders(<TagField />);
     await user.click(input());

@@ -35,6 +35,7 @@ describe('New project', () => {
   it('suggests the address from the name, creates the project and opens it', async () => {
     const { user, container } = renderWithProviders(form());
     await user.type(await screen.findByLabelText('Name'), 'Northwind Café');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'northwind.example');
     expect(screen.getByLabelText('Address')).toHaveValue('northwind-cafe');
     expect(screen.getByText('Used in links: /digibranders/northwind-cafe')).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
@@ -47,7 +48,42 @@ describe('New project', () => {
     const address = await screen.findByLabelText('Address');
     await user.type(address, 'nw');
     await user.type(screen.getByLabelText('Name'), 'Northwind');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'northwind.example');
     expect(address).toHaveValue('nw');
+  });
+
+  it('sends the site, the location and the brand with its other names', async () => {
+    let sent: unknown = null;
+    server.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST' && request.url.endsWith('/projects')) {
+        void request
+          .clone()
+          .json()
+          .then((body: unknown) => {
+            sent = body;
+          });
+      }
+    });
+    const { user } = renderWithProviders(form());
+    await user.type(await screen.findByLabelText('Name'), 'Acme Studio');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'https://www.acme-studio.example/about');
+    expect(await screen.findByText('acme-studio.example')).toHaveClass('text-foreground');
+    await user.type(screen.getByRole('combobox', { name: /^Location/ }), 'Ger');
+    await user.click(await screen.findByRole('option', { name: /^Germany/ }));
+    expect(screen.getByRole('textbox', { name: 'Brand name' })).toHaveValue('Acme Studio');
+    await user.type(screen.getByRole('combobox', { name: /^Other names/ }), 'Acme{Enter}{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/digibranders/acme-studio'));
+    expect(sent).toMatchObject({
+      primary_domain: 'https://www.acme-studio.example/about',
+      default_location_id: 2276,
+      own_entity: {
+        canonical_name: 'Acme Studio',
+        domains: ['https://www.acme-studio.example/about'],
+        aliases: ['Acme'],
+      },
+    });
+    server.events.removeAllListeners('request:start');
   });
 
   it('hands the address back to the name when it is emptied', async () => {
@@ -55,6 +91,7 @@ describe('New project', () => {
     const address = await screen.findByLabelText('Address');
     await user.type(address, 'nw');
     await user.type(screen.getByLabelText('Name'), 'Northwind');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'northwind.example');
     await user.clear(address);
     expect(address).toHaveValue('northwind');
   });
@@ -81,6 +118,7 @@ describe('New project', () => {
     );
     const { user } = renderWithProviders(form());
     await user.type(await screen.findByLabelText('Name'), 'Northwind');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'northwind.example');
     await user.click(screen.getByRole('button', { name: 'Create project' }));
     await user.click(screen.getByRole('link', { name: 'Back to projects' }));
     const question = await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
@@ -101,6 +139,7 @@ describe('New project', () => {
     await user.click(await screen.findByRole('button', { name: 'Create project' }));
     expect(await screen.findByText('Enter a name.')).toBeInTheDocument();
     await user.type(screen.getByLabelText('Name'), 'Fynix');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'northwind.example');
     await user.click(screen.getByRole('button', { name: 'Create project' }));
     expect(await screen.findByText('Another project in this workspace uses this address.')).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalled();
@@ -126,6 +165,7 @@ describe('New project', () => {
     );
     const { user } = renderWithProviders(form());
     await user.type(await screen.findByLabelText('Name'), 'One more');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'northwind.example');
     await user.click(screen.getByRole('button', { name: 'Create project' }));
     const alert = await screen.findByText(
       'This workspace has 10 of 10 projects. Archive one, or ask for a larger plan.',
@@ -141,6 +181,7 @@ describe('New project', () => {
     );
     const { user } = renderWithProviders(form());
     await user.type(await screen.findByLabelText('Name'), 'One more');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'northwind.example');
     await user.click(screen.getByRole('button', { name: 'Create project' }));
     expect(
       await screen.findByText('This workspace is suspended, so no project can be created in it.'),

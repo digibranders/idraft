@@ -15,6 +15,13 @@ describe('normalizeDomain', () => {
     expect(normalizeDomain(raw)).toEqual({ ok: true, domain, display: domain, ignoredPath: null });
   });
 
+  it('keeps www. for a rule on one host', () => {
+    expect(normalizeDomain('https://www.acme.com/x', { keepWww: true })).toMatchObject({
+      domain: 'www.acme.com',
+      display: 'www.acme.com',
+    });
+  });
+
   it('compares an international name in punycode and shows it in its own letters', () => {
     expect(normalizeDomain('https://www.Bücher.de/')).toEqual({
       ok: true,
