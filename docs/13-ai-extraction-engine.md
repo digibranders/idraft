@@ -158,10 +158,20 @@ Answer engines return markdown or HTML-derived text with lists, headings, bold n
 - Matching uses an Aho-Corasick automaton compiled from all positive aliases of all project entities. One pass over the text finds all candidate spans, O(text length + matches).
 - `word_boundary` mode requires Unicode word boundaries on both sides (letters and digits are word characters; `.` `-` `'` are boundaries). Possessives and plural suffixes are allowed after the boundary (`HubSpot's`, `HubSpots`).
 - `exact_case` mode compares the original-case text.
-- `regex` mode is allowed for power users, compiled with a timeout-safe engine (RE2 via `re2-wasm`) to prevent catastrophic backtracking from user-entered patterns.
+- `regex` mode is allowed for power users, compiled with RE2 (`google-re2`), which runs in time linear in the text whatever the pattern, so user-entered patterns cannot backtrack catastrophically.
 - Domain-shaped aliases are auto-generated for every entity domain (`acme.com`, `acme.io`), so "visit acme.com" counts as a brand mention.
 - **Overlap resolution:** longest match wins (`Salesforce Marketing Cloud` beats `Salesforce` when both are aliases of different entities, for example a product and its parent brand). A product mention also counts toward its parent brand (`parent_entity_id`) with `match_method = 'via_product'`.
 - **Negative aliases** (`is_negative`): any positive span fully inside a negative span is dropped (`Apple pie`, `Monday morning`).
+
+As built (`sightline/extraction/text.py` and `aliases.py`, step 4):
+
+- Each original character is normalized on its own (NFKD, combining marks dropped, case folded for the folded text), so every normalized character maps back to exactly the characters it came from. Spans are offsets into the text as given, in code points.
+- `exact_case` is a word-boundary match on the original case; `case_sensitive` makes `word_boundary` and `substring` compare case too. A word boundary is anything that is not a letter or digit (so `_` is one), checked only on a side where the alias itself ends in a letter or digit (`C++` matches `C++17`). The suffixes allowed before the boundary are `'s`, `'`, `es` and `s`. Scripts written without spaces need `substring` mode.
+- `regex` patterns run on the normalized text with case kept (diacritics folded, one space per run, ASCII quotes and dashes), case-insensitive unless `case_sensitive`; empty matches are ignored. RE2 has no backreferences or lookaround; such a pattern is refused (`422 invalid_regex`).
+- Domain-shaped aliases come from each entity domain's host, `www.` left off and punycode shown as Unicode; they match after a `.` (`www.acme.io`) but not before one followed by a letter (`acme.io.evil.com`).
+- Several entities matched on exactly the same span all keep it; one entity matched twice on a span keeps the most specific method. Span methods are `alias_exact`, `alias_word`, `alias_substring`, `alias_regex`, `alias_domain` and `via_product`.
+- `language_code` on an alias is stored but not used until answers carry a language (step 8).
+- Stage 5 is scored per span from the text alone (the signals of the first, third and sixth rows of the table below): a hint counts within 40 tokens either way, a span opens a sentence after `.`, `!`, `?`, `:`, a line break or a list marker, and a domain-shaped alias always scores 0.95. An entity's confidence is its best span's score.
 
 ### Stage 5: Disambiguation
 

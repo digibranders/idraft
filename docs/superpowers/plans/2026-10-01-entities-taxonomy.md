@@ -85,6 +85,7 @@ Not here, and where it arrives:
 ### Task 5: Project entities, project domains, alias test, project fields
 
 - [ ] Tests first: attach with a role, one primary own (`409 primary_own_exists`), more than 10 SEO competitors (`422 competitor_limit`), change, remove keeps history (`409 cannot_remove_primary_own`); `GET {P}/domains` from the view; the alias test over a project's entities with spans, statuses and negatives applied, `413` over 100 KB, `observation_id` refused until step 8; project create with `primary_domain`, `default_location_id` (must exist) and `own_entity` (entity, domains, aliases, primary own role, one transaction).
+- [ ] From Task 3: the matcher's offsets are code points, while the web client indexes strings in UTF-16 code units, so an emoji before a span would shift its highlight. The alias test returns UTF-16 offsets (converted at the API boundary) and doc 19 says so.
 - [ ] From the Task 1 review: colors are lower-cased before they are stored; re-attaching or changing a role updates the one row per project and entity, and the audit log keeps the earlier role.
 - [ ] The routes, the project service changes, doc 19 "what is accepted today".
 - [ ] Gates, Opus review, fixes, commit.
