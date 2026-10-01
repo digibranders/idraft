@@ -850,3 +850,27 @@ Plan `docs/superpowers/plans/2026-10-01-workspace-setup.md`, branch `frontend/wo
 | "Confirm it is you" in a browser flow, axe in the dark theme, an admin visual of Members | frontend |
 
 Whole-branch review (Opus): no critical findings. Fixed: the Members read-only `Banner`, the dialogs' project list fetched on each open (it could be 30 s stale), the workspace time-zone hint, and two new-project tests (an emptied address follows the name again; a discard during the create does not open the project).
+
+## Entities, domains and taxonomy (2026-10-01)
+
+Plan `docs/superpowers/plans/2026-10-01-entities.md`, branch `frontend/entities`: the screens of build-order step 4, built against the backend's draft contract (`apps/web/openapi/step-4-draft.json`) before its routes land.
+
+| Built | Where |
+|---|---|
+| `Tag`, `Textarea`, `MultiSelect`, `TreeView`, `GroupError` | `components/ui` |
+| `DomainInput` with a host preview, `LocationCombobox` | `components/app/forms`, `lib/domains`, `lib/locations` |
+| `EvidenceHighlight` and `type-inline-strong` | `components/app/evidence`, 03 section 2 |
+| Entities and aliases, entity editor, alias test, Domains | `features/entities` |
+| Taxonomy | `features/taxonomy` |
+| Site, location and own brand in New project; site and location in project General | `features/onboarding`, `features/project-settings` |
+| Mocks for the 16 step 4 routes, in their own cookie | `mocks/entities-state.ts`, `mocks/handlers/{entities,project-entities,taxonomy,registries}.ts` |
+
+Found on the way: a combobox's open list was unnamed (Base UI names the text field only); `Combobox` and `MultiSelect` now name it after the field.
+
+| Open point | Who |
+|---|---|
+| Switch `gen:api` back to `backend/openapi/v1.json` once `backend/entities` is on `main` | frontend |
+| Re-derivation confirmation and the server dry run of aliases | step 8 |
+| Drag to move a term, merge with counts | step 11 |
+| Visual baselines of the new pages | CI, in the Playwright image |
+

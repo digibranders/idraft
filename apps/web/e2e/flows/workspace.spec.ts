@@ -49,6 +49,7 @@ test.describe('setting up the workspace', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'New project' })).toBeVisible();
     await expectAccessible(page);
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Northwind Traders');
+    await page.getByRole('textbox', { name: 'Site' }).fill('northwind-traders.example');
     await expect(page.getByRole('textbox', { name: 'Address' })).toHaveValue('northwind-traders');
     await page.getByRole('button', { name: 'Create project' }).click();
     await expect(page).toHaveURL(/\/digibranders\/northwind-traders(\/|$)/);
