@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
 import httpx
+import pytest
 
 from sightline.api.resources import Resources
-from tests.api.auth.support import Workspace, fetch, make_workspace
+from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import (
     Caller,
     attach,
@@ -123,26 +125,60 @@ async def test_a_live_role_is_a_duplicate_and_a_removed_one_comes_back_on_its_ro
     owner = await member(resources, migrated, workspace, "owner")
     project = await make_project(migrated, workspace.id)
     entity_id = await _entity(api, workspace, owner, "Rival")
-    await _give(api, workspace, project, owner, entity_id)
+    first = await _give(api, workspace, project, owner, entity_id, color_index=4)
 
     assert problem(await _give(api, workspace, project, owner, entity_id)) == (409, "duplicate")
+    version = await config_version(migrated, project)
     removed = await api.delete(
         _project_url(workspace, project, "entities", entity_id), headers=owner.headers
     )
     assert removed.status_code == 200
     assert removed.json()["data"]["removed_at"] is not None
+    assert await config_version(migrated, project) == version + 1
     back = await _give(api, workspace, project, owner, entity_id, role="watch")
     assert back.status_code == 201
     assert (back.json()["data"]["role"], back.json()["data"]["removed_at"]) == ("watch", None)
+    assert back.json()["data"]["added_at"] > first.json()["data"]["added_at"]
     rows = await fetch(
         migrated,
         "SELECT count(*) AS n FROM core.project_entities WHERE project_id = $1",
         project,
     )
     assert rows[0]["n"] == 1
+    # The removal and the return both keep the role as it was.
+    entries = await fetch(
+        migrated,
+        "SELECT action, before FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action LIKE 'project_entity.%' ORDER BY id",
+        workspace.id,
+    )
+    assert [row["action"] for row in entries] == [
+        "project_entity.created",
+        "project_entity.removed",
+        "project_entity.created",
+    ]
+    gone, returned = json.loads(entries[1]["before"]), json.loads(entries[2]["before"])
+    assert gone == {
+        "project_id": str(project),
+        "role": "competitor",
+        "is_primary": False,
+        "track_seo": True,
+        "track_ai": True,
+        "color_index": 4,
+        "removed_at": None,
+    }
+    assert (returned["role"], returned["color_index"]) == ("competitor", 4)
+    assert returned["removed_at"] is not None
 
 
-async def test_a_project_has_one_primary_own_entity(
+async def _primary(
+    api: httpx.AsyncClient, workspace: Workspace, project: uuid.UUID, caller: Caller
+) -> list[str]:
+    listed = await api.get(_project_url(workspace, project, "entities"), headers=caller.headers)
+    return [row["entity"]["entity_id"] for row in listed.json()["data"] if row["is_primary"]]
+
+
+async def test_a_project_has_one_primary_own_entity_that_another_takes_over(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace = await make_workspace(migrated)
@@ -155,24 +191,81 @@ async def test_a_project_has_one_primary_own_entity(
     ).status_code == 201
 
     taken = await _give(api, workspace, project, owner, second, role="own", is_primary=True)
-    assert problem(taken) == (409, "primary_own_exists")
-    competitor = await _give(api, workspace, project, owner, second, is_primary=True)
-    assert competitor.status_code == 422
-    assert competitor.json()["errors"][0]["code"] == "primary_needs_own"
+    assert taken.status_code == 201
+    assert await _primary(api, workspace, project, owner) == [second]
 
-    url = _project_url(workspace, project, "entities", first)
-    for body in ({"role": "competitor"},):
-        assert problem(await api.patch(url, json=body, headers=owner.headers)) == (
+    second_url = _project_url(workspace, project, "entities", second)
+    for body in (
+        {"role": "competitor"},
+        {"is_primary": False},
+        {"role": "competitor", "is_primary": False},
+    ):
+        assert problem(await api.patch(second_url, json=body, headers=owner.headers)) == (
             409,
             "cannot_remove_primary_own",
-        )
-    assert problem(await api.delete(url, headers=owner.headers)) == (
+        ), body
+    assert problem(await api.delete(second_url, headers=owner.headers)) == (
         409,
         "cannot_remove_primary_own",
     )
-    # Not primary any more, it can go.
-    await api.patch(url, json={"is_primary": False}, headers=owner.headers)
-    assert (await api.delete(url, headers=owner.headers)).status_code == 200
+    first_url = _project_url(workspace, project, "entities", first)
+    back = await api.patch(first_url, json={"is_primary": True}, headers=owner.headers)
+    assert back.json()["data"]["is_primary"] is True
+    assert await _primary(api, workspace, project, owner) == [first]
+    # No longer primary, it can go.
+    assert (await api.delete(second_url, headers=owner.headers)).status_code == 200
+    handovers = await fetch(
+        migrated,
+        "SELECT target_id, before, after FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action = 'project_entity.updated' ORDER BY id",
+        workspace.id,
+    )
+    assert [(row["target_id"], row["before"], row["after"]) for row in handovers] == [
+        (
+            first,
+            f'{{"is_primary": true, "project_id": "{project}"}}',
+            f'{{"is_primary": false, "project_id": "{project}"}}',
+        ),
+        (
+            second,
+            f'{{"is_primary": true, "project_id": "{project}"}}',
+            f'{{"is_primary": false, "project_id": "{project}"}}',
+        ),
+        (
+            first,
+            f'{{"is_primary": false, "project_id": "{project}"}}',
+            f'{{"is_primary": true, "project_id": "{project}"}}',
+        ),
+    ]
+
+
+@pytest.mark.parametrize("method", ["POST", "PATCH"])
+async def test_only_an_own_entity_is_primary_and_both_routes_say_so_alike(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, method: str
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await make_project(migrated, workspace.id)
+    entity_id = await _entity(api, workspace, owner, "Rival")
+    if method == "POST":
+        response = await _give(api, workspace, project, owner, entity_id, is_primary=True)
+    else:
+        await _give(api, workspace, project, owner, entity_id)
+        response = await api.patch(
+            _project_url(workspace, project, "entities", entity_id),
+            json={"is_primary": True},
+            headers=owner.headers,
+        )
+
+    assert response.status_code == 422
+    assert response.json()["errors"] == [
+        {
+            "location": "body",
+            "path": "is_primary",
+            "code": "primary_needs_own",
+            "message": "Only an `own` entity is primary.",
+        }
+    ]
 
 
 async def test_a_project_tracks_up_to_ten_competitors_in_seo(
@@ -199,6 +292,62 @@ async def test_a_project_tracks_up_to_ten_competitors_in_seo(
         headers=owner.headers,
     )
     assert problem(switch) == (422, "competitor_limit")
+
+
+async def test_the_competitor_limit_counts_only_live_competitors_tracked_in_seo(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await make_project(migrated, workspace.id)
+    for index in range(9):
+        entity_id = await _entity(api, workspace, owner, f"Rival {index}")
+        await _give(api, workspace, project, owner, entity_id)
+    removed = await _entity(api, workspace, owner, "Removed")
+    await _give(api, workspace, project, owner, removed)
+    await api.delete(_project_url(workspace, project, "entities", removed), headers=owner.headers)
+    quiet = await _entity(api, workspace, owner, "Quiet")
+    await _give(api, workspace, project, owner, quiet, track_seo=False)
+    watched = await _entity(api, workspace, owner, "Watched")
+    await _give(api, workspace, project, owner, watched, role="watch")
+
+    tenth = await _entity(api, workspace, owner, "Tenth")
+    assert (await _give(api, workspace, project, owner, tenth)).status_code == 201
+    eleventh = await _entity(api, workspace, owner, "Eleventh")
+    assert problem(await _give(api, workspace, project, owner, eleventh)) == (
+        422,
+        "competitor_limit",
+    )
+    # Coming back counts like any other: the removed competitor no longer fits.
+    assert problem(await _give(api, workspace, project, owner, removed)) == (
+        422,
+        "competitor_limit",
+    )
+
+
+async def test_roles_are_listed_own_then_competitors_then_watched_each_by_name(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await make_project(migrated, workspace.id)
+    for name, role in (
+        ("alpha", "watch"),
+        ("Beta", "competitor"),
+        ("Zed", "own"),
+        ("aardvark", "competitor"),
+    ):
+        entity_id = await _entity(api, workspace, owner, name)
+        await _give(api, workspace, project, owner, entity_id, role=role)
+
+    listed = await api.get(_project_url(workspace, project, "entities"), headers=owner.headers)
+
+    assert [row["entity"]["canonical_name"] for row in listed.json()["data"]] == [
+        "Zed",
+        "aardvark",
+        "Beta",
+        "alpha",
+    ]
 
 
 async def test_a_role_change_writes_only_what_differs(
@@ -405,8 +554,14 @@ async def test_the_alias_test_refuses_too_much_text_or_too_many_matches(
 
     big = await api.post(url, json={"text": "a" * (100 * 1024 + 1)}, headers=owner.headers)
     assert problem(big) == (413, "payload_too_large")
+    exact = await api.post(url, json={"text": "a" * (100 * 1024)}, headers=owner.headers)
+    assert exact.status_code == 200
+    # Bytes as UTF-8, not characters: 34,134 euro signs are 102,402 bytes.
+    euros = await api.post(url, json={"text": "\N{EURO SIGN}" * 34_134}, headers=owner.headers)
+    assert problem(euros) == (413, "payload_too_large")
     both = await api.post(url, json={"text": "a", "markdown": "a"}, headers=owner.headers)
     assert both.status_code == 422
+    assert both.json()["errors"][0]["code"] == "one_of"
 
     await api.post(
         entities_url(workspace, acme, "aliases"),
@@ -436,3 +591,84 @@ async def test_the_alias_test_reports_a_stored_pattern_it_cannot_run(
 
     assert response.json()["data"]["skipped_alias_ids"] == [str(row[0]["id"])]
     assert len(response.json()["data"]["mentions"]) == 1
+
+
+async def test_the_alias_test_uses_only_live_roles_and_host_rules(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _alias_project(api, resources, migrated)
+    gone = await _entity(api, workspace, owner, "Gone Corp")
+    await _give(api, workspace, project, owner, gone)
+    await api.delete(_project_url(workspace, project, "entities", gone), headers=owner.headers)
+    rival = await _entity(
+        api,
+        workspace,
+        owner,
+        "Rival Inc",
+        domains=[{"domain": "medium.com", "match_scope": "path_prefix", "path_prefix": "/@rival"}],
+    )
+    await _give(api, workspace, project, owner, rival)
+
+    response = await api.post(
+        _project_url(workspace, project, "alias-test"),
+        json={"text": "Gone Corp wrote on medium.com"},
+        headers=owner.headers,
+    )
+
+    # A removed role is not matched, and a path prefix rule does not claim its whole host.
+    assert response.json()["data"]["mentions"] == []
+
+
+async def test_a_product_mention_counts_for_its_brand_and_names_the_product(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, acme = await _alias_project(api, resources, migrated)
+    product = await _entity(
+        api, workspace, owner, "Rocket Suite", entity_type="product", parent_entity_id=acme
+    )
+    await _give(api, workspace, project, owner, product, role="watch")
+
+    response = await api.post(
+        _project_url(workspace, project, "alias-test"),
+        json={"text": "We use Rocket Suite."},
+        headers=owner.headers,
+    )
+
+    by_entity = {
+        mention["entity"]["entity_id"]: mention for mention in response.json()["data"]["mentions"]
+    }
+    ((span,),) = (by_entity[acme]["spans"],)
+    assert (span["match_method"], span["via_entity_id"], span["alias_id"]) == (
+        "via_product",
+        product,
+        None,
+    )
+    ((own,),) = (by_entity[product]["spans"],)
+    assert (own["match_method"], own["via_entity_id"]) == ("alias_name", None)
+
+
+async def test_a_lone_surrogate_is_one_utf16_code_unit(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _alias_project(api, resources, migrated)
+
+    response = await api.post(
+        _project_url(workspace, project, "alias-test"),
+        content='{"text": "\\ud800 Acme"}',
+        headers={**owner.headers, "content-type": "application/json"},
+    )
+
+    (span,) = response.json()["data"]["mentions"][0]["spans"]
+    assert (span["start"], span["end"]) == (2, 6)
+
+
+async def test_the_alias_test_of_a_deleted_project_is_not_found_whatever_the_text(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, _ = await _alias_project(api, resources, migrated)
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", project)
+    url = _project_url(workspace, project, "alias-test")
+
+    for text in ("Acme", "a" * (100 * 1024 + 1)):
+        response = await api.post(url, json={"text": text}, headers=owner.headers)
+        assert problem(response) == (404, "not_found")

@@ -193,10 +193,6 @@ class HasChildrenError(ProblemError):
     status, code, title = 409, "has_children", "The term has children"
 
 
-class PrimaryOwnExistsError(ProblemError):
-    status, code, title = 409, "primary_own_exists", "The project has a primary own entity"
-
-
 class CannotRemovePrimaryOwnError(ProblemError):
     status, code, title = 409, "cannot_remove_primary_own", "The primary own entity stays"
 

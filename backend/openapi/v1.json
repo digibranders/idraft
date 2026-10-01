@@ -373,7 +373,7 @@
                 "type": "null"
               }
             ],
-            "description": "None for a domain-shaped alias.",
+            "description": "The stored alias that matched; None for the canonical name (`alias_name`) and a domain-shaped alias (`alias_domain`).",
             "title": "Alias Id"
           },
           "end": {
@@ -411,6 +411,19 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "via_entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For `via_product`: the product whose mention counts for this entity.",
+            "title": "Via Entity Id"
           }
         },
         "required": [
@@ -419,7 +432,8 @@
           "alias_id",
           "match_method",
           "score",
-          "status"
+          "status",
+          "via_entity_id"
         ],
         "title": "AliasTestSpan",
         "type": "object"
@@ -1906,7 +1920,7 @@
         "additionalProperties": false,
         "properties": {
           "aliases": {
-            "description": "Word aliases that ignore case.",
+            "description": "Word aliases that ignore case, trimmed; repeats in any case are one alias.",
             "items": {
               "maxLength": 200,
               "minLength": 1,
@@ -2484,7 +2498,7 @@
           },
           "is_primary": {
             "default": false,
-            "description": "Only for `own`; one per project.",
+            "description": "Only for `own`; one per project, so the current primary one stops being primary.",
             "title": "Is Primary",
             "type": "boolean"
           },

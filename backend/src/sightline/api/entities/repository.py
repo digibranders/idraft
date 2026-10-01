@@ -476,29 +476,32 @@ async def insert_aliases(
     entity_id: UUID,
     aliases: Sequence[NewAlias],
     created_by: UUID,
+    skip_taken: bool = False,
 ) -> list[UUID]:
+    """The ids of the aliases written. With `skip_taken`, an alias the entity has already, by
+    the database's rule (`lower()`, which differs from Python's casefold for some letters), is
+    left out instead of failing the statement."""
     if not aliases:
         return []
+    rows = [
+        {
+            "workspace_id": workspace_id,
+            "entity_id": entity_id,
+            "alias": alias.alias,
+            "match_mode": alias.match_mode,
+            "case_sensitive": alias.case_sensitive,
+            "language_code": alias.language_code,
+            "is_negative": alias.is_negative,
+            "requires_context": alias.requires_context,
+            "created_by": created_by,
+        }
+        for alias in aliases
+    ]
     statement = (
-        insert(entity_aliases)
-        .values(
-            [
-                {
-                    "workspace_id": workspace_id,
-                    "entity_id": entity_id,
-                    "alias": alias.alias,
-                    "match_mode": alias.match_mode,
-                    "case_sensitive": alias.case_sensitive,
-                    "language_code": alias.language_code,
-                    "is_negative": alias.is_negative,
-                    "requires_context": alias.requires_context,
-                    "created_by": created_by,
-                }
-                for alias in aliases
-            ]
-        )
-        .returning(entity_aliases.c.id)
-    )
+        upsert(entity_aliases).values(rows).on_conflict_do_nothing()
+        if skip_taken
+        else insert(entity_aliases).values(rows)
+    ).returning(entity_aliases.c.id)
     try:
         return list((await db.execute(statement)).scalars())
     except IntegrityError as error:

@@ -10,10 +10,8 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Row, Select, and_, case, func, insert, select, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.db.errors import violated_unique_constraint
 from sightline.db.tables import (
     domains,
     entities,
@@ -22,17 +20,7 @@ from sightline.db.tables import (
     project_entities,
 )
 
-_PRIMARY_TAKEN = "project_one_primary_own"
-_ROLE_TAKEN = "project_entities_pkey"
 _ROLE_ORDER = case({"own": 0, "competitor": 1}, value=project_entities.c.role, else_=2)
-
-
-class PrimaryOwnTakenError(Exception):
-    """Another live own entity of the project is primary. The transaction is spent."""
-
-
-class RoleTakenError(Exception):
-    """The project has a row for this entity already. The transaction is spent."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,12 +124,9 @@ async def get_role(
     return None if row is None else _role(row)
 
 
-def _raise_if_taken(error: IntegrityError) -> None:
-    name = violated_unique_constraint(error)
-    if name == _PRIMARY_TAKEN:
-        raise PrimaryOwnTakenError from None
-    if name == _ROLE_TAKEN:
-        raise RoleTakenError from None
+# The callers hold the project lock and check first, so the primary index
+# (`project_one_primary_own`) and the key never refuse a role write: if one did, the rules were
+# broken and the error is left to surface as one.
 
 
 async def insert_role(
@@ -152,14 +137,11 @@ async def insert_role(
     entity_id: UUID,
     values: Mapping[str, object],
 ) -> None:
-    statement = insert(project_entities).values(
-        workspace_id=workspace_id, project_id=project_id, entity_id=entity_id, **values
+    await db.execute(
+        insert(project_entities).values(
+            workspace_id=workspace_id, project_id=project_id, entity_id=entity_id, **values
+        )
     )
-    try:
-        await db.execute(statement)
-    except IntegrityError as error:
-        _raise_if_taken(error)
-        raise
 
 
 async def update_role(
@@ -170,7 +152,7 @@ async def update_role(
     entity_id: UUID,
     values: Mapping[str, object],
 ) -> None:
-    statement = (
+    await db.execute(
         update(project_entities)
         .where(
             project_entities.c.workspace_id == workspace_id,
@@ -179,11 +161,6 @@ async def update_role(
         )
         .values(**values)
     )
-    try:
-        await db.execute(statement)
-    except IntegrityError as error:
-        _raise_if_taken(error)
-        raise
 
 
 async def count_seo_competitors(

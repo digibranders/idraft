@@ -18,6 +18,7 @@ from sightline.api.auth.sessions import SessionStore
 from sightline.api.auth.throttle import LoginThrottle
 from sightline.api.auth.tokens import derive_key
 from sightline.api.auth.totp import TotpCipher
+from sightline.api.body_limit import BodyLimitMiddleware
 from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.document import router as document_router
 from sightline.api.entities.project_routes import router as project_entities_router
@@ -148,6 +149,7 @@ def create_app(
     )
     # Added last runs first: the request id is bound before the access log line is written, and
     # a request refused for its origin still gets both.
+    app.add_middleware(BodyLimitMiddleware, app_origin=settings.app_origin)
     app.add_middleware(OriginCheckMiddleware, app_origin=settings.app_origin)
     app.add_middleware(AccessLogMiddleware, quiet_paths=HEALTH_PATHS)
     app.add_middleware(RequestIdMiddleware)

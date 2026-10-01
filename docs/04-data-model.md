@@ -468,7 +468,7 @@ CREATE TABLE core.project_entities (
     entity_id      uuid NOT NULL,
     workspace_id   uuid NOT NULL,
     role           text NOT NULL CHECK (role IN ('own','competitor','watch')),
-    is_primary     boolean NOT NULL DEFAULT false,  -- exactly one 'own' entity per project is primary
+    is_primary     boolean NOT NULL DEFAULT false,  -- at most one live 'own' entity per project; once one is, another takes over, it is never cleared
     track_seo      boolean NOT NULL DEFAULT true,
     track_ai       boolean NOT NULL DEFAULT true,
     color_index    smallint CHECK (color_index BETWEEN 1 AND 6),  -- series colour --chart-1 to --chart-6, so it follows the theme; NULL lets the UI choose

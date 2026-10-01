@@ -17,6 +17,7 @@ from pydantic import (
     BaseModel,
     Field,
     StringConstraints,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -222,18 +223,19 @@ class DomainInput(Body):
                 "path_prefix_mismatch",
                 "Give `path_prefix` exactly when `match_scope` is `path_prefix`.",
             )
-        host = normalize_host(self.domain)
-        # `co.uk` or `github.io` as a registrable domain would claim every site under it.
-        if (
-            self.match_scope == "registrable"
-            and not host.is_ip
-            and host.registrable_domain == host.public_suffix
-        ):
-            raise PydanticCustomError(
-                "domain_is_public_suffix",
-                "A public suffix is shared by many sites; name a host under it.",
-            )
+        if self.match_scope == "registrable":
+            refuse_public_suffix(self.domain)
         return self
+
+
+def refuse_public_suffix(domain: str) -> None:
+    """`co.uk` or `github.io` as a registrable domain would claim every site under it."""
+    host = normalize_host(domain)
+    if not host.is_ip and host.registrable_domain == host.public_suffix:
+        raise PydanticCustomError(
+            "domain_is_public_suffix",
+            "A public suffix is shared by many sites; name a host under it.",
+        )
 
 
 class EntityDomain(BaseModel):
@@ -353,19 +355,28 @@ class EntityPage(BaseModel):
 # Project roles.
 
 
+PRIMARY_NEEDS_OWN = "Only an `own` entity is primary."
+
+
 class ProjectEntityCreate(Body):
     entity_id: UUID
     role: ProjectRole
-    is_primary: bool = Field(default=False, description="Only for `own`; one per project.")
+    is_primary: bool = Field(
+        default=False,
+        description="Only for `own`; one per project, so the current primary one stops being "
+        "primary.",
+    )
     track_seo: bool = True
     track_ai: bool = True
     color_index: ColorIndex | None = None
 
-    @model_validator(mode="after")
-    def _primary_is_own(self) -> ProjectEntityCreate:
-        if self.is_primary and self.role != "own":
-            raise PydanticCustomError("primary_needs_own", "Only an `own` entity is primary.")
-        return self
+    @field_validator("is_primary")
+    @classmethod
+    def _primary_is_own(cls, is_primary: bool, info: ValidationInfo) -> bool:
+        # `role` is validated first; when it failed, its own error is the one to report.
+        if is_primary and info.data.get("role", "own") != "own":
+            raise PydanticCustomError("primary_needs_own", PRIMARY_NEEDS_OWN)
+        return is_primary
 
 
 class ProjectEntityUpdate(Patch):
@@ -423,13 +434,28 @@ class ProjectDomainList(BaseModel):
 # The own entity a new project can be created with.
 
 
+def _registrable_rule(domain: str) -> str:
+    refuse_public_suffix(domain)
+    return domain
+
+
+def _word_alias(alias: str) -> str:
+    return alias_shape(alias, "word_boundary", case_sensitive=False)
+
+
+# Each item is checked like the alias and domain bodies it becomes, so an error names its index.
+OwnDomain = Annotated[DomainText, AfterValidator(_registrable_rule)]
+OwnAlias = Annotated[AliasText, AfterValidator(_word_alias)]
+
+
 class OwnEntityInput(Body):
     canonical_name: EntityName
-    domains: Annotated[list[DomainText], Field(max_length=OWN_ENTITY_DOMAINS_MAX)] = Field(
+    domains: Annotated[list[OwnDomain], Field(max_length=OWN_ENTITY_DOMAINS_MAX)] = Field(
         default_factory=list, description="Hosts or URLs, each matched by registrable domain."
     )
-    aliases: Annotated[list[AliasText], Field(max_length=OWN_ENTITY_ALIASES_MAX)] = Field(
-        default_factory=list, description="Word aliases that ignore case."
+    aliases: Annotated[list[OwnAlias], Field(max_length=OWN_ENTITY_ALIASES_MAX)] = Field(
+        default_factory=list,
+        description="Word aliases that ignore case, trimmed; repeats in any case are one alias.",
     )
 
 
@@ -454,10 +480,16 @@ class AliasTestRequest(Body):
 class AliasTestSpan(BaseModel):
     start: int = Field(description="Offset into the text sent, in UTF-16 code units.")
     end: int
-    alias_id: UUID | None = Field(description="None for a domain-shaped alias.")
+    alias_id: UUID | None = Field(
+        description="The stored alias that matched; None for the canonical name (`alias_name`) "
+        "and a domain-shaped alias (`alias_domain`)."
+    )
     match_method: MatchMethod
     score: float
     status: MentionStatus = Field(description="This span's own status; see doc 13 stage 5.")
+    via_entity_id: UUID | None = Field(
+        description="For `via_product`: the product whose mention counts for this entity."
+    )
 
 
 class AliasTestMention(BaseModel):

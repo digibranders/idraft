@@ -211,6 +211,7 @@ async def alias_test(
                         match_method=span.match_method,
                         score=span.score,
                         status=span.status,
+                        via_entity_id=span.via_entity_id,
                     )
                     for span in mention.spans
                 ],

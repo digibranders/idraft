@@ -24,7 +24,6 @@ from sightline.api.entities import project_repository as roles
 from sightline.api.entities import repository as entities
 from sightline.api.entities.project_repository import (
     MatcherEntity,
-    PrimaryOwnTakenError,
     ProjectDomainRow,
     RoleRow,
 )
@@ -35,12 +34,12 @@ from sightline.api.problems import (
     DuplicateError,
     NotFoundError,
     PayloadTooLargeError,
-    PrimaryOwnExistsError,
     TooManyMatchesError,
     invalid_field,
 )
 from sightline.api.projects import repository as projects
 from sightline.api.request_info import RequestInfo
+from sightline.api.schemas.entities import PRIMARY_NEEDS_OWN
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.db.engine import workspace_transaction
 from sightline.extraction.aliases import (
@@ -56,6 +55,10 @@ from sightline.extraction.aliases import TooManyMatchesError as TooManyHitsError
 COMPETITOR_LIMIT: Final = 10
 ALIAS_TEST_MAX_BYTES: Final = 100 * 1024
 _ROLE_FIELDS: Final = ("role", "is_primary", "track_seo", "track_ai", "color_index")
+_PRIMARY_STAYS: Final = (
+    "The primary own entity stays own and primary. Make another own entity primary: it takes "
+    "over, and this one can then change or go."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +80,15 @@ def _seo_competitor(values: Mapping[str, object]) -> bool:
 
 def _snapshot(values: Mapping[str, object]) -> dict[str, str | int | bool | None]:
     return {field: cast(str | int | bool | None, values[field]) for field in _ROLE_FIELDS}
+
+
+def _row_snapshot(project_id: UUID, row: RoleRow) -> dict[str, str | int | bool | None]:
+    """A role as it was, removed or not, for the audit entry of the change that ends it."""
+    return {
+        "project_id": str(project_id),
+        **_snapshot({field: getattr(row, field) for field in _ROLE_FIELDS}),
+        "removed_at": None if row.removed_at is None else row.removed_at.isoformat(),
+    }
 
 
 class ProjectEntityService:
@@ -116,54 +128,51 @@ class ProjectEntityService:
         values: Mapping[str, object],
         info: RequestInfo,
     ) -> RoleView:
-        """Give an entity a role; an entity whose role was removed gets it back."""
-        try:
-            async with self._transaction(access) as db:
-                await self._project(db, access, project_id, lock=True)
-                found = await entities.get_entity(
-                    db, access.workspace_id, entity_id, visible=access.project_ids
-                )
-                if found is None:
-                    raise invalid_field(
-                        "entity_id", code="entity_unknown", message="No such entity."
-                    )
-                current = await roles.get_role(db, access.workspace_id, project_id, entity_id)
-                if current is not None and current.removed_at is None:
-                    raise DuplicateError("The project has given this entity a role already.")
-                await self._check_competitors(db, access, project_id, entity_id, values)
-                write = {**values, "removed_at": None}
-                if current is None:
-                    await roles.insert_role(
-                        db,
-                        workspace_id=access.workspace_id,
-                        project_id=project_id,
-                        entity_id=entity_id,
-                        values=write,
-                    )
-                else:
-                    await roles.update_role(
-                        db,
-                        workspace_id=access.workspace_id,
-                        project_id=project_id,
-                        entity_id=entity_id,
-                        values={**write, "added_at": datetime.now(UTC)},
-                    )
-                await self._changed(db, access, project_id)
-                await audit.record(
+        """Give an entity a role; an entity whose role was removed gets it back. A primary own
+        entity takes over from the project's current one."""
+        async with self._transaction(access) as db:
+            await self._project(db, access, project_id, lock=True)
+            found = await entities.get_entity(
+                db, access.workspace_id, entity_id, visible=access.project_ids
+            )
+            if found is None:
+                raise invalid_field("entity_id", code="entity_unknown", message="No such entity.")
+            current = await roles.get_role(db, access.workspace_id, project_id, entity_id)
+            if current is not None and current.removed_at is None:
+                raise DuplicateError("The project has given this entity a role already.")
+            await self._check_competitors(db, access, project_id, entity_id, values)
+            if values["is_primary"]:
+                await self._hand_over(db, access, project_id, entity_id, info)
+            write = {**values, "removed_at": None}
+            if current is None:
+                await roles.insert_role(
                     db,
                     workspace_id=access.workspace_id,
-                    actor_id=access.user_id,
-                    action="project_entity.created",
-                    target_type="project_entity",
-                    target_id=entity_id,
-                    info=info,
-                    after={"project_id": str(project_id), **_snapshot(values)},
+                    project_id=project_id,
+                    entity_id=entity_id,
+                    values=write,
                 )
-                return await self._view(db, access, project_id, entity_id)
-        except PrimaryOwnTakenError:
-            raise PrimaryOwnExistsError(
-                "The project has a primary own entity. Make that one not primary first."
-            ) from None
+            else:
+                await roles.update_role(
+                    db,
+                    workspace_id=access.workspace_id,
+                    project_id=project_id,
+                    entity_id=entity_id,
+                    values={**write, "added_at": datetime.now(UTC)},
+                )
+            await self._changed(db, access, project_id)
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="project_entity.created",
+                target_type="project_entity",
+                target_id=entity_id,
+                info=info,
+                before=None if current is None else _row_snapshot(project_id, current),
+                after={"project_id": str(project_id), **_snapshot(values)},
+            )
+            return await self._view(db, access, project_id, entity_id)
 
     async def update(
         self,
@@ -173,63 +182,59 @@ class ProjectEntityService:
         changes: Mapping[str, object],
         info: RequestInfo,
     ) -> RoleView:
-        """Change a live role. Nothing is written, logged or bumped when nothing differs."""
-        try:
-            async with self._transaction(access) as db:
-                await self._project(db, access, project_id, lock=True)
-                current = await self._live_role(db, access, project_id, entity_id)
-                before = {field: getattr(current, field) for field in _ROLE_FIELDS}
-                after = {**before, **changes}
-                if after["is_primary"] and after["role"] != "own":
-                    if before["is_primary"]:
-                        raise CannotRemovePrimaryOwnError(
-                            "The primary own entity stays own. Make another one primary first."
-                        )
-                    raise invalid_field(
-                        "is_primary", code="primary_needs_own", message="Only an own entity."
-                    )
-                differing = {
-                    field: after[field] for field in _ROLE_FIELDS if after[field] != before[field]
-                }
-                if differing:
-                    if _seo_competitor(after) and not _seo_competitor(before):
-                        await self._check_competitors(db, access, project_id, entity_id, after)
-                    await roles.update_role(
-                        db,
-                        workspace_id=access.workspace_id,
-                        project_id=project_id,
-                        entity_id=entity_id,
-                        values=differing,
-                    )
-                    await self._changed(db, access, project_id)
-                    await audit.record(
-                        db,
-                        workspace_id=access.workspace_id,
-                        actor_id=access.user_id,
-                        action="project_entity.updated",
-                        target_type="project_entity",
-                        target_id=entity_id,
-                        info=info,
-                        before={
-                            "project_id": str(project_id),
-                            **{
-                                field: cast(str | int | bool | None, before[field])
-                                for field in differing
-                            },
+        """Change a live role. Nothing is written, logged or bumped when nothing differs. The
+        primary own entity stays primary and own until another own entity takes over."""
+        async with self._transaction(access) as db:
+            await self._project(db, access, project_id, lock=True)
+            current = await self._live_role(db, access, project_id, entity_id)
+            before = {field: getattr(current, field) for field in _ROLE_FIELDS}
+            after = {**before, **changes}
+            if before["is_primary"] and (not after["is_primary"] or after["role"] != "own"):
+                raise CannotRemovePrimaryOwnError(_PRIMARY_STAYS)
+            if after["is_primary"] and after["role"] != "own":
+                raise invalid_field(
+                    "is_primary", code="primary_needs_own", message=PRIMARY_NEEDS_OWN
+                )
+            differing = {
+                field: after[field] for field in _ROLE_FIELDS if after[field] != before[field]
+            }
+            if differing:
+                if _seo_competitor(after) and not _seo_competitor(before):
+                    await self._check_competitors(db, access, project_id, entity_id, after)
+                if after["is_primary"] and not before["is_primary"]:
+                    await self._hand_over(db, access, project_id, entity_id, info)
+                await roles.update_role(
+                    db,
+                    workspace_id=access.workspace_id,
+                    project_id=project_id,
+                    entity_id=entity_id,
+                    values=differing,
+                )
+                await self._changed(db, access, project_id)
+                await audit.record(
+                    db,
+                    workspace_id=access.workspace_id,
+                    actor_id=access.user_id,
+                    action="project_entity.updated",
+                    target_type="project_entity",
+                    target_id=entity_id,
+                    info=info,
+                    before={
+                        "project_id": str(project_id),
+                        **{
+                            field: cast(str | int | bool | None, before[field])
+                            for field in differing
                         },
-                        after={
-                            "project_id": str(project_id),
-                            **{
-                                field: cast(str | int | bool | None, value)
-                                for field, value in differing.items()
-                            },
+                    },
+                    after={
+                        "project_id": str(project_id),
+                        **{
+                            field: cast(str | int | bool | None, value)
+                            for field, value in differing.items()
                         },
-                    )
-                return await self._view(db, access, project_id, entity_id)
-        except PrimaryOwnTakenError:
-            raise PrimaryOwnExistsError(
-                "The project has a primary own entity. Make that one not primary first."
-            ) from None
+                    },
+                )
+            return await self._view(db, access, project_id, entity_id)
 
     async def remove(
         self, access: WorkspaceAccess, project_id: UUID, entity_id: UUID, info: RequestInfo
@@ -239,9 +244,7 @@ class ProjectEntityService:
             await self._project(db, access, project_id, lock=True)
             current = await self._live_role(db, access, project_id, entity_id)
             if current.is_primary:
-                raise CannotRemovePrimaryOwnError(
-                    "The primary own entity stays. Make another one primary first."
-                )
+                raise CannotRemovePrimaryOwnError(_PRIMARY_STAYS)
             await roles.update_role(
                 db,
                 workspace_id=access.workspace_id,
@@ -258,7 +261,7 @@ class ProjectEntityService:
                 target_type="project_entity",
                 target_id=entity_id,
                 info=info,
-                before={"project_id": str(project_id), "role": current.role},
+                before=_row_snapshot(project_id, current),
             )
             return await self._view(db, access, project_id, entity_id)
 
@@ -273,45 +276,48 @@ class ProjectEntityService:
         self, access: WorkspaceAccess, project_id: UUID, text: str
     ) -> AliasTestOutcome:
         """What extraction would count in `text` with the project's current entities."""
-        size = len(text.encode("utf-8", "surrogatepass"))
-        if size > ALIAS_TEST_MAX_BYTES:
-            raise PayloadTooLargeError(
-                "The alias test takes up to 100 KB of text.", limit_bytes=ALIAS_TEST_MAX_BYTES
-            )
         async with self._transaction(access) as db:
             await self._project(db, access, project_id)
+            if len(text.encode("utf-8", "surrogatepass")) > ALIAS_TEST_MAX_BYTES:
+                raise PayloadTooLargeError(
+                    "The alias test takes up to 100 KB of text.",
+                    limit_bytes=ALIAS_TEST_MAX_BYTES,
+                )
             named = await roles.matcher_entities(db, access.workspace_id, project_id)
             ids = [entity.id for entity in named]
             hosts = await roles.matcher_hosts(db, access.workspace_id, ids)
             stored = await entities.aliases_of(db, access.workspace_id, ids)
-        matcher = AliasMatcher(
-            [
-                EntityRule(
-                    id=entity.id,
-                    canonical_name=entity.canonical_name,
-                    parent_entity_id=entity.parent_entity_id,
-                    is_ambiguous=entity.is_ambiguous,
-                    hints=entity.hints,
-                    domains=tuple(hosts[entity.id]),
-                )
-                for entity in named
-            ],
-            [
-                AliasRule(
-                    id=alias.id,
-                    entity_id=alias.entity_id,
-                    alias=alias.alias,
-                    match_mode=cast(MatchMode, alias.match_mode),
-                    case_sensitive=alias.case_sensitive,
-                    is_negative=alias.is_negative,
-                    requires_context=alias.requires_context,
-                )
-                for alias in stored
-            ],
-        )
+        rules = [
+            EntityRule(
+                id=entity.id,
+                canonical_name=entity.canonical_name,
+                parent_entity_id=entity.parent_entity_id,
+                is_ambiguous=entity.is_ambiguous,
+                hints=entity.hints,
+                domains=tuple(hosts[entity.id]),
+            )
+            for entity in named
+        ]
+        aliases = [
+            AliasRule(
+                id=alias.id,
+                entity_id=alias.entity_id,
+                alias=alias.alias,
+                match_mode=cast(MatchMode, alias.match_mode),
+                case_sensitive=alias.case_sensitive,
+                is_negative=alias.is_negative,
+                requires_context=alias.requires_context,
+            )
+            for alias in stored
+        ]
+
+        def run() -> tuple[MatchResult, tuple[UUID, ...]]:
+            matcher = AliasMatcher(rules, aliases)
+            return matcher.match(text), matcher.skipped_alias_ids
+
         try:
-            # Up to 100 KB of matching is CPU work: off the event loop.
-            result = await asyncio.to_thread(matcher.match, text)
+            # Compiling the patterns and matching up to 100 KB is CPU work: off the event loop.
+            result, skipped = await asyncio.to_thread(run)
         except TooManyHitsError:
             raise TooManyMatchesError(
                 "The aliases match this text too many times. Narrow a substring alias."
@@ -319,7 +325,7 @@ class ProjectEntityService:
         return AliasTestOutcome(
             result=to_utf16(result, text),
             entities={entity.id: entity for entity in named},
-            skipped_alias_ids=matcher.skipped_alias_ids,
+            skipped_alias_ids=skipped,
         )
 
     # Shared steps.
@@ -332,6 +338,41 @@ class ProjectEntityService:
         found = await projects.get_project(db, access.workspace_id, project_id, for_update=lock)
         if found is None:
             raise NotFoundError
+
+    @staticmethod
+    async def _hand_over(
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        entity_id: UUID,
+        info: RequestInfo,
+    ) -> None:
+        """The project's primary own entity, when it is another one, stops being primary, so
+        `entity_id` can take over. The caller holds the project lock."""
+        live_own = await roles.list_roles(
+            db, access.workspace_id, project_id, role="own", include_removed=False
+        )
+        for row in live_own:
+            if not row.is_primary or row.entity_id == entity_id:
+                continue
+            await roles.update_role(
+                db,
+                workspace_id=access.workspace_id,
+                project_id=project_id,
+                entity_id=row.entity_id,
+                values={"is_primary": False},
+            )
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="project_entity.updated",
+                target_type="project_entity",
+                target_id=row.entity_id,
+                info=info,
+                before={"project_id": str(project_id), "is_primary": True},
+                after={"project_id": str(project_id), "is_primary": False},
+            )
 
     @staticmethod
     async def _live_role(

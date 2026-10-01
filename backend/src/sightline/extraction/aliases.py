@@ -103,7 +103,8 @@ class TooManyMatchesError(ValueError):
 class EntityRule:
     id: uuid.UUID
     # Matched by itself, as a word alias that ignores case (`alias_name`), so an entity with no
-    # aliases is still found by its name.
+    # aliases is still found by its name. A stored alias of the same text, in any mode, takes
+    # its place: that is how a name is made case-sensitive, context-bound or negative.
     canonical_name: str
     parent_entity_id: uuid.UUID | None = None
     is_ambiguous: bool = False
@@ -128,7 +129,7 @@ class AliasRule:
 class Span:
     start: int
     end: int
-    alias_id: uuid.UUID | None  # None for a domain-shaped alias
+    alias_id: uuid.UUID | None  # None for the canonical name and a domain-shaped alias
     match_method: MatchMethod
     score: float
     status: MentionStatus
@@ -161,7 +162,7 @@ class _Pattern:
     """What one automaton key (or one regex) stands for."""
 
     entity_id: uuid.UUID
-    alias: AliasRule | None  # None for a domain-shaped alias
+    alias: AliasRule | None  # None for the canonical name and a domain-shaped alias
     method: MatchMethod
     boundary: Literal["word", "domain", "none"]
     length: int = 0  # of the automaton key; the automaton reports only where a key ends
@@ -197,6 +198,9 @@ class AliasMatcher:
         cased: defaultdict[str, list[_Pattern]] = defaultdict(list)
         self._regexes: list[tuple[re2._Regexp, _Pattern]] = []
         skipped: list[uuid.UUID] = []
+        # Entities with a stored alias of their name's text, in any mode: that alias's case,
+        # context and negative rules stand for the name, which is then not matched by itself.
+        restated: set[tuple[uuid.UUID, str]] = set()
         for alias in aliases:
             if alias.entity_id not in self._entities:
                 raise ValueError(f"alias {alias.id} names an entity that is not given")
@@ -210,6 +214,7 @@ class AliasMatcher:
                 pattern = _Pattern(alias.entity_id, alias, method, boundary="none")
                 self._regexes.append((compiled, pattern))
                 continue
+            restated.add((alias.entity_id, normalize(alias.alias, fold_case=True).text.strip()))
             sensitive = alias.case_sensitive or alias.match_mode == "exact_case"
             key = normalize(alias.alias, fold_case=not sensitive).text.strip()
             if key:
@@ -219,7 +224,8 @@ class AliasMatcher:
                 pattern = _Pattern(alias.entity_id, alias, method, boundary, len(key))
                 (cased if sensitive else folded)[key].append(pattern)
         for entity in self._entities.values():
-            if name := normalize(entity.canonical_name, fold_case=True).text.strip():
+            name = normalize(entity.canonical_name, fold_case=True).text.strip()
+            if name and (entity.id, name) not in restated:
                 folded[name].append(_Pattern(entity.id, None, "alias_name", "word", len(name)))
             for key in _domain_keys(entity.domains):
                 pattern = _Pattern(entity.id, None, "alias_domain", "domain", len(key))

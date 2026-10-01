@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -127,6 +128,71 @@ async def test_a_project_is_created_with_its_own_brand(
     ]
 
 
+@pytest.mark.parametrize(
+    ("own_entity", "path", "code"),
+    [
+        ({"aliases": ["Fynix", "   "]}, "own_entity.aliases.1", "string_too_short"),
+        ({"domains": ["fynix.io", "co.uk"]}, "own_entity.domains.1", "domain_is_public_suffix"),
+        ({"domains": ["https://github.io/x"]}, "own_entity.domains.0", "domain_is_public_suffix"),
+        ({"domains": ["not a host"]}, "own_entity.domains.0", "invalid_domain"),
+    ],
+)
+async def test_an_own_brand_alias_or_domain_that_cannot_be_stored_is_refused(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    own_entity: dict[str, Any],
+    path: str,
+    code: str,
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+
+    response = await _create(
+        api, workspace, owner, own_entity={"canonical_name": "Fynix", **own_entity}
+    )
+
+    assert response.status_code == 422
+    error = response.json()["errors"][0]
+    assert (error["path"], error["code"]) == (path, code)
+    listed = await api.get(_projects(workspace), headers=owner.headers)
+    assert listed.json()["data"] == []
+
+
+async def test_own_brand_aliases_are_trimmed_and_kept_once_by_the_databases_rule(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    dotted_capital_i = "\N{LATIN CAPITAL LETTER I WITH DOT ABOVE}"
+
+    response = await _create(
+        api,
+        workspace,
+        owner,
+        own_entity={
+            "canonical_name": "Fynix",
+            # Python's casefold keeps the dot of the capital, PostgreSQL's lower() drops it.
+            "aliases": [" Fynix Digital ", f"{dotted_capital_i}zmir", "izmir"],
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    rows = await fetch(
+        migrated,
+        "SELECT a.alias FROM core.entity_aliases a JOIN core.entities e ON e.id = a.entity_id "
+        "WHERE e.workspace_id = $1 ORDER BY a.id",
+        workspace.id,
+    )
+    assert [row["alias"] for row in rows] == ["Fynix Digital", f"{dotted_capital_i}zmir"]
+    created = await fetch(
+        migrated,
+        "SELECT after FROM ops.audit_logs WHERE workspace_id = $1 AND action = 'entity.created'",
+        workspace.id,
+    )
+    assert json.loads(created[0]["after"])["aliases"] == [row["alias"] for row in rows]
+
+
 async def test_an_own_brand_the_workspace_has_is_refused_and_nothing_is_made(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -181,7 +247,7 @@ async def test_the_primary_domain_and_location_are_changed_and_cleared(
     )
     actions = await fetch(
         migrated,
-        "SELECT action FROM ops.audit_logs WHERE workspace_id = $1 ORDER BY id",
+        "SELECT action, before, after FROM ops.audit_logs WHERE workspace_id = $1 ORDER BY id",
         workspace.id,
     )
     assert [row["action"] for row in actions] == [
@@ -189,6 +255,19 @@ async def test_the_primary_domain_and_location_are_changed_and_cleared(
         "project.updated",
         "project.updated",
     ]
+    # Hosts, not domain row ids.
+    assert json.loads(actions[1]["before"]) == {
+        "primary_domain": "old.example",
+        "default_location_id": None,
+    }
+    assert json.loads(actions[1]["after"]) == {
+        "primary_domain": "new.example",
+        "default_location_id": ACTIVE,
+    }
+    assert json.loads(actions[2]["after"]) == {
+        "primary_domain": None,
+        "default_location_id": None,
+    }
 
 
 async def test_a_member_limited_to_some_projects_still_cannot_create_one(

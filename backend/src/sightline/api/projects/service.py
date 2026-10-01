@@ -83,7 +83,9 @@ async def _create_own_entity(
         entity_id=entity_id,
         aliases=aliases,
         created_by=access.user_id,
+        skip_taken=True,
     )
+    stored = await entities.aliases_of(db, access.workspace_id, [entity_id])
     hosts = []
     for domain in own.domains:
         host = stored_host(DomainInput(domain=domain))
@@ -116,7 +118,7 @@ async def _create_own_entity(
         after={
             "entity_type": "brand",
             "canonical_name": own.canonical_name,
-            "aliases": [alias.alias for alias in aliases],
+            "aliases": [alias.alias for alias in stored],
             "domains": hosts,
         },
     )
@@ -263,13 +265,14 @@ class ProjectService:
                 if current is None:
                     raise NotFoundError
                 columns = dict(changes)
+                new_host: str | None = None
                 if "primary_domain" in columns:
                     # The host a person typed becomes the row of its domain.
                     given = columns.pop("primary_domain")
+                    host = None if given is None else normalize_host(str(given))
+                    new_host = None if host is None else host.name
                     columns["primary_domain_id"] = (
-                        None
-                        if given is None
-                        else await entities.domain_id_for(db, normalize_host(str(given)))
+                        None if host is None else await entities.domain_id_for(db, host)
                     )
                 differing = {
                     field: value
@@ -294,6 +297,13 @@ class ProjectService:
                     changes=differing,
                     now=datetime.now(UTC),
                 )
+                before = {field: getattr(current, field) for field in differing}
+                after = dict(differing)
+                if "primary_domain_id" in differing:
+                    # Hosts, as the creation entry has them: a domain row id says nothing.
+                    del before["primary_domain_id"], after["primary_domain_id"]
+                    before["primary_domain"] = current.primary_host
+                    after["primary_domain"] = new_host
                 await audit.record(
                     db,
                     workspace_id=access.workspace_id,
@@ -302,8 +312,8 @@ class ProjectService:
                     target_type="project",
                     target_id=project_id,
                     info=info,
-                    before={field: getattr(current, field) for field in differing},
-                    after=differing,
+                    before=before,
+                    after=after,
                 )
                 updated = await repository.get_project(db, access.workspace_id, project_id)
         except ProjectSlugTakenError:

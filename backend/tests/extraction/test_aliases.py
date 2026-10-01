@@ -160,7 +160,8 @@ def test_case_sensitive_and_exact_case_compare_the_original_case() -> None:
         _alias(ACME, "Notion", case_sensitive=True),
         _alias(ACME, "Notion", "exact_case"),
     ):
-        result = _match(text, [_entity(ACME, "Notion Labs")], [alias])
+        # The alias has the name's text, so it stands for the name: the name adds no match.
+        result = _match(text, [_entity(ACME, "Notion")], [alias])
         assert _texts(result, text, ACME) == ["Notion"]
 
 
@@ -555,6 +556,27 @@ def test_a_stored_alias_with_the_names_text_takes_its_place() -> None:
     mention = _mention(_match("HubSpot", [_entity(HUBSPOT, "HubSpot")], [alias]), HUBSPOT)
     assert mention is not None
     assert [(s.match_method, s.alias_id) for s in mention.spans] == [("alias_word", alias.id)]
+
+
+def test_an_alias_of_the_names_text_brings_its_own_rules_to_the_name() -> None:
+    """Whatever the alias's mode, the name is not matched by itself as well: a context-bound,
+    case-sensitive or negative alias would otherwise lose to the plain name."""
+    target = [_entity(ACME, "Target")]
+    needs_context = _alias(ACME, "TARGET", requires_context=True)
+    assert _confidence(_match("We hit our target", target, [needs_context]), ACME) == 0.05
+    notion = [_entity(ACME, "Notion")]
+    for alias in (
+        _alias(ACME, "Notion", case_sensitive=True),
+        _alias(ACME, "Notion", "exact_case"),
+    ):
+        assert _match("I had a notion", notion, [alias]).mentions == ()
+    never = _alias(ACME, "target", negative=True)
+    assert _match("Target", target, [never]).mentions == ()
+    # Another alias of the entity leaves the name matched by itself.
+    other = _alias(ACME, "Target Corp")
+    mention = _mention(_match("target", target, [other]), ACME)
+    assert mention is not None
+    assert [s.match_method for s in mention.spans] == ["alias_name"]
 
 
 def test_an_ambiguous_name_matched_by_itself_still_needs_context() -> None:
