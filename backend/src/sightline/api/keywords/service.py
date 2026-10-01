@@ -40,11 +40,13 @@ from sightline.api.problems import (
     NotFoundError,
     QuotaExceededError,
     TooManySubjectsError,
+    invalid_field,
     invalid_fields,
 )
 from sightline.api.request_info import RequestInfo
 from sightline.api.schemas.keywords import (
     CompetitorOverrides,
+    TermAssignment,
     TrackedKeywordBulkArchive,
     TrackedKeywordBulkCreate,
     TrackedKeywordBulkUpdate,
@@ -171,6 +173,13 @@ class BulkUpdateOutcome:
     matched: int
     updated: int
     versions: int
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentOutcome:
+    matched: int
+    added: int
+    removed: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -794,12 +803,18 @@ class KeywordService:
             changed |= versioned
             changed |= await repository.remove_members(db, workspace_id, ids, body.remove_group_ids)
             changed |= await repository.add_members_to(db, workspace_id, ids, body.add_group_ids)
-            changed |= await repository.remove_terms(db, workspace_id, ids, body.remove_term_ids)
-            changed |= await repository.drop_other_single_valued(
-                db, workspace_id, ids, body.add_term_ids
+            changed.update(
+                await repository.remove_terms(db, workspace_id, ids, body.remove_term_ids)
             )
-            changed |= await repository.add_terms_to(
-                db, workspace_id, ids, body.add_term_ids, assigned_by="manual"
+            changed.update(
+                await repository.drop_other_terms(
+                    db, workspace_id, ids, body.add_term_ids, single_valued_only=True
+                )
+            )
+            changed.update(
+                await repository.add_terms_to(
+                    db, workspace_id, ids, body.add_term_ids, assigned_by="manual"
+                )
             )
             change: dict[str, str | int | bool | list[str] | None] = {
                 field: _audit_value(value) for field, value in given.items()
@@ -838,6 +853,64 @@ class KeywordService:
             )
             await self._audit_bulk(db, access, changed, {"is_active": not body.archive}, info)
         return len(ids), len(changed)
+
+    async def assign_terms(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        body: TermAssignment,
+        info: RequestInfo,
+    ) -> AssignmentOutcome:
+        """`add` gives the terms (a term of a single-valued vocabulary replaces the keyword's
+        other one of it), `remove` takes them, and `replace` makes them the keyword's only
+        terms within their vocabularies."""
+        if body.subject_type != "tracked_keyword":
+            raise invalid_field(
+                "subject_type",
+                code="subject_type_not_supported",
+                message="Terms are assigned to tracked keywords; prompts arrive later.",
+            )
+        async with self._transaction(access) as db:
+            await self._defaults(db, access, project_id)
+            workspace_id = access.workspace_id
+            terms = {
+                term.term_id: term
+                for term in await repository.project_terms(
+                    db, workspace_id, project_id, body.term_ids
+                )
+            }
+            if any(term_id not in terms for term_id in body.term_ids):
+                raise invalid_field(
+                    "term_ids", code="term_unknown", message="No such term the project may use."
+                )
+            if body.op != "remove" and _two_in_a_single_valued_vocabulary(body.term_ids, terms):
+                raise invalid_field(
+                    "term_ids",
+                    code="single_valued_vocabulary",
+                    message="At most one term of a single-valued vocabulary.",
+                )
+            ids = await self._subjects(
+                db, access, project_id, body.subject_ids, body.subject_filter
+            )
+            removed: list[UUID] = []
+            added: list[UUID] = []
+            if body.op == "remove":
+                removed = await repository.remove_terms(db, workspace_id, ids, body.term_ids)
+            else:
+                removed = await repository.drop_other_terms(
+                    db, workspace_id, ids, body.term_ids, single_valued_only=body.op == "add"
+                )
+                added = await repository.add_terms_to(
+                    db, workspace_id, ids, body.term_ids, assigned_by="manual"
+                )
+            await self._audit_bulk(
+                db,
+                access,
+                {*removed, *added},
+                {"term_assignment": body.op, "term_ids": sorted(map(str, body.term_ids))},
+                info,
+            )
+        return AssignmentOutcome(matched=len(ids), added=len(added), removed=len(removed))
 
     async def _term_groups(
         self, db: AsyncSession, access: WorkspaceAccess, term_ids: Sequence[UUID]

@@ -27,6 +27,7 @@ from sightline.api.problems import (
     ForbiddenError,
     HasChildrenError,
     NotFoundError,
+    SingleValuedViolationError,
     invalid_field,
 )
 from sightline.api.projects import repository as projects
@@ -230,7 +231,8 @@ class TaxonomyService:
         info: RequestInfo,
     ) -> VocabularyRecord:
         """Change the given fields. Nothing is written or logged when nothing differs. Turning
-        `is_single_valued` on needs no check yet: term assignments arrive with keywords."""
+        `is_single_valued` on is `409 single_valued_violation` while a tracked keyword has two
+        of its terms; the vocabulary lock makes assignments wait for the check."""
         try:
             async with self._transaction(access) as db:
                 current = await self._writable(db, access, vocabulary_id)
@@ -241,6 +243,13 @@ class TaxonomyService:
                 }
                 if not differing:
                     return current
+                if differing.get("is_single_valued") is True and (
+                    await repository.a_keyword_has_two_terms(db, access.workspace_id, vocabulary_id)
+                ):
+                    raise SingleValuedViolationError(
+                        "A tracked keyword has two terms of this vocabulary. Leave it one, then "
+                        "try again."
+                    )
                 await repository.update_vocabulary(
                     db, access.workspace_id, vocabulary_id, differing
                 )
@@ -281,11 +290,15 @@ class TaxonomyService:
 
     async def terms(
         self, access: WorkspaceAccess, vocabulary_id: UUID, *, q: str | None, tree: bool
-    ) -> list[Branch]:
+    ) -> tuple[list[Branch], dict[UUID, int]]:
+        """The terms, and the keyword count of each term that has any (`keyword_counts`)."""
         async with self._transaction(access) as db:
             await self._vocabulary(db, access, vocabulary_id)
             found = await repository.terms_of(db, access.workspace_id, vocabulary_id)
-        return arrange(found, q=q, tree=tree)
+            counts = await repository.keyword_counts(
+                db, access.workspace_id, vocabulary_id, visible=access.project_ids
+            )
+        return arrange(found, q=q, tree=tree), counts
 
     async def add_terms(
         self,

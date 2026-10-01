@@ -1606,6 +1606,26 @@
         "title": "EntityUpdate",
         "type": "object"
       },
+      "GroupMembers": {
+        "additionalProperties": false,
+        "properties": {
+          "tracked_keyword_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Tracked Keyword Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tracked_keyword_ids"
+        ],
+        "title": "GroupMembers",
+        "type": "object"
+      },
       "GroupRef": {
         "properties": {
           "group_id": {
@@ -1921,6 +1941,197 @@
           "data"
         ],
         "title": "KeywordDetailResponse",
+        "type": "object"
+      },
+      "KeywordGroup": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "group_id": {
+            "format": "uuid",
+            "title": "Group Id",
+            "type": "string"
+          },
+          "keyword_count": {
+            "description": "Active tracked keywords in the group or under it, each keyword once.",
+            "title": "Keyword Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "path": {
+            "description": "Names from the root down, joined by `/`.",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group_id",
+          "parent_id",
+          "name",
+          "path",
+          "keyword_count",
+          "created_at"
+        ],
+        "title": "KeywordGroup",
+        "type": "object"
+      },
+      "KeywordGroupCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "KeywordGroupCreate",
+        "type": "object"
+      },
+      "KeywordGroupNode": {
+        "properties": {
+          "children": {
+            "description": "Empty in the flat format.",
+            "items": {
+              "$ref": "#/components/schemas/KeywordGroupNode"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "group_id": {
+            "format": "uuid",
+            "title": "Group Id",
+            "type": "string"
+          },
+          "keyword_count": {
+            "description": "Active tracked keywords in the group or under it, each keyword once.",
+            "title": "Keyword Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "path": {
+            "description": "Names from the root down, joined by `/`.",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group_id",
+          "parent_id",
+          "name",
+          "path",
+          "keyword_count",
+          "created_at",
+          "children"
+        ],
+        "title": "KeywordGroupNode",
+        "type": "object"
+      },
+      "KeywordGroupResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeywordGroup"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordGroupResponse",
+        "type": "object"
+      },
+      "KeywordGroupTree": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordGroupNode"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordGroupTree",
+        "type": "object"
+      },
+      "KeywordGroupUpdate": {
+        "additionalProperties": false,
+        "description": "At least one member. `parent_id: null` moves the group to the root.",
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          }
+        },
+        "title": "KeywordGroupUpdate",
         "type": "object"
       },
       "KeywordMetrics": {
@@ -2548,6 +2759,56 @@
           }
         },
         "title": "MemberUpdate",
+        "type": "object"
+      },
+      "MembersAdded": {
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added"
+        ],
+        "title": "MembersAdded",
+        "type": "object"
+      },
+      "MembersAddedResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MembersAdded"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "MembersAddedResponse",
+        "type": "object"
+      },
+      "MembersRemoved": {
+        "properties": {
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "title": "MembersRemoved",
+        "type": "object"
+      },
+      "MembersRemovedResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MembersRemoved"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "MembersRemovedResponse",
         "type": "object"
       },
       "MetricValue": {
@@ -4118,6 +4379,109 @@
         "title": "Term",
         "type": "object"
       },
+      "TermAssignment": {
+        "additionalProperties": false,
+        "description": "`replace` takes the subjects' terms away within the vocabularies of `term_ids`, then\nadds `term_ids`; other vocabularies are not touched. Exactly one of `subject_ids` and\n`subject_filter`.",
+        "properties": {
+          "op": {
+            "enum": [
+              "add",
+              "remove",
+              "replace"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "subject_filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackedKeywordFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subject_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 5000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Ids"
+          },
+          "subject_type": {
+            "description": "`prompt` arrives with prompts.",
+            "enum": [
+              "tracked_keyword",
+              "prompt"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          },
+          "term_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Term Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "op",
+          "subject_type",
+          "term_ids"
+        ],
+        "title": "TermAssignment",
+        "type": "object"
+      },
+      "TermAssignmentResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TermAssignmentResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TermAssignmentResponse",
+        "type": "object"
+      },
+      "TermAssignmentResult": {
+        "properties": {
+          "assignments_added": {
+            "title": "Assignments Added",
+            "type": "integer"
+          },
+          "assignments_removed": {
+            "title": "Assignments Removed",
+            "type": "integer"
+          },
+          "subjects_matched": {
+            "title": "Subjects Matched",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "subjects_matched",
+          "assignments_added",
+          "assignments_removed"
+        ],
+        "title": "TermAssignmentResult",
+        "type": "object"
+      },
       "TermBatch": {
         "additionalProperties": false,
         "properties": {
@@ -4250,6 +4614,11 @@
             ],
             "title": "Description"
           },
+          "keyword_count": {
+            "description": "Active tracked keywords with the term or one under it, in projects the caller can see; each keyword once.",
+            "title": "Keyword Count",
+            "type": "integer"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -4306,6 +4675,7 @@
           "source",
           "description",
           "created_at",
+          "keyword_count",
           "children"
         ],
         "title": "TermNode",
@@ -9852,6 +10222,475 @@
         "summary": "Change an entity's role in the project",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups": {
+      "get": {
+        "description": "In path order. `flat` lists every group with empty `children`. `keyword_count` counts the active tracked keywords in the group or under it, once each.",
+        "operationId": "list_groups_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "tree",
+              "enum": [
+                "tree",
+                "flat"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordGroupTree"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Keyword groups as a tree or flat",
+        "tags": [
+          "keywords"
+        ]
+      },
+      "post": {
+        "description": "`409 duplicate` when a sibling has the name in any case. A `parent_id` that is not a group of the project is `422 validation_failed` with `group_unknown`.",
+        "operationId": "create_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordGroupCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordGroupResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Create a group",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}": {
+      "delete": {
+        "operationId": "delete_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Group Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a group (subgroups go too; members are unlinked)",
+        "tags": [
+          "keywords"
+        ]
+      },
+      "patch": {
+        "description": "The paths of the group and its subtree follow. A parent that is the group or under it is `422 cycle_detected`; `parent_id: null` moves it to the root.",
+        "operationId": "update_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Group Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordGroupUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordGroupResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Rename or move a group",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}/members": {
+      "post": {
+        "description": "Ids that are not live tracked keywords of the project are left out; `added` counts those that were not in the group.",
+        "operationId": "add_members_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__members_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Group Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupMembers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembersAddedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add tracked keywords to a group",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}/members/remove": {
+      "post": {
+        "operationId": "remove_members_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__members_remove_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Group Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupMembers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembersRemovedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Take tracked keywords out of a group",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/term-assignments": {
+      "post": {
+        "description": "Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the keyword's other term of it; `replace` makes the given terms the keyword's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`; `subject_type: 'prompt'` is `subject_type_not_supported` until prompts exist.",
+        "operationId": "assign_terms_api_v1_workspaces__workspace_id__projects__project_id__term_assignments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermAssignment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermAssignmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add, remove or replace terms of tracked keywords",
+        "tags": [
+          "taxonomy"
         ]
       }
     },

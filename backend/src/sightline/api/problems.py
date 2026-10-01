@@ -195,6 +195,12 @@ class HasChildrenError(ProblemError):
     status, code, title = 409, "has_children", "The term has children"
 
 
+class SingleValuedViolationError(ProblemError):
+    """A vocabulary cannot become single-valued while a tracked keyword has two of its terms."""
+
+    status, code, title = 409, "single_valued_violation", "A keyword has two of its terms"
+
+
 class CannotRemovePrimaryOwnError(ProblemError):
     status, code, title = 409, "cannot_remove_primary_own", "The primary own entity stays"
 

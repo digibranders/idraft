@@ -6,6 +6,7 @@ sees the workspace-wide vocabularies and those of its projects, and changes only
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -84,11 +85,12 @@ def _term(record: TermRecord) -> Term:
     return Term.model_validate(_term_fields(record))
 
 
-def _node(branch: Branch) -> TermNode:
+def _node(branch: Branch, counts: Mapping[UUID, int]) -> TermNode:
     return TermNode.model_validate(
         {
             **_term_fields(branch.term),
-            "children": [_node(child) for child in branch.children],
+            "keyword_count": counts.get(branch.term.id, 0),
+            "children": [_node(child, counts) for child in branch.children],
         }
     )
 
@@ -181,8 +183,8 @@ async def list_terms(
         ),
     ] = None,
 ) -> TermTree:
-    branches = await taxonomy.terms(access, vocabulary_id, q=q, tree=format == "tree")
-    return TermTree(data=[_node(branch) for branch in branches])
+    branches, counts = await taxonomy.terms(access, vocabulary_id, q=q, tree=format == "tree")
+    return TermTree(data=[_node(branch, counts) for branch in branches])
 
 
 @router.post(

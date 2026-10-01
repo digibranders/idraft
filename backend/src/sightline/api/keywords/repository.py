@@ -307,13 +307,19 @@ def _project_vocabulary(project_id: UUID) -> ColumnElement[bool]:
 async def project_terms(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, term_ids: Collection[UUID]
 ) -> list[TermRecord]:
-    """The terms among these that the project may use."""
+    """The terms among these that the project may use. Their vocabularies are held (FOR
+    SHARE) until the transaction ends, so a vocabulary cannot become single-valued between the
+    check of an assignment and its write."""
+    if not term_ids:
+        return []
     rows = await db.execute(
-        _terms().where(
+        _terms()
+        .where(
             taxonomy_terms.c.workspace_id == workspace_id,
             among_ids(taxonomy_terms.c.id, term_ids),
             _project_vocabulary(project_id),
         )
+        .with_for_update(of=taxonomy_vocabularies, read=True)
     )
     return [_term(row) for row in rows]
 
@@ -773,9 +779,10 @@ async def add_members_to(
 
 async def remove_terms(
     db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], term_ids: Collection[UUID]
-) -> set[UUID]:
+) -> list[UUID]:
+    """Takes these terms from the rows among `ids`: the row's id for each term taken."""
     if not ids or not term_ids:
-        return set()
+        return []
     k = tracked_keyword_terms.c
     rows = await db.execute(
         delete(tracked_keyword_terms)
@@ -786,18 +793,24 @@ async def remove_terms(
         )
         .returning(k.tracked_keyword_id)
     )
-    return {row.tracked_keyword_id for row in rows}
+    return [row.tracked_keyword_id for row in rows]
 
 
-async def drop_other_single_valued(
-    db: AsyncSession, workspace_id: UUID, ids: Collection[UUID], term_ids: Collection[UUID]
-) -> set[UUID]:
-    """Takes away the rows' terms of the single-valued vocabularies of `term_ids` that are not
-    among them, so the given term can take their place; the ids changed."""
+async def drop_other_terms(
+    db: AsyncSession,
+    workspace_id: UUID,
+    ids: Collection[UUID],
+    term_ids: Collection[UUID],
+    *,
+    single_valued_only: bool,
+) -> list[UUID]:
+    """Takes from the rows among `ids` their terms of the vocabularies of `term_ids` that are
+    not among them (only of the single-valued ones with `single_valued_only`), so the given
+    terms can take their place: the row's id for each term taken."""
     if not ids or not term_ids:
-        return set()
+        return []
     k, terms, vocabularies = tracked_keyword_terms.c, taxonomy_terms.c, taxonomy_vocabularies.c
-    single = (
+    touched = (
         select(terms.vocabulary_id)
         .join(
             taxonomy_vocabularies,
@@ -806,12 +819,10 @@ async def drop_other_single_valued(
                 vocabularies.workspace_id == terms.workspace_id,
             ),
         )
-        .where(
-            terms.workspace_id == workspace_id,
-            among_ids(terms.id, term_ids),
-            vocabularies.is_single_valued,
-        )
+        .where(terms.workspace_id == workspace_id, among_ids(terms.id, term_ids))
     )
+    if single_valued_only:
+        touched = touched.where(vocabularies.is_single_valued)
     rows = await db.execute(
         delete(tracked_keyword_terms)
         .where(
@@ -820,13 +831,13 @@ async def drop_other_single_valued(
             ~among_ids(k.term_id, term_ids),
             k.term_id.in_(
                 select(terms.id).where(
-                    terms.workspace_id == workspace_id, terms.vocabulary_id.in_(single)
+                    terms.workspace_id == workspace_id, terms.vocabulary_id.in_(touched)
                 )
             ),
         )
         .returning(k.tracked_keyword_id)
     )
-    return {row.tracked_keyword_id for row in rows}
+    return [row.tracked_keyword_id for row in rows]
 
 
 async def add_terms_to(
@@ -836,10 +847,10 @@ async def add_terms_to(
     term_ids: Collection[UUID],
     *,
     assigned_by: str,
-) -> set[UUID]:
-    """Gives the rows among `ids` these terms; the ids changed."""
+) -> list[UUID]:
+    """Gives the rows among `ids` these terms: the row's id for each term given."""
     if not ids or not term_ids:
-        return set()
+        return []
     t, terms, k = tracked_keywords.c, taxonomy_terms.c, tracked_keyword_terms.c
     rows = await db.execute(
         upsert(tracked_keyword_terms)
@@ -858,7 +869,7 @@ async def add_terms_to(
         .on_conflict_do_nothing()
         .returning(k.tracked_keyword_id)
     )
-    return {row.tracked_keyword_id for row in rows}
+    return [row.tracked_keyword_id for row in rows]
 
 
 async def update_tracked(

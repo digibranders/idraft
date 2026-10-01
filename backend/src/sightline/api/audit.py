@@ -52,6 +52,11 @@ AuditAction = Literal[
     "tracked_keyword.updated",
     "tracked_keyword.deleted",
     "tracked_keyword.competitors_changed",
+    "keyword_group.created",
+    "keyword_group.updated",
+    "keyword_group.deleted",
+    "keyword_group.members_added",
+    "keyword_group.members_removed",
 ]
 
 

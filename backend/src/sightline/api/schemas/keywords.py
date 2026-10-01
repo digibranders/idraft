@@ -67,10 +67,20 @@ TargetUrl = Annotated[
 BusinessValue = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
 Priority = Annotated[int, Field(ge=1, le=5)]
 Links = Annotated[list[UUID], Field(max_length=LINKS_MAX)]
+
+
+def _no_slash(name: str) -> str:
+    """A group's path joins names with `/`, so a name holds none."""
+    if "/" in name:
+        raise PydanticCustomError("slash_not_allowed", "A group name cannot hold `/`.")
+    return name
+
+
 GroupName = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=GROUP_NAME_MAX),
     AfterValidator(printable),
+    AfterValidator(_no_slash),
 ]
 
 
@@ -515,7 +525,9 @@ class KeywordGroup(BaseModel):
     parent_id: UUID | None
     name: str
     path: str = Field(description="Names from the root down, joined by `/`.")
-    keyword_count: int = Field(description="Live tracked keywords in the group or under it.")
+    keyword_count: int = Field(
+        description="Active tracked keywords in the group or under it, each keyword once."
+    )
     created_at: datetime
 
 

@@ -104,6 +104,20 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-create"): {
         "items": [{"keyword": "planted", "location_id": LOCATION, "language_code": "en"}],
     },
+    ("POST", _W + "/projects/{project_id}/keyword-groups"): {"name": "Planted"},
+    ("PATCH", _W + "/projects/{project_id}/keyword-groups/{group_id}"): {"name": "Taken over"},
+    ("POST", _W + "/projects/{project_id}/keyword-groups/{group_id}/members"): {
+        "tracked_keyword_ids": ["{tracked_keyword_id}"],
+    },
+    ("POST", _W + "/projects/{project_id}/keyword-groups/{group_id}/members/remove"): {
+        "tracked_keyword_ids": ["{tracked_keyword_id}"],
+    },
+    ("POST", _W + "/projects/{project_id}/term-assignments"): {
+        "op": "remove",
+        "subject_type": "tracked_keyword",
+        "subject_ids": ["{tracked_keyword_id}"],
+        "term_ids": ["{term_id}"],
+    },
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-update"): {
         "ids": ["{tracked_keyword_id}"],
         "set": {"priority": 1},
@@ -147,6 +161,7 @@ class Tenant:
     term_id: uuid.UUID
     keyword_id: uuid.UUID
     tracked_keyword_id: uuid.UUID
+    group_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -162,6 +177,7 @@ class Tenant:
             "term_id": str(self.term_id),
             "keyword_id": str(self.keyword_id),
             "tracked_keyword_id": str(self.tracked_keyword_id),
+            "group_id": str(self.group_id),
         }
 
     def secrets(self) -> list[str]:
@@ -293,6 +309,31 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         entity["id"],
         workspace.id,
     )
+    # The same group in both, holding the keyword, which also has the term.
+    group = await fetchrow(
+        pg,
+        "INSERT INTO seo.keyword_groups (workspace_id, project_id, name, path) "
+        "VALUES ($1, $2, 'Pricing', 'Pricing') RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO seo.keyword_group_members (group_id, tracked_keyword_id, project_id, "
+        "workspace_id) VALUES ($1, $2, $3, $4)",
+        group["id"],
+        tracked["id"],
+        project_id,
+        workspace.id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO seo.tracked_keyword_terms (tracked_keyword_id, term_id, workspace_id) "
+        "VALUES ($1, $2, $3)",
+        tracked["id"],
+        term["id"],
+        workspace.id,
+    )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -311,6 +352,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         term_id=term["id"],
         keyword_id=keyword["id"],
         tracked_keyword_id=tracked["id"],
+        group_id=group["id"],
     )
 
 
@@ -379,6 +421,9 @@ _TENANT_ROWS = {
     "seo.tracked_keywords": "workspace_id",
     "seo.tracked_keyword_config_history": "workspace_id",
     "seo.tracked_keyword_competitors": "workspace_id",
+    "seo.keyword_groups": "workspace_id",
+    "seo.keyword_group_members": "workspace_id",
+    "seo.tracked_keyword_terms": "workspace_id",
     "ops.audit_logs": "workspace_id",
 }
 

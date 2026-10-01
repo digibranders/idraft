@@ -124,6 +124,32 @@ EXPECTED: dict[tuple[str, str], str] = {
     ): "taxonomy:write",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/terms/{term_id}"): "taxonomy:write",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/terms/{term_id}"): "taxonomy:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups",
+    ): "keywords:write",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}",
+    ): "keywords:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}",
+    ): "keywords:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}/members",
+    ): "keywords:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}/"
+        "members/remove",
+    ): "keywords:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/term-assignments",
+    ): "keywords:write",
     # Keywords are read across the workspace, limited to the caller's projects by the service;
     # tracked keywords live inside one project.
     ("GET", "/api/v1/workspaces/{workspace_id}/keywords"): "data:read",
@@ -227,6 +253,8 @@ PATH_PARAMETERS = {
     # Inside one project: its routes carry `{project_id}` first, and the service reads the
     # tracked keyword within that project.
     "tracked_keyword_id",
+    # Inside one project, after `{project_id}`, like a tracked keyword.
+    "group_id",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

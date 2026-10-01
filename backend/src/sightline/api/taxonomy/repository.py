@@ -17,6 +17,7 @@ from sqlalchemy import (
     ColumnElement,
     Row,
     Select,
+    and_,
     delete,
     exists,
     func,
@@ -30,7 +31,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sightline.db.errors import violated_unique_constraint
-from sightline.db.tables import projects, taxonomy_terms, taxonomy_vocabularies
+from sightline.db.tables import (
+    projects,
+    taxonomy_terms,
+    taxonomy_vocabularies,
+    tracked_keyword_terms,
+    tracked_keywords,
+)
 
 _VOCABULARY_TAKEN = "taxonomy_vocabularies_scope_kind_name"
 _SLUG_TAKEN = "taxonomy_terms_vocabulary_id_parent_id_slug_key"
@@ -398,6 +405,74 @@ async def levels_below(db: AsyncSession, workspace_id: UUID, vocabulary_id: UUID
         )
     ).scalar_one()
     return 0 if deepest is None else deepest - path.count("/")
+
+
+async def keyword_counts(
+    db: AsyncSession,
+    workspace_id: UUID,
+    vocabulary_id: UUID,
+    *,
+    visible: Collection[UUID] | None,
+) -> dict[UUID, int]:
+    """For each term with any: the active tracked keywords that have it or a term under it, in
+    projects that are not deleted and that the member may see. A keyword counts once."""
+    term = taxonomy_terms.alias("term")
+    under = taxonomy_terms.alias("under")
+    k, t, p = tracked_keyword_terms.c, tracked_keywords.c, projects.c
+    live: list[ColumnElement[bool]] = [
+        t.deleted_at.is_(None),
+        t.is_active,
+        p.deleted_at.is_(None),
+    ]
+    if visible is not None:
+        live.append(t.project_id.in_(list(visible)))
+    rows = await db.execute(
+        select(term.c.id, func.count(func.distinct(t.id)).label("keywords"))
+        .select_from(
+            term.join(
+                under,
+                and_(
+                    under.c.vocabulary_id == term.c.vocabulary_id,
+                    or_(under.c.id == term.c.id, func.starts_with(under.c.path, term.c.path + "/")),
+                ),
+            )
+            .join(
+                tracked_keyword_terms,
+                and_(k.term_id == under.c.id, k.workspace_id == under.c.workspace_id),
+            )
+            .join(
+                tracked_keywords,
+                and_(t.id == k.tracked_keyword_id, t.workspace_id == k.workspace_id),
+            )
+            .join(projects, and_(p.id == t.project_id, p.workspace_id == t.workspace_id))
+        )
+        .where(term.c.workspace_id == workspace_id, term.c.vocabulary_id == vocabulary_id, *live)
+        .group_by(term.c.id)
+    )
+    return {row.id: row.keywords for row in rows}
+
+
+async def a_keyword_has_two_terms(
+    db: AsyncSession, workspace_id: UUID, vocabulary_id: UUID
+) -> bool:
+    """Whether some tracked keyword, deleted ones included, has two terms of the vocabulary:
+    then it cannot become single-valued."""
+    k = tracked_keyword_terms.c
+    found = await db.execute(
+        select(k.tracked_keyword_id)
+        .join(
+            taxonomy_terms,
+            and_(
+                taxonomy_terms.c.id == k.term_id,
+                taxonomy_terms.c.workspace_id == k.workspace_id,
+            ),
+        )
+        .where(k.workspace_id == workspace_id, taxonomy_terms.c.vocabulary_id == vocabulary_id)
+        .group_by(k.tracked_keyword_id)
+        .having(func.count() > 1)
+        .limit(1)
+    )
+    return found.first() is not None
 
 
 async def delete_term(db: AsyncSession, workspace_id: UUID, term_id: UUID) -> None:

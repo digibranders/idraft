@@ -13,6 +13,7 @@ from sightline.api.auth.service import AuthService
 from sightline.api.auth.sessions import SessionStore
 from sightline.api.entities.project_service import ProjectEntityService
 from sightline.api.entities.service import EntityService
+from sightline.api.keywords.group_service import GroupService
 from sightline.api.keywords.service import KeywordService
 from sightline.api.projects.service import ProjectService
 from sightline.api.taxonomy.service import TaxonomyService
@@ -43,6 +44,7 @@ class Resources:
     project_entities: ProjectEntityService
     taxonomy: TaxonomyService
     keywords: KeywordService
+    keyword_groups: GroupService
 
 
 def get_resources(request: Request) -> Resources:

@@ -197,6 +197,10 @@ class Term(BaseModel):
 
 
 class TermNode(Term):
+    keyword_count: int = Field(
+        description="Active tracked keywords with the term or one under it, in projects the "
+        "caller can see; each keyword once."
+    )
     children: list[TermNode] = Field(description="Empty in the flat format.")
 
 
