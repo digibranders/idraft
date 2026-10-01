@@ -129,7 +129,13 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "lower layers never import the entrypoints"
 type = "forbidden"
-source_modules = ["sightline.collectors", "sightline.db", "sightline.storage", "sightline.config"]
+source_modules = [
+  "sightline.collectors",
+  "sightline.db",
+  "sightline.keywords",
+  "sightline.storage",
+  "sightline.config",
+]
 forbidden_modules = ["sightline.api", "sightline.worker"]
 
 [dependency-groups]
