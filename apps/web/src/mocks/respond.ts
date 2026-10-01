@@ -50,10 +50,15 @@ export function requestIdOf(request: Request): string {
   return incoming !== null && isRequestId(incoming) ? incoming : newRequestId();
 }
 
-/** The problems the mocks send, with the status and title the API gives each code (backend problems.py). */
+/**
+ * The problems the mocks send, with the status and title the API gives each code (backend problems.py). The
+ * step 4 codes the backend has not built yet carry the status of 19 section 2.7 and the catalog, and a title
+ * of the same style.
+ */
 const PROBLEMS = {
   validation_failed: [422, 'Request validation failed'],
   invalid_token: [400, 'Link is not valid'],
+  invalid_cursor: [400, 'Cursor is not valid'],
   unauthenticated: [401, 'Authentication required'],
   session_expired: [401, 'Session expired'],
   invalid_credentials: [401, 'Email or password is not correct'],
@@ -68,7 +73,15 @@ const PROBLEMS = {
   duplicate: [409, 'Already exists'],
   last_owner: [409, 'The workspace needs an owner'],
   invalid_state_transition: [409, 'Not possible in this state'],
+  entity_in_use: [409, 'Entity is in use'],
+  primary_own_exists: [409, 'The project already has a primary own entity'],
+  cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
+  has_children: [409, 'Term has children'],
+  payload_too_large: [413, 'Payload too large'],
   quota_exceeded: [422, 'Quota exceeded'],
+  competitor_limit: [422, 'Competitor limit reached'],
+  cycle_detected: [422, 'Would make a cycle'],
+  too_many_matches: [422, 'Too many matches'],
   weak_password: [422, 'Password is not strong enough'],
   rate_limited: [429, 'Too many requests'],
 } as const satisfies Record<string, readonly [number, string]>;

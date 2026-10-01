@@ -999,6 +999,11 @@ export interface components {
             mentions: components["schemas"]["AliasTestMention"][];
             /** Negatives Applied */
             negatives_applied: components["schemas"]["AliasTestNegative"][];
+            /**
+             * Skipped Alias Ids
+             * @description Stored patterns the matcher cannot run (doc 13 stage 4), left out.
+             */
+            skipped_alias_ids: string[];
         };
         /** AliasTestSpan */
         AliasTestSpan: {
@@ -1014,11 +1019,19 @@ export interface components {
              * @enum {string}
              */
             match_method: "alias_word" | "alias_exact" | "alias_substring" | "alias_regex" | "alias_domain" | "via_product";
+            /** Score */
+            score: number;
             /**
              * Start
              * @description Offset into the text sent, in UTF-16 code units.
              */
             start: number;
+            /**
+             * Status
+             * @description This span's own status; see doc 13 stage 5.
+             * @enum {string}
+             */
+            status: "accepted" | "uncertain" | "discarded";
         };
         /**
          * AliasUpdate
@@ -1447,6 +1460,17 @@ export interface components {
             data: components["schemas"]["Location"][];
             page: components["schemas"]["CursorPageInfo"];
         };
+        /** LocationRef */
+        LocationRef: {
+            /** Country Iso */
+            country_iso: string;
+            /** Location Id */
+            location_id: number;
+            /** Location Type */
+            location_type: string;
+            /** Name */
+            name: string;
+        };
         /** Me */
         Me: {
             /** Memberships */
@@ -1664,6 +1688,8 @@ export interface components {
             deep_check_weekday: number;
             /** Default Language Code */
             default_language_code: string | null;
+            /** @description The location `default_location_id` names. */
+            default_location: components["schemas"]["LocationRef"] | null;
             /** Default Location Id */
             default_location_id: number | null;
             /** Entity Config Version */
@@ -4475,6 +4501,7 @@ export const aliasMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<componen
 export const aliasInputMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasInput"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const aliasTestMentionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestMention"]["status"]> = ["accepted", "uncertain", "discarded"];
 export const aliasTestSpanMatch_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["match_method"]> = ["alias_word", "alias_exact", "alias_substring", "alias_regex", "alias_domain", "via_product"];
+export const aliasTestSpanStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["status"]> = ["accepted", "uncertain", "discarded"];
 export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];

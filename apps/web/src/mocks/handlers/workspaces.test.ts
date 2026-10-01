@@ -4,7 +4,9 @@ import { MOCK_PROJECT_LIMIT } from './projects';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
 import { SESSION_COOKIE } from '../session';
 import { MOCK_PENDING_INVITATIONS, WORKSPACE_COOKIE } from '../workspace-state';
+import type { EntityDetail, Project, ProjectEntity } from '@/lib/api/types';
 import { TEST_API_ORIGIN } from '@/test/api-server';
+import { dataOf, fieldCodes as codesOf, mockBrowser } from '@/test/mock-api';
 
 interface Answer {
   status: number;
@@ -121,6 +123,111 @@ describe('projects', () => {
     });
     const list = await call('GET', `${W}/projects`, cookieOf('editor', { saved: archived.saved }));
     expect((list.body.data as { slug: string }[]).map((project) => project.slug)).not.toContain('fynix');
+  });
+});
+
+describe('projects, with a domain, a location and an own brand', () => {
+  it('shows the fixture project with its primary domain and default location', async () => {
+    const [fynix] = MOCK_PROJECTS;
+    if (!fynix) throw new Error('no fixture project');
+    const project = dataOf<Project>(await mockBrowser('viewer').call('GET', `${W}/projects/${fynix.project_id}`));
+    expect(project).toMatchObject({
+      primary_domain: { host: 'fynix.digital', registrable_domain: 'fynix.digital' },
+      default_location_id: 2276,
+      default_location: { location_id: 2276, name: 'Germany', country_iso: 'DE', location_type: 'Country' },
+    });
+  });
+
+  it('creates a project with its own entity, attached as the primary own entity in the same request', async () => {
+    const editor = mockBrowser('editor');
+    const created = await editor.call('POST', `${W}/projects`, {
+      name: 'Acme',
+      slug: 'acme',
+      primary_domain: 'https://www.Acme.io/pricing',
+      default_location_id: 1006886,
+      own_entity: {
+        canonical_name: 'Acme',
+        domains: ['acme.io', 'https://acme.co.uk/'],
+        aliases: ['Acme', 'acme', ' Acme HQ '],
+      },
+    });
+    expect(created.status).toBe(201);
+    const project = dataOf<Project>(created);
+    expect(project).toMatchObject({
+      primary_domain: { host: 'acme.io' },
+      default_location_id: 1006886,
+      default_location: { name: 'London,England,United Kingdom', location_type: 'City' },
+      entity_config_version: 1,
+    });
+    const roles = dataOf<ProjectEntity[]>(await editor.call('GET', `${W}/projects/${project.project_id}/entities`));
+    expect(roles).toHaveLength(1);
+    expect(roles[0]).toMatchObject({
+      role: 'own',
+      is_primary: true,
+      color_index: 1,
+      alias_count: 2,
+      entity: { canonical_name: 'Acme', role: 'own' },
+    });
+    expect(roles[0]?.domains.map((domain) => [domain.domain.host, domain.match_scope])).toEqual([
+      ['acme.co.uk', 'registrable'],
+      ['acme.io', 'registrable'],
+    ]);
+    const detail = dataOf<EntityDetail>(await editor.call('GET', `${W}/entities/${roles[0]?.entity.entity_id ?? ''}`));
+    expect(
+      detail.aliases.map((alias) => [alias.alias, alias.match_mode, alias.case_sensitive, alias.language_code]),
+    ).toEqual([
+      ['Acme', 'word_boundary', false, null],
+      ['Acme HQ', 'word_boundary', false, null],
+    ]);
+  });
+
+  it('refuses a domain, a location and an own entity the API would refuse', async () => {
+    const editor = mockBrowser('editor');
+    const invalid = await editor.call('POST', `${W}/projects`, {
+      name: 'Acme',
+      slug: 'acme',
+      primary_domain: 'not a domain',
+      default_location_id: 999,
+      own_entity: { canonical_name: 'Acme', domains: ['co.uk', 'ftp://acme.io'], color: 'red' },
+    });
+    expect(codesOf(invalid).sort()).toEqual(
+      [
+        'default_location_id:location_unknown',
+        'own_entity.color:extra_forbidden',
+        'own_entity.domains.0:domain_is_public_suffix',
+        'own_entity.domains.1:invalid_domain',
+        'primary_domain:invalid_domain',
+      ].sort(),
+    );
+    const taken = await editor.call('POST', `${W}/projects`, {
+      name: 'Acme',
+      slug: 'acme',
+      own_entity: { canonical_name: 'RANKFORGE' },
+    });
+    expect(taken.code).toBe('duplicate');
+  });
+
+  it('changes and clears the primary domain and the default location', async () => {
+    const [fynix] = MOCK_PROJECTS;
+    if (!fynix) throw new Error('no fixture project');
+    const editor = mockBrowser('editor');
+    const path = `${W}/projects/${fynix.project_id}`;
+    const moved = await editor.call('PATCH', path, { primary_domain: 'Fynix.io', default_location_id: 2840 });
+    expect(dataOf<Project>(moved)).toMatchObject({
+      primary_domain: { host: 'fynix.io' },
+      default_location_id: 2840,
+      default_location: { name: 'United States' },
+    });
+    expect(dataOf<Project>(await editor.call('GET', path))).toMatchObject({ primary_domain: { host: 'fynix.io' } });
+    const cleared = await editor.call('PATCH', path, { primary_domain: null, default_location_id: null });
+    expect(dataOf<Project>(cleared)).toMatchObject({
+      primary_domain: null,
+      default_location_id: null,
+      default_location: null,
+    });
+    expect(codesOf(await editor.call('PATCH', path, { default_location_id: 'Germany' }))).toEqual([
+      'default_location_id:int_type',
+    ]);
   });
 });
 

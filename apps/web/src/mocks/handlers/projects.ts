@@ -1,13 +1,21 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
+import { visibleProjects } from './access';
+import { at, bodyError, canonicalHost, domainTextError, isRecord, queryError } from './rules';
+import { emptyChange } from './workspaces';
+import { entityWorld, readEntityChanges, workspaceOfRow } from '../entities-state';
+import { isPublicSuffix } from '../factories/domain';
+import { mockLocation } from '../factories/location';
+import { PERMISSION_HOLDERS } from '../factories/permissions';
 import { invalid, invalidField, mock, problem, unknownMembers } from '../respond';
 import { readSession, type MockSession } from '../session';
-import { emptyChange } from './workspaces';
 import {
   accessTo,
   changesCookie,
   projectList,
   readChanges,
+  type CreatedOwnEntity,
+  type CreatedProject,
   type ProjectEdit,
   type WorkspaceAccess,
   type WorkspaceChanges,
@@ -15,7 +23,6 @@ import {
 import type { components } from '@/lib/api/schema';
 import type { ValidationItem } from '@/lib/api/types';
 import { currentTimeZoneName, isKnownTimeZone } from '@/lib/format/time-zone';
-import { PERMISSION_HOLDERS } from '../factories/permissions';
 import { slugProblem } from '@/lib/slugs/slug';
 
 type Project = components['schemas']['Project'];
@@ -23,7 +30,9 @@ type Project = components['schemas']['Project'];
 /**
  * Projects (19 section 3.3). A workspace or project the caller cannot see is a 404, as in the API, so a mock
  * never confirms that another tenant's object exists. Creating and changing a project is kept in the
- * workspace cookie (../workspace-state.ts), so the server's mocks list what the browser created.
+ * workspace cookie (../workspace-state.ts), so the server's mocks list what the browser created. Step 4 adds
+ * the primary domain, the default location and the own entity a project is created with (19 section 3.4,
+ * as built); the own entity is kept with the project, since one answer sets one cookie.
  */
 
 const DEFAULT_LIMIT = 50;
@@ -36,6 +45,30 @@ const LIST_PARAMETERS = new Set(['offset', 'limit', 'filter[status_in]']);
 export const MOCK_PROJECT_LIMIT = 10;
 const MAX_NAME_LENGTH = 120;
 const MAX_WEEKDAY = 6;
+const MAX_ENTITY_NAME = 200;
+const MAX_ALIAS = 200;
+const MAX_OWN_DOMAINS = 20;
+const MAX_OWN_ALIASES = 50;
+const CREATE_FIELDS = [
+  'name',
+  'slug',
+  'timezone',
+  'deep_check_weekday',
+  'default_language_code',
+  'primary_domain',
+  'default_location_id',
+  'own_entity',
+];
+const CHANGE_FIELDS = [
+  'name',
+  'slug',
+  'timezone',
+  'deep_check_weekday',
+  'default_language_code',
+  'status',
+  'primary_domain',
+  'default_location_id',
+];
 
 function signedIn(cookies: Readonly<Record<string, string>>): MockSession | null {
   const session = readSession(cookies);
@@ -44,21 +77,6 @@ function signedIn(cookies: Readonly<Record<string, string>>): MockSession | null
 
 const canWriteProjects = (access: WorkspaceAccess): boolean =>
   PERMISSION_HOLDERS['projects:write'].includes(access.membership.role);
-
-/** The projects the member may open: all of them, or the ones their membership lists; by name. */
-function visibleProjects(access: WorkspaceAccess, changes: WorkspaceChanges): Project[] {
-  const allowed = access.membership.project_ids;
-  return projectList(changes, access.workspace.workspace_id).filter(
-    (project) => allowed === null || allowed.includes(project.project_id),
-  );
-}
-
-const queryError = (path: string, code: string, message: string): ValidationItem => ({
-  location: 'query',
-  path,
-  code,
-  message,
-});
 
 /** The list parameters, or the errors the API would answer for them (it refuses any it does not declare). */
 function listParameters(url: URL): { offset: number; limit: number; statuses: string[] } | ValidationItem[] {
@@ -83,13 +101,6 @@ function listParameters(url: URL): { offset: number; limit: number; statuses: st
   }
   return errors.length > 0 ? errors : { offset, limit, statuses: given.length > 0 ? given : DEFAULT_STATUSES };
 }
-
-const bodyError = (path: string, code: string, message: string): ValidationItem => ({
-  location: 'body',
-  path,
-  code,
-  message,
-});
 
 /** The field errors of the project fields in `body`, as the API's models give them. A null is checked apart. */
 function projectFieldErrors(body: Readonly<Record<string, unknown>>): ValidationItem[] {
@@ -127,7 +138,80 @@ function projectFieldErrors(body: Readonly<Record<string, unknown>>): Validation
   ) {
     errors.push(bodyError('status', 'enum', `Allowed: ${STATUSES.join(', ')}.`));
   }
+  // A primary domain is a host or URL whose host is kept; a default location is one of `GET /api/v1/locations`
+  if ('primary_domain' in body && body.primary_domain !== null) {
+    errors.push(...domainTextError(body.primary_domain, 'primary_domain'));
+  }
+  if ('default_location_id' in body && body.default_location_id !== null) {
+    const id = body.default_location_id;
+    if (typeof id !== 'number' || !Number.isInteger(id)) {
+      errors.push(bodyError('default_location_id', 'int_type', 'Input should be a valid integer'));
+    } else if (!mockLocation(id)) {
+      errors.push(bodyError('default_location_id', 'location_unknown', 'No location has this id.'));
+    }
+  }
   return errors;
+}
+
+/** The own entity to create, as `own_entity` gives it (OwnEntityInput), or its errors. */
+function ownEntityInput(value: unknown): Omit<CreatedOwnEntity, 'entity_id'> | ValidationItem[] {
+  const path = 'own_entity';
+  if (!isRecord(value)) return [bodyError(path, 'model_attributes_type', 'Input should be an object')];
+  const errors: ValidationItem[] = [
+    ...unknownMembers(value, ['canonical_name', 'domains', 'aliases']).map((error) => ({
+      ...error,
+      path: at(path, error.path),
+    })),
+  ];
+  const name = typeof value.canonical_name === 'string' ? value.canonical_name.trim() : null;
+  if (value.canonical_name === undefined)
+    errors.push(bodyError(at(path, 'canonical_name'), 'missing', 'Field required'));
+  else if (name === null)
+    errors.push(bodyError(at(path, 'canonical_name'), 'string_type', 'Input should be a valid string'));
+  else if (name === '') errors.push(bodyError(at(path, 'canonical_name'), 'string_too_short', 'Enter a name.'));
+  else if (name.length > MAX_ENTITY_NAME) {
+    errors.push(bodyError(at(path, 'canonical_name'), 'string_too_long', 'At most 200 characters.'));
+  }
+  const list = (member: 'domains' | 'aliases', max: number): unknown[] => {
+    const items = value[member] ?? [];
+    if (!Array.isArray(items)) {
+      errors.push(bodyError(at(path, member), 'list_type', 'Input should be a valid list'));
+      return [];
+    }
+    if (items.length > max) errors.push(bodyError(at(path, member), 'too_long', `At most ${String(max)} items.`));
+    return items;
+  };
+  const domains = list('domains', MAX_OWN_DOMAINS);
+  const aliases = list('aliases', MAX_OWN_ALIASES);
+  const hosts: string[] = [];
+  for (const [index, domain] of domains.entries()) {
+    const where = at(at(path, 'domains'), index);
+    const shape = domainTextError(domain, where);
+    errors.push(...shape);
+    const host = shape.length === 0 && typeof domain === 'string' ? canonicalHost(domain) : null;
+    // The own entity's domains are registrable rules, which a public suffix cannot be
+    if (host !== null && isPublicSuffix(host)) {
+      errors.push(
+        bodyError(where, 'domain_is_public_suffix', 'A public suffix is shared by many sites; name a host under it.'),
+      );
+    } else if (host !== null && !hosts.includes(host)) hosts.push(host);
+  }
+  const texts: string[] = [];
+  for (const [index, alias] of aliases.entries()) {
+    const where = at(at(path, 'aliases'), index);
+    const text = typeof alias === 'string' ? alias.trim() : null;
+    if (text === null) errors.push(bodyError(where, 'string_type', 'Input should be a valid string'));
+    else if (text === '') errors.push(bodyError(where, 'string_too_short', 'An alias has at least one character.'));
+    else if (text.length > MAX_ALIAS) errors.push(bodyError(where, 'string_too_long', 'At most 200 characters.'));
+    // Word aliases that ignore case: one spelling of each is enough
+    else if (!texts.some((other) => other.toLowerCase() === text.toLowerCase())) texts.push(text);
+  }
+  if (errors.length > 0 || name === null) return errors;
+  return {
+    canonical_name: name,
+    aliases: texts.map((alias) => ({ alias_id: crypto.randomUUID(), alias })),
+    domains: hosts.map((host) => ({ entity_domain_id: crypto.randomUUID(), host })),
+  };
 }
 
 /** Members that refuse null are plain optional: null on one of them is a 422 on that field. */
@@ -135,9 +219,6 @@ const nullErrors = (body: Readonly<Record<string, unknown>>, names: readonly str
   names
     .filter((name) => name in body && body[name] === null)
     .map((name) => bodyError(name, 'null_not_allowed', 'This field cannot be null.'));
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** `422 quota_exceeded` when the plan's active and paused projects are all taken, or `null`. */
 function quotaProblem(request: Request, projects: readonly Project[]): ReturnType<typeof problem> | null {
@@ -151,6 +232,12 @@ function quotaProblem(request: Request, projects: readonly Project[]): ReturnTyp
 const slugTaken = (projects: readonly Project[], slug: string, except?: string): boolean =>
   projects.some((project) => project.slug === slug && project.project_id !== except);
 
+/** The canonical host of a `primary_domain` member that passed its checks, `null` to clear it, or `undefined`. */
+function primaryHost(body: Readonly<Record<string, unknown>>): string | null | undefined {
+  if (!('primary_domain' in body)) return undefined;
+  return typeof body.primary_domain === 'string' ? canonicalHost(body.primary_domain) : null;
+}
+
 export const projectHandlers: HttpHandler[] = [
   mock('get', '/api/v1/workspaces/{workspace_id}/projects', ({ request, cookies, params }) => {
     const session = signedIn(cookies);
@@ -161,7 +248,9 @@ export const projectHandlers: HttpHandler[] = [
     const parameters = listParameters(new URL(request.url));
     if (Array.isArray(parameters)) return invalid(request, parameters);
     const { offset, limit, statuses } = parameters;
-    const projects = visibleProjects(access, changes).filter((project) => statuses.includes(project.status));
+    const projects = visibleProjects(access, changes, readEntityChanges(cookies)).filter((project) =>
+      statuses.includes(project.status),
+    );
     return HttpResponse.json({
       data: projects.slice(offset, offset + limit),
       page: { offset, limit, total: projects.length },
@@ -178,38 +267,53 @@ export const projectHandlers: HttpHandler[] = [
     if (!canWriteProjects(access) || access.membership.project_ids !== null) return problem(request, 'forbidden');
     const body: unknown = await request.json();
     if (!isRecord(body)) return invalidField(request, '', 'model_attributes_type', 'Input should be an object');
-    const extra = unknownMembers(body, ['name', 'slug', 'timezone', 'deep_check_weekday', 'default_language_code']);
+    const extra = unknownMembers(body, CREATE_FIELDS);
     const missing = ['name', 'slug']
       .filter((name) => !(name in body))
       .map((name) => bodyError(name, 'missing', 'Field required'));
+    const own = 'own_entity' in body && body.own_entity !== null ? ownEntityInput(body.own_entity) : null;
     const errors = [
       ...extra,
       ...missing,
       ...nullErrors(body, ['name', 'slug', 'deep_check_weekday']),
       ...projectFieldErrors(body),
+      ...(Array.isArray(own) ? own : []),
     ];
-    if (errors.length > 0) return invalid(request, errors);
+    if (errors.length > 0 || Array.isArray(own)) return invalid(request, errors);
     const all = projectList(changes, access.workspace.workspace_id);
     const slug = typeof body.slug === 'string' ? body.slug : '';
     // The API takes a slot of the plan first, then checks the slug
     const full = quotaProblem(request, all);
     if (full) return full;
     if (slugTaken(all, slug)) return problem(request, 'duplicate', { detail: 'A project already uses this slug.' });
+    const workspaceId = access.workspace.workspace_id;
+    if (own !== null) {
+      // The own entity is an entity of the workspace like any other, so its name must be free
+      const taken = entityWorld(readEntityChanges(cookies), changes).entities.some(
+        (entity) =>
+          workspaceOfRow(entity) === workspaceId &&
+          entity.canonical_name.toLowerCase() === own.canonical_name.toLowerCase(),
+      );
+      if (taken) return problem(request, 'duplicate', { detail: 'An entity of this workspace already has this name.' });
+    }
     const now = new Date().toISOString();
-    const created = {
+    const host = primaryHost(body);
+    const created: CreatedProject = {
       project_id: crypto.randomUUID(),
-      workspace_id: access.workspace.workspace_id,
+      workspace_id: workspaceId,
       name: typeof body.name === 'string' ? body.name.trim() : '',
       slug,
       timezone: typeof body.timezone === 'string' ? currentTimeZoneName(body.timezone) : access.workspace.timezone,
       deep_check_weekday: typeof body.deep_check_weekday === 'number' ? body.deep_check_weekday : 1,
       default_language_code: typeof body.default_language_code === 'string' ? body.default_language_code : null,
+      ...(host === undefined || host === null ? {} : { primary_domain: host }),
+      ...(typeof body.default_location_id === 'number' ? { default_location_id: body.default_location_id } : {}),
+      // Created with the role own, primary, colour 1, in the same request (19 section 3.3)
+      ...(own === null ? {} : { own_entity: { entity_id: crypto.randomUUID(), ...own } }),
       created_at: now,
     };
     const next: WorkspaceChanges = { ...changes, created: [...(changes.created ?? []), created] };
-    const project = projectList(next, access.workspace.workspace_id).find(
-      (candidate) => candidate.project_id === created.project_id,
-    );
+    const project = projectList(next, workspaceId).find((candidate) => candidate.project_id === created.project_id);
     if (!project) throw new Error('The created project is missing from the list');
     return HttpResponse.json({ data: project }, { status: 201, headers: { 'set-cookie': changesCookie(next) } });
   }),
@@ -220,7 +324,9 @@ export const projectHandlers: HttpHandler[] = [
     const changes = readChanges(cookies);
     const access = accessTo(params.workspace_id, session.user, changes, cookies);
     const project = access
-      ? visibleProjects(access, changes).find((candidate) => candidate.project_id === params.project_id)
+      ? visibleProjects(access, changes, readEntityChanges(cookies)).find(
+          (candidate) => candidate.project_id === params.project_id,
+        )
       : undefined;
     return project ? HttpResponse.json({ data: project }) : problem(request, 'not_found');
   }),
@@ -229,9 +335,10 @@ export const projectHandlers: HttpHandler[] = [
     const session = signedIn(cookies);
     if (!session) return problem(request, 'unauthenticated');
     const changes = readChanges(cookies);
+    const entityChanges = readEntityChanges(cookies);
     const access = accessTo(params.workspace_id, session.user, changes, cookies);
     const project = access
-      ? visibleProjects(access, changes).find((candidate) => candidate.project_id === params.project_id)
+      ? visibleProjects(access, changes, entityChanges).find((candidate) => candidate.project_id === params.project_id)
       : undefined;
     if (!access || !project) return problem(request, 'not_found');
     if (!canWriteProjects(access)) return problem(request, 'forbidden');
@@ -239,9 +346,8 @@ export const projectHandlers: HttpHandler[] = [
     if (!isRecord(body)) return invalidField(request, '', 'model_attributes_type', 'Input should be an object');
     const empty = emptyChange(request, body);
     if (empty) return empty;
-    const fields = ['name', 'slug', 'timezone', 'deep_check_weekday', 'default_language_code', 'status'];
     const nulls = nullErrors(body, ['name', 'slug', 'timezone', 'deep_check_weekday', 'status']);
-    const errors = [...unknownMembers(body, fields), ...nulls, ...projectFieldErrors(body)];
+    const errors = [...unknownMembers(body, CHANGE_FIELDS), ...nulls, ...projectFieldErrors(body)];
     if (errors.length > 0) return invalid(request, errors);
     const edit: ProjectEdit = { ...changes.edited?.[project.project_id] };
     if (typeof body.name === 'string') edit.name = body.name.trim();
@@ -256,6 +362,11 @@ export const projectHandlers: HttpHandler[] = [
     if ('default_language_code' in body) {
       edit.default_language_code = typeof body.default_language_code === 'string' ? body.default_language_code : null;
     }
+    const host = primaryHost(body);
+    if (host !== undefined) edit.primary_domain = host;
+    if ('default_location_id' in body) {
+      edit.default_location_id = typeof body.default_location_id === 'number' ? body.default_location_id : null;
+    }
     if (body.status === 'active' || body.status === 'paused' || body.status === 'archived') {
       // Bringing a project back from the archive needs a free slot of the plan again
       if (project.status === 'archived' && body.status !== 'archived') {
@@ -265,7 +376,7 @@ export const projectHandlers: HttpHandler[] = [
       edit.status = body.status;
     }
     const next: WorkspaceChanges = { ...changes, edited: { ...changes.edited, [project.project_id]: edit } };
-    const changed = projectList(next, access.workspace.workspace_id).find(
+    const changed = visibleProjects(access, next, entityChanges).find(
       (candidate) => candidate.project_id === project.project_id,
     );
     if (!changed) throw new Error('The changed project is missing from the list');

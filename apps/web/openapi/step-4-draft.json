@@ -342,11 +342,21 @@
             },
             "title": "Negatives Applied",
             "type": "array"
+          },
+          "skipped_alias_ids": {
+            "description": "Stored patterns the matcher cannot run (doc 13 stage 4), left out.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Skipped Alias Ids",
+            "type": "array"
           }
         },
         "required": [
           "mentions",
-          "negatives_applied"
+          "negatives_applied",
+          "skipped_alias_ids"
         ],
         "title": "AliasTestResult",
         "type": "object"
@@ -382,17 +392,33 @@
             "title": "Match Method",
             "type": "string"
           },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
           "start": {
             "description": "Offset into the text sent, in UTF-16 code units.",
             "title": "Start",
             "type": "integer"
+          },
+          "status": {
+            "description": "This span's own status; see doc 13 stage 5.",
+            "enum": [
+              "accepted",
+              "uncertain",
+              "discarded"
+            ],
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
           "start",
           "end",
           "alias_id",
-          "match_method"
+          "match_method",
+          "score",
+          "status"
         ],
         "title": "AliasTestSpan",
         "type": "object"
@@ -1497,6 +1523,34 @@
         "title": "LocationPage",
         "type": "object"
       },
+      "LocationRef": {
+        "properties": {
+          "country_iso": {
+            "title": "Country Iso",
+            "type": "string"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "location_type": {
+            "title": "Location Type",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "name",
+          "country_iso",
+          "location_type"
+        ],
+        "title": "LocationRef",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "memberships": {
@@ -2043,6 +2097,17 @@
             ],
             "title": "Default Language Code"
           },
+          "default_location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocationRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The location `default_location_id` names."
+          },
           "default_location_id": {
             "anyOf": [
               {
@@ -2112,6 +2177,7 @@
           "slug",
           "primary_domain",
           "default_location_id",
+          "default_location",
           "default_language_code",
           "timezone",
           "deep_check_weekday",

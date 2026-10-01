@@ -1,10 +1,14 @@
 import type { HttpHandler } from 'msw';
 
 import { authHandlers } from './auth';
+import { entityHandlers } from './entities';
 import { invitationHandlers } from './invitations';
 import { meHandlers } from './me';
 import { pendingHandlers } from './pending';
+import { projectEntityHandlers } from './project-entities';
 import { projectHandlers } from './projects';
+import { registryHandlers } from './registries';
+import { taxonomyHandlers } from './taxonomy';
 import { workspaceHandlers } from './workspaces';
 
 /**
@@ -19,6 +23,10 @@ export const handlers: readonly HttpHandler[] = [
   ...invitationHandlers,
   ...workspaceHandlers,
   ...projectHandlers,
+  ...entityHandlers,
+  ...projectEntityHandlers,
+  ...taxonomyHandlers,
+  ...registryHandlers,
   ...pendingHandlers,
 ];
 
