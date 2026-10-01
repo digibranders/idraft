@@ -1,0 +1,48 @@
+{
+  "version": "0.1.20260915",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.0412 sec.",
+  "cost": 0,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "10011300-1535-0066-0000-000000000000",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "0.0310 sec.",
+      "cost": 0,
+      "result_count": 2,
+      "path": ["v3", "serp", "google", "organic", "tasks_ready"],
+      "data": {
+        "api": "serp",
+        "function": "tasks_ready",
+        "se": "google",
+        "se_type": "organic"
+      },
+      "result": [
+        {
+          "id": "10011234-1535-0066-0000-5b2e1e3c3b86",
+          "se": "google",
+          "se_type": "organic",
+          "date_posted": "2026-10-01 09:10:02 +00:00",
+          "tag": "i:test:t:z:a:1:r:0192f0a13c447e108a512b7d9c0e4f11",
+          "endpoint_regular": "/v3/serp/google/organic/task_get/regular/10011234-1535-0066-0000-5b2e1e3c3b86",
+          "endpoint_advanced": "/v3/serp/google/organic/task_get/advanced/10011234-1535-0066-0000-5b2e1e3c3b86",
+          "endpoint_html": "/v3/serp/google/organic/task_get/html/10011234-1535-0066-0000-5b2e1e3c3b86"
+        },
+        {
+          "id": "10011240-1535-0066-0000-7c4d2a1b9e07",
+          "se": "google",
+          "se_type": "organic",
+          "date_posted": "2026-10-01 09:10:05 +00:00",
+          "tag": "posted by someone else",
+          "endpoint_regular": "/v3/serp/google/organic/task_get/regular/10011240-1535-0066-0000-7c4d2a1b9e07",
+          "endpoint_advanced": "/v3/serp/google/organic/task_get/advanced/10011240-1535-0066-0000-7c4d2a1b9e07",
+          "endpoint_html": "/v3/serp/google/organic/task_get/html/10011240-1535-0066-0000-7c4d2a1b9e07"
+        }
+      ]
+    }
+  ]
+}

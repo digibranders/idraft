@@ -64,18 +64,18 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ### Worker and queue
 
-- [ ] Taskiq with the Redis broker; queues `collect` (provider calls, concurrency 8, shared rate limiter) and `process` (ingest, extraction, analytics, maintenance, concurrency 4) in one worker process ([21](21-scheduler-workers.md))
-- [ ] Planner tick inside the worker under a Redis lock; dispatcher checks the budget before enqueueing; reconciler re-enqueues from `ops.collection_tasks` after Redis loss (no workloads yet)
-- [ ] Taskiq scheduler for maintenance cron jobs: partitions, retention stubs wired to real functions; no scheduler container
-- [ ] Taskiq smoke test: jobs on both queues, retry by error class, worker restart mid-job, reconciler after a Redis flush; if it fails, switch to Celery and record the decision
+- [x] Taskiq with the Redis broker; queues `collect` (provider calls, concurrency 8) and `process` (ingest, extraction, analytics, maintenance, concurrency 4) in one worker process ([21](21-scheduler-workers.md)). The shared rate limiter is Redis token buckets under `rl:`, taken before every DataForSEO call
+- [x] Planner tick inside the worker under a Redis lock; dispatcher checks the budget before enqueueing; reconciler re-enqueues from `ops.collection_tasks` after Redis loss (no workloads yet)
+- [ ] Taskiq scheduler for maintenance cron jobs: partitions and the reconciler are scheduled; retention stubs wait for the tables they prune. No scheduler container
+- [x] Taskiq smoke test: jobs on both queues, retries by error class through the ledger (none at the broker), worker restart mid-run, reconciler after a Redis flush (`backend/tests/worker/test_end_to_end.py`). Taskiq stays
 - [ ] Redis 8: AOF on, `noeviction`, `maxmemory 256mb`; nothing lives only in Redis
-- [ ] Graceful shutdown handling
+- [x] Graceful shutdown handling (worker: `backend/smoke.sh` stops it with SIGTERM and requires exit code 0)
 
 ### Storage and providers
 
-- [ ] R2 client, zstd compression, raw payload writer/reader, `ops.raw_payloads` registration
-- [ ] Provider adapter contract types and contract test harness ([05](05-provider-integrations.md) section 3)
-- [ ] DataForSEO HTTP client: auth, status_code parsing at two levels, error taxonomy, shared rate limiter; readiness by polling `tasks_ready`, no pingback route
+- [x] R2 client, zstd compression, raw payload writer/reader, `ops.raw_payloads` registration (`storage/raw.py`, `collectors/raw_payloads.py`; no local spool)
+- [ ] Provider adapter contract types and contract test harness ([05](05-provider-integrations.md) section 3). The types for submitting and fetching are built; the shared contract suite over recorded fixtures waits for real fixtures (spike S-01) and the first normalizer
+- [x] DataForSEO HTTP client: auth, status_code parsing at two levels, error taxonomy, shared rate limiter; readiness by polling `tasks_ready`, no pingback route; the id sweeper and the `submit_unknown` resolver (off until S-01)
 - [ ] Envelope encryption of tenant credentials is not built in Phase 1; it arrives with first-party integrations in Phase 12 ([24](24-security.md) section 5.2)
 
 ### Frontend

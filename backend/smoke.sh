@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs a built image the way production does: PostgreSQL initialised by the role script, migrations
-# as `migrator` with only DATABASE_URL, the API as `app_api`, and /api/readyz must answer 200.
+# as `migrator` with only DATABASE_URL, the API as `app_api` (/api/readyz must answer 200), and the
+# worker as `app_worker` (its heartbeat must be fresh, and SIGTERM must stop it with code 0).
 # Usage: backend/smoke.sh <image>
 set -euo pipefail
 
@@ -11,7 +12,7 @@ network="sightline-smoke-$$"
 host="smoke-postgres:5432/sightline"
 
 cleanup() {
-  docker rm -f smoke-api smoke-postgres smoke-redis >/dev/null 2>&1 || true
+  docker rm -f smoke-api smoke-worker smoke-postgres smoke-redis >/dev/null 2>&1 || true
   docker network rm "$network" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -42,15 +43,50 @@ docker run -d --name smoke-api --network "$network" -p 127.0.0.1:18080:8000 \
   -e DATABASE_URL="postgresql://app_api:api-smoke@$host" \
   -e REDIS_URL=redis://smoke-redis:6379/0 "$image" >/dev/null
 
+ready=""
 for _ in $(seq 1 30); do
   if body="$(curl -fsS http://127.0.0.1:18080/api/readyz 2>/dev/null)"; then
     echo "readyz: $body"
-    [ "$(docker exec smoke-api id -u)" = "10001" ] || { echo "image does not run as uid 10001"; exit 1; }
-    exit 0
+    ready=yes
+    break
   fi
   sleep 1
 done
+if [ -z "$ready" ]; then
+  echo "the API never became ready" >&2
+  docker logs smoke-api >&2 || true
+  exit 1
+fi
+[ "$(docker exec smoke-api id -u)" = "10001" ] || { echo "image does not run as uid 10001"; exit 1; }
 
-echo "the API never became ready" >&2
-docker logs smoke-api >&2 || true
-exit 1
+# The worker, as app_worker, with the healthcheck the container runs.
+docker run -d --name smoke-worker --network "$network" \
+  -e PROCESS_ROLE=worker -e APP_ORIGIN=http://localhost:3000 \
+  -e DATABASE_URL="postgresql://app_worker:worker-smoke@$host" \
+  -e REDIS_URL=redis://smoke-redis:6379/0 -e HEARTBEAT_FILE=/tmp/heartbeat \
+  "$image" python -m sightline.worker >/dev/null
+
+healthy=""
+for _ in $(seq 1 30); do
+  if docker exec smoke-worker python -m sightline.worker.healthcheck /tmp/heartbeat 30 2>/dev/null; then
+    healthy=yes
+    break
+  fi
+  sleep 1
+done
+if [ -z "$healthy" ]; then
+  echo "the worker never wrote a fresh heartbeat" >&2
+  docker logs smoke-worker >&2 || true
+  exit 1
+fi
+[ "$(docker exec smoke-worker id -u)" = "10001" ] || { echo "the worker does not run as uid 10001"; exit 1; }
+
+# A deploy stops it with SIGTERM: it must end by itself, cleanly, well inside the grace period.
+docker stop --time 30 smoke-worker >/dev/null
+code="$(docker inspect -f '{{.State.ExitCode}}' smoke-worker)"
+if [ "$code" != "0" ]; then
+  echo "the worker exited with $code on SIGTERM" >&2
+  docker logs smoke-worker >&2 || true
+  exit 1
+fi
+echo "worker: healthy, stopped cleanly"

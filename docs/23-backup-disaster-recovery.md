@@ -580,6 +580,8 @@ Procedure (30 to 60 minutes, mostly waiting):
 3. Check the second copy: `doctl compute droplet backups <droplet-id>` must list an image less than 8 days old.
 4. Record the run in the runbook's drill log, `docs/ops/restore-drills.md` (one table row: date, custodian, where it ran, dump key, result and exit code, restore seconds, total seconds, date of the newest DigitalOcean image) and commit it. The script prints the row.
 
+The drill starts no worker. A worker started against a restored copy (a fuller rehearsal, or a staging copy) runs with `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` empty, or with an `INSTALLATION_ID` of its own, never `prod`. The restored ledger holds production's task ids and runs, and the installation in every tag is what keeps such a copy from sending production's tasks again or taking production's results from the shared account. The worker refuses to start in production with DataForSEO credentials and no `INSTALLATION_ID` set.
+
 ```bash
 export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare RCLONE_CONFIG_R2_REGION=auto \
        RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true \
@@ -768,7 +770,7 @@ Why not move `serp_raw` to Infrequent Access: IA saves $0.005 per GB-month (veri
 }
 ```
 
-No rule touches `raw/v1/ai_raw/`. There is no `canary/` prefix: the nightly contract-drift canary was dropped (doc 26 section 3.3). The ingest code sets `ops.raw_payloads.expires_at` to `fetched_at` plus the class retention, so the API can say "raw payload expired on <date>" instead of returning a storage error, and the maintenance job can reconcile registry rows with R2.
+No rule touches `raw/v1/ai_raw/`. There is no `canary/` prefix: the nightly contract-drift canary was dropped (doc 26 section 3.3). The ingest code sets `ops.raw_payloads.expires_at` to `fetched_at` plus the class retention, so the API can say "raw payload expired on <date>" instead of returning a storage error, and the maintenance job can reconcile registry rows with R2. A payload is registered once per class and hash. When the same bytes come again and their object has used more than a day of its life, the object is written again under its key (the lifecycle rule counts from the last write) and `expires_at` moves to the new end. Objects are zstd frames with a content checksum, and a read is checked against the registered sha256. The reconciliation also removes objects no row names: two workers storing the same new bytes across midnight each write one, and in `ai_raw` nothing else would remove the second.
 
 ### 9.3 Workspace purge interaction
 

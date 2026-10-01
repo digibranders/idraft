@@ -208,6 +208,8 @@ Notes on the design choices:
 - `fingerprint` excludes our task id and priority, so identical SERP requests on the same day across projects are recognized (shared fetch, [04-data-model.md](04-data-model.md) section 11.3).
 - `classifyError` returns a retry decision rather than throwing provider-specific errors up the stack.
 
+**As built (step 3 of the build order).** `backend/src/sightline/providers/contract.py` holds the part of this contract that submitting and fetching need; normalizing arrives with the first workload that ingests. A `Provider` has `code`, `batch_size(endpoint)`, `result_lifetime(endpoint)`, `payload_slug(endpoint)` (the endpoint's name in raw payload keys), `submit` (a batch; a request left out of both lists has an unknown outcome), `list_ready`, `fetch` (the exact response bytes), `lists_submissions` and `find_submitted` (the tasks posted in a period, with their tags, complete or refused). Instead of a `CallContext`, the DataForSEO adapter is built with the process's one `httpx.AsyncClient` and a `CallGate` (the shared limiter, doc 21 section 7). Every request carries its task id, run id and the attempt submission stamps on it; the tag echoes all three, and an answer is matched by tag, never by position. A call that fails as a whole raises `ProviderCallError`; the kinds are those of section 3.3, with `not_sent` for a call that was never made (our limiter held it back, or no connection opened).
+
 ### 3.3 Error taxonomy
 
 ```python
@@ -219,11 +221,14 @@ ProviderErrorKind = Literal[
     "concurrency",           # DataForSEO 40209: retry after short delay
     "invalid_request",       # bad field, keyword too long, unsupported location: do not retry, mark task failed
     "not_found_expired",     # 40403 results expired: resubmit task if still within run window
-    "upstream_unavailable",  # 50301 third-party source unavailable: retry with backoff
-    "provider_error",        # 5xx: retry with backoff
-    "timeout",               # network timeout (httpx.TimeoutException): retry
+    "upstream_unavailable",  # 50301, HTTP 503: retry with backoff
+    "provider_error",        # any other provider failure while reading: retry with backoff
+    "timeout",               # the call may have reached the provider (timeout, dropped connection, a 5xx
+                             # while posting tasks): outcome unknown when sending, else retry
     "schema_mismatch",       # Pydantic ValidationError in normalize(): do not retry fetch; raw is kept; alert parser owners
     "empty_result",          # valid response with no content (e.g. AI refused): not an error for the task
+    "not_sent",              # never made: our own limiter gave no turn or could not be reached, or no
+                             # connection to the provider opened; not an attempt, retry shortly
 ]
 
 

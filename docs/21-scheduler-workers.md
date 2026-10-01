@@ -7,7 +7,7 @@ Related: [03-system-architecture.md](03-system-architecture.md) sections 5 to 7,
 ## 1. Principles
 
 1. **PostgreSQL is the ledger, Redis is the transport.** Every unit of paid work is a row in `ops.collection_tasks` before anything is sent to a provider. Taskiq messages carry task ids, not state. If Redis is wiped, a reconciliation sweep rebuilds all in-flight work from PostgreSQL.
-2. **Plan once, submit in batches, fetch on poll.** The planner creates tasks for a whole run in one transaction. A dispatcher submits due tasks in provider-sized batches. Readiness is polling only (section 8.1): `tasks_ready` every 60 s, 30 s while a collection window is open, plus the id sweeper.
+2. **Plan once, submit in batches, fetch on poll.** The planner creates tasks for a whole run in one transaction. A dispatcher submits due tasks in provider-sized batches. Readiness is polling only (section 8.1): `tasks_ready` every 60 s, plus the id sweeper.
 3. **Idempotent everywhere.** Planning, submission, fetch, ingest, and rollups can each run twice without double cost or duplicate rows.
 4. **Spend is checked before it happens.** Every run gets a cost estimate and a budget check before its first task is submitted.
 5. **Two queues.** `collect` (provider calls) and `process` (ingest, extraction, analytics, maintenance) are split by resource profile and consumed by one worker process. Priority is applied by the dispatcher's enqueue order. See [03-system-architecture.md](03-system-architecture.md) section 6.
@@ -31,7 +31,7 @@ High-priority schedules (for example priority-1 keywords daily at `priority_queu
 
 ## 3. Planner
 
-The worker process runs a **planner tick every 60 seconds**, holding a Redis lock (`lock:planner`, 55 s TTL) so only one planner runs even when a second `worker` container is running (scaling step 3, [28](28-data-growth-scaling.md) section 7). There is no scheduler container (ADR-022). Each completed tick pings the planner Healthchecks.io check.
+The worker process runs a **planner tick every 60 seconds**, holding a Redis lock (`lock:planner`, 55 s TTL) so only one planner runs even when a second `worker` container is running (scaling step 3, [28](28-data-growth-scaling.md) section 7). There is no scheduler container (ADR-022). Each completed tick pings the planner Healthchecks.io check (with launch hardening; until then the container's heartbeat file is the health signal).
 
 ### 3.1 Algorithm
 
@@ -46,8 +46,9 @@ for schedule in SELECT ... FROM ops.schedules
 
     BEGIN
       run = INSERT INTO ops.collection_runs (schedule_id, window_start, ...)
-            ON CONFLICT (schedule_id, window_start) DO NOTHING RETURNING id
-      if run is null: skip (already planned)
+            ON CONFLICT (schedule_id, window_start) WHERE trigger = 'schedule'
+            DO NOTHING RETURNING id
+      if run is null: move the schedule on and skip (already planned)
 
       subjects = resolve_selector(schedule)          -- keywords or prompt versions in scope, active only
       tasks    = expand(subjects, schedule)          -- engines x locations x replicates; depth per profile
@@ -62,7 +63,12 @@ for schedule in SELECT ... FROM ops.schedules
 ```
 
 - `next_occurrence` computes the next window start in the schedule's timezone (DST-safe, using the standard library `zoneinfo`).
-- If the worker was down and several occurrences were missed, only the **most recent** missed occurrence is planned (no catch-up storm); earlier ones are recorded as `ops.collection_runs` with status `cancelled` and reason `missed_window`, so gaps are visible.
+- Each schedule is planned in its own transaction, so one schedule that cannot be planned is logged, left as it was and tried again on the next tick, and the others go on. The budget check takes a turn per workspace (an advisory lock held to the end of the transaction); a schedule that does not get the turn within the lock timeout is left for the next tick, with the rest of its workspace.
+- Only schedules whose workload is registered with this worker and whose cadence has a rule (`daily`, `weekly`, `monthly`) are looked at. A schedule that names a project of another workspace than its own is never planned.
+- A schedule whose project is not collecting (paused, archived, deleted, or in a workspace that is not active) lets its windows pass: `next_run_at` moves on and no run is recorded, so nothing is spent and the schedule is at its next window when the project collects again.
+- If the worker was down and several occurrences were missed, only the **most recent** missed occurrence is planned (no catch-up storm); earlier ones are recorded as `ops.collection_runs` with status `cancelled` and reason `missed_window`, so gaps are visible. At most the 60 most recent missed windows of a schedule are recorded in one tick. The most recent one is planned only if its tasks could still be sent: a window whose end is 24 hours or more in the past (the time after which the reconciler cancels unsent tasks) is recorded as missed too, and nothing is planned until the next window.
+- The planner uses the database's clock, not the worker's. A `next_run_at` that is not a window of the schedule's rule (set by hand, or left from before the rule changed) is not planned as one: the first window is the rule's next one at or after it.
+- A schedule that fails does not count against the tick's 50; a tick gives up after 50 failed schedules. A workload plans with the database read-only (a savepoint with `transaction_read_only`), because the planner's session bypasses row-level security, and a plan that names the same task twice is refused.
 
 ### 3.2 Selector resolution
 
@@ -80,8 +86,11 @@ Tasks are spread across the window so provider load, our ingest load, and databa
 ```
 offset_seconds(task) = hash32(subject_id || workload) mod (window_hours * 3600 * 0.8)
 scheduled_for        = window_start + offset_seconds + replicate_offset
-replicate_offset     = (replicate_index - 1) * 20 minutes            (AI only)
+replicate_offset     = (replicate_index - 1) * spacing               (AI only)
+spacing              = min(20 minutes, stagger span / replicates)
 ```
+
+With replicates, the first offset is taken modulo the stagger span less the room the later replicates need, so the last replicate of a subject is still due inside the first 80% of the window. In a window too short to hold the replicates 20 minutes apart they move closer together.
 
 - Using a stable hash of the subject means **a keyword is checked at about the same local time every day**, which removes time-of-day variation from its rank history.
 - The last 20% of the window is kept free for retries.
@@ -93,6 +102,8 @@ idempotency_key = sha256( run_id | subject_type | subject_id | engine_code | loc
 created_at      = date_trunc('month', run.window_start)   -- places a run's tasks in one partition
 ```
 
+Each field is written with its length in front (`7:seo_abc`) and a missing field as `-`, so a subject id that contains the separator stays one field and no engine is not the same as an empty engine code.
+
 Because `ops.collection_tasks` is partitioned by `created_at` and unique constraints on partitioned tables must include the partition key, the planner sets `created_at` deterministically from the run's window. A second planning attempt for the same run produces the same keys in the same partition and inserts nothing.
 
 ## 4. Dispatcher
@@ -100,20 +111,24 @@ Because `ops.collection_tasks` is partitioned by `created_at` and unique constra
 A **dispatcher tick every 15 seconds** (in the worker process, under lock `lock:dispatcher`) moves due tasks into the `collect` queue:
 
 ```sql
-SELECT id, created_at, provider_code, provider_endpoint, project_id
-FROM ops.collection_tasks
-WHERE status = 'pending' AND dispatched_at IS NULL AND scheduled_for <= now()
-  AND (next_attempt_at IS NULL OR next_attempt_at <= now())
-ORDER BY scheduled_for
-LIMIT 2000
-FOR UPDATE SKIP LOCKED;
+SELECT t.id, t.created_at, t.provider_code, t.provider_endpoint, t.project_id
+FROM ops.collection_tasks t JOIN ops.collection_runs r ON r.id = t.run_id
+WHERE t.status = 'pending' AND t.dispatched_at IS NULL AND t.scheduled_for <= now()
+  AND (t.next_attempt_at IS NULL OR t.next_attempt_at <= now())
+  AND r.status = 'running'                       -- a cancelled run sends nothing more
+  AND t.provider_code <> ALL (:paused_providers)
+  AND (t.project_id, t.workload) NOT IN (:scopes_a_budget_holds_back)
+ORDER BY t.scheduled_for
+LIMIT 2000                                       -- shared out across projects, see below
+FOR UPDATE OF t SKIP LOCKED;
 ```
 
-- Tasks are grouped by `(provider_code, provider_endpoint, priority)`, where priority is the schedule's (`run_id` to `ops.schedules.priority`), into batches of the provider's `maxTasksPerSubmit` (100 for DataForSEO task endpoints, 1 for live).
+- **Budget first.** Before it claims anything, the tick lists the projects and workloads that have a task due and checks the budget of each (the month's spend is read once per tick). Work whose budget is used up is left out of the claim, so it stays `pending`, takes nobody's share of the tick, and does not keep the same project's other workloads from being reached. The running runs of a held scope carry `status_reason = 'budget_exceeded'` and the budget's id for as long as the hold lasts.
+- Tasks are grouped by `(provider_code, provider_endpoint, priority)` into batches of the provider's `maxTasksPerSubmit` (100 for DataForSEO task endpoints, 1 for live). Priority is `high` for a manual run (someone is waiting), `low` for a backfill, and otherwise the schedule's (`standard` when there is none).
 - **Priority:** batches are enqueued in priority order (high, then standard, then discovery and backfills), so high-priority work reaches the head of `collect` first. The dispatcher is the only producer of provider jobs, so this order is the priority mechanism; the broker needs no priority support.
-- **Fairness across projects:** within a tick, at most 500 tasks per project are dispatched, so one large project cannot delay a small one by hours. Taskiq has no group fairness; this SQL-side cap gives us the property.
+- **Fairness across projects:** each project with due work gets an equal share of the tick's 2,000, and what is left over goes to the projects that have more, up to 500 per project. A large project whose tasks are the oldest cannot take the whole tick from a small one. Taskiq has no group fairness; this SQL-side sharing gives us the property.
 - Each batch becomes one `submit_batch` Taskiq message with dedupe key `submit:` + sha256(sorted task ids) (section 5.2). The budget check against `ops.budgets` runs before the message is sent.
-- Tasks stay in `status = 'pending'` with `dispatched_at` set, so they are not selected again unless the job fails or the reconciler clears a stale `dispatched_at`.
+- Tasks stay in `status = 'pending'` with `dispatched_at` set, so they are not selected again until a handler takes them, the dispatcher releases a batch it could not send, or the reconciler clears a stale `dispatched_at`.
 
 Why a dispatcher rather than 10,000 delayed queue messages: delayed messages work, but they put the schedule in Redis. With the dispatcher, the schedule stays in PostgreSQL where it is queryable ("what will run in the next hour"), survives Redis loss, and can be rescheduled with one UPDATE.
 
@@ -121,7 +136,14 @@ Why a dispatcher rather than 10,000 delayed queue messages: delayed messages wor
 
 ### 5.1 Taskiq settings
 
-The queue is Taskiq with the Redis stream broker (ADR-022). A Taskiq broker is bound to one queue, so the worker's own entrypoint (`python -m sightline.worker`) starts two receivers in one asyncio process, one per broker, through `taskiq.api.run_receiver_task`, together with the planner and dispatcher ticks and Taskiq's scheduler (`run_scheduler_task`).
+The queue is Taskiq with the Redis stream broker (ADR-022). A Taskiq broker is bound to one queue, so the worker's own entrypoint (`python -m sightline.worker`) starts two Taskiq receivers in one asyncio process, one per broker, together with the planner and dispatcher ticks and Taskiq's scheduler (`run_scheduler_task`).
+
+How a stream is read is the worker's own (`worker/queues.py`), on top of the `taskiq-redis` stream broker, because four things the queue depends on are not what that broker does by default:
+
+- **One message at a time.** The broker reads up to 100 messages per call and hands them out from memory. At a stop, the ones not yet started would sit with a consumer name that never returns and wait out the redelivery time. Read one at a time, a message is either running or still in the stream.
+- **Messages of a dead consumer are claimed on a timer** (every 30 s when busy, every read when idle), not only after a new message arrives. They are claimed once they have been idle for 10 minutes, which must stay longer than the longest handler.
+- **The consumer group is made again** when Redis comes back empty, and it starts at the beginning of the stream, so a message sent before any worker read is not skipped. Redis holds nothing that cannot be rebuilt, so wiping it must not need a worker restart.
+- **A Redis that does not answer is waited out.** The listener does not end and is not replaced, so the handlers it started keep counting against the queue's concurrency and are waited for at stop.
 
 | Setting | Value | Why |
 |---|---|---|
@@ -135,7 +157,8 @@ The queue is Taskiq with the Redis stream broker (ADR-022). A Taskiq broker is b
 | Messages | task ids and small keys only, validated with Pydantic models on enqueue and on receipt | state stays in PostgreSQL |
 | Dedupe | a Redis key per message (section 5.2), set with `SET NX` before enqueue | replaces broker-level job ids |
 | Scheduler | Taskiq's scheduler runs the maintenance cron jobs (section 10) inside the worker, under `lock:taskiq-scheduler` | no scheduler container; a second worker container does not double-fire |
-| Lost messages | a message held by a worker that crashed is redelivered by the stream after its idle timeout; a message lost with Redis itself is re-enqueued by the reconciler from the ledger (section 8.2) | nothing lives only in Redis |
+| Lost messages | a message held by a worker that crashed is claimed by another consumer once it has been idle for 10 minutes; a message lost with Redis itself is re-enqueued by the reconciler from the ledger (section 8.2) | nothing lives only in Redis |
+| Stream length | each stream is capped at about 10,000 messages; a longer backlog loses its oldest. The reconciler releases their tasks and the dispatcher sends them again; a batch of exactly the same tasks finds the lost message's dedupe key still held and waits until it expires (at most an hour). Nothing is paid twice | Redis has no eviction, and acknowledged messages stay in a stream until it is trimmed |
 
 No broker retries is deliberate for provider jobs. A blind retry of a `submit_batch` after a timeout could double-submit paid tasks. Retries for provider work are driven by task state in PostgreSQL (section 6), which knows whether the provider accepted the task.
 
@@ -145,8 +168,8 @@ Phase 1 smoke test for Taskiq: two queues in one process at the stated concurren
 
 | Queue | Job | Payload | Dedupe key | Notes |
 |---|---|---|---|---|
-| `collect` | `submit_batch` | `{task_ids, endpoint, priority}` | `submit:<hash>` | shared limiter |
-| `collect` | `poll_ready` | `{endpoint}` | `poll:<endpoint>` (TTL 25 s) | enqueued by the tick every 60 s, every 30 s while a collection window is open (section 8.1) |
+| `collect` | `submit_batch` | `{provider, endpoint, priority, tasks: [{id, created_at}]}` | `submit:<hash of the task keys>` | shared limiter |
+| `collect` | `fetch_task` | `{task_id, created_at, provider, endpoint, provider_task_id}` | `fetch:<task id>:<provider task id>` | sent by the `ready_poll` tick (every 60 s, one worker, not a queue job) and by the id sweeper (section 8.1) |
 | `collect` | `fetch_task` | `{provider_task_id, endpoint, task_id}` | `fetch:<provider_task_id>` | |
 | `collect` | `live_call` | `{task_id}` | `live:<task_id>` | up to 120 s |
 | `collect` | `benchmark_call`, `classify_batch` | `{task_id}` / `{item_ids}` | `bench:<task_id>` / `cls:<hash>` | per-provider token bucket |
@@ -208,23 +231,28 @@ Retry policy is decided by the error kind returned from the adapter ([05-provide
 | `upstream_unavailable`, `provider_error`, `timeout` | yes | 60 s x 2^n + jitter (cap 30 min) | 4 | `dead`, alert if > 1% of run |
 | `not_found_expired` | resubmit as new provider task if window open | none | 1 | `dead` |
 | `invalid_request` | no | | | `failed`, task config flagged |
-| `auth`, `payment`, `account_limit` | no | | | provider paused for workspace/platform; admins alerted; tasks stay `pending` until resumed |
+| `auth`, `payment`, `account_limit` | no | | | provider paused for 15 minutes (`rl:paused:<provider>` in Redis), error logged; tasks stay `pending` and go out when the pause runs out. A provider still refusing is paused again, so fixing the account is all it takes to resume |
+| `not_sent` | yes | 30 s + jitter; the limiter is not slowed | not counted | the run's window ends the task, as it ends any task still waiting |
 | `schema_mismatch` (normalize) | no fetch retry; re-ingest after parser fix | | | `failed` with raw kept; parser owners alerted |
 | `empty_result` | not an error | | | `ingested` with status `empty` |
 
+- **How attempts are counted.** `attempts` is one number per task: every try that counted, whatever it failed with. A kind's "max attempts" is the number of tries after which a task that fails with that kind is ended, not a count of failures of that kind. A task that waited on `concurrency` four times and then hits a `timeout` is `dead` at once. `auth`, `payment` and `account_limit` do not count: a paused provider is not the task's failure. Nor does `not_sent`: the call was never made, because our own limiter gave no turn within 30 seconds or could not be reached, or no connection to the provider could be opened (a network outage of minutes would otherwise end every task that fell due in it). Reporting that as `rate_limited` would slow the limiter for a call the provider never saw, which holds back more calls, and would end tasks the provider never refused.
+- **Backoff.** In `2^n`, n is the number of earlier tries, so the first wait is the base: 30, 60, 120, 240, 480 seconds for `rate_limited` and 60, 120, 240 seconds for provider trouble. With these limits no wait reaches its cap; the caps are the bound that holds if a limit is raised. Jitter adds up to 20%. When the provider names a wait (`retry_after_ms`), the task waits at least that long, up to the cap.
 - Retry state lives in `ops.collection_tasks` (`attempts`, `next_attempt_at`, `last_error_*`). A retry puts the task back to `pending` with `next_attempt_at`; the dispatcher picks it up. A retried SERP task submits a **new** provider task (new provider id), and the old one is recorded in `ops.task_attempts` for cost reconciliation.
-- **Submit outcome unknown.** If a `submit_batch` call times out or the connection drops after the request was sent, the provider may have accepted (and charged for) the tasks. The tasks move to `submit_unknown`, never straight back to `pending`. The reconciler resolves them: it lists recently created provider tasks (DataForSEO `id_list` for the endpoint and time range, 10 calls per minute, or `tasks_ready` once they complete) and matches them by our `tag`. Matches become `submitted` with their provider task id; tasks still unmatched after 15 minutes return to `pending` for a new submission. Spike S-01 verifies that `id_list` returns the `tag` (if not, matching uses keyword, location, device and submission time). This rule is what makes provider submission at-most-once in practice.
+- **Submit outcome unknown.** If a `submit_batch` call times out or the connection drops after the request was sent, the provider may have accepted (and charged for) the tasks. The tasks move to `submit_unknown`, never straight back to `pending`. The reconciler resolves them (section 8.2, step 2): it lists the provider tasks posted around the submission (DataForSEO `POST /v3/serp/id_list`, 10 calls per minute) and matches them by our `tag`. Matches become `submitted` with their provider task id; tasks not found once 15 minutes have passed go through the retry policy for `timeout` and are sent again. Absence counts only when every listed task carries a tag. Spike S-01 verifies that `id_list` returns the `tag` and how soon it lists a task; until it does, the resolver is off. There is no fallback matching by keyword or time: a task that cannot be matched by its tag is never sent again on a guess. This rule is what makes provider submission at-most-once in practice.
 - **Dead letters** are tasks in status `dead`. They are listed in the Operations screen with error, attempts and raw error body, and can be requeued manually (`POST /v1/workspaces/{workspace_id}/tasks/{task_id}/requeue`, or in bulk `POST /v1/workspaces/{workspace_id}/tasks/requeue`; permission `tasks:requeue`; doc 19 section 3.11.4). The route is under the workspace path so the tenancy rule of doc 24 section 4 holds.
-- A run finishes when all its tasks are terminal (`ingested`, `failed`, `dead`, `cancelled`, `skipped_cached`). Status is `completed` if failed + dead is under 2% of tasks, otherwise `completed_with_errors`.
+- A run finishes when all its tasks are terminal (`ingested`, `failed`, `dead`, `cancelled`, `skipped_cached`). Status is `completed` if the tasks that collected nothing (failed, dead and cancelled) are under 2% of tasks, otherwise `completed_with_errors`. A run that was started with no tasks, because its schedule selected nothing, completes on the next sweep.
+- A task left `submit_unknown` (the process died mid-call, or the answer was lost) keeps its run open. Until the provider can be asked which tasks it has, such a task ends as `dead` with `submission_never_confirmed` once the provider's results would have expired (72 hours; 76 for LLM Responses).
+- The pending tasks of a run that is cancelled are not sent: the dispatcher and the submit handler both check that the run is still `running`, and the reconciler cancels what is left with `run_ended`.
 
 ## 7. Provider rate limiting and concurrency
 
 | Mechanism | Scope | Implementation |
 |---|---|---|
 | Shared DataForSEO limiter | all DataForSEO calls from `collect` tasks: max 1,000 per 60 s | Redis Lua token bucket (`rl:` prefix) in the `worker` package, taken before every call |
-| Token bucket per endpoint family | for endpoints with their own limits (`tasks_ready` 20/min, `user_data` 6/min, `errors` 10/min, Google Ads live 12/min) | same Redis Lua token bucket, one key per endpoint family |
+| Token bucket per endpoint family | for endpoints with their own limits (`tasks_ready` 20/min, `id_list` 10/min, `user_data` 6/min, `errors` 10/min, Google Ads live 12/min) | same Redis Lua token bucket, one key per endpoint family |
 | Concurrency caps | LLM Responses and Labs: 30 simultaneous at the provider (verified) | `collect` concurrency is 8 in total, far below |
-| Dynamic backoff | on `rate_limited`, halve limiter for 10 min | limiter override key in Redis |
+| Dynamic backoff | on `rate_limited` from the provider itself (DataForSEO 40202, HTTP 429), every bucket of that provider refills at half its rate and holds half its burst for 10 min: which limit was meant is not known, and another installation on the account may be the cause | `rl:<provider>:slow` in Redis, read by the token bucket script |
 | Per-integration quotas | GSC: 1,200 QPM per site and per user, 30M/day per project; GA4: 14,000 tokens/hour per project per property (verified, see doc 18) | token buckets keyed by Google user, site, property |
 
 ## 8. Readiness and reconciliation (Redis loss and stuck work)
@@ -233,21 +261,25 @@ Retry policy is decided by the error kind returned from the adapter ([05-provide
 
 There is no pingback endpoint (ADR-022). A submitted task becomes ready through one of two paths:
 
-1. **`tasks_ready` poll.** The tick enqueues `poll_ready` per endpoint every 60 seconds, and every 30 seconds while any collection window is open. The job calls `tasks_ready` (20 calls per minute at the provider, within the endpoint bucket of section 7) and enqueues `fetch_task` for each ready id.
-2. **Id sweeper.** Tasks older than the window (still `submitted` 2 hours after submission) are fetched directly by provider task id with `task_get` ([06](06-dataforseo-seo-integration.md) section 4.2). This covers anything `tasks_ready` did not list. It runs as reconciler step 2 below.
+1. **`tasks_ready` poll.** The `ready_poll` tick (one worker, every 60 seconds) asks each provider endpoint that has `submitted` tasks what is finished (`tasks_ready`: 20 calls per minute at the provider, within the endpoint bucket of section 7). A listed task whose tag names it whole (installation, task, run, attempt) and whose provider id matches moves from `submitted` to `ready` with a conditional update, and `fetch_task` is enqueued for each task that moved: a task listed twice is fetched once. A 30 second poll during open windows is not built; the sweeper bounds what a slower poll could miss.
+2. **Id sweeper.** Tasks still `submitted` 2 hours after submission, or whose time to be asked again has come, are fetched directly by provider task id with `task_get` ([06](06-dataforseo-seo-integration.md) section 4.2), at most 200 a pass. This covers anything `tasks_ready` did not list, and a task whose fetch failed after the provider stopped listing it. It runs as a reconciler step below.
+
+`fetch_task` stores the exact bytes (doc 23 section 9) and moves the task to `fetched`. A result not ready yet puts the task back to `submitted`, asked again in 30 minutes; a fetch that may work next time (a rate limit, the provider's trouble, storage failing) puts it back and asks again in 5 minutes. Neither counts as an attempt: the provider has the task, and sending it again would pay twice. A result the provider dropped (`not_found_expired`) goes to the retry policy, and a fetch refused for good (`invalid_request`) fails the task.
 
 ### 8.2 Reconciler
 
 The worker runs a **reconciler every 5 minutes** (a Taskiq scheduled job on `process`, section 10):
 
-1. Tasks `pending` with `dispatched_at` older than 10 minutes and no live dedupe key: clear `dispatched_at` (the dispatcher will pick them up).
-2. Tasks `submitted` older than 2 hours: enqueue `fetch_task` directly (the id sweeper of section 8.1).
-3. Tasks `submitted` older than 72 hours (76 hours for DataForSEO LLM Responses standard tasks, which the provider documents as taking up to 72 hours): mark `dead`.
-4. Tasks `fetched` older than 10 minutes with no ingest message: enqueue `ingest_*`.
-5. Observations with no current facts for the project's current derivation (after 15 minutes): enqueue `extract_observation`.
-6. Dates with ingested data newer than the rollup's `computed_at`: enqueue rollups.
+1. Tasks `pending` with `dispatched_at` older than 10 minutes: clear `dispatched_at` (the dispatcher will pick them up). Their message was lost, or is still waiting behind others; a dedupe key belongs to a batch, not a task, so the two cannot be told apart, and they need not be: a submit handler takes only tasks still `pending` and dispatched, so if the old message turns up, one of the two messages submits the task and the other takes nothing.
+2. When `RESOLVE_UNKNOWN_SUBMISSIONS` is on: submissions still `submit_unknown` 15 minutes after they began are looked for at the provider (DataForSEO `POST /v3/serp/id_list`, per API), from a minute before the submission to 15 minutes after it; submissions within a minute of each other share one look, and a pass makes at most ten looks in at most two minutes. A task found by its tag becomes `submitted` with the provider's id and reported cost, charged at the time it was sent. One not found goes through the retry policy for `timeout` (`submission_not_found`): sent again after its wait, `dead` once its attempts are used up, and never charged. Absence is only proof when every task listed in the period carries a tag: a listing without one may be ours, so nothing in that look is sent again. Off until spike S-01 confirms that `id_list` returns the tag.
+3. Tasks `submitted` older than 72 hours (76 hours for DataForSEO LLM Responses standard tasks, which the provider documents as taking up to 72 hours): mark `dead`. Tasks still `submit_unknown` after the same time are `dead` too (`submission_never_confirmed`): whether the provider had them was never found out, and there is no result left to fetch. A task whose result was fetched and could not be stored is kept for the 30 days the provider keeps results, then ends as `result_not_stored`.
+4. Tasks `ready` for 15 minutes lost their fetch message: back to `submitted`, and swept at once. Then the id sweeper of section 8.1. A task asked for again waits at least an eighth of its age, up to six hours, so one that keeps failing is not asked for every few minutes for three days.
+- Also in each pass, from the ledger alone: pending tasks 24 hours past their run's window are `cancelled` (`window_missed`), the unsent tasks of a run that ended are `cancelled` (`run_ended`), and running runs whose tasks have all ended are completed. Steps 5, 6 and 7 arrive with the ingest and extraction jobs.
+5. Tasks `fetched` older than 10 minutes with no ingest message: enqueue `ingest_*`.
+6. Observations with no current facts for the project's current derivation (after 15 minutes): enqueue `extract_observation`.
+7. Dates with ingested data newer than the rollup's `computed_at`: enqueue rollups.
 
-After a full Redis loss, steps 1 to 6 restore all in-flight work within one reconciler cycle, with no duplicate provider spend: tasks already accepted by the provider have `provider_task_id` and are fetched, not resubmitted.
+After a full Redis loss, steps 1 to 7 restore all in-flight work within a few reconciler passes (a pass releases stale dispatches in batches of 2,000 for up to a minute), with no duplicate provider spend: tasks already accepted by the provider have `provider_task_id` and are fetched, not resubmitted.
 
 ## 9. Freshness and staleness
 
@@ -260,7 +292,7 @@ After a full Redis loss, steps 1 to 6 restore all in-flight work within one reco
 
 ## 10. Maintenance jobs (Taskiq scheduler)
 
-All jobs below run on the `process` queue, scheduled by Taskiq's scheduler inside the worker under `lock:taskiq-scheduler`. The daily jobs ping one shared `maintenance` Healthchecks.io check on success and `ops_health` pings its own (ADR-022), so a job that stops running is reported by the missing ping.
+All jobs below run on the `process` queue, scheduled by Taskiq's scheduler inside the worker under `lock:taskiq-scheduler`. A job is registered with an interval or with a five-field cron expression in UTC. When a run is sent it claims `dedupe:scheduled:<job>` for half the job's period (half a minute for a cron time), so two schedulers at a change of the lock, or a scheduler that has just started, send a run once. The daily jobs ping one shared `maintenance` Healthchecks.io check on success and `ops_health` pings its own (ADR-022), so a job that stops running is reported by the missing ping.
 
 | Job | Schedule (UTC) | Action |
 |---|---|---|
@@ -288,8 +320,9 @@ All jobs below run on the `process` queue, scheduled by Taskiq's scheduler insid
 
 ## 12. Process lifecycle
 
-- The worker is one process. On `SIGTERM` it stops taking messages from `collect` and `process`, stops the planner and dispatcher ticks and the Taskiq scheduler, waits for in-flight tasks, releases its locks and exits. `stop_grace_period` is 150 s because `live_call` tasks take up to 120 s (doc 22 section 4.1).
-- A deploy restarts the worker once, together with `api` and before `web` (doc 22 section 8.3). Messages wait in Redis during the restart. A task interrupted by a crash or an OOM kill is not relied on to come back from the broker: its ledger row stays in `pending` (dispatched), `submitted` or `fetched`, and the reconciler (section 8.2) re-enqueues it.
+- The worker is one process. On `SIGTERM` it stops taking messages from `collect` and `process` at once, lets the planner and dispatcher ticks and the Taskiq scheduler end what they are doing (a tick still running after 30 s is cut off), waits for in-flight tasks, releases its locks and exits with code 0. `stop_grace_period` is 150 s because `live_call` tasks take up to 120 s (doc 22 section 4.1).
+- If a part of the worker ends by itself (a receiver, a tick runner, the scheduler supervisor), the whole process stops the same way and exits with code 1, so the container is started again instead of running with half its parts. Taskiq's scheduler falling over is not such a case: the supervisor logs it, gives the lock up and starts it again.
+- A deploy restarts the worker once, together with `api` and before `web` (doc 22 section 8.3). Messages wait in Redis during the restart. A task interrupted by a crash or an OOM kill is not relied on to come back from the broker: its ledger row stays in `pending` (dispatched), `submit_unknown`, `submitted` or `fetched`, and the reconciler (section 8.2) brings it back: a dispatched task is released, and one in `submit_unknown` is never sent again (section 6).
 - The ticks are stateless between runs (all state in PostgreSQL and Redis locks with TTLs), so restarting the worker is always safe and a killed worker cannot hold a lock for more than its TTL.
 
 ## 13. Capacity check (V1 target load)

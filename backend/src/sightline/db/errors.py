@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 _UNIQUE_VIOLATION = "23505"
+# Waited for a lock longer than the connection's lock timeout, or was the one of two
+# statements waiting on each other that PostgreSQL chose to end.
+_GAVE_WAY = frozenset({"55P03", "40P01"})
 
 
 def violated_unique_constraint(error: IntegrityError) -> str | None:
@@ -14,3 +17,9 @@ def violated_unique_constraint(error: IntegrityError) -> str | None:
         return None
     name = getattr(getattr(error.orig, "__cause__", None), "constraint_name", None)
     return name if isinstance(name, str) else None
+
+
+def gave_way(error: BaseException) -> bool:
+    """Whether the statement failed only because another transaction was in its way. Nothing
+    is wrong; the same work succeeds when it is tried again."""
+    return isinstance(error, DBAPIError) and getattr(error.orig, "sqlstate", None) in _GAVE_WAY

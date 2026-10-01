@@ -14,6 +14,7 @@ Related: [05-provider-integrations.md](05-provider-integrations.md), [09-rank-tr
 | Result fetch | `GET /v3/serp/google/organic/task_get/advanced/{id}` | fetch | 4 |
 | On-demand single check ("check now") | `POST /v3/serp/google/organic/live/advanced` | Live | 5 |
 | Error reconciliation | `POST /v3/serp/google/organic/errors` (tasks errored in past 7 days) | poll, 10/min | 4 |
+| Tasks posted in a period, with their tags (resolving unknown submissions) | `POST /v3/serp/id_list` with `include_metadata` (per API; 1,000 ids a call, 10 calls/min, a month back with metadata) | reconciler, off until S-01 | 4 |
 | Webhook replay | `POST /v3/appendix/webhook_resend` (up to 100 ids, no double charge) | Not used in V1: no pingback endpoint | n/a |
 | Balance, limits, daily spend | `GET /v3/appendix/user_data` (6 calls/min) | ops, every 15 min | 4 |
 | Locations, languages | `GET /v3/serp/google/locations`, `/languages` | monthly sync, free | 3 |
@@ -87,16 +88,15 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
   "depth": 20,
   "priority": 1,
   "load_async_ai_overview": true,
-  "people_also_ask_click_depth": 0,
   "group_organic_results": true,
   "calculate_rectangles": false,
-  "tag": "t:9f2c1a:r:3e"
+  "tag": "i:prod:t:9f2c1a:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"
 }
 ```
 
 | Field | Our rule |
 |---|---|
-| `keyword` | `seo.keywords.text` as entered (trimmed). Case is preserved because Google can return different SERPs for different casing (observed by an open-source tracker, `research/06-open-source.md`). Max 700 chars (validated). Search operators (`site:` etc.) are rejected at input: they cost 5x and are not rank tracking. |
+| `keyword` | `seo.keywords.text` as entered (trimmed). Case is preserved because Google can return different SERPs for different casing (observed by an open-source tracker, `research/06-open-source.md`). Max 700 chars (validated). Search operators (`site:` etc.) are rejected at input: they cost 5x and are not rank tracking. Sent with `%` as `%25` and `+` as `%2B`: DataForSEO decodes a `%` followed by two characters and reads `+` as a space. |
 | `location_code` | From `core.provider_location_map` for our `location_id`. We use codes, never names (names change). |
 | `location_coordinate` | Only for hyperlocal tracking (Phase 15). Organic format is `lat,lng,radius`; the radius unit in the docs is ambiguous, so this needs a spike before use. |
 | `language_code` | ISO 639-1 from tracked keyword. |
@@ -105,10 +105,10 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 | `depth` | From depth profile for this check. |
 | `priority` | 1 (standard queue) by default; 2 only for schedules with `priority = 'high'` and `provider_mode = 'priority_queue'`. |
 | `load_async_ai_overview` | **Always true.** Without it, AI Overviews that Google loads asynchronously come back as `null`, which undercounts AI Overview presence. The surcharge is refunded when no async AIO is present. The billing formula is ambiguous in the docs (additive one base price vs whole-task multiplier); S-01 resolves it, and section 6 shows both cases. |
-| `people_also_ask_click_depth` | 0 on daily checks. 1 on deep checks when the project has keyword discovery enabled (adds $0.00015 per click; unperformed clicks refunded). Questions visible without clicking are still captured. |
+| `people_also_ask_click_depth` | Not sent on daily checks (no clicks; the documented values are 1 to 4). 1 on deep checks when the project has keyword discovery enabled (adds $0.00015 per click; unperformed clicks refunded). Questions visible without clicking are still captured. |
 | `group_organic_results` | true (provider default): nested `related_result` entries are grouped under their parent result. See 5.2. |
 | `calculate_rectangles` | false. Pixel position is post-MVP (it adds one base price). |
-| `tag` | Compact reference to our task: `t:<task id base36>:r:<run id prefix>`. Max 255 chars. Echoed back in `tasks_ready` and results, used to map provider tasks to ours without a lookup table. |
+| `tag` | Reference to our task: `i:<installation>:t:<task id base36>:a:<attempt>:r:<run id, 32 hex>`. Max 255 chars. Echoed back in `tasks_ready`, `id_list` and results, used to map provider tasks to ours without a lookup table. Each part is a check: the installation (`INSTALLATION_ID`, `prod` in production) keeps two installations sharing the account from taking each other's answers; the whole run id is carried because the first digits of a version 7 id are its time, shared by every run of the same minute; the attempt keeps the answer to an earlier submission from being taken for a later one's. |
 | `pingback_url`, `postback_url` | Omitted. V1 uses polling only; see 4.2. |
 
 ### 3.2 Batching and rate limits
@@ -117,7 +117,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 |---|---|
 | 2,000 API calls per minute (all endpoints combined, raisable) | Global Redis-backed rate limiter shared by every DataForSEO call on the Taskiq `collect` queue, at 1,000 calls/min (50% headroom for fetches and ops calls) |
 | 100 tasks per `task_post` | Always fill batches to 100 where possible; the submitter groups pending tasks by endpoint and priority |
-| `tasks_ready`: 20 calls/min, up to 1,000 ids per call, last 3 days | Poll every 60 s per endpoint while any task is `submitted`, every 30 s while a collection window is open; stop polling when none are |
+| `tasks_ready`: 20 calls/min, up to 1,000 ids per call, last 3 days | Poll every 60 s per endpoint while any task is `submitted`; no call when none are. A 30 s poll during open windows is not built: the id sweeper bounds what a slower poll could miss |
 | Results re-fetchable free for 30 days (HTML 7 days) | Fetch immediately; re-fetch within 30 days is allowed for re-ingest |
 | 10 s callback timeout, then task goes to `tasks_ready` | Not relevant: no callback URL is sent, so every task is found through `tasks_ready` or the id sweeper |
 | Live: 1 task per call | Used only for "check now" and small backfills |
@@ -132,12 +132,14 @@ stateDiagram-v2
     pending --> submitted: task_post accepted (provider id stored)
     pending --> submit_unknown: task_post outcome unknown (timeout after send)
     submit_unknown --> submitted: tag found by reconciler
-    submit_unknown --> pending: tag not matched within 15 min (doc 21 section 6)
+    submit_unknown --> pending: tag not found 15 min after sending, retry policy for timeout (doc 21 section 6)
     pending --> failed: task_post rejected (invalid_request)
-    submitted --> ready: found in tasks_ready (poll_ready)
-    submitted --> ready: older than the collection window and task_get returns result (id sweeper)
+    submitted --> ready: found in tasks_ready (ready poll)
+    submitted --> ready: not listed 2 hours after submission, or asked again after a wait (id sweeper)
     ready --> fetched: task_get/advanced ok, raw stored in R2
-    ready --> failed: task_get error (retryable)
+    ready --> submitted: not ready yet, or a fetch or storage failure that may mend (not an attempt)
+    ready --> pending: result dropped (40403) or the task failed at the provider (50301), retry policy
+    ready --> failed: fetch refused for good (invalid_request)
     fetched --> ingested: normalize + DB write ok
     fetched --> failed: schema_mismatch (raw kept)
     failed --> pending: retry policy allows (new provider task)
@@ -150,14 +152,14 @@ stateDiagram-v2
 
 1. Planner has already inserted `ops.collection_tasks` rows in `pending` with `scheduled_for` staggered over the schedule's window ([21-scheduler-workers.md](21-scheduler-workers.md) section 3).
 2. The dispatcher ([21-scheduler-workers.md](21-scheduler-workers.md) section 4) groups up to 100 due `pending` tasks for the same endpoint and priority into one `submit_batch` Taskiq task on the `collect` queue carrying their ids; the task locks them with `FOR UPDATE SKIP LOCKED`, checks the shared-fetch cache (identical fingerprint fetched today: mark `skipped_cached`, enqueue an ingest task pointing at the cached raw payload), builds the POST, and calls `task_post`.
-3. Response handling per task: `status_code 20100` means accepted; store `provider_task_id`, per-task `cost`, set `submitted`. Any other code maps through `classify_error`.
+3. Response handling per task, matched by the `tag` echoed in the task's `data`, never by position: `status_code 20100` means accepted; store `provider_task_id`, per-task `cost`, set `submitted`. Any other code maps through the table of section 9. A task the answer does not name for certain (an unknown tag, no id, a code that may mean it was created) stays `submit_unknown`.
 4. One `ops.provider_cost_events` row per accepted task with `cost_source = 'provider_reported'`.
 
 ### 4.2 Readiness: polling only
 
-- **Polling** ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)): the `poll_ready` Taskiq task calls `tasks_ready` every 60 s while tasks are outstanding, and every 30 s while a collection window is open. For each returned id it parses `tag`, moves the matching task from `submitted` to `ready` with a conditional `UPDATE ... WHERE status = 'submitted'`, and enqueues `fetch_task` on the `collect` queue only when that update changed a row (natural dedupe: an id listed twice is fetched once). It never fetches inline.
+- **Polling** ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)): the `ready_poll` tick calls `tasks_ready` every 60 s for each endpoint with tasks `submitted`. For each returned id it parses `tag`, moves the matching task from `submitted` to `ready` with a conditional `UPDATE ... WHERE status = 'submitted'` (a task still waiting out a failed fetch's wait is left alone), and enqueues `fetch_task` on the `collect` queue only when that update changed a row (natural dedupe: an id listed twice is fetched once). It never fetches inline.
 - **Why no pingback or postback**: postback POSTs the full gzipped result to our API, which puts large bodies on the API process inside a 10 s timeout. Pingback would add a public endpoint, a Caddy IP allowlist and a route token for a latency gain of at most one poll interval, which no screen needs. Neither is used; no callback URL is sent.
-- **Id sweeper**: tasks still `submitted` once they are older than the collection window are fetched directly by id with `task_get` (covers edge cases where a task is not listed). Tasks with no result after 72 hours become `dead` and alert.
+- **Id sweeper**: tasks still `submitted` 2 hours after submission, or whose wait after a failed fetch is over, are fetched directly by id with `task_get` (covers a task not listed, and one whose result was handed over and not stored). Tasks with no result after 72 hours become `dead` and alert.
 
 ### 4.3 Fetch and store
 
@@ -165,7 +167,9 @@ stateDiagram-v2
 2. Validate envelope: `status_code 20000` at top level and task level.
 3. Write the exact response bytes, zstd-compressed (level 6), to R2 at `raw/v1/serp_raw/dataforseo/serp_google_organic_advanced/YYYY/MM/DD/<sha256>.json.zst` (key scheme `raw/v1/<retention_class>/<provider>/<endpoint_slug>/YYYY/MM/DD/<sha256>.json.zst`, doc 23 section 9.1); register in `ops.raw_payloads` with `retention_class = 'serp_raw'`.
 4. Task to `fetched`; insert `ops.fetch_cache` row keyed by request fingerprint and UTC date.
-5. Enqueue the `ingest_serp` Taskiq task on the `process` queue with the raw payload id. The fetching worker also writes the uncompressed body to the local spool (`/var/spool/seo/<sha256>`, the `spool` named volume capped by `SPOOL_MAX_BYTES`, 5 GiB; doc 22 sections 4.1 and 9.5) so ingest on the same host usually avoids an R2 round trip.
+5. Enqueue the `ingest_serp` Taskiq task on the `process` queue with the raw payload id (step 5 of the build order). The local spool of doc 22 is not built: ingest reads the payload from R2 (plan `docs/superpowers/plans/2026-09-30-dataforseo-raw-storage.md`, decision D5), and if R2 fails the fetch is tried again, since DataForSEO keeps results for 30 days.
+
+The task becomes `fetched` with the id of its registered payload; the `ops.fetch_cache` row of step 4 arrives with rank collection (step 5 of the build order). A result that is not ready yet, or a fetch or storage failure that may mend, puts the task back to `submitted` without counting an attempt (doc 21 section 8.1).
 
 ### 4.4 Ingest
 
@@ -339,12 +343,20 @@ Labs SERP-derived datasets (`ranked_keywords`, `domain_intersection`, `competito
 | 40203 (own cost limit) | account_limit | Pause DataForSEO workloads, alert admins |
 | 40209 (too many simultaneous) | concurrency | Retry after 5 s |
 | 40403 (results expired) | not_found_expired | Resubmit if run window still open, else mark dead |
-| 401 | auth | Pause provider, alert |
-| 402 | payment | Pause provider, alert (balance exhausted) |
-| 50301 (third-party source unavailable) | upstream_unavailable | Retry with backoff per doc 21 section 6 (max 4 attempts), then `dead` |
-| HTTP 5xx, timeouts | provider_error / timeout | Retry with backoff |
+| 50301 (third-party source unavailable), HTTP 503 | upstream_unavailable | Retry with backoff per doc 21 section 6 (max 4 attempts), then `dead`. On a fetched task it means the task itself failed: it is submitted again under that policy |
+| 401xx (not authorized, account not activated or blocked), HTTP 401 and 403 | auth | Pause provider, alert |
+| 402xx other than the codes above (balance, payment), HTTP 402 | payment | Pause provider, alert |
+| HTTP 429 | rate_limited | As 40202; a `Retry-After` in whole seconds is the least wait |
+| 405xx (invalid field, path or body) | invalid_request | Do not retry, mark task failed |
+| 40601, 40602 (task in queue, task being processed) | not an error | `task_get` asked too early: the task stays `submitted` |
+| 40102 (no search results) | not an error | A finished, empty result: stored and ingested like any other |
+| 5xxxx other than 50301; HTTP 408, 425, and every 5xx but 501, 503 and 505 (a proxy's 520 to 524 among them) | timeout when posting tasks, else provider_error | Posting: the tasks may have been created and charged, so they become `submit_unknown` and are not sent again blind. Reading: retry |
+| A timeout, a dropped connection or an unreadable answer after the request was sent | timeout when posting tasks, else provider_error | As the row above. A refused call whose answer still names tasks it created is read task by task, so those are recorded |
+| HTTP 400, 413, 422 | invalid_request | Do not retry |
+| Any other code or HTTP status | provider_error | Retry with backoff: reading again costs nothing, and a wrong failure cannot be undone |
+| No turn under our own limiter within 30 s, the limiter not reachable, or no connection opened to the provider | not_sent | Not sent and not an attempt: retry in 30 s, without slowing the limiter |
 
-HTTP status is 200 for most errors; the real status is in `status_code` at top and task level (verified). The adapter checks both levels.
+HTTP status is 200 for most errors; the real status is in `status_code` at top and task level (verified). The adapter checks both levels. Spike S-01 checks whether any 402xx code refuses one API only (a subscription code such as 40204): if so, it must stop that workload, not pause every DataForSEO workload.
 
 ## 10. Terms and data handling
 

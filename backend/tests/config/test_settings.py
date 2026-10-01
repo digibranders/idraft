@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -51,6 +53,132 @@ def test_loads_required_values_and_defaults(monkeypatch: pytest.MonkeyPatch) -> 
     assert settings.email_from == "Sightline <no-reply@localhost>"
     assert settings.breached_password_check is True
     assert settings.totp_key == bytes(range(32))
+
+
+def test_the_worker_has_its_own_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, BASE_ENV)
+    defaults = Settings()
+    assert (defaults.collect_concurrency, defaults.process_concurrency) == (8, 4)
+    assert defaults.heartbeat_file is None
+
+    _set(
+        monkeypatch,
+        {
+            **BASE_ENV,
+            "COLLECT_CONCURRENCY": "64",
+            "PROCESS_CONCURRENCY": "32",
+            "HEARTBEAT_FILE": "/tmp/heartbeat",
+        },
+    )
+    settings = Settings()
+    assert (settings.collect_concurrency, settings.process_concurrency) == (64, 32)
+    assert settings.heartbeat_file == Path("/tmp/heartbeat")
+
+    # An empty variable is "not set", not the directory the process runs in.
+    _set(monkeypatch, {**BASE_ENV, "HEARTBEAT_FILE": ""})
+    assert Settings().heartbeat_file is None
+
+
+PROVIDERS_ENV = {
+    "DATAFORSEO_LOGIN": "api@example.com",
+    "DATAFORSEO_PASSWORD": "dfs-secret",
+    "R2_RAW_ENDPOINT": "https://0123abcd.r2.cloudflarestorage.com/",
+    "R2_RAW_ACCESS_KEY_ID": "r2-key",
+    "R2_RAW_SECRET_ACCESS_KEY": "r2-secret",
+}
+
+
+def test_the_worker_reads_its_provider_and_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, BASE_ENV)
+    bare = Settings()
+    assert (bare.dataforseo_credentials, bare.raw_storage_configured) == (None, False)
+    assert (bare.r2_raw_bucket, bare.resolve_unknown_submissions) == ("seo-raw", False)
+
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, "RESOLVE_UNKNOWN_SUBMISSIONS": "true"})
+    settings = Settings()
+
+    assert settings.dataforseo_credentials == ("api@example.com", "dfs-secret")
+    assert settings.raw_storage_configured
+    # The origin alone: a path would be taken for part of every key.
+    assert settings.r2_raw_endpoint == "https://0123abcd.r2.cloudflarestorage.com"
+    assert settings.resolve_unknown_submissions
+    assert (bare.installation_id, settings.installation_id) == ("local", "local")
+    for secret in ("dfs-secret", "r2-secret", "r2-key"):
+        assert secret not in repr(settings)
+        assert secret not in str(settings)
+
+
+def test_credentials_read_from_a_secrets_file_lose_their_newline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kept, the newline is part of the password, which the provider refuses."""
+    _set(
+        monkeypatch,
+        {
+            **BASE_ENV,
+            **PROVIDERS_ENV,
+            "DATAFORSEO_PASSWORD": "dfs-secret\n",
+            "INSTALLATION_ID": "prod",
+        },
+    )
+    settings = Settings()
+
+    assert settings.dataforseo_credentials == ("api@example.com", "dfs-secret")
+    assert settings.installation_id == "prod"
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"DATAFORSEO_PASSWORD": ""},
+        {"DATAFORSEO_LOGIN": "   "},
+        {"R2_RAW_SECRET_ACCESS_KEY": ""},
+        # A task sent is paid for; without the bucket its result could never be kept.
+        {"R2_RAW_ENDPOINT": "", "R2_RAW_ACCESS_KEY_ID": "", "R2_RAW_SECRET_ACCESS_KEY": ""},
+        {"R2_RAW_ENDPOINT": "r2.example.com"},
+        {"R2_RAW_ENDPOINT": "https://r2.example.com/seo-raw"},
+        {"R2_RAW_ENDPOINT": "https://r2.example.com?bucket=x"},
+        {"R2_RAW_ENDPOINT": "ftp://r2.example.com"},
+        # Credentials in the URL would be shown wherever the settings are.
+        {"R2_RAW_ENDPOINT": "https://AKID:topsecret@r2.example.com"},
+        {"R2_RAW_ENDPOINT": "https://r2.example.com:99999"},
+        {"R2_RAW_ENDPOINT": "https://r2.example.com:abc"},
+        {"R2_RAW_BUCKET": "Seo_Raw"},
+        # Plain http only to this machine, and never in production.
+        {"R2_RAW_ENDPOINT": "http://r2.example.com"},
+        {"R2_RAW_ENDPOINT": "http://127.0.0.1:9000", "APP_ENV": "production"},
+        {"INSTALLATION_ID": "Prod"},
+        {"INSTALLATION_ID": "a-very-long-installation-name"},
+        {"INSTALLATION_ID": ""},
+    ],
+)
+def test_a_provider_or_bucket_is_configured_whole_or_not_at_all(
+    monkeypatch: pytest.MonkeyPatch, override: dict[str, str]
+) -> None:
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, **override})
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_a_production_server_that_spends_money_names_its_installation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A copy started with production's env must not quietly tag its tasks `local`, nor
+    quietly share production's tags."""
+    production = {**BASE_ENV, **PROVIDERS_ENV, "APP_ENV": "production"}
+    _set(monkeypatch, production)
+    with pytest.raises(ValidationError, match="INSTALLATION_ID"):
+        Settings()
+
+    _set(monkeypatch, {**production, "INSTALLATION_ID": "prod"})
+    assert Settings().installation_id == "prod"
+
+
+def test_a_local_store_may_be_reached_over_plain_http_outside_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, "R2_RAW_ENDPOINT": "http://127.0.0.1:9000"})
+    assert Settings().r2_raw_endpoint == "http://127.0.0.1:9000"
 
 
 def test_app_env_is_read_from_its_variable_only(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -145,6 +273,10 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
         {"DB_STATEMENT_TIMEOUT": "1٣s"},
         {"DB_STATEMENT_TIMEOUT": "99999999999999999999s"},
         {"DB_POOL_SIZE": "0"},
+        {"COLLECT_CONCURRENCY": "0"},
+        {"COLLECT_CONCURRENCY": "65"},
+        {"PROCESS_CONCURRENCY": "0"},
+        {"PROCESS_CONCURRENCY": "33"},
         {"LOG_LEVEL": "verbose"},
         {"APP_ENV": "staging"},
         {"APP_ENV": "production", "APP_ORIGIN": "http://app.example.com"},

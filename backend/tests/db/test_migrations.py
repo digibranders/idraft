@@ -89,6 +89,83 @@ def test_the_history_can_be_walked_down_and_up_again(pg: PostgresServer) -> None
     assert _version(url) == [migration_state().head]
 
 
+def test_schedules_and_runs_from_before_the_ledger_revisions_are_carried_over(
+    pg: PostgresServer,
+) -> None:
+    """0006 to 0008 change rules on tables that may hold rows: every row that was valid
+    before is valid after, and takes the day its cadence now has to name."""
+    url = _fresh_database(pg, "migrate_ledger")
+    command.upgrade(alembic_config(url), "0005")
+    (workspace,) = _query(
+        url, "INSERT INTO auth.workspaces (name, slug) VALUES ('w', 'w') RETURNING id"
+    )
+    (project,) = _query(
+        url,
+        "INSERT INTO core.projects (workspace_id, name, slug) "
+        f"VALUES ('{workspace}', 'p', 'p') RETURNING id",
+    )
+
+    def schedule(cadence: str, zone: str, next_run_at: str, weekday: str = "NULL") -> str:
+        (schedule_id,) = _query(
+            url,
+            "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, "
+            f"timezone, weekday, next_run_at) VALUES ('{workspace}', '{project}', 'seo_rank', "
+            f"'{cadence}', '{cadence}', '{zone}', {weekday}, '{next_run_at}') RETURNING id",
+        )
+        return schedule_id
+
+    daily = schedule("daily", "UTC", "2026-10-08 02:00+00")
+    # 20:30 UTC on Wednesday the 7th is 02:00 on Thursday the 8th in India.
+    weekly = schedule("weekly", "Asia/Kolkata", "2026-10-07 20:30+00")
+    weekly_named = schedule("weekly", "UTC", "2026-10-08 02:00+00", weekday="2")
+    # A month may have no 31st: the schedule takes the last day every month has.
+    monthly = schedule("monthly", "UTC", "2026-10-31 02:00+00")
+    monthly_early = schedule("monthly", "UTC", "2026-10-05 02:00+00")
+    run = (
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, schedule_id, workload, "
+        "window_start, window_end, trigger, status, config_snapshot, blocked_by_budget_id) "
+        f"VALUES ('{workspace}', '{project}', {{schedule}}, 'seo_rank', '2026-10-08 02:00+00', "
+        "'2026-10-08 08:00+00', '{trigger}', 'planned', '{{}}', {budget}) RETURNING id"
+    )
+    (budget,) = _query(
+        url,
+        "INSERT INTO ops.budgets (workspace_id, workload, limit_usd) "
+        f"VALUES ('{workspace}', 'all', 1) RETURNING id",
+    )
+    (scheduled,) = _query(
+        url, run.format(schedule=f"'{daily}'", trigger="schedule", budget=f"'{budget}'")
+    )
+    _query(url, run.format(schedule="NULL", trigger="manual", budget="NULL"))
+
+    upgrade_to_head(url)
+
+    days = dict(
+        row.split("=")
+        for row in _query(
+            url,
+            "SELECT id || '=' || coalesce(weekday::text, '-') || ',' || "
+            "coalesce(month_day::text, '-') FROM ops.schedules",
+        )
+    )
+    assert days == {
+        daily: "-,-",
+        weekly: "4,-",
+        weekly_named: "2,-",
+        monthly: "-,28",
+        monthly_early: "-,5",
+    }
+    # A second run without a schedule may now share the window; a schedule's may not.
+    _query(url, run.format(schedule="NULL", trigger="manual", budget="NULL"))
+    with pytest.raises(asyncpg.UniqueViolationError):
+        _query(url, run.format(schedule=f"'{daily}'", trigger="schedule", budget="NULL"))
+    # The budget that blocked a run can be deleted, and the run forgets it.
+    _query(url, f"DELETE FROM ops.budgets WHERE id = '{budget}' RETURNING id")
+    assert _query(
+        url,
+        f"SELECT blocked_by_budget_id IS NULL FROM ops.collection_runs WHERE id = '{scheduled}'",
+    ) == ["True"]
+
+
 def test_concurrent_migrators_take_turns(pg: PostgresServer) -> None:
     """Four migrator processes against an empty database: the advisory lock makes them queue."""
     url = _fresh_database(pg, "migrate_race")

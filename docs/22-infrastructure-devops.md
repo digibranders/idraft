@@ -274,15 +274,23 @@ services:
       DB_POOL_SIZE: "8"
       DB_STATEMENT_TIMEOUT: "120s"
       REDIS_URL: ${REDIS_URL_APP:?}
-      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:?}
-      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:?}
-      R2_RAW_ACCESS_KEY_ID: ${R2_RAW_ACCESS_KEY_ID:?}
-      R2_RAW_SECRET_ACCESS_KEY: ${R2_RAW_SECRET_ACCESS_KEY:?}
+      # Empty until the provider account and bucket exist: the worker then registers no
+      # provider and calls nothing. Set together; the worker refuses DataForSEO without R2.
+      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:-}
+      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:-}
+      R2_RAW_ENDPOINT: ${R2_RAW_ENDPOINT:-}        # https://<account id>.r2.cloudflarestorage.com
+      R2_RAW_BUCKET: seo-raw
+      R2_RAW_ACCESS_KEY_ID: ${R2_RAW_ACCESS_KEY_ID:-}
+      R2_RAW_SECRET_ACCESS_KEY: ${R2_RAW_SECRET_ACCESS_KEY:-}
+      RESOLVE_UNKNOWN_SUBMISSIONS: "false"         # true once spike S-01 confirms id_list returns tags
+      INSTALLATION_ID: prod                        # in every provider tag; required in production with DataForSEO; a restored copy runs with another
       HC_PLANNER_URL: ${HC_PLANNER_URL:?}
       HC_MAINTENANCE_URL: ${HC_MAINTENANCE_URL:?}
       HC_OPS_HEALTH_URL: ${HC_OPS_HEALTH_URL:?}
       SENTRY_DSN: ${SENTRY_DSN_BACKEND:?}
       EMAIL_API_KEY: ${EMAIL_API_KEY:?}
+      # Reserved: the spool is not built. Raw payloads go straight to R2, and an R2 outage
+      # delays fetching (DataForSEO keeps results 30 days) instead of filling a local disk.
       SPOOL_DIR: /var/spool/seo
       SPOOL_MAX_BYTES: "5368709120"   # 5 GiB, see disk budget
       HEARTBEAT_FILE: /tmp/heartbeat
@@ -585,8 +593,8 @@ user admin on #<sha256-of-admin-password> ~* &* +@all
 ```
 
 - This implements doc 24 section 9 ("requirepass" plus disabled dangerous commands). With an ACL file, the `default` user is switched off instead of setting `requirepass`; every client authenticates as a named user. `FLUSHALL`, `FLUSHDB`, `CONFIG`, `DEBUG`, `KEYS` and `SHUTDOWN` fall under `@dangerous` and are denied to `app`.
-- `+info` and `+client|setname` are re-allowed because the Redis client library runs `INFO` and names its connections. Phase 1 smoke test: run the Taskiq integration tests against this ACL; a missing permission shows up as a `NOPERM` error.
-- The app uses these keys: the Taskiq queue lists `collect` and `process`, `taskiq:` (Taskiq's scheduler state, with its schedule source prefix set to `taskiq:schedule`), `dedupe:` (enqueue dedupe keys, doc 21 section 5.2), `cache:` (5 minute API cache, doc 03 section 7.4), `rl:` (rate limits), `lock:` (planner, dispatcher, scheduler and rollup locks), `sess:` (60 s session read-through cache) and `oauth:` (OAuth state for first-party integrations).
+- `+info` and `+client|setname` are re-allowed because the Redis client library runs `INFO` and names its connections. The worker's queue tests read this rule from this document and run the queues, the claims of left messages, the scheduler and its lock as a user made from it (`tests/worker/test_queues.py`), so a key or command the worker needs and the rule does not allow fails the build, not the deployment. The worker does not use the lock key of `taskiq-redis` (`autoclaim:*`): it claims left messages itself (doc 21 section 5.1).
+- The app uses these keys: the Taskiq queue streams `collect` and `process`, `taskiq:` (reserved for Taskiq; the scheduled jobs are read from the code, not from Redis), `dedupe:` (enqueue dedupe keys and the claims of scheduled runs, doc 21 sections 5.2 and 10), `cache:` (5 minute API cache, doc 03 section 7.4), `rl:` (rate limits), `lock:` (planner, dispatcher, scheduler and rollup locks), `sess:` (60 s session read-through cache) and `oauth:` (OAuth state for first-party integrations).
 - Valkey 9 reads the same directives; switch by changing the image and the command to `valkey-server`.
 
 ### 4.4 Worker concurrency and connection pools
@@ -949,7 +957,7 @@ Each service gets the minimum it needs. This map is the `environment:` blocks of
 web:       [SENTRY_DSN_WEB]
 api:       [DATABASE_URL_API, REDIS_URL_APP, SENTRY_DSN_BACKEND, EMAIL_API_KEY, TOTP_ENCRYPTION_KEY]
 worker:    [DATABASE_URL_WORKER, REDIS_URL_APP, DATAFORSEO_LOGIN, DATAFORSEO_PASSWORD,
-            R2_RAW_ACCESS_KEY_ID, R2_RAW_SECRET_ACCESS_KEY, HC_PLANNER_URL, HC_MAINTENANCE_URL,
+            R2_RAW_ENDPOINT, R2_RAW_ACCESS_KEY_ID, R2_RAW_SECRET_ACCESS_KEY, HC_PLANNER_URL, HC_MAINTENANCE_URL,
             HC_OPS_HEALTH_URL, SENTRY_DSN_BACKEND, EMAIL_API_KEY]
 migrator:  [DATABASE_URL_MIGRATOR]
 postgres:  [PG_SUPERUSER_PASSWORD, PG_API_PASSWORD, PG_WORKER_PASSWORD, PG_MIGRATOR_PASSWORD]
@@ -1333,7 +1341,7 @@ CPU steal is worth watching on a Basic (shared vCPU) droplet: sustained steal ab
 | Swap file | 2 GiB | fixed |
 | Ballast file | 1 GiB | deleted only during a disk-full incident |
 | Redis AOF + RDB | 0.5 GiB | 256 MB maxmemory, AOF rewrite |
-| Raw payload spool (R2 outage buffer) | 5 GiB cap | `SPOOL_MAX_BYTES`; collection pauses when full |
+| Raw payload spool (R2 outage buffer) | 5 GiB cap | `SPOOL_MAX_BYTES`; collection pauses when full. Not built yet: fetches wait for R2 instead |
 | PostgreSQL WAL | 2 to 3 GiB | `max_wal_size = 2GB` |
 | PostgreSQL temp files | up to 4 GiB transient | `temp_file_limit` |
 | **Subtotal excluding table data** | **about 21 to 26 GiB** | |

@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import re
 import sys
+from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
@@ -124,6 +125,68 @@ class Settings(_DatabaseSettings):
     email_api_key: SecretStr | None = None
     email_from: str = DEFAULT_EMAIL_FROM
     breached_password_check: bool = True
+    # The worker only. How many handlers of each queue run at once (docs/22 section 4.4).
+    collect_concurrency: int = Field(default=8, ge=1, le=64)
+    process_concurrency: int = Field(default=4, ge=1, le=32)
+    # The worker touches this file while it is healthy; the container healthcheck reads its age.
+    heartbeat_file: Path | None = None
+    # The worker only. DataForSEO's API login, both or neither: without them the provider is
+    # not registered and nothing is sent to it.
+    dataforseo_login: SecretStr | None = None
+    dataforseo_password: SecretStr | None = None
+    # The worker only. The raw payload bucket (docs/23 section 9): R2's S3 endpoint,
+    # https://<account id>.r2.cloudflarestorage.com, and a token scoped to the bucket. All
+    # three or none: without them nothing is fetched, since a result is kept only once stored.
+    r2_raw_endpoint: str | None = None
+    r2_raw_bucket: str = Field(default="seo-raw", pattern=r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")
+    r2_raw_access_key_id: SecretStr | None = None
+    r2_raw_secret_access_key: SecretStr | None = None
+    # Resolve submissions of unknown outcome by asking the provider which tasks it holds. Off
+    # until spike S-01 confirms that DataForSEO's task list returns our tags.
+    resolve_unknown_submissions: bool = False
+    # Names this installation in every task it sends a provider. Two installations sharing a
+    # provider account (production and a restore rehearsal, say) then never take each other's
+    # answers. Production is `prod`; a copy of its database must be started with another.
+    installation_id: str = Field(default="local", pattern=r"^[a-z0-9]{1,16}$")
+
+    @field_validator("heartbeat_file", "r2_raw_endpoint", mode="before")
+    @classmethod
+    def _empty_is_unset(cls, value: object) -> object:
+        # An empty variable is "not set". As a path it would be the working directory.
+        return None if value == "" else value
+
+    @field_validator(
+        "dataforseo_login",
+        "dataforseo_password",
+        "r2_raw_access_key_id",
+        "r2_raw_secret_access_key",
+    )
+    @classmethod
+    def _empty_credential_is_none(cls, value: SecretStr | None) -> SecretStr | None:
+        # Stripped: a value read from a secrets file usually ends with a newline, and a
+        # password that keeps it is refused by the provider as a wrong one.
+        text = "" if value is None else value.get_secret_value().strip()
+        return SecretStr(text) if text else None
+
+    @field_validator("r2_raw_endpoint")
+    @classmethod
+    def _validate_r2_endpoint(cls, value: str | None) -> str | None:
+        # The rules of an origin: scheme, host and port only. Credentials in the URL would be
+        # kept in a plain string and shown wherever the settings are.
+        return None if value is None else _validate_origin(value)
+
+    @property
+    def dataforseo_credentials(self) -> tuple[str, str] | None:
+        if self.dataforseo_login is None or self.dataforseo_password is None:
+            return None
+        return (
+            self.dataforseo_login.get_secret_value(),
+            self.dataforseo_password.get_secret_value(),
+        )
+
+    @property
+    def raw_storage_configured(self) -> bool:
+        return self.r2_raw_endpoint is not None
 
     _check_origin = field_validator("app_origin")(_validate_origin)
 
@@ -200,6 +263,39 @@ class Settings(_DatabaseSettings):
                 raise ValueError("EMAIL_PROVIDER must not be console when APP_ENV is production")
             if self.app_env != "test" and not _is_local_origin(self.app_origin):
                 raise ValueError("EMAIL_PROVIDER must not be console unless APP_ORIGIN is local")
+        return self
+
+    @model_validator(mode="after")
+    def _providers_are_configured_whole(self) -> Self:
+        if (self.dataforseo_login is None) != (self.dataforseo_password is None):
+            raise ValueError(
+                "DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD are set together or not at all"
+            )
+        r2 = (self.r2_raw_endpoint, self.r2_raw_access_key_id, self.r2_raw_secret_access_key)
+        if any(part is not None for part in r2) and any(part is None for part in r2):
+            raise ValueError(
+                "R2_RAW_ENDPOINT, R2_RAW_ACCESS_KEY_ID and R2_RAW_SECRET_ACCESS_KEY are set "
+                "together or not at all"
+            )
+        # Credentials for the bucket go over TLS, except to a store on this machine.
+        if (
+            self.r2_raw_endpoint is not None
+            and self.r2_raw_endpoint.startswith("http://")
+            and (self.app_env == "production" or not _is_local_origin(self.r2_raw_endpoint))
+        ):
+            raise ValueError("R2_RAW_ENDPOINT must be https:// unless it is on this machine")
+        # A task sent is paid for; without the bucket its result could never be kept.
+        if self.dataforseo_login is not None and self.r2_raw_endpoint is None:
+            raise ValueError("DATAFORSEO_LOGIN needs R2_RAW_ENDPOINT: results are kept in R2")
+        # The installation is in every task's tag, so two installations on one account never
+        # take each other's results. A server that spends money names it; a copy started with
+        # production's env (a restore rehearsal) must name another one, not fall back quietly.
+        if (
+            self.app_env == "production"
+            and self.dataforseo_login is not None
+            and "installation_id" not in self.model_fields_set
+        ):
+            raise ValueError("INSTALLATION_ID must be set when DATAFORSEO_LOGIN is, in production")
         return self
 
 

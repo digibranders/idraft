@@ -1454,13 +1454,16 @@ CREATE TABLE ops.schedules (
     window_start_local time NOT NULL DEFAULT '02:00',
     window_hours    smallint NOT NULL DEFAULT 6 CHECK (window_hours BETWEEN 1 AND 24),  -- stagger tasks across this window
     weekday         smallint CHECK (weekday BETWEEN 0 AND 6),    -- weekly cadence
+    month_day       smallint CHECK (month_day BETWEEN 1 AND 28), -- monthly cadence; every month has these days
     priority        text NOT NULL DEFAULT 'standard' CHECK (priority IN ('high','standard','low')),
     provider_mode   text NOT NULL DEFAULT 'standard_queue' CHECK (provider_mode IN ('standard_queue','priority_queue','live')),
     selector        jsonb NOT NULL DEFAULT '{}',   -- which keywords/prompts: {"groups":[...],"panels":[...],"all":true}
     is_active       boolean NOT NULL DEFAULT true,
     next_run_at     timestamptz NOT NULL,
     last_run_id     uuid,
-    created_at      timestamptz NOT NULL DEFAULT now()
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT schedules_weekly_names_its_weekday CHECK (cadence <> 'weekly' OR weekday IS NOT NULL),
+    CONSTRAINT schedules_monthly_names_its_day CHECK (cadence <> 'monthly' OR month_day IS NOT NULL)
 );
 CREATE INDEX ON ops.schedules (next_run_at) WHERE is_active;
 
@@ -1476,7 +1479,7 @@ CREATE TABLE ops.collection_runs (
     trigger            text NOT NULL CHECK (trigger IN ('schedule','manual','backfill','retry')),
     status             text NOT NULL CHECK (status IN ('planned','running','completed','completed_with_errors','failed','cancelled','budget_blocked')),
     status_reason      text,                  -- e.g. 'missed_window' (21 section 3.1), 'budget_exceeded'
-    blocked_by_budget_id uuid REFERENCES ops.budgets(id),
+    blocked_by_budget_id uuid REFERENCES ops.budgets(id) ON DELETE SET NULL,  -- a budget that blocked a run can be deleted
     created_by_type    text CHECK (created_by_type IN ('user','api_key','system')),
     created_by_id      text,
     origin_request_id  text,                  -- API request id of a manual run (25 section 3.3)
@@ -1488,8 +1491,14 @@ CREATE TABLE ops.collection_runs (
     config_snapshot    jsonb NOT NULL,        -- versions of adapter/parser/extractor, provider mode, replicates
     created_at         timestamptz NOT NULL DEFAULT now(),
     completed_at       timestamptz,
-    UNIQUE NULLS NOT DISTINCT (schedule_id, window_start)   -- idempotent planning
+    CONSTRAINT collection_runs_scheduled_names_its_schedule
+        CHECK (trigger <> 'schedule' OR schedule_id IS NOT NULL)
 );
+-- Idempotent planning of a schedule's window. Runs that no schedule triggered (manual, backfill,
+-- retry) are outside this guard and carry no schedule id; a guard for those, by
+-- origin_request_id, comes with the route that starts them.
+CREATE UNIQUE INDEX collection_runs_scheduled_window ON ops.collection_runs (schedule_id, window_start)
+    WHERE trigger = 'schedule';
 
 CREATE TABLE ops.collection_tasks (
     id                 bigint GENERATED ALWAYS AS IDENTITY,
@@ -1529,6 +1538,9 @@ CREATE TABLE ops.collection_tasks (
 CREATE INDEX ON ops.collection_tasks (status, next_attempt_at) WHERE status IN ('pending','submit_unknown','submitted','ready','failed');
 CREATE INDEX ON ops.collection_tasks (provider_code, provider_task_id) WHERE provider_task_id IS NOT NULL;
 CREATE INDEX ON ops.collection_tasks (run_id);
+-- The tasks waiting to be sent, in the order the dispatcher takes them (21 section 4).
+CREATE INDEX collection_tasks_waiting ON ops.collection_tasks (project_id, scheduled_for, id)
+    WHERE status = 'pending' AND dispatched_at IS NULL;
 ```
 
 Idempotency: the unique constraint includes `created_at` because it is a partitioned table (unique constraints on partitioned tables must include the partition key). The planner derives `created_at` for a run's tasks from the run's `window_start` truncated to the month, so duplicate planning attempts for the same run land in the same partition and hit the constraint. See [21-scheduler-workers.md](21-scheduler-workers.md) section 3.4.
@@ -1554,7 +1566,7 @@ CREATE TABLE ops.raw_payloads (
     fetched_at      timestamptz NOT NULL,
     retention_class text NOT NULL CHECK (retention_class IN ('serp_raw','ai_raw','first_party_raw','error')),
     expires_at      timestamptz,             -- set by retention policy; NULL = keep
-    UNIQUE (sha256)
+    UNIQUE (retention_class, sha256)         -- once per class: the class is in the key and sets the object's life (migration 0009)
 );
 
 CREATE TABLE ops.fetch_cache (

@@ -168,6 +168,99 @@ async def test_a_schedule_is_planned_once_per_window(migrated: PostgresServer) -
             await db.execute(insert, *arguments)
 
 
+async def test_runs_without_a_schedule_may_share_a_window(migrated: PostgresServer) -> None:
+    """The window guard is for a schedule's runs. Two backfills of the same day are two runs."""
+    tenant = await seed_tenant(migrated, "backfill")
+    insert = (
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, config_snapshot) "
+        "VALUES ($1, $2, 'seo_rank', '2026-10-01 00:00+00', '2026-10-02 00:00+00', 'backfill', "
+        "'planned', '{}')"
+    )
+    async with scoped(migrated, "superuser") as db:
+        await db.execute(insert, tenant.workspace_id, tenant.project_id)
+        await db.execute(insert, tenant.workspace_id, tenant.project_id)
+
+
+async def test_a_run_a_schedule_triggered_names_the_schedule(migrated: PostgresServer) -> None:
+    """Otherwise it would be outside the window guard, which is over the schedule's id."""
+    tenant = await seed_tenant(migrated, "guard")
+    async with scoped(migrated, "superuser") as db:
+        with pytest.raises(asyncpg.CheckViolationError):
+            await db.execute(
+                "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, "
+                "window_start, window_end, trigger, status, config_snapshot) "
+                "VALUES ($1, $2, 'seo_rank', now(), now(), 'schedule', 'planned', '{}')",
+                tenant.workspace_id,
+                tenant.project_id,
+            )
+
+
+async def test_a_budget_that_blocked_a_run_can_still_be_deleted(migrated: PostgresServer) -> None:
+    tenant = await seed_tenant(migrated, "blocked")
+    async with connection(migrated) as db:
+        budget_id = await db.fetchval(
+            "INSERT INTO ops.budgets (workspace_id, workload, limit_usd) "
+            "VALUES ($1, 'seo_rank', 1) RETURNING id",
+            tenant.workspace_id,
+        )
+        await db.execute(
+            "UPDATE ops.collection_runs SET status = 'budget_blocked', "
+            "status_reason = 'budget_exceeded', blocked_by_budget_id = $2 WHERE id = $1",
+            tenant.run_id,
+            budget_id,
+        )
+
+    async with scoped(migrated, "app_api", workspace_id=tenant.workspace_id) as db:
+        deleted = await db.execute("DELETE FROM ops.budgets WHERE id = $1", budget_id)
+        run = await db.fetchrow(
+            "SELECT status, status_reason, blocked_by_budget_id FROM ops.collection_runs "
+            "WHERE id = $1",
+            tenant.run_id,
+        )
+
+    assert deleted == "DELETE 1"
+    # The run still says what happened; it no longer points at a budget that is gone.
+    assert run is not None
+    assert tuple(run) == ("budget_blocked", "budget_exceeded", None)
+
+
+@pytest.mark.parametrize(
+    ("cadence", "weekday", "month_day", "accepted"),
+    [
+        ("daily", None, None, True),
+        ("weekly", 0, None, True),
+        ("weekly", None, None, False),
+        ("weekly", 7, None, False),
+        ("monthly", None, 28, True),
+        ("monthly", None, None, False),
+        # Not every month has a 29th.
+        ("monthly", None, 29, False),
+        ("monthly", None, 0, False),
+    ],
+)
+async def test_a_schedule_names_the_day_its_cadence_needs(
+    migrated: PostgresServer,
+    cadence: str,
+    weekday: int | None,
+    month_day: int | None,
+    accepted: bool,
+) -> None:
+    tenant = await seed_tenant(migrated, "cadence")
+    insert = (
+        "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone, "
+        "weekday, month_day, next_run_at) "
+        "VALUES ($1, $2, 'seo_rank', 'Ranks', $3, 'UTC', $4, $5, now())"
+    )
+    arguments = (tenant.workspace_id, tenant.project_id, cadence, weekday, month_day)
+    async with scoped(migrated, "superuser") as db:
+        if accepted:
+            await db.execute(insert, *arguments)
+        else:
+            with pytest.raises(asyncpg.CheckViolationError):
+                await db.execute(insert, *arguments)
+
+
 async def test_the_provider_registry_is_seeded(migrated: PostgresServer) -> None:
     async with scoped(migrated, "app_api") as db:
         rows = await db.fetch("SELECT code, kind FROM ops.providers ORDER BY code")

@@ -251,7 +251,7 @@ Sources: **B** Better Stack, **H** a Healthchecks.io check that is late or pinge
 | 34 | Extraction LLM budget | a project reaches its monthly classifier cap (P3); > 20% of projects (P2) | P3/P2 | O | [rb-spend](#rb-spend) |
 | 35 | Backup missed or failed | `backup-nightly` late 2 h or failed with exit 2, 3 or 4 (P1); size anomaly, exit 5 (P2) ([23](23-backup-disaster-recovery.md) section 15) | P1/P2 | H | [rb-backup](#rb-backup) |
 | 36 | Restore drill overdue or failed | `restore-drill` late (period 31 days, grace 3 days) (P2); failed with exit 11, 12 or 13 (P1) or 10, 14 or 15 (P2) ([23](23-backup-disaster-recovery.md) section 15) | P2/P1 | H | [rb-backup](#rb-backup) |
-| 37 | R2 failures | tasks failing with a storage error (`last_error_code` of the storage family) > 1% of fetches over 15 min (min 50), or 10 consecutive | P1 | O | [rb-provider](#rb-provider) |
+| 37 | R2 failures | fetches whose result could not be stored (the task goes back to `submitted` with `last_error_code = 'storage_failed'`, and the worker logs `result not stored`) > 1% of fetches over 15 min (min 50), or 10 consecutive | P1 | O | [rb-provider](#rb-provider) |
 | 38 | Certificate expiry | TLS handshake from `ops_health` to the domain: < 14 days (P2), < 7 days (P1). Caddy renews about 30 days ahead, so this means renewal fails | P2/P1 | O | [rb-api-down](#rb-api-down) |
 | 39 | Alerting blind | `ops-health` or `ops-health-critical` check late 10 min (the rules themselves are not running) | P1 | H | [rb-queue](#rb-queue) |
 | 40 | Spool size | local raw spool (`/var/spool/seo`) above 400 MB for 15 min (R2 uploads falling behind) | P2 | O | [rb-disk](#rb-disk) |
