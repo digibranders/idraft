@@ -93,7 +93,9 @@ export function lastWindowStart(world: OperationWorld, schedule: StoredSchedule,
       planned = window;
     }
   }
-  const latest = Math.max(...runs, planned ?? Number.NEGATIVE_INFINITY);
+  // What the stand-in planner ran before the next window was last set
+  const remembered = schedule.last_window_at === null ? null : Date.parse(schedule.last_window_at);
+  const latest = Math.max(...runs, planned ?? Number.NEGATIVE_INFINITY, remembered ?? Number.NEGATIVE_INFINITY);
   return Number.isFinite(latest) ? latest : null;
 }
 

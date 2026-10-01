@@ -10,7 +10,8 @@ import { z } from 'zod';
 import { AddKeywordsResult, type AddOutcome } from './add-keywords-result';
 import { PRIORITIES } from '../keyword-values';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
-import { useKeywordGroups, useVocabularies } from '../taxonomy-queries';
+import { refreshGroups, useKeywordGroups } from '../taxonomy-queries';
+import { useTermChoices } from '../term-choices';
 import { FormField } from '@/components/app/forms/form-field';
 import { LocationCombobox } from '@/components/app/forms/location-combobox';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
@@ -22,7 +23,6 @@ import { RadioGroup } from '@/components/ui/radio-group';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
-import { projectKey } from '@/lib/api/keys';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation, apiQuery } from '@/lib/api/query';
 import type { components } from '@/lib/api/schema';
@@ -108,7 +108,6 @@ export function AddKeywordsDialog({
   const projectPath = { workspace_id: scope.workspaceId, project_id: scope.projectId };
   const settings = useQuery({ ...apiQuery(SETTINGS, { params: { path: projectPath } }), enabled: open });
   const groups = useKeywordGroups(scope);
-  const vocabularies = useVocabularies(scope);
   const [alert, setAlert] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<AddOutcome | null>(null);
 
@@ -181,31 +180,8 @@ export function AddKeywordsDialog({
     (): Choice[] => (groups.data?.data ?? []).map((group) => ({ id: group.group_id, label: group.path })),
     [groups.data],
   );
-  const terms = useMemo(
-    () =>
-      vocabularies.loaded.flatMap(({ vocabulary, terms: named }) =>
-        named.map((term) => ({
-          id: term.termId,
-          label: t('tagLabel', { vocabulary: vocabulary.name, term: term.path }),
-          vocabularyId: vocabulary.vocabulary_id,
-          single: vocabulary.is_single_valued,
-        })),
-      ),
-    [t, vocabularies.loaded],
-  );
-  const termById = useMemo(() => new Map(terms.map((term) => [term.id, term])), [terms]);
+  const { choices: terms, byId: termById, keepOnePerSingleVocabulary } = useTermChoices(scope);
   const groupById = useMemo(() => new Map(groupChoices.map((choice) => [choice.id, choice])), [groupChoices]);
-  /** A vocabulary that takes one term keeps the one chosen last. */
-  const keepOnePerSingleVocabulary = (ids: readonly string[]): string[] => {
-    const kept: string[] = [];
-    for (const id of [...ids].reverse()) {
-      const term = termById.get(id);
-      const taken =
-        term?.single === true && kept.some((other) => termById.get(other)?.vocabularyId === term.vocabularyId);
-      if (!taken) kept.unshift(id);
-    }
-    return kept;
-  };
 
   const close = (): void => {
     form.reset(initialValues(defaultDevice));
@@ -237,10 +213,7 @@ export function AddKeywordsDialog({
           body: { items, on_duplicate: 'skip' },
         });
         void refreshKeywords(queryClient, scope);
-        // The groups' keyword counts moved too
-        void queryClient.invalidateQueries({
-          queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'keyword-groups'],
-        });
+        void refreshGroups(queryClient, scope);
         const { created, restored, skipped, rejected } = answer.data;
         if (skipped.length === 0 && rejected.length === 0) {
           // A deleted keyword comes back with its old settings and history, which the person is told (D3)

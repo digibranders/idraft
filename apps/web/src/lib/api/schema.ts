@@ -487,7 +487,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Each budget's spend this month */
+        /**
+         * Each budget's spend in a month
+         * @description `month` is `YYYY-MM` (UTC; this month when left out). `spent_usd` is read from the cost events; `committed_estimate_usd` is what runs under way are still expected to spend, this month only. `state` is `hard_exceeded` from the limit and `soft_exceeded` from its soft share. A member limited to some projects sees their budgets only.
+         */
         get: operations["budget_status_api_v1_workspaces__workspace_id__budgets_status_get"];
         put?: never;
         post?: never;
@@ -504,7 +507,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Costs grouped by the given keys */
+        /**
+         * Costs grouped by the given keys
+         * @description From `from` to `to`, both included (UTC days, at most 366). `group_by` is a comma list of `project`, `workload`, `provider`, `endpoint`, `engine`, `day`, `channel`; without it there is one total row. Rows are most expensive first. Read from the hourly rollup, so up to an hour behind; `meta.cost_sources` is read from the cost events. Money has six decimal places.
+         */
         get: operations["list_costs_api_v1_workspaces__workspace_id__costs_get"];
         put?: never;
         post?: never;
@@ -774,7 +780,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Verified provider prices, used for estimates */
+        /**
+         * Verified provider prices
+         * @description The prices valid on `valid_at` (today when left out). They give the estimates budgets are judged by; what is charged is what the provider reports.
+         */
         get: operations["price_book_api_v1_workspaces__workspace_id__price_book_get"];
         put?: never;
         post?: never;
@@ -1376,6 +1385,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete tracked keywords
+         * @description Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches). As the single delete: history stays, and tracking the same keyword again brings the row back with its settings.
+         */
+        post: operations["bulk_delete_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-update": {
         parameters: {
             query?: never;
@@ -1895,6 +1924,17 @@ export interface components {
             /** Skipped */
             skipped: components["schemas"]["BulkSkipped"][];
         };
+        /** BulkDeleteResponse */
+        BulkDeleteResponse: {
+            data: components["schemas"]["BulkDeleteResult"];
+        };
+        /** BulkDeleteResult */
+        BulkDeleteResult: {
+            /** Deleted */
+            deleted: number;
+            /** Matched */
+            matched: number;
+        };
         /** BulkRejected */
         BulkRejected: {
             /** Code */
@@ -2033,6 +2073,11 @@ export interface components {
              */
             provider_reported: string;
         };
+        /**
+         * CostWorkload
+         * @enum {string}
+         */
+        CostWorkload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync" | "ai_overview" | "extraction_llm" | "keyword_research" | "first_party";
         /**
          * CursorPageInfo
          * @description A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.
@@ -4464,6 +4509,16 @@ export interface components {
             on_duplicate: "skip" | "merge_terms";
         };
         /**
+         * TrackedKeywordBulkDelete
+         * @description The chosen rows are deleted as one by one: their history stays, and tracking the same
+         *     keyword again brings the row back (plan decision D3).
+         */
+        TrackedKeywordBulkDelete: {
+            filter?: components["schemas"]["TrackedKeywordFilter"] | null;
+            /** Ids */
+            ids?: string[] | null;
+        };
+        /**
          * TrackedKeywordBulkUpdate
          * @description At least one of `set` and the group and term lists. `add_term_ids` with a term of a
          *     single-valued vocabulary replaces the keyword's other term of that vocabulary.
@@ -5968,10 +6023,9 @@ export interface operations {
             query: {
                 from: string;
                 to: string;
-                /** @description Comma list or repeated. */
                 group_by?: ("project" | "workload" | "provider" | "endpoint" | "engine" | "day" | "channel")[] | null;
                 "filter[project_id]"?: string | null;
-                "filter[workload_in]"?: string[] | null;
+                "filter[workload_in]"?: components["schemas"]["CostWorkload"][] | null;
                 "filter[provider_code]"?: string | null;
             };
             header?: never;
@@ -8301,6 +8355,42 @@ export interface operations {
             };
         };
     };
+    bulk_delete_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackedKeywordBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkDeleteResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     bulk_update_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post: {
         parameters: {
             query?: never;
@@ -8876,6 +8966,7 @@ export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<component
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
 export const entityEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Entity"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];

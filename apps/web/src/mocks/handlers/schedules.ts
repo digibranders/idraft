@@ -355,6 +355,24 @@ function scheduled(
   };
 }
 
+/**
+ * `next` with its next window set again after now, outside the period the last window of `current` ran
+ * in (backend `next_after_change`), and that window remembered for the next time.
+ */
+function rescheduled(
+  caller: OperationsProjectCaller,
+  current: StoredSchedule,
+  next: StoredSchedule,
+  now: number,
+): StoredSchedule {
+  const last = lastWindowStart(caller.operations, current, now);
+  return {
+    ...next,
+    next_run_at: nextAfterChange(next, now, last),
+    last_window_at: last === null ? null : new Date(last).toISOString(),
+  };
+}
+
 /** The live schedule of the project with this id. */
 const liveSchedule = (
   caller: OperationsProjectCaller,
@@ -437,6 +455,7 @@ export const scheduleHandlers: HttpHandler[] = [
       created_at: stateTime(),
       deleted_at: null,
       next_run_at: null,
+      last_window_at: null,
     };
     const made = scheduled(caller, body, base, true);
     if (Array.isArray(made)) return invalid(request, made);
@@ -481,11 +500,7 @@ export const scheduleHandlers: HttpHandler[] = [
       changed.window_start_local === current.window_start_local &&
       changed.weekday === current.weekday &&
       changed.month_day === current.month_day;
-    const now = Date.now();
-    const row: StoredSchedule = sameRule
-      ? changed
-      : { ...changed, next_run_at: nextAfterChange(changed, now, lastWindowStart(caller.operations, current, now)) };
-    return answer(request, caller, row);
+    return answer(request, caller, sameRule ? changed : rescheduled(caller, current, changed, Date.now()));
   }),
 
   mock('delete', `${P}/schedules/{schedule_id}`, ({ request, cookies, params }) => {
@@ -539,11 +554,8 @@ export const scheduleHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const current = liveSchedule(caller, params.schedule_id);
     if (current === undefined) return problem(request, 'not_found');
-    // The next run is the next window from now: missed ones are not caught up
-    return answer(request, caller, {
-      ...current,
-      is_active: true,
-      next_run_at: new Date(nextOccurrence(current, Date.now())).toISOString(),
-    });
+    // The next window after now, missed ones not caught up, and as after a change of the rule, not again
+    // in the period a window already ran in (backend 45a726c)
+    return answer(request, caller, rescheduled(caller, current, { ...current, is_active: true }, Date.now()));
   }),
 ];

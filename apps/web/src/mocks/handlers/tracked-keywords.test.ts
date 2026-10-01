@@ -349,6 +349,25 @@ describe('tracked keywords: in bulk', () => {
     expect(result.restored).toEqual([id]);
   });
 
+  it('bulk-deletes by ids or filter, matching no row twice, and a later add restores one', async () => {
+    const editor = mockBrowser('editor');
+    const audit = trackedId('seo audit');
+    const DELETED = z.object({ matched: z.number(), deleted: z.number() });
+    const first = await editor.call('POST', `${TK}/bulk-delete`, { ids: [audit, trackedId('local seo')] });
+    expect(dataOf(first, DELETED)).toEqual({ matched: 2, deleted: 2 });
+    // Already deleted: no match
+    expect(dataOf(await editor.call('POST', `${TK}/bulk-delete`, { ids: [audit] }), DELETED)).toEqual({
+      matched: 0,
+      deleted: 0,
+    });
+    expect(fieldCodes(await editor.call('POST', `${TK}/bulk-delete`, {}))).not.toEqual([]);
+    const restored = dataOf(
+      await editor.call('POST', `${TK}/bulk-create`, { items: [{ keyword: 'seo audit' }] }),
+      BULK_CREATE_RESULT,
+    );
+    expect(restored.restored).toEqual([audit]);
+  });
+
   it('brings a deleted keyword back without the schedule that was deleted meanwhile', async () => {
     const editor = mockBrowser('editor');
     const id = trackedId('seo audit');

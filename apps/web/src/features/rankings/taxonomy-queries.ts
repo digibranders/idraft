@@ -1,9 +1,10 @@
 'use client';
 
-import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useQueries, useQuery, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type { ProjectScope } from './rankings-queries';
+import { projectKey } from '@/lib/api/keys';
 import { apiQuery, type ApiResponse } from '@/lib/api/query';
 import type { TermNode } from '@/lib/api/types';
 
@@ -21,6 +22,13 @@ const VOCABULARY_PAGE = 200;
 type GroupList = ApiResponse<'get', typeof GROUPS>;
 type TermTree = ApiResponse<'get', typeof TERMS>;
 export type Vocabulary = ApiResponse<'get', typeof VOCABULARIES>['data'][number];
+
+/** After a change of which keywords a group holds: its keyword count moved. */
+export function refreshGroups(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
+  return queryClient.invalidateQueries({
+    queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'keyword-groups'],
+  });
+}
 
 /** The project's groups as a flat list, each with its path ("Services / Audits"). */
 export function useKeywordGroups(scope: ProjectScope): UseQueryResult<GroupList> {

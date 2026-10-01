@@ -1,16 +1,15 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { delay, getResponse, http, HttpResponse } from 'msw';
+import { delay, http } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
 
-import { handlers } from '@/mocks/handlers';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import {
+  answerTrackedAsMany,
   cleanstart,
   keywordsIn,
   loadedGrid,
@@ -251,48 +250,5 @@ describe('Rankings', () => {
 /** While true, pages after the first answer after 300 ms. */
 let slowPages = false;
 
-/**
- * The list answered by the real mocks, told that it matches `total` keywords over pages of cursors
- * `cursor-1`, `cursor-2` and so on (`pages` of them, or without end). Each page holds the fixture rows,
- * their ids made unique per page. Returns the query of each request, in order.
- */
-function answerAsMany({
-  total,
-  pages = Number.POSITIVE_INFINITY,
-  failSecond = () => false,
-}: {
-  total: number;
-  pages?: number;
-  failSecond?: () => boolean;
-}): URLSearchParams[] {
-  const asked: URLSearchParams[] = [];
-  const BODY = z.object({
-    data: z.array(z.object({ tracked_keyword_id: z.string() }).loose()),
-    page: z.record(z.string(), z.unknown()),
-  });
-  server.use(
-    http.get(mswPath(TRACKED), async ({ request }) => {
-      const url = new URL(request.url);
-      if (url.searchParams.get('limit') === '1') return undefined;
-      asked.push(new URLSearchParams(url.searchParams));
-      const cursor = url.searchParams.get('cursor');
-      // A later page can take a moment, so a test can act while it loads
-      if (cursor !== null && slowPages) await delay(300);
-      const index = cursor === null ? 0 : Number(cursor.replace('cursor-', ''));
-      if (index === 1 && failSecond()) return problem(request, 'not_found', { detail: 'A page that failed' });
-      // The real answer of the first page for the same filters and sort
-      url.searchParams.delete('cursor');
-      const real = await getResponse([...handlers], new Request(url, { headers: request.headers }));
-      const body = BODY.parse(await real?.json());
-      const more = index + 1 < pages;
-      return HttpResponse.json({
-        data: body.data.map((row) => ({
-          ...row,
-          tracked_keyword_id: `${row.tracked_keyword_id.slice(0, -3)}${String(index).padStart(3, '0')}`,
-        })),
-        page: { ...body.page, total, has_more: more, next_cursor: more ? `cursor-${String(index + 1)}` : null },
-      });
-    }),
-  );
-  return asked;
-}
+const answerAsMany = (options: { total: number; pages?: number; failSecond?: () => boolean }): URLSearchParams[] =>
+  answerTrackedAsMany({ ...options, slow: () => slowPages });

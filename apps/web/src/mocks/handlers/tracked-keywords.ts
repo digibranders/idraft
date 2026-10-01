@@ -487,6 +487,32 @@ export const trackedKeywordHandlers: HttpHandler[] = [
       { headers: { 'set-cookie': cookie } },
     );
   }),
+
+  // As the single delete: the history stays, and tracking the keyword again brings the row back (D3)
+  mock('post', `${P}/tracked-keywords/bulk-delete`, async ({ request, cookies, params }) => {
+    const caller = keywordProjectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'keywords:write',
+    });
+    if (caller instanceof Response) return caller;
+    const body: unknown = await request.json();
+    if (!isRecord(body)) return invalid(request, [notAnObject()]);
+    const shape = [...extraMembers(body, ['ids', 'filter']), ...selectionErrors(body)];
+    if (shape.length > 0) return invalid(request, shape);
+    // Rows already deleted never match
+    const selected = selectedRows(request, caller, body);
+    if (selected instanceof Response) return selected;
+    const deletedAt = now();
+    const changes = selected.reduce(
+      (next, row) => withTracked(next, { ...row, deleted_at: deletedAt, updated_at: deletedAt }),
+      caller.keywordChanges,
+    );
+    const cookie = savedKeywords(request, changes);
+    if (typeof cookie !== 'string') return cookie;
+    return HttpResponse.json(
+      { data: { matched: selected.length, deleted: selected.length } },
+      { headers: { 'set-cookie': cookie } },
+    );
+  }),
 ];
 
 /** A tracked keyword's groups and terms as one comparable text, so a swap counts as a change. */

@@ -65,6 +65,11 @@ export interface StoredSchedule {
    * by the planner once it is due. `null` for a fixture, whose next window follows from its rule.
    */
   next_run_at: string | null;
+  /**
+   * The latest window the mocks' stand-in planner ran before the next window was last set: the API knows
+   * it from its runs, which the mocks do not keep for planned windows. `null` before one.
+   */
+  last_window_at: string | null;
 }
 
 export interface StoredRun {
@@ -178,6 +183,7 @@ const SCHEDULE = z.tuple([
   z.number().int(), // created, minutes
   z.number().int().nullable(), // deleted, minutes
   z.number().int().nullable().optional(), // next window, minutes; left out by cookies written before it
+  z.number().int().nullable().optional(), // last window, minutes; the same
 ]);
 const RUN = z.tuple([
   ID, // run
@@ -239,6 +245,7 @@ function encode(changes: OperationChanges): Compact {
     minutesOf(row.created_at),
     row.deleted_at === null ? null : minutesOf(row.deleted_at),
     row.next_run_at === null ? null : minutesOf(row.next_run_at),
+    row.last_window_at === null ? null : minutesOf(row.last_window_at),
   ]);
   const runs = (changes.runs ?? []).map((row): z.infer<typeof RUN> => [
     idCell(row.run_id, 'run'),
@@ -293,6 +300,7 @@ function decode(compact: Compact): OperationChanges {
       created,
       deleted,
       next,
+      lastWindow,
     ]): StoredSchedule => ({
       schedule_id: idOf(id, 'schedule'),
       project_id: idAt(project),
@@ -311,6 +319,7 @@ function decode(compact: Compact): OperationChanges {
       created_at: timeOf(created),
       deleted_at: deleted === null ? null : timeOf(deleted),
       next_run_at: next === null || next === undefined ? null : timeOf(next),
+      last_window_at: lastWindow === null || lastWindow === undefined ? null : timeOf(lastWindow),
     }),
   );
   const runs = (compact.r ?? []).map(

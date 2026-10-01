@@ -61,6 +61,24 @@ test.describe('rankings', () => {
     await expectAccessible(page);
   });
 
+  test('chosen keywords get a new priority from the bulk bar', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.getByRole('checkbox', { name: 'Select seo agency', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker', exact: true }).click();
+    const bar = page.getByRole('group', { name: /Bulk actions/ });
+    await expect(bar.getByText('2 selected')).toBeVisible();
+    await bar.getByRole('button', { name: 'Set priority' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Priority for 2 keywords' });
+    await dialog.getByRole('combobox', { name: 'Priority' }).click();
+    await page.getByRole('option', { name: '5, lowest' }).click();
+    await expectAccessible(page);
+    await dialog.getByRole('button', { name: 'Set for 2 keywords' }).click();
+    await expect(page.getByText('Priority 5 set for 2 keywords')).toBeVisible();
+    await expect(bar).toBeHidden();
+  });
+
   test('keywords are added from the header, and appear pending until their metrics arrive', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);

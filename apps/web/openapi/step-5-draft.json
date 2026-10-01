@@ -768,6 +768,36 @@
         "title": "BulkCreateResult",
         "type": "object"
       },
+      "BulkDeleteResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkDeleteResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "BulkDeleteResponse",
+        "type": "object"
+      },
+      "BulkDeleteResult": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "deleted"
+        ],
+        "title": "BulkDeleteResult",
+        "type": "object"
+      },
       "BulkRejected": {
         "properties": {
           "code": {
@@ -1134,6 +1164,26 @@
         ],
         "title": "CostSources",
         "type": "object"
+      },
+      "CostWorkload": {
+        "enum": [
+          "seo_rank",
+          "ai_prompt",
+          "ai_mode_keyword",
+          "keyword_metrics",
+          "discovery",
+          "ai_benchmark",
+          "gsc_sync",
+          "bing_sync",
+          "ga4_sync",
+          "cloudflare_sync",
+          "ai_overview",
+          "extraction_llm",
+          "keyword_research",
+          "first_party"
+        ],
+        "title": "CostWorkload",
+        "type": "string"
       },
       "CursorPageInfo": {
         "description": "A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.",
@@ -7750,6 +7800,41 @@
         "title": "TrackedKeywordBulkCreate",
         "type": "object"
       },
+      "TrackedKeywordBulkDelete": {
+        "additionalProperties": false,
+        "description": "The chosen rows are deleted as one by one: their history stays, and tracking the same\nkeyword again brings the row back (plan decision D3).",
+        "properties": {
+          "filter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackedKeywordFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 5000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ids"
+          }
+        },
+        "title": "TrackedKeywordBulkDelete",
+        "type": "object"
+      },
       "TrackedKeywordBulkUpdate": {
         "additionalProperties": false,
         "description": "At least one of `set` and the group and term lists. `add_term_ids` with a term of a\nsingle-valued vocabulary replaces the keyword's other term of that vocabulary.",
@@ -10674,6 +10759,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/budgets/status": {
       "get": {
+        "description": "`month` is `YYYY-MM` (UTC; this month when left out). `spent_usd` is read from the cost events; `committed_estimate_usd` is what runs under way are still expected to spend, this month only. `state` is `hard_exceeded` from the limit and `soft_exceeded` from its soft share. A member limited to some projects sees their budgets only.",
         "operationId": "budget_status_api_v1_workspaces__workspace_id__budgets_status_get",
         "parameters": [
           {
@@ -10693,7 +10779,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^\\d{4}-\\d{2}$",
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
                   "type": "string"
                 },
                 {
@@ -10726,7 +10812,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Each budget's spend this month",
+        "summary": "Each budget's spend in a month",
         "tags": [
           "operations"
         ]
@@ -10734,6 +10820,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/costs": {
       "get": {
+        "description": "From `from` to `to`, both included (UTC days, at most 366). `group_by` is a comma list of `project`, `workload`, `provider`, `endpoint`, `engine`, `day`, `channel`; without it there is one total row. Rows are most expensive first. Read from the hourly rollup, so up to an hour behind; `meta.cost_sources` is read from the cost events. Money has six decimal places.",
         "operationId": "list_costs_api_v1_workspaces__workspace_id__costs_get",
         "parameters": [
           {
@@ -10767,7 +10854,6 @@
             }
           },
           {
-            "description": "Comma list or repeated.",
             "in": "query",
             "name": "group_by",
             "required": false,
@@ -10792,7 +10878,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Comma list or repeated.",
+              "maxLength": 7,
               "title": "Group By"
             }
           },
@@ -10821,7 +10907,7 @@
               "anyOf": [
                 {
                   "items": {
-                    "type": "string"
+                    "$ref": "#/components/schemas/CostWorkload"
                   },
                   "type": "array"
                 },
@@ -10829,6 +10915,7 @@
                   "type": "null"
                 }
               ],
+              "maxLength": 20,
               "title": "Filter[Workload In]"
             }
           },
@@ -10840,6 +10927,7 @@
               "anyOf": [
                 {
                   "maxLength": 64,
+                  "minLength": 1,
                   "type": "string"
                 },
                 {
@@ -12292,6 +12380,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/price-book": {
       "get": {
+        "description": "The prices valid on `valid_at` (today when left out). They give the estimates budgets are judged by; what is charged is what the provider reports.",
         "operationId": "price_book_api_v1_workspaces__workspace_id__price_book_get",
         "parameters": [
           {
@@ -12312,6 +12401,7 @@
               "anyOf": [
                 {
                   "maxLength": 64,
+                  "minLength": 1,
                   "type": "string"
                 },
                 {
@@ -12329,6 +12419,7 @@
               "anyOf": [
                 {
                   "maxLength": 200,
+                  "minLength": 1,
                   "type": "string"
                 },
                 {
@@ -12402,7 +12493,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Verified provider prices, used for estimates",
+        "summary": "Verified provider prices",
         "tags": [
           "operations"
         ]
@@ -15972,6 +16063,70 @@
           }
         },
         "summary": "Track up to 1,000 keywords",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-delete": {
+      "post": {
+        "description": "Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches). As the single delete: history stays, and tracking the same keyword again brings the row back with its settings.",
+        "operationId": "bulk_delete_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_delete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackedKeywordBulkDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete tracked keywords",
         "tags": [
           "keywords"
         ]

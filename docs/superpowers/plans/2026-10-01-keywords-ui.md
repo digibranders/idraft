@@ -127,6 +127,13 @@
 - [ ] **Step 1:** Bulk bar actions in the template's order: Add tags, Move to group, Set target URL, Set priority, then after the separator Archive and Delete; "Select all N matching" sends the filters, not the ids.
 - [ ] **Step 2:** Archive with a toast that undoes (unarchive), confirming first above 100 rows; unarchive over quota says how many fit; Delete confirms with the exact count.
 - [ ] **Step 3:** Tests, gates, Opus review, commit "Rankings: bulk actions".
+- **As built.**
+  - Delete posts `bulk-delete` (backend 63063ae), which takes ids or a filter like the other bulk routes.
+  - Ids go in requests of 5,000 at most, and group removals in requests of 100. When some requests land and a later one fails, the message says the change was partly made.
+  - Archive by filter ("every matching keyword") has no Undo, since the rows it changed are not known; archive by ids keeps the Undo toast.
+  - In client mode the list's search runs in memory, so the bulk filter sends no `q`, and "Select all N matching" is not offered while that search narrows the rows.
+  - The selection is dropped for good when the filters, the view or the API's search change, and focus goes back to the grid after a dialog made its change.
+  - Choosing terms is shared with Add keywords through `src/features/rankings/term-choices.ts`.
 
 ### Task 8: Keyword groups
 

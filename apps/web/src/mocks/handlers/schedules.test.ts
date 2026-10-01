@@ -164,7 +164,7 @@ describe('schedules', () => {
     ).toEqual(['window_start_local:time_parsing']);
   });
 
-  it('moves a changed rule past the day the last window ran in, but not a resumed one', async () => {
+  it('moves a changed or resumed rule past the day the last window ran in', async () => {
     const editor = mockBrowser('editor');
     // Daily rankings ran today at 02:00 in Berlin; moved to 15:00 it does not run today again
     const daily = dataOf(
@@ -172,10 +172,10 @@ describe('schedules', () => {
       SCHEDULE,
     );
     expect(daily.next_run_at).toBe('2026-10-02T13:00:00.000Z');
-    // Resuming starts from the next window, whatever ran today
+    // Nor does a pause and resume today bring today's window back
     await editor.call('POST', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}/pause`);
     const resumed = dataOf(await editor.call('POST', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}/resume`), SCHEDULE);
-    expect(resumed.next_run_at).toBe('2026-10-01T13:00:00.000Z');
+    expect(resumed.next_run_at).toBe('2026-10-02T13:00:00.000Z');
   });
 
   it('counts weeks from Monday and months by the calendar when it moves a changed rule on', async () => {

@@ -23,9 +23,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import { formatDetailDateTime } from '@/lib/format';
 import { applyServerErrors } from '@/lib/forms';
-
-/** The API's limit on a target URL. */
-const MAX_URL_LENGTH = 2048;
+import { isWebUrl, MAX_URL_LENGTH } from '@/lib/urls/web-url';
 
 interface TrackingValues {
   target_url: string;
@@ -40,16 +38,6 @@ const valuesOf = (detail: KeywordDetail): TrackingValues => ({
   intent: detail.intent,
   funnel_stage: detail.funnel_stage,
 });
-
-/** Whether `text` reads as an http or https address, as the API requires. */
-function isWebUrl(text: string): boolean {
-  try {
-    const url = new URL(text);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
 
 /**
  * How the keyword is tracked: target URL, priority, intent and funnel stage edit in place (16 section

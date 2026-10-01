@@ -1220,6 +1220,77 @@
   },
   "rankings": {
     "title": "Rankings",
+    "bulk": {
+      "count": "{count, plural, one {# keyword} other {# keywords}}",
+      "tags": "Add tags",
+      "group": "Move to group",
+      "targetUrl": "Set target URL",
+      "priority": "Set priority",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "delete": "Delete",
+      "failed": "The change was not made. Try again.",
+      "partial": "Part of the change was made before it stopped. Check the keywords, then try again for the rest.",
+      "discardDescription": "Nothing has changed yet; your choices here will be lost.",
+      "tooMany": "The filters match more than {limit} keywords. Narrow them, or choose the keywords.",
+      "tagsDialog": {
+        "title": "Tags for {count}",
+        "description": "Adds the tags to each keyword, or takes them off. A vocabulary that takes one tag keeps the one added.",
+        "mode": "Change",
+        "add": "Add tags",
+        "remove": "Remove tags",
+        "tags": "Tags",
+        "required": "Choose at least one tag",
+        "submitAdd": "Add to {count}",
+        "submitRemove": "Remove from {count}",
+        "added": "Tags added to {count}",
+        "removed": "Tags removed from {count}"
+      },
+      "groupDialog": {
+        "title": "Move {count}",
+        "description": "Each keyword leaves its other groups and joins the one you choose.",
+        "group": "Group",
+        "none": "No group",
+        "noneHint": "Takes the keywords out of every group",
+        "placeholder": "Choose a group",
+        "required": "Choose a group, or no group",
+        "groupsUnavailable": "The groups have not loaded yet, so the move cannot name the groups to leave. Try again in a moment.",
+        "submit": "Move {count}",
+        "moved": "{count} moved to {group}",
+        "ungrouped": "{count} taken out of their groups"
+      },
+      "targetDialog": {
+        "title": "Target URL for {count}",
+        "description": "A new target URL starts a configuration version of each keyword it changes.",
+        "url": "Target URL",
+        "hint": "Leave it empty to clear the target URL",
+        "submit": "Set for {count}",
+        "set": "Target URL set for {count}",
+        "cleared": "Target URL cleared for {count}",
+        "versions": "{count, plural, one {# configuration version started} other {# configuration versions started}}"
+      },
+      "priorityDialog": {
+        "title": "Priority for {count}",
+        "priority": "Priority",
+        "submit": "Set for {count}",
+        "set": "Priority {priority} set for {count}"
+      },
+      "archiveConfirm": {
+        "title": "Archive {count}?",
+        "description": "Archived keywords are no longer checked and do not count against the plan. Their history is kept, and you can unarchive them.",
+        "confirm": "Archive {count}"
+      },
+      "archived": "{count} archived",
+      "unarchived": "{count} unarchived",
+      "undo": "Undo",
+      "quota": "The plan has room for {room, plural, one {# more active keyword} other {# more active keywords}} ({used} of {limit} used); this would add {requested}.",
+      "deleteConfirm": {
+        "title": "Delete {count}?",
+        "description": "Their rank checks stop and they leave Rankings. Their history is kept: adding one again brings it back with its settings.",
+        "confirm": "Delete {count}"
+      },
+      "deleted": "{count} deleted"
+    },
     "add": {
       "open": "Add keywords",
       "title": "Add keywords",

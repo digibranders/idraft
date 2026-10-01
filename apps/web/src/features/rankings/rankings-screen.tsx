@@ -6,6 +6,7 @@ import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
+import { useBulkActions } from './bulk/bulk-actions';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
@@ -111,6 +112,38 @@ export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: R
 
   const list = useKeywordList({ scope, filters, sort, search });
   const tracked = useTrackedCount(scope);
+
+  // The chosen keywords, kept through sorting and a search in memory, and dropped when the list asked
+  // for changes: other filters, the other view, or a search the API runs. Only the API's search goes with
+  // "every matching keyword": in client mode the count and the filters sent leave a search in memory out.
+  const bulkSearch = list.mode === 'server' ? search : '';
+  const selectionKey = JSON.stringify([filters, bulkSearch]);
+  const emptySelection = { key: selectionKey, ids: new Set<string>(), allMatching: false };
+  const [selection, setSelection] = useState<{ key: string; ids: ReadonlySet<string>; allMatching: boolean }>(
+    emptySelection,
+  );
+  // A change of what the list asks for drops the selection for good, so going back does not bring it back
+  if (selection.key !== selectionKey) setSelection(emptySelection);
+  const chosen = selection.key === selectionKey ? selection : emptySelection;
+  // The table may set both in one event (untick a row: no longer all matching, and fewer ids), so each
+  // setter changes its own part of the latest state
+  const setChosenIds = (ids: ReadonlySet<string>): void => setSelection((current) => ({ ...current, ids }));
+  const setAllMatching = (allMatching: boolean): void => setSelection((current) => ({ ...current, allMatching }));
+  const clearSelection = (): void => setSelection(emptySelection);
+  // "Select all N matching" is offered while the table holds fewer rows than match, and not while a
+  // search in memory narrows what it shows
+  const matchingTotal =
+    list.total !== null && list.total > list.rows.length && (list.mode === 'server' || view.q.trim() === '')
+      ? list.total
+      : null;
+  const bulk = useBulkActions({
+    scope,
+    filters,
+    search: bulkSearch,
+    archived: view.archived,
+    matchingTotal: list.total,
+    onDone: clearSelection,
+  });
   const filtered = Object.keys(values).length > 0;
   const status = statusOf(list, filtered || view.archived || (list.mode === 'server' && search.trim() !== ''));
   const updated = newestFetch(list.rows);
@@ -370,9 +403,22 @@ export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: R
             onRowOpen={onRowOpen}
             activeRowId={openId}
             onRowOrderChange={setOrder}
+            selection={
+              canWrite
+                ? {
+                    selectedIds: chosen.ids,
+                    onChange: setChosenIds,
+                    matchingTotal,
+                    allMatching: chosen.allMatching,
+                    onAllMatchingChange: setAllMatching,
+                  }
+                : undefined
+            }
+            bulkActions={canWrite ? bulk.actions : undefined}
           />
         </div>
       </div>
+      {canWrite ? bulk.dialogs : null}
       {canWrite ? (
         <AddKeywordsDialog
           scope={scope}
