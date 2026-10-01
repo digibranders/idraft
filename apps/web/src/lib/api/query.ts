@@ -182,15 +182,15 @@ export function apiAllPagesQuery<P extends OffsetListPath>(
   const query = normalizeFilters(filters, init?.defaults);
   const key = queryKey(path, parts.path, { ...query, pages: 'all' });
   const queryFn: QueryFunction<ApiResponse<'get', P>, QueryKey> = async ({ signal }) => {
-    // The first page answered carries the answer's fields besides the list
+    // The first page of the reading that is kept carries the answer's fields besides the list
     const firsts: OffsetPageShape[] = [];
-    const { items, total } = await readAllPages(async (offset, limit) => {
+    const { items, total } = await readAllPages(async (offset, limit, first) => {
       const answer: unknown = await send(client, 'get', path, {
         params: { path: parts.path, query: { ...query, offset, limit } },
         signal,
       });
       if (!isPageOf<P>(answer)) throw new Error(`${path} did not answer a page of a list`);
-      if (firsts.length === 0) firsts.push(answer);
+      if (first) firsts.splice(0, firsts.length, answer);
       return answer;
     }, idOf);
     const [first] = firsts;

@@ -22,11 +22,19 @@ export async function waitForContent(page: Page): Promise<void> {
 export async function expectAccessible(page: Page): Promise<void> {
   await waitForContent(page);
   // A dialog still fading in would be measured at part of its opacity, so contrast is checked once it is in
+  // Only animations that are running and will end; a paused one never would, and 2 s bounds the wait
   await page.evaluate(async () => {
-    const finite = document
+    const ending = document
       .getAnimations()
-      .filter((animation) => animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY);
-    await Promise.all(finite.map((animation) => animation.finished.catch(() => undefined)));
+      .filter(
+        (animation) =>
+          animation.playState === 'running' &&
+          animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY,
+      );
+    await Promise.race([
+      Promise.all(ending.map((animation) => animation.finished.catch(() => undefined))),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
   });
   expect(await page.locator('body').innerText()).not.toMatch(/[\u2013\u2014]/);
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
@@ -95,11 +103,14 @@ export async function ageSession(page: Page): Promise<void> {
     document.cookie = `${name}=${stale}; Path=/; Secure; SameSite=Lax`;
     const stored: unknown = JSON.parse(localStorage.getItem(storeKey) ?? '[]');
     if (!Array.isArray(stored)) throw new Error('The mock cookie store is not a list');
-    const aged: unknown[] = stored.map((cookie: unknown) =>
-      typeof cookie === 'object' && cookie !== null && 'key' in cookie && cookie.key === name
-        ? { ...cookie, value: stale }
-        : cookie,
-    );
+    let rewritten = 0;
+    const aged: unknown[] = stored.map((cookie: unknown) => {
+      if (typeof cookie !== 'object' || cookie === null || !('key' in cookie) || cookie.key !== name) return cookie;
+      rewritten += 1;
+      return { ...cookie, value: stale };
+    });
+    // Without a stored copy the worker would keep the fresh session, and the flow would fail far from here
+    if (rewritten === 0) throw new Error(`The mock cookie store has no ${name}: its format may have changed`);
     localStorage.setItem(storeKey, JSON.stringify(aged));
   });
   await page.reload();

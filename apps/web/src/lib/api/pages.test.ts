@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ListChangedError, MAX_PAGE_SIZE, MAX_PAGES, readAllPages, type OffsetPage } from './pages';
+import { ListChangedError, ListTooLongError, MAX_PAGE_SIZE, MAX_PAGES, readAllPages, type OffsetPage } from './pages';
 
 /** A list served as the API pages it. */
 const pageOf = (items: readonly number[], offset: number, limit: number): OffsetPage<number> => ({
@@ -16,7 +16,7 @@ describe('readAllPages', () => {
   it('reads one page when the list fits in it, and nothing more for an empty list', async () => {
     const readPage = vi.fn((offset: number, limit: number) => Promise.resolve(pageOf(numbers(3), offset, limit)));
     await expect(readAllPages(readPage, idOf)).resolves.toEqual({ items: [0, 1, 2], total: 3 });
-    expect(readPage.mock.calls).toEqual([[0, MAX_PAGE_SIZE]]);
+    expect(readPage.mock.calls).toEqual([[0, MAX_PAGE_SIZE, true]]);
     const empty = vi.fn((offset: number, limit: number) => Promise.resolve(pageOf([], offset, limit)));
     await expect(readAllPages(empty, idOf)).resolves.toEqual({ items: [], total: 0 });
     expect(empty).toHaveBeenCalledTimes(1);
@@ -27,27 +27,30 @@ describe('readAllPages', () => {
     const readPage = vi.fn((offset: number, limit: number) => Promise.resolve(pageOf(list, offset, limit)));
     await expect(readAllPages(readPage, idOf)).resolves.toEqual({ items: list, total: list.length });
     expect(readPage.mock.calls).toEqual([
-      [0, MAX_PAGE_SIZE],
-      [MAX_PAGE_SIZE - 1, MAX_PAGE_SIZE],
-      [MAX_PAGE_SIZE * 2 - 2, MAX_PAGE_SIZE],
+      [0, MAX_PAGE_SIZE, true],
+      [MAX_PAGE_SIZE - 1, MAX_PAGE_SIZE, false],
+      [MAX_PAGE_SIZE * 2 - 2, MAX_PAGE_SIZE, false],
     ]);
   });
 
-  it('stops at a page with nothing new, even when the total says there is more', async () => {
+  it('refuses a list whose pages bring nothing new before its total, rather than answer part of it', async () => {
     const readPage = vi.fn((offset: number) =>
       Promise.resolve({
         data: offset === 0 ? numbers(MAX_PAGE_SIZE) : [MAX_PAGE_SIZE - 1],
         page: { total: MAX_PAGE_SIZE * 3 },
       }),
     );
-    await expect(readAllPages(readPage, idOf)).resolves.toEqual({
-      items: numbers(MAX_PAGE_SIZE),
-      total: MAX_PAGE_SIZE * 3,
-    });
-    expect(readPage).toHaveBeenCalledTimes(2);
+    await expect(readAllPages(readPage, idOf)).rejects.toBeInstanceOf(ListChangedError);
+    // Three readings of two pages each
+    expect(readPage).toHaveBeenCalledTimes(6);
   });
 
-  it('reads at most MAX_PAGES pages', async () => {
+  it('refuses an empty first page when the total says there are items', async () => {
+    const readPage = vi.fn(() => Promise.resolve({ data: [], page: { total: 4 } }));
+    await expect(readAllPages(readPage, idOf)).rejects.toBeInstanceOf(ListChangedError);
+  });
+
+  it('refuses a list longer than MAX_PAGES pages hold, rather than cut it', async () => {
     let next = 0;
     const readPage = vi.fn(() => {
       // Each page repeats the last item read, then one new item
@@ -55,8 +58,7 @@ describe('readAllPages', () => {
       next += 1;
       return Promise.resolve({ data, page: { total: Number.MAX_SAFE_INTEGER } });
     });
-    const { items } = await readAllPages(readPage, idOf);
-    expect(items).toHaveLength(MAX_PAGES);
+    await expect(readAllPages(readPage, idOf)).rejects.toBeInstanceOf(ListTooLongError);
     expect(readPage).toHaveBeenCalledTimes(MAX_PAGES);
   });
 
@@ -88,7 +90,8 @@ describe('readAllPages', () => {
     const { items } = await readAllPages(readPage, idOf);
     expect(items).toEqual(list);
     expect(new Set(items).size).toBe(items.length);
-    expect(readPage.mock.calls[2]).toEqual([0, MAX_PAGE_SIZE]);
+    // The new reading starts over, and says so
+    expect(readPage.mock.calls[2]).toEqual([0, MAX_PAGE_SIZE, true]);
   });
 
   it('rejects a list that changes on every reading rather than answer part of it', async () => {

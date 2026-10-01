@@ -17,7 +17,7 @@ Branch `frontend/settings-follow-ups`, from `frontend/entities` (c22d7f1). It cl
 
 ### Task 2: Lists past one page
 
-- `readAllPages` (`src/lib/api/pages.ts`): offset pages of 200, at most 50. Each page after the first starts at the last item read, which the caller's `idOf` must find there; otherwise, or when `total` moved, an item came or went meanwhile and the list is read again from the start. Three changed readings fail with `ListChangedError` rather than show part of the list.
+- `readAllPages` (`src/lib/api/pages.ts`): offset pages of 200, at most 50. Each page after the first starts at the last item read, which the caller's `idOf` must find there; otherwise, or when `total` moved, an item came or went meanwhile and the list is read again from the start. A page with nothing new before `total` counts as a change too. Three changed readings in all fail with `ListChangedError`, and a list longer than 50 pages hold fails with `ListTooLongError`: never part of a list.
 - `apiAllPagesQuery(path, idOf, init)` answers the pages as one page, under a key of its own (`pages: 'all'`). Members, invitations and the dialogs' project lists use it; the server's `projectsOfMembership` uses `readAllPages` directly.
 - The member and invitation mocks page and validate `offset` and `limit`, through `offsetPaging` and `offsetPageOf` shared in `src/mocks/handlers/rules.ts`.
 
