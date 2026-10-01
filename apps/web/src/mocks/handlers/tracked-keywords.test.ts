@@ -1,0 +1,407 @@
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+
+import { keywordProjectCaller, MAX_TRACKED_KEYWORDS, quotaProblem, type KeywordProjectCaller } from './keyword-rules';
+import { MOCK_ENTITY_IDS, MOCK_TERMS, MOCK_TERM_IDS } from '../entity-fixtures';
+import { readingOf } from '../factories/keyword';
+import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
+import { MOCK_GROUP_IDS, MOCK_TRACKED_KEYWORDS } from '../keyword-fixtures';
+import { KEYWORD_TABLE } from '../keyword-table';
+import { KEYWORDS_COOKIE, keywordWorld, readKeywordChanges } from '../keywords-state';
+import { mockId } from '../mock-ids';
+import { SESSION_COOKIE } from '../session';
+import { TEST_API_ORIGIN } from '@/test/api-server';
+import {
+  BULK_ARCHIVE_RESULT,
+  BULK_CREATE_RESULT,
+  BULK_UPDATE_RESULT,
+  COMPETITOR_SET,
+  CONFIG_VERSION,
+  TRACKED_KEYWORD,
+  TRACKED_KEYWORD_DETAIL,
+  TRACKED_KEYWORD_PAGE,
+  TRACKED_KEYWORD_ROW,
+} from '@/test/api-shapes';
+import { dataOf, fieldCodes, mockBrowser, pageOf, type MockBrowser } from '@/test/mock-api';
+
+const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
+const [fynix] = MOCK_PROJECTS;
+if (!fynix) throw new Error('The Fynix project fixture is missing');
+const P = `${W}/projects/${fynix.project_id}`;
+const TK = `${P}/tracked-keywords`;
+const ROWS = z.array(TRACKED_KEYWORD_ROW);
+const CREATED = z.array(TRACKED_KEYWORD);
+const HISTORY = z.array(CONFIG_VERSION);
+
+/** The fixture's tracked keyword id of a table row, by text and the row's other values. */
+const trackedId = (text: string, extra: { location?: number; device?: string } = {}): string => {
+  const index = KEYWORD_TABLE.findIndex(
+    (row) =>
+      row.text === text && row.location === (extra.location ?? 2276) && row.device === (extra.device ?? 'desktop'),
+  );
+  if (index < 0) throw new Error(`No fixture row for ${text}`);
+  return mockId('tracked', index + 1);
+};
+const SERVICE_TERM = (slug: string): string => {
+  const term = MOCK_TERMS.find((candidate) => candidate.slug === slug);
+  if (term === undefined) throw new Error(`No term ${slug}`);
+  return term.term_id;
+};
+
+const listOf = async (browser: MockBrowser, query: string): Promise<z.infer<typeof ROWS>> =>
+  dataOf(await browser.call('GET', `${TK}?limit=200&${query}`), ROWS);
+const textsOf = async (browser: MockBrowser, query: string): Promise<string[]> =>
+  (await listOf(browser, query)).map((row) => row.keyword.text);
+
+const ACTIVE = KEYWORD_TABLE.filter((row) => row.archived !== true);
+
+describe('tracked keywords: the list', () => {
+  it('pages active keywords by keyword then id, with the filtered total, and binds the cursor to the filters', async () => {
+    const viewer = mockBrowser('viewer');
+    const first = await viewer.call('GET', `${TK}?limit=5`);
+    const page = pageOf(first, TRACKED_KEYWORD_PAGE);
+    expect(page).toMatchObject({ limit: 5, has_more: true, total: ACTIVE.length });
+    const texts = dataOf(first, ROWS).map((row) => row.keyword.text);
+    expect(texts).toEqual([...texts].sort());
+    expect(texts[0]).toBe('ai overviews seo');
+    // `include` and `limit` may change between pages; the filters may not
+    const second = await viewer.call('GET', `${TK}?limit=10&include=metrics&cursor=${page.next_cursor ?? ''}`);
+    expect(dataOf(second, ROWS)[0]?.keyword.text).not.toBe(texts[4]);
+    const other = await viewer.call('GET', `${TK}?limit=5&filter[device]=mobile&cursor=${page.next_cursor ?? ''}`);
+    expect(other).toMatchObject({ status: 400, code: 'invalid_cursor' });
+  });
+
+  it('gives the blocks `include` names and null for the others', async () => {
+    const [row] = await listOf(
+      mockBrowser('viewer'),
+      'filter[q]=seo agency berlin&filter[device]=desktop&include=groups,terms',
+    );
+    expect(row?.metrics).toBeNull();
+    expect(row?.competitors).toBeNull();
+    expect(row?.groups).toEqual([{ group_id: MOCK_GROUP_IDS.local, name: 'Local', path: 'Local' }]);
+    expect(row?.terms?.map((term) => [term.path, term.vocabulary_kind])).toEqual([['seo/local-seo', 'topic']]);
+    expect(fieldCodes(await mockBrowser('viewer').call('GET', `${TK}?include=ranks`))).toEqual(['include:enum']);
+  });
+
+  it('sorts a metric with the keywords that have none last in both directions', async () => {
+    const viewer = mockBrowser('viewer');
+    // Tied on the missing metric, so in row id order
+    const pending = ['generative engine optimization', 'llm seo', 'chatgpt seo agency'];
+    for (const sort of ['-search_volume', 'search_volume']) {
+      const rows = await listOf(viewer, `sort=${sort}&include=metrics`);
+      expect(rows.slice(-3).map((row) => row.keyword.text)).toEqual(pending);
+      expect(rows.slice(-3).every((row) => row.metrics === null)).toBe(true);
+      const volumes = rows.slice(0, -3).map((row) => row.metrics?.search_volume.value ?? -1);
+      expect(volumes).toEqual([...volumes].sort((a, b) => (sort.startsWith('-') ? b - a : a - b)));
+    }
+    expect(fieldCodes(await viewer.call('GET', `${TK}?sort=rank`))).toEqual(['sort:invalid_sort']);
+  });
+
+  it('filters by a group with its subgroups, by terms with the terms under them, and by text and metrics', async () => {
+    const viewer = mockBrowser('viewer');
+    const inServices = ACTIVE.filter((row) => row.group === 'audits' || row.group === 'content').length;
+    expect(await listOf(viewer, `filter[group]=${MOCK_GROUP_IDS.services}`)).toHaveLength(inServices);
+    // SEO takes in Technical SEO and Local SEO
+    const seoFamily = ACTIVE.filter((row) => ['seo', 'technical', 'local'].includes(row.topic ?? '')).length;
+    expect(await listOf(viewer, `filter[term_in]=${MOCK_TERM_IDS.seo}`)).toHaveLength(seoFamily);
+    expect(await textsOf(viewer, 'filter[q]=SEO  Agentur')).toEqual(['seo agentur', 'seo agentur berlin']);
+    expect(await textsOf(viewer, 'filter[is_active]=false')).toEqual([
+      'seo meme',
+      'seo newsletter',
+      'wordpress seo plugin',
+    ]);
+    const big = await listOf(viewer, 'filter[search_volume_gte]=20000&include=metrics');
+    expect(big.map((row) => row.keyword.text)).toEqual(['backlink checker', 'seo agency']);
+    expect(fieldCodes(await viewer.call('GET', `${TK}?filter[priority_lte]=9`))).toEqual([
+      'filter[priority_lte]:less_than_equal',
+    ]);
+  });
+});
+
+describe('tracked keywords: tracking', () => {
+  it('creates with the project defaults, `both` as two rows desktop first, and refuses viewers', async () => {
+    const editor = mockBrowser('editor');
+    const answer = await editor.call('POST', TK, { keyword: '  Fynix   Pricing ', device: 'both' });
+    expect(answer.status).toBe(201);
+    const rows = dataOf(answer, CREATED);
+    expect(rows.map((row) => row.device)).toEqual(['desktop', 'mobile']);
+    expect(rows[0]).toMatchObject({
+      keyword: { text: 'Fynix Pricing', normalized_text: 'fynix pricing' },
+      location_id: 2276,
+      depth_profile: 'standard',
+      frequency: 'daily',
+      priority: 3,
+      funnel_stage: 'unknown',
+      intent: 'unknown',
+      intent_source: null,
+      config_version: 1,
+    });
+    expect(rows[0]?.keyword.keyword_id).toBe(rows[1]?.keyword.keyword_id);
+    expect(await editor.as('viewer').call('POST', TK, { keyword: 'seo' })).toMatchObject({
+      status: 403,
+      code: 'forbidden',
+    });
+  });
+
+  it('reports every service error together and refuses search operators', async () => {
+    const editor = mockBrowser('editor');
+    const answer = await editor.call('POST', TK, {
+      keyword: 'site:fynix.digital seo',
+      location_id: 1,
+      group_ids: [mockId('group', 99)],
+      target_url: 'ftp://fynix.digital',
+    });
+    expect(fieldCodes(answer)).toEqual([
+      'keyword:search_operator_not_allowed',
+      'location_id:location_unknown',
+      'target_url:invalid_url',
+      'group_ids:group_unknown',
+    ]);
+    expect(fieldCodes(await editor.call('POST', TK, { keyword: 'seo', priority: 6 }))).toEqual([
+      'priority:less_than_equal',
+    ]);
+  });
+
+  it('answers a live or archived duplicate with 409 and its id', async () => {
+    const editor = mockBrowser('editor');
+    expect(await editor.call('POST', TK, { keyword: 'SEO Audit' })).toMatchObject({
+      status: 409,
+      code: 'duplicate',
+      body: { existing_id: trackedId('seo audit') },
+    });
+    expect(await editor.call('POST', TK, { keyword: 'seo meme' })).toMatchObject({
+      status: 409,
+      body: { existing_id: trackedId('seo meme') },
+    });
+  });
+
+  it('brings a deleted keyword back with its stored settings, links and overrides, adding what fits', async () => {
+    const editor = mockBrowser('editor');
+    const id = trackedId('crawl budget');
+    await editor.call('PATCH', `${TK}/${id}`, { priority: 1 });
+    await editor.call('POST', `${TK}/bulk-update`, { ids: [id], add_term_ids: [SERVICE_TERM('seo-audit')] });
+    await editor.call('PUT', `${TK}/${id}/competitors`, { exclude: [MOCK_ENTITY_IDS.rankforge] });
+    expect((await editor.call('DELETE', `${TK}/${id}`)).status).toBe(204);
+    expect(await editor.call('GET', `${TK}/${id}`)).toMatchObject({ status: 404 });
+    const answer = await editor.call('POST', TK, {
+      keyword: 'crawl budget',
+      priority: 5,
+      group_ids: [MOCK_GROUP_IDS.brand],
+      term_ids: [SERVICE_TERM('link-building'), MOCK_TERM_IDS.paidSearch],
+      competitor_overrides: { include: [MOCK_ENTITY_IDS.seoWeekly] },
+    });
+    const [row] = dataOf(answer, CREATED);
+    expect(row).toMatchObject({ tracked_keyword_id: id, priority: 1, is_active: true });
+    const detail = dataOf(await editor.call('GET', `${TK}/${id}`), TRACKED_KEYWORD_DETAIL);
+    expect(detail.groups.map((group) => group.name).sort()).toEqual(['Brand', 'SEO audits']);
+    // The single-valued Services vocabulary keeps the stored term; Topics takes the new one
+    expect(detail.terms.map((term) => term.name).sort()).toEqual(['Paid Search', 'SEO Audit', 'Technical SEO']);
+    expect(detail.competitor_overrides.map((override) => [override.entity.entity_id, override.mode])).toEqual([
+      [MOCK_ENTITY_IDS.rankforge, 'exclude'],
+    ]);
+  });
+
+  it('gives a keyword added in the browser metrics two minutes after it is first tracked', async () => {
+    const editor = mockBrowser('editor');
+    const [row] = dataOf(await editor.call('POST', TK, { keyword: 'seo for dentists' }), CREATED);
+    if (row === undefined) throw new Error('Nothing was created');
+    const world = keywordWorld(readKeywordChanges({ [KEYWORDS_COOKIE]: editor.cookie(KEYWORDS_COOKIE) ?? '' }));
+    const created = Date.parse(row.created_at);
+    expect(readingOf(world, row.keyword.keyword_id, 2276, row.language_code, created + 60_000)).toBeNull();
+    expect(readingOf(world, row.keyword.keyword_id, 2276, row.language_code, created + 3 * 60_000)).not.toBeNull();
+    // A fixture keyword without metrics stays pending
+    const pending = MOCK_TRACKED_KEYWORDS.find((candidate) => candidate.tracked_keyword_id === trackedId('llm seo'));
+    expect(pending && readingOf(world, pending.keyword_id, 2276, 'en', Date.now() + 3_600_000)).toBeNull();
+  });
+});
+
+describe('tracked keywords: the workspace quota', () => {
+  /** An editor's caller whose workspace already keeps `used` active keywords. */
+  function callerUsing(used: number): KeywordProjectCaller {
+    const request = new Request(`${TEST_API_ORIGIN}${TK}`);
+    const session = `mock.active.${mockUser('editor').user_id}.${String(Date.now() + 60_000)}`;
+    const caller = keywordProjectCaller(
+      request,
+      { [SESSION_COOKIE]: session },
+      MOCK_WORKSPACE.workspace_id,
+      fynix?.project_id,
+      { permission: 'keywords:write' },
+    );
+    if (caller instanceof Response) throw new Error('The editor cannot write keywords');
+    const [template] = MOCK_TRACKED_KEYWORDS;
+    if (template === undefined) throw new Error('No tracked keyword fixture');
+    const tracked = Array.from({ length: used }, (_, index) => ({
+      ...template,
+      tracked_keyword_id: mockId('tracked', index + 1),
+    }));
+    return { ...caller, keywords: { ...caller.keywords, tracked } };
+  }
+
+  it('lets the request through up to the limit and answers 422 with limit, used and requested past it', async () => {
+    const request = new Request(`${TEST_API_ORIGIN}${TK}`, { method: 'POST' });
+    expect(quotaProblem(request, callerUsing(MAX_TRACKED_KEYWORDS - 2), 2)).toBeNull();
+    const over = quotaProblem(request, callerUsing(MAX_TRACKED_KEYWORDS - 1), 2);
+    expect(over?.status).toBe(422);
+    expect(await over?.json()).toMatchObject({
+      code: 'quota_exceeded',
+      limit: MAX_TRACKED_KEYWORDS,
+      used: MAX_TRACKED_KEYWORDS - 1,
+      requested: 2,
+    });
+  });
+});
+
+describe('tracked keywords: one keyword', () => {
+  it('refuses identity fields, versions a target URL change, and marks a given intent as manual', async () => {
+    const editor = mockBrowser('editor');
+    const id = trackedId('seo audit');
+    expect(fieldCodes(await editor.call('PATCH', `${TK}/${id}`, { device: 'mobile' }))).toEqual([
+      'device:immutable_field',
+    ]);
+    const answer = await editor.call('PATCH', `${TK}/${id}`, {
+      target_url: 'https://fynix.digital/seo-audit/',
+      intent: 'transactional',
+    });
+    expect(dataOf(answer, TRACKED_KEYWORD)).toMatchObject({
+      config_version: 2,
+      intent: 'transactional',
+      intent_source: 'manual',
+      target_url: { host: 'fynix.digital', path: '/seo-audit/' },
+    });
+    const history = dataOf(await editor.call('GET', `${TK}/${id}/config-history`), HISTORY);
+    // Oldest first; each version ends where the next begins
+    expect(history.map((version) => version.config_version)).toEqual([1, 2]);
+    expect(history[0]?.valid_to).toBe(history[1]?.valid_from);
+    expect(history[1]?.valid_to).toBeNull();
+    // The same values again change nothing and set no cookie
+    const again = await editor.call('PATCH', `${TK}/${id}`, { intent: 'transactional' });
+    expect(again.setCookie).toBeUndefined();
+    expect(dataOf(again, TRACKED_KEYWORD).updated_at).toBe(dataOf(answer, TRACKED_KEYWORD).updated_at);
+  });
+
+  it('replaces the competitor overrides and answers the effective set by name', async () => {
+    const editor = mockBrowser('editor');
+    const id = trackedId('seo agency berlin');
+    const before = dataOf(await editor.call('GET', `${TK}/${id}`), TRACKED_KEYWORD_DETAIL);
+    // By entity name: Meridian Growth, then SEO Weekly
+    expect(before.competitor_overrides.map((override) => override.mode)).toEqual(['exclude', 'include']);
+    const answer = await editor.call('PUT', `${TK}/${id}/competitors`, {
+      include: [],
+      exclude: [MOCK_ENTITY_IDS.rankforge],
+    });
+    const set = dataOf(answer, COMPETITOR_SET);
+    expect(set.overrides).toHaveLength(1);
+    // Five competitors tracked in SEO, less Rankforge; the watched SEO Weekly is not one
+    expect(set.effective_competitors.map((entity) => entity.canonical_name)).toEqual([
+      'Brightwave Digital',
+      'Clickvantage',
+      'Meridian Growth',
+      'Northlight SEO',
+    ]);
+    expect(
+      fieldCodes(await editor.call('PUT', `${TK}/${id}/competitors`, { include: [MOCK_ENTITY_IDS.sparkle] })),
+    ).toEqual(['include:entity_not_in_project']);
+  });
+});
+
+describe('tracked keywords: in bulk', () => {
+  it('bulk-creates, skipping duplicates and repeats, rejecting bad items, and merging terms on request', async () => {
+    const editor = mockBrowser('editor');
+    const answer = await editor.call('POST', `${TK}/bulk-create`, {
+      on_duplicate: 'merge_terms',
+      items: [
+        { keyword: 'seo audit', term_ids: [MOCK_TERM_IDS.paidSearch] },
+        { keyword: 'seo for lawyers' },
+        { keyword: 'SEO for lawyers' },
+        { keyword: 'allintitle: seo' },
+      ],
+    });
+    const result = dataOf(answer, BULK_CREATE_RESULT);
+    expect(result.created).toHaveLength(1);
+    expect(result.skipped).toEqual([
+      { index: 0, existing_id: trackedId('seo audit') },
+      { index: 2, existing_id: result.created[0] },
+    ]);
+    expect(result.rejected).toEqual([
+      { index: 3, code: 'search_operator_not_allowed', message: expect.any(String) as string },
+    ]);
+    const detail = dataOf(await editor.call('GET', `${TK}/${trackedId('seo audit')}`), TRACKED_KEYWORD_DETAIL);
+    expect(detail.terms.map((term) => term.name).sort()).toEqual(['Paid Search', 'Technical SEO']);
+  });
+
+  it('bulk-updates a filter, versioning depth changes and replacing a single-valued term', async () => {
+    const editor = mockBrowser('editor');
+    const ids = [trackedId('seo audit'), trackedId('technical seo audit')];
+    await editor.call('POST', `${TK}/bulk-update`, { ids, add_term_ids: [SERVICE_TERM('seo-audit')] });
+    const answer = await editor.call('POST', `${TK}/bulk-update`, {
+      filter: { q: 'seo audit', device: 'desktop', location_id: 2276 },
+      set: { depth_profile: 'deep', priority: 2 },
+      add_term_ids: [SERVICE_TERM('link-building')],
+    });
+    const audits = ACTIVE.filter(
+      (row) => row.text.includes('seo audit') && row.device === 'desktop' && row.location === 2276,
+    );
+    expect(dataOf(answer, BULK_UPDATE_RESULT)).toEqual({
+      matched: audits.length,
+      updated: audits.length,
+      config_versions_created: audits.length,
+    });
+    const detail = dataOf(await editor.call('GET', `${TK}/${ids[0] ?? ''}`), TRACKED_KEYWORD_DETAIL);
+    expect(detail.terms.filter((term) => term.vocabulary_kind === 'service').map((term) => term.name)).toEqual([
+      'Link Building',
+    ]);
+    expect(
+      fieldCodes(
+        await editor.call('POST', `${TK}/bulk-update`, {
+          ids,
+          add_term_ids: [SERVICE_TERM('seo-audit'), SERVICE_TERM('link-building')],
+        }),
+      ),
+    ).toEqual(['add_term_ids:single_valued_vocabulary']);
+    expect(
+      fieldCodes(await editor.call('POST', `${TK}/bulk-update`, { remove_group_ids: [mockId('group', 99)], ids })),
+    ).toEqual(['remove_group_ids:group_unknown']);
+  });
+
+  it('counts a row whose links were swapped as updated, and clears a vocabulary by removing its terms', async () => {
+    const editor = mockBrowser('editor');
+    const id = trackedId('seo audit');
+    // Same number of groups before and after: still a change
+    const swapped = await editor.call('POST', `${TK}/bulk-update`, {
+      ids: [id],
+      add_group_ids: [MOCK_GROUP_IDS.brand],
+      remove_group_ids: [MOCK_GROUP_IDS.audits],
+    });
+    expect(dataOf(swapped, BULK_UPDATE_RESULT)).toMatchObject({ matched: 1, updated: 1 });
+    await editor.call('POST', `${TK}/bulk-update`, { ids: [id], add_term_ids: [SERVICE_TERM('seo-audit')] });
+    const cleared = await editor.call('POST', `${TK}/bulk-update`, {
+      ids: [id],
+      remove_term_ids: [SERVICE_TERM('seo-audit'), SERVICE_TERM('link-building')],
+    });
+    expect(dataOf(cleared, BULK_UPDATE_RESULT)).toMatchObject({ updated: 1 });
+    const detail = dataOf(await editor.call('GET', `${TK}/${id}`), TRACKED_KEYWORD_DETAIL);
+    expect(detail.terms.map((term) => term.vocabulary_kind)).toEqual(['topic']);
+  });
+
+  it('archives and unarchives a selection of exactly one of ids and filter', async () => {
+    const editor = mockBrowser('editor');
+    const brand = { filter: { group: MOCK_GROUP_IDS.brand } };
+    const archived = await editor.call('POST', `${TK}/bulk-archive`, { ...brand, archive: true });
+    expect(dataOf(archived, BULK_ARCHIVE_RESULT)).toEqual({ matched: 4, updated: 4 });
+    expect(await listOf(editor, `filter[group]=${MOCK_GROUP_IDS.brand}`)).toHaveLength(0);
+    // A filter without `is_active` selects active rows, as the list does
+    const again = await editor.call('POST', `${TK}/bulk-archive`, { ...brand, archive: true });
+    expect(dataOf(again, BULK_ARCHIVE_RESULT)).toEqual({ matched: 0, updated: 0 });
+    const archivedBrand = { filter: { group: MOCK_GROUP_IDS.brand, is_active: false } };
+    const back = await editor.call('POST', `${TK}/bulk-archive`, { ...archivedBrand, archive: false });
+    expect(dataOf(back, BULK_ARCHIVE_RESULT)).toEqual({ matched: 4, updated: 4 });
+    // `null` selects either
+    const any = await editor.call('POST', `${TK}/bulk-archive`, { filter: { is_active: null }, archive: false });
+    expect(dataOf(any, BULK_ARCHIVE_RESULT)).toEqual({ matched: KEYWORD_TABLE.length, updated: 3 });
+    expect(
+      fieldCodes(
+        await editor.call('POST', `${TK}/bulk-archive`, { ...brand, ids: [trackedId('fynix')], archive: true }),
+      ),
+    ).toEqual([':value_error']);
+  });
+});

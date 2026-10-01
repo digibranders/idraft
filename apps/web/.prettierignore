@@ -4,6 +4,9 @@
 next-env.d.ts
 src/lib/api/schema.ts
 public
+
+# A backend step's draft contract, copied as the backend made it (this branch only)
+openapi
 pnpm-lock.yaml
 
 # The static preview is hand-formatted plain HTML and scripts; it goes away once its pages are ported.

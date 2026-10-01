@@ -32,5 +32,42 @@ export type TermNode = Schemas['TermNode'];
 export type DomainCategory = Schemas['DomainCategory'];
 export type AliasTestResult = Schemas['AliasTestResult'];
 
+// Step 5 part 1: keywords, groups, terms and the project's keyword defaults
+export type Keyword = Schemas['Keyword'];
+export type KeywordDetail = Schemas['KeywordDetail'];
+export type KeywordMetrics = Schemas['KeywordMetrics'];
+export type KeywordMetricsHistory = Schemas['KeywordMetricsHistory'];
+export type MetricValue = Schemas['MetricValue'];
+export type MonthlySearches = Schemas['MonthlySearches'];
+export type TrackedVariant = Schemas['TrackedVariant'];
+export type TrackedKeyword = Schemas['TrackedKeyword'];
+export type TrackedKeywordRow = Schemas['TrackedKeywordRow'];
+export type TrackedKeywordDetail = Schemas['TrackedKeywordDetail'];
+export type TrackedKeywordCreate = Schemas['TrackedKeywordCreate'];
+export type TrackedKeywordPatch = Schemas['TrackedKeywordPatch'];
+export type TrackedKeywordFilter = Schemas['TrackedKeywordFilter'];
+export type TrackedKeywordPageInfo = Schemas['TrackedKeywordPageInfo'];
+export type TrackedKeywordBulkCreate = Schemas['TrackedKeywordBulkCreate'];
+export type TrackedKeywordBulkUpdate = Schemas['TrackedKeywordBulkUpdate'];
+export type TrackedKeywordBulkArchive = Schemas['TrackedKeywordBulkArchive'];
+export type BulkCreateResult = Schemas['BulkCreateResult'];
+export type BulkUpdateResult = Schemas['BulkUpdateResult'];
+export type BulkArchiveResult = Schemas['BulkArchiveResult'];
+export type CompetitorOverride = Schemas['CompetitorOverride'];
+export type CompetitorSet = Schemas['CompetitorSet'];
+export type ConfigVersion = Schemas['ConfigVersion'];
+export type GroupRef = Schemas['GroupRef'];
+export type TermRef = Schemas['TermRef'];
+export type UrlRef = Schemas['UrlRef'];
+export type KeywordGroup = Schemas['KeywordGroup'];
+export type KeywordGroupNode = Schemas['KeywordGroupNode'];
+export type KeywordGroupCreate = Schemas['KeywordGroupCreate'];
+export type KeywordGroupUpdate = Schemas['KeywordGroupUpdate'];
+export type TermAssignment = Schemas['TermAssignment'];
+export type TermAssignmentResult = Schemas['TermAssignmentResult'];
+export type ProjectSettings = Schemas['ProjectSettings'];
+export type SeoSettings = Schemas['SeoSettings'];
+export type SeoSettingsPatch = Schemas['SeoSettingsPatch'];
+
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';

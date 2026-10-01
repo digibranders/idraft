@@ -3,12 +3,16 @@ import type { HttpHandler } from 'msw';
 import { authHandlers } from './auth';
 import { entityHandlers } from './entities';
 import { invitationHandlers } from './invitations';
+import { keywordGroupHandlers } from './keyword-groups';
+import { keywordHandlers } from './keywords';
 import { meHandlers } from './me';
 import { pendingHandlers } from './pending';
 import { projectEntityHandlers } from './project-entities';
 import { projectHandlers } from './projects';
 import { registryHandlers } from './registries';
 import { taxonomyHandlers } from './taxonomy';
+import { termAssignmentHandlers } from './term-assignments';
+import { trackedKeywordHandlers } from './tracked-keywords';
 import { workspaceHandlers } from './workspaces';
 
 /**
@@ -27,6 +31,10 @@ export const handlers: readonly HttpHandler[] = [
   ...projectEntityHandlers,
   ...taxonomyHandlers,
   ...registryHandlers,
+  ...keywordHandlers,
+  ...trackedKeywordHandlers,
+  ...keywordGroupHandlers,
+  ...termAssignmentHandlers,
   ...pendingHandlers,
 ];
 
