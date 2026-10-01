@@ -771,6 +771,29 @@ async def test_a_restored_keyword_keeps_its_links_and_takes_only_terms_that_fit(
     ]
 
 
+async def test_a_bulk_create_says_which_keywords_came_back(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    deleted = await tracked_id(api, workspace, project, owner, "crm")
+    await api.delete(
+        project_url(workspace, project, "tracked-keywords", deleted), headers=owner.headers
+    )
+
+    response = await api.post(
+        project_url(workspace, project, "tracked-keywords", "bulk-create"),
+        json={"items": [{"keyword": "crm"}, {"keyword": "erp"}]},
+        headers=owner.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert len(data["created"]) == 2
+    assert deleted in data["created"]
+    # The deleted keyword came back with its settings; the other one is new.
+    assert data["restored"] == [deleted]
+
+
 async def test_merging_two_duplicates_keeps_one_term_per_single_valued_vocabulary(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

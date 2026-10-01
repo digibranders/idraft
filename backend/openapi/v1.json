@@ -573,6 +573,15 @@
             "title": "Rejected",
             "type": "array"
           },
+          "restored": {
+            "description": "The ids of `created` that were deleted and came back with their settings.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Restored",
+            "type": "array"
+          },
           "skipped": {
             "items": {
               "$ref": "#/components/schemas/BulkSkipped"
@@ -583,6 +592,7 @@
         },
         "required": [
           "created",
+          "restored",
           "skipped",
           "rejected"
         ],

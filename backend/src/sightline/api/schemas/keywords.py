@@ -321,6 +321,9 @@ class BulkRejected(BaseModel):
 
 class BulkCreateResult(BaseModel):
     created: list[UUID]
+    restored: list[UUID] = Field(
+        description="The ids of `created` that were deleted and came back with their settings."
+    )
     skipped: list[BulkSkipped]
     rejected: list[BulkRejected]
 

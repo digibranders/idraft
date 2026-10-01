@@ -137,6 +137,8 @@ class _Plan:
 @dataclass(frozen=True, slots=True)
 class BulkOutcome:
     created: list[UUID]
+    # Those of `created` that were deleted and came back with their settings (plan decision D3).
+    restored: list[UUID]
     skipped: list[tuple[int, UUID]]  # (item index, the tracked keyword it duplicates)
     rejected: list[tuple[int, str, str]]  # (item index, code, message)
 
@@ -481,6 +483,7 @@ class KeywordService:
             await self._audit_created(db, access, records, [entry for _, entry in created], info)
         return BulkOutcome(
             created=[entry.tracked_keyword_id for _, entry in created],
+            restored=[entry.tracked_keyword_id for _, entry in created if entry.restored],
             skipped=[(index, entry.tracked_keyword_id) for index, entry in existing],
             rejected=rejected,
         )

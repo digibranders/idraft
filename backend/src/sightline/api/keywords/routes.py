@@ -428,6 +428,7 @@ async def bulk_create_tracked_keywords(
     return BulkCreateResponse(
         data=BulkCreateResult(
             created=outcome.created,
+            restored=outcome.restored,
             skipped=[
                 BulkSkipped(index=index, existing_id=existing_id)
                 for index, existing_id in outcome.skipped
