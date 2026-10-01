@@ -1,0 +1,121 @@
+{
+  "version": "0.1.20260915",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "1.2410 sec.",
+  "cost": 0.01224,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "09301213-1535-0482-0000-a4f8c0d1e2b3",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "1.1932 sec.",
+      "cost": 0.01224,
+      "result_count": 1,
+      "path": ["v3", "dataforseo_labs", "google", "keyword_overview", "live"],
+      "data": {
+        "api": "dataforseo_labs",
+        "function": "keyword_overview",
+        "se_type": "google",
+        "keywords": ["best crm", "CRM Software", "no such keyword anywhere"],
+        "location_code": 2840,
+        "language_code": "en",
+        "include_serp_info": false,
+        "include_clickstream_data": false
+      },
+      "result": [
+        {
+          "se_type": "google",
+          "location_code": 2840,
+          "language_code": "en",
+          "total_count": 2,
+          "items_count": 2,
+          "items": [
+            {
+              "se_type": "google",
+              "keyword": "best crm",
+              "location_code": 2840,
+              "language_code": "en",
+              "keyword_info": {
+                "se_type": "google",
+                "last_updated_time": "2026-09-14 10:02:11 +00:00",
+                "competition": 0.67,
+                "competition_level": "HIGH",
+                "cpc": 14.23,
+                "search_volume": 1900,
+                "low_top_of_page_bid": 5.12,
+                "high_top_of_page_bid": 19.41,
+                "categories": [10019, 10276],
+                "monthly_searches": [
+                  {"year": 2026, "month": 8, "search_volume": 2400},
+                  {"year": 2026, "month": 7, "search_volume": 1900},
+                  {"year": 2026, "month": 6, "search_volume": 1900},
+                  {"year": 2026, "month": 5, "search_volume": 1600},
+                  {"year": 2026, "month": 4, "search_volume": 1900},
+                  {"year": 2026, "month": 3, "search_volume": 2400},
+                  {"year": 2026, "month": 2, "search_volume": 1900},
+                  {"year": 2026, "month": 1, "search_volume": 1600},
+                  {"year": 2025, "month": 12, "search_volume": 1300},
+                  {"year": 2025, "month": 11, "search_volume": 1600},
+                  {"year": 2025, "month": 10, "search_volume": 1900},
+                  {"year": 2025, "month": 9, "search_volume": 2400}
+                ],
+                "search_volume_trend": {"monthly": 26, "quarterly": 26, "yearly": 0}
+              },
+              "clickstream_keyword_info": null,
+              "keyword_properties": {
+                "se_type": "google",
+                "core_keyword": null,
+                "synonym_clustering_algorithm": "text_processing",
+                "keyword_difficulty": 58,
+                "detected_language": "en",
+                "is_another_language": false
+              },
+              "serp_info": null,
+              "avg_backlinks_info": null,
+              "search_intent_info": {
+                "se_type": "google",
+                "main_intent": "commercial",
+                "foreign_intent": ["informational"],
+                "last_updated_time": "2026-09-10 08:11:42 +00:00"
+              }
+            },
+            {
+              "se_type": "google",
+              "keyword": "crm software",
+              "location_code": 2840,
+              "language_code": "en",
+              "keyword_info": {
+                "se_type": "google",
+                "last_updated_time": "2026-09-14 10:02:11 +00:00",
+                "competition": null,
+                "competition_level": null,
+                "cpc": null,
+                "search_volume": null,
+                "low_top_of_page_bid": null,
+                "high_top_of_page_bid": null,
+                "categories": null,
+                "monthly_searches": null,
+                "search_volume_trend": null
+              },
+              "clickstream_keyword_info": null,
+              "keyword_properties": {
+                "se_type": "google",
+                "core_keyword": null,
+                "synonym_clustering_algorithm": null,
+                "keyword_difficulty": null,
+                "detected_language": null,
+                "is_another_language": null
+              },
+              "serp_info": null,
+              "avg_backlinks_info": null,
+              "search_intent_info": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

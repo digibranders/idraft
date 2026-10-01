@@ -27,6 +27,7 @@ from sightline.providers.contract import (
     AcceptedTask,
     CanonicalRequest,
     FetchResult,
+    LiveResult,
     ProviderCallError,
     ProviderError,
     ReadyTask,
@@ -34,7 +35,7 @@ from sightline.providers.contract import (
     SubmitResult,
     SubmittedTask,
 )
-from sightline.providers.dataforseo import serp
+from sightline.providers.dataforseo import labs, serp
 from sightline.providers.dataforseo.client import Answered, DataForSeoClient, TaskAnswer
 from sightline.providers.dataforseo.endpoint import TaskEndpoint
 from sightline.providers.dataforseo.errors import Answer, read_status
@@ -46,6 +47,8 @@ CODE: Final = "dataforseo"
 # Tasks in one `task_post` (DataForSEO refuses more with 40006).
 BATCH_SIZE: Final = 100
 ENDPOINTS: Final[Mapping[str, TaskEndpoint]] = MappingProxyType({serp.SERP_ORGANIC: serp.ENDPOINT})
+# Endpoints answered in the call itself.
+LIVE_ENDPOINTS: Final = frozenset({labs.KEYWORD_OVERVIEW})
 # `id_list` gives up to 1,000 tasks a call. A look at a period makes at most this many calls;
 # a period that needs more is refused rather than read in part.
 ID_LIST_LIMIT: Final = 1_000
@@ -110,6 +113,10 @@ def _at(value: object) -> datetime | None:
         return None
 
 
+def _failed(task_id: str, error: ProviderError) -> LiveResult:
+    return LiveResult(task_id=task_id, status="failed", error=error)
+
+
 def _utc(moment: datetime) -> str:
     if moment.tzinfo is None or moment.utcoffset() is None:
         raise ValueError("a period is given in times with their time zone")
@@ -156,15 +163,84 @@ class DataForSeo:
         except ValueError as error:
             raise _invalid(str(error)) from None
 
-    def batch_size(self, endpoint: str) -> int:
+    def is_live(self, endpoint: str) -> bool:
+        if endpoint in LIVE_ENDPOINTS:
+            return True
         self._endpoint(endpoint)
+        return False
+
+    def batch_size(self, endpoint: str) -> int:
+        if self.is_live(endpoint):
+            return labs.BATCH_SIZE
         return BATCH_SIZE
 
     def result_lifetime(self, endpoint: str) -> timedelta:
+        if self.is_live(endpoint):
+            return labs.RESULT_LIFETIME
         return self._endpoint(endpoint).result_lifetime
 
     def payload_slug(self, endpoint: str) -> str:
+        if self.is_live(endpoint):
+            return labs.PAYLOAD_SLUG
         return self._endpoint(endpoint).payload_slug
+
+    async def live(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> list[LiveResult]:
+        """One `keyword_overview/live` call per location and language among the requests.
+        A request that cannot be sent fails on its own; a call that fails fails its requests,
+        and the other calls keep their results."""
+        if endpoint not in LIVE_ENDPOINTS:
+            raise _invalid(f"{endpoint!r} is not a live DataForSEO endpoint")
+        if len(requests) > labs.BATCH_SIZE:
+            raise _invalid(f"{len(requests)} keywords in one call; Labs takes {labs.BATCH_SIZE}")
+        results: list[LiveResult] = []
+        calls: dict[tuple[int, str], list[tuple[str, str]]] = {}
+        for request in requests:
+            try:
+                params = labs.params_of(request)
+            except TypeError as error:
+                refusal = ProviderError(kind=K.INVALID_REQUEST, message=f"not sent: {error}")
+                results.append(_failed(request.task_id, refusal))
+                continue
+            calls.setdefault((params.location_code, params.language_code), []).append(
+                (request.task_id, params.keyword)
+            )
+        for (location_code, language_code), members in calls.items():
+            results += await self._live_call(location_code, language_code, members)
+        return results
+
+    async def _live_call(
+        self, location_code: int, language_code: str, members: Sequence[tuple[str, str]]
+    ) -> list[LiveResult]:
+        """One call, for these (task id, keyword) pairs."""
+        body = labs.build(location_code, language_code, [keyword for _, keyword in members])
+        try:
+            answered = await self._client.call(
+                "POST", labs.PATH, family=labs.FAMILY, sending=True, body=[body]
+            )
+        except ProviderCallError as error:
+            return [_failed(task_id, error.error) for task_id, _ in members]
+        # From here on nothing may raise: the call may have been paid for.
+        task = answered.tasks[0] if len(answered.tasks) == 1 else None
+        if task is None:
+            unreadable = ProviderError(
+                kind=K.TIMEOUT, message="the answer did not hold one readable task"
+            )
+            return [_failed(task_id, unreadable) for task_id, _ in members]
+        outcome = read_status(task.status_code, task.status_message, sending=True)
+        if isinstance(outcome, ProviderError):
+            await self._client.slow_if_limited(outcome)
+            return [_failed(task_id, outcome) for task_id, _ in members]
+        shares = labs.split_cost(_cost(task.cost), len(members))
+        return [
+            LiveResult(
+                task_id=task_id,
+                status="ready",
+                body=answered.content,
+                content_type=answered.content_type,
+                cost_usd=share,
+            )
+            for (task_id, _), share in zip(members, shares, strict=True)
+        ]
 
     def _tag(self, request: CanonicalRequest) -> str:
         if request.attempt is None:

@@ -26,6 +26,7 @@ from sightline.providers.contract import (
     CanonicalRequest,
     Contract,
     FetchResult,
+    LiveResult,
     ProviderCallError,
     ProviderError,
     ReadyTask,
@@ -352,6 +353,7 @@ class SerpParams(Contract):
 
 
 Answer = Callable[[str, Sequence[CanonicalRequest]], Awaitable[SubmitResult]]
+LiveAnswer = Callable[[str, Sequence[CanonicalRequest]], Awaitable[Sequence[LiveResult]]]
 
 
 class FakeProvider:
@@ -376,9 +378,35 @@ class FakeProvider:
         self.listed: list[str] = []
         self.looked: list[tuple[str, datetime, datetime]] = []
         self.reading_fails: Exception | None = None
+        # Endpoints answered in the call, and what each live call was asked.
+        self.live_endpoints: set[str] = set()
+        self.live_calls: list[tuple[str, list[CanonicalRequest]]] = []
+        self.live_answer: LiveAnswer = self.answer_all
 
     def batch_size(self, endpoint: str) -> int:
         return self.size
+
+    def is_live(self, endpoint: str) -> bool:
+        return endpoint in self.live_endpoints
+
+    async def live(
+        self, endpoint: str, requests: Sequence[CanonicalRequest]
+    ) -> Sequence[LiveResult]:
+        self.live_calls.append((endpoint, list(requests)))
+        return await self.live_answer(endpoint, requests)
+
+    async def answer_all(
+        self, endpoint: str, requests: Sequence[CanonicalRequest]
+    ) -> Sequence[LiveResult]:
+        return [
+            LiveResult(
+                task_id=request.task_id,
+                status="ready",
+                body=b'{"tasks": []}',
+                cost_usd=self.price,
+            )
+            for request in requests
+        ]
 
     async def list_ready(self, endpoint: str) -> Sequence[ReadyTask]:
         self.listed.append(endpoint)

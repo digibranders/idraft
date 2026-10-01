@@ -111,6 +111,27 @@ class FetchResult(Contract):
         return self
 
 
+class LiveResult(Contract):
+    """One task of a live call (DataForSEO Labs): answered in the call itself, with nothing to
+    fetch later. `body` is the call's whole answer, as received, which every task of the call
+    shares; `cost_usd` is this task's share of the call's cost."""
+
+    task_id: str = Field(min_length=1)
+    status: Literal["ready", "failed"]
+    body: bytes | None = Field(default=None, strict=True)
+    content_type: str = "application/json"
+    cost_usd: CostUsd | None = None
+    error: ProviderError | None = None
+
+    @model_validator(mode="after")
+    def _says_one_thing(self) -> Self:
+        if self.status == "ready" and (self.body is None or self.error is not None):
+            raise ValueError("a ready result has a body and no error")
+        if self.status == "failed" and (self.error is None or self.body is not None):
+            raise ValueError("a failed result says why and has no body")
+        return self
+
+
 class RejectedTask(Contract):
     task_id: str = Field(min_length=1)
     error: ProviderError
@@ -180,7 +201,8 @@ class Provider(Protocol):
     def code(self) -> str: ...
 
     def batch_size(self, endpoint: str) -> int:
-        """How many requests one call to this endpoint takes (DataForSEO task endpoints: 100)."""
+        """How many requests one call to this endpoint takes (DataForSEO task endpoints: 100;
+        Labs `keyword_overview`: 700 keywords)."""
         ...
 
     def result_lifetime(self, endpoint: str) -> timedelta:
@@ -192,6 +214,20 @@ class Provider(Protocol):
     def payload_slug(self, endpoint: str) -> str:
         """The endpoint's name in the keys of its stored results (doc 23 section 9.1), such as
         `serp_google_organic_advanced`: lowercase letters, digits and underscores."""
+        ...
+
+    def is_live(self, endpoint: str) -> bool:
+        """Whether the endpoint answers in the call itself (`live`) rather than through tasks
+        to fetch later (`submit`, `list_ready`, `fetch`)."""
+        ...
+
+    async def live(
+        self, endpoint: str, requests: Sequence[CanonicalRequest]
+    ) -> Sequence[LiveResult]:
+        """Ask a live endpoint, in as many calls as it needs (DataForSEO Labs: one per location
+        and language), and say what became of each request. A call that failed fails its
+        requests; the others keep their results. Raises `ProviderCallError` only when nothing
+        was sent: more requests than `batch_size`, or an endpoint that is not live."""
         ...
 
     async def submit(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> SubmitResult:

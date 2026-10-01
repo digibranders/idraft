@@ -22,6 +22,13 @@ Points S-01 checks against the real API before anything depends on them:
   `country_iso_code`, `location_type`). It also fills a local database without credentials:
   `uv run --env-file .env.worker python -m sightline.worker.sync_locations --from-file tests/fixtures/dataforseo/locations.json`
   (see `backend/README.md`, "Locations").
+- `keyword_overview_live.json` (Labs, step 5): that items come back with the keyword in lower
+  case (the adapter matches them without case and with spaces collapsed); that a keyword Labs
+  knows nothing of is left out of `items`, not listed with nulls; that `competition` is a float
+  from 0 to 1 and `competition_level` the string; that `monthly_searches` is newest first; that
+  the task's `cost` is $0.012 plus $0.00012 per item returned; and the longest keyword Labs takes
+  (the adapter refuses more than 80 characters on its own, without sending it, so one long
+  keyword does not fail a call of 700).
 
 Tags in these files are for installation `test`, task 35 (`z` in base 36), attempt 1 and run
 `0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11`.
