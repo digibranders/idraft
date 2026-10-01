@@ -14,6 +14,7 @@ export const PREVIEW_SECTION_SLUGS = [
   'tables',
   'filters',
   'inspector',
+  'data-display',
   'overlays',
   'feedback',
 ] as const;

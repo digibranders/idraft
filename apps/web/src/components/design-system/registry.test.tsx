@@ -21,6 +21,7 @@ describe('the preview registry', () => {
       'tables',
       'filters',
       'inspector',
+      'data-display',
       'overlays',
       'feedback',
     ]);

@@ -1191,6 +1191,13 @@
     "pageSize": "Rows per page",
     "pageSizeValue": "{size} per page"
   },
+  "chart": {
+    "views": "{title} view",
+    "table": "Table",
+    "patterns": "Patterns",
+    "legend": "Series in {title}",
+    "noValue": "No data"
+  },
   "inspector": {
     "resize": "Resize inspector",
     "widthValue": "{width} pixels",
