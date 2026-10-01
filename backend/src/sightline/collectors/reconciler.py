@@ -147,7 +147,9 @@ async def reconcile(
         return await in_transaction(lambda db: ledger.complete_finished_runs(db, now=now))
 
     async def resolve() -> int:
-        report = await resolve_unknown(sessions, registry, now=now)
+        report = await resolve_unknown(
+            sessions, registry, now=now, ask_provider=resolve_unknown_submissions
+        )
         counts["resubmitted"] = report.resubmitted
         # A look the provider could not answer, or whose listing could not say what is
         # absent: its tasks wait for the next pass, or end with the result lifetime.
@@ -170,9 +172,10 @@ async def reconcile(
         return len(orders)
 
     await step("released", lambda: _release(sessions, now))
-    if resolve_unknown_submissions:
-        # Before the old are ended: a submission found now is not ended as never confirmed.
-        await step("resolved", resolve)
+    # Before the old are ended: a submission found now is not ended as never confirmed. Live
+    # calls are always settled; asking the provider about task submissions waits for spike S-01
+    # (`resolve_unknown_submissions`).
+    await step("resolved", resolve)
     await step("dead", end_old)
     await step(
         "stale_ready",

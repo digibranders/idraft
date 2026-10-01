@@ -1,12 +1,15 @@
 """The dispatcher (docs/21-scheduler-workers.md section 4). As `app_worker`, with fakes for the
 provider and the queue."""
 
+from dataclasses import replace
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from sightline.collectors import ledger
 from sightline.collectors.dispatcher import (
     DispatchReport,
     SubmitBatch,
@@ -24,6 +27,8 @@ from tests.collectors.support import (
     make_budget,
     make_schedule,
     make_tenant,
+    new_run,
+    new_task,
     run_row,
     seed_run,
     spend,
@@ -104,6 +109,33 @@ async def test_due_tasks_go_out_in_batches_of_the_providers_size_highest_priorit
 
     # Nothing is sent a second time while it is on its way.
     assert await _dispatch(worker_db, _registry(FakeProvider(size=2)), outbox) == DispatchReport()
+
+
+async def test_a_workloads_batch_key_keeps_tasks_apart(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    run = new_run(project)
+    async with worker_db() as db, db.begin():
+        run_id = await ledger.create_run(db, run, now=NOW)
+        assert run_id is not None
+        tasks = [
+            replace(new_task(number), location_id=2356 if number % 2 else 2840)
+            for number in range(4)
+        ]
+        await ledger.insert_tasks(db, run_id, tasks)
+        await ledger.start_run(db, run_id, tasks_total=4, estimated_cost_usd=Decimal(0))
+    registry = Registry()
+    workload = FakeWorkload()
+    workload.batches_by_location = True
+    registry.add_workload(workload)
+    registry.add_provider(FakeProvider(size=10))
+    outbox = Outbox()
+
+    report = await _dispatch(worker_db, registry, outbox)
+
+    assert report == DispatchReport(claimed=4, batches=2)
+    assert sorted(len(batch.tasks) for batch in outbox.sent) == [2, 2]
 
 
 async def test_a_batch_that_cannot_be_sent_is_back_in_line_at_once(

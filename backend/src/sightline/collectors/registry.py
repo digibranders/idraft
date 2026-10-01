@@ -58,6 +58,12 @@ class Workload(Protocol):
         session bypasses row-level security."""
         ...
 
+    def batch_key(self, task: LedgerTask) -> str:
+        """What tasks must share to be sent in one batch, besides provider, endpoint and
+        priority: empty when any may go together. Keyword metrics: the location and language,
+        since one Labs call asks about one of each."""
+        ...
+
     async def build_requests(
         self, db: AsyncSession, tasks: Sequence[LedgerTask]
     ) -> Mapping[TaskRef, CanonicalRequest]:
@@ -65,6 +71,16 @@ class Workload(Protocol):
         read-only while this runs, and every read must name the task's workspace. A task left
         out is not sent: its outcome is recorded as a request that could not be built."""
         ...
+
+
+def answers_live(provider: Provider, endpoint: str) -> bool:
+    """Whether the endpoint answers in the call (`Provider.live`). An endpoint the provider
+    does not know is not live: `submit` refuses it the way it refuses any request it cannot
+    send."""
+    try:
+        return provider.is_live(endpoint)
+    except ValueError:
+        return False
 
 
 class Registry:

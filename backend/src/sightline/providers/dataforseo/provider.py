@@ -185,22 +185,31 @@ class DataForSeo:
         return self._endpoint(endpoint).payload_slug
 
     async def live(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> list[LiveResult]:
-        """One `keyword_overview/live` call per location and language among the requests.
-        A request that cannot be sent fails on its own; a call that fails fails its requests,
-        and the other calls keep their results."""
+        """One `keyword_overview/live` call per location and language among the requests (the
+        dispatcher cuts batches so there is one). A request that cannot be sent fails on its
+        own, without being sent: another endpoint's, a task id given twice, or a keyword Labs
+        does not take. A call that fails fails its requests; the other calls keep theirs."""
         if endpoint not in LIVE_ENDPOINTS:
             raise _invalid(f"{endpoint!r} is not a live DataForSEO endpoint")
         if len(requests) > labs.BATCH_SIZE:
             raise _invalid(f"{len(requests)} keywords in one call; Labs takes {labs.BATCH_SIZE}")
         results: list[LiveResult] = []
         calls: dict[tuple[int, str], list[tuple[str, str]]] = {}
+        seen: set[str] = set()
         for request in requests:
             try:
                 params = labs.params_of(request)
-            except TypeError as error:
+                if request.task_id in seen:
+                    raise ValueError("the task is already in this call")
+                if not labs.accepts(params.keyword):
+                    raise ValueError(
+                        f"Labs takes keywords of at most {labs.KEYWORD_MAX} characters"
+                    )
+            except (TypeError, ValueError) as error:
                 refusal = ProviderError(kind=K.INVALID_REQUEST, message=f"not sent: {error}")
                 results.append(_failed(request.task_id, refusal))
                 continue
+            seen.add(request.task_id)
             calls.setdefault((params.location_code, params.language_code), []).append(
                 (request.task_id, params.keyword)
             )
@@ -211,8 +220,13 @@ class DataForSeo:
     async def _live_call(
         self, location_code: int, language_code: str, members: Sequence[tuple[str, str]]
     ) -> list[LiveResult]:
-        """One call, for these (task id, keyword) pairs."""
-        body = labs.build(location_code, language_code, [keyword for _, keyword in members])
+        """One call, for these (task id, keyword) pairs. A keyword two tasks share (in two
+        spellings Labs reads as one) is sent once; both tasks get the answer."""
+        first_spelling: dict[str, str] = {}
+        for _, keyword in members:
+            first_spelling.setdefault(labs.match_key(keyword), keyword)
+        keywords = list(first_spelling.values())
+        body = labs.build(location_code, language_code, keywords)
         try:
             answered = await self._client.call(
                 "POST", labs.PATH, family=labs.FAMILY, sending=True, body=[body]
@@ -220,6 +234,16 @@ class DataForSeo:
         except ProviderCallError as error:
             return [_failed(task_id, error.error) for task_id, _ in members]
         # From here on nothing may raise: the call may have been paid for.
+        try:
+            return await self._live_answer(answered, members)
+        except Exception as error:
+            _log.exception("a live answer could not be read; it is asked for again")
+            unread = ProviderError(kind=K.TIMEOUT, message=type(error).__name__)
+            return [_failed(task_id, unread) for task_id, _ in members]
+
+    async def _live_answer(
+        self, answered: Answered, members: Sequence[tuple[str, str]]
+    ) -> list[LiveResult]:
         task = answered.tasks[0] if len(answered.tasks) == 1 else None
         if task is None:
             unreadable = ProviderError(
@@ -230,10 +254,15 @@ class DataForSeo:
         if isinstance(outcome, ProviderError):
             await self._client.slow_if_limited(outcome)
             return [_failed(task_id, outcome) for task_id, _ in members]
-        shares = labs.split_cost(_cost(task.cost), len(members))
+        cost = _cost(task.cost)
+        if cost is not None and cost > labs.CALL_COST_MAX:
+            _log.error("a live call's cost is not believed", cost_usd=str(cost))
+            cost = None
+        shares = labs.split_cost(cost, len(members))
         return [
             LiveResult(
                 task_id=task_id,
+                call_id=task.id,
                 status="ready",
                 body=answered.content,
                 content_type=answered.content_type,

@@ -142,6 +142,28 @@ async def test_a_submission_never_confirmed_is_charged_what_it_may_have_cost(
     )
 
 
+async def test_a_live_call_that_lost_its_answer_is_sent_again(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """A live call leaves nothing to find later (plan decision D6): its task is tried again,
+    whether or not task submissions may be looked for."""
+    project = await make_tenant(migrated)
+    provider = FakeProvider()
+    provider.live_endpoints = {"labs"}
+    registry = Registry()
+    registry.add_provider(provider)
+    run_id = await seed_run(worker_db, project, 1, endpoint="labs")
+    await _submitted_long_ago(migrated, run_id, "keyword-0", "submit_unknown", hours=0)
+    await _set(migrated, run_id, "keyword-0", "submitted_at = $3", NOW - 20 * MINUTE)
+
+    report = await reconcile(worker_db, registry, now=NOW)
+
+    assert report.resubmitted == 1
+    (task,) = await task_rows(migrated, run_id)
+    assert (task["status"], task["attempts"]) == ("pending", 1)
+    assert provider.looked == []
+
+
 async def test_each_endpoint_is_given_as_long_as_its_provider_keeps_results(
     worker_db: Ledger, migrated: PostgresServer, registry: Registry
 ) -> None:

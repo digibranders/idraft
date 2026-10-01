@@ -287,6 +287,8 @@ class FakeWorkload:
         self.mistags: set[str] = set()
         self.misruns: set[str] = set()
         self.fails_to_build = False
+        # Whether tasks at different locations go in different batches.
+        self.batches_by_location = False
 
     async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
         if window.schedule_id in self.broken:
@@ -325,6 +327,10 @@ class FakeWorkload:
             estimated_cost_usd=self.price * len(tasks),
             config_snapshot={"adapter": "fake@1", "provider_mode": window.provider_mode},
         )
+
+    def batch_key(self, task: LedgerTask) -> str:
+        # Tasks at one location go together; the default fake has one location.
+        return str(task.location_id) if self.batches_by_location else ""
 
     async def build_requests(
         self, db: AsyncSession, tasks: Sequence[LedgerTask]

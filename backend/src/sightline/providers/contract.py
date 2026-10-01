@@ -114,9 +114,11 @@ class FetchResult(Contract):
 class LiveResult(Contract):
     """One task of a live call (DataForSEO Labs): answered in the call itself, with nothing to
     fetch later. `body` is the call's whole answer, as received, which every task of the call
-    shares; `cost_usd` is this task's share of the call's cost."""
+    shares; `cost_usd` is this task's share of the call's cost; `call_id` is the provider's id
+    for the call, the same for every task of it."""
 
     task_id: str = Field(min_length=1)
+    call_id: str | None = Field(default=None, min_length=1)
     status: Literal["ready", "failed"]
     body: bytes | None = Field(default=None, strict=True)
     content_type: str = "application/json"

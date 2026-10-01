@@ -154,6 +154,7 @@ async def test_each_task_gets_the_answer_and_its_share_of_the_cost(
         (Decimal("0.01224"), 3, [Decimal("0.00408")] * 3),
         (Decimal("0.000001"), 3, [Decimal("0.000001"), Decimal(0), Decimal(0)]),
         (None, 2, [None, None]),
+        (Decimal("0.012"), 0, []),
     ],
 )
 def test_a_cost_is_split_to_the_millionth_with_the_rest_on_the_first(
@@ -172,10 +173,9 @@ def test_the_answer_is_read_into_one_result_per_keyword() -> None:
     assert (best.search_volume, best.cpc_usd, best.competition, best.competition_level) == (
         1900,
         Decimal("14.23"),
-        0.67,
+        Decimal("0.67"),
         "HIGH",
     )
-    assert isinstance(best.competition, float)
     assert (best.keyword_difficulty, best.main_intent, best.foreign_intents) == (
         58,
         "commercial",
@@ -204,7 +204,12 @@ def test_values_that_are_not_what_labs_documents_are_read_as_unknown() -> None:
         {"competition": "high", "competition_level": "EXTREME", "cpc": -1, "search_volume": True}
     )
     item["keyword_properties"]["keyword_difficulty"] = 140
-    item["keyword_info"]["monthly_searches"] = [{"year": 2026, "month": 13, "search_volume": 5}]
+    item["keyword_info"]["monthly_searches"] = [
+        {"year": 2026, "month": 13, "search_volume": 5},
+        {"year": 2026, "month": 3, "search_volume": 5},
+        {"year": 2026, "month": 3, "search_volume": 7},
+    ]
+    item["search_intent_info"]["main_intent"] = "curious"
 
     best = read_overview(json.dumps(body).encode())[match_key("best crm")]
 
@@ -214,7 +219,9 @@ def test_values_that_are_not_what_labs_documents_are_read_as_unknown() -> None:
         None,
         None,
     )
-    assert (best.keyword_difficulty, best.monthly_searches) == (None, ())
+    assert (best.keyword_difficulty, best.main_intent) == (None, None)
+    # A month given twice counts once, as given last.
+    assert [(m.month, m.search_volume) for m in best.monthly_searches] == [(3, 7)]
 
 
 def test_an_answer_that_is_not_labs_json_is_refused() -> None:
@@ -301,9 +308,61 @@ async def test_a_request_that_cannot_be_sent_is_refused_on_its_own(
     assert api.posted()[0]["keywords"] == ["crm"]
 
 
-def test_a_keyword_labs_cannot_take_is_refused_before_it_is_sent() -> None:
-    with pytest.raises(ValueError, match="80"):
-        KeywordOverviewParams(keyword="x" * 81, location_code=2840, language_code="en")
+async def test_a_keyword_labs_cannot_take_is_refused_on_its_own(
+    dataforseo: DataForSeo, api: Api
+) -> None:
+    api.answer("POST", LIVE, _answered())
+
+    results = await dataforseo.live(
+        KEYWORD_OVERVIEW, [_request(1, "crm"), _request(2, "x" * 81), _request(1, "crm again")]
+    )
+
+    assert {(r.task_id, r.status) for r in results} == {
+        ("1", "ready"),
+        ("2", "failed"),
+        ("1", "failed"),
+    }
+    assert api.posted()[0]["keywords"] == ["crm"]
+    with pytest.raises(ValueError, match="one trimmed line"):
+        KeywordOverviewParams(keyword="crm\N{DELETE}", location_code=2840, language_code="en")
+
+
+async def test_keywords_are_escaped_and_a_spelling_labs_reads_as_another_is_sent_once(
+    dataforseo: DataForSeo, api: Api
+) -> None:
+    api.answer("POST", LIVE, _answered())
+
+    results = await dataforseo.live(
+        KEYWORD_OVERVIEW,
+        [_request(1, "c++ 100%"), _request(2, "CRM software"), _request(3, "crm  Software")],
+    )
+
+    assert api.posted()[0]["keywords"] == ["c%2B%2B 100%25", "CRM software"]
+    assert {r.status for r in results} == {"ready"}
+    # The call's id names the answer the tasks share.
+    assert {r.call_id for r in results} == {fixture("keyword_overview_live")["tasks"][0]["id"]}
+
+
+def test_matching_ignores_case_spacing_and_unicode_form() -> None:
+    decomposed = "cafe\N{COMBINING ACUTE ACCENT}  Menu"
+    assert match_key(decomposed) == match_key("caf\N{LATIN SMALL LETTER E WITH ACUTE} menu")
+
+
+def test_an_answer_with_no_results_says_nothing_of_any_keyword() -> None:
+    body = envelope([task_answer(status_code=40102, message="No Search Results.", result=None)])
+
+    assert read_overview(json.dumps(body).encode()) == {}
+
+
+@pytest.mark.parametrize(("cost", "expected"), [(5, None), (None, None), ("free", None)])
+async def test_a_cost_that_is_not_believed_is_left_out(
+    dataforseo: DataForSeo, api: Api, cost: object, expected: Decimal | None
+) -> None:
+    api.answer("POST", LIVE, _answered(cost=cost))
+
+    (result,) = await dataforseo.live(KEYWORD_OVERVIEW, [_request(1, "crm")])
+
+    assert (result.status, result.cost_usd) == ("ready", expected)
 
 
 async def test_more_than_a_batch_is_not_sent(dataforseo: DataForSeo, api: Api) -> None:

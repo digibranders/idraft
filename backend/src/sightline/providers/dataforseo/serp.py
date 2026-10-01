@@ -19,7 +19,8 @@ from sightline.providers.dataforseo.endpoint import TaskEndpoint
 
 # The ledger's name for the endpoint.
 SERP_ORGANIC: Final = "serp/google/organic"
-_CONTROL: Final = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+# Control characters, C0 and C1: a keyword is one line of text (Labs checks the same).
+CONTROL: Final = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 # The operating systems DataForSEO offers for each device.
 _SYSTEMS: Final = {"desktop": ("windows", "macos"), "mobile": ("android", "ios")}
 
@@ -42,7 +43,7 @@ class SerpOrganicParams(Contract):
     @field_validator("keyword")
     @classmethod
     def _as_entered(cls, keyword: str) -> str:
-        if keyword != keyword.strip() or _CONTROL.search(keyword):
+        if keyword != keyword.strip() or CONTROL.search(keyword):
             raise ValueError("a keyword is one trimmed line")
         return keyword
 
@@ -53,7 +54,7 @@ class SerpOrganicParams(Contract):
         return self
 
 
-def _as_sent(keyword: str) -> str:
+def as_sent(keyword: str) -> str:
     """DataForSEO decodes `%` followed by two characters in a keyword, and reads `+` as a
     space; each is sent escaped so the keyword is searched as entered."""
     return keyword.replace("%", "%25").replace("+", "%2B")
@@ -64,7 +65,7 @@ def task_body(request: CanonicalRequest, tag: str) -> dict[str, object]:
     if not isinstance(params, SerpOrganicParams):
         raise TypeError(f"not a SERP request: {type(params).__name__}")
     body: dict[str, object] = {
-        "keyword": _as_sent(params.keyword),
+        "keyword": as_sent(params.keyword),
         "location_code": params.location_code,
         "language_code": params.language_code,
         "device": params.device,

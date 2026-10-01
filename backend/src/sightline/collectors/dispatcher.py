@@ -107,14 +107,20 @@ class DispatchReport:
 
 
 def batches(tasks: Sequence[LedgerTask], registry: Registry) -> list[SubmitBatch]:
-    """The tasks in batches of their provider's size, one provider, endpoint and priority each,
-    the highest priority first and, within it, the batch holding the oldest task first."""
+    """The tasks in batches of their provider's size, one provider, endpoint, priority and
+    batch key each (`Workload.batch_key`), the highest priority first and, within it, the
+    batch holding the oldest task first."""
 
-    def group(task: LedgerTask) -> tuple[str, str, Priority]:
-        return (task.provider_code, task.provider_endpoint, task.priority)
+    def group(task: LedgerTask) -> tuple[str, str, Priority, str]:
+        key = (
+            registry.workload(task.workload).batch_key(task)
+            if task.workload in registry.workloads
+            else ""
+        )
+        return (task.provider_code, task.provider_endpoint, task.priority, key)
 
     made: list[tuple[int, datetime, SubmitBatch]] = []
-    for (provider, endpoint, priority), grouped in groupby(sorted(tasks, key=group), key=group):
+    for (provider, endpoint, priority, _), grouped in groupby(sorted(tasks, key=group), key=group):
         ordered = sorted(grouped, key=lambda task: (task.scheduled_for, task.ref.id))
         try:
             size = registry.provider(provider).batch_size(endpoint)

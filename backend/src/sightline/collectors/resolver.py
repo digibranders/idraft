@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
 from sightline.collectors.ledger import Cost, UnknownSubmission
-from sightline.collectors.registry import Registry
+from sightline.collectors.registry import Registry, answers_live
 from sightline.domain.retries import ProviderErrorKind, decide
 from sightline.providers.contract import SubmittedTask
 
@@ -102,8 +102,10 @@ async def resolve_unknown(
     *,
     now: datetime,
     jitter: Callable[[], float] = random.random,
+    ask_provider: bool = True,
 ) -> ResolveReport:
-    """One pass over the oldest unresolved submissions."""
+    """One pass over the oldest unresolved submissions. Live calls are settled without asking
+    the provider; task submissions are looked for only with `ask_provider`."""
     async with sessions() as db:
         unknown = await ledger.unknown_submissions(
             db, submitted_before=now - UNKNOWN_GRACE, limit=_TASKS_PER_PASS
@@ -114,7 +116,16 @@ async def resolve_unknown(
         if looked == LOOKS_PER_PASS or time.monotonic() >= deadline:
             break
         code, endpoint = look.provider_code, look.provider_endpoint
-        if code not in registry.providers or not registry.provider(code).lists_submissions:
+        if code in registry.providers and answers_live(registry.provider(code), endpoint):
+            # A live call that lost its answer left nothing to find later (plan decision D6):
+            # its tasks are sent again, under the policy for a call that timed out.
+            resubmitted += await _send_again(sessions, look.tasks, now=now, jitter=jitter)
+            continue
+        if (
+            not ask_provider
+            or code not in registry.providers
+            or not registry.provider(code).lists_submissions
+        ):
             # Such a task keeps the path it had: ended once the provider's results would have
             # expired, and charged its estimate.
             continue
@@ -133,6 +144,28 @@ async def resolve_unknown(
     return ResolveReport(
         resolved=resolved, resubmitted=resubmitted, failed=failed, undecided=undecided
     )
+
+
+async def _send_again(
+    sessions: async_sessionmaker[AsyncSession],
+    tasks: Sequence[UnknownSubmission],
+    *,
+    now: datetime,
+    jitter: Callable[[], float],
+) -> int:
+    sent = 0
+    for task in tasks:
+        async with sessions() as db, db.begin():
+            decision = decide(
+                ProviderErrorKind.TIMEOUT,
+                attempts=max(task.attempts, 1),
+                jitter=jitter(),
+                window_open=now < task.window_end,
+            )
+            sent += await ledger.submit_again(
+                db, task.ref, attempt=task.attempts, decision=decision, now=now
+            )
+    return sent
 
 
 async def _settle(
