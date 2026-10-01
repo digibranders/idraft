@@ -148,6 +148,8 @@ Your account               Project settings           Workspace settings
 
 Items are 32 px, same styling as the sidebar. The form column is 640 px max ([10-forms.md](10-forms.md)). The groups appear in this order, top to bottom. On a window too short for the list, the sticky navigation scrolls inside itself.
 
+As built (workspace setup, 2026-10-01): the navigation lists only the sections that exist, so far Profile, Security and Preferences; Project settings > General; Workspace settings > General and Members and roles. The routes sit under the project (`/{workspace}/{project}/settings/{section}`, with `workspace` and `members` for the two workspace sections). Every member sees every section; one they may not change shows its values read-only with a `Banner` saying who can. Below 1024 px the navigation becomes a `Select`.
+
 **Your account** holds user-level settings. They belong to the person, not to a workspace or project, and they are the same whichever project is open. The avatar menu's "Account settings" item opens Profile.
 
 | Section | Route | Content | Saves |
