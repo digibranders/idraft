@@ -1,21 +1,23 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { delay, getResponse, http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
-import { StrictMode, Suspense, type ReactElement } from 'react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { RankingsScreen } from './rankings-screen';
-import type { Role } from '@/lib/api/types';
-import { PermissionProvider } from '@/lib/permissions';
-import { membershipFactory } from '@/mocks/factories/identity';
-import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { handlers } from '@/mocks/handlers';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
 import { mswPath, problem } from '@/mocks/respond';
-import { SESSION_COOKIE } from '@/mocks/session';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
+import {
+  cleanstart,
+  keywordsIn,
+  loadedGrid,
+  rankingsAs as as,
+  restoreWideScreen,
+  stubWideScreen,
+} from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
@@ -23,60 +25,11 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/digibranders/fynix/seo/rankings',
 }));
 
-const [fynix, cleanstart] = MOCK_PROJECTS;
-if (!fynix || !cleanstart) throw new Error('The fixture projects are missing');
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
 const ACTIVE = KEYWORD_TABLE.filter((row) => row.archived !== true);
 
-function as(role: Role, projectId: string = fynix?.project_id ?? ''): ReactElement {
-  document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
-  return (
-    <PermissionProvider membership={membershipFactory(role)}>
-      <Suspense fallback={null}>
-        <RankingsScreen workspaceId={MOCK_WORKSPACE.workspace_id} projectId={projectId} timeZone="Europe/Berlin" />
-      </Suspense>
-    </PermissionProvider>
-  );
-}
-
-/** Every column shows: a wide viewport and a wide table region. */
-class WideResizeObserver {
-  constructor(private readonly callback: ResizeObserverCallback) {}
-  observe(target: Element): void {
-    const entry = { target, contentRect: { width: 1600, height: 640 } };
-    this.callback([entry as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
-  }
-  unobserve(): void {}
-  disconnect(): void {}
-}
-
-beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', WideResizeObserver);
-  Object.defineProperty(Element.prototype, 'getAnimations', { value: () => [], configurable: true, writable: true });
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: true,
-    media: query,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }));
-});
-afterEach(() => {
-  vi.unstubAllGlobals();
-  Reflect.deleteProperty(Element.prototype, 'getAnimations');
-});
-
-/** The grid once its rows have loaded. */
-async function loadedGrid(): Promise<HTMLElement> {
-  const grid = await screen.findByRole('grid', { name: 'Tracked keywords' });
-  await waitFor(() => expect(within(grid).queryAllByRole('rowheader').length).toBeGreaterThan(0));
-  return grid;
-}
-
-/** The keywords as their cells show them; the cells' tooltips hold the location and device too. */
-const keywordsIn = (grid: HTMLElement): string[] =>
-  within(grid)
-    .getAllByRole('rowheader')
-    .map((cell) => cell.querySelector('.truncate')?.textContent ?? '');
+beforeEach(stubWideScreen);
+afterEach(restoreWideScreen);
 
 /** The query strings the screen wrote, newest last. */
 function urlWrites(): { onUrlUpdate: (event: UrlUpdateEvent) => void; latest: () => URLSearchParams } {

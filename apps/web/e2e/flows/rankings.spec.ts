@@ -34,4 +34,30 @@ test.describe('rankings', () => {
     await expect(grid.getByRole('rowheader', { name: /seo meme/ })).toBeVisible();
     await expectAccessible(page);
   });
+
+  test('a keyword opens in the inspector, steps with J, and saves a setting in place', async ({ page }) => {
+    await page.setViewportSize({ width: 1680, height: 1000 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await grid.getByRole('rowheader').first().click();
+    const inspector = page.getByRole('complementary', { name: 'seo agency' });
+    await expect(inspector).toBeVisible();
+    await expect(page).toHaveURL(/[?&]inspect=keyword%3A|[?&]inspect=keyword:/);
+    await expect(inspector.getByText('1 of 59')).toBeVisible();
+    await expect(inspector.getByRole('heading', { name: 'Search volume by month' })).toBeVisible();
+    await expectAccessible(page);
+
+    await page.keyboard.press('j');
+    const next = page.getByRole('complementary', { name: 'backlink checker' });
+    await expect(next.getByText('2 of 59')).toBeVisible();
+
+    await next.getByRole('button', { name: 'Edit Tracking' }).click();
+    await next.getByRole('combobox', { name: 'Priority' }).click();
+    await page.getByRole('option', { name: '2' }).click();
+    await next.getByRole('button', { name: 'Save' }).click();
+    await expect(next.getByRole('button', { name: 'Save' })).toBeHidden();
+    await expect(next.getByText('2', { exact: true })).toBeVisible();
+    await expectAccessible(page);
+  });
 });

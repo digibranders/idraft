@@ -2,10 +2,11 @@
 
 import { useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
+import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
 import {
   PAGE_SIZE_CHOICES,
   keywordFilters,
@@ -19,10 +20,13 @@ import type { TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
+import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageHeader } from '@/components/app/shell/page-header';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { toast } from '@/components/ui/toast';
@@ -30,6 +34,8 @@ import { isApiProblem } from '@/lib/api/problem';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
 import { formatInteger, formatRelative } from '@/lib/format';
+import { formatInspectTarget } from '@/lib/inspector/placement';
+import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import {
   formatColumns,
   formatSort,
@@ -103,6 +109,47 @@ export function RankingsScreen({ workspaceId, projectId, timeZone }: RankingsScr
       : (updatedText ?? countText ?? '');
   const errorId = isApiProblem(list.error) ? list.error.requestId : null;
 
+  // The keyword inspector: opened from a row, stepping in the table's order, asking before it leaves a
+  // keyword with unsaved changes (16-drawers-dialogs-popovers.md section 2.5)
+  const inspector = useInspector();
+  const openId = inspector.target?.type === 'keyword' ? inspector.target.id : null;
+  const [order, setOrder] = useState<readonly string[]>([]);
+  const [editState, setEditState] = useState<InspectorEditState>('clean');
+  const [pendingLeave, setPendingLeave] = useState<{ run: () => void } | null>(null);
+  const [discards, setDiscards] = useState(0);
+  const leaveGuard = useLeaveGuard(editState !== 'clean');
+  // A save on its way holds the inspector on its keyword; unsaved changes are asked about first
+  const guarded = (run: () => void): void => {
+    if (editState === 'saving') return;
+    if (editState === 'dirty') setPendingLeave({ run });
+    else run();
+  };
+  const at = inspector.position(order);
+  const step = (direction: 'next' | 'previous'): void => {
+    // A step past either end goes nowhere, so it asks nothing
+    if (at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
+    guarded(() => inspector.step(direction, order));
+  };
+  const openRow = openId === null ? null : (list.rows.find((row) => row.tracked_keyword_id === openId) ?? null);
+  // Only a list that holds every match, read to its end, can tell that the filters or the search leave the
+  // keyword out of the table
+  const listComplete =
+    list.mode === 'client' && !list.loading && !list.stale && list.loadProgress === null && list.incomplete === null;
+  const hiddenByFilters = openId !== null && listComplete && !order.includes(openId);
+  const onRowOpen = (row: TrackedKeywordRow, intent: 'inspector' | 'new-tab'): void => {
+    const target = { type: 'keyword' as const, id: row.tracked_keyword_id };
+    if (intent === 'new-tab') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('inspect', formatInspectTarget(target));
+      url.searchParams.delete('itab');
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    if (row.tracked_keyword_id === openId) return;
+    guarded(() => inspector.open(target));
+  };
+  const onEditStateChange = useCallback((state: InspectorEditState) => setEditState(state), []);
+
   const setSort = (next: readonly SortKey[]): void => {
     void setView({ sort: sameSort(next, DEFAULT_SORT) ? null : formatSort(next) });
   };
@@ -151,111 +198,168 @@ export function RankingsScreen({ workspaceId, projectId, timeZone }: RankingsScr
       emptyState
     );
 
-  return (
-    <div className="flex h-page-body min-h-page-body-min flex-col gap-4 px-3 pt-5 pb-5 md:px-4 lg:px-5">
-      <PageHeader title={t('title')} meta={meta === '' ? undefined : meta} />
-      <FilterBar
-        fields={fields}
-        values={values}
-        onChange={setValues}
-        trailing={
-          <SegmentedControl<'active' | 'archived'>
-            semantics="view"
-            label={t('view.label')}
-            value={view.archived ? 'archived' : 'active'}
-            onValueChange={(next) => void setView({ archived: next === 'archived' ? true : null })}
-            items={[
-              { value: 'active', label: t('view.active') },
-              { value: 'archived', label: t('view.archived') },
-            ]}
-          />
+  const keywordInspector =
+    openId === null ? null : (
+      <KeywordInspector
+        scope={scope}
+        trackedKeywordId={openId}
+        row={openRow}
+        timeZone={timeZone}
+        positionText={
+          at === null
+            ? null
+            : t('inspector.position', { index: formatInteger(at.index + 1), count: formatInteger(at.count) })
         }
-      />
-      {list.incomplete === null ? null : (
-        <Banner
-          tone="warning"
-          placement="region"
-          live
-          message={t('incomplete.message', {
-            loaded: formatInteger(list.rows.length),
-            total: formatInteger(list.total ?? list.rows.length),
-          })}
-          actions={
-            <Button variant="secondary" size="sm" onClick={list.incomplete.retry} loading={list.incomplete.retrying}>
-              {common('retry')}
-            </Button>
-          }
-        />
-      )}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <DataTable<TrackedKeywordRow>
-          caption={t('caption')}
-          itemNoun={{ one: t('noun.one'), other: t('noun.other') }}
-          columns={columns}
-          getRowId={rowId}
-          rows={list.rows}
-          total={list.total}
-          server={
-            list.server === null
-              ? undefined
-              : {
-                  rangeText: t('range', {
-                    from: formatInteger(list.server.offset + 1),
-                    to: formatInteger(list.server.offset + list.rows.length),
-                    total: formatInteger(list.total ?? 0),
-                  }),
-                  offset: list.server.offset,
-                  hasPrevious: list.server.hasPrevious,
-                  hasNext: list.server.hasNext,
-                  onPrevious: list.server.previous,
-                  onNext: list.server.next,
-                  pageSize: list.server.pageSize,
-                  onPageSizeChange: list.server.setPageSize,
-                  pageSizes: PAGE_SIZE_CHOICES,
-                }
-          }
-          loadProgress={list.loadProgress}
-          sort={sort}
-          onSortChange={setSort}
-          defaultSort={DEFAULT_SORT}
-          density={density}
-          onDensityChange={setDensity}
-          columnState={{
-            visible,
-            onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),
-          }}
-          search={view.q}
-          onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
-          searchPlaceholder={t('search')}
-          searchText={list.mode === 'server' ? undefined : keywordText}
-          rowName={keywordText}
-          status={status}
-          errorState={
-            <InlineError
-              title={t('error.title')}
-              reason={t('error.reason')}
-              errorId={
-                errorId === null
-                  ? null
-                  : {
-                      id: errorId,
-                      label: errors('errorId', { id: errorId }),
-                      copyLabel: errors('copyErrorId'),
-                      copiedLabel: errors('copied'),
-                    }
+        navigation={
+          at === null
+            ? null
+            : {
+                onPrevious: () => step('previous'),
+                onNext: () => step('next'),
+                atFirst: at.index === 0,
+                atLast: at.index === at.count - 1,
               }
-              onRetry={list.refetch}
-              retrying={list.fetching}
-              retryLabel={common('retry')}
-              live
+        }
+        onStep={at === null ? undefined : step}
+        onClose={() => guarded(() => inspector.close())}
+        onEditStateChange={onEditStateChange}
+        discards={discards}
+        hiddenByFilters={hiddenByFilters}
+      />
+    );
+
+  return (
+    <InspectorLayout inspector={keywordInspector}>
+      <div className="flex h-page-body min-h-page-body-min flex-col gap-4 px-3 pt-5 pb-5 md:px-4 lg:px-5">
+        <PageHeader title={t('title')} meta={meta === '' ? undefined : meta} />
+        <FilterBar
+          fields={fields}
+          values={values}
+          onChange={setValues}
+          trailing={
+            <SegmentedControl<'active' | 'archived'>
+              semantics="view"
+              label={t('view.label')}
+              value={view.archived ? 'archived' : 'active'}
+              onValueChange={(next) => void setView({ archived: next === 'archived' ? true : null })}
+              items={[
+                { value: 'active', label: t('view.active') },
+                { value: 'archived', label: t('view.archived') },
+              ]}
             />
           }
-          emptyState={emptyState}
-          filteredEmptyState={filteredEmpty}
-          footerNote={updatedText ?? undefined}
         />
+        {list.incomplete === null ? null : (
+          <Banner
+            tone="warning"
+            placement="region"
+            live
+            message={t('incomplete.message', {
+              loaded: formatInteger(list.rows.length),
+              total: formatInteger(list.total ?? list.rows.length),
+            })}
+            actions={
+              <Button variant="secondary" size="sm" onClick={list.incomplete.retry} loading={list.incomplete.retrying}>
+                {common('retry')}
+              </Button>
+            }
+          />
+        )}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <DataTable<TrackedKeywordRow>
+            caption={t('caption')}
+            itemNoun={{ one: t('noun.one'), other: t('noun.other') }}
+            columns={columns}
+            getRowId={rowId}
+            rows={list.rows}
+            total={list.total}
+            server={
+              list.server === null
+                ? undefined
+                : {
+                    rangeText: t('range', {
+                      from: formatInteger(list.server.offset + 1),
+                      to: formatInteger(list.server.offset + list.rows.length),
+                      total: formatInteger(list.total ?? 0),
+                    }),
+                    offset: list.server.offset,
+                    hasPrevious: list.server.hasPrevious,
+                    hasNext: list.server.hasNext,
+                    onPrevious: list.server.previous,
+                    onNext: list.server.next,
+                    pageSize: list.server.pageSize,
+                    onPageSizeChange: list.server.setPageSize,
+                    pageSizes: PAGE_SIZE_CHOICES,
+                  }
+            }
+            loadProgress={list.loadProgress}
+            sort={sort}
+            onSortChange={setSort}
+            defaultSort={DEFAULT_SORT}
+            density={density}
+            onDensityChange={setDensity}
+            columnState={{
+              visible,
+              onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),
+            }}
+            search={view.q}
+            onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
+            searchPlaceholder={t('search')}
+            searchText={list.mode === 'server' ? undefined : keywordText}
+            rowName={keywordText}
+            status={status}
+            errorState={
+              <InlineError
+                title={t('error.title')}
+                reason={t('error.reason')}
+                errorId={
+                  errorId === null
+                    ? null
+                    : {
+                        id: errorId,
+                        label: errors('errorId', { id: errorId }),
+                        copyLabel: errors('copyErrorId'),
+                        copiedLabel: errors('copied'),
+                      }
+                }
+                onRetry={list.refetch}
+                retrying={list.fetching}
+                retryLabel={common('retry')}
+                live
+              />
+            }
+            emptyState={emptyState}
+            filteredEmptyState={filteredEmpty}
+            footerNote={updatedText ?? undefined}
+            onRowOpen={onRowOpen}
+            activeRowId={openId}
+            onRowOrderChange={setOrder}
+          />
+        </div>
       </div>
-    </div>
+      <DiscardChangesDialog
+        open={pendingLeave !== null || leaveGuard.pending !== null}
+        title={t('inspector.discard.title')}
+        description={t('inspector.discard.description')}
+        keepEditingLabel={t('inspector.discard.keepEditing')}
+        discardLabel={t('inspector.discard.discard')}
+        onKeepEditing={() => {
+          setPendingLeave(null);
+          leaveGuard.stay();
+        }}
+        onDiscard={() => {
+          if (pendingLeave === null) {
+            leaveGuard.leave();
+            return;
+          }
+          setPendingLeave(null);
+          // The inspector ends its edit, whether or not the action moves it to another keyword
+          setDiscards((count) => count + 1);
+          setEditState('clean');
+          pendingLeave.run();
+        }}
+      />
+    </InspectorLayout>
   );
 }
 

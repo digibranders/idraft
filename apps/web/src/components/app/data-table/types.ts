@@ -124,6 +124,11 @@ export interface DataTableProps<TRow> {
   onRowOpen?: ((row: TRow, intent: 'inspector' | 'new-tab') => void) | undefined;
   /** The row open in the inspector. */
   activeRowId?: string | null | undefined;
+  /**
+   * The ids of the rows the table shows, in its order (searched and sorted in client mode), each time it
+   * changes: the inspector's position and J and K follow it.
+   */
+  onRowOrderChange?: ((ids: readonly string[]) => void) | undefined;
   status: TableStatus;
   /** Shown in the body for `error`: an `InlineError` with Retry. */
   errorState: ReactNode;

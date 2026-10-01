@@ -58,11 +58,13 @@ function Harness({
   status = 'ready',
   matchingTotal = null,
   server,
+  onRowOrderChange,
 }: {
   rows: Row[];
   status?: TableStatus;
   matchingTotal?: number | null;
   server?: ServerPaging;
+  onRowOrderChange?: (ids: readonly string[]) => void;
 }): ReactElement {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
   const [density, setDensity] = useState<Density>('default');
@@ -101,6 +103,7 @@ function Harness({
         rowActions={ACTIONS}
         rowName={(row) => row.keyword}
         onRowOpen={onOpen}
+        onRowOrderChange={onRowOrderChange}
         status={status}
         errorState={<p>The keywords did not load.</p>}
         emptyState={<p>No keywords yet.</p>}
@@ -168,6 +171,20 @@ describe('DataTable', () => {
     expect(bodyKeywords()[0]).toBe('keyword 004');
     await user.click(within(grid()).getByRole('button', { name: 'Keyword' }));
     expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveAttribute('aria-sort', 'descending');
+  });
+
+  it('reports the order it shows: after a sort or a search, and not again for the same rows', async () => {
+    const order = vi.fn();
+    const rows = rowsOf(5);
+    const { user, rerender } = renderWithProviders(<Harness rows={rows} onRowOrderChange={order} />);
+    expect(order).toHaveBeenLastCalledWith(['k4', 'k3', 'k2', 'k0', 'k1']);
+    await user.click(within(grid()).getByRole('button', { name: 'Keyword' }));
+    expect(order).toHaveBeenLastCalledWith(['k0', 'k1', 'k2', 'k3', 'k4']);
+    const calls = order.mock.calls.length;
+    rerender(<Harness rows={[...rows]} onRowOrderChange={order} />);
+    expect(order).toHaveBeenCalledTimes(calls);
+    await user.type(screen.getByRole('searchbox', { name: /Search/ }), '003');
+    await waitFor(() => expect(order).toHaveBeenLastCalledWith(['k3']));
   });
 
   it('moves one tab stop with the arrows, opens with Enter and selects with Space and Shift+Space', async () => {

@@ -99,6 +99,12 @@
 - [ ] **Step 3:** Settings with a form and `SaveBar`: target URL (`invalid_url` on the field), priority, depth profile, active; config history as a short list (what changed, who, when).
 - [ ] **Step 4:** Groups and tags: chips with add and remove (groups by path, terms of the chosen vocabularies, single-valued vocabularies replace); competitor overrides: the project's competitors with include or exclude.
 - [ ] **Step 5:** Tests (open from a row, `j` and `k`, each section, edits refresh the row), gates, Opus review, commit "Rankings: the keyword inspector".
+- **As built.**
+  - Cards: the metric strip (Volume, KD, CPC); searches by month; Groups and tags; Tracking (target URL, priority, intent and funnel stage edit in place); Competitors; Configuration history.
+  - The depth profile changes through a dialog with an optional reason, because it starts a configuration version (16 section 2.5). Archive and Unarchive are in the More menu, with an Undo toast; they are not an "active" field in the form.
+  - Groups and tags save pessimistically, not optimistically as 16 section 2.5 suggests, because one save is several requests. Terms go as one `replace` per save, and a partial save says so.
+  - A save in flight holds Close, J, K and row opens. The browser's Back on a dirty inspector is not caught: this is the documented `useLeaveGuard` limit.
+  - The user asked on 2026-10-01 for three rank columns (current position, change since yesterday's check, ranking URL). The backend recorded them for the part 2 contract; they join Rankings with rank collection.
 
 ### Task 6: Add keywords
 

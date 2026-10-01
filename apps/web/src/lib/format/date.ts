@@ -63,6 +63,11 @@ export function formatBusinessDate(isoDate: string, { withYear = true }: { withY
   return withYear ? format(local, 'MMM d, yyyy') : format(local, 'MMM d');
 }
 
+/** A calendar month: (2026, 9) -> "Sep 2026". `month` runs from 1 to 12. */
+export function formatMonth(year: number, month: number): string {
+  return format(new Date(year, month - 1, 1), 'MMM yyyy');
+}
+
 /** Chart axis date: "Sep 29"; add year on the first tick of each year (caller passes showYear). */
 export function formatChartDate(isoDate: string, showYear = false): string {
   return formatBusinessDate(isoDate, { withYear: showYear });

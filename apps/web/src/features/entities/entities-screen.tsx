@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { useRef, useState, type ReactNode } from 'react';
 
 import { EntityDialog } from './entity-dialog';
-import { EntitySwatch } from './entity-swatch';
 import {
   COMPETITOR_LIMIT,
   projectEntitiesQuery,
@@ -18,6 +17,7 @@ import {
   type ProjectScope,
 } from './entity-queries';
 import { TrackingDialog } from './tracking-dialog';
+import { EntitySwatch } from '@/components/app/entity/entity-swatch';
 import { Banner } from '@/components/app/status/banner';
 import { InlineError } from '@/components/app/status/inline-error';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';

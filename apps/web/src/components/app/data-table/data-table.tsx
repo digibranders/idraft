@@ -128,6 +128,7 @@ export function DataTable<TRow extends RowData>({
   rowName,
   onRowOpen,
   activeRowId,
+  onRowOrderChange,
   status,
   errorState,
   emptyState,
@@ -175,6 +176,18 @@ export function DataTable<TRow extends RowData>({
   const ids = useMemo(() => rows.map(getRowId), [rows, getRowId]);
   const indexOfId = useMemo(() => new Map(ids.map((id, index) => [id, index])), [ids]);
   const showRows = status === 'ready' || status === 'refetching';
+  const reportOrder = useRef(onRowOrderChange);
+  const reportedIds = useRef<readonly string[] | null>(null);
+  useEffect(() => {
+    reportOrder.current = onRowOrderChange;
+  });
+  // Rows that are a new array of the same ids (a refetch, an empty page) are not a new order
+  useEffect(() => {
+    const last = reportedIds.current;
+    if (last !== null && last.length === ids.length && last.every((id, index) => id === ids[index])) return;
+    reportedIds.current = ids;
+    reportOrder.current?.(ids);
+  }, [ids]);
 
   // Geometry
   const [regionSize, setRegionSize] = useState({ width: 1200, height: 600 });

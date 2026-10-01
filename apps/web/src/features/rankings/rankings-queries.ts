@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
+import { DEPTH_PROFILES, FUNNEL_STAGES, INTENTS, SOURCES } from './keyword-values';
 import type { PageSize } from '@/components/app/data-table/types';
 import type { FilterValues } from '@/components/app/filters/types';
 import { api, unwrap } from '@/lib/api/client';
@@ -55,17 +56,15 @@ export const keywordsKey = (scope: ProjectScope): QueryKey => [
   'tracked-keywords',
 ];
 
-/** After any change to tracked keywords: the list, its counts and every page. */
-export function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): void {
-  void queryClient.invalidateQueries({ queryKey: keywordsKey(scope) });
+/**
+ * After any change to tracked keywords: the list, its counts, every page and the open keyword. Resolves
+ * once the queries on screen have read again.
+ */
+export function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey: keywordsKey(scope) });
 }
 
 // The URL keys of the filters (13-filters-search.md section 5) and what each sends
-
-const INTENTS = ['informational', 'navigational', 'commercial', 'transactional', 'local', 'unknown'] as const;
-const FUNNEL_STAGES = ['tofu', 'mofu', 'bofu', 'retention', 'unknown'] as const;
-const SOURCES = ['manual', 'csv_import', 'api', 'gsc_import', 'discovery', 'bulk_paste'] as const;
-const DEPTH_PROFILES = ['light', 'standard', 'deep', 'full', 'weekly', 'weekly_light', 'until_own_match_100'] as const;
 
 /** The values of an enum filter that are one of `allowed`. */
 function enumOf<T extends string>(value: FilterValue | undefined, allowed: readonly T[]): T[] {
