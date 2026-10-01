@@ -106,6 +106,14 @@ class ProjectGoneError(LookupError):
         self.project_id = project_id
 
 
+class IdentityTakenError(Exception):
+    """The project tracks the identity already; nothing was written."""
+
+    def __init__(self, existing: Existing) -> None:
+        super().__init__(f"tracked already as {existing.tracked_keyword_id}")
+        self.existing = existing
+
+
 class QuotaExceededError(Exception):
     """Writing would take the workspace over its tracked keyword limit; nothing was written."""
 
@@ -272,14 +280,17 @@ async def write_tracked_keywords(
     source: Source,
     created_by: UUID | None,
     now: datetime,
+    refuse_existing: bool = False,
 ) -> WriteResult:
     """Adds the items that are new and brings back deleted ones, under the quota; reports the
     ones the project tracks already (live or archived), an identity repeated in `items`
     included.
 
-    Raises `QuotaExceededError` when they would not fit and `ProjectGoneError` for a project
-    that does not exist or was deleted; nothing is written before either is raised. At most
-    `WRITE_MAX` items per call (a statement carries a bounded number of parameters)."""
+    Raises `IdentityTakenError` with `refuse_existing` when the project tracks one of the items
+    already (checked before the quota), `QuotaExceededError` when they would not fit, and
+    `ProjectGoneError` for a project that does not exist or was deleted; nothing is written
+    before any of them is raised. At most `WRITE_MAX` items per call (a statement carries a
+    bounded number of parameters)."""
     if not items:
         return WriteResult(created=[], existing=[])
     if len(items) > WRITE_MAX:
@@ -319,6 +330,8 @@ async def write_tracked_keywords(
             to_restore.append((index, row[0]))
         else:
             existing[index] = Existing(index, row[0], "live" if row[1] else "archived")
+    if refuse_existing and existing:
+        raise IdentityTakenError(existing[min(existing)])
     check_quota(limit, used, len(to_insert) + len(to_restore))
 
     first_text: dict[KeywordKey, str] = {}

@@ -33,6 +33,7 @@ from tests.api.auth.support import (
     make_workspace,
     open_session,
 )
+from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
@@ -95,6 +96,28 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("PATCH", _W + "/vocabularies/{vocabulary_id}"): {"name": "Taken over"},
     ("POST", _W + "/vocabularies/{vocabulary_id}/terms"): {"name": "Planted"},
     ("PATCH", _W + "/terms/{term_id}"): {"name": "Taken over"},
+    ("POST", _W + "/projects/{project_id}/tracked-keywords"): {
+        "keyword": "planted",
+        "location_id": LOCATION,
+        "language_code": "en",
+    },
+    ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-create"): {
+        "items": [{"keyword": "planted", "location_id": LOCATION, "language_code": "en"}],
+    },
+    ("PATCH", _W + "/projects/{project_id}/tracked-keywords/{tracked_keyword_id}"): {
+        "priority": 1,
+    },
+    ("PUT", _W + "/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/competitors"): {
+        "exclude": ["{entity_id}"],
+    },
+}
+# Query parameters a route requires, so that it answers for its path and not for a missing
+# parameter.
+QUERIES: dict[tuple[str, str], dict[str, str]] = {
+    ("GET", _W + "/keywords/{keyword_id}/metrics-history"): {
+        "location_id": str(LOCATION),
+        "language_code": "en",
+    },
 }
 
 
@@ -114,6 +137,8 @@ class Tenant:
     spare_entity_id: uuid.UUID
     vocabulary_id: uuid.UUID
     term_id: uuid.UUID
+    keyword_id: uuid.UUID
+    tracked_keyword_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -127,6 +152,8 @@ class Tenant:
             "spare_entity_id": str(self.spare_entity_id),
             "vocabulary_id": str(self.vocabulary_id),
             "term_id": str(self.term_id),
+            "keyword_id": str(self.keyword_id),
+            "tracked_keyword_id": str(self.tracked_keyword_id),
         }
 
     def secrets(self) -> list[str]:
@@ -225,6 +252,39 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         workspace.id,
         vocabulary["id"],
     )
+    # The same keyword in both, tracked by the project with one configuration version and a
+    # competitor override.
+    await ensure_locations(pg)
+    keyword = await fetchrow(
+        pg,
+        "INSERT INTO seo.keywords (workspace_id, text, normalized_text, language_code) "
+        "VALUES ($1, 'crm software', 'crm software', 'en') RETURNING id",
+        workspace.id,
+    )
+    tracked = await fetchrow(
+        pg,
+        "INSERT INTO seo.tracked_keywords (workspace_id, project_id, keyword_id, location_id, "
+        "language_code, device) VALUES ($1, $2, $3, $4, 'en', 'desktop') RETURNING id",
+        workspace.id,
+        project_id,
+        keyword["id"],
+        LOCATION,
+    )
+    await execute(
+        pg,
+        "INSERT INTO seo.tracked_keyword_config_history (tracked_keyword_id, workspace_id, "
+        "config_version, depth_profile, valid_from) VALUES ($1, $2, 1, 'standard', now())",
+        tracked["id"],
+        workspace.id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO seo.tracked_keyword_competitors (tracked_keyword_id, entity_id, "
+        "workspace_id, mode) VALUES ($1, $2, $3, 'include')",
+        tracked["id"],
+        entity["id"],
+        workspace.id,
+    )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -241,6 +301,8 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         spare_entity_id=spare["id"],
         vocabulary_id=vocabulary["id"],
         term_id=term["id"],
+        keyword_id=keyword["id"],
+        tracked_keyword_id=tracked["id"],
     )
 
 
@@ -265,11 +327,23 @@ async def _call(
 ) -> httpx.Response:
     body = None if method in _READ else BODIES.get((method, path), {})
     if body is not None:
-        body = {
-            key: _fill(value, ids) if isinstance(value, str) else value
-            for key, value in body.items()
-        }
-    return await api.request(method, _fill(path, ids), json=body, headers=headers)
+        body = {key: _fill_value(value, ids) for key, value in body.items()}
+    return await api.request(
+        method,
+        _fill(path, ids),
+        params=QUERIES.get((method, path)),
+        json=body,
+        headers=headers,
+    )
+
+
+def _fill_value(value: object, ids: dict[str, str]) -> object:
+    """A body member with the ids of the call: a string, or each string of a list."""
+    if isinstance(value, str):
+        return _fill(value, ids)
+    if isinstance(value, list):
+        return [_fill_value(item, ids) for item in value]
+    return value
 
 
 def _problem(response: httpx.Response) -> tuple[int, str]:
@@ -293,6 +367,10 @@ _TENANT_ROWS = {
     "core.project_entities": "workspace_id",
     "core.taxonomy_vocabularies": "workspace_id",
     "core.taxonomy_terms": "workspace_id",
+    "seo.keywords": "workspace_id",
+    "seo.tracked_keywords": "workspace_id",
+    "seo.tracked_keyword_config_history": "workspace_id",
+    "seo.tracked_keyword_competitors": "workspace_id",
     "ops.audit_logs": "workspace_id",
 }
 
@@ -452,6 +530,7 @@ async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_bot
         _W + "/entities",
         _W + "/vocabularies",
         _W + "/vocabularies/{vocabulary_id}/terms",
+        _W + "/keywords",
     ):
         response = await api.get(_fill(path, a.ids()), headers=cookie(token))
         assert response.status_code == 200
@@ -463,6 +542,7 @@ async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_bot
             str(b.entity_id),
             str(b.vocabulary_id),
             str(b.term_id),
+            str(b.keyword_id),
         ):
             assert secret not in response.text, path
     # B's children are not reachable through A's path even for a member of both.

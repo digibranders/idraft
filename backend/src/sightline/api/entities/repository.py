@@ -32,6 +32,7 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sightline.db import dictionaries
 from sightline.db.errors import violated_foreign_key, violated_unique_constraint
 from sightline.db.tables import (
     domains,
@@ -42,7 +43,6 @@ from sightline.db.tables import (
     projects,
     users,
 )
-from sightline.extraction.urls import Host
 
 _NAME_TAKEN = "entities_workspace_name_type"
 _ALIAS_TAKEN = frozenset(
@@ -546,26 +546,8 @@ async def delete_alias(
     return result.first() is not None
 
 
-# Domains.
-
-
-async def domain_id_for(db: AsyncSession, host: Host) -> int:
-    """The `core.domains` row of a host, added when no workspace has named it before. The API
-    may insert a host but not change one, so an existing row is read, never updated."""
-    await db.execute(
-        upsert(domains)
-        .values(
-            host=host.name,
-            registrable_domain=host.registrable_domain,
-            public_suffix=host.public_suffix,
-            is_ip=host.is_ip,
-        )
-        .on_conflict_do_nothing(index_elements=[domains.c.host])
-    )
-    domain_id: int = (
-        await db.execute(select(domains.c.id).where(domains.c.host == host.name))
-    ).scalar_one()
-    return domain_id
+# Domains: the host row itself comes from the shared dictionary helper.
+domain_id_for = dictionaries.domain_id_for
 
 
 def _entity_domains(workspace_id: UUID) -> Select[tuple[object, ...]]:

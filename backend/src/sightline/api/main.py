@@ -26,6 +26,9 @@ from sightline.api.entities.project_service import ProjectEntityService
 from sightline.api.entities.routes import router as entities_router
 from sightline.api.entities.service import EntityService
 from sightline.api.health import router as health_router
+from sightline.api.keywords.routes import keywords_router
+from sightline.api.keywords.routes import router as tracked_keywords_router
+from sightline.api.keywords.service import KeywordService
 from sightline.api.problems import register_problem_handlers
 from sightline.api.projects.routes import router as projects_router
 from sightline.api.projects.service import ProjectService
@@ -128,6 +131,7 @@ def create_app(
                 entities=EntityService(sessions=sessions),
                 project_entities=ProjectEntityService(sessions=sessions),
                 taxonomy=TaxonomyService(sessions=sessions),
+                keywords=KeywordService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -161,6 +165,8 @@ def create_app(
     app.include_router(entities_router)
     app.include_router(project_entities_router)
     app.include_router(taxonomy_router)
+    app.include_router(keywords_router)
+    app.include_router(tracked_keywords_router)
     app.include_router(registries_router)
     app.include_router(document_router)
     install_openapi(app)

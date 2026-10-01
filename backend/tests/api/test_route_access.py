@@ -124,6 +124,47 @@ EXPECTED: dict[tuple[str, str], str] = {
     ): "taxonomy:write",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/terms/{term_id}"): "taxonomy:write",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/terms/{term_id}"): "taxonomy:write",
+    # Keywords are read across the workspace, limited to the caller's projects by the service;
+    # tracked keywords live inside one project.
+    ("GET", "/api/v1/workspaces/{workspace_id}/keywords"): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}"): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history",
+    ): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords",
+    ): "keywords:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-create",
+    ): "keywords:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
+        "{tracked_keyword_id}",
+    ): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
+        "{tracked_keyword_id}",
+    ): "keywords:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
+        "{tracked_keyword_id}",
+    ): "keywords:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
+        "{tracked_keyword_id}/config-history",
+    ): "data:read",
+    (
+        "PUT",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
+        "{tracked_keyword_id}/competitors",
+    ): "keywords:write",
 }
 
 
@@ -168,6 +209,12 @@ PATH_PARAMETERS = {
     # service: a vocabulary id is not a project id, and a workspace-wide one has none.
     "vocabulary_id",
     "term_id",
+    # A keyword is shared by the workspace's projects; the service shows a member limited to
+    # some projects only the keywords those projects track.
+    "keyword_id",
+    # Inside one project: its routes carry `{project_id}` first, and the service reads the
+    # tracked keyword within that project.
+    "tracked_keyword_id",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

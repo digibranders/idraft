@@ -1,0 +1,931 @@
+"""Rules for tracked keywords and workspace keywords (docs/19-api-specification.md section
+3.6.1; plan decisions D3 to D5).
+
+References a body names (location, schedule, groups, terms, competitor overrides) are checked
+against the project before anything is written; a single create reports every wrong field
+together, a bulk create rejects the item. Every write is audited in its transaction.
+"""
+
+from __future__ import annotations
+
+from collections import Counter
+from collections.abc import Collection, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from typing import Final
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from sightline.api import audit
+from sightline.api.keywords import repository
+from sightline.api.keywords.repository import (
+    CompetitorRecord,
+    ConfigRecord,
+    GroupRecord,
+    KeywordRecord,
+    MetricsRecord,
+    OverrideRecord,
+    ScheduleRecord,
+    SnapshotRecord,
+    TermRecord,
+    TrackedRecord,
+    VariantRecord,
+)
+from sightline.api.pagination import CursorParams, decode_cursor, encode_cursor, invalid_cursor
+from sightline.api.problems import (
+    DuplicateError,
+    FieldError,
+    NotFoundError,
+    QuotaExceededError,
+    invalid_fields,
+)
+from sightline.api.request_info import RequestInfo
+from sightline.api.schemas.keywords import (
+    CompetitorOverrides,
+    TrackedKeywordBulkCreate,
+    TrackedKeywordCreate,
+)
+from sightline.api.schemas.operations import SeoSettings
+from sightline.api.workspaces.access import WorkspaceAccess
+from sightline.db import dictionaries
+from sightline.db.engine import workspace_transaction
+from sightline.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize
+from sightline.keywords import writer
+from sightline.keywords.text import KeywordRefusedError, check_keyword, normalize
+
+# Fields a change compares with the stored row; `target_url` is compared by its URL id.
+_COMPARED: Final = (
+    "depth_profile",
+    "intent",
+    "funnel_stage",
+    "priority",
+    "business_value",
+    "frequency",
+    "schedule_id",
+    "is_active",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _Defaults:
+    location_id: int | None
+    language_code: str | None
+    seo: SeoSettings
+
+
+@dataclass(frozen=True, slots=True)
+class _References:
+    """What the items of one request name, as far as the project may use it."""
+
+    locations: frozenset[int]
+    schedules: frozenset[UUID]
+    groups: frozenset[UUID]
+    terms: Mapping[UUID, TermRecord]
+    entities: frozenset[UUID]
+
+
+@dataclass(frozen=True, slots=True)
+class _Plan:
+    """An item that passed every check, ready to write."""
+
+    item: TrackedKeywordCreate
+    text: str
+    location_id: int
+    language_code: str
+    devices: tuple[writer.Device, ...]
+    depth_profile: str
+    frequency: str
+    target: CanonicalUrl | None
+    overrides: Mapping[UUID, str] | None
+
+    def rows(self, target_url_id: int | None) -> list[writer.NewTrackedKeyword]:
+        item = self.item
+        return [
+            writer.NewTrackedKeyword(
+                text=self.text,
+                location_id=self.location_id,
+                language_code=self.language_code,
+                device=device,
+                search_engine=item.search_engine,
+                os=item.os,
+                depth_profile=self.depth_profile,
+                target_url_id=target_url_id,
+                intent=item.intent or "unknown",
+                intent_source=None if item.intent is None else "manual",
+                funnel_stage=item.funnel_stage,
+                priority=item.priority,
+                business_value=item.business_value,
+                frequency=self.frequency,
+                schedule_id=item.schedule_id,
+            )
+            for device in self.devices
+        ]
+
+
+@dataclass(frozen=True, slots=True)
+class BulkOutcome:
+    created: list[UUID]
+    skipped: list[tuple[int, UUID]]  # (item index, the tracked keyword it duplicates)
+    rejected: list[tuple[int, str, str]]  # (item index, code, message)
+
+
+@dataclass(frozen=True, slots=True)
+class TrackedDetail:
+    record: TrackedRecord
+    metrics: MetricsRecord | None
+    groups: list[GroupRecord]
+    terms: list[TermRecord]
+    overrides: list[OverrideRecord]
+    config_versions: int
+    schedule: ScheduleRecord | None
+
+
+@dataclass(frozen=True, slots=True)
+class CompetitorSetResult:
+    effective: list[CompetitorRecord]
+    overrides: list[OverrideRecord]
+
+
+@dataclass(frozen=True, slots=True)
+class KeywordPageResult:
+    rows: list[KeywordRecord]
+    next_cursor: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class KeywordDetailResult:
+    keyword: KeywordRecord
+    metrics: list[MetricsRecord]
+    variants: list[VariantRecord]
+
+
+def _quota(limit: int, used: int, requested: int) -> QuotaExceededError:
+    return QuotaExceededError(
+        f"The workspace tracks {used} of {limit} keywords; {requested} more do not fit.",
+        limit=limit,
+        used=used,
+        requested=requested,
+    )
+
+
+def _snapshot(record: TrackedRecord) -> dict[str, str | int | bool | None]:
+    return {
+        "project_id": str(record.project_id),
+        "keyword": record.keyword.text,
+        "search_engine": record.search_engine,
+        "location_id": record.location_id,
+        "language_code": record.language_code,
+        "device": record.device,
+        "os": record.os,
+        "config_version": record.config_version,
+        "depth_profile": record.depth_profile,
+        "target_url": None if record.target_url is None else record.target_url.canonical_url,
+        "intent": record.intent,
+        "intent_source": record.intent_source,
+        "funnel_stage": record.funnel_stage,
+        "priority": record.priority,
+        "business_value": None if record.business_value is None else str(record.business_value),
+        "frequency": record.frequency,
+        "schedule_id": None if record.schedule_id is None else str(record.schedule_id),
+        "is_active": record.is_active,
+    }
+
+
+def _target_id(record: TrackedRecord) -> int | None:
+    return None if record.target_url is None else record.target_url.url_id
+
+
+def _overrides(given: CompetitorOverrides) -> dict[UUID, str]:
+    return {**dict.fromkeys(given.include, "include"), **dict.fromkeys(given.exclude, "exclude")}
+
+
+def _check(
+    item: TrackedKeywordCreate, defaults: _Defaults, refs: _References
+) -> _Plan | list[FieldError]:
+    """The item's plan, or every field found wrong, in the order of the body."""
+    found: list[FieldError] = []
+    text = ""
+    try:
+        text = check_keyword(item.keyword)
+    except KeywordRefusedError as error:
+        found.append(FieldError("keyword", error.code, str(error)))
+    location_id = item.location_id if item.location_id is not None else defaults.location_id
+    if location_id is None:
+        found.append(
+            FieldError("location_id", "location_required", "The project has no default location.")
+        )
+    elif location_id not in refs.locations:
+        found.append(FieldError("location_id", "location_unknown", "No such active location."))
+    language_code = item.language_code or defaults.language_code
+    if language_code is None:
+        found.append(
+            FieldError("language_code", "language_required", "The project has no default language.")
+        )
+    target: CanonicalUrl | None = None
+    if item.target_url is not None:
+        try:
+            target = canonicalize(item.target_url)
+        except UrlRejectedError:
+            found.append(FieldError("target_url", "invalid_url", "Not an http(s) URL."))
+    if item.schedule_id is not None and item.schedule_id not in refs.schedules:
+        found.append(
+            FieldError("schedule_id", "schedule_unknown", "No such rank schedule in the project.")
+        )
+    if any(group_id not in refs.groups for group_id in item.group_ids):
+        found.append(FieldError("group_ids", "group_unknown", "No such group in the project."))
+    if any(term_id not in refs.terms for term_id in item.term_ids):
+        found.append(FieldError("term_ids", "term_unknown", "No such term the project may use."))
+    elif _two_in_a_single_valued_vocabulary(item.term_ids, refs.terms):
+        found.append(
+            FieldError(
+                "term_ids",
+                "single_valued_vocabulary",
+                "A keyword has at most one term of a single-valued vocabulary.",
+            )
+        )
+    overrides = None
+    if item.competitor_overrides is not None:
+        overrides = _overrides(item.competitor_overrides)
+        if any(entity_id not in refs.entities for entity_id in overrides):
+            found.append(
+                FieldError(
+                    "competitor_overrides",
+                    "entity_not_in_project",
+                    "An entity the project has not given a role.",
+                )
+            )
+    if found or location_id is None or language_code is None:
+        return found
+    return _Plan(
+        item=item,
+        text=text,
+        location_id=location_id,
+        language_code=language_code,
+        devices=writer.devices(item.device or defaults.seo.default_device),
+        depth_profile=item.depth_profile or defaults.seo.default_depth_profile,
+        frequency=item.frequency or defaults.seo.default_frequency,
+        target=target,
+        overrides=overrides,
+    )
+
+
+def _two_in_a_single_valued_vocabulary(
+    term_ids: Collection[UUID], terms: Mapping[UUID, TermRecord]
+) -> bool:
+    per_vocabulary = Counter(
+        terms[term_id].vocabulary_id for term_id in set(term_ids) if terms[term_id].is_single_valued
+    )
+    return any(count > 1 for count in per_vocabulary.values())
+
+
+class KeywordService:
+    def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
+        self._sessions = sessions
+
+    def _transaction(self, access: WorkspaceAccess) -> AbstractAsyncContextManager[AsyncSession]:
+        return workspace_transaction(self._sessions, access.workspace_id, user_id=access.user_id)
+
+    # Tracked keywords.
+
+    async def create(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        item: TrackedKeywordCreate,
+        info: RequestInfo,
+    ) -> list[TrackedRecord]:
+        """One row per device. `409 duplicate` when the project tracks the keyword already,
+        archived included; a deleted one comes back with its stored settings (plan decision
+        D3)."""
+        now = datetime.now(UTC)
+        async with self._transaction(access) as db:
+            defaults = await self._defaults(db, access, project_id)
+            refs = await self._references(db, access, project_id, defaults, [item])
+            checked = _check(item, defaults, refs)
+            if isinstance(checked, list):
+                raise invalid_fields(checked)
+            targets = await self._targets(db, [checked.target])
+            try:
+                result = await writer.write_tracked_keywords(
+                    db,
+                    workspace_id=access.workspace_id,
+                    project_id=project_id,
+                    items=checked.rows(self._target_of(checked, targets)),
+                    source="manual",
+                    created_by=access.user_id,
+                    now=now,
+                    refuse_existing=True,
+                )
+            except writer.IdentityTakenError as error:
+                raise DuplicateError(
+                    "The project tracks this keyword already.",
+                    existing_id=error.existing.tracked_keyword_id,
+                ) from None
+            except writer.QuotaExceededError as error:
+                raise _quota(error.limit, error.used, error.requested) from None
+            except writer.ProjectGoneError:
+                raise NotFoundError from None
+            created = [(entry.tracked_keyword_id, checked) for entry in result.created]
+            await self._link(db, access, project_id, created)
+            records = await repository.tracked_by_ids(
+                db, access.workspace_id, [entry.tracked_keyword_id for entry in result.created]
+            )
+            await self._audit_created(db, access, records, result.created, info)
+        return records
+
+    async def bulk_create(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        body: TrackedKeywordBulkCreate,
+        info: RequestInfo,
+    ) -> BulkOutcome:
+        """Items that cannot be tracked are rejected one by one; the others are written in one
+        transaction, all or none: over the quota, nothing is written."""
+        now = datetime.now(UTC)
+        async with self._transaction(access) as db:
+            defaults = await self._defaults(db, access, project_id)
+            refs = await self._references(db, access, project_id, defaults, body.items)
+            plans: dict[int, _Plan] = {}
+            rejected: list[tuple[int, str, str]] = []
+            for index, item in enumerate(body.items):
+                checked = _check(item, defaults, refs)
+                if isinstance(checked, list):
+                    rejected.append((index, checked[0].code, checked[0].message))
+                else:
+                    plans[index] = checked
+            targets = await self._targets(db, [plan.target for plan in plans.values()])
+            rows = [
+                (index, row)
+                for index, plan in plans.items()
+                for row in plan.rows(self._target_of(plan, targets))
+            ]
+            created: list[tuple[int, writer.Created]] = []
+            existing: list[tuple[int, writer.Existing]] = []
+            for start in range(0, len(rows), writer.WRITE_MAX):
+                chunk = rows[start : start + writer.WRITE_MAX]
+                try:
+                    result = await writer.write_tracked_keywords(
+                        db,
+                        workspace_id=access.workspace_id,
+                        project_id=project_id,
+                        items=[row for _, row in chunk],
+                        source="manual",
+                        created_by=access.user_id,
+                        now=now,
+                    )
+                except writer.QuotaExceededError as error:
+                    # The quota counts what earlier chunks of this request wrote as used.
+                    raise _quota(
+                        error.limit, error.used - len(created), error.requested + len(created)
+                    ) from None
+                except writer.ProjectGoneError:
+                    raise NotFoundError from None
+                created.extend((chunk[entry.index][0], entry) for entry in result.created)
+                existing.extend((chunk[entry.index][0], entry) for entry in result.existing)
+            await self._link(
+                db,
+                access,
+                project_id,
+                [(entry.tracked_keyword_id, plans[index]) for index, entry in created],
+            )
+            if body.on_duplicate == "merge_terms":
+                await self._merge(db, access, project_id, existing, plans, refs, info)
+            records = await repository.tracked_by_ids(
+                db, access.workspace_id, [entry.tracked_keyword_id for _, entry in created]
+            )
+            await self._audit_created(db, access, records, [entry for _, entry in created], info)
+        return BulkOutcome(
+            created=[entry.tracked_keyword_id for _, entry in created],
+            skipped=[(index, entry.tracked_keyword_id) for index, entry in existing],
+            rejected=rejected,
+        )
+
+    async def get(
+        self, access: WorkspaceAccess, project_id: UUID, tracked_keyword_id: UUID
+    ) -> TrackedDetail:
+        async with self._transaction(access) as db:
+            record = await self._tracked(db, access, project_id, tracked_keyword_id)
+            ids = [record.id]
+            key = (record.keyword.id, record.location_id, record.language_code)
+            metrics = await repository.current_metrics(db, access.workspace_id, [key])
+            return TrackedDetail(
+                record=record,
+                metrics=metrics.get(key),
+                groups=(await repository.groups_of(db, access.workspace_id, ids)).get(
+                    record.id, []
+                ),
+                terms=(await repository.terms_of(db, access.workspace_id, ids)).get(record.id, []),
+                overrides=(
+                    await repository.overrides_of(db, access.workspace_id, project_id, ids)
+                ).get(record.id, []),
+                config_versions=await repository.config_counts(db, access.workspace_id, record.id),
+                schedule=None
+                if record.schedule_id is None
+                else await repository.schedule_ref(db, access.workspace_id, record.schedule_id),
+            )
+
+    async def update(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        tracked_keyword_id: UUID,
+        changes: Mapping[str, object],
+        info: RequestInfo,
+    ) -> TrackedRecord:
+        """Changes the given fields. A new `depth_profile` or `target_url` is a new
+        configuration version with a history row; nothing is written when nothing differs."""
+        now = datetime.now(UTC)
+        given = dict(changes)
+        reason = given.pop("change_reason", None)
+        async with self._transaction(access) as db:
+            quota: tuple[int, int] | None = None
+            if given.get("is_active") is True:
+                # Taken before the row, in the order every writer takes them.
+                quota = await writer.lock_quota(db, access.workspace_id)
+            current = await self._tracked(db, access, project_id, tracked_keyword_id, lock=True)
+            values: dict[str, object] = {
+                field: given[field]
+                for field in _COMPARED
+                if field in given and getattr(current, field) != given[field]
+            }
+            found: list[FieldError] = []
+            target: CanonicalUrl | None = None
+            raw_target = given.get("target_url")
+            if isinstance(raw_target, str):
+                try:
+                    target = canonicalize(raw_target)
+                except UrlRejectedError:
+                    found.append(FieldError("target_url", "invalid_url", "Not an http(s) URL."))
+            schedule_id = values.get("schedule_id")
+            if isinstance(schedule_id, UUID) and not await repository.rank_schedules(
+                db, access.workspace_id, project_id, [schedule_id]
+            ):
+                found.append(
+                    FieldError(
+                        "schedule_id", "schedule_unknown", "No such rank schedule in the project."
+                    )
+                )
+            if found:
+                raise invalid_fields(found)
+            target_url_id = _target_id(current)
+            if "target_url" in given:
+                target_url_id = (
+                    None if target is None else (await dictionaries.url_for(db, target)).id
+                )
+                if target_url_id != _target_id(current):
+                    values["target_url_id"] = target_url_id
+            if "intent" in given and ("intent" in values or current.intent_source != "manual"):
+                values["intent_source"] = "manual"
+            if values.get("is_active") is True and quota is not None:
+                try:
+                    writer.check_quota(*quota, 1)
+                except writer.QuotaExceededError as error:
+                    raise _quota(error.limit, error.used, error.requested) from None
+            if "depth_profile" in values or "target_url_id" in values:
+                values["config_version"] = current.config_version + 1
+                await repository.new_config_version(
+                    db,
+                    workspace_id=access.workspace_id,
+                    tracked_keyword_id=current.id,
+                    version=current.config_version + 1,
+                    depth_profile=str(values.get("depth_profile", current.depth_profile)),
+                    target_url_id=target_url_id,
+                    changed_by=access.user_id,
+                    change_reason=None if reason is None else str(reason),
+                    now=now,
+                )
+            if not values:
+                return current
+            await repository.update_tracked(
+                db, access.workspace_id, current.id, {**values, "updated_at": now}
+            )
+            updated = await self._tracked(db, access, project_id, tracked_keyword_id)
+            before, after = _snapshot(current), _snapshot(updated)
+            differing = [field for field in after if after[field] != before[field]]
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="tracked_keyword.updated",
+                target_type="tracked_keyword",
+                target_id=current.id,
+                info=info,
+                before={field: before[field] for field in differing},
+                after={
+                    **{field: after[field] for field in differing},
+                    **({} if reason is None else {"change_reason": str(reason)}),
+                },
+            )
+        return updated
+
+    async def delete(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        tracked_keyword_id: UUID,
+        info: RequestInfo,
+    ) -> None:
+        """A soft delete: rank and metric history stay, and tracking the same keyword again
+        brings the row back (plan decisions D2 and D3)."""
+        now = datetime.now(UTC)
+        async with self._transaction(access) as db:
+            current = await self._tracked(db, access, project_id, tracked_keyword_id, lock=True)
+            await repository.update_tracked(
+                db, access.workspace_id, current.id, {"deleted_at": now, "updated_at": now}
+            )
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="tracked_keyword.deleted",
+                target_type="tracked_keyword",
+                target_id=current.id,
+                info=info,
+                before=_snapshot(current),
+            )
+
+    async def config_history(
+        self, access: WorkspaceAccess, project_id: UUID, tracked_keyword_id: UUID
+    ) -> list[ConfigRecord]:
+        async with self._transaction(access) as db:
+            record = await self._tracked(db, access, project_id, tracked_keyword_id)
+            return await repository.config_history(db, access.workspace_id, record.id)
+
+    async def set_competitors(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        tracked_keyword_id: UUID,
+        given: CompetitorOverrides,
+        info: RequestInfo,
+    ) -> CompetitorSetResult:
+        """Replaces the keyword's overrides. Only entities with a live role in the project may
+        be named."""
+        modes = _overrides(given)
+        async with self._transaction(access) as db:
+            current = await self._tracked(db, access, project_id, tracked_keyword_id, lock=True)
+            with_role = await repository.entities_with_role(
+                db, access.workspace_id, project_id, modes
+            )
+            found = [
+                FieldError(
+                    path, "entity_not_in_project", "An entity the project has not given a role."
+                )
+                for path, ids in (("include", given.include), ("exclude", given.exclude))
+                if any(entity_id not in with_role for entity_id in ids)
+            ]
+            if found:
+                raise invalid_fields(found)
+            before = (
+                await repository.overrides_of(db, access.workspace_id, project_id, [current.id])
+            ).get(current.id, [])
+            await repository.replace_overrides(
+                db, workspace_id=access.workspace_id, tracked_keyword_id=current.id, modes=modes
+            )
+            overrides = (
+                await repository.overrides_of(db, access.workspace_id, project_id, [current.id])
+            ).get(current.id, [])
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="tracked_keyword.competitors_changed",
+                target_type="tracked_keyword",
+                target_id=current.id,
+                info=info,
+                before=_override_snapshot(before),
+                after=_override_snapshot(overrides),
+            )
+            defaults = await repository.project_competitors(db, access.workspace_id, project_id)
+        return CompetitorSetResult(
+            effective=effective_set(defaults, overrides), overrides=overrides
+        )
+
+    # Workspace keywords.
+
+    async def keyword_page(
+        self,
+        access: WorkspaceAccess,
+        *,
+        q: str | None,
+        language_code: str | None,
+        page: CursorParams,
+    ) -> KeywordPageResult:
+        scope: dict[str, object] = {"sort": "text", "q": q, "language_code": language_code}
+        after: tuple[str, UUID] | None = None
+        if page.cursor is not None:
+            key = decode_cursor(page.cursor, scope=scope)
+            if len(key) != 2 or not all(isinstance(value, str) for value in key):
+                raise invalid_cursor()
+            try:
+                after = (str(key[0]), UUID(str(key[1])))
+            except ValueError:
+                raise invalid_cursor() from None
+        async with self._transaction(access) as db:
+            found = await repository.list_keywords(
+                db,
+                access.workspace_id,
+                visible=access.project_ids,
+                q=None if q is None else normalize(q),
+                language_code=language_code,
+                after=after,
+                limit=page.limit + 1,
+            )
+        shown = found[: page.limit]
+        next_cursor = None
+        if len(found) > page.limit:
+            last = shown[-1]
+            next_cursor = encode_cursor([last.normalized_text, str(last.id)], scope=scope)
+        return KeywordPageResult(rows=shown, next_cursor=next_cursor)
+
+    async def keyword(self, access: WorkspaceAccess, keyword_id: UUID) -> KeywordDetailResult:
+        async with self._transaction(access) as db:
+            keyword = await self._keyword(db, access, keyword_id)
+            return KeywordDetailResult(
+                keyword=keyword,
+                metrics=await repository.keyword_metrics(db, access.workspace_id, keyword_id),
+                variants=await repository.variants(
+                    db, access.workspace_id, keyword_id, visible=access.project_ids
+                ),
+            )
+
+    async def metrics_history(
+        self,
+        access: WorkspaceAccess,
+        keyword_id: UUID,
+        *,
+        location_id: int,
+        language_code: str,
+        source: str,
+        since: date | None,
+        until: date | None,
+    ) -> list[SnapshotRecord]:
+        """Oldest first."""
+        async with self._transaction(access) as db:
+            await self._keyword(db, access, keyword_id)
+            return await repository.snapshots(
+                db,
+                access.workspace_id,
+                keyword_id,
+                location_id=location_id,
+                language_code=language_code,
+                source=source,
+                since=since,
+                until=until,
+            )
+
+    # Shared steps.
+
+    @staticmethod
+    async def _defaults(db: AsyncSession, access: WorkspaceAccess, project_id: UUID) -> _Defaults:
+        found = await repository.project_defaults(db, access.workspace_id, project_id)
+        if found is None:
+            raise NotFoundError
+        return _Defaults(
+            location_id=found.location_id,
+            language_code=found.language_code,
+            seo=SeoSettings.model_validate(found.settings.get("seo", {})),
+        )
+
+    @staticmethod
+    async def _references(
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        defaults: _Defaults,
+        items: Sequence[TrackedKeywordCreate],
+    ) -> _References:
+        workspace_id = access.workspace_id
+        location_ids = {
+            item.location_id if item.location_id is not None else defaults.location_id
+            for item in items
+        }
+        schedule_ids = {item.schedule_id for item in items if item.schedule_id is not None}
+        group_ids = {group_id for item in items for group_id in item.group_ids}
+        term_ids = {term_id for item in items for term_id in item.term_ids}
+        entity_ids = {
+            entity_id
+            for item in items
+            if item.competitor_overrides is not None
+            for entity_id in _overrides(item.competitor_overrides)
+        }
+        terms = await repository.project_terms(db, workspace_id, project_id, term_ids)
+        return _References(
+            locations=frozenset(
+                await repository.active_locations(
+                    db, {location for location in location_ids if location is not None}
+                )
+            ),
+            schedules=frozenset(
+                await repository.rank_schedules(db, workspace_id, project_id, schedule_ids)
+            ),
+            groups=frozenset(
+                await repository.project_groups(db, workspace_id, project_id, group_ids)
+            ),
+            terms={term.term_id: term for term in terms},
+            entities=frozenset(
+                await repository.entities_with_role(db, workspace_id, project_id, entity_ids)
+            ),
+        )
+
+    @staticmethod
+    async def _targets(db: AsyncSession, given: Sequence[CanonicalUrl | None]) -> dict[bytes, int]:
+        """The `core.urls` id of each target URL, by its hash. Added in one order, so two
+        requests adding the same new URLs cannot each wait on one the other added first."""
+        distinct = {url.url_hash: url for url in given if url is not None}
+        return {
+            url_hash: (await dictionaries.url_for(db, distinct[url_hash])).id
+            for url_hash in sorted(distinct)
+        }
+
+    @staticmethod
+    def _target_of(plan: _Plan, targets: Mapping[bytes, int]) -> int | None:
+        return None if plan.target is None else targets[plan.target.url_hash]
+
+    @staticmethod
+    async def _link(
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        written: Sequence[tuple[UUID, _Plan]],
+    ) -> None:
+        """Groups, terms and competitor overrides of new or restored tracked keywords."""
+        await repository.add_members(
+            db,
+            workspace_id=access.workspace_id,
+            project_id=project_id,
+            pairs={
+                (group_id, tracked_id)
+                for tracked_id, plan in written
+                for group_id in plan.item.group_ids
+            },
+        )
+        await repository.add_terms(
+            db,
+            workspace_id=access.workspace_id,
+            pairs={
+                (tracked_id, term_id)
+                for tracked_id, plan in written
+                for term_id in plan.item.term_ids
+            },
+            assigned_by="manual",
+        )
+        for tracked_id, plan in written:
+            if plan.overrides is not None:
+                await repository.replace_overrides(
+                    db,
+                    workspace_id=access.workspace_id,
+                    tracked_keyword_id=tracked_id,
+                    modes=plan.overrides,
+                )
+
+    @staticmethod
+    async def _merge(
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        existing: Sequence[tuple[int, writer.Existing]],
+        plans: Mapping[int, _Plan],
+        refs: _References,
+        info: RequestInfo,
+    ) -> None:
+        """`on_duplicate: merge_terms`: a duplicate item's groups and terms are added to the
+        tracked keyword it duplicates. A term of a single-valued vocabulary is not added when
+        the keyword has another term of that vocabulary."""
+        workspace_id = access.workspace_id
+        tracked_ids = {entry.tracked_keyword_id for _, entry in existing}
+        groups = await repository.groups_of(db, workspace_id, tracked_ids)
+        terms = await repository.terms_of(db, workspace_id, tracked_ids)
+        added_groups: dict[UUID, set[UUID]] = {}
+        added_terms: dict[UUID, set[UUID]] = {}
+        for index, entry in existing:
+            tracked_id = entry.tracked_keyword_id
+            item = plans[index].item
+            have_groups = {group.group_id for group in groups.get(tracked_id, [])}
+            have_terms = terms.get(tracked_id, [])
+            taken = {term.vocabulary_id for term in have_terms if term.is_single_valued}
+            have_term_ids = {term.term_id for term in have_terms} | added_terms.get(
+                tracked_id, set()
+            )
+            for group_id in item.group_ids:
+                if group_id not in have_groups:
+                    added_groups.setdefault(tracked_id, set()).add(group_id)
+            for term_id in item.term_ids:
+                term = refs.terms[term_id]
+                if term_id in have_term_ids or (
+                    term.is_single_valued and term.vocabulary_id in taken
+                ):
+                    continue
+                added_terms.setdefault(tracked_id, set()).add(term_id)
+                if term.is_single_valued:
+                    taken.add(term.vocabulary_id)
+        await repository.add_members(
+            db,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            pairs={(g, t) for t, ids in added_groups.items() for g in ids},
+        )
+        await repository.add_terms(
+            db,
+            workspace_id=workspace_id,
+            pairs={(t, term_id) for t, ids in added_terms.items() for term_id in ids},
+            assigned_by="manual",
+        )
+        changed = sorted(set(added_groups) | set(added_terms))
+        await audit.record_each(
+            db,
+            workspace_id=workspace_id,
+            actor_id=access.user_id,
+            action="tracked_keyword.updated",
+            target_type="tracked_keyword",
+            info=info,
+            entries=[
+                audit.Entry(
+                    target_id=tracked_id,
+                    after={
+                        "group_ids_added": sorted(map(str, added_groups.get(tracked_id, ()))),
+                        "term_ids_added": sorted(map(str, added_terms.get(tracked_id, ()))),
+                    },
+                )
+                for tracked_id in changed
+            ],
+        )
+
+    @staticmethod
+    async def _audit_created(
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        records: Sequence[TrackedRecord],
+        created: Sequence[writer.Created],
+        info: RequestInfo,
+    ) -> None:
+        restored = {entry.tracked_keyword_id for entry in created if entry.restored}
+        await audit.record_each(
+            db,
+            workspace_id=access.workspace_id,
+            actor_id=access.user_id,
+            action="tracked_keyword.created",
+            target_type="tracked_keyword",
+            info=info,
+            entries=[
+                audit.Entry(
+                    target_id=record.id,
+                    after={**_snapshot(record), "restored": record.id in restored},
+                )
+                for record in records
+            ],
+        )
+
+    @staticmethod
+    async def _tracked(
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        tracked_keyword_id: UUID,
+        *,
+        lock: bool = False,
+    ) -> TrackedRecord:
+        """A live tracked keyword of the project; with `lock`, changes to it wait for this
+        one."""
+        found = await repository.get_tracked(
+            db, access.workspace_id, project_id, tracked_keyword_id, for_update=lock
+        )
+        if found is None:
+            raise NotFoundError
+        return found
+
+    @staticmethod
+    async def _keyword(
+        db: AsyncSession, access: WorkspaceAccess, keyword_id: UUID
+    ) -> KeywordRecord:
+        found = await repository.get_keyword(
+            db, access.workspace_id, keyword_id, visible=access.project_ids
+        )
+        if found is None:
+            raise NotFoundError
+        return found
+
+
+def effective_set(
+    defaults: Sequence[CompetitorRecord], overrides: Sequence[OverrideRecord]
+) -> list[CompetitorRecord]:
+    """The project's SEO competitors, with the keyword's includes added and excludes taken
+    away (docs/08-seo-keyword-system.md section 4), by name."""
+    excluded = {o.entity.entity_id for o in overrides if o.mode == "exclude"}
+    chosen = {entity.entity_id: entity for entity in defaults if entity.entity_id not in excluded}
+    for override in overrides:
+        if override.mode == "include":
+            chosen.setdefault(override.entity.entity_id, override.entity)
+    return sorted(
+        chosen.values(), key=lambda entity: (entity.canonical_name.lower(), entity.entity_id)
+    )
+
+
+def _override_snapshot(overrides: Sequence[OverrideRecord]) -> dict[str, list[str]]:
+    return {
+        mode: sorted(str(o.entity.entity_id) for o in overrides if o.mode == mode)
+        for mode in ("include", "exclude")
+    }

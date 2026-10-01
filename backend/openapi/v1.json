@@ -486,6 +486,272 @@
         "title": "AliasUpdate",
         "type": "object"
       },
+      "BulkCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkCreateResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "BulkCreateResponse",
+        "type": "object"
+      },
+      "BulkCreateResult": {
+        "properties": {
+          "created": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Created",
+            "type": "array"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/BulkRejected"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/BulkSkipped"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "created",
+          "skipped",
+          "rejected"
+        ],
+        "title": "BulkCreateResult",
+        "type": "object"
+      },
+      "BulkRejected": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "code",
+          "message"
+        ],
+        "title": "BulkRejected",
+        "type": "object"
+      },
+      "BulkSkipped": {
+        "properties": {
+          "existing_id": {
+            "format": "uuid",
+            "title": "Existing Id",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "existing_id"
+        ],
+        "title": "BulkSkipped",
+        "type": "object"
+      },
+      "CompetitorOverride": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          },
+          "mode": {
+            "enum": [
+              "include",
+              "exclude"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity",
+          "mode"
+        ],
+        "title": "CompetitorOverride",
+        "type": "object"
+      },
+      "CompetitorOverrides": {
+        "additionalProperties": false,
+        "description": "Entities with a project role added to, or taken from, the project's competitor set for\none keyword.",
+        "properties": {
+          "exclude": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Exclude",
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Include",
+            "type": "array"
+          }
+        },
+        "title": "CompetitorOverrides",
+        "type": "object"
+      },
+      "CompetitorSet": {
+        "properties": {
+          "effective_competitors": {
+            "items": {
+              "$ref": "#/components/schemas/EntityRef"
+            },
+            "title": "Effective Competitors",
+            "type": "array"
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/CompetitorOverride"
+            },
+            "title": "Overrides",
+            "type": "array"
+          }
+        },
+        "required": [
+          "effective_competitors",
+          "overrides"
+        ],
+        "title": "CompetitorSet",
+        "type": "object"
+      },
+      "CompetitorSetResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CompetitorSet"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "CompetitorSetResponse",
+        "type": "object"
+      },
+      "ConfigHistory": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigVersion"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ConfigHistory",
+        "type": "object"
+      },
+      "ConfigVersion": {
+        "properties": {
+          "change_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Reason"
+          },
+          "changed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config_version": {
+            "title": "Config Version",
+            "type": "integer"
+          },
+          "depth_profile": {
+            "enum": [
+              "light",
+              "standard",
+              "deep",
+              "full",
+              "weekly",
+              "weekly_light",
+              "until_own_match_100"
+            ],
+            "title": "Depth Profile",
+            "type": "string"
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UrlRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valid_from": {
+            "format": "date-time",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "config_version",
+          "depth_profile",
+          "target_url",
+          "valid_from",
+          "valid_to",
+          "changed_by",
+          "change_reason"
+        ],
+        "title": "ConfigVersion",
+        "type": "object"
+      },
       "CursorPageInfo": {
         "description": "A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.",
         "properties": {
@@ -1275,6 +1541,30 @@
         "title": "EntityUpdate",
         "type": "object"
       },
+      "GroupRef": {
+        "properties": {
+          "group_id": {
+            "format": "uuid",
+            "title": "Group Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group_id",
+          "name",
+          "path"
+        ],
+        "title": "GroupRef",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -1464,6 +1754,308 @@
           "slug"
         ],
         "title": "JoinedWorkspace",
+        "type": "object"
+      },
+      "Keyword": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "keyword_id": {
+            "format": "uuid",
+            "title": "Keyword Id",
+            "type": "string"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "normalized_text": {
+            "title": "Normalized Text",
+            "type": "string"
+          },
+          "text": {
+            "description": "As first entered: what the provider receives.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword_id",
+          "text",
+          "normalized_text",
+          "language_code",
+          "created_at"
+        ],
+        "title": "Keyword",
+        "type": "object"
+      },
+      "KeywordDetail": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "keyword_id": {
+            "format": "uuid",
+            "title": "Keyword Id",
+            "type": "string"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "metrics": {
+            "description": "Current metrics per location and source.",
+            "items": {
+              "$ref": "#/components/schemas/KeywordMetrics"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "normalized_text": {
+            "title": "Normalized Text",
+            "type": "string"
+          },
+          "text": {
+            "description": "As first entered: what the provider receives.",
+            "title": "Text",
+            "type": "string"
+          },
+          "tracked": {
+            "description": "Tracked variants the caller can see.",
+            "items": {
+              "$ref": "#/components/schemas/TrackedVariant"
+            },
+            "title": "Tracked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keyword_id",
+          "text",
+          "normalized_text",
+          "language_code",
+          "created_at",
+          "metrics",
+          "tracked"
+        ],
+        "title": "KeywordDetail",
+        "type": "object"
+      },
+      "KeywordDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeywordDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordDetailResponse",
+        "type": "object"
+      },
+      "KeywordMetrics": {
+        "properties": {
+          "competition": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competition"
+          },
+          "competition_level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competition Level"
+          },
+          "cpc_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpc Usd"
+          },
+          "data_month": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Month"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "intent_main": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Main"
+          },
+          "is_seasonal": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Seasonal"
+          },
+          "keyword_difficulty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword Difficulty"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "search_volume": {
+            "$ref": "#/components/schemas/MetricValue"
+          },
+          "source": {
+            "enum": [
+              "dataforseo_labs",
+              "dataforseo_google_ads",
+              "dataforseo_clickstream"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "trend_pct_per_month": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend Pct Per Month"
+          }
+        },
+        "required": [
+          "source",
+          "location_id",
+          "language_code",
+          "fetched_at",
+          "data_month",
+          "search_volume",
+          "cpc_usd",
+          "competition",
+          "competition_level",
+          "keyword_difficulty",
+          "intent_main",
+          "trend_pct_per_month",
+          "is_seasonal"
+        ],
+        "title": "KeywordMetrics",
+        "type": "object"
+      },
+      "KeywordMetricsHistory": {
+        "properties": {
+          "seasonality": {
+            "$ref": "#/components/schemas/Seasonality"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/MetricsSnapshot"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/MetricValue"
+          }
+        },
+        "required": [
+          "snapshots",
+          "trend",
+          "seasonality"
+        ],
+        "title": "KeywordMetricsHistory",
+        "type": "object"
+      },
+      "KeywordMetricsHistoryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeywordMetricsHistory"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordMetricsHistoryResponse",
+        "type": "object"
+      },
+      "KeywordPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Keyword"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "KeywordPage",
         "type": "object"
       },
       "Location": {
@@ -1891,6 +2483,277 @@
           }
         },
         "title": "MemberUpdate",
+        "type": "object"
+      },
+      "MetricValue": {
+        "description": "A metric with what it was computed from. Fields of doc 19 section 2.6 that no route\nbuilt so far fills (`ci`, `aggregation`, `engines`, ...) are left out until one does.",
+        "properties": {
+          "denominator": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "is_estimate": {
+            "title": "Is Estimate",
+            "type": "boolean"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "method_version": {
+            "title": "Method Version",
+            "type": "integer"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "n_keywords": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Keywords"
+          },
+          "n_observations": {
+            "title": "N Observations",
+            "type": "integer"
+          },
+          "numerator": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numerator"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "unit": {
+            "enum": [
+              "ratio",
+              "count",
+              "rank",
+              "score",
+              "usd",
+              "clicks"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          }
+        },
+        "required": [
+          "metric",
+          "value",
+          "numerator",
+          "denominator",
+          "unit",
+          "n_observations",
+          "window",
+          "filters",
+          "is_estimate",
+          "method",
+          "method_version"
+        ],
+        "title": "MetricValue",
+        "type": "object"
+      },
+      "MetricWindow": {
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "timezone"
+        ],
+        "title": "MetricWindow",
+        "type": "object"
+      },
+      "MetricsSnapshot": {
+        "properties": {
+          "cpc_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpc Usd"
+          },
+          "data_month": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Month"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "is_material_change": {
+            "title": "Is Material Change",
+            "type": "boolean"
+          },
+          "keyword_difficulty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword Difficulty"
+          },
+          "monthly_searches": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlySearches"
+            },
+            "title": "Monthly Searches",
+            "type": "array"
+          },
+          "search_volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Volume"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "fetched_at",
+          "data_month",
+          "search_volume",
+          "monthly_searches",
+          "cpc_usd",
+          "keyword_difficulty",
+          "is_material_change"
+        ],
+        "title": "MetricsSnapshot",
+        "type": "object"
+      },
+      "MonthIndex": {
+        "properties": {
+          "index": {
+            "title": "Index",
+            "type": "number"
+          },
+          "month": {
+            "title": "Month",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "index"
+        ],
+        "title": "MonthIndex",
+        "type": "object"
+      },
+      "MonthlySearches": {
+        "properties": {
+          "month": {
+            "title": "Month",
+            "type": "integer"
+          },
+          "search_volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Volume"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "month",
+          "search_volume"
+        ],
+        "title": "MonthlySearches",
         "type": "object"
       },
       "OffsetPageInfo": {
@@ -2942,6 +3805,66 @@
         "title": "Role",
         "type": "string"
       },
+      "ScheduleRef": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "next_run_at": {
+            "format": "date-time",
+            "title": "Next Run At",
+            "type": "string"
+          },
+          "schedule_id": {
+            "format": "uuid",
+            "title": "Schedule Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "name",
+          "next_run_at"
+        ],
+        "title": "ScheduleRef",
+        "type": "object"
+      },
+      "Seasonality": {
+        "properties": {
+          "index_by_month": {
+            "description": "Empty without twelve months of volume.",
+            "items": {
+              "$ref": "#/components/schemas/MonthIndex"
+            },
+            "title": "Index By Month",
+            "type": "array"
+          },
+          "is_seasonal": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null without twelve months of volume.",
+            "title": "Is Seasonal"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index_by_month",
+          "is_seasonal",
+          "method"
+        ],
+        "title": "Seasonality",
+        "type": "object"
+      },
       "SessionItem": {
         "properties": {
           "created_at": {
@@ -3323,6 +4246,36 @@
         "title": "TermNode",
         "type": "object"
       },
+      "TermRef": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "term_id": {
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
+          },
+          "vocabulary_id": {
+            "format": "uuid",
+            "title": "Vocabulary Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "term_id",
+          "vocabulary_id",
+          "name",
+          "path"
+        ],
+        "title": "TermRef",
+        "type": "object"
+      },
       "TermResponse": {
         "properties": {
           "data": {
@@ -3461,6 +4414,999 @@
           }
         },
         "title": "TotpVerifyRequest",
+        "type": "object"
+      },
+      "TrackedKeyword": {
+        "properties": {
+          "business_value": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Value"
+          },
+          "config_version": {
+            "title": "Config Version",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depth_profile": {
+            "enum": [
+              "light",
+              "standard",
+              "deep",
+              "full",
+              "weekly",
+              "weekly_light",
+              "until_own_match_100"
+            ],
+            "title": "Depth Profile",
+            "type": "string"
+          },
+          "device": {
+            "enum": [
+              "desktop",
+              "mobile"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "frequency": {
+            "enum": [
+              "daily",
+              "weekly",
+              "custom"
+            ],
+            "title": "Frequency",
+            "type": "string"
+          },
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "intent_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "provider",
+                  "manual",
+                  "rule"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Source"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "keyword": {
+            "$ref": "#/components/schemas/Keyword"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "enum": [
+                  "windows",
+                  "macos",
+                  "android",
+                  "ios"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "search_engine": {
+            "enum": [
+              "google",
+              "bing"
+            ],
+            "title": "Search Engine",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "manual",
+              "csv_import",
+              "api",
+              "gsc_import",
+              "discovery",
+              "bulk_paste"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UrlRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tracked_keyword_id": {
+            "format": "uuid",
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracked_keyword_id",
+          "project_id",
+          "keyword",
+          "search_engine",
+          "location_id",
+          "location",
+          "language_code",
+          "device",
+          "os",
+          "config_version",
+          "depth_profile",
+          "target_url",
+          "intent",
+          "intent_source",
+          "funnel_stage",
+          "priority",
+          "business_value",
+          "frequency",
+          "schedule_id",
+          "source",
+          "is_active",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TrackedKeyword",
+        "type": "object"
+      },
+      "TrackedKeywordBulkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrackedKeywordCreate"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "on_duplicate": {
+            "default": "skip",
+            "description": "`merge_terms` adds the item's groups and terms to the tracked keyword it duplicates.",
+            "enum": [
+              "skip",
+              "merge_terms"
+            ],
+            "title": "On Duplicate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TrackedKeywordBulkCreate",
+        "type": "object"
+      },
+      "TrackedKeywordCreate": {
+        "additionalProperties": false,
+        "description": "Defaults come from the project: its location and language, and its settings\n(`seo.default_device`, `default_depth_profile`, `default_frequency`).",
+        "properties": {
+          "business_value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Value"
+          },
+          "competitor_overrides": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompetitorOverrides"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depth_profile": {
+            "anyOf": [
+              {
+                "enum": [
+                  "light",
+                  "standard",
+                  "deep",
+                  "full",
+                  "weekly",
+                  "weekly_light",
+                  "until_own_match_100"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Profile"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "enum": [
+                  "desktop",
+                  "mobile",
+                  "both"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`both` makes two rows.",
+            "title": "Device"
+          },
+          "frequency": {
+            "anyOf": [
+              {
+                "enum": [
+                  "daily",
+                  "weekly",
+                  "custom"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frequency"
+          },
+          "funnel_stage": {
+            "default": "unknown",
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "group_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Group Ids",
+            "type": "array"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "enum": [
+                  "informational",
+                  "navigational",
+                  "commercial",
+                  "transactional",
+                  "local",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Given: `intent_source` is `manual`.",
+            "title": "Intent"
+          },
+          "keyword": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Keyword",
+            "type": "string"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "enum": [
+                  "windows",
+                  "macos",
+                  "android",
+                  "ios"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "priority": {
+            "default": 3,
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "search_engine": {
+            "const": "google",
+            "default": "google",
+            "description": "Bing arrives with its collection.",
+            "title": "Search Engine",
+            "type": "string"
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url"
+          },
+          "term_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Term Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "title": "TrackedKeywordCreate",
+        "type": "object"
+      },
+      "TrackedKeywordDetail": {
+        "properties": {
+          "business_value": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Value"
+          },
+          "competitor_overrides": {
+            "items": {
+              "$ref": "#/components/schemas/CompetitorOverride"
+            },
+            "title": "Competitor Overrides",
+            "type": "array"
+          },
+          "config_history_count": {
+            "title": "Config History Count",
+            "type": "integer"
+          },
+          "config_version": {
+            "title": "Config Version",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depth_profile": {
+            "enum": [
+              "light",
+              "standard",
+              "deep",
+              "full",
+              "weekly",
+              "weekly_light",
+              "until_own_match_100"
+            ],
+            "title": "Depth Profile",
+            "type": "string"
+          },
+          "device": {
+            "enum": [
+              "desktop",
+              "mobile"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "frequency": {
+            "enum": [
+              "daily",
+              "weekly",
+              "custom"
+            ],
+            "title": "Frequency",
+            "type": "string"
+          },
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupRef"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "intent_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "provider",
+                  "manual",
+                  "rule"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Source"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "keyword": {
+            "$ref": "#/components/schemas/Keyword"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeywordMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "os": {
+            "anyOf": [
+              {
+                "enum": [
+                  "windows",
+                  "macos",
+                  "android",
+                  "ios"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "search_engine": {
+            "enum": [
+              "google",
+              "bing"
+            ],
+            "title": "Search Engine",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "manual",
+              "csv_import",
+              "api",
+              "gsc_import",
+              "discovery",
+              "bulk_paste"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UrlRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/TermRef"
+            },
+            "title": "Terms",
+            "type": "array"
+          },
+          "tracked_keyword_id": {
+            "format": "uuid",
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracked_keyword_id",
+          "project_id",
+          "keyword",
+          "search_engine",
+          "location_id",
+          "location",
+          "language_code",
+          "device",
+          "os",
+          "config_version",
+          "depth_profile",
+          "target_url",
+          "intent",
+          "intent_source",
+          "funnel_stage",
+          "priority",
+          "business_value",
+          "frequency",
+          "schedule_id",
+          "source",
+          "is_active",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "metrics",
+          "groups",
+          "terms",
+          "competitor_overrides",
+          "config_history_count",
+          "schedule"
+        ],
+        "title": "TrackedKeywordDetail",
+        "type": "object"
+      },
+      "TrackedKeywordDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TrackedKeywordDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TrackedKeywordDetailResponse",
+        "type": "object"
+      },
+      "TrackedKeywordList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TrackedKeyword"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TrackedKeywordList",
+        "type": "object"
+      },
+      "TrackedKeywordPatch": {
+        "additionalProperties": false,
+        "description": "At least one member. `depth_profile` or `target_url` makes a new configuration version\n(`config_version`) with a history row; identity fields cannot change.",
+        "properties": {
+          "business_value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Value"
+          },
+          "change_reason": {
+            "maxLength": 500,
+            "title": "Change Reason",
+            "type": "string"
+          },
+          "depth_profile": {
+            "enum": [
+              "light",
+              "standard",
+              "deep",
+              "full",
+              "weekly",
+              "weekly_light",
+              "until_own_match_100"
+            ],
+            "title": "Depth Profile",
+            "type": "string"
+          },
+          "frequency": {
+            "enum": [
+              "daily",
+              "weekly",
+              "custom"
+            ],
+            "title": "Frequency",
+            "type": "string"
+          },
+          "funnel_stage": {
+            "enum": [
+              "tofu",
+              "mofu",
+              "bofu",
+              "retention",
+              "unknown"
+            ],
+            "title": "Funnel Stage",
+            "type": "string"
+          },
+          "intent": {
+            "enum": [
+              "informational",
+              "navigational",
+              "commercial",
+              "transactional",
+              "local",
+              "unknown"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "priority": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "target_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url"
+          }
+        },
+        "title": "TrackedKeywordPatch",
+        "type": "object"
+      },
+      "TrackedKeywordResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TrackedKeyword"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "TrackedKeywordResponse",
+        "type": "object"
+      },
+      "TrackedVariant": {
+        "properties": {
+          "device": {
+            "enum": [
+              "desktop",
+              "mobile"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "tracked_keyword_id": {
+            "format": "uuid",
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracked_keyword_id",
+          "project_id",
+          "location_id",
+          "language_code",
+          "device",
+          "is_active"
+        ],
+        "title": "TrackedVariant",
+        "type": "object"
+      },
+      "UrlRef": {
+        "properties": {
+          "canonical_url": {
+            "title": "Canonical Url",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "canonical_url",
+          "host",
+          "registrable_domain",
+          "path"
+        ],
+        "title": "UrlRef",
         "type": "object"
       },
       "UserRef": {
@@ -5982,6 +7928,291 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/keywords": {
+      "get": {
+        "description": "By normalized text. `filter[q]` matches part of the normalized text.",
+        "operationId": "list_keywords_api_v1_workspaces__workspace_id__keywords_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[q]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Q]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[language_code]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Language Code]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The workspace's keywords",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}": {
+      "get": {
+        "operationId": "get_keyword_api_v1_workspaces__workspace_id__keywords__keyword_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "A keyword with its current metrics and tracked variants",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history": {
+      "get": {
+        "description": "Snapshots oldest first; `from` and `to` are UTC dates of `fetched_at`. The trend and seasonality are those of the latest snapshot in the range.",
+        "operationId": "get_metrics_history_api_v1_workspaces__workspace_id__keywords__keyword_id__metrics_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "title": "Location Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language_code",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z]{2}$",
+              "title": "Language Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "dataforseo_labs",
+              "enum": [
+                "dataforseo_labs",
+                "dataforseo_google_ads",
+                "dataforseo_clickstream"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordMetricsHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "A keyword's metric snapshots, trend and seasonality",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/members": {
       "get": {
         "operationId": "list_members_api_v1_workspaces__workspace_id__members_get",
@@ -6830,6 +9061,462 @@
         "summary": "Change an entity's role in the project",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords": {
+      "post": {
+        "description": "Defaults come from the project: its location and language, and `settings.seo`. `409 duplicate` with `existing_id` when the project tracks the keyword already, archived included; a deleted one comes back with its stored settings. `422 quota_exceeded` carries `limit`, `used` and `requested`.",
+        "operationId": "create_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackedKeywordCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedKeywordList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Track a keyword (two rows for device both)",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-create": {
+      "post": {
+        "description": "Items that cannot be tracked are in `rejected` with their code; duplicates are in `skipped`. Over the quota, nothing is written (`422 quota_exceeded`).",
+        "operationId": "bulk_create_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_create_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackedKeywordBulkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkCreateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Track up to 1,000 keywords",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}": {
+      "delete": {
+        "description": "Tracking the same keyword again brings the row back with its settings.",
+        "operationId": "delete_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a tracked keyword (history kept)",
+        "tags": [
+          "keywords"
+        ]
+      },
+      "get": {
+        "description": "With its current metrics, groups, terms, competitor overrides and schedule.",
+        "operationId": "get_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedKeywordDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One tracked keyword",
+        "tags": [
+          "keywords"
+        ]
+      },
+      "patch": {
+        "description": "A new `depth_profile` or `target_url` makes a new `config_version` with a history row. The identity (`keyword`, `search_engine`, `location_id`, `language_code`, `device`, `os`) cannot change: `422 validation_failed` with `immutable_field`. Unarchiving (`is_active: true`) counts against the quota.",
+        "operationId": "update_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackedKeywordPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedKeywordResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change a tracked keyword",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/competitors": {
+      "put": {
+        "description": "Replaces the overrides. The effective set is the project's SEO competitors, with `include` added and `exclude` taken away. An entity without a live role in the project is `422 validation_failed` with `entity_not_in_project`.",
+        "operationId": "set_competitors_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__competitors_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompetitorOverrides"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitorSetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Set the keyword's competitor overrides",
+        "tags": [
+          "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/config-history": {
+      "get": {
+        "operationId": "get_config_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__config_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Configuration versions",
+        "tags": [
+          "keywords"
         ]
       }
     },

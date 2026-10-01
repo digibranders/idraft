@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, ClassVar
 
 import structlog
@@ -275,7 +276,21 @@ def _contention(error: DBAPIError) -> ProblemError | None:
 def invalid_field(path: str, *, code: str, message: str) -> RequestValidationError:
     """A `422 validation_failed` for a body field that only the database can judge, in the same
     shape as the errors Pydantic finds."""
-    return RequestValidationError([{"loc": ("body", path), "type": code, "msg": message}])
+    return invalid_fields([FieldError(path, code, message)])
+
+
+@dataclass(frozen=True, slots=True)
+class FieldError:
+    path: str
+    code: str
+    message: str
+
+
+def invalid_fields(found: Sequence[FieldError]) -> RequestValidationError:
+    """One `422 validation_failed` naming every field found wrong, in order."""
+    return RequestValidationError(
+        [{"loc": ("body", error.path), "type": error.code, "msg": error.message} for error in found]
+    )
 
 
 def _request_id(request: Request) -> str:
