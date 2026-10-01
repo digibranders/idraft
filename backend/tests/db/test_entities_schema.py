@@ -440,7 +440,7 @@ async def test_entity_parents_colors_and_locations_are_checked(
             ),
             (
                 "INSERT INTO core.project_entities (project_id, entity_id, workspace_id, role, "
-                "color) VALUES ($1, $2, $3, 'competitor', '#FF0000')",
+                "color_index) VALUES ($1, $2, $3, 'competitor', 7)",
                 (alpha.project_id, entity_id, alpha.workspace_id),
             ),
             (

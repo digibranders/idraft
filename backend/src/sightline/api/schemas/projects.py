@@ -12,26 +12,24 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from sightline.api.pagination import OffsetPageInfo
-from sightline.api.schemas.common import Body, Name, Patch, UserRef, refuse_null
+from sightline.api.schemas.common import (
+    Body,
+    DomainRef,
+    LanguageCode,
+    Name,
+    Patch,
+    UserRef,
+    refuse_null,
+)
 from sightline.api.slugs import ProjectSlug
 from sightline.api.timezones import Timezone
 
 ProjectStatus = Literal["active", "paused", "archived"]
-# ISO 639-1.
-LanguageCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2}$")]
 # 0 is Sunday.
 Weekday = Annotated[int, Field(ge=0, le=6, strict=True)]
-
-
-class DomainRef(BaseModel):
-    domain_id: int
-    host: str
-    registrable_domain: str
-    category: str | None
-    category_source: Literal["seed_list", "rule", "llm", "manual", "tenant_override"] | None
 
 
 class Project(BaseModel):

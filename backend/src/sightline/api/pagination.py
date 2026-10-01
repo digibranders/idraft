@@ -25,6 +25,14 @@ class OffsetPageInfo(BaseModel):
     total: int
 
 
+class CursorPageInfo(BaseModel):
+    """A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`."""
+
+    limit: int
+    next_cursor: str | None
+    has_more: bool
+
+
 @dataclass(frozen=True, slots=True)
 class OffsetParams:
     offset: int

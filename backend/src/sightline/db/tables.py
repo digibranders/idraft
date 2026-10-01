@@ -535,7 +535,7 @@ project_entities = Table(
     Column("is_primary", Boolean, nullable=False, server_default=FetchedValue()),
     Column("track_seo", Boolean, nullable=False, server_default=FetchedValue()),
     Column("track_ai", Boolean, nullable=False, server_default=FetchedValue()),
-    Column("color", Text),
+    Column("color_index", SmallInteger),
     Column("added_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
     Column("removed_at", DateTime(timezone=True)),
     ForeignKeyConstraint(

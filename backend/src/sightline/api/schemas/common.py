@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unicodedata
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -97,6 +97,18 @@ class UserRef(BaseModel):
     user_id: UUID
     name: str
     email: str
+
+
+class DomainRef(BaseModel):
+    domain_id: int
+    host: str
+    registrable_domain: str
+    category: str | None
+    category_source: Literal["seed_list", "rule", "llm", "manual", "tenant_override"] | None
+
+
+# ISO 639-1.
+LanguageCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2}$")]
 
 
 def _distinct(value: list[UUID] | None) -> list[UUID] | None:

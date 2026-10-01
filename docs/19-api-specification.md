@@ -477,7 +477,7 @@ type Uuid = string; type BigId = string; type Iso = string; type Day = string; t
 
 interface UrlRef    { url_id: BigId; canonical_url: string; host: string; registrable_domain: string; path: string }
 interface DomainRef { domain_id: number; host: string; registrable_domain: string; category: string | null; category_source: 'seed_list' | 'rule' | 'llm' | 'manual' | 'tenant_override' | null }
-interface EntityRef { entity_id: Uuid; canonical_name: string; entity_type: 'brand' | 'product' | 'organization' | 'person' | 'other'; role: 'own' | 'competitor' | 'watch' | null; color: string | null }
+interface EntityRef { entity_id: Uuid; canonical_name: string; entity_type: 'brand' | 'product' | 'organization' | 'person' | 'other'; role: 'own' | 'competitor' | 'watch' | null; color_index: 1 | 2 | 3 | 4 | 5 | 6 | null }   // --chart-1 to --chart-6, so it follows the theme; null lets the UI choose
 interface UserRef   { user_id: Uuid; name: string; email: string }
 interface Actor     { actor_type: 'user' | 'api_key' | 'system'; actor_id: string; label: string }
 interface VersionBoundary { at: Iso; component: string; from: number | string; to: number | string }
@@ -638,7 +638,7 @@ interface ApiKey { api_key_id: Uuid; name: string; prefix: string; scopes: strin
 | GET | `{W}/quotas` | member | none | `One<QuotaUsage>` | no | | deferred |
 | PUT | `/api/v1/admin/workspaces/{workspace_id}/quotas` | platform_operator | `{ max_projects, max_tracked_keywords, max_active_prompts, max_ai_observations_per_month, max_serp_checks_per_month }` | `One<QuotaUsage>` | no | | deferred |
 | GET | `{W}/audit-logs` | `audit:read` | `from?`, `to?`, `filter[actor_type]?`, `filter[actor_id]?`, `filter[action]?` (prefix match, e.g. `panel.`), `filter[target_type]?`, `filter[target_id]?` | `Page<AuditLog>` sorted `-occurred_at` | cursor | | deferred |
-| GET | `/api/v1/locations` | authenticated | `filter[q]`, `filter[country_iso]?`, `filter[location_type]?`, `filter[supports]?` (`serp`, `ai_mode`, `llm_scraper`) | `Page<Location>` | cursor | | 2 |
+| GET | `/api/v1/locations` | authenticated | `filter[q]?` (left out: all, by name, so `filter[location_type]=Country` lists countries), `filter[country_iso]?`, `filter[location_type]?`, `filter[supports]?` (`serp`, `ai_mode`, `llm_scraper`) | `Page<Location>` | cursor | | 2 |
 | GET | `/api/v1/engines` | authenticated | none | `{ data: Engine[] }` from `ai.engines` | no | | 6 |
 | GET | `/api/v1/serp-feature-types` | authenticated | none | `{ data: Array<{ code, label, ownable, tracked_by_default }> }` | no | | 4 |
 | GET | `/api/v1/domain-categories` | authenticated | none | `{ data: Array<{ code, label, description }> }` | no | | 2 |
@@ -741,8 +741,8 @@ Entities are workspace-scoped; roles are per project (doc 04 section 6). Any cha
 | POST | `{W}/entities/{entity_id}/domains` | `entities:write` | `{ domain: string (host or URL), match_scope: 'host' \| 'registrable' \| 'path_prefix', path_prefix? }` | `201 One<EntityDomain>`; domain canonicalized (doc 14 section 3); `meta.warnings: ['domain_role_conflict']` when another entity in a shared project claims it at the same specificity (doc 13 stage 2) | no | `409 duplicate` | 2 |
 | DELETE | `{W}/entities/{entity_id}/domains/{entity_domain_id}` | `entities:write` | none | `204` | no | | 2 |
 | GET | `{P}/entities` | `data:read` | `filter[role]?`, `filter[include_removed]?` | `{ data: ProjectEntity[] }` | no | | 2 |
-| POST | `{P}/entities` | `entities:write` | `{ entity_id, role: 'own' \| 'competitor' \| 'watch', is_primary?, track_seo?, track_ai?, color? }` | `201 One<ProjectEntity>`; for `competitor` with `track_seo`, `meta.backfills` lists the historical rank backfill | no | `409 duplicate`, `422 competitor_limit`, `409 primary_own_exists` | 2 |
-| PATCH | `{P}/entities/{entity_id}` | `entities:write` | `{ role?, is_primary?, track_seo?, track_ai?, color? }` | `One<ProjectEntity>` | no | | 2 |
+| POST | `{P}/entities` | `entities:write` | `{ entity_id, role: 'own' \| 'competitor' \| 'watch', is_primary?, track_seo?, track_ai?, color_index? }` | `201 One<ProjectEntity>`; for `competitor` with `track_seo`, `meta.backfills` lists the historical rank backfill | no | `409 duplicate`, `422 competitor_limit`, `409 primary_own_exists` | 2 |
+| PATCH | `{P}/entities/{entity_id}` | `entities:write` | `{ role?, is_primary?, track_seo?, track_ai?, color_index? }` | `One<ProjectEntity>` | no | | 2 |
 | DELETE | `{P}/entities/{entity_id}` | `entities:write` | none | `200 One<ProjectEntity>` with `removed_at` set; history kept for SOV integrity (doc 04 section 6) | no | `409 cannot_remove_primary_own` | 2 |
 | POST | `{P}/alias-test` | `data:read` | `{ text?: string, markdown?: string, observation_id?: BigId }` (one of) | `{ data: { mentions: Array<{ entity: EntityRef, spans: Array<{ start, end, alias_id, match_method }>, confidence, status: 'accepted' \| 'uncertain' \| 'discarded' }>, negatives_applied: Array<{ start, end, alias_id }> } }`; no persistence | no | `413 payload_too_large` (100 KB) | 2 |
 | GET | `{P}/competitor-suggestions` | `data:read` | `window?`, `min_share?` (default 0.2) | `{ data: Array<{ domain: DomainRef, keywords_top10: number, share_of_keywords: MetricValue, seo_sov: MetricValue }> }` computed from stored `organic_domain_ids` (doc 08 section 4) | no | | 5 |
@@ -753,20 +753,29 @@ Entities are workspace-scoped; roles are per project (doc 04 section 6). Any cha
 ```ts
 interface EntityCreate { entity_type: 'brand' | 'product' | 'organization' | 'person' | 'other'; canonical_name: string;
                          parent_entity_id?: Uuid; description?: string; is_ambiguous?: boolean; disambiguation_hints?: string[];
-                         aliases?: AliasInput[]; domains?: Array<{ domain: string; match_scope: 'host' | 'registrable' | 'path_prefix'; path_prefix?: string }> }
-interface Entity extends EntityCreate { entity_id: Uuid; created_at: Iso; updated_at: Iso }
-interface AliasInput { alias: string; match_mode: 'word_boundary' | 'exact_case' | 'substring' | 'regex'; case_sensitive?: boolean;
-                       language_code?: string | null; is_negative?: boolean; requires_context?: boolean }
+                         aliases?: AliasInput[]; domains?: DomainInput[] }
+interface DomainInput { domain: string;                                // a host, or a URL whose host is meant
+                        match_scope?: 'host' | 'registrable' | 'path_prefix';   // default 'registrable'
+                        path_prefix?: string }                         // exactly when match_scope is 'path_prefix'
+interface Entity { entity_id: Uuid; entity_type: EntityCreate['entity_type']; canonical_name: string; parent_entity_id: Uuid | null;
+                   description: string | null; is_ambiguous: boolean; disambiguation_hints: string[];
+                   alias_count: number; domains: EntityDomain[]; created_at: Iso; updated_at: Iso }
+interface EntityDetail extends Entity { aliases: Alias[]; projects: Array<{ project_id: Uuid; role: 'own' | 'competitor' | 'watch'; is_primary: boolean; removed_at: Iso | null }> }
+interface AliasInput { alias: string; match_mode?: 'word_boundary' | 'exact_case' | 'substring' | 'regex';   // default 'word_boundary'
+                       case_sensitive?: boolean; language_code?: string | null; is_negative?: boolean; requires_context?: boolean }
 interface Alias extends AliasInput { alias_id: Uuid; entity_id: Uuid; created_by: UserRef | null; created_at: Iso }
 // Domain-shaped aliases (doc 13 stage 4) are generated when the automaton is compiled; they are not rows and are not listed here.
 // POST {P}/alias-test reports them with match_method 'alias_domain'.
-interface EntityDomain { entity_id: Uuid; domain: DomainRef; match_scope: 'host' | 'registrable' | 'path_prefix'; path_prefix: string | null }
+interface EntityDomain { entity_domain_id: Uuid; entity_id: Uuid; domain: DomainRef; match_scope: 'host' | 'registrable' | 'path_prefix'; path_prefix: string | null }
 interface ProjectEntity { project_id: Uuid; entity: EntityRef; role: 'own' | 'competitor' | 'watch'; is_primary: boolean;
-                          track_seo: boolean; track_ai: boolean; color: string | null; added_at: Iso; removed_at: Iso | null }
+                          track_seo: boolean; track_ai: boolean; color_index: 1 | 2 | 3 | 4 | 5 | 6 | null; added_at: Iso; removed_at: Iso | null;
+                          alias_count: number; domains: EntityDomain[] }
 interface EntityCandidate { normalized_name: string; display_name: string; first_seen_at: Iso; last_seen_at: Iso;
                             observation_count: number; prompt_count: number; engines: string[];
                             sample_observation_ids: BigId[]; linked_domains: DomainRef[]; status: 'new' | 'accepted' | 'ignored' }
 ```
+
+**As built (step 4).** Request rules that report as `422 validation_failed` with these field codes: `invalid_domain` (not a host or an http(s) URL), `domain_is_public_suffix` (a registrable rule on `co.uk` or `github.io` would claim every site under it), `path_prefix_mismatch` (`path_prefix` given without `match_scope: 'path_prefix'`, or the reverse), `invalid_path_prefix` (a query or fragment), `invalid_regex` (RE2 cannot compile the pattern: no backreferences or lookaround), `one_of` (the alias test takes exactly one of `text` and `markdown`). Hosts and path prefixes are stored the way the canonicalizer writes them (doc 14 section 3.3), so `https://www.Acme.com/x` is the host `www.acme.com` and `/@acme/` is `/@acme`. Names and word aliases are trimmed; an alias that ignores case is a duplicate in any case. `own_entity` on project create makes word aliases that ignore case, with no language, and registrable domain rules. The alias test reports offsets in UTF-16 code units, so they index a JavaScript string directly; it takes no `observation_id` until observations exist (step 8), and markdown is matched as its source text until stage 3 parsing arrives. `meta.rederivations` and `meta.backfills` are left out until the work they list exists (steps 8 and 5).
 
 ### 3.5 Taxonomy (Phase 2)
 
@@ -789,7 +798,8 @@ interface Vocabulary { vocabulary_id: Uuid; project_id: Uuid | null; kind: 'topi
                        name: string; is_hierarchical: boolean; is_single_valued: boolean; term_count: number }
 interface Term { term_id: Uuid; vocabulary_id: Uuid; parent_id: Uuid | null; name: string; slug: string; path: string;
                  source: 'manual' | 'import' | 'auto_cluster' | 'ai_suggestion'; description: string | null; created_at: Iso }
-interface TermNode extends Term { children: TermNode[]; keyword_count: number; prompt_count: number }
+interface TermNode extends Term { children: TermNode[]; keyword_count: number; prompt_count: number }   // the counts arrive with keywords (step 5) and prompts (step 8); children is empty in the flat format
+interface TermInput { name?: string; parent_id?: Uuid; path?: string; slug?: string; description?: string }   // exactly one of name and path; a path ("CRM/CRM for Startups") starts at the root and creates missing parents
 ```
 
 `replace` removes the subject's existing terms **within the vocabularies of the given term ids** and adds the new ones; it never touches other vocabularies. Assignment writes `assigned_by = 'manual'` (or `'import'` from import pipelines).
@@ -1695,12 +1705,12 @@ Ids are shortened for readability where marked `...`; everything else is a liter
         "intent_main": "commercial", "trend_pct_per_month": 1.8, "is_seasonal": false
       },
       "competitors": [
-        { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color": "#ff7a59" },
+        { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },
           "current": { "state": "ranked", "rank": 1, "absolute_rank": 3, "depth_requested": 20,
                        "url": { "url_id": "90211", "canonical_url": "https://www.hubspot.com/products/crm", "host": "www.hubspot.com", "registrable_domain": "hubspot.com", "path": "/products/crm" },
                        "observed_at": "2026-09-29T06:41:12Z", "serp_snapshot_id": "88410231" },
           "change": { "value": 0, "label": "numeric", "previous_rank": 1, "previous_observed_at": "2026-09-28T06:40:55Z" } },
-        { "entity": { "entity_id": "0192c1...02", "canonical_name": "Pipedrive", "entity_type": "brand", "role": "competitor", "color": "#1a1a1a" },
+        { "entity": { "entity_id": "0192c1...02", "canonical_name": "Pipedrive", "entity_type": "brand", "role": "competitor", "color_index": 3 },
           "current": { "state": "beyond_depth", "rank": null, "absolute_rank": null, "depth_requested": 20, "url": null,
                        "observed_at": "2026-09-29T06:41:12Z", "serp_snapshot_id": "88410231" },
           "change": { "value": null, "label": "lost", "previous_rank": 18, "previous_observed_at": "2026-09-28T06:40:55Z" } }
@@ -1752,7 +1762,7 @@ Encoding rules:
     },
     "series": [
       {
-        "entity": { "entity_id": "0192c0...00", "canonical_name": "Acme", "entity_type": "brand", "role": "own", "color": "#2563eb" },
+        "entity": { "entity_id": "0192c0...00", "canonical_name": "Acme", "entity_type": "brand", "role": "own", "color_index": 1 },
         "points": [
           { "date": "2026-09-20", "observed_at": "2026-09-20T06:40:10Z", "state": "beyond_depth", "rank": null, "absolute_rank": null, "depth_requested": 10, "url_id": null, "serp_snapshot_id": "88100112" },
           { "date": "2026-09-21", "observed_at": "2026-09-21T06:39:44Z", "state": "ranked", "rank": 14, "absolute_rank": 19, "depth_requested": 100, "url_id": "812990", "serp_snapshot_id": "88177120" },
@@ -1808,19 +1818,19 @@ Encoding rules:
       { "index": 4, "type": "paragraph", "start": 206, "end": 305 }
     ],
     "mentions": [
-      { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color": "#ff7a59" },
+      { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },
         "role": "competitor", "mention_count": 1, "first_char_offset": 58, "mention_order": 1, "prominence": 0.8098,
         "structured_rank": 1, "structured_list_size": 3, "is_recommended": true, "recommendation_method": "rule",
         "sentiment": null, "sentiment_method": null, "match_method": "alias_word", "confidence": 0.95, "evidence_spans": [[58, 65]] },
-      { "entity": { "entity_id": "0192c0...00", "canonical_name": "Acme", "entity_type": "brand", "role": "own", "color": "#2563eb" },
+      { "entity": { "entity_id": "0192c0...00", "canonical_name": "Acme", "entity_type": "brand", "role": "own", "color_index": 1 },
         "role": "own", "mention_count": 1, "first_char_offset": 108, "mention_order": 2, "prominence": 0.6459,
         "structured_rank": 2, "structured_list_size": 3, "is_recommended": true, "recommendation_method": "rule",
         "sentiment": "positive", "sentiment_method": "rule", "match_method": "alias_word", "confidence": 0.95, "evidence_spans": [[108, 116]] },
-      { "entity": { "entity_id": "0192c1...02", "canonical_name": "Pipedrive", "entity_type": "brand", "role": "competitor", "color": "#1a1a1a" },
+      { "entity": { "entity_id": "0192c1...02", "canonical_name": "Pipedrive", "entity_type": "brand", "role": "competitor", "color_index": 3 },
         "role": "competitor", "mention_count": 1, "first_char_offset": 161, "mention_order": 3, "prominence": 0.4721,
         "structured_rank": 3, "structured_list_size": 3, "is_recommended": true, "recommendation_method": "rule",
         "sentiment": null, "sentiment_method": null, "match_method": "alias_word", "confidence": 0.95, "evidence_spans": [[161, 170]] },
-      { "entity": { "entity_id": "0192c1...03", "canonical_name": "Salesforce", "entity_type": "brand", "role": "competitor", "color": "#00a1e0" },
+      { "entity": { "entity_id": "0192c1...03", "canonical_name": "Salesforce", "entity_type": "brand", "role": "competitor", "color_index": 4 },
         "role": "competitor", "mention_count": 1, "first_char_offset": 244, "mention_order": 4, "prominence": 0.2,
         "structured_rank": null, "structured_list_size": null, "is_recommended": false, "recommendation_method": "rule",
         "sentiment": null, "sentiment_method": null, "match_method": "alias_word", "confidence": 0.95, "evidence_spans": [[244, 254]] }
@@ -1830,13 +1840,13 @@ Encoding rules:
         "domain": { "domain_id": 4411, "host": "www.hubspot.com", "registrable_domain": "hubspot.com", "category": "vendor_site", "category_source": "seed_list" },
         "raw_url": "https://www.hubspot.com/products/crm?utm_source=chatgpt.com", "title": "Free CRM Software | HubSpot", "source_name": "HubSpot",
         "citation_kind": "inline", "first_char_offset": 104, "answer_block_index": 1, "occurrences": 1,
-        "domain_role": "competitor", "role_entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color": "#ff7a59" },
+        "domain_role": "competitor", "role_entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },
         "referral_tag": "chatgpt.com" },
       { "citation_index": 2, "url": { "url_id": "812120", "canonical_url": "https://acme.io/pricing", "host": "acme.io", "registrable_domain": "acme.io", "path": "/pricing" },
         "domain": { "domain_id": 5120, "host": "acme.io", "registrable_domain": "acme.io", "category": "vendor_site", "category_source": "seed_list" },
         "raw_url": "https://acme.io/pricing?utm_source=chatgpt.com", "title": "Pricing | Acme CRM", "source_name": "Acme",
         "citation_kind": "inline", "first_char_offset": 156, "answer_block_index": 2, "occurrences": 1,
-        "domain_role": "own", "role_entity": { "entity_id": "0192c0...00", "canonical_name": "Acme", "entity_type": "brand", "role": "own", "color": "#2563eb" },
+        "domain_role": "own", "role_entity": { "entity_id": "0192c0...00", "canonical_name": "Acme", "entity_type": "brand", "role": "own", "color_index": 1 },
         "referral_tag": "chatgpt.com" },
       { "citation_index": 3, "url": { "url_id": "77310", "canonical_url": "https://www.g2.com/categories/crm", "host": "www.g2.com", "registrable_domain": "g2.com", "path": "/categories/crm" },
         "domain": { "domain_id": 2201, "host": "www.g2.com", "registrable_domain": "g2.com", "category": "review_aggregator", "category_source": "seed_list" },
@@ -1896,7 +1906,7 @@ Encoding rules:
             { "metric": "ai.outcome_mix.cited_only", "engine_code": "chatgpt_web", "value": 0.0833, "numerator": 1, "denominator": 12, "n_observations": 12, "n_prompts": 1 },
             { "metric": "ai.outcome_mix.neither", "engine_code": "chatgpt_web", "value": 0.25, "numerator": 3, "denominator": 12, "n_observations": 12, "n_prompts": 1 }
           ],
-          "top_competitor": { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color": "#ff7a59" },
+          "top_competitor": { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },
                               "mention_rate": { "metric": "ai.mention_rate", "engine_code": "chatgpt_web", "entity_id": "0192c1...01", "value": 0.9167, "numerator": 11, "denominator": 12, "n_observations": 12, "n_prompts": 1, "ci": { "low": 0.646, "high": 0.985, "level": 0.95, "method": "wilson" } } },
           "flip_rate": { "metric": "ai.flip_rate", "engine_code": "chatgpt_web", "value": 0.3636, "numerator": 4, "denominator": 11, "n_observations": 12, "n_prompts": 1 },
           "last_observed_at": "2026-09-22T05:12:44Z", "is_stale": false },
@@ -1910,7 +1920,7 @@ Encoding rules:
             { "metric": "ai.outcome_mix.cited_only", "engine_code": "gemini_web", "value": 0.0, "numerator": 0, "denominator": 4, "n_observations": 4, "n_prompts": 1 },
             { "metric": "ai.outcome_mix.neither", "engine_code": "gemini_web", "value": 0.75, "numerator": 3, "denominator": 4, "n_observations": 4, "n_prompts": 1 }
           ],
-          "top_competitor": { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color": "#ff7a59" },
+          "top_competitor": { "entity": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },
                               "mention_rate": { "metric": "ai.mention_rate", "engine_code": "gemini_web", "entity_id": "0192c1...01", "value": 1.0, "numerator": 4, "denominator": 4, "n_observations": 4, "n_prompts": 1, "ci": { "low": 0.51, "high": 1.0, "level": 0.95, "method": "wilson" } } },
           "flip_rate": { "metric": "ai.flip_rate", "engine_code": "gemini_web", "value": 0.3333, "numerator": 1, "denominator": 3, "n_observations": 4, "n_prompts": 1 },
           "last_observed_at": "2026-09-23T04:02:10Z", "is_stale": false }
@@ -1980,8 +1990,8 @@ In the Gemini recommendation cell, the one mention was not classified, so it lea
   "ai_presence": { "metric": "ai.mention_rate.engine_average", "value": 0.0662, "numerator": 0.1987, "denominator": 3, "n_observations": 50, "engines": ["chatgpt_web", "gemini_web", "google_ai_overview"] },
   "ai_class": "weak", "quadrant": "seo_strong_ai_weak",
   "linked_prompts": { "count": 3, "primary": { "prompt_id": "0192e5...10", "text": "What is the best CRM for a 20-person SaaS startup?" } },
-  "seo_leader": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color": "#ff7a59" },
-  "ai_leader": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color": "#ff7a59" },
+  "seo_leader": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },
+  "ai_leader": { "entity_id": "0192c1...01", "canonical_name": "HubSpot", "entity_type": "brand", "role": "competitor", "color_index": 2 },
   "owned_page_cited": { "url_id": "812120", "canonical_url": "https://acme.io/pricing", "host": "acme.io", "registrable_domain": "acme.io", "path": "/pricing" },
   "gsc": null,
   "week_start": "2026-09-28"

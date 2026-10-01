@@ -471,7 +471,7 @@ CREATE TABLE core.project_entities (
     is_primary     boolean NOT NULL DEFAULT false,  -- exactly one 'own' entity per project is primary
     track_seo      boolean NOT NULL DEFAULT true,
     track_ai       boolean NOT NULL DEFAULT true,
-    color          text CHECK (color ~ '^#[0-9a-f]{6}$'),  -- UI series color, lower case
+    color_index    smallint CHECK (color_index BETWEEN 1 AND 6),  -- series colour --chart-1 to --chart-6, so it follows the theme; NULL lets the UI choose
     added_at       timestamptz NOT NULL DEFAULT now(),
     removed_at     timestamptz,                      -- history is kept for longitudinal SOV integrity
     PRIMARY KEY (project_id, entity_id),
