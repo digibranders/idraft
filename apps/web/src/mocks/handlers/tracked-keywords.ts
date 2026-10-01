@@ -10,26 +10,21 @@ import {
   filteredRows,
   groupErrors,
   idListError,
-  identitiesOf,
   keywordProjectCaller,
-  newKeyword,
-  newTrackedRow,
   now,
   parseInclude,
   parseSort,
   queryFilter,
   quotaProblem,
-  rowWithIdentity,
   savedKeywords,
   selectedRows,
   selectionErrors,
   sortRows,
   termErrors,
-  workspaceKeyword,
-  type CreateItem,
   type KeywordProjectCaller,
-  type ScheduleCheck,
 } from './keyword-rules';
+import { mergeTerms, plan, written } from './keyword-writes';
+import { scheduleCheckFor } from './operations-rules';
 import { at, bodyError, booleanError, extraMembers, isRecord, notAnObject, pageRequest, cursorPage } from './rules';
 import {
   configHistoryView,
@@ -39,16 +34,15 @@ import {
   trackedKeywordView,
 } from '../factories/keyword';
 import { entityRefView } from '../factories/entity';
-import { normalizeKeyword } from '../keyword-text';
+import { nextRunAt } from '../factories/operations';
+import { operationWorld, readOperationChanges } from '../operations-state';
 import {
   keywordIdMinter,
   keywordWorld,
-  withKeyword,
   withMembers,
   withOverrides,
   withTermLinks,
   withTracked,
-  type KeywordChanges,
   type KeywordWorld,
   type StoredTracked,
 } from '../keywords-state';
@@ -66,107 +60,11 @@ const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const LIST_QUERY = ['sort', 'include', 'cursor', 'limit', ...FILTER_NAMES.map((name) => `filter[${name}]`)];
 const MAX_BULK_ITEMS = 1000;
 
-/** Schedules arrive with their routes; until then no schedule is known. */
-let scheduleIsKnown: ScheduleCheck = () => false;
-export const setScheduleCheck = (check: ScheduleCheck): void => {
-  scheduleIsKnown = check;
-};
-
 /** The live tracked keyword of the project with this id. */
 const liveRow = (caller: KeywordProjectCaller, id: string | readonly string[] | undefined): StoredTracked | undefined =>
   caller.keywords.tracked.find(
     (row) => row.tracked_keyword_id === id && row.project_id === caller.project.project_id && row.deleted_at === null,
   );
-
-interface Planned {
-  /** The rows the item gives: new, restored, or the existing ones it duplicates. */
-  rows: { row: StoredTracked; kind: 'new' | 'restored' | 'duplicate' }[];
-  changes: KeywordChanges;
-}
-
-/**
- * What tracking `item` would do on top of `changes`: a new keyword of the workspace when its text is new,
- * and per device a new row, a deleted row brought back with its stored settings (plan D3), or the live or
- * archived row it duplicates.
- */
-function plan(
-  caller: KeywordProjectCaller,
-  item: CreateItem,
-  changes: KeywordChanges,
-  next: (kind: 'keyword' | 'tracked') => string,
-): Planned {
-  const world = keywordWorld(changes);
-  const identity = identitiesOf(caller, item);
-  const normalized = normalizeKeyword(item.text);
-  const workspaceId = caller.access.workspace.workspace_id;
-  let current = changes;
-  let keyword = workspaceKeyword(world, workspaceId, normalized, identity.languageCode);
-  if (keyword === undefined) {
-    keyword = newKeyword(caller, next('keyword'), item.text, identity.languageCode);
-    current = withKeyword(current, keyword);
-  }
-  const keywordId = keyword.keyword_id;
-  const rows = identity.devices.map((device): Planned['rows'][number] => {
-    const existing = rowWithIdentity(
-      world,
-      caller.project.project_id,
-      keywordId,
-      identity.locationId,
-      identity.languageCode,
-      device,
-    );
-    if (existing === undefined) {
-      return {
-        row: newTrackedRow(caller, item, { trackedKeywordId: next('tracked'), keywordId }, { ...identity, device }),
-        kind: 'new',
-      };
-    }
-    if (existing.deleted_at !== null) {
-      return { row: { ...existing, deleted_at: null, is_active: true, updated_at: now() }, kind: 'restored' };
-    }
-    return { row: existing, kind: 'duplicate' };
-  });
-  return { rows, changes: current };
-}
-
-/**
- * `changes` with the rows written. A new row gets the item's groups, terms and overrides. A restored row
- * keeps its stored links and overrides, gains the item's groups and its terms where they fit (a
- * single-valued vocabulary keeps the stored term), and does not take the item's overrides.
- */
-function written(
-  caller: KeywordProjectCaller,
-  changes: KeywordChanges,
-  entries: readonly Planned['rows'][number][],
-  item: CreateItem,
-): KeywordChanges {
-  let next = changes;
-  for (const { row, kind } of entries) {
-    const id = row.tracked_keyword_id;
-    next = withTracked(next, row);
-    if (kind === 'restored') {
-      next = mergeTerms(caller, next, id, item);
-      continue;
-    }
-    next = withMembers(
-      next,
-      item.groupIds.map((group_id) => ({ group_id, tracked_keyword_id: id })),
-      [],
-    );
-    next = withTermLinks(
-      next,
-      item.termIds.map((term_id) => ({ term_id, tracked_keyword_id: id })),
-      [],
-    );
-    if (item.include.length > 0 || item.exclude.length > 0) {
-      next = withOverrides(next, id, [
-        ...item.include.map((entity_id) => ({ tracked_keyword_id: id, entity_id, mode: 'include' as const })),
-        ...item.exclude.map((entity_id) => ({ tracked_keyword_id: id, entity_id, mode: 'exclude' as const })),
-      ]);
-    }
-  }
-  return next;
-}
 
 export const trackedKeywordHandlers: HttpHandler[] = [
   mock('get', `${P}/tracked-keywords`, ({ request, cookies, params }) => {
@@ -220,7 +118,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const shape = createShapeErrors(body, '');
     if (shape.length > 0) return invalid(request, shape);
     const item = createItem(body);
-    const service = createServiceErrors(caller, item, '', scheduleIsKnown);
+    const service = createServiceErrors(caller, item, '', scheduleCheckFor(cookies));
     if (service.length > 0) return invalid(request, service);
     const minter = keywordIdMinter(caller.keywordChanges);
     const planned = plan(caller, item, caller.keywordChanges, minter.next);
@@ -274,6 +172,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
         ),
       );
     if (shapeErrors.length > 0 || !Array.isArray(items)) return invalid(request, shapeErrors);
+    const scheduleIsKnown = scheduleCheckFor(cookies);
     const minter = keywordIdMinter(caller.keywordChanges);
     let changes = caller.keywordChanges;
     const created: string[] = [];
@@ -313,7 +212,15 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const row = liveRow(caller, params.tracked_keyword_id);
     if (row === undefined) return problem(request, 'not_found');
-    return HttpResponse.json({ data: trackedKeywordDetailView(caller.keywords, caller.world, row, null) });
+    const operations = operationWorld(readOperationChanges(cookies));
+    const schedule = operations.schedules.find(
+      (candidate) => candidate.schedule_id === row.schedule_id && candidate.deleted_at === null,
+    );
+    const scheduleRef =
+      schedule === undefined
+        ? null
+        : { schedule_id: schedule.schedule_id, name: schedule.name, next_run_at: nextRunAt(schedule, Date.now()) };
+    return HttpResponse.json({ data: trackedKeywordDetailView(caller.keywords, caller.world, row, scheduleRef) });
   }),
 
   mock('patch', `${P}/tracked-keywords/{tracked_keyword_id}`, async ({ request, cookies, params }) => {
@@ -326,7 +233,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const body: unknown = await request.json();
     const shape = patchShapeErrors(body, '');
     if (shape.length > 0 || !isRecord(body)) return invalid(request, shape);
-    const service = patchServiceErrors(body, '', caller.project.project_id, scheduleIsKnown);
+    const service = patchServiceErrors(body, '', caller.project.project_id, scheduleCheckFor(cookies));
     if (service.length > 0) return invalid(request, service);
     const patched = applyPatch(row, body, caller.session.user.user_id);
     if (!patched.changed) return HttpResponse.json({ data: trackedKeywordView(caller.keywords, row) });
@@ -461,7 +368,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const ids = (name: (typeof LINKS)[number]): string[] =>
       Array.isArray(body[name]) ? body[name].filter((id): id is string => typeof id === 'string') : [];
     const service = [
-      ...(isRecord(set) ? patchServiceErrors(set, 'set', caller.project.project_id, scheduleIsKnown) : []),
+      ...(isRecord(set) ? patchServiceErrors(set, 'set', caller.project.project_id, scheduleCheckFor(cookies)) : []),
       ...groupErrors(caller, ids('add_group_ids'), 'add_group_ids'),
       ...groupErrors(caller, ids('remove_group_ids'), 'remove_group_ids'),
       ...termErrors(caller, ids('add_term_ids'), 'add_term_ids'),
@@ -567,38 +474,4 @@ function linkKey(world: KeywordWorld, trackedKeywordId: string): string {
   const groups = world.members.filter((m) => m.tracked_keyword_id === trackedKeywordId).map((m) => m.group_id);
   const terms = world.termLinks.filter((l) => l.tracked_keyword_id === trackedKeywordId).map((l) => l.term_id);
   return `${groups.sort().join(',')}|${terms.sort().join(',')}`;
-}
-
-/**
- * `on_duplicate: merge_terms`:the duplicate item's groups and terms are added to the existing row, except a
- * term of a single-valued vocabulary the row already has one of.
- */
-function mergeTerms(
-  caller: KeywordProjectCaller,
-  changes: KeywordChanges,
-  trackedKeywordId: string,
-  item: CreateItem,
-): KeywordChanges {
-  const world = keywordWorld(changes);
-  const held = world.termLinks
-    .filter((link) => link.tracked_keyword_id === trackedKeywordId)
-    .flatMap((link) =>
-      caller.world.terms.filter((term) => term.term_id === link.term_id).map((term) => term.vocabulary_id),
-    );
-  const single = new Set(
-    caller.world.vocabularies.filter((vocabulary) => vocabulary.is_single_valued === true).map((v) => v.vocabulary_id),
-  );
-  const terms = item.termIds.filter((termId) => {
-    const vocabulary = caller.world.terms.find((term) => term.term_id === termId)?.vocabulary_id;
-    return vocabulary === undefined || !single.has(vocabulary) || !held.includes(vocabulary);
-  });
-  return withTermLinks(
-    withMembers(
-      changes,
-      item.groupIds.map((group_id) => ({ group_id, tracked_keyword_id: trackedKeywordId })),
-      [],
-    ),
-    terms.map((term_id) => ({ term_id, tracked_keyword_id: trackedKeywordId })),
-    [],
-  );
 }

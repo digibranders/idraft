@@ -69,5 +69,31 @@ export type ProjectSettings = Schemas['ProjectSettings'];
 export type SeoSettings = Schemas['SeoSettings'];
 export type SeoSettingsPatch = Schemas['SeoSettingsPatch'];
 
+// Step 5 part 1: imports, schedules, runs and costs
+export type KeywordImport = Schemas['KeywordImport'];
+export type KeywordImportCreate = Schemas['KeywordImportCreate'];
+export type KeywordImportUpdate = Schemas['KeywordImportUpdate'];
+export type KeywordImportConfirm = Schemas['KeywordImportConfirm'];
+export type ImportDefaults = Schemas['ImportDefaults'];
+export type ImportField = Schemas['ImportField'];
+export type ImportRow = Schemas['ImportRow'];
+export type RowActionInput = Schemas['RowActionInput'];
+export type Operation = Schemas['Operation'];
+export type Schedule = Schemas['Schedule'];
+export type ScheduleInput = Schemas['ScheduleInput'];
+export type ScheduleUpdate = Schemas['ScheduleUpdate'];
+export type ScheduleRef = Schemas['ScheduleRef'];
+export type Selector = Schemas['Selector'];
+export type Run = Schemas['Run'];
+export type RunDetail = Schemas['RunDetail'];
+export type ManualRuns = Schemas['ManualRuns'];
+export type MetricsRefresh = Schemas['MetricsRefresh'];
+export type Actor = Schemas['Actor'];
+export type CostRow = Schemas['CostRow'];
+export type CostMeta = Schemas['CostMeta'];
+export type Budget = Schemas['Budget'];
+export type BudgetStatus = Schemas['BudgetStatus'];
+export type Price = Schemas['Price'];
+
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';

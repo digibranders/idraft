@@ -16,7 +16,7 @@ export interface Answer {
   body: Record<string, unknown>;
   /** The problem code, for an error. */
   code: string | undefined;
-  /** The `name=value` of the cookie the answer set, if any. */
+  /** The `name=value` of the first cookie the answer set, if any. */
   setCookie: string | undefined;
 }
 
@@ -35,21 +35,27 @@ export function mockBrowser(role: Role, jar: Map<string, string> = new Map()): M
   const session = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 10 * 60 * 1000)}`;
   return {
     async call(method, path, body) {
+      // A form goes as multipart, with the boundary fetch writes; anything else as JSON
+      const form = body instanceof FormData;
       const response = await fetch(`${TEST_API_ORIGIN}${path}`, {
         method,
         headers: {
           cookie: [session, ...[...jar].map(([name, value]) => `${name}=${value}`)].join('; '),
-          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(body === undefined || form ? {} : { 'content-type': 'application/json' }),
         },
-        ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
+        ...(body === undefined ? {} : { body: form ? body : typeof body === 'string' ? body : JSON.stringify(body) }),
       });
       const text = await response.text();
-      const parsed = text === '' ? {} : BODY.parse(JSON.parse(text));
-      const setCookie = response.headers.get('set-cookie')?.split(';')[0];
-      if (setCookie !== undefined) {
-        const [name = '', ...value] = setCookie.split('=');
+      // A CSV answer is kept as `{ text }`
+      const json = (response.headers.get('content-type') ?? '').includes('json');
+      const parsed = text === '' ? {} : json ? BODY.parse(JSON.parse(text)) : { text };
+      // An answer may set several cookies (an import writes keywords and terms)
+      const cookies = response.headers.getSetCookie().map((header) => header.split(';')[0] ?? '');
+      for (const pair of cookies) {
+        const [name = '', ...value] = pair.split('=');
         jar.set(name, value.join('='));
       }
+      const [setCookie] = cookies;
       return {
         status: response.status,
         body: parsed,

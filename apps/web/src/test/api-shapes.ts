@@ -2,6 +2,16 @@ import { z } from 'zod';
 
 import type {
   AliasTestResult,
+  BudgetStatus,
+  CostMeta,
+  CostRow,
+  ImportRow,
+  KeywordImport,
+  Operation,
+  Price,
+  Run,
+  RunDetail,
+  Schedule,
   BulkArchiveResult,
   BulkCreateResult,
   BulkUpdateResult,
@@ -481,4 +491,214 @@ export const PROJECT_SETTINGS: z.ZodType<ProjectSettings> = z.object({
     })
     .exactOptional(),
   entity_config_version: z.number(),
+});
+
+// Step 5 part 1: imports, schedules, runs and costs
+
+const TASK_WORKLOAD = z.enum([
+  'seo_rank',
+  'ai_prompt',
+  'ai_mode_keyword',
+  'keyword_metrics',
+  'discovery',
+  'ai_benchmark',
+  'gsc_sync',
+  'bing_sync',
+  'ga4_sync',
+  'cloudflare_sync',
+]);
+
+const OPERATION: z.ZodType<Operation> = z.object({
+  kind: z.enum(['collection_run', 'keyword_import']),
+  status: z.enum([
+    'queued',
+    'running',
+    'waiting_for_input',
+    'succeeded',
+    'succeeded_with_errors',
+    'failed',
+    'cancelled',
+    'blocked',
+  ]),
+  progress: z.object({
+    done: z.number(),
+    total: z.number().nullable(),
+    unit: z.enum(['tasks', 'rows', 'observations', 'days', 'items']),
+  }),
+  started_at: z.string().nullable(),
+  finished_at: z.string().nullable(),
+  error: z.object({ code: z.string(), detail: z.string() }).nullable(),
+  links: z.object({
+    self: z.string(),
+    cancel: z.string().nullable().exactOptional(),
+    result: z.string().nullable().exactOptional(),
+  }),
+});
+
+export const KEYWORD_IMPORT: z.ZodType<KeywordImport> = z.object({
+  import_id: z.string(),
+  source: z.enum(['upload', 'paste', 'api']),
+  original_filename: z.string().nullable(),
+  status: z.enum([
+    'uploaded',
+    'parsing',
+    'needs_mapping',
+    'preview_ready',
+    'writing',
+    'completed',
+    'completed_with_errors',
+    'failed',
+    'cancelled',
+    'expired',
+  ]),
+  column_mapping: z.record(z.string(), z.string()),
+  defaults: z.record(z.string(), z.unknown()),
+  counts: z.object({
+    rows_total: z.number(),
+    new: z.number(),
+    duplicate: z.number(),
+    variant: z.number(),
+    conflict: z.number(),
+    invalid: z.number(),
+    created: z.number(),
+    skipped: z.number(),
+    merged: z.number(),
+  }),
+  quota: z.object({ limit: z.number(), used: z.number(), would_use: z.number() }).nullable(),
+  error_code: z.string().nullable(),
+  created_by: USER_REF,
+  created_at: z.string(),
+  expires_at: z.string(),
+  finished_at: z.string().nullable(),
+  operation: OPERATION,
+});
+
+export const IMPORT_ROW: z.ZodType<ImportRow> = z.object({
+  row_no: z.number(),
+  part: z.number(),
+  raw: z.record(z.string(), z.string()),
+  keyword: z.string().nullable(),
+  normalized_text: z.string().nullable(),
+  location_id: z.number().nullable(),
+  language_code: z.string().nullable(),
+  device: z.string().nullable(),
+  outcome: z.enum(['new', 'duplicate', 'variant', 'conflict', 'invalid']),
+  reason_code: z.string().nullable(),
+  reason: z.string().nullable(),
+  existing_tracked_keyword_id: z.string().nullable(),
+  action: z.enum(['create', 'skip', 'merge', 'force_separate']),
+});
+
+export const SCHEDULE: z.ZodType<Schedule> = z.object({
+  schedule_id: z.string(),
+  project_id: z.string(),
+  name: z.string(),
+  workload: TASK_WORKLOAD,
+  cadence: z.enum(['daily', 'weekly', 'monthly', 'cron']),
+  cron_expr: z.string().nullable(),
+  weekday: z.number().nullable(),
+  month_day: z.number().nullable(),
+  window_start_local: z.string(),
+  window_hours: z.number(),
+  timezone: z.string(),
+  priority: z.enum(['high', 'standard', 'low']),
+  provider_mode: z.enum(['standard_queue', 'priority_queue', 'live']),
+  selector: z.object({
+    all: z.literal(true).nullable().exactOptional(),
+    groups: z.array(z.string()).nullable().exactOptional(),
+    terms: z.array(z.string()).nullable().exactOptional(),
+    priority_lte: z.number().nullable().exactOptional(),
+    stale_days: z.number().nullable().exactOptional(),
+  }),
+  is_active: z.boolean(),
+  next_run_at: z.string(),
+  last_run_id: z.string().nullable(),
+  created_at: z.string(),
+});
+
+const RUN_FIELDS = {
+  run_id: z.string(),
+  project_id: z.string(),
+  schedule_id: z.string().nullable(),
+  workload: TASK_WORKLOAD,
+  trigger: z.enum(['schedule', 'manual', 'backfill', 'retry']),
+  status: z.enum(['planned', 'running', 'completed', 'completed_with_errors', 'failed', 'cancelled', 'budget_blocked']),
+  status_reason: z.string().nullable(),
+  window_start: z.string(),
+  window_end: z.string(),
+  tasks_total: z.number(),
+  tasks_succeeded: z.number(),
+  tasks_failed: z.number(),
+  estimated_cost_usd: z.string().nullable(),
+  actual_cost_usd: z.string().nullable(),
+  blocked_by_budget_id: z.string().nullable(),
+  created_by: z
+    .object({ actor_id: z.string(), actor_type: z.enum(['user', 'api_key', 'system']), label: z.string() })
+    .nullable(),
+  created_at: z.string(),
+  completed_at: z.string().nullable(),
+  operation: OPERATION,
+};
+
+export const RUN: z.ZodType<Run> = z.object(RUN_FIELDS);
+
+export const RUN_DETAIL: z.ZodType<RunDetail> = z.object({
+  ...RUN_FIELDS,
+  tasks_by_status: z.record(z.string(), z.number()),
+  config_snapshot: z.record(z.string(), z.unknown()),
+});
+
+export const COST_ROW: z.ZodType<CostRow> = z.object({
+  keys: z.record(z.string(), z.string()),
+  cost_usd: z.string(),
+  request_count: z.number(),
+  subjects: z.number(),
+});
+
+export const COST_META: z.ZodType<CostMeta> = z.object({
+  total_cost_usd: z.string(),
+  cost_sources: z.object({
+    provider_reported: z.string(),
+    computed_from_tokens: z.string(),
+    price_book_estimate: z.string(),
+  }),
+});
+
+export const BUDGET_STATUS: z.ZodType<BudgetStatus> = z.object({
+  budget: z.object({
+    budget_id: z.string(),
+    project_id: z.string().nullable(),
+    workload: z.enum([
+      'seo_rank',
+      'ai_prompt',
+      'keyword_research',
+      'ai_benchmark',
+      'extraction_llm',
+      'first_party',
+      'all',
+    ]),
+    period: z.literal('month'),
+    limit_usd: z.string(),
+    soft_limit_pct: z.number(),
+    action_on_hard: z.enum(['pause', 'alert_only']),
+    created_at: z.string(),
+  }),
+  spent_usd: z.string(),
+  committed_estimate_usd: z.string(),
+  pct_used: z.number(),
+  state: z.enum(['ok', 'soft_exceeded', 'hard_exceeded']),
+  blocked_runs: z.number(),
+});
+
+export const PRICE: z.ZodType<Price> = z.object({
+  price_id: z.string(),
+  provider_code: z.string(),
+  endpoint: z.string(),
+  price_unit: z.string(),
+  unit_price_usd: z.string(),
+  conditions: z.record(z.string(), z.unknown()),
+  valid_from: z.string(),
+  valid_to: z.string().nullable(),
+  source_url: z.string(),
+  verified_at: z.string(),
 });

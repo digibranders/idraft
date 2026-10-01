@@ -63,8 +63,10 @@ type CompactCollection = NonNullable<CompactChanges['e']>;
 
 const BASE_MS = Date.parse(MOCK_CREATED_AT);
 const MINUTE_MS = 60_000;
-const minutesOf = (iso: string): number => Math.max(0, Math.round((Date.parse(iso) - BASE_MS) / MINUTE_MS));
-const timeOf = (minutes: number): string => new Date(BASE_MS + minutes * MINUTE_MS).toISOString();
+/** A time as the whole minutes after the fixture time, as the cookies keep it. */
+export const minutesOf = (iso: string): number => Math.max(0, Math.round((Date.parse(iso) - BASE_MS) / MINUTE_MS));
+/** The time `minutes` after the fixture time. */
+export const timeOf = (minutes: number): string => new Date(BASE_MS + minutes * MINUTE_MS).toISOString();
 
 /** Now, to the minute the cookie keeps, so a row reads back with the time it was answered with. */
 export const stateTime = (now: number = Date.now()): string => timeOf(minutesOf(new Date(now).toISOString()));

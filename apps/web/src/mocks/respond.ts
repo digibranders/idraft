@@ -40,11 +40,15 @@ export function mock<M extends Method, P extends ApiPath<M>>(
   method: M,
   path: P,
   resolver: HttpResponseResolver<PathParams<ParamNames<M, P>>, RequestBody<M, P>, MockBody<M, P>>,
+  /** A route with its own larger limit (the keyword upload, D11) checks it in its resolver. */
+  { maxBodyBytes = MAX_BODY_BYTES }: { maxBodyBytes?: number } = {},
 ): HttpHandler {
   return http[method]<PathParams<ParamNames<M, P>>, RequestBody<M, P>, MockBody<M, P>>(mswPath(path), async (info) => {
     // The API refuses any body over 1 MB before it reads it (backend middleware)
-    if (method !== 'get' && (await info.request.clone().arrayBuffer()).byteLength > MAX_BODY_BYTES) {
-      return problem(info.request, 'payload_too_large', { detail: 'A request body is at most 1 MB.' });
+    if (method !== 'get' && (await info.request.clone().arrayBuffer()).byteLength > maxBodyBytes) {
+      return problem(info.request, 'payload_too_large', {
+        detail: `A request body is at most ${String(Math.round(maxBodyBytes / (1024 * 1024)))} MB.`,
+      });
     }
     return resolver(info);
   });
@@ -85,7 +89,9 @@ const PROBLEMS = {
   entity_in_use: [409, 'Entity is in use'],
   cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
   has_children: [409, 'Term has children'],
+  schedule_in_use: [409, 'Schedule is in use'],
   payload_too_large: [413, 'Payload too large'],
+  unsupported_media_type: [415, 'Unsupported media type'],
   quota_exceeded: [422, 'Workspace limit reached'],
   too_many_subjects: [422, 'Too many subjects'],
   competitor_limit: [422, 'Competitor limit reached'],
@@ -95,6 +101,7 @@ const PROBLEMS = {
   mock_state_full: [422, 'Mock state is full'],
   weak_password: [422, 'Password is not strong enough'],
   rate_limited: [429, 'Too many requests'],
+  manual_run_limit: [429, 'Manual run limit reached'],
 } as const satisfies Record<string, readonly [number, string]>;
 
 export type MockProblemCode = keyof typeof PROBLEMS;
