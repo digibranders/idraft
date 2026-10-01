@@ -12,6 +12,10 @@ export type Role = Schemas['Role'];
 export type Problem = Schemas['Problem'];
 export type ValidationItem = Schemas['ValidationItem'];
 export type SessionItem = Schemas['SessionItem'];
+export type Project = Schemas['Project'];
+export type Workspace = Schemas['Workspace'];
+export type Member = Schemas['Member'];
+export type Invitation = Schemas['Invitation'];
 
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';

@@ -1,4 +1,5 @@
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Plus } from 'lucide-react';
+import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useId, type ReactNode } from 'react';
@@ -7,6 +8,7 @@ import { PageHeader } from '@/components/app/shell/page-header';
 import { ProjectMonogram } from '@/components/app/shell/project-monogram';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Badge } from '@/components/ui/badge';
+import { LinkButton } from '@/components/ui/link-button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { timeZoneAbbreviation } from '@/lib/format/date';
 import { projectPath } from '@/lib/routes/paths';
@@ -30,6 +32,8 @@ export interface ProjectListProps {
   workspace: string;
   projects: readonly ListedProject[];
   emptyReason: EmptyReason;
+  /** The new-project page, for a member who may create a project; `null` hides the button. */
+  createHref?: Route | null | undefined;
   /** The time the abbreviations are for (summer or winter time); the render's time outside tests. */
   now?: Date | undefined;
 }
@@ -38,11 +42,17 @@ export const PROJECT_LIST_FRAME = 'flex w-full flex-col gap-4 px-3 pt-5 pb-8 md:
 const LIST = 'flex flex-col divide-y divide-border-subtle overflow-hidden rounded-lg border border-border bg-surface';
 
 /**
- * The workspace root (Task 14): the projects the member can open, each a link to its project, under the
- * page header. Creating a project belongs to onboarding, so there is no button for it yet: absent, not
- * disabled. With none, the empty state says who can create one.
+ * The workspace root: the projects the member can open, each a link to its project, under the page
+ * header with "New project" for a member who may create one (absent, not disabled, for anyone else). With
+ * none, the empty state says who can create one, and offers it to whoever can.
  */
-export function ProjectList({ workspace, projects, emptyReason, now = new Date() }: ProjectListProps): ReactNode {
+export function ProjectList({
+  workspace,
+  projects,
+  emptyReason,
+  createHref = null,
+  now = new Date(),
+}: ProjectListProps): ReactNode {
   const t = useTranslations('projects');
   // Each link is named by its project's name alone; the domain and time zone are what it shows besides
   const idBase = useId();
@@ -51,9 +61,28 @@ export function ProjectList({ workspace, projects, emptyReason, now = new Date()
       <PageHeader
         title={t('title')}
         meta={projects.length === 0 ? undefined : t('count', { count: projects.length })}
+        actions={
+          createHref === null || projects.length === 0 ? undefined : (
+            <LinkButton render={<Link href={createHref} />} variant="primary" icon={Plus}>
+              {t('new')}
+            </LinkButton>
+          )
+        }
       />
       {projects.length === 0 ? (
-        <EmptyState icon={FolderOpen} headingLevel={2} title={t('empty.title')} reason={t(`empty.${emptyReason}`)} />
+        <EmptyState
+          icon={FolderOpen}
+          headingLevel={2}
+          title={t('empty.title')}
+          reason={t(`empty.${emptyReason}`)}
+          primaryAction={
+            createHref === null ? undefined : (
+              <LinkButton render={<Link href={createHref} />} variant="primary" icon={Plus}>
+                {t('new')}
+              </LinkButton>
+            )
+          }
+        />
       ) : (
         <ul role="list" className={LIST}>
           {projects.map((project) => {

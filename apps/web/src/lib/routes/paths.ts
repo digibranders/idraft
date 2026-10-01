@@ -17,6 +17,12 @@ export const isSlugShaped = (value: string): boolean => /^[a-z0-9-]+$/.test(valu
 /** The root of a workspace. */
 export const workspacePath = (slug: string): Route => `/${encodeURIComponent(slug)}` as Route;
 
+/** Where a platform operator creates a workspace (`new` is a reserved workspace slug). */
+export const NEW_WORKSPACE_PATH: Route = '/new';
+
+/** The new-project page of a workspace (20 section 5.1). */
+export const onboardingPath = (workspace: string): Route => `/${encodeURIComponent(workspace)}/onboarding` as Route;
+
 /** A page of a project: its root, or `rest` below it (`/settings/profile`). */
 export const projectPath = (workspace: string, project: string, rest: '' | `/${string}` = ''): Route =>
   `/${encodeURIComponent(workspace)}/${encodeURIComponent(project)}${rest}` as Route;

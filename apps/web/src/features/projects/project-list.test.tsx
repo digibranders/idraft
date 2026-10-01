@@ -1,4 +1,5 @@
 import { screen, within } from '@testing-library/react';
+import type { Route } from 'next';
 import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -116,6 +117,33 @@ describe('ProjectList', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('offers New project to a member who may create one, in the header and in the empty state', () => {
+    const { unmount } = renderWithProviders(
+      <ProjectList
+        workspace="digibranders"
+        projects={[FYNIX]}
+        emptyReason="creator"
+        createHref={'/digibranders/onboarding' as Route}
+      />,
+    );
+    expect(screen.getByRole('link', { name: 'New project' })).toHaveAttribute('href', '/digibranders/onboarding');
+    unmount();
+    renderWithProviders(
+      <ProjectList
+        workspace="digibranders"
+        projects={[]}
+        emptyReason="creator"
+        createHref={'/digibranders/onboarding' as Route}
+      />,
+    );
+    expect(screen.getByRole('link', { name: 'New project' })).toBeInTheDocument();
+  });
+
+  it('has no New project for anyone else', () => {
+    renderWithProviders(<ProjectList workspace="digibranders" projects={[]} emptyReason="viewer" />);
+    expect(screen.queryByRole('link', { name: 'New project' })).toBeNull();
+  });
+
   it('keeps the header while it loads', () => {
     renderWithProviders(<ProjectListSkeleton />);
     expect(screen.getByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
@@ -131,9 +159,10 @@ describe('WorkspaceProjects', () => {
     return renderWithProviders(<>{await WorkspaceProjects({ membership, projects: listedProjectsOf(membership) })}</>);
   };
 
-  it('lists the projects once the API answers', async () => {
+  it('lists the projects once the API answers, with New project for an editor', async () => {
     await render();
-    expect(screen.getAllByRole('link')).toHaveLength(MOCK_PROJECTS.length);
+    expect(screen.getAllByRole('link', { name: /^(?!New project$)/ })).toHaveLength(MOCK_PROJECTS.length);
+    expect(screen.getByRole('link', { name: 'New project' })).toHaveAttribute('href', '/digibranders/onboarding');
   });
 
   it('says the list failed in its place, with Try again and the error id', async () => {

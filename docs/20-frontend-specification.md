@@ -133,6 +133,10 @@ Built so far (web app foundation, 2026-10-01; `apps/web/src/app`):
 | `/[workspace]` | The workspace's project list (top bar, no sidebar) |
 | `/[workspace]/[project]` | The project shell. Redirects to the first live destination the member can open (Settings for now) |
 | `/[workspace]/[project]/settings/profile`, `security`, `preferences` | Your account; `settings` redirects to Profile |
+| `/[workspace]/[project]/settings/general` | Project settings > General: name, address, time zone, deep check day, default language; pause, resume and archive (workspace setup, 2026-10-01) |
+| `/[workspace]/[project]/settings/workspace`, `members` | Workspace settings > General (name, address, time zone) and Members and roles (members, role and project access, removal; invitations for `members:manage`) |
+| `/[workspace]/onboarding` | New project, step 1 of 5.1 (Basics); a 404 for a member who may not create projects or is limited to some |
+| `/new` (`(auth)`) | Create a workspace, for a platform operator while sign-up is by invitation; a 404 for anyone else |
 | `/[workspace]/[project]/[...rest]` | Catch-all for planned destinations: the 404 page inside the shell |
 | `/design-system`, `/design-system/[section]` (`(internal)`) | The component preview; a 404 in production builds ([26-implementation-guidelines.md](design-system/26-implementation-guidelines.md) section 10) |
 
@@ -1011,6 +1015,8 @@ Platform-level panels (provider account balance for the platform key) appear onl
 ### 5.19 Settings
 
 Workspace settings under `[workspace]/settings/*`; project settings under `[workspace]/[project]/settings/*`.
+
+> As built (workspace setup, 2026-10-01): every settings section lives under `[workspace]/[project]/settings/*`, the workspace's ones too (`settings/workspace`, `settings/members`), so the local navigation lists all groups wherever a project is open; a route for workspace settings without a project waits for the settings plan. Every member sees every section; one they may not change is read-only with one `Banner`. Built: 5.19.1 without the 2FA policy, quota bars and delete (deferred, docs/29 section 1.1); 5.19.2 with invite, withdraw, role and project access change (fresh session) and removal; 5.19.5 General with pause, resume and archive (delete deferred).
 
 | Section | Content | Permission |
 |---|---|---|

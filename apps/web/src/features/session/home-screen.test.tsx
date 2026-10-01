@@ -34,16 +34,28 @@ describe('HomeScreen', () => {
   });
 
   it('says the person is in no workspace yet, as whom, and has no accessibility violation', async () => {
-    const { container } = renderWithProviders(<HomeScreen email={EMAIL} invitation={null} workspace={null} />);
+    const { container } = renderWithProviders(
+      <HomeScreen email={EMAIL} invitation={null} workspace={null} canCreateWorkspace={false} />,
+    );
     expect(screen.getByRole('heading', { level: 1, name: 'You are not in a workspace yet' })).toBeInTheDocument();
     expect(screen.getByText(`Signed in as ${EMAIL}`)).toBeInTheDocument();
     expect(screen.queryByRole('link')).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('offers a platform operator without a workspace to create one', () => {
+    renderWithProviders(<HomeScreen email={EMAIL} invitation={null} workspace={null} canCreateWorkspace />);
+    expect(screen.getByRole('link', { name: 'Create a workspace' })).toHaveAttribute('href', '/new');
+  });
+
   it('says why an invitation could not be accepted, and opens the workspace the person has', async () => {
     const { container } = renderWithProviders(
-      <HomeScreen email={EMAIL} invitation="expired" workspace={{ name: 'Digibranders', slug: 'digibranders' }} />,
+      <HomeScreen
+        email={EMAIL}
+        invitation="expired"
+        workspace={{ name: 'Digibranders', slug: 'digibranders' }}
+        canCreateWorkspace={false}
+      />,
     );
     expect(screen.getByRole('heading', { level: 1, name: 'The invitation could not be accepted' })).toBeInTheDocument();
     expect(screen.getByText('It has expired. Ask the person who invited you for a new one.')).toBeInTheDocument();
@@ -57,7 +69,7 @@ describe('HomeScreen', () => {
     server.events.on('request:start', ({ request }) => asked.push(new URL(request.url).pathname));
     const { user } = renderWithProviders(
       <>
-        <HomeScreen email={EMAIL} invitation={null} workspace={null} />
+        <HomeScreen email={EMAIL} invitation={null} workspace={null} canCreateWorkspace={false} />
         <SignedInAs />
       </>,
     );
@@ -90,14 +102,18 @@ describe('HomeScreen', () => {
           ),
       ),
     );
-    const { user } = renderWithProviders(<HomeScreen email={EMAIL} invitation={null} workspace={null} />);
+    const { user } = renderWithProviders(
+      <HomeScreen email={EMAIL} invitation={null} workspace={null} canCreateWorkspace={false} />,
+    );
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     await waitFor(() => expect(navigation.hardNavigate).toHaveBeenCalledWith('/login'));
   });
 
   it('stays signed in and says so when the API cannot be reached', async () => {
     server.use(http.post('*/api/v1/auth/sign-out', () => HttpResponse.error()));
-    const { user } = renderWithProviders(<HomeScreen email={EMAIL} invitation={null} workspace={null} />);
+    const { user } = renderWithProviders(
+      <HomeScreen email={EMAIL} invitation={null} workspace={null} canCreateWorkspace={false} />,
+    );
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(await screen.findByText('You could not be signed out. Try again in a moment.')).toBeInTheDocument();
     expect(navigation.hardNavigate).not.toHaveBeenCalled();

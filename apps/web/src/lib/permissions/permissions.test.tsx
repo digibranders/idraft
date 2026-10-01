@@ -2,7 +2,16 @@ import { render, renderHook, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { Can, can, canOpenProject, PermissionProvider, useCan, useMembership, type Permission } from '.';
+import {
+  Can,
+  can,
+  canCreateProjects,
+  canOpenProject,
+  PermissionProvider,
+  useCan,
+  useMembership,
+  type Permission,
+} from '.';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS } from '@/mocks/fixtures';
 import type { Role } from '@/lib/api/types';
@@ -58,6 +67,14 @@ describe('canOpenProject', () => {
     expect(canOpenProject(limited, fynix?.project_id ?? '')).toBe(true);
     expect(canOpenProject(limited, cleanstart?.project_id ?? '')).toBe(false);
     expect(canOpenProject([], fynix?.project_id ?? '')).toBe(false);
+  });
+});
+
+describe('canCreateProjects', () => {
+  it('lets a role with projects:write create projects only while it sees every project', () => {
+    expect(canCreateProjects(membershipFactory('editor'))).toBe(true);
+    expect(canCreateProjects({ ...membershipFactory('editor'), project_ids: [] })).toBe(false);
+    expect(canCreateProjects(membershipFactory('analyst'))).toBe(false);
   });
 });
 

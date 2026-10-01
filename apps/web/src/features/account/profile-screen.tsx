@@ -88,8 +88,7 @@ function NameForm({ name }: { name: string }): ReactNode {
     try {
       const saved = await update.mutateAsync({ body: { name: values.name.trim() } });
       queryClient.setQueryData(meQuery().queryKey, saved);
-      // Typing that went on during the save is kept, and stays unsaved
-      form.reset({ name: saved.data.user.name }, { keepDirtyValues: true });
+      form.reset({ name: saved.data.user.name });
       // A save says so in a polite live region, not a toast (10-forms.md section 13.2)
       announce(t('profile.saved'));
     } catch (error) {

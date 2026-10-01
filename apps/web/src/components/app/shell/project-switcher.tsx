@@ -34,12 +34,14 @@ export interface ProjectSwitcherProps {
    * item, so this is the way there at every width.
    */
   allProjects: { href: Route; label: string };
+  /** "Create project", for a member who may create one; absent otherwise (11-navigation.md section 8). */
+  createProject?: { href: Route; label: string } | undefined;
 }
 
 /**
  * Switches project (11-navigation.md section 8, 25 section 5.6): a button with the current project that
- * opens a searchable list, with the project's timezone below it. Creating a project belongs to onboarding,
- * so the list has no "Create project" yet.
+ * opens a searchable list, with the project's timezone, the workspace's project list and, for a member who
+ * may create one, "Create project" below it.
  */
 export function ProjectSwitcher({
   current,
@@ -48,6 +50,7 @@ export function ProjectSwitcher({
   presentation,
   rail = false,
   allProjects,
+  createProject,
 }: ProjectSwitcherProps): ReactElement {
   const t = useTranslations('shell.projectSwitcher');
   const trigger =
@@ -92,6 +95,11 @@ export function ProjectSwitcher({
           <TextLink render={<Link href={allProjects.href} />} className="type-body">
             {allProjects.label}
           </TextLink>
+          {createProject === undefined ? null : (
+            <TextLink render={<Link href={createProject.href} />} className="type-body">
+              {createProject.label}
+            </TextLink>
+          )}
         </div>
       }
     />

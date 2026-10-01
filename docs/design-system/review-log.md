@@ -825,3 +825,28 @@ Open points:
 | ../20-frontend-specification.md | 3.1 to 3.5, 3.7, 3.10, 7.3, 7.4, 8.1, 8.3, 9.1, 9.2 | Routes as built and tokens in the fragment; metadata `noindex, nofollow`; `API_INTERNAL_ORIGIN` and the browser's page origin; 409 and 412; no `features` list; the CSP as built with `style-src-attr 'unsafe-inline'`; the theme per device and preferences per user; factories in `src/mocks/factories` and the mock modes; the image; the environment variables | Same |
 | ../24-security.md | 7.1 | `blob:` and the `gstatic.com` redirect host in `img-src`, `style-src-attr`, the development additions | `buildCsp` |
 | DESIGN_SYSTEM.md, AI_DEVELOPMENT_UI_RULES.md | Code, rules 3, 14, 19, 20 | Paths and commands of the real app; `type-input-touch`; single-key shortcuts are turned off in Settings > Preferences | Same |
+
+## Workspace setup (2026-10-01)
+
+Plan `docs/superpowers/plans/2026-10-01-workspace-setup.md`, branch `frontend/workspace-setup`: the screens of build-order step 1 on routes the API has.
+
+| Built | Where |
+|---|---|
+| Settings groups: Your account, Project settings (General), Workspace settings (General, Members and roles); read-only sections with a `Banner` | `features/settings`, `features/project-settings`, `features/workspace-settings` |
+| `Banner` (18 section 4, 25 section 11.10) without dismissal or "more notices" | `components/app/status/banner.tsx` |
+| `TimeZoneCombobox`, the browser's zone first, current IANA names | `components/app/forms/time-zone-combobox.tsx`, `lib/format/time-zone.ts` |
+| `ConfirmDialog.finalFocus`: focus to the section heading once the row and its button are gone (16 section 6) | `components/ui/alert-dialog.tsx` |
+| New project (5.1 step 1) and "New project" on the workspace page and "Create project" in the switcher | `features/onboarding`, `[workspace]/onboarding` |
+| Create a workspace for a platform operator | `(auth)/new` |
+| Mocks for every route of the plan, kept in a cookie (base64url JSON) | `mocks/workspace-state.ts`, `mocks/handlers/workspaces.ts` |
+
+| Open point | Who |
+|---|---|
+| A route for account and workspace settings that needs no project | frontend, settings plan |
+| Project restriction has a UI now, though doc 24 section 3.1 says Phase 12 | product owner, to confirm |
+| `withFreshSession` passes a second `fresh_session_required` through like a cancel; the dialogs cannot tell a refusal from a cancel | frontend |
+| Primary domain, location and own brand in the new-project form | backend step 4, then the entities plan |
+| Members, invitations and the dialogs' project list read one page of 200 | frontend |
+| "Confirm it is you" in a browser flow, axe in the dark theme, an admin visual of Members | frontend |
+
+Whole-branch review (Opus): no critical findings. Fixed: the Members read-only `Banner`, the dialogs' project list fetched on each open (it could be 30 s stale), the workspace time-zone hint, and two new-project tests (an emptied address follows the name again; a discard during the create does not open the project).

@@ -1,6 +1,6 @@
 'use client';
 
-import { LogOut, UserRound } from 'lucide-react';
+import { LogOut, Plus, UserRound } from 'lucide-react';
 import type { ComponentProps, ReactElement } from 'react';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -18,6 +18,8 @@ export interface UserMenuLabels {
   light: string;
   dark: string;
   accountSettings: string;
+  /** "Create workspace", for a platform operator. */
+  createWorkspace: string;
   signOut: string;
 }
 
@@ -30,6 +32,8 @@ export interface UserMenuProps {
   theme: { value: ThemeChoice; onValueChange: (value: ThemeChoice) => void } | null;
   /** Settings > Profile; `null` where no project is open. */
   accountSettings: ReactElement | null;
+  /** The link to the new-workspace page, for a platform operator; `null` for anyone else. */
+  createWorkspace?: ReactElement | null | undefined;
   onSignOut: () => void;
   labels: UserMenuLabels;
 }
@@ -39,7 +43,14 @@ export interface UserMenuProps {
  * email, the theme below 1440 px, Account settings and Sign out. Personal preferences are in Settings >
  * Preferences, not here.
  */
-export function UserMenu({ user, theme, accountSettings, onSignOut, labels }: UserMenuProps): ReactElement {
+export function UserMenu({
+  user,
+  theme,
+  accountSettings,
+  createWorkspace = null,
+  onSignOut,
+  labels,
+}: UserMenuProps): ReactElement {
   const themeItems: MenuItemDef[] =
     theme === null
       ? []
@@ -62,6 +73,17 @@ export function UserMenu({ user, theme, accountSettings, onSignOut, labels }: Us
             icon: UserRound,
             kind: 'link' as const,
             link: accountSettings,
+          },
+        ]),
+    ...(createWorkspace === null
+      ? []
+      : [
+          {
+            id: 'create-workspace',
+            label: labels.createWorkspace,
+            icon: Plus,
+            kind: 'link' as const,
+            link: createWorkspace,
           },
         ]),
     { id: 'sign-out', label: labels.signOut, icon: LogOut, onSelect: onSignOut },

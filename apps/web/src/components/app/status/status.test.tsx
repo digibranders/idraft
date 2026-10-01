@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react';
 import { Tag } from 'lucide-react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { Banner } from './banner';
 import { EmptyState } from './empty-state';
 import { ErrorPage } from './error-page';
 import { InlineError } from './inline-error';
@@ -96,5 +97,27 @@ describe('ErrorPage', () => {
     // user-event gives the page a clipboard of its own
     expect(await navigator.clipboard.readText()).toBe('req_01ABC');
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('Banner', () => {
+  it('states a condition with its lead, and has no live role when it is there from the start', async () => {
+    const { container } = renderWithProviders(
+      <Banner tone="info" placement="region" lead="Read only:" message="Owners and admins can change this." />,
+    );
+    expect(screen.getByText('Read only:')).toBeInTheDocument();
+    expect(screen.getByText(/Owners and admins can change this/)).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="banner"]')).not.toHaveAttribute('role');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('announces itself when it appears during the session, as an alert when negative', () => {
+    const { container, rerender } = renderWithProviders(
+      <Banner tone="warning" placement="page" message="Partial data." live />,
+    );
+    const banner = (): Element | null => container.querySelector('[data-slot="banner"]');
+    expect(banner()).toHaveAttribute('role', 'status');
+    rerender(<Banner tone="negative" placement="page" message="Collection failed." live />);
+    expect(banner()).toHaveAttribute('role', 'alert');
   });
 });

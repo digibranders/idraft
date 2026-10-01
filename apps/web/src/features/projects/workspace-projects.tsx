@@ -9,7 +9,8 @@ import { emptyReasonFor } from './server';
 import { isApiProblem } from '@/lib/api/problem';
 import { isSignedOut } from '@/lib/api/query-client';
 import type { MeMembership } from '@/lib/api/types';
-import { signInPath, workspacePath } from '@/lib/routes/paths';
+import { canCreateProjects } from '@/lib/permissions/permissions';
+import { onboardingPath, signInPath, workspacePath } from '@/lib/routes/paths';
 
 export interface WorkspaceProjectsProps {
   membership: MeMembership;
@@ -33,5 +34,9 @@ export async function WorkspaceProjects({ membership, projects }: WorkspaceProje
     if (!isApiProblem(error)) console.error('The workspace project list could not be loaded', error);
     return <ProjectListError errorId={isApiProblem(error) ? error.requestId : null} />;
   }
-  return <ProjectList workspace={slug} projects={listed} emptyReason={emptyReasonFor(membership)} />;
+  // A member limited to some projects cannot create one (19 section 3.3)
+  const createHref = canCreateProjects(membership) ? onboardingPath(slug) : null;
+  return (
+    <ProjectList workspace={slug} projects={listed} emptyReason={emptyReasonFor(membership)} createHref={createHref} />
+  );
 }

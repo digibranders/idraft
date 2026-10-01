@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { useThemeChange } from './use-theme-change';
@@ -14,6 +15,7 @@ import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import type { ThemeChoice } from '@/lib/preferences/theme';
 import { useSignOut } from '@/lib/session/sign-out';
 import { useMe } from '@/lib/session/use-me';
+import { NEW_WORKSPACE_PATH } from '@/lib/routes/paths';
 
 const SHORTCUTS_SHORTCUT = 'shortcuts';
 
@@ -67,6 +69,7 @@ export function TopBarControls({ accountSettings, shortcuts }: TopBarControlsPro
         user={{ name: user.name, email: user.email, imageUrl: user.image }}
         theme={wide ? null : { value: theme.choice, onValueChange: changeFromMenu }}
         accountSettings={accountSettings}
+        createWorkspace={user.is_platform_operator ? <Link href={NEW_WORKSPACE_PATH} /> : null}
         onSignOut={leave}
         labels={{
           trigger: t('user.trigger', { name: user.name }),
@@ -76,6 +79,7 @@ export function TopBarControls({ accountSettings, shortcuts }: TopBarControlsPro
           light: t('theme.light'),
           dark: t('theme.dark'),
           accountSettings: t('user.accountSettings'),
+          createWorkspace: t('user.createWorkspace'),
           signOut: t('user.signOut'),
         }}
       />

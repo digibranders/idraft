@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { FormAlert } from '@/components/ui/form-alert';
 import { LinkButton } from '@/components/ui/link-button';
 import type { InvitationFailure } from '@/lib/routes/home-notices';
-import { workspacePath } from '@/lib/routes/paths';
+import { NEW_WORKSPACE_PATH, workspacePath } from '@/lib/routes/paths';
 
 export interface HomeScreenProps {
   /** The signed-in person's address, so they can tell which account has no workspace. */
@@ -19,6 +19,8 @@ export interface HomeScreenProps {
   invitation: InvitationFailure | null;
   /** The first workspace they can open, if any. */
   workspace: { name: string; slug: string } | null;
+  /** A platform operator may create a workspace while sign-up is by invitation. */
+  canCreateWorkspace: boolean;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface HomeScreenProps {
  * accepted (with the way on to a workspace the person has), or that they belong to no workspace yet. Both
  * offer signing out, so a person signed in with the wrong account can change it.
  */
-export function HomeScreen({ email, invitation, workspace }: HomeScreenProps): ReactNode {
+export function HomeScreen({ email, invitation, workspace, canCreateWorkspace }: HomeScreenProps): ReactNode {
   const t = useTranslations('session');
   const app = useTranslations('app');
   const { signOut, pending } = useSignOut();
@@ -52,10 +54,15 @@ export function HomeScreen({ email, invitation, workspace }: HomeScreenProps): R
             {t('invitation.continueTo', { workspace: workspace.name })}
           </LinkButton>
         )}
+        {workspace === null && canCreateWorkspace ? (
+          <LinkButton variant="primary" size="lg" className="w-full" render={<Link href={NEW_WORKSPACE_PATH} />}>
+            {t('noWorkspace.createWorkspace')}
+          </LinkButton>
+        ) : null}
         <p className="type-body text-foreground-secondary">{t('noWorkspace.signedInAs', { email })}</p>
         <Button
           type="button"
-          variant={workspace === null ? 'primary' : 'secondary'}
+          variant={workspace === null && !canCreateWorkspace ? 'primary' : 'secondary'}
           size="lg"
           className="w-full"
           loading={pending}
