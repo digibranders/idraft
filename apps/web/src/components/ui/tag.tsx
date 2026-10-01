@@ -30,8 +30,9 @@ export type TagProps = Omit<ComponentProps<'span'>, 'children'> &
 
 /**
  * A removable value chip: a keyword tag, an alias (25-component-inventory.md section 3.18). Backspace or
- * Delete on its focused remove button removes it too. Filters are `FilterChip`; a category that cannot be
- * removed is a `Badge`.
+ * Delete on its focused remove button removes it too. The caller moves focus once the tag is gone, to the
+ * next tag or the field it belongs to (20-accessibility.md section 6). Filters are `FilterChip`; a category
+ * that cannot be removed is a `Badge`.
  */
 export function Tag({ label, onRemove, removeLabel, className, ...props }: TagProps): ReactElement {
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {

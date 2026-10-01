@@ -7,7 +7,16 @@
 export type DomainProblem = 'empty' | 'spaces' | 'scheme' | 'host' | 'private';
 
 export type NormalizedDomain =
-  { ok: true; domain: string; ignoredPath: string | null } | { ok: false; code: DomainProblem };
+  | {
+      ok: true;
+      /** The host as the API compares it: lower case, ASCII (punycode for international names). */
+      domain: string;
+      /** The same host to show: an international name in its own letters, "bücher.de". */
+      display: string;
+      /** The path and query that were dropped, decoded for reading, or `null`. */
+      ignoredPath: string | null;
+    }
+  | { ok: false; code: DomainProblem };
 
 /** A scheme at the start: `https:`, `mailto:`. A host with a port (`acme.com:8080`) is not one. */
 const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
@@ -31,7 +40,8 @@ export function normalizeDomain(raw: string): NormalizedDomain {
   if (/\s/.test(value)) return refuse('spaces');
 
   const scheme = SCHEME.exec(value)?.[1]?.toLowerCase();
-  const hasScheme = scheme !== undefined && !PORT_AFTER_HOST.test(value);
+  // `acme.com:8080` and `acme.com:` start with a host, not a scheme: a scheme has no dot
+  const hasScheme = scheme !== undefined && !scheme.includes('.') && !PORT_AFTER_HOST.test(value);
   if (hasScheme && scheme !== 'http' && scheme !== 'https') return refuse('scheme');
 
   let url: URL;
@@ -49,8 +59,37 @@ export function normalizeDomain(raw: string): NormalizedDomain {
   if (!HOST.test(host)) return refuse('host');
 
   const path = url.pathname === '/' ? '' : url.pathname;
-  const ignored = `${path}${url.search}`;
-  return { ok: true, domain: host, ignoredPath: ignored === '' ? null : ignored };
+  const ignored = readable(`${path}${url.search}`);
+  return {
+    ok: true,
+    domain: host,
+    display: typedHost(value, hasScheme, host),
+    ignoredPath: ignored === '' ? null : ignored,
+  };
+}
+
+/** Percent-encoded text as the person typed it: `/caf%C3%A9` reads `/café`. */
+function readable(encoded: string): string {
+  try {
+    return decodeURI(encoded);
+  } catch {
+    return encoded;
+  }
+}
+
+/**
+ * The host in the letters it was typed in, when it is the same host as `ascii`: the URL parser turns an
+ * international name into punycode, which nobody reads.
+ */
+function typedHost(value: string, hasScheme: boolean, ascii: string): string {
+  const withoutScheme = hasScheme ? value.replace(/^[a-z][a-z0-9+.-]*:\/*/i, '') : value;
+  const hostPart = (withoutScheme.split(/[/?#]/, 1)[0] ?? '').replace(/:\d*$/, '').toLowerCase().replace(/\.$/, '');
+  const typed = hostPart.startsWith('www.') ? hostPart.slice('www.'.length) : hostPart;
+  try {
+    return new URL(`https://${typed}`).hostname === ascii ? typed : ascii;
+  } catch {
+    return ascii;
+  }
 }
 
 /** The catalog key of the message for each problem, under `common.domain` (10-forms.md section 12). */

@@ -89,6 +89,67 @@ describe('MultiSelect', () => {
     await waitFor(() => expect(screen.queryByRole('option', { name: /^Add/ })).toBeNull());
   });
 
+  it('keeps the list open after a pick, and never offers a chosen value as a row', async () => {
+    const onChange = vi.fn();
+    const { user } = renderWithProviders(<TagField initial={['brand']} onChange={onChange} />);
+    await user.click(input());
+    await user.keyboard('pri');
+    await user.click(await screen.findByRole('option', { name: 'pricing' }));
+    expect(onChange).toHaveBeenLastCalledWith(['brand', 'pricing']);
+    expect(input()).toHaveAttribute('aria-expanded', 'true');
+    // Enter on what is typed cannot take a chosen value away
+    await user.keyboard('brand{Enter}');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('option', { name: 'brand' })).toBeNull();
+  });
+
+  it('adds what was typed with Enter before a suggestion that only contains it', async () => {
+    const onChange = vi.fn();
+    const { user } = renderWithProviders(
+      <TagField onChange={onChange} creatable={{ label: (query) => `Add "${query}"`, onCreate: (query) => query }} />,
+    );
+    await user.click(input());
+    await user.keyboard('pri');
+    const rows = await screen.findAllByRole('option');
+    expect(rows.map((row) => row.textContent)).toEqual(['Add "pri"', 'pricing']);
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(['pri']));
+  });
+
+  it('keeps what was typed as a value when focus leaves the field, once, and reports the blur once', async () => {
+    const onChange = vi.fn();
+    const onBlur = vi.fn();
+    const { user } = renderWithProviders(
+      <>
+        <TagField
+          items={[]}
+          initial={['HubSpot']}
+          itemKey={(alias) => alias.toLocaleLowerCase()}
+          onChange={onChange}
+          onBlur={onBlur}
+          creatable={{ label: (query) => `Add "${query}"`, onCreate: (query) => query }}
+        />
+        <button type="button">Save</button>
+      </>,
+    );
+    await user.click(input());
+    // Moving to the chips and back is not leaving the field
+    await user.keyboard('{ArrowLeft}');
+    await user.keyboard('{ArrowRight}');
+    expect(onBlur).not.toHaveBeenCalled();
+    await user.keyboard('HubSpot CRM');
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Save', hidden: true })).toHaveFocus();
+    expect(onChange).toHaveBeenLastCalledWith(['HubSpot', 'HubSpot CRM']);
+    expect(onBlur).toHaveBeenCalledTimes(1);
+    // A typed value equal to a chosen one, in another case, is not added again
+    onChange.mockClear();
+    await user.click(input());
+    await user.keyboard('hubspot crm');
+    await user.tab();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it('says so when nothing matches what was typed', async () => {
     const { user } = renderWithProviders(<TagField />);
     await user.click(input());

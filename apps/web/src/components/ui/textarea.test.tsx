@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import { useState, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Field, FieldDescription, FieldLabel } from './field';
@@ -37,6 +38,36 @@ describe('Textarea', () => {
       </Field>,
     );
     expect(screen.queryByText('11 of 10')).toBeNull();
+  });
+
+  it('follows a controlled value, also when it is reset from outside', async () => {
+    function Controlled(): ReactElement {
+      const [text, setText] = useState('');
+      return (
+        <Field>
+          <FieldLabel>Notes</FieldLabel>
+          <Textarea value={text} onChange={(event) => setText(event.target.value)} />
+          <button type="button" onClick={() => setText('')}>
+            Reset
+          </button>
+          <output>{text}</output>
+        </Field>
+      );
+    }
+    const { user } = renderWithProviders(<Controlled />);
+    const area = screen.getByRole('textbox', { name: 'Notes' });
+    await user.type(area, 'hello');
+    expect(screen.getByText('hello', { selector: 'output' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(area).toHaveValue('');
+    expect(area).not.toHaveAttribute('data-filled');
+  });
+
+  it('is disabled with the disabled look, inside a field or not', () => {
+    renderWithProviders(<Textarea aria-label="Locked" disabled />);
+    const area = screen.getByRole('textbox', { name: 'Locked' });
+    expect(area).toBeDisabled();
+    expect(area).toHaveAttribute('data-disabled');
   });
 
   it('submits its form with Cmd or Ctrl and Enter when asked to, and keeps Enter for new lines', async () => {

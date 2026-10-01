@@ -51,8 +51,8 @@ export function DomainInput({
     ? null
     : preview.ok
       ? preview.ignoredPath === null
-        ? t.rich('preview', { domain: preview.domain, value: stored })
-        : t.rich('previewWithPath', { domain: preview.domain, path: preview.ignoredPath, value: stored })
+        ? t.rich('preview', { domain: preview.display, value: stored })
+        : t.rich('previewWithPath', { domain: preview.display, path: preview.ignoredPath, value: stored })
       : (description ?? null);
   return (
     <>

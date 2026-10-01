@@ -10,23 +10,40 @@ describe('normalizeDomain', () => {
     ['  docs.acme.com  ', 'docs.acme.com'],
     ['http://acme.co.uk', 'acme.co.uk'],
     ['acme.com:8080', 'acme.com'],
-    ['bücher.de', 'xn--bcher-kva.de'],
+    ['acme.com:', 'acme.com'],
   ])('reads %s as the host %s', (raw, domain) => {
-    expect(normalizeDomain(raw)).toEqual({ ok: true, domain, ignoredPath: null });
+    expect(normalizeDomain(raw)).toEqual({ ok: true, domain, display: domain, ignoredPath: null });
+  });
+
+  it('compares an international name in punycode and shows it in its own letters', () => {
+    expect(normalizeDomain('https://www.Bücher.de/')).toEqual({
+      ok: true,
+      domain: 'xn--bcher-kva.de',
+      display: 'bücher.de',
+      ignoredPath: null,
+    });
   });
 
   it('drops a path and a query, and says which path it dropped', () => {
     expect(normalizeDomain('https://www.hubspot.com/products/crm')).toEqual({
       ok: true,
       domain: 'hubspot.com',
+      display: 'hubspot.com',
       ignoredPath: '/products/crm',
     });
     expect(normalizeDomain('acme.com/pricing?plan=pro#top')).toEqual({
       ok: true,
       domain: 'acme.com',
+      display: 'acme.com',
       ignoredPath: '/pricing?plan=pro',
     });
-    expect(normalizeDomain('https://acme.com/')).toEqual({ ok: true, domain: 'acme.com', ignoredPath: null });
+    expect(normalizeDomain('https://acme.com/')).toEqual({
+      ok: true,
+      domain: 'acme.com',
+      display: 'acme.com',
+      ignoredPath: null,
+    });
+    expect(normalizeDomain('acme.com/café')).toMatchObject({ ignoredPath: '/café' });
   });
 
   it.each([
@@ -39,6 +56,7 @@ describe('normalizeDomain', () => {
     ['-acme.com', 'host'],
     ['acme..com', 'host'],
     ['user@acme.com', 'host'],
+    ['acme.com:abc', 'host'],
     ['https://', 'host'],
     ['localhost', 'private'],
     ['localhost:3000', 'private'],

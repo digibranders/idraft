@@ -2,7 +2,7 @@
 
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox';
 import { Check, Plus, X } from 'lucide-react';
-import { useMemo, useState, type ReactElement, type Ref } from 'react';
+import { useMemo, useState, type FocusEvent, type ReactElement, type Ref } from 'react';
 
 import { Icon } from './icon';
 import { POPUP_COLLISION, POPUP_ITEM, POPUP_MOTION, POPUP_SURFACE } from './popup-styles';
@@ -90,18 +90,21 @@ export function MultiSelect<TItem>({
   );
   const chosen = useMemo(() => value.map(toOption), [value, toOption]);
   const typed = query.trim();
-  const options = useMemo(() => {
-    const listed = items.map(toOption);
-    if (creatable === undefined || typed === '') return listed;
-    // The add row shows only when nothing listed or chosen already has the typed text
-    const lowered = typed.toLocaleLowerCase();
-    const known = [...listed, ...chosen].some((option) => option.label.toLocaleLowerCase() === lowered);
-    if (known) return listed;
-    const create: Option<TItem> = { key: CREATE_KEY, label: creatable.label(typed), kind: 'create', query: typed };
-    return [...listed, create];
-  }, [items, toOption, creatable, typed, chosen]);
+  const createOf = (text: string): Option<TItem> | null => {
+    if (creatable === undefined || text === '') return null;
+    // No add row when a suggestion or a chosen value already has the typed text
+    const lowered = text.toLocaleLowerCase();
+    const known = [...items.map(toOption), ...chosen].some((option) => option.label.toLocaleLowerCase() === lowered);
+    return known ? null : { key: CREATE_KEY, label: creatable.label(text), kind: 'create', query: text };
+  };
+  const create = createOf(typed);
+  // Chosen values are chips, not rows, so Enter on a highlighted row never removes one. The add row comes
+  // first, so Enter adds what was typed rather than the first suggestion that contains it.
+  const chosenKeys = new Set(chosen.map((option) => option.key));
+  const listed = items.map(toOption).filter((option) => !chosenKeys.has(option.key));
+  const options = create === null ? listed : [create, ...listed];
 
-  const change = (next: Option<TItem>[]): void => {
+  const change = (next: readonly Option<TItem>[]): void => {
     // A created value that equals a chosen one is not added twice
     const values = new Map<string, TItem>();
     for (const option of next) {
@@ -112,6 +115,13 @@ export function MultiSelect<TItem>({
     setQuery('');
   };
 
+  // Leaving the field keeps what was typed as a value, so an alias typed before Save is not lost
+  const leave = (event: FocusEvent<HTMLDivElement>): void => {
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    if (create !== null) change([...chosen, create]);
+    onBlur?.();
+  };
+
   return (
     <ComboboxPrimitive.Root<Option<TItem>, true>
       multiple
@@ -120,17 +130,23 @@ export function MultiSelect<TItem>({
       onValueChange={change}
       inputValue={query}
       onInputValueChange={setQuery}
+      onOpenChange={(open, details) => {
+        // The list stays open after each pick, so several values can be chosen in a row
+        if (!open && details.reason === 'item-press') details.cancel();
+      }}
       itemToStringLabel={(option) => option.label}
       isItemEqualToValue={(a, b) => a.key === b.key}
-      // Enter adds the typed value when it is the only row
       autoHighlight
       disabled={disabled}
     >
       <ComboboxPrimitive.InputGroup
         data-slot="multi-select"
+        // Moving between the chips and the text field is not leaving the field
+        onBlur={leave}
         className={cn(
-          // Three rows of chips with their gaps, then the field scrolls
-          'flex max-h-[calc(3*var(--size-badge)+--spacing(4)+2px)] min-h-control w-full min-w-0 cursor-text items-center overflow-y-auto rounded-md border border-border bg-surface px-1.5 py-1 has-[input:focus-visible]:focus-ring has-[input[data-disabled]]:bg-surface-disabled has-[input[data-invalid]]:border-negative-solid',
+          // Three rows of chips with their gaps, then the field scrolls; centered while they fit, from the
+          // top once they overflow, so no chip ends up above the scroll origin
+          'flex max-h-[calc(3*var(--size-badge)+--spacing(4)+2px)] min-h-control w-full min-w-0 cursor-text items-center-safe overflow-y-auto rounded-md border border-border bg-surface px-1.5 py-1 has-[input:focus-visible]:focus-ring has-[input[data-disabled]]:bg-surface-disabled has-[input[data-invalid]]:border-negative-solid',
           className,
         )}
       >
@@ -154,7 +170,6 @@ export function MultiSelect<TItem>({
           <ComboboxPrimitive.Input
             ref={inputRef}
             id={id}
-            onBlur={onBlur}
             aria-required={ariaRequired}
             aria-description={chosen.length > 0 ? chipsHint(chosen.length) : undefined}
             placeholder={chosen.length > 0 ? '' : placeholder}
