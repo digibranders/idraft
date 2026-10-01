@@ -61,6 +61,19 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/workspaces/{workspace_id}/projects"): "projects:write every-project",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}"): "member",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/projects/{project_id}"): "projects:write",
+    # A role belongs to one project, so a member limited to it may change it.
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"): "entities:write",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities/{entity_id}",
+    ): "entities:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities/{entity_id}",
+    ): "entities:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test"): "data:read",
     # Entities are shared by the workspace's projects, so changing one needs every project.
     ("GET", "/api/v1/workspaces/{workspace_id}/entities"): "data:read",
     ("POST", "/api/v1/workspaces/{workspace_id}/entities"): "entities:write every-project",

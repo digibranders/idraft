@@ -84,6 +84,13 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/entities/{entity_id}/aliases"): {"alias": "planted"},
     ("PATCH", _W + "/entities/{entity_id}/aliases/{alias_id}"): {"alias": "taken over"},
     ("POST", _W + "/entities/{entity_id}/domains"): {"domain": "planted.example"},
+    # `{name}` in a body is the id the call is made with, like the path's.
+    ("POST", _W + "/projects/{project_id}/entities"): {
+        "entity_id": "{spare_entity_id}",
+        "role": "competitor",
+    },
+    ("PATCH", _W + "/projects/{project_id}/entities/{entity_id}"): {"track_ai": False},
+    ("POST", _W + "/projects/{project_id}/alias-test"): {"text": "Acme"},
 }
 
 
@@ -99,6 +106,8 @@ class Tenant:
     entity_id: uuid.UUID
     alias_id: uuid.UUID
     entity_domain_id: uuid.UUID
+    # An entity whose role in the project was removed: giving it a role again succeeds.
+    spare_entity_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -109,6 +118,7 @@ class Tenant:
             "entity_id": str(self.entity_id),
             "alias_id": str(self.alias_id),
             "entity_domain_id": str(self.entity_domain_id),
+            "spare_entity_id": str(self.spare_entity_id),
         }
 
     def secrets(self) -> list[str]:
@@ -170,12 +180,27 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         workspace.id,
         domain["id"],
     )
+    # Not primary, so that removing the role is allowed.
+    await execute(
+        pg,
+        "INSERT INTO core.project_entities (project_id, entity_id, workspace_id, role) "
+        "VALUES ($1, $2, $3, 'own')",
+        project_id,
+        entity["id"],
+        workspace.id,
+    )
+    spare = await fetchrow(
+        pg,
+        "INSERT INTO core.entities (workspace_id, entity_type, canonical_name) "
+        "VALUES ($1, 'brand', 'Rival') RETURNING id",
+        workspace.id,
+    )
     await execute(
         pg,
         "INSERT INTO core.project_entities (project_id, entity_id, workspace_id, role, "
-        "is_primary) VALUES ($1, $2, $3, 'own', true)",
+        "removed_at) VALUES ($1, $2, $3, 'watch', now())",
         project_id,
-        entity["id"],
+        spare["id"],
         workspace.id,
     )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
@@ -191,6 +216,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         entity_id=entity["id"],
         alias_id=alias["id"],
         entity_domain_id=entity_domain["id"],
+        spare_entity_id=spare["id"],
     )
 
 
@@ -214,6 +240,11 @@ async def _call(
     api: httpx.AsyncClient, method: str, path: str, ids: dict[str, str], headers: dict[str, str]
 ) -> httpx.Response:
     body = None if method in _READ else BODIES.get((method, path), {})
+    if body is not None:
+        body = {
+            key: _fill(value, ids) if isinstance(value, str) else value
+            for key, value in body.items()
+        }
     return await api.request(method, _fill(path, ids), json=body, headers=headers)
 
 

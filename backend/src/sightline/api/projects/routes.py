@@ -19,7 +19,7 @@ from sightline.api.projects.repository import ProjectRecord
 from sightline.api.projects.service import ProjectService
 from sightline.api.request_info import Info
 from sightline.api.resources import Resources, get_resources
-from sightline.api.schemas.common import UserRef
+from sightline.api.schemas.common import DomainRef, LocationRef, UserRef
 from sightline.api.schemas.projects import (
     Project,
     ProjectChanged,
@@ -54,6 +54,40 @@ MayCreateProjects = Annotated[
 ]
 
 
+def _primary_domain(record: ProjectRecord) -> DomainRef | None:
+    if (
+        record.primary_domain_id is None
+        or record.primary_host is None
+        or record.primary_registrable_domain is None
+    ):
+        return None
+    return DomainRef.model_validate(
+        {
+            "domain_id": record.primary_domain_id,
+            "host": record.primary_host,
+            "registrable_domain": record.primary_registrable_domain,
+            "category": record.primary_category,
+            "category_source": record.primary_category_source,
+        }
+    )
+
+
+def _default_location(record: ProjectRecord) -> LocationRef | None:
+    if (
+        record.default_location_id is None
+        or record.default_location_name is None
+        or record.default_location_country is None
+        or record.default_location_type is None
+    ):
+        return None
+    return LocationRef(
+        location_id=record.default_location_id,
+        name=record.default_location_name,
+        country_iso=record.default_location_country,
+        location_type=record.default_location_type,
+    )
+
+
 def _project(record: ProjectRecord) -> Project:
     created_by = None
     if (
@@ -71,10 +105,9 @@ def _project(record: ProjectRecord) -> Project:
         workspace_id=record.workspace_id,
         name=record.name,
         slug=record.slug,
-        primary_domain=None,
+        primary_domain=_primary_domain(record),
         default_location_id=record.default_location_id,
-        # Locations arrive with this step's location sync; until a project can name one, none.
-        default_location=None,
+        default_location=_default_location(record),
         default_language_code=record.default_language_code,
         timezone=record.timezone,
         deep_check_weekday=record.deep_check_weekday,
@@ -149,6 +182,9 @@ async def create_project(
         timezone=body.timezone,
         deep_check_weekday=body.deep_check_weekday,
         default_language_code=body.default_language_code,
+        primary_domain=body.primary_domain,
+        default_location_id=body.default_location_id,
+        own_entity=body.own_entity,
         info=info,
     )
     return ProjectResponse(data=_project(record))

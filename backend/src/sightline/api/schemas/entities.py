@@ -361,6 +361,12 @@ class ProjectEntityCreate(Body):
     track_ai: bool = True
     color_index: ColorIndex | None = None
 
+    @model_validator(mode="after")
+    def _primary_is_own(self) -> ProjectEntityCreate:
+        if self.is_primary and self.role != "own":
+            raise PydanticCustomError("primary_needs_own", "Only an `own` entity is primary.")
+        return self
+
 
 class ProjectEntityUpdate(Patch):
     """At least one member. `color_index: null` removes it; the others cannot be null."""

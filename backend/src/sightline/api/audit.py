@@ -37,6 +37,9 @@ AuditAction = Literal[
     "entity_alias.deleted",
     "entity_domain.created",
     "entity_domain.deleted",
+    "project_entity.created",
+    "project_entity.updated",
+    "project_entity.removed",
 ]
 
 

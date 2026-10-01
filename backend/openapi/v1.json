@@ -226,6 +226,204 @@
         "title": "AliasResponse",
         "type": "object"
       },
+      "AliasTestMention": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          },
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/AliasTestSpan"
+            },
+            "title": "Spans",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "uncertain",
+              "discarded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity",
+          "spans",
+          "confidence",
+          "status"
+        ],
+        "title": "AliasTestMention",
+        "type": "object"
+      },
+      "AliasTestNegative": {
+        "properties": {
+          "alias_id": {
+            "format": "uuid",
+            "title": "Alias Id",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "start": {
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "alias_id"
+        ],
+        "title": "AliasTestNegative",
+        "type": "object"
+      },
+      "AliasTestRequest": {
+        "additionalProperties": false,
+        "description": "Exactly one of `text` and `markdown`, at most 100 KB as UTF-8 (`413 payload_too_large`\nbeyond). Markdown is matched as its source text for now; an observation id is taken once\nobservations exist (step 8).",
+        "properties": {
+          "markdown": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Markdown"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "AliasTestRequest",
+        "type": "object"
+      },
+      "AliasTestResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AliasTestResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AliasTestResponse",
+        "type": "object"
+      },
+      "AliasTestResult": {
+        "properties": {
+          "mentions": {
+            "items": {
+              "$ref": "#/components/schemas/AliasTestMention"
+            },
+            "title": "Mentions",
+            "type": "array"
+          },
+          "negatives_applied": {
+            "items": {
+              "$ref": "#/components/schemas/AliasTestNegative"
+            },
+            "title": "Negatives Applied",
+            "type": "array"
+          },
+          "skipped_alias_ids": {
+            "description": "Stored patterns the matcher cannot run (doc 13 stage 4), left out.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Skipped Alias Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "mentions",
+          "negatives_applied",
+          "skipped_alias_ids"
+        ],
+        "title": "AliasTestResult",
+        "type": "object"
+      },
+      "AliasTestSpan": {
+        "properties": {
+          "alias_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None for a domain-shaped alias.",
+            "title": "Alias Id"
+          },
+          "end": {
+            "title": "End",
+            "type": "integer"
+          },
+          "match_method": {
+            "enum": [
+              "alias_word",
+              "alias_exact",
+              "alias_substring",
+              "alias_regex",
+              "alias_name",
+              "alias_domain",
+              "via_product"
+            ],
+            "title": "Match Method",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "start": {
+            "description": "Offset into the text sent, in UTF-16 code units.",
+            "title": "Start",
+            "type": "integer"
+          },
+          "status": {
+            "description": "This span's own status; see doc 13 stage 5.",
+            "enum": [
+              "accepted",
+              "uncertain",
+              "discarded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "alias_id",
+          "match_method",
+          "score",
+          "status"
+        ],
+        "title": "AliasTestSpan",
+        "type": "object"
+      },
       "AliasUpdate": {
         "additionalProperties": false,
         "description": "At least one member. `language_code: null` removes it; the others cannot be null.",
@@ -924,6 +1122,68 @@
           "removed_at"
         ],
         "title": "EntityProjectRole",
+        "type": "object"
+      },
+      "EntityRef": {
+        "properties": {
+          "canonical_name": {
+            "title": "Canonical Name",
+            "type": "string"
+          },
+          "color_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`--chart-1` to `--chart-6`; null lets the client choose.",
+            "title": "Color Index"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "enum": [
+              "brand",
+              "product",
+              "organization",
+              "person",
+              "other"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "own",
+                  "competitor",
+                  "watch"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The role in the project asked about, if any.",
+            "title": "Role"
+          }
+        },
+        "required": [
+          "entity_id",
+          "canonical_name",
+          "entity_type",
+          "role",
+          "color_index"
+        ],
+        "title": "EntityRef",
         "type": "object"
       },
       "EntityResponse": {
@@ -1642,6 +1902,44 @@
         "title": "OffsetPageInfo",
         "type": "object"
       },
+      "OwnEntityInput": {
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "description": "Word aliases that ignore case.",
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Aliases",
+            "type": "array"
+          },
+          "canonical_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Canonical Name",
+            "type": "string"
+          },
+          "domains": {
+            "description": "Hosts or URLs, each matched by registrable domain.",
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Domains",
+            "type": "array"
+          }
+        },
+        "required": [
+          "canonical_name"
+        ],
+        "title": "OwnEntityInput",
+        "type": "object"
+      },
       "PasswordChangeRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1949,11 +2247,50 @@
             ],
             "title": "Default Language Code"
           },
+          "default_location_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 2147483647.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A `location_id` of `GET /api/v1/locations`.",
+            "title": "Default Location Id"
+          },
           "name": {
             "maxLength": 120,
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "own_entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnEntityInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Created with role `own`, primary."
+          },
+          "primary_domain": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A host or URL; its host is stored.",
+            "title": "Primary Domain"
           },
           "slug": {
             "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
@@ -1981,6 +2318,271 @@
           "slug"
         ],
         "title": "ProjectCreate",
+        "type": "object"
+      },
+      "ProjectDomain": {
+        "properties": {
+          "domain": {
+            "$ref": "#/components/schemas/DomainRef"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          },
+          "match_scope": {
+            "enum": [
+              "path_prefix",
+              "host",
+              "registrable"
+            ],
+            "title": "Match Scope",
+            "type": "string"
+          },
+          "path_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path Prefix"
+          }
+        },
+        "required": [
+          "entity",
+          "domain",
+          "match_scope",
+          "path_prefix"
+        ],
+        "title": "ProjectDomain",
+        "type": "object"
+      },
+      "ProjectDomainList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectDomain"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectDomainList",
+        "type": "object"
+      },
+      "ProjectEntity": {
+        "properties": {
+          "added_at": {
+            "format": "date-time",
+            "title": "Added At",
+            "type": "string"
+          },
+          "alias_count": {
+            "title": "Alias Count",
+            "type": "integer"
+          },
+          "color_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/EntityDomain"
+            },
+            "title": "Domains",
+            "type": "array"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "removed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removed At"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor",
+              "watch"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "track_ai": {
+            "title": "Track Ai",
+            "type": "boolean"
+          },
+          "track_seo": {
+            "title": "Track Seo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "project_id",
+          "entity",
+          "role",
+          "is_primary",
+          "track_seo",
+          "track_ai",
+          "color_index",
+          "added_at",
+          "removed_at",
+          "alias_count",
+          "domains"
+        ],
+        "title": "ProjectEntity",
+        "type": "object"
+      },
+      "ProjectEntityCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "color_index": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "is_primary": {
+            "default": false,
+            "description": "Only for `own`; one per project.",
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor",
+              "watch"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "track_ai": {
+            "default": true,
+            "title": "Track Ai",
+            "type": "boolean"
+          },
+          "track_seo": {
+            "default": true,
+            "title": "Track Seo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entity_id",
+          "role"
+        ],
+        "title": "ProjectEntityCreate",
+        "type": "object"
+      },
+      "ProjectEntityList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectEntity"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectEntityList",
+        "type": "object"
+      },
+      "ProjectEntityResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectEntity"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectEntityResponse",
+        "type": "object"
+      },
+      "ProjectEntityUpdate": {
+        "additionalProperties": false,
+        "description": "At least one member. `color_index: null` removes it; the others cannot be null.",
+        "properties": {
+          "color_index": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "own",
+              "competitor",
+              "watch"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "track_ai": {
+            "title": "Track Ai",
+            "type": "boolean"
+          },
+          "track_seo": {
+            "title": "Track Seo",
+            "type": "boolean"
+          }
+        },
+        "title": "ProjectEntityUpdate",
         "type": "object"
       },
       "ProjectPage": {
@@ -2017,7 +2619,7 @@
       },
       "ProjectUpdate": {
         "additionalProperties": false,
-        "description": "At least one member. `default_language_code: null` removes it; the others cannot be null.",
+        "description": "At least one member. `default_language_code`, `primary_domain` and `default_location_id`\nmay be null to remove them; the others cannot be null.",
         "properties": {
           "deep_check_weekday": {
             "maximum": 6.0,
@@ -2037,11 +2639,37 @@
             ],
             "title": "Default Language Code"
           },
+          "default_location_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 2147483647.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Location Id"
+          },
           "name": {
             "maxLength": 120,
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "primary_domain": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Domain"
           },
           "slug": {
             "pattern": "^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$",
@@ -5258,6 +5886,424 @@
         "summary": "Change a project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
+      "post": {
+        "description": "Nothing is stored. Offsets are UTF-16 code units, as JavaScript indexes the text. `413 payload_too_large` over 100 KB; `422 too_many_matches` over 250,000 matches.",
+        "operationId": "alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AliasTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AliasTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "What extraction would count in a text, with today's aliases",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains": {
+      "get": {
+        "operationId": "list_project_domains_api_v1_workspaces__workspace_id__projects__project_id__domains_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[role]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "own",
+                    "competitor",
+                    "watch"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Role]"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDomainList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The domains of the project's entities, with their roles",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities": {
+      "get": {
+        "operationId": "list_project_entities_api_v1_workspaces__workspace_id__projects__project_id__entities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[role]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "own",
+                    "competitor",
+                    "watch"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Role]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[include_removed]",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Filter[Include Removed]",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntityList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The entities a project has given a role",
+        "tags": [
+          "entities"
+        ]
+      },
+      "post": {
+        "description": "An entity whose role was removed gets it back, on the same row.",
+        "operationId": "add_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectEntityCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Give an entity a role in the project",
+        "tags": [
+          "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities/{entity_id}": {
+      "delete": {
+        "operationId": "remove_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Remove an entity's role; its history is kept",
+        "tags": [
+          "entities"
+        ]
+      },
+      "patch": {
+        "operationId": "update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectEntityUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change an entity's role in the project",
+        "tags": [
+          "entities"
         ]
       }
     }

@@ -187,6 +187,30 @@ class CycleDetectedError(ProblemError):
     status, code, title = 422, "cycle_detected", "That would make a cycle"
 
 
+class PrimaryOwnExistsError(ProblemError):
+    status, code, title = 409, "primary_own_exists", "The project has a primary own entity"
+
+
+class CannotRemovePrimaryOwnError(ProblemError):
+    status, code, title = 409, "cannot_remove_primary_own", "The primary own entity stays"
+
+
+class CompetitorLimitError(ProblemError):
+    """Carries `limit`."""
+
+    status, code, title = 422, "competitor_limit", "Too many SEO competitors"
+
+
+class TooManyMatchesError(ProblemError):
+    status, code, title = 422, "too_many_matches", "The text matched too many times"
+
+
+class PayloadTooLargeError(ProblemError):
+    """Carries `limit_bytes`."""
+
+    status, code, title = 413, "payload_too_large", "Payload too large"
+
+
 class LastOwnerError(ProblemError):
     status, code, title = 409, "last_owner", "A workspace needs an owner"
 
