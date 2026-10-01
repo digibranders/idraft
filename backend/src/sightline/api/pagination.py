@@ -16,7 +16,7 @@ from fastapi import Depends, Query, Request
 from fastapi.dependencies.models import Dependant
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
 from pydantic.fields import FieldInfo
 
 from sightline.api.problems import BadRequestError
@@ -110,6 +110,17 @@ def _key_value(value: object) -> bool:
     except UnicodeEncodeError:
         return False
     return not any(unicodedata.category(char) == "Cc" for char in value)
+
+
+def _split(value: object) -> object:
+    """A list parameter as a comma list, repeated, or both."""
+    if isinstance(value, list):
+        return [part for item in value for part in str(item).split(",") if part]
+    return value
+
+
+# Put on a `list[...]` query parameter: `a,b`, `?x=a&x=b` and both mixed all give `[a, b]`.
+Commas = BeforeValidator(_split)
 
 
 @dataclass(frozen=True, slots=True)

@@ -60,6 +60,7 @@ from sightline.db.tables import (
     urls,
     users,
 )
+from sightline.keywords.trees import among_ids
 
 LABS = "dataforseo_labs"
 # The current Labs metrics of a tracked keyword's keyword, location and language: what the list
@@ -68,12 +69,6 @@ LABS_CURRENT = keyword_metrics_current.alias("labs_current")
 # Rows per multi-row insert of links: 4 parameters a row stays well under the 32,767 a
 # statement may carry.
 LINKS_PER_STATEMENT: Final = 5000
-
-
-def among_ids(column: ColumnElement[UUID], ids: Collection[UUID]) -> ColumnElement[bool]:
-    """`column = ANY($1)`: one array parameter however many ids, so a long list never reaches
-    the driver's parameter limit."""
-    return column == any_(literal(list(ids), type_=ARRAY(Uuid)))
 
 
 def _among_ints(column: ColumnElement[int], values: Collection[int]) -> ColumnElement[bool]:
@@ -271,15 +266,19 @@ async def active_locations(db: AsyncSession, location_ids: Collection[int]) -> s
 async def rank_schedules(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, schedule_ids: Collection[UUID]
 ) -> set[UUID]:
-    """The project's live rank schedules among these: what a tracked keyword may name."""
+    """The project's live rank schedules among these: what a tracked keyword may name. Held
+    (FOR KEY SHARE) until the transaction ends, so a schedule being deleted is either deleted
+    first (and not found here) or sees the keyword that names it and refuses."""
     rows = await db.execute(
-        select(schedules.c.id).where(
+        select(schedules.c.id)
+        .where(
             schedules.c.workspace_id == workspace_id,
             schedules.c.project_id == project_id,
             among_ids(schedules.c.id, schedule_ids),
             schedules.c.workload == "seo_rank",
             schedules.c.deleted_at.is_(None),
         )
+        .with_for_update(read=True, key_share=True)
     )
     return {row.id for row in rows}
 

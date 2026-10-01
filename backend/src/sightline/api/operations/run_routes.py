@@ -1,6 +1,7 @@
 """Run routes (docs/19-api-specification.md section 3.11.4) and the keyword metrics refresh,
-which asks for a manual run (section 3.6.1). Asking for a run needs `runs:trigger`. The
-membership dependency has already refused a project outside the caller's scope.
+which asks for a manual run (section 3.6.1). Reading runs needs `data:read` and asking for one
+`runs:trigger`; who may cancel one is decided by the service. The membership dependency has
+already refused a project outside the caller's scope.
 """
 
 from __future__ import annotations
@@ -9,23 +10,34 @@ from collections.abc import Mapping
 from typing import Annotated, Final
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from pydantic import AwareDatetime
 
-from sightline.api.operations.runs import RunService
-from sightline.api.operations.runs_repository import RunRecord
+from sightline.api.operations.runs import MANUAL_RUNS_PER_DAY, RunService
+from sightline.api.operations.runs_repository import RunFilter, RunRecord
+from sightline.api.pagination import Commas, Cursor, CursorPageInfo
 from sightline.api.permissions import Permission
 from sightline.api.request_info import Info
 from sightline.api.resources import Resources, get_resources
 from sightline.api.schemas.keywords import MetricsRefresh
 from sightline.api.schemas.operations import (
     Actor,
+    ManualRuns,
     Operation,
     OperationError,
     OperationLinks,
     OperationStatus,
     Progress,
     Run,
+    RunCancel,
+    RunDetail,
+    RunDetailResponse,
+    RunPage,
+    RunPageMeta,
     RunResponse,
+    RunStatus,
+    Trigger,
+    Workload,
 )
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.api.workspaces.dependencies import require_permission
@@ -34,6 +46,7 @@ router = APIRouter(
     prefix="/api/v1/workspaces/{workspace_id}/projects/{project_id}", tags=["operations"]
 )
 
+ReadData = Annotated[WorkspaceAccess, Depends(require_permission(Permission.DATA_READ))]
 TriggerRuns = Annotated[WorkspaceAccess, Depends(require_permission(Permission.RUNS_TRIGGER))]
 
 # A run's status as an operation's (docs/19 section 2.11).
@@ -135,4 +148,94 @@ async def refresh_keyword_metrics(
     project_id: UUID, body: MetricsRefresh, access: TriggerRuns, runs: Runs, info: Info
 ) -> RunResponse:
     record = await runs.refresh_metrics(access, project_id, body, info)
+    return RunResponse(data=run_view(record, access.workspace_id))
+
+
+@router.get(
+    "/runs",
+    summary="The project's runs",
+    description="Newest first. `meta.manual_runs_today` says how many of the day's (UTC) "
+    "manual runs people have used.",
+)
+async def list_runs(
+    project_id: UUID,
+    access: ReadData,
+    page: Cursor,
+    runs: Runs,
+    schedule_id: Annotated[UUID | None, Query(alias="filter[schedule_id]")] = None,
+    workloads: Annotated[
+        list[Workload] | None, Commas, Query(alias="filter[workload_in]", max_length=20)
+    ] = None,
+    statuses: Annotated[
+        list[RunStatus] | None, Commas, Query(alias="filter[status_in]", max_length=20)
+    ] = None,
+    triggers: Annotated[
+        list[Trigger] | None, Commas, Query(alias="filter[trigger_in]", max_length=20)
+    ] = None,
+    created_from: Annotated[
+        AwareDatetime | None, Query(alias="from", description="Created at or after.")
+    ] = None,
+    created_to: Annotated[
+        AwareDatetime | None, Query(alias="to", description="Created before.")
+    ] = None,
+) -> RunPage:
+    given = RunFilter(
+        schedule_id=schedule_id,
+        workloads=frozenset(workloads or ()),
+        statuses=frozenset(statuses or ()),
+        triggers=frozenset(triggers or ()),
+        created_from=created_from,
+        created_to=created_to,
+    )
+    found = await runs.page(access, project_id, given, cursor=page.cursor, limit=page.limit)
+    return RunPage(
+        data=[run_view(record, access.workspace_id) for record in found.runs],
+        page=CursorPageInfo(
+            limit=page.limit,
+            next_cursor=found.next_cursor,
+            has_more=found.next_cursor is not None,
+        ),
+        meta=RunPageMeta(
+            manual_runs_today=ManualRuns(used=found.manual_runs_today, limit=MANUAL_RUNS_PER_DAY)
+        ),
+    )
+
+
+@router.get(
+    "/runs/{run_id}",
+    summary="One run",
+    description="With how many of its tasks are in each status, and the configuration it ran with.",
+)
+async def get_run(
+    project_id: UUID, run_id: UUID, access: ReadData, runs: Runs
+) -> RunDetailResponse:
+    found = await runs.detail(access, project_id, run_id)
+    view = run_view(found.run, access.workspace_id)
+    return RunDetailResponse(
+        data=RunDetail(
+            **view.model_dump(),
+            tasks_by_status=found.tasks_by_status,
+            config_snapshot=dict(found.run.config_snapshot),
+        )
+    )
+
+
+@router.post(
+    "/runs/{run_id}/cancel",
+    summary="Cancel a run",
+    description="A planned or running run (`409 invalid_state_transition` otherwise). Needs "
+    "`schedules:write`, or `runs:trigger` for a manual run the caller asked for. Pending tasks "
+    "are cancelled within minutes; tasks the provider already has are still fetched, since "
+    "they are paid for. `reason` is audited.",
+)
+async def cancel_run(
+    project_id: UUID,
+    run_id: UUID,
+    access: ReadData,
+    runs: Runs,
+    info: Info,
+    body: RunCancel | None = None,
+) -> RunResponse:
+    reason = None if body is None else body.reason
+    record = await runs.cancel(access, project_id, run_id, reason, info)
     return RunResponse(data=run_view(record, access.workspace_id))

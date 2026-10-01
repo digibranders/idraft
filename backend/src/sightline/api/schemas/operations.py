@@ -20,6 +20,7 @@ from sightline.api.pagination import CursorPageInfo, OffsetPageInfo
 from sightline.api.schemas.common import Body, Patch, printable, refuse_null
 from sightline.api.schemas.keywords import DepthProfile
 from sightline.api.schemas.metrics import Usd
+from sightline.api.timezones import Timezone
 
 Workload = Literal[
     "seo_rank",
@@ -41,7 +42,6 @@ ScheduleName = Annotated[
     StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
     AfterValidator(printable),
 ]
-TimeZone = Annotated[str, StringConstraints(min_length=1, max_length=64)]
 
 
 class Selector(Body):
@@ -60,7 +60,7 @@ class ScheduleInput(Body):
     name: ScheduleName
     cadence: Cadence
     cron_expr: Annotated[str, StringConstraints(max_length=100)] | None = None
-    timezone: TimeZone
+    timezone: Timezone
     window_start_local: time = Field(description="Local `HH:MM`.")
     window_hours: Annotated[int, Field(ge=1, le=24)] = 6
     weekday: Annotated[int, Field(ge=0, le=6)] | None = Field(
@@ -86,7 +86,7 @@ class ScheduleUpdate(Patch):
     """At least one member; `next_run_at` is computed again."""
 
     name: ScheduleName | None = None
-    timezone: TimeZone | None = None
+    timezone: Timezone | None = None
     window_start_local: time | None = None
     window_hours: Annotated[int, Field(ge=1, le=24)] | None = None
     weekday: Annotated[int, Field(ge=0, le=6)] | None = None
@@ -378,6 +378,12 @@ class SeoSettingsPatch(Patch):
         "visibility_weight_scheme",
         "visibility_volume_mode",
     )(refuse_null)
+
+    @model_validator(mode="after")
+    def _says_something(self) -> SeoSettingsPatch:
+        if not self.model_fields_set:
+            raise ValueError("give at least one setting to change")
+        return self
 
 
 class ProjectSettingsPatch(Body):

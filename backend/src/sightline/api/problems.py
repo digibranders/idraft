@@ -185,6 +185,12 @@ class EntityInUseProblemError(ProblemError):
     status, code, title = 409, "entity_in_use", "The entity is in use"
 
 
+class ScheduleInUseError(ProblemError):
+    """Tracked keywords name the schedule; it is deleted once none does."""
+
+    status, code, title = 409, "schedule_in_use", "Tracked keywords use the schedule"
+
+
 class CycleDetectedError(ProblemError):
     status, code, title = 422, "cycle_detected", "That would make a cycle"
 

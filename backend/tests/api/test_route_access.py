@@ -154,6 +154,44 @@ EXPECTED: dict[tuple[str, str], str] = {
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-metrics/refresh",
     ): "runs:trigger",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}"): "data:read",
+    # Who may cancel is decided by the service: schedules:write, or runs:trigger for a manual
+    # run the caller asked for.
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}/cancel",
+    ): "data:read",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules"): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules",
+    ): "schedules:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}",
+    ): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}",
+    ): "schedules:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}",
+    ): "schedules:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/pause",
+    ): "schedules:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/resume",
+    ): "schedules:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings"): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings",
+    ): "projects:write",
     # Keywords are read across the workspace, limited to the caller's projects by the service;
     # tracked keywords live inside one project.
     ("GET", "/api/v1/workspaces/{workspace_id}/keywords"): "data:read",
@@ -259,6 +297,8 @@ PATH_PARAMETERS = {
     "tracked_keyword_id",
     # Inside one project, after `{project_id}`, like a tracked keyword.
     "group_id",
+    "schedule_id",
+    "run_id",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

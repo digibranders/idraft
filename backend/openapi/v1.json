@@ -2535,6 +2535,25 @@
         "title": "LocationRef",
         "type": "object"
       },
+      "ManualRuns": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "used": {
+            "description": "Manual runs people started in the project today (UTC).",
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used",
+          "limit"
+        ],
+        "title": "ManualRuns",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "memberships": {
@@ -4126,6 +4145,55 @@
         "title": "ProjectResponse",
         "type": "object"
       },
+      "ProjectSettings": {
+        "properties": {
+          "entity_config_version": {
+            "description": "Read-only: bumped by entity changes.",
+            "title": "Entity Config Version",
+            "type": "integer"
+          },
+          "seo": {
+            "$ref": "#/components/schemas/SeoSettings"
+          },
+          "version": {
+            "const": 1,
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_config_version"
+        ],
+        "title": "ProjectSettings",
+        "type": "object"
+      },
+      "ProjectSettingsPatch": {
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396) of the settings: members left out keep their value.",
+        "properties": {
+          "seo": {
+            "$ref": "#/components/schemas/SeoSettingsPatch"
+          }
+        },
+        "required": [
+          "seo"
+        ],
+        "title": "ProjectSettingsPatch",
+        "type": "object"
+      },
+      "ProjectSettingsResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProjectSettings"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ProjectSettingsResponse",
+        "type": "object"
+      },
       "ProjectUpdate": {
         "additionalProperties": false,
         "description": "At least one member. `default_language_code`, `primary_domain` and `default_location_id`\nmay be null to remove them; the others cannot be null.",
@@ -4630,6 +4698,285 @@
         "title": "Run",
         "type": "object"
       },
+      "RunCancel": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "RunCancel",
+        "type": "object"
+      },
+      "RunDetail": {
+        "properties": {
+          "actual_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Cost Usd"
+          },
+          "blocked_by_budget_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked By Budget Id"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "config_snapshot": {
+            "additionalProperties": true,
+            "title": "Config Snapshot",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Actor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimated_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Usd"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "status": {
+            "enum": [
+              "planned",
+              "running",
+              "completed",
+              "completed_with_errors",
+              "failed",
+              "cancelled",
+              "budget_blocked"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "tasks_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Tasks By Status",
+            "type": "object"
+          },
+          "tasks_failed": {
+            "title": "Tasks Failed",
+            "type": "integer"
+          },
+          "tasks_succeeded": {
+            "title": "Tasks Succeeded",
+            "type": "integer"
+          },
+          "tasks_total": {
+            "title": "Tasks Total",
+            "type": "integer"
+          },
+          "trigger": {
+            "enum": [
+              "schedule",
+              "manual",
+              "backfill",
+              "retry"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          },
+          "workload": {
+            "enum": [
+              "seo_rank",
+              "ai_prompt",
+              "ai_mode_keyword",
+              "keyword_metrics",
+              "discovery",
+              "ai_benchmark",
+              "gsc_sync",
+              "bing_sync",
+              "ga4_sync",
+              "cloudflare_sync"
+            ],
+            "title": "Workload",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "project_id",
+          "schedule_id",
+          "workload",
+          "trigger",
+          "status",
+          "status_reason",
+          "window_start",
+          "window_end",
+          "tasks_total",
+          "tasks_succeeded",
+          "tasks_failed",
+          "estimated_cost_usd",
+          "actual_cost_usd",
+          "blocked_by_budget_id",
+          "created_by",
+          "created_at",
+          "completed_at",
+          "operation",
+          "tasks_by_status",
+          "config_snapshot"
+        ],
+        "title": "RunDetail",
+        "type": "object"
+      },
+      "RunDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RunDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "RunDetailResponse",
+        "type": "object"
+      },
+      "RunPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/RunPageMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "RunPage",
+        "type": "object"
+      },
+      "RunPageMeta": {
+        "properties": {
+          "manual_runs_today": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManualRuns"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a project's list: how many manual runs are left today."
+          }
+        },
+        "title": "RunPageMeta",
+        "type": "object"
+      },
       "RunResponse": {
         "properties": {
           "data": {
@@ -4640,6 +4987,333 @@
           "data"
         ],
         "title": "RunResponse",
+        "type": "object"
+      },
+      "Schedule": {
+        "properties": {
+          "cadence": {
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "cron"
+            ],
+            "title": "Cadence",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "cron_expr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cron Expr"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "last_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run Id"
+          },
+          "month_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month Day"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "next_run_at": {
+            "format": "date-time",
+            "title": "Next Run At",
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "high",
+              "standard",
+              "low"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "provider_mode": {
+            "enum": [
+              "standard_queue",
+              "priority_queue",
+              "live"
+            ],
+            "title": "Provider Mode",
+            "type": "string"
+          },
+          "schedule_id": {
+            "format": "uuid",
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "selector": {
+            "$ref": "#/components/schemas/Selector"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "window_hours": {
+            "title": "Window Hours",
+            "type": "integer"
+          },
+          "window_start_local": {
+            "format": "time",
+            "title": "Window Start Local",
+            "type": "string"
+          },
+          "workload": {
+            "enum": [
+              "seo_rank",
+              "ai_prompt",
+              "ai_mode_keyword",
+              "keyword_metrics",
+              "discovery",
+              "ai_benchmark",
+              "gsc_sync",
+              "bing_sync",
+              "ga4_sync",
+              "cloudflare_sync"
+            ],
+            "title": "Workload",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "project_id",
+          "workload",
+          "name",
+          "cadence",
+          "cron_expr",
+          "timezone",
+          "window_start_local",
+          "window_hours",
+          "weekday",
+          "month_day",
+          "priority",
+          "provider_mode",
+          "selector",
+          "is_active",
+          "next_run_at",
+          "last_run_id",
+          "created_at"
+        ],
+        "title": "Schedule",
+        "type": "object"
+      },
+      "ScheduleInput": {
+        "additionalProperties": false,
+        "properties": {
+          "cadence": {
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "cron"
+            ],
+            "title": "Cadence",
+            "type": "string"
+          },
+          "cron_expr": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cron Expr"
+          },
+          "month_day": {
+            "anyOf": [
+              {
+                "maximum": 28.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monthly cadence: 1 to 28, so every month has the day.",
+            "title": "Month Day"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "priority": {
+            "default": "standard",
+            "enum": [
+              "high",
+              "standard",
+              "low"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "provider_mode": {
+            "default": "standard_queue",
+            "enum": [
+              "standard_queue",
+              "priority_queue",
+              "live"
+            ],
+            "title": "Provider Mode",
+            "type": "string"
+          },
+          "selector": {
+            "$ref": "#/components/schemas/Selector"
+          },
+          "timezone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Weekly cadence: 0 is Sunday.",
+            "title": "Weekday"
+          },
+          "window_hours": {
+            "default": 6,
+            "maximum": 24.0,
+            "minimum": 1.0,
+            "title": "Window Hours",
+            "type": "integer"
+          },
+          "window_start_local": {
+            "description": "Local `HH:MM`.",
+            "format": "time",
+            "title": "Window Start Local",
+            "type": "string"
+          },
+          "workload": {
+            "enum": [
+              "seo_rank",
+              "ai_prompt",
+              "ai_mode_keyword",
+              "keyword_metrics",
+              "discovery",
+              "ai_benchmark",
+              "gsc_sync",
+              "bing_sync",
+              "ga4_sync",
+              "cloudflare_sync"
+            ],
+            "title": "Workload",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workload",
+          "name",
+          "cadence",
+          "timezone",
+          "window_start_local"
+        ],
+        "title": "ScheduleInput",
+        "type": "object"
+      },
+      "SchedulePage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Schedule"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "SchedulePage",
+        "type": "object"
+      },
+      "SchedulePause": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "SchedulePause",
         "type": "object"
       },
       "ScheduleRef": {
@@ -4665,6 +5339,107 @@
           "next_run_at"
         ],
         "title": "ScheduleRef",
+        "type": "object"
+      },
+      "ScheduleResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Schedule"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ScheduleResponse",
+        "type": "object"
+      },
+      "ScheduleUpdate": {
+        "additionalProperties": false,
+        "description": "At least one member; `next_run_at` is computed again.",
+        "properties": {
+          "cadence": {
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "cron"
+            ],
+            "title": "Cadence",
+            "type": "string"
+          },
+          "month_day": {
+            "anyOf": [
+              {
+                "maximum": 28.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month Day"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "high",
+              "standard",
+              "low"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "provider_mode": {
+            "enum": [
+              "standard_queue",
+              "priority_queue",
+              "live"
+            ],
+            "title": "Provider Mode",
+            "type": "string"
+          },
+          "selector": {
+            "$ref": "#/components/schemas/Selector"
+          },
+          "timezone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "window_hours": {
+            "maximum": 24.0,
+            "minimum": 1.0,
+            "title": "Window Hours",
+            "type": "integer"
+          },
+          "window_start_local": {
+            "format": "time",
+            "title": "Window Start Local",
+            "type": "string"
+          }
+        },
+        "title": "ScheduleUpdate",
         "type": "object"
       },
       "Seasonality": {
@@ -4700,6 +5475,196 @@
           "method"
         ],
         "title": "Seasonality",
+        "type": "object"
+      },
+      "Selector": {
+        "additionalProperties": false,
+        "description": "Which subjects a schedule collects. `keyword_metrics` takes `stale_days`, `all`,\n`groups` and `terms`; `seo_rank` takes `all`, `groups`, `terms` and `priority_lte`.",
+        "properties": {
+          "all": {
+            "anyOf": [
+              {
+                "const": true,
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "All"
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups"
+          },
+          "priority_lte": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority Lte"
+          },
+          "stale_days": {
+            "anyOf": [
+              {
+                "maximum": 365.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Days"
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms"
+          }
+        },
+        "title": "Selector",
+        "type": "object"
+      },
+      "SeoSettings": {
+        "properties": {
+          "default_depth_profile": {
+            "default": "standard",
+            "enum": [
+              "light",
+              "standard",
+              "deep",
+              "full",
+              "weekly",
+              "weekly_light",
+              "until_own_match_100"
+            ],
+            "title": "Default Depth Profile",
+            "type": "string"
+          },
+          "default_device": {
+            "default": "desktop",
+            "enum": [
+              "desktop",
+              "mobile",
+              "both"
+            ],
+            "title": "Default Device",
+            "type": "string"
+          },
+          "default_frequency": {
+            "default": "daily",
+            "enum": [
+              "daily",
+              "weekly"
+            ],
+            "title": "Default Frequency",
+            "type": "string"
+          },
+          "visibility_volume_mode": {
+            "default": "annual_average",
+            "enum": [
+              "annual_average",
+              "seasonal"
+            ],
+            "title": "Visibility Volume Mode",
+            "type": "string"
+          },
+          "visibility_weight_scheme": {
+            "default": "uniform",
+            "enum": [
+              "uniform",
+              "priority",
+              "business_value"
+            ],
+            "title": "Visibility Weight Scheme",
+            "type": "string"
+          }
+        },
+        "title": "SeoSettings",
+        "type": "object"
+      },
+      "SeoSettingsPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "default_depth_profile": {
+            "enum": [
+              "light",
+              "standard",
+              "deep",
+              "full",
+              "weekly",
+              "weekly_light",
+              "until_own_match_100"
+            ],
+            "title": "Default Depth Profile",
+            "type": "string"
+          },
+          "default_device": {
+            "enum": [
+              "desktop",
+              "mobile",
+              "both"
+            ],
+            "title": "Default Device",
+            "type": "string"
+          },
+          "default_frequency": {
+            "enum": [
+              "daily",
+              "weekly"
+            ],
+            "title": "Default Frequency",
+            "type": "string"
+          },
+          "visibility_volume_mode": {
+            "enum": [
+              "annual_average",
+              "seasonal"
+            ],
+            "title": "Visibility Volume Mode",
+            "type": "string"
+          },
+          "visibility_weight_scheme": {
+            "enum": [
+              "uniform",
+              "priority",
+              "business_value"
+            ],
+            "title": "Visibility Weight Scheme",
+            "type": "string"
+          }
+        },
+        "title": "SeoSettingsPatch",
         "type": "object"
       },
       "SessionItem": {
@@ -11144,6 +12109,1011 @@
         "summary": "Refresh keyword metrics now (a manual run)",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs": {
+      "get": {
+        "description": "Newest first. `meta.manual_runs_today` says how many of the day's (UTC) manual runs people have used.",
+        "operationId": "list_runs_api_v1_workspaces__workspace_id__projects__project_id__runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[schedule_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Schedule Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[workload_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "seo_rank",
+                      "ai_prompt",
+                      "ai_mode_keyword",
+                      "keyword_metrics",
+                      "discovery",
+                      "ai_benchmark",
+                      "gsc_sync",
+                      "bing_sync",
+                      "ga4_sync",
+                      "cloudflare_sync"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 20,
+              "title": "Filter[Workload In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[status_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "planned",
+                      "running",
+                      "completed",
+                      "completed_with_errors",
+                      "failed",
+                      "cancelled",
+                      "budget_blocked"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 20,
+              "title": "Filter[Status In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[trigger_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "schedule",
+                      "manual",
+                      "backfill",
+                      "retry"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 20,
+              "title": "Filter[Trigger In]"
+            }
+          },
+          {
+            "description": "Created at or after.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Created at or after.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Created before.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Created before.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's runs",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}": {
+      "get": {
+        "description": "With how many of its tasks are in each status, and the configuration it ran with.",
+        "operationId": "get_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One run",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}/cancel": {
+      "post": {
+        "description": "A planned or running run (`409 invalid_state_transition` otherwise). Needs `schedules:write`, or `runs:trigger` for a manual run the caller asked for. Pending tasks are cancelled within minutes; tasks the provider already has are still fetched, since they are paid for. `reason` is audited.",
+        "operationId": "cancel_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RunCancel"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Cancel a run",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules": {
+      "get": {
+        "operationId": "list_schedules_api_v1_workspaces__workspace_id__projects__project_id__schedules_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[workload]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "seo_rank",
+                    "ai_prompt",
+                    "ai_mode_keyword",
+                    "keyword_metrics",
+                    "discovery",
+                    "ai_benchmark",
+                    "gsc_sync",
+                    "bing_sync",
+                    "ga4_sync",
+                    "cloudflare_sync"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Workload]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Is Active]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's schedules",
+        "tags": [
+          "operations"
+        ]
+      },
+      "post": {
+        "description": "`keyword_metrics` (provider mode `live`; selector `stale_days`, `all`, `groups`, `terms`) and `seo_rank` (selector `all`, `groups`, `terms`, `priority_lte`, and not empty) are offered; others are `422 validation_failed` with `workload_not_available`. Cadence `daily`, `weekly` (with `weekday`, 0 is Sunday) or `monthly` (with `month_day`, 1 to 28); `cron` is `cadence_not_supported`. A selector member the workload does not take is `selector_not_supported` at `selector.<member>`. `next_run_at` is the next window start in the schedule's time zone.",
+        "operationId": "create_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Create a schedule",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}": {
+      "delete": {
+        "description": "Its runs keep naming it. `409 schedule_in_use` while tracked keywords name it.",
+        "operationId": "delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a schedule",
+        "tags": [
+          "operations"
+        ]
+      },
+      "get": {
+        "operationId": "get_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One schedule",
+        "tags": [
+          "operations"
+        ]
+      },
+      "patch": {
+        "description": "`next_run_at` is computed again. A change of cadence drops the day the new cadence does not use, and a weekly or monthly cadence needs its day (`required`).",
+        "operationId": "update_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change a schedule",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/pause": {
+      "post": {
+        "description": "Not planned until resumed. The body (`reason`) is optional and audited.",
+        "operationId": "pause_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__pause_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SchedulePause"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pause a schedule",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/resume": {
+      "post": {
+        "description": "From its next window after now: windows missed while paused are not caught up.",
+        "operationId": "resume_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Resume a schedule",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings": {
+      "get": {
+        "operationId": "get_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's settings",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "description": "A JSON merge patch of `seo`: members left out keep their value. The `seo` defaults apply to tracked keywords created after the change.",
+        "operationId": "update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectSettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change the project's settings",
+        "tags": [
+          "projects"
         ]
       }
     },

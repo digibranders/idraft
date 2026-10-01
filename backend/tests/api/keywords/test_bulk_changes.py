@@ -141,9 +141,10 @@ async def test_bulk_update_by_filter_adds_and_removes_groups_and_terms(
     links = await fetch(
         migrated,
         "SELECT tracked_keyword_id::text AS id, group_id::text AS link "
-        "FROM seo.keyword_group_members UNION ALL "
+        "FROM seo.keyword_group_members WHERE workspace_id = $1 UNION ALL "
         "SELECT tracked_keyword_id::text, term_id::text FROM seo.tracked_keyword_terms "
-        "ORDER BY 1, 2",
+        "WHERE workspace_id = $1 ORDER BY 1, 2",
+        workspace.id,
     )
     assert sorted((row["id"], row["link"]) for row in links) == sorted(
         [(mobile, new_group), (mobile, new_term), (desktop, old_group), (desktop, old_term)]

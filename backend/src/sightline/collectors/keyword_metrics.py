@@ -30,17 +30,20 @@ from sightline.collectors.registry import Plan, ScheduleWindow
 from sightline.db.tables import (
     collection_runs,
     collection_tasks,
+    keyword_group_members,
     keyword_metric_snapshots,
     keyword_metrics_current,
     keywords,
     projects,
     provider_location_map,
     provider_price_book,
+    tracked_keyword_terms,
     tracked_keywords,
     workspaces,
 )
 from sightline.domain.keyword_metrics import MetricsReading, is_material_change
 from sightline.domain.workloads import TaskWorkload
+from sightline.keywords.trees import descendants
 from sightline.providers.contract import CanonicalRequest
 from sightline.providers.dataforseo import labs
 from sightline.providers.dataforseo.labs import KeywordOverview, KeywordOverviewParams
@@ -103,7 +106,9 @@ def _selected(
     `keyword_ids`: those keywords, however fresh their metrics. `new`: keywords with no
     metrics yet and no task in `NEW_KEYWORD_QUIET`. Otherwise, or with `stale_days` beside
     `keyword_ids`, those whose metrics are older than `stale_days` (default `STALE_DAYS`) or
-    missing; `all` takes every one."""
+    missing; `all` takes every one. `groups` and `terms` narrow any of these to keywords in one
+    of the groups or with one of the terms, those under them included; given both, a keyword
+    needs both."""
     t, k = tracked_keywords.c, keywords.c
     statement = (
         select(t.keyword_id, t.location_id, t.language_code)
@@ -127,7 +132,31 @@ def _selected(
     )
     keyword_ids = selector.get("keyword_ids")
     if keyword_ids is not None:
-        statement = statement.where(t.keyword_id.in_([UUID(str(item)) for item in keyword_ids]))
+        statement = statement.where(t.keyword_id.in_(_uuids(keyword_ids)))
+    groups = selector.get("groups")
+    if groups:
+        members = keyword_group_members.c
+        statement = statement.where(
+            exists().where(
+                members.tracked_keyword_id == t.id,
+                members.workspace_id == workspace_id,
+                members.group_id.in_(
+                    descendants("group", _uuids(groups), workspace_id, "selected_groups")
+                ),
+            )
+        )
+    terms = selector.get("terms")
+    if terms:
+        assigned = tracked_keyword_terms.c
+        statement = statement.where(
+            exists().where(
+                assigned.tracked_keyword_id == t.id,
+                assigned.workspace_id == workspace_id,
+                assigned.term_id.in_(
+                    descendants("term", _uuids(terms), workspace_id, "selected_terms")
+                ),
+            )
+        )
     if selector.get("new"):
         return statement.where(~_has_snapshot(), ~_recent_task(now))
     stale_days = selector.get("stale_days")
@@ -135,6 +164,11 @@ def _selected(
         return statement
     days = STALE_DAYS if stale_days is None else int(stale_days)
     return statement.where(~_fresh(now - timedelta(days=days)))
+
+
+def _uuids(values: Any) -> list[UUID]:
+    """Ids a stored selector holds, as JSON strings."""
+    return [UUID(str(value)) for value in values]
 
 
 def _same_key(table_columns: Any) -> ColumnElement[bool]:

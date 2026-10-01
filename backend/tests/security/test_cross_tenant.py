@@ -135,6 +135,20 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("PUT", _W + "/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/competitors"): {
         "exclude": ["{entity_id}"],
     },
+    ("POST", _W + "/projects/{project_id}/schedules"): {
+        "workload": "keyword_metrics",
+        "name": "Planted",
+        "cadence": "daily",
+        "timezone": "UTC",
+        "window_start_local": "03:00",
+        "provider_mode": "live",
+        "selector": {"groups": ["{group_id}"]},
+    },
+    ("PATCH", _W + "/projects/{project_id}/schedules/{schedule_id}"): {"name": "Taken over"},
+    ("POST", _W + "/projects/{project_id}/schedules/{schedule_id}/pause"): {"reason": "taken"},
+    ("POST", _W + "/projects/{project_id}/schedules/{schedule_id}/resume"): {},
+    ("POST", _W + "/projects/{project_id}/runs/{run_id}/cancel"): {"reason": "taken"},
+    ("PATCH", _W + "/projects/{project_id}/settings"): {"seo": {"default_device": "mobile"}},
 }
 # Query parameters a route requires, so that it answers for its path and not for a missing
 # parameter.
@@ -165,6 +179,9 @@ class Tenant:
     keyword_id: uuid.UUID
     tracked_keyword_id: uuid.UUID
     group_id: uuid.UUID
+    schedule_id: uuid.UUID
+    # A running run, so cancelling it would succeed.
+    run_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -181,6 +198,8 @@ class Tenant:
             "keyword_id": str(self.keyword_id),
             "tracked_keyword_id": str(self.tracked_keyword_id),
             "group_id": str(self.group_id),
+            "schedule_id": str(self.schedule_id),
+            "run_id": str(self.run_id),
         }
 
     def secrets(self) -> list[str]:
@@ -337,6 +356,25 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         term["id"],
         workspace.id,
     )
+    # The same schedule in both, and a run of it under way.
+    schedule = await fetchrow(
+        pg,
+        "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone, "
+        "next_run_at, provider_mode, selector) VALUES ($1, $2, 'keyword_metrics', 'Metrics', "
+        "'daily', 'UTC', now() + interval '1 day', 'live', '{\"stale_days\": 25}') RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    run = await fetchrow(
+        pg,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, schedule_id, workload, "
+        "window_start, window_end, trigger, status, config_snapshot) VALUES ($1, $2, $3, "
+        "'keyword_metrics', now(), now() + interval '2 hours', 'schedule', 'running', '{}') "
+        "RETURNING id",
+        workspace.id,
+        project_id,
+        schedule["id"],
+    )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -356,6 +394,8 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         keyword_id=keyword["id"],
         tracked_keyword_id=tracked["id"],
         group_id=group["id"],
+        schedule_id=schedule["id"],
+        run_id=run["id"],
     )
 
 
@@ -391,11 +431,13 @@ async def _call(
 
 
 def _fill_value(value: object, ids: dict[str, str]) -> object:
-    """A body member with the ids of the call: a string, or each string of a list."""
+    """A body member with the ids of the call: a string, or each string of a list or object."""
     if isinstance(value, str):
         return _fill(value, ids)
     if isinstance(value, list):
         return [_fill_value(item, ids) for item in value]
+    if isinstance(value, dict):
+        return {key: _fill_value(item, ids) for key, item in value.items()}
     return value
 
 
@@ -427,7 +469,7 @@ _TENANT_ROWS = {
     "seo.keyword_groups": "workspace_id",
     "seo.keyword_group_members": "workspace_id",
     "seo.tracked_keyword_terms": "workspace_id",
-    # Runs, though the tenants start with none: a request let through would add one.
+    "ops.schedules": "workspace_id",
     "ops.collection_runs": "workspace_id",
     "ops.audit_logs": "workspace_id",
 }
@@ -534,11 +576,7 @@ async def test_no_request_with_another_workspaces_ids_changes_anything(
     """XT-02: every mutating route, both ways, leaves every tenant row as it was."""
     a, b = tenants
     before = await _checksum(migrated, a.workspace, b.workspace)
-    assert all(
-        digest is not None
-        for table, digest in before.items()
-        if table not in ("ops.audit_logs", "ops.collection_runs")
-    )
+    assert all(digest is not None for table, digest in before.items() if table != "ops.audit_logs")
 
     for method, path in WORKSPACE_ROUTES:
         if method in _READ:

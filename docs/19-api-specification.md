@@ -717,6 +717,8 @@ interface ProjectSettingsV1 {
 interface ProjectDomain { entity: EntityRef; domain: DomainRef; match_scope: 'host' | 'registrable' | 'path_prefix'; path_prefix: string | null }
 ```
 
+**As built (step 5, project settings).** `ProjectSettingsV1` holds `version`, `seo` and `entity_config_version` so far; `ai` and `matrix` arrive with their first readers, and what a project already stores under them is kept. `PATCH {P}/settings` takes `{ seo: {...} }` with at least one setting; members left out keep their value, null is refused, and another part (`ai`) is `422`. The `seo` defaults (`default_device`, `default_depth_profile`, `default_frequency`) apply to tracked keywords created after the change. Audit action: `project.settings_updated`, with the `seo` settings before and after as `seo.<name>` members.
+
 **The project limit** (`max_projects`) counts active and paused projects. An archived project does not count, so archiving one frees a slot, and bringing it back (`status` from `archived` to `active` or `paused`) needs a free slot and is `422 quota_exceeded` without one. A deleted project is gone for the count, and its slug stays taken until the delete route decides otherwise. `409 duplicate` for a slug carries no `existing_id`: the project that holds it may be deleted or outside the caller's scope.
 
 `filter[status_in]` takes comma-separated statuses and may be given more than once (up to 10 times); every value counts and an unknown one is `422`.
@@ -1523,6 +1525,8 @@ interface ScheduleInput {
 interface Schedule extends ScheduleInput { schedule_id: Uuid; is_active: boolean; next_run_at: Iso; last_run_id: Uuid | null; created_at: Iso }
 ```
 
+**As built (step 5, schedules).** The workloads offered are `keyword_metrics` and `seo_rank`; others are `422 validation_failed` with `workload_not_available` at `workload`. `cadence: 'cron'` is `cadence_not_supported` (the planner has no cron rule), so `invalid_cron` is never returned and `cron_expr` is not stored. `keyword_metrics` takes provider mode `live` only and the selector members `stale_days`, `all`, `groups`, `terms`; `seo_rank` takes `standard_queue`, `priority_queue` or `live` and `all`, `groups`, `terms`, `priority_lte`, and its selector must name something (`selector_empty` at `selector`). Another provider mode is `provider_mode_not_supported`; another selector member is `selector_not_supported` at `selector.<member>`. A group of another project is `group_unknown` at `selector.groups`, and a term the project cannot use `term_unknown` at `selector.terms`; one deleted later simply stops matching. A group or term takes those under it, and given both, a keyword needs both. An unknown zone is `timezone_unknown` at `timezone`, as for projects. `next_run_at` is the next window start after now in the schedule's zone; a change computes it again, and so does resume (missed windows are not caught up). A change of cadence drops the day the new cadence does not use; a weekly or monthly cadence without its day is `required` at `weekday` or `month_day`, and a day for a cadence that has none is `not_applicable`. The workload cannot be changed. Pausing a paused schedule and resuming an active one change nothing; the pause body is optional. The response's `selector` holds every member, null where it names nothing. The list is in creation order and leaves deleted schedules out. Deleting sets `deleted_at` and stops the schedule; while tracked keywords (archived ones included) name it, it is `409 schedule_in_use`, and a keyword that names a schedule holds it, so the two cannot cross. Audit actions: `schedule.created`, `.updated`, `.deleted`, `.paused` (with the reason), `.resumed`. The preview routes come later.
+
 #### 3.11.4 Runs and tasks
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
@@ -1538,6 +1542,8 @@ interface Schedule extends ScheduleInput { schedule_id: Uuid; is_active: boolean
 | POST | `{W}/tasks/requeue` | `tasks:requeue` | `{ task_ids?: BigId[] (max 500), filter?: object }`; Idempotency-Key required | `{ data: { requeued, skipped } }` | no | | 4 |
 
 `POST {W}/tasks/{task_id}/requeue` is the only requeue route (docs 20 and 21 use it), so the route follows the tenancy rule of doc 24 section 4.
+
+**As built (step 5, runs).** `{P}/runs` takes `filter[schedule_id]`, `filter[workload_in]`, `filter[status_in]`, `filter[trigger_in]` (comma lists, or repeated) and `from`/`to` on `created_at` (with a zone; `to` is exclusive), newest first, and `meta.manual_runs_today` gives `{ used, limit }` for the day (UTC). `RunDetail.tasks_by_status` leaves out statuses with no task; `results` comes later. Cancelling a planned or running run sets `status: 'cancelled'` with `status_reason: 'cancelled_by_user'` and audits `collection_run.cancelled` with the `reason`; the reconciler cancels its pending tasks within its next pass, and once the tasks the provider had have ended the run gets its counts and cost. Whoever holds `schedules:write` may cancel any run, and whoever holds `runs:trigger` the manual runs they asked for; anyone else is `403 forbidden`. A run that has ended is `409 invalid_state_transition`.
 
 ```ts
 interface Run {

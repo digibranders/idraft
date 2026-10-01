@@ -16,6 +16,8 @@ from sightline.api.entities.service import EntityService
 from sightline.api.keywords.group_service import GroupService
 from sightline.api.keywords.service import KeywordService
 from sightline.api.operations.runs import RunService
+from sightline.api.operations.schedules import ScheduleService
+from sightline.api.operations.settings import SettingsService
 from sightline.api.projects.service import ProjectService
 from sightline.api.taxonomy.service import TaxonomyService
 from sightline.api.workspaces.invitations import InvitationService
@@ -47,6 +49,8 @@ class Resources:
     keywords: KeywordService
     keyword_groups: GroupService
     runs: RunService
+    schedules: ScheduleService
+    project_settings: SettingsService
 
 
 def get_resources(request: Request) -> Resources:

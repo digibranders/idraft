@@ -29,9 +29,9 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.api.keywords.repository import among_ids
 from sightline.db.errors import violated_unique_constraint
 from sightline.db.tables import keyword_group_members, keyword_groups, tracked_keywords
+from sightline.keywords.trees import among_ids
 
 _SIBLING_NAME = "keyword_groups_sibling_name"
 

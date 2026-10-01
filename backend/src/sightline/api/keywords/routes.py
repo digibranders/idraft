@@ -14,7 +14,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.exceptions import RequestValidationError
-from pydantic import BeforeValidator, ValidationError
+from pydantic import ValidationError
 
 from sightline.api.keywords import filters, metric_values
 from sightline.api.keywords.repository import (
@@ -29,7 +29,7 @@ from sightline.api.keywords.repository import (
     UserRecord,
 )
 from sightline.api.keywords.service import KeywordService
-from sightline.api.pagination import Cursor, CursorPageInfo
+from sightline.api.pagination import Commas, Cursor, CursorPageInfo
 from sightline.api.permissions import Permission
 from sightline.api.request_info import Info
 from sightline.api.resources import Resources, get_resources
@@ -217,13 +217,6 @@ def _config_version(record: ConfigRecord) -> ConfigVersion:
 # Tracked keywords.
 
 
-def _split(value: object) -> object:
-    """A list parameter as a comma list, repeated, or both."""
-    if isinstance(value, list):
-        return [part for item in value for part in str(item).split(",") if part]
-    return value
-
-
 def _query_filter(values: dict[str, object]) -> TrackedKeywordFilter:
     """The list's query parameters as the filter the bulk routes take in a body. What the
     filter refuses (too many values in a list) is a `422` on that parameter."""
@@ -242,7 +235,6 @@ def _query_filter(values: dict[str, object]) -> TrackedKeywordFilter:
         ) from None
 
 
-Commas = BeforeValidator(_split)
 Include = Annotated[
     list[TrackedInclude] | None,
     Commas,

@@ -10,10 +10,22 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, Select, Text, and_, cast, func, insert, literal, select
+from sqlalchemy import (
+    Row,
+    Select,
+    Text,
+    and_,
+    cast,
+    func,
+    insert,
+    literal,
+    select,
+    tuple_,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.db.tables import collection_runs, tracked_keywords, users
+from sightline.db.tables import collection_runs, collection_tasks, tracked_keywords, users
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +102,86 @@ async def get_run(
         )
     ).one_or_none()
     return None if row is None else _run(row)
+
+
+@dataclass(frozen=True, slots=True)
+class RunFilter:
+    """What the run list is narrowed to; an empty member narrows nothing."""
+
+    schedule_id: UUID | None = None
+    workloads: frozenset[str] = frozenset()
+    statuses: frozenset[str] = frozenset()
+    triggers: frozenset[str] = frozenset()
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+
+
+async def list_runs(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    given: RunFilter,
+    *,
+    after: tuple[datetime, UUID] | None,
+    limit: int,
+) -> list[RunRecord]:
+    """The project's runs newest first, after the (created_at, id) of the last row of the page
+    before; `limit` rows at most. The `collection_runs_project_created` index serves it."""
+    r = collection_runs.c
+    statement = _runs(workspace_id).where(r.project_id == project_id)
+    if given.schedule_id is not None:
+        statement = statement.where(r.schedule_id == given.schedule_id)
+    if given.workloads:
+        statement = statement.where(r.workload.in_(sorted(given.workloads)))
+    if given.statuses:
+        statement = statement.where(r.status.in_(sorted(given.statuses)))
+    if given.triggers:
+        statement = statement.where(r.trigger.in_(sorted(given.triggers)))
+    if given.created_from is not None:
+        statement = statement.where(r.created_at >= given.created_from)
+    if given.created_to is not None:
+        statement = statement.where(r.created_at < given.created_to)
+    if after is not None:
+        statement = statement.where(tuple_(r.created_at, r.id) < tuple_(*after))
+    rows = await db.execute(statement.order_by(r.created_at.desc(), r.id.desc()).limit(limit))
+    return [_run(row) for row in rows]
+
+
+async def lock_run(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, run_id: UUID
+) -> RunRecord | None:
+    """The run, held (FOR UPDATE) until the transaction ends, so a cancel and the planner do
+    not cross: whichever comes second sees what the first did."""
+    row = (
+        await db.execute(
+            _runs(workspace_id)
+            .where(collection_runs.c.project_id == project_id, collection_runs.c.id == run_id)
+            .with_for_update(of=collection_runs)
+        )
+    ).one_or_none()
+    return None if row is None else _run(row)
+
+
+async def cancel_run(db: AsyncSession, workspace_id: UUID, run_id: UUID, *, reason: str) -> None:
+    """Cancelled with `reason` as its status reason. Its pending tasks are cancelled by the
+    reconciler; tasks the provider has are still fetched, and their cost counted when the last
+    of them ends."""
+    await db.execute(
+        update(collection_runs)
+        .where(collection_runs.c.workspace_id == workspace_id, collection_runs.c.id == run_id)
+        .values(status="cancelled", status_reason=reason, completed_at=func.now())
+    )
+
+
+async def task_counts(db: AsyncSession, workspace_id: UUID, run_id: UUID) -> dict[str, int]:
+    """How many of the run's tasks are in each status; statuses with none are left out."""
+    t = collection_tasks.c
+    rows = await db.execute(
+        select(t.status, func.count().label("tasks"))
+        .where(t.workspace_id == workspace_id, t.run_id == run_id)
+        .group_by(t.status)
+    )
+    return {row.status: row.tasks for row in rows}
 
 
 async def lock_manual_runs(db: AsyncSession, project_id: UUID) -> None:

@@ -22,7 +22,6 @@ from sqlalchemy import (
     ColumnElement,
     DateTime,
     Numeric,
-    Select,
     Text,
     Uuid,
     and_,
@@ -32,22 +31,20 @@ from sqlalchemy import (
     func,
     literal,
     or_,
-    select,
 )
 from sqlalchemy.types import TypeEngine
 
-from sightline.api.keywords.repository import LABS_CURRENT, among_ids
+from sightline.api.keywords.repository import LABS_CURRENT
 from sightline.api.pagination import KeyValue, invalid_cursor
 from sightline.api.schemas.keywords import TrackedKeywordFilter
 from sightline.db.tables import (
     keyword_group_members,
-    keyword_groups,
     keywords,
-    taxonomy_terms,
     tracked_keyword_terms,
     tracked_keywords,
 )
 from sightline.keywords.text import normalize
+from sightline.keywords.trees import among_ids, descendants
 
 SortField = Literal[
     "keyword", "search_volume", "keyword_difficulty", "cpc_usd", "priority", "created_at"
@@ -131,31 +128,11 @@ def scope(given: TrackedKeywordFilter, project_id: UUID) -> dict[str, object]:
     return {"project_id": str(project_id), **given.model_dump(mode="json")}
 
 
-def _descendants(
-    kind: Literal["group", "term"], roots: Collection[UUID], workspace_id: UUID, name: str
-) -> Select[tuple[UUID]]:
-    """The ids of the given groups or terms and of every one under them, through `parent_id`.
-    `UNION` drops repeats, so even a cycle in the data could not make the query loop."""
-    table = keyword_groups if kind == "group" else taxonomy_terms
-    start = (
-        select(table.c.id)
-        .where(table.c.workspace_id == workspace_id, among_ids(table.c.id, roots))
-        .cte(name=name, recursive=True)
-    )
-    child = table.alias(f"{name}_child")
-    tree = start.union(
-        select(child.c.id).where(
-            child.c.parent_id == start.c.id, child.c.workspace_id == workspace_id
-        )
-    )
-    return select(tree.c.id)
-
-
 def _has_term_under(roots: Collection[UUID], workspace_id: UUID, name: str) -> ColumnElement[bool]:
     return exists().where(
         tracked_keyword_terms.c.tracked_keyword_id == tracked_keywords.c.id,
         tracked_keyword_terms.c.workspace_id == workspace_id,
-        tracked_keyword_terms.c.term_id.in_(_descendants("term", roots, workspace_id, name)),
+        tracked_keyword_terms.c.term_id.in_(descendants("term", roots, workspace_id, name)),
     )
 
 
@@ -195,7 +172,7 @@ def conditions(
                 keyword_group_members.c.tracked_keyword_id == t.id,
                 keyword_group_members.c.workspace_id == workspace_id,
                 keyword_group_members.c.group_id.in_(
-                    _descendants("group", [given.group], workspace_id, "group_tree")
+                    descendants("group", [given.group], workspace_id, "group_tree")
                 ),
             )
         )

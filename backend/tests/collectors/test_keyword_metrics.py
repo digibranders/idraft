@@ -208,6 +208,102 @@ async def test_given_keywords_are_planned_however_fresh_unless_stale_days_say_ot
     assert len(everything.tasks) == 2
 
 
+async def _tracked_row(pg: PostgresServer, project: Project, keyword_id: uuid.UUID) -> uuid.UUID:
+    row = await fetchrow(
+        pg,
+        "SELECT id FROM seo.tracked_keywords WHERE project_id = $1 AND keyword_id = $2",
+        project.id,
+        keyword_id,
+    )
+    tracked: uuid.UUID = row["id"]
+    return tracked
+
+
+async def _in_group(
+    pg: PostgresServer, project: Project, keyword_id: uuid.UUID, name: str, parent: str | None
+) -> str:
+    """A group of the project (under `parent`) holding the keyword."""
+    made = await fetchrow(
+        pg,
+        "INSERT INTO seo.keyword_groups (workspace_id, project_id, parent_id, name, path) "
+        "VALUES ($1, $2, $3, $4, $4) RETURNING id",
+        project.workspace_id,
+        project.id,
+        None if parent is None else uuid.UUID(parent),
+        name,
+    )
+    await execute(
+        pg,
+        "INSERT INTO seo.keyword_group_members (workspace_id, project_id, group_id, "
+        "tracked_keyword_id) VALUES ($1, $2, $3, $4)",
+        project.workspace_id,
+        project.id,
+        made["id"],
+        await _tracked_row(pg, project, keyword_id),
+    )
+    return str(made["id"])
+
+
+async def _with_term(pg: PostgresServer, project: Project, keyword_id: uuid.UUID) -> str:
+    """A term of a new vocabulary, given to the keyword."""
+    vocabulary = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, kind, name, is_hierarchical) "
+        "VALUES ($1, 'topic', $2, true) RETURNING id",
+        project.workspace_id,
+        f"Topics {uuid.uuid4().hex[:6]}",
+    )
+    made = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, name, slug, path) "
+        "VALUES ($1, $2, 'crm', 'crm', 'crm') RETURNING id",
+        project.workspace_id,
+        vocabulary["id"],
+    )
+    await execute(
+        pg,
+        "INSERT INTO seo.tracked_keyword_terms (workspace_id, tracked_keyword_id, term_id) "
+        "VALUES ($1, $2, $3)",
+        project.workspace_id,
+        await _tracked_row(pg, project, keyword_id),
+        made["id"],
+    )
+    return str(made["id"])
+
+
+async def test_groups_and_terms_narrow_a_schedules_keywords(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    nested = await _track(migrated, project, "nested crm")
+    tagged = await _track(migrated, project, "tagged crm")
+    both = await _track(migrated, project, "both crm")
+    await _track(migrated, project, "loose crm")
+    services = await _in_group(migrated, project, both, "Services", None)
+    await _in_group(migrated, project, nested, "Audits", services)
+    topic = await _with_term(migrated, project, tagged)
+    await execute(
+        migrated,
+        "INSERT INTO seo.tracked_keyword_terms (workspace_id, tracked_keyword_id, term_id) "
+        "VALUES ($1, $2, $3)",
+        project.workspace_id,
+        await _tracked_row(migrated, project, both),
+        uuid.UUID(topic),
+    )
+
+    def keywords_of(plan: Any) -> list[str]:
+        return sorted(task.subject_id for task in plan.tasks)
+
+    in_groups = await _plan(worker_db, project, {"groups": [services]})
+    with_term = await _plan(worker_db, project, {"all": True, "terms": [topic]})
+    both_ways = await _plan(worker_db, project, {"groups": [services], "terms": [topic]})
+
+    # A group takes the groups under it too.
+    assert keywords_of(in_groups) == sorted([subject_id(nested, "en"), subject_id(both, "en")])
+    assert keywords_of(with_term) == sorted([subject_id(tagged, "en"), subject_id(both, "en")])
+    assert keywords_of(both_ways) == [subject_id(both, "en")]
+
+
 def _ledger_task(
     project: Project, keyword_id: uuid.UUID, location: int, *, task_id: int
 ) -> LedgerTask:
