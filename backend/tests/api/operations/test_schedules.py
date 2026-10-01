@@ -412,6 +412,33 @@ async def test_a_paused_schedule_resumes_without_catching_up(
     assert len(await _audit(migrated, workspace, "schedule.resumed")) == 1
 
 
+async def test_a_resume_does_not_collect_a_day_that_ran_again(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    now = datetime.now(UTC)
+    # Its window is later today, and today's window already ran (under an earlier time).
+    later = (now + timedelta(minutes=30)).strftime("%H:%M")
+    data = await _created(api, workspace, project, owner, timezone="UTC", window_start_local=later)
+    await execute(
+        migrated,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, schedule_id, workload, "
+        "window_start, window_end, trigger, status, config_snapshot) VALUES ($1, $2, $3, "
+        "'keyword_metrics', now() - interval '1 minute', now() + interval '1 hour', 'schedule', "
+        "'completed', '{}')",
+        workspace.id,
+        project,
+        uuid.UUID(data["schedule_id"]),
+    )
+    url = project_url(workspace, project, "schedules", data["schedule_id"])
+
+    await api.post(f"{url}/pause", headers=owner.headers)
+    resumed = await api.post(f"{url}/resume", headers=owner.headers)
+
+    upcoming = datetime.fromisoformat(resumed.json()["data"]["next_run_at"])
+    assert upcoming.date() > (now - timedelta(minutes=1)).date()
+
+
 async def test_a_deleted_schedule_is_gone_and_its_runs_keep_naming_it(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

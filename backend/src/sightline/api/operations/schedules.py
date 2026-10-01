@@ -490,7 +490,8 @@ class ScheduleService:
         self, access: WorkspaceAccess, project_id: UUID, schedule_id: UUID, info: RequestInfo
     ) -> ScheduleRecord:
         """Planned again from its next window after now: the windows missed while paused are
-        not caught up (docs/21 section 3.1)."""
+        not caught up (docs/21 section 3.1), and a period a window already ran in is not
+        collected again."""
         async with self._transaction(access) as db:
             current = await self._found(db, access, project_id, schedule_id)
             if current.is_active:
@@ -502,11 +503,13 @@ class ScheduleService:
                 weekday=current.weekday,
                 month_day=current.month_day,
             )
+            upcoming = next_after_change(
+                rule,
+                await _now(db),
+                await repository.last_window_start(db, access.workspace_id, schedule_id),
+            )
             resumed = await repository.update_schedule(
-                db,
-                access.workspace_id,
-                schedule_id,
-                {"is_active": True, "next_run_at": next_occurrence(rule, await _now(db))},
+                db, access.workspace_id, schedule_id, {"is_active": True, "next_run_at": upcoming}
             )
             await audit.record(
                 db,
