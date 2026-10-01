@@ -118,6 +118,9 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "subject_ids": ["{tracked_keyword_id}"],
         "term_ids": ["{term_id}"],
     },
+    ("POST", _W + "/projects/{project_id}/keyword-metrics/refresh"): {
+        "keyword_ids": ["{keyword_id}"],
+    },
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-update"): {
         "ids": ["{tracked_keyword_id}"],
         "set": {"priority": 1},
@@ -424,6 +427,8 @@ _TENANT_ROWS = {
     "seo.keyword_groups": "workspace_id",
     "seo.keyword_group_members": "workspace_id",
     "seo.tracked_keyword_terms": "workspace_id",
+    # Runs, though the tenants start with none: a request let through would add one.
+    "ops.collection_runs": "workspace_id",
     "ops.audit_logs": "workspace_id",
 }
 
@@ -529,7 +534,11 @@ async def test_no_request_with_another_workspaces_ids_changes_anything(
     """XT-02: every mutating route, both ways, leaves every tenant row as it was."""
     a, b = tenants
     before = await _checksum(migrated, a.workspace, b.workspace)
-    assert all(digest is not None for table, digest in before.items() if table != "ops.audit_logs")
+    assert all(
+        digest is not None
+        for table, digest in before.items()
+        if table not in ("ops.audit_logs", "ops.collection_runs")
+    )
 
     for method, path in WORKSPACE_ROUTES:
         if method in _READ:

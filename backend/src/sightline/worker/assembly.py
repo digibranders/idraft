@@ -17,9 +17,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors.dispatcher import SubmitBatch, dispatch
 from sightline.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
+from sightline.collectors.keyword_metrics import (
+    WORKLOAD as KEYWORD_METRICS,
+)
+from sightline.collectors.keyword_metrics import (
+    KeywordMetricsWorkload,
+    ingest,
+    queue_new_keywords,
+)
 from sightline.collectors.ledger import database_time
 from sightline.collectors.locations import LocationSyncReport, sync_locations
-from sightline.collectors.planner import plan_due
+from sightline.collectors.planner import plan_due, plan_manual_runs
 from sightline.collectors.reconciler import ensure_partitions, reconcile
 from sightline.collectors.registry import Registry
 from sightline.collectors.submission import submit_batch
@@ -44,6 +52,9 @@ DISPATCHER_LOCK = timedelta(seconds=14)
 POLL_EVERY = timedelta(seconds=60)
 POLL_LOCK = timedelta(seconds=55)
 SUBMIT_JOB = "submit_batch"
+# Fetched keyword metrics read into snapshots (plan decision D7), every 30 seconds.
+INGEST_EVERY = timedelta(seconds=30)
+INGEST_LOCK = timedelta(seconds=28)
 # docs/21-scheduler-workers.md section 10.
 RECONCILE_EVERY = timedelta(minutes=5)
 PARTITIONS_AT = "10 0 * * *"
@@ -66,12 +77,13 @@ def dataforseo_client(
 
 def production_registry(context: WorkerContext) -> Registry:
     """The workloads and providers of this worker. DataForSEO is registered when its
-    credentials are set; no workload is registered yet, so the worker still plans and spends
-    nothing (rank collection arrives with step 5)."""
+    credentials are set, and keyword metrics with it; without them the worker plans and
+    spends nothing (rank collection arrives later in step 5)."""
     registry = Registry()
     client = dataforseo_client(context.settings, context.http, context.redis)
     if client is not None:
         registry.add_provider(DataForSeo(client, installation=context.settings.installation_id))
+        registry.add_workload(KeywordMetricsWorkload())
     return registry
 
 
@@ -133,7 +145,7 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
     fetches = _FetchSender(context.queues)
 
     async def submit(batch: SubmitBatch) -> None:
-        report = await submit_batch(context.sessions, parts, pauses, batch)
+        report = await submit_batch(context.sessions, parts, pauses, batch, store=context.raw_store)
         _log.info("batch submitted", provider=batch.provider, **asdict(report))
 
     context.queues.register("collect", SUBMIT_JOB, submit)
@@ -166,9 +178,24 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
 
     async def plan() -> None:
         now = await database_time(context.sessions)
+        if KEYWORD_METRICS in parts.workloads:
+            # New keywords get a run of their own, which is planned right below.
+            queued = await queue_new_keywords(context.sessions, now=now)
+            if queued:
+                _log.info("new keywords queued", runs=queued)
+        manual = await plan_manual_runs(context.sessions, parts, now=now)
+        if not manual.quiet:
+            _log.info("manual runs planned", **asdict(manual))
         report = await plan_due(context.sessions, parts, now=now)
         if not report.quiet:
             _log.info("planner tick", **asdict(report))
+
+    async def ingest_metrics() -> None:
+        if context.raw_store is None:
+            return
+        report = await ingest(context.sessions, context.raw_store)
+        if not report.quiet:
+            _log.info("keyword metrics ingested", **asdict(report))
 
     async def send() -> None:
         now = await database_time(context.sessions)
@@ -186,4 +213,10 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         Tick(name="planner", interval=PLANNER_EVERY, action=plan, lock_ttl=PLANNER_LOCK),
         Tick(name="dispatcher", interval=DISPATCHER_EVERY, action=send, lock_ttl=DISPATCHER_LOCK),
         Tick(name="ready_poll", interval=POLL_EVERY, action=poll, lock_ttl=POLL_LOCK),
+        Tick(
+            name="keyword_metrics_ingest",
+            interval=INGEST_EVERY,
+            action=ingest_metrics,
+            lock_ttl=INGEST_LOCK,
+        ),
     )

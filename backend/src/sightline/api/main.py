@@ -31,6 +31,8 @@ from sightline.api.keywords.group_service import GroupService
 from sightline.api.keywords.routes import keywords_router
 from sightline.api.keywords.routes import router as tracked_keywords_router
 from sightline.api.keywords.service import KeywordService
+from sightline.api.operations.run_routes import router as run_routes_router
+from sightline.api.operations.runs import RunService
 from sightline.api.problems import register_problem_handlers
 from sightline.api.projects.routes import router as projects_router
 from sightline.api.projects.service import ProjectService
@@ -136,6 +138,7 @@ def create_app(
                 taxonomy=TaxonomyService(sessions=sessions),
                 keywords=KeywordService(sessions=sessions),
                 keyword_groups=GroupService(sessions=sessions),
+                runs=RunService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -173,6 +176,7 @@ def create_app(
     app.include_router(tracked_keywords_router)
     app.include_router(keyword_groups_router)
     app.include_router(term_assignments_router)
+    app.include_router(run_routes_router)
     app.include_router(registries_router)
     app.include_router(document_router)
     install_openapi(app)

@@ -58,6 +58,7 @@ AuditAction = Literal[
     "keyword_group.deleted",
     "keyword_group.members_added",
     "keyword_group.members_removed",
+    "collection_run.requested",
 ]
 
 

@@ -478,6 +478,18 @@ def _budget_of_the_runs_workspace(budget_id: UUID) -> Any:
     )
 
 
+async def cancel_run(db: AsyncSession, run_id: UUID, *, code: str, now: datetime) -> bool:
+    """A run still `planned` that will not be planned (its project stopped collecting, or its
+    plan failed): cancelled with `code` as its reason. False when it was not `planned`."""
+    result = await db.execute(
+        update(_runs)
+        .where(_runs.c.id == run_id, _runs.c.status == "planned")
+        .values(status="cancelled", status_reason=code, completed_at=_aware(now))
+        .returning(_runs.c.id)
+    )
+    return result.one_or_none() is not None
+
+
 async def block_run(
     db: AsyncSession, run_id: UUID, *, budget_id: UUID, estimated_cost_usd: Decimal, now: datetime
 ) -> None:
@@ -905,8 +917,68 @@ async def mark_submitted(
     return True
 
 
-def _cost_event(task: Row[tuple[Any, ...]], cost: Cost, now: datetime) -> dict[str, Any]:
-    """One cost event for one task, from the task's own row."""
+async def mark_live_fetched(
+    db: AsyncSession,
+    ref: TaskRef,
+    *,
+    attempt: int,
+    raw_payload_id: int,
+    cost: Cost | None,
+    now: datetime,
+) -> bool:
+    """A live call answered the task (plan decision D6): from `submit_unknown` straight to
+    `fetched`, with the stored answer and the task's share of what the call cost, recorded in
+    the same step from the task's own row. False when the task was not waiting for the answer
+    to this attempt, and then nothing is written. A task without a cost is charged its share of
+    its run's estimate, as a fetched task is."""
+    fetched = (
+        await db.execute(
+            update(_tasks)
+            .where(_awaiting(ref, attempt))
+            .values(
+                status="fetched",
+                ready_at=_aware(now),
+                ready_source="live",
+                raw_payload_id=raw_payload_id,
+                cost_usd=_tasks.c.cost_usd
+                if cost is None
+                else func.coalesce(_tasks.c.cost_usd, 0) + cost.usd,
+                dispatched_at=None,
+                next_attempt_at=None,
+                last_error_code=None,
+                last_error_message=None,
+            )
+            .returning(
+                _tasks.c.id,
+                _tasks.c.created_at,
+                _tasks.c.run_id,
+                _tasks.c.workspace_id,
+                _tasks.c.project_id,
+                _tasks.c.workload,
+                _tasks.c.subject_type,
+                _tasks.c.subject_id,
+                _tasks.c.engine_code,
+                _tasks.c.provider_code,
+                _tasks.c.provider_endpoint,
+                _tasks.c.cost_usd,
+            )
+        )
+    ).one_or_none()
+    if fetched is None:
+        return False
+    if cost is not None:
+        event = _cost_event(fetched, cost, now, price_unit="item")
+        await db.execute(provider_cost_events.insert().values(event))
+    elif fetched.cost_usd is None:
+        await _charge_estimates(db, [fetched], now)
+    return True
+
+
+def _cost_event(
+    task: Row[tuple[Any, ...]], cost: Cost, now: datetime, *, price_unit: str = "task"
+) -> dict[str, Any]:
+    """One cost event for one task, from the task's own row. `price_unit`: what the task is
+    to the provider's price list: a task of its own, or one item of a call (Labs)."""
     occurred = _aware(now).astimezone(UTC)
     return {
         "occurred_at": occurred,
@@ -922,7 +994,7 @@ def _cost_event(task: Row[tuple[Any, ...]], cost: Cost, now: datetime) -> dict[s
         "subject_id": task.subject_id,
         "engine_code": task.engine_code,
         "units": 1,
-        "price_unit": "task",
+        "price_unit": price_unit,
         "cost_usd": cost.usd,
         "cost_source": cost.source,
         "billing_period": occurred.date().replace(day=1),
@@ -938,6 +1010,7 @@ async def record_failure(
     decision: RetryDecision,
     now: datetime,
     attempt: int | None = None,
+    live: bool = False,
 ) -> bool:
     """The provider refused the task, or was not reached: apply what the retry policy decided.
 
@@ -945,11 +1018,12 @@ async def record_failure(
     and `dead` end it. False when the task was not in a provider call (the call of `attempt`,
     when it is given).
 
-    This is for a call that is known not to have submitted the task. A call that timed out
-    may have: it is not recorded here but with `note_unknown_outcome`, and the task stays
-    `submit_unknown`.
+    This is for a call that is known not to have submitted the task. A task call that timed
+    out may have: it is not recorded here but with `note_unknown_outcome`, and the task stays
+    `submit_unknown`. A `live` call is the exception (plan decision D6): it leaves nothing to
+    fetch later, so a timeout is an attempt like any other failure and is tried again.
     """
-    if kind is ProviderErrorKind.TIMEOUT:
+    if kind is ProviderErrorKind.TIMEOUT and not live:
         raise ValueError(
             "a call that timed out may have submitted the task: its outcome is unknown"
         )
@@ -1423,6 +1497,86 @@ async def mark_fetched(
     if fetched.cost_usd is None:
         await _charge_estimates(db, [fetched], now)
     return True
+
+
+@dataclass(frozen=True, slots=True)
+class FetchedTask:
+    """A task whose result is stored and waits to be read into facts."""
+
+    ref: TaskRef
+    workspace_id: UUID
+    subject_id: str
+    location_id: int | None
+    raw_payload_id: int
+    fetched_at: datetime
+
+
+async def fetched_tasks(
+    db: AsyncSession, *, workload: TaskWorkload, limit: int
+) -> list[FetchedTask]:
+    """Tasks of the workload waiting to be ingested, those sharing a payload together."""
+    rows = await db.execute(
+        select(
+            _tasks.c.id,
+            _tasks.c.created_at,
+            _tasks.c.workspace_id,
+            _tasks.c.subject_id,
+            _tasks.c.location_id,
+            _tasks.c.raw_payload_id,
+            func.coalesce(_tasks.c.ready_at, _tasks.c.submitted_at, _tasks.c.created_at).label(
+                "fetched_at"
+            ),
+        )
+        .where(
+            _tasks.c.status == "fetched",
+            _tasks.c.workload == workload.value,
+            _tasks.c.raw_payload_id.is_not(None),
+        )
+        .order_by(_tasks.c.raw_payload_id, _tasks.c.id)
+        .limit(limit)
+    )
+    return [
+        FetchedTask(
+            ref=TaskRef(id=row.id, created_at=row.created_at),
+            workspace_id=row.workspace_id,
+            subject_id=row.subject_id,
+            location_id=row.location_id,
+            raw_payload_id=row.raw_payload_id,
+            fetched_at=row.fetched_at,
+        )
+        for row in rows
+    ]
+
+
+async def mark_ingested(db: AsyncSession, ref: TaskRef, *, now: datetime) -> bool:
+    """The task's result is in its facts. False when it was not `fetched` (ingested already),
+    and then nothing is written."""
+    done = await db.execute(
+        update(_tasks)
+        .where(_named([ref]), _tasks.c.status == "fetched")
+        .values(status="ingested", completed_at=_aware(now))
+        .returning(_tasks.c.id)
+    )
+    return done.one_or_none() is not None
+
+
+async def ingest_failed(
+    db: AsyncSession, ref: TaskRef, *, code: str, message: str, now: datetime
+) -> bool:
+    """The stored result cannot be read into facts, and never will: the task fails. False
+    when it was not `fetched`."""
+    done = await db.execute(
+        update(_tasks)
+        .where(_named([ref]), _tasks.c.status == "fetched")
+        .values(
+            status="failed",
+            completed_at=_aware(now),
+            last_error_code=code,
+            last_error_message=message[:ERROR_MESSAGE_MAX],
+        )
+        .returning(_tasks.c.id)
+    )
+    return done.one_or_none() is not None
 
 
 async def not_fetched_yet(

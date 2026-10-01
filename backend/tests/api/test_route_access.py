@@ -150,6 +150,10 @@ EXPECTED: dict[tuple[str, str], str] = {
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/term-assignments",
     ): "keywords:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-metrics/refresh",
+    ): "runs:trigger",
     # Keywords are read across the workspace, limited to the caller's projects by the service;
     # tracked keywords live inside one project.
     ("GET", "/api/v1/workspaces/{workspace_id}/keywords"): "data:read",

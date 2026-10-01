@@ -15,6 +15,7 @@ workspace that is suspended) lets its windows pass with no run at all: that gap 
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Literal
@@ -29,7 +30,7 @@ from sightline.collectors.ledger import SEND_WITHIN, NewRun
 from sightline.collectors.read_only import read_only
 from sightline.collectors.registry import Registry, ScheduleWindow
 from sightline.db.errors import gave_way
-from sightline.db.tables import projects, schedules, workspaces
+from sightline.db.tables import collection_runs, projects, schedules, workspaces
 from sightline.domain.schedules import Cadence, ScheduleRule, next_occurrence, occurrences_until
 from sightline.domain.workloads import TaskWorkload
 
@@ -249,6 +250,138 @@ async def _plan(
         **context,
     )
     return "planned"
+
+
+@dataclass(frozen=True, slots=True)
+class ManualReport:
+    planned: int = 0
+    blocked: int = 0
+    # A run of a project that is not collecting, or whose plan failed: cancelled, so it does
+    # not wait forever.
+    cancelled: int = 0
+
+    @property
+    def quiet(self) -> bool:
+        return self == ManualReport()
+
+
+NOT_COLLECTING = "project_not_collecting"
+NOT_PLANNED = "not_planned"
+
+
+async def _next_manual(
+    db: AsyncSession, registry: Registry, skip: set[UUID]
+) -> Row[tuple[Any, ...]] | None:
+    """The oldest manual run still waiting to be planned, locked."""
+    runs = collection_runs.c
+    statement = (
+        select(collection_runs, _collecting)
+        .select_from(
+            collection_runs.join(
+                projects,
+                and_(
+                    projects.c.id == runs.project_id, projects.c.workspace_id == runs.workspace_id
+                ),
+            ).join(workspaces, workspaces.c.id == projects.c.workspace_id)
+        )
+        .where(
+            runs.status == "planned",
+            runs.trigger == "manual",
+            runs.schedule_id.is_(None),
+            runs.workload.in_(sorted(registry.workloads)),
+        )
+        .order_by(runs.created_at, runs.id)
+        .limit(1)
+        .with_for_update(of=collection_runs, skip_locked=True, key_share=True)
+    )
+    if skip:
+        statement = statement.where(runs.id.not_in(skip))
+    return (await db.execute(statement)).one_or_none()
+
+
+async def _plan_manual(
+    db: AsyncSession, registry: Registry, run: Row[tuple[Any, ...]], now: datetime
+) -> Literal["planned", "blocked", "cancelled"]:
+    workload = TaskWorkload(run.workload)
+    if not run.collecting:
+        await ledger.cancel_run(db, run.id, code=NOT_COLLECTING, now=now)
+        return "cancelled"
+    hours = max(1, math.ceil((run.window_end - run.window_start) / timedelta(hours=1)))
+    window = ScheduleWindow(
+        schedule_id=None,
+        workspace_id=run.workspace_id,
+        project_id=run.project_id,
+        workload=workload,
+        provider_mode="live",
+        selector=(run.config_snapshot or {}).get("selector", {}),
+        window_start=run.window_start,
+        window_end=run.window_end,
+        window_hours=hours,
+    )
+    async with read_only(db):
+        plan = await registry.workload(workload).plan(db, window)
+    verdict = await budget.check(
+        db,
+        workspace_id=run.workspace_id,
+        project_id=run.project_id,
+        workload=workload,
+        now=now,
+        estimate=plan.estimated_cost_usd,
+    )
+    if verdict.blocked_by is not None:
+        await ledger.block_run(
+            db,
+            run.id,
+            budget_id=verdict.blocked_by,
+            estimated_cost_usd=plan.estimated_cost_usd,
+            now=now,
+        )
+        return "blocked"
+    tasks = await ledger.insert_tasks(db, run.id, plan.tasks)
+    if tasks != len(plan.tasks):
+        raise DuplicateTaskError(f"{len(plan.tasks) - tasks} tasks of the plan are duplicates")
+    await ledger.start_run(
+        db, run.id, tasks_total=tasks, estimated_cost_usd=plan.estimated_cost_usd
+    )
+    return "planned"
+
+
+async def plan_manual_runs(
+    sessions: async_sessionmaker[AsyncSession],
+    registry: Registry,
+    *,
+    now: datetime,
+    limit: int = PLAN_LIMIT,
+) -> ManualReport:
+    """Manual runs the API or a tick recorded as `planned` (plan decision D9): each planned
+    by its workload with the selector it was asked with, judged against the budget, and
+    started, in its own transaction. A run whose plan fails is cancelled, so it does not
+    block the project's next one."""
+    counts = dict.fromkeys(("planned", "blocked", "cancelled"), 0)
+    if not registry.workloads:
+        return ManualReport()
+    skip: set[UUID] = set()
+    for _ in range(limit):
+        current: UUID | None = None
+        try:
+            async with sessions() as db, db.begin():
+                run = await _next_manual(db, registry, skip)
+                if run is None:
+                    break
+                current = run.id
+                counts[await _plan_manual(db, registry, run, now)] += 1
+        except Exception as error:
+            if current is None:
+                raise
+            skip.add(current)
+            if gave_way(error):
+                _log.info("manual run left for the next tick", run_id=str(current))
+                continue
+            _log.error("manual run not planned", run_id=str(current), exc_info=error)
+            async with sessions() as db, db.begin():
+                await ledger.cancel_run(db, current, code=NOT_PLANNED, now=now)
+            counts["cancelled"] += 1
+    return ManualReport(**counts)
 
 
 async def plan_due(

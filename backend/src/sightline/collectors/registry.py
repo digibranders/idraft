@@ -24,9 +24,10 @@ from sightline.providers.contract import CanonicalRequest, Provider
 
 @dataclass(frozen=True, slots=True)
 class ScheduleWindow:
-    """One window of one schedule: what a workload plans tasks for."""
+    """One window of one schedule, or of one manual run: what a workload plans tasks for. A
+    manual run has no schedule; its selector is the one it was asked with."""
 
-    schedule_id: UUID
+    schedule_id: UUID | None
     workspace_id: UUID
     project_id: UUID
     workload: TaskWorkload

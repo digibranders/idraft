@@ -186,18 +186,21 @@ class OperationLinks(BaseModel):
     cancel: str | None = None
 
 
+OperationStatus = Literal[
+    "queued",
+    "running",
+    "waiting_for_input",
+    "succeeded",
+    "succeeded_with_errors",
+    "failed",
+    "cancelled",
+    "blocked",
+]
+
+
 class Operation(BaseModel):
     kind: Literal["collection_run", "keyword_import"]
-    status: Literal[
-        "queued",
-        "running",
-        "waiting_for_input",
-        "succeeded",
-        "succeeded_with_errors",
-        "failed",
-        "cancelled",
-        "blocked",
-    ]
+    status: OperationStatus
     progress: Progress
     started_at: datetime | None
     finished_at: datetime | None

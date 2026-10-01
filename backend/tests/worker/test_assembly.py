@@ -14,6 +14,7 @@ from sightline.collectors.fetching import FETCH_JOB, FetchTask
 from sightline.collectors.registry import Registry
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
+from sightline.domain.workloads import TaskWorkload
 from sightline.worker.app import WorkerContext
 from sightline.worker.assembly import assemble, fetch_handler, production_registry
 from sightline.worker.queues import Queues
@@ -135,7 +136,7 @@ def test_without_credentials_nothing_is_registered_so_the_worker_spends_nothing(
     assert (registry.workloads, registry.providers) == (frozenset(), frozenset())
 
 
-async def test_dataforseo_is_registered_with_its_credentials_and_no_workload_yet(
+async def test_dataforseo_is_registered_with_its_credentials_and_keyword_metrics_with_it(
     context: WorkerContext,
 ) -> None:
     settings = context.settings.model_copy(
@@ -155,7 +156,7 @@ async def test_dataforseo_is_registered_with_its_credentials_and_no_workload_yet
         with_credentials = replace(context, settings=settings, http=http)
         registry = production_registry(with_credentials)
         assert (registry.workloads, registry.providers) == (
-            frozenset(),
+            frozenset({TaskWorkload.KEYWORD_METRICS}),
             frozenset({"dataforseo"}),
         )
         # Registered, and with no work in flight nothing is asked of it.

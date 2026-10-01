@@ -256,6 +256,12 @@ class WeakPasswordProblemError(ProblemError):
     status, code, title = 422, "weak_password", "Password is not strong enough"
 
 
+class ManualRunLimitError(ProblemError):
+    """Carries `limit`: manual runs a project may have each day (UTC)."""
+
+    status, code, title = 429, "manual_run_limit", "Too many manual runs today"
+
+
 class RateLimitedError(ProblemError):
     status, code, title = 429, "rate_limited", "Too many requests"
 

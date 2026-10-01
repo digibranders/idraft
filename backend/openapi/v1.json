@@ -43,6 +43,34 @@
         "title": "AcceptedInvitationResponse",
         "type": "object"
       },
+      "Actor": {
+        "properties": {
+          "actor_id": {
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_type": {
+            "enum": [
+              "user",
+              "api_key",
+              "system"
+            ],
+            "title": "Actor Type",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_type",
+          "actor_id",
+          "label"
+        ],
+        "title": "Actor",
+        "type": "object"
+      },
       "Alias": {
         "properties": {
           "alias": {
@@ -3022,6 +3050,44 @@
         "title": "MetricWindow",
         "type": "object"
       },
+      "MetricsRefresh": {
+        "additionalProperties": false,
+        "description": "Keywords to refresh: the given ones (tracked by the project), else the project's tracked\nkeywords whose metrics are older than `stale_days` (default 25).",
+        "properties": {
+          "keyword_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword Ids"
+          },
+          "stale_days": {
+            "anyOf": [
+              {
+                "maximum": 365.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Days"
+          }
+        },
+        "title": "MetricsRefresh",
+        "type": "object"
+      },
       "MetricsSnapshot": {
         "properties": {
           "cpc_usd": {
@@ -3176,6 +3242,136 @@
           "total"
         ],
         "title": "OffsetPageInfo",
+        "type": "object"
+      },
+      "Operation": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "kind": {
+            "enum": [
+              "collection_run",
+              "keyword_import"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "links": {
+            "$ref": "#/components/schemas/OperationLinks"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/Progress"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "waiting_for_input",
+              "succeeded",
+              "succeeded_with_errors",
+              "failed",
+              "cancelled",
+              "blocked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "status",
+          "progress",
+          "started_at",
+          "finished_at",
+          "error",
+          "links"
+        ],
+        "title": "Operation",
+        "type": "object"
+      },
+      "OperationError": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "detail"
+        ],
+        "title": "OperationError",
+        "type": "object"
+      },
+      "OperationLinks": {
+        "properties": {
+          "cancel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "self": {
+            "title": "Self",
+            "type": "string"
+          }
+        },
+        "required": [
+          "self"
+        ],
+        "title": "OperationLinks",
         "type": "object"
       },
       "OwnEntityInput": {
@@ -3335,6 +3531,43 @@
           }
         },
         "title": "ProfileUpdate",
+        "type": "object"
+      },
+      "Progress": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "unit": {
+            "enum": [
+              "tasks",
+              "rows",
+              "observations",
+              "days",
+              "items"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "done",
+          "total",
+          "unit"
+        ],
+        "title": "Progress",
         "type": "object"
       },
       "Project": {
@@ -4203,6 +4436,211 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "Run": {
+        "properties": {
+          "actual_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Cost Usd"
+          },
+          "blocked_by_budget_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked By Budget Id"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Actor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimated_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Usd"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Id"
+          },
+          "status": {
+            "enum": [
+              "planned",
+              "running",
+              "completed",
+              "completed_with_errors",
+              "failed",
+              "cancelled",
+              "budget_blocked"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "tasks_failed": {
+            "title": "Tasks Failed",
+            "type": "integer"
+          },
+          "tasks_succeeded": {
+            "title": "Tasks Succeeded",
+            "type": "integer"
+          },
+          "tasks_total": {
+            "title": "Tasks Total",
+            "type": "integer"
+          },
+          "trigger": {
+            "enum": [
+              "schedule",
+              "manual",
+              "backfill",
+              "retry"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          },
+          "workload": {
+            "enum": [
+              "seo_rank",
+              "ai_prompt",
+              "ai_mode_keyword",
+              "keyword_metrics",
+              "discovery",
+              "ai_benchmark",
+              "gsc_sync",
+              "bing_sync",
+              "ga4_sync",
+              "cloudflare_sync"
+            ],
+            "title": "Workload",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "project_id",
+          "schedule_id",
+          "workload",
+          "trigger",
+          "status",
+          "status_reason",
+          "window_start",
+          "window_end",
+          "tasks_total",
+          "tasks_succeeded",
+          "tasks_failed",
+          "estimated_cost_usd",
+          "actual_cost_usd",
+          "blocked_by_budget_id",
+          "created_by",
+          "created_at",
+          "completed_at",
+          "operation"
+        ],
+        "title": "Run",
+        "type": "object"
+      },
+      "RunResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Run"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "RunResponse",
+        "type": "object"
       },
       "ScheduleRef": {
         "properties": {
@@ -10642,6 +11080,70 @@
         "summary": "Take tracked keywords out of a group",
         "tags": [
           "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-metrics/refresh": {
+      "post": {
+        "description": "The given keywords (which the project tracks; `422 validation_failed` with `keyword_unknown` otherwise), else the project's tracked keywords whose metrics are older than `stale_days` (default 25). The run is `planned` and the worker plans it within a minute; a budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; runs the system starts for new keywords do not count.",
+        "operationId": "refresh_keyword_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetricsRefresh"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Refresh keyword metrics now (a manual run)",
+        "tags": [
+          "operations"
         ]
       }
     },

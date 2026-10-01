@@ -37,6 +37,7 @@ from sightline.storage.raw import (
     compress,
     digest,
     object_key,
+    read_payload,
 )
 
 _table = raw_payloads
@@ -117,6 +118,22 @@ async def store_raw_payload(
     if other is None:
         raise RawStorageError("a payload registered at the same moment is no longer registered")
     return other.id
+
+
+async def load_raw_payload(
+    sessions: async_sessionmaker[AsyncSession], store: ObjectStore, payload_id: int
+) -> bytes:
+    """The payload registered under `payload_id`, read back and checked against its hash.
+    Raises `RawStorageError` when it is not registered or cannot be read."""
+    async with sessions() as db:
+        row = (
+            await db.execute(
+                select(_table.c.object_key, _table.c.sha256).where(_table.c.id == payload_id)
+            )
+        ).one_or_none()
+    if row is None or row.object_key is None:
+        raise RawStorageError(f"payload {payload_id} is not stored in object storage")
+    return await read_payload(store, row.object_key, row.sha256)
 
 
 async def _renew(

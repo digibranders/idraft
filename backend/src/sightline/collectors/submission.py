@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import random
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import partial
@@ -37,8 +37,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sightline.collectors import ledger
 from sightline.collectors.dispatcher import ProviderPauses, SubmitBatch
 from sightline.collectors.ledger import Cost, LedgerTask, TaskRef
+from sightline.collectors.live import call_live, record_live
 from sightline.collectors.read_only import read_only
-from sightline.collectors.registry import Registry
+from sightline.collectors.registry import Registry, answers_live
 from sightline.domain.retries import ProviderErrorKind, RetryDecision, decide
 from sightline.providers.contract import (
     CanonicalRequest,
@@ -46,6 +47,7 @@ from sightline.providers.contract import (
     ProviderError,
     SubmitResult,
 )
+from sightline.storage.raw import ObjectStore
 
 NOT_BUILT = "The request for this task could not be built."
 NO_ANSWER = "The provider's answer did not mention the task."
@@ -62,6 +64,8 @@ _log = structlog.get_logger(__name__)
 @dataclass(frozen=True, slots=True)
 class SubmitReport:
     submitted: int = 0
+    # Answered in the call (a live endpoint) and kept.
+    fetched: int = 0
     # Refused by the provider or never built: back in line, or ended, as the policy says.
     refused: int = 0
     # The provider may have them. They wait for the provider to be asked.
@@ -113,14 +117,23 @@ async def _build(
     return requests
 
 
-def _pause_reason(result: SubmitResult | None, failure: ProviderError | None) -> str | None:
-    errors = [failure] if failure is not None else []
-    if result is not None:
-        errors.extend(rejected.error for rejected in result.rejected)
-    for error in errors:
-        if error.kind in _PAUSING:
-            return error.kind.value
-    return None
+async def _pause_if_needed(
+    pauses: ProviderPauses,
+    provider: str,
+    errors: Sequence[ProviderError],
+    context: Mapping[str, object],
+) -> None:
+    """An error that refuses everyone (credentials, payment, the account's limit) pauses the
+    provider, before the outcome is recorded, so the tasks it puts back in line are not
+    claimed again in the moment between."""
+    reason = next((error.kind.value for error in errors if error.kind in _PAUSING), None)
+    if reason is None:
+        return
+    try:
+        await pauses.pause(provider, reason=reason)
+    except Exception as error:
+        _log.warning("provider not paused", error_kind=type(error).__name__, **context)
+    _log.error("provider paused", reason=reason, **context)
 
 
 async def submit_batch(
@@ -129,10 +142,17 @@ async def submit_batch(
     pauses: ProviderPauses,
     batch: SubmitBatch,
     *,
+    store: ObjectStore | None = None,
     jitter: Callable[[], float] = random.random,
 ) -> SubmitReport:
-    """Submit one batch, at most once per task."""
+    """Submit one batch, at most once per task. A live endpoint's batch is answered in the
+    call and kept in `store` (`collectors.live`)."""
     provider = registry.provider(batch.provider)
+    live = answers_live(provider, batch.endpoint)
+    if live and store is None:
+        # Settings refuse a provider without raw storage, so only a worker built by hand gets
+        # here. Refused before anything is taken: a live answer that cannot be kept is lost.
+        raise RuntimeError("live calls need raw storage, and none is configured")
     if await pauses.paused([batch.provider]):
         # Sent before the pause began. Back in line; the dispatcher sends them when it is over.
         async with sessions() as db, db.begin():
@@ -158,6 +178,26 @@ async def submit_batch(
         return SubmitReport(refused=len(not_built))
 
     context = {"provider": batch.provider, "endpoint": batch.endpoint, "tasks": len(to_send)}
+    if live and store is not None:
+        results = await call_live(provider, batch.endpoint, to_send, requests, context=context)
+        errors = [result.error for result in results if result.error is not None]
+        await _pause_if_needed(pauses, batch.provider, errors, context)
+        answered = await record_live(
+            sessions,
+            store,
+            provider,
+            batch.endpoint,
+            to_send,
+            results,
+            jitter=jitter,
+            context=context,
+        )
+        return SubmitReport(
+            fetched=answered.fetched,
+            refused=answered.refused + len(not_built),
+            unknown=answered.unknown,
+        )
+
     result: SubmitResult | None = None
     failure: ProviderError | None = None
     try:
@@ -174,13 +214,10 @@ async def submit_batch(
 
     # Before the outcome is recorded, so the tasks it puts back in line are not claimed
     # again in the moment between.
-    pause_reason = _pause_reason(result, failure)
-    if pause_reason is not None:
-        try:
-            await pauses.pause(batch.provider, reason=pause_reason)
-        except Exception as error:
-            _log.warning("provider not paused", error_kind=type(error).__name__, **context)
-        _log.error("provider paused", reason=pause_reason, **context)
+    errors = [failure] if failure is not None else []
+    if result is not None:
+        errors.extend(rejected.error for rejected in result.rejected)
+    await _pause_if_needed(pauses, batch.provider, errors, context)
 
     outcome = await _record(sessions, to_send, result, failure, jitter=jitter, context=context)
     return SubmitReport(
