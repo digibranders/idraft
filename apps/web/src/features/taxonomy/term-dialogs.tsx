@@ -23,6 +23,23 @@ const MAX_NAME_LENGTH = 200;
 const MAX_BATCH = 500;
 /** The Select value that stands for the top level, which has no term id. */
 const ROOT = '';
+/** A term is at most this many levels from its root (19 section 3.5). */
+const MAX_DEPTH = 10;
+
+type Translate = ReturnType<typeof useTranslations<'taxonomySettings.termDialog'>>;
+
+/**
+ * What to say for a refusal any term write can meet, or `null`: a place too deep, a parent deleted
+ * meanwhile, or a workspace vocabulary a member limited to some projects may not change.
+ */
+function refusalOf(error: unknown, t: Translate): string | null {
+  if (isApiProblem(error, 'forbidden')) return t('forbidden');
+  if (!isApiProblem(error, 'validation_failed')) return null;
+  const codes = new Set(error.errors.map((item) => item.code));
+  if (codes.has('too_deep')) return t('tooDeep', { max: MAX_DEPTH });
+  if (codes.has('parent_unknown')) return t('parentGone');
+  return null;
+}
 
 export interface TermScope {
   workspaceId: string;
@@ -145,7 +162,7 @@ function NameForm({
         nameInput.current?.focus();
         return;
       }
-      setAlert(isApiProblem(error, 'not_found') ? t('gone') : t('failed'));
+      setAlert(refusalOf(error, t) ?? (isApiProblem(error, 'not_found') ? t('gone') : t('failed')));
       return;
     }
     refreshTerms(queryClient, scope.workspaceId, scope.projectId, scope.vocabularyId);
@@ -242,7 +259,7 @@ function MoveForm({
           ? t('cycle', { name: term.name })
           : isApiProblem(error, 'duplicate')
             ? t('moveDuplicate', { name: term.name })
-            : t('failed'),
+            : (refusalOf(error, t) ?? t('failed')),
       );
       return;
     }
@@ -303,7 +320,13 @@ function PasteForm({ scope, hierarchical, onClose }: Omit<TermDialogProps, 'acti
     ),
   ];
   const localError =
-    lines.length === 0 ? t('pasteRequired') : lines.length > MAX_BATCH ? t('pasteTooMany', { max: MAX_BATCH }) : null;
+    lines.length === 0
+      ? t('pasteRequired')
+      : lines.length > MAX_BATCH
+        ? t('pasteTooMany', { max: MAX_BATCH })
+        : hierarchical && lines.some((line) => line.split('/').length > MAX_DEPTH)
+          ? t('pasteTooDeep', { max: MAX_DEPTH })
+          : null;
 
   const submit = async (): Promise<void> => {
     setSubmitted(true);
@@ -318,7 +341,7 @@ function PasteForm({ scope, hierarchical, onClose }: Omit<TermDialogProps, 'acti
       toast({ type: 'success', title: t('pasted', { count: added.data.length }) });
       onClose();
     } catch (error) {
-      setAlert(isApiProblem(error, 'duplicate') ? t('pasteDuplicate') : t('failed'));
+      setAlert(isApiProblem(error, 'duplicate') ? t('pasteDuplicate') : (refusalOf(error, t) ?? t('failed')));
     }
   };
 

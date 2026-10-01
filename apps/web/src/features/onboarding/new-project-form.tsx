@@ -25,7 +25,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import type { components } from '@/lib/api/schema';
 import { domainMessageKey, normalizeDomain } from '@/lib/domains/normalize';
-import { otherNames } from '@/lib/entities/aliases';
+import { MAX_ALIAS_LENGTH, MAX_OWN_ALIASES, otherNames } from '@/lib/entities/aliases';
 import { applyServerErrors } from '@/lib/forms';
 import { LANGUAGE_CODES, languageName } from '@/lib/format/language';
 import { useLocationSearch } from '@/lib/locations/use-location-search';
@@ -76,34 +76,44 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
   const alertRef = useRef<HTMLDivElement>(null);
   const schema = useMemo(
     () =>
-      z.object({
-        name: z
-          .string()
-          .trim()
-          .min(1, { error: t('nameRequired') })
-          .max(MAX_PROJECT_NAME_LENGTH, { error: t('nameTooLong', { max: MAX_PROJECT_NAME_LENGTH }) }),
-        slug: z
-          .string()
-          .trim()
-          .superRefine((slug, context) => {
-            const problem = slugProblem(slug, 'project');
-            if (problem !== null) context.addIssue({ code: 'custom', message: t(slugMessageKey(problem)) });
+      z
+        .object({
+          name: z
+            .string()
+            .trim()
+            .min(1, { error: t('nameRequired') })
+            .max(MAX_PROJECT_NAME_LENGTH, { error: t('nameTooLong', { max: MAX_PROJECT_NAME_LENGTH }) }),
+          slug: z
+            .string()
+            .trim()
+            .superRefine((slug, context) => {
+              const problem = slugProblem(slug, 'project');
+              if (problem !== null) context.addIssue({ code: 'custom', message: t(slugMessageKey(problem)) });
+            }),
+          primary_domain: z.string().superRefine((domain, context) => {
+            const preview = normalizeDomain(domain);
+            if (!preview.ok) context.addIssue({ code: 'custom', message: domainCopy(domainMessageKey(preview.code)) });
           }),
-        primary_domain: z.string().superRefine((domain, context) => {
-          const preview = normalizeDomain(domain);
-          if (!preview.ok) context.addIssue({ code: 'custom', message: domainCopy(domainMessageKey(preview.code)) });
+          location: z.custom<LocationRef | null>(),
+          timezone: z.string().min(1, { error: t('timezoneUnknown') }),
+          deep_check_weekday: z.string(),
+          default_language_code: z.string(),
+          brand: z
+            .string()
+            .trim()
+            .min(1, { error: t('brandRequired') })
+            .max(MAX_BRAND_LENGTH, { error: t('nameTooLong', { max: MAX_BRAND_LENGTH }) }),
+          aliases: z
+            .array(z.string())
+            .readonly()
+            .refine((aliases) => aliases.every((alias) => alias.trim().length <= MAX_ALIAS_LENGTH), {
+              error: t('aliasTooLong', { max: MAX_ALIAS_LENGTH }),
+            }),
+        })
+        .refine((values) => otherNames(values.brand, values.aliases).length <= MAX_OWN_ALIASES, {
+          path: ['aliases'],
+          error: t('aliasesTooMany', { max: MAX_OWN_ALIASES }),
         }),
-        location: z.custom<LocationRef | null>(),
-        timezone: z.string().min(1, { error: t('timezoneUnknown') }),
-        deep_check_weekday: z.string(),
-        default_language_code: z.string(),
-        brand: z
-          .string()
-          .trim()
-          .min(1, { error: t('brandRequired') })
-          .max(MAX_BRAND_LENGTH, { error: t('nameTooLong', { max: MAX_BRAND_LENGTH }) }),
-        aliases: z.array(z.string()).readonly(),
-      }),
     [t, domainCopy],
   );
   const form = useForm<NewProjectValues>({
@@ -188,15 +198,34 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
       }
       if (isApiProblem(error, 'validation_failed')) {
         // The brand's fields are nested in the request; they are shown on the fields that hold them here
-        const items = error.errors.map((item) =>
-          item.path === 'own_entity.canonical_name'
-            ? { ...item, path: 'brand' }
-            : item.path.startsWith('own_entity.domains')
-              ? { ...item, path: 'primary_domain' }
-              : item.path === 'default_location_id'
-                ? { ...item, path: 'location' }
-                : item,
-        );
+        const items = error.errors
+          .filter((item) => !item.path.startsWith('own_entity.aliases'))
+          .map((item) =>
+            item.path === 'own_entity.canonical_name'
+              ? { ...item, path: 'brand' }
+              : item.path.startsWith('own_entity.domains')
+                ? { ...item, path: 'primary_domain' }
+                : item.path === 'default_location_id'
+                  ? { ...item, path: 'location' }
+                  : item,
+          );
+        // An other name's error names its index; the field holds them all, so the first one is shown there
+        const alias = error.errors.find((item) => item.path.startsWith('own_entity.aliases'));
+        if (alias !== undefined) {
+          form.setError(
+            'aliases',
+            {
+              type: 'server',
+              message:
+                alias.code === 'string_too_long'
+                  ? t('aliasTooLong', { max: MAX_ALIAS_LENGTH })
+                  : alias.code === 'too_long'
+                    ? t('aliasesTooMany', { max: MAX_OWN_ALIASES })
+                    : t('aliasInvalid'),
+            },
+            { shouldFocus: !items.some((item) => item.location === 'body') },
+          );
+        }
         const rest = applyServerErrors(form, items, {
           fields: [
             'name',
