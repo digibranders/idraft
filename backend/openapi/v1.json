@@ -316,6 +316,34 @@
         "title": "JoinedWorkspace",
         "type": "object"
       },
+      "LocationRef": {
+        "properties": {
+          "country_iso": {
+            "title": "Country Iso",
+            "type": "string"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "location_type": {
+            "title": "Location Type",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "name",
+          "country_iso",
+          "location_type"
+        ],
+        "title": "LocationRef",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "memberships": {
@@ -824,6 +852,17 @@
             ],
             "title": "Default Language Code"
           },
+          "default_location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocationRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The location `default_location_id` names."
+          },
           "default_location_id": {
             "anyOf": [
               {
@@ -893,6 +932,7 @@
           "slug",
           "primary_domain",
           "default_location_id",
+          "default_location",
           "default_language_code",
           "timezone",
           "deep_check_weekday",

@@ -684,7 +684,9 @@ interface ProjectCreate {
 }
 interface Project {
   project_id: Uuid; workspace_id: Uuid; name: string; slug: string;
-  primary_domain: DomainRef | null; default_location_id: number | null; default_language_code: string | null;
+  primary_domain: DomainRef | null; default_location_id: number | null;
+  default_location: { location_id: number; name: string; country_iso: string; location_type: string } | null;   // the location default_location_id names
+  default_language_code: string | null;
   timezone: string; deep_check_weekday: number; status: 'active' | 'paused' | 'archived';
   data_version: number; entity_config_version: number;
   created_by: UserRef | null; created_at: Iso; updated_at: Iso;

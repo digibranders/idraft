@@ -19,6 +19,7 @@ from sightline.api.schemas.common import (
     Body,
     DomainRef,
     LanguageCode,
+    LocationRef,
     Name,
     Patch,
     UserRef,
@@ -39,6 +40,9 @@ class Project(BaseModel):
     slug: str
     primary_domain: DomainRef | None
     default_location_id: int | None
+    default_location: LocationRef | None = Field(
+        description="The location `default_location_id` names."
+    )
     default_language_code: str | None
     timezone: str
     deep_check_weekday: int = Field(description="Day of the weekly top-100 check. 0 is Sunday.")

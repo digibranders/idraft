@@ -107,6 +107,13 @@ class DomainRef(BaseModel):
     category_source: Literal["seed_list", "rule", "llm", "manual", "tenant_override"] | None
 
 
+class LocationRef(BaseModel):
+    location_id: int
+    name: str
+    country_iso: str
+    location_type: str
+
+
 # ISO 639-1.
 LanguageCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2}$")]
 

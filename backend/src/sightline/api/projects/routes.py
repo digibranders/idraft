@@ -73,6 +73,8 @@ def _project(record: ProjectRecord) -> Project:
         slug=record.slug,
         primary_domain=None,
         default_location_id=record.default_location_id,
+        # Locations arrive with this step's location sync; until a project can name one, none.
+        default_location=None,
         default_language_code=record.default_language_code,
         timezone=record.timezone,
         deep_check_weekday=record.deep_check_weekday,
