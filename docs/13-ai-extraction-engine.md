@@ -129,7 +129,7 @@ Canonicalization rules (full list and test vectors in [14-citation-intelligence.
 - Remove trailing slash on non-root paths.
 - `www.` is **kept** in `host` (some sites serve different content), but `registrable_domain` groups it.
 
-Output: `canonical_url`, `url_hash`, `host`, `registrable_domain` (via `tldextract` with a pinned, bundled Public Suffix List snapshot and no network fetch, private domains enabled so `user.github.io` is its own registrable domain).
+Output: `canonical_url`, `url_hash`, `host`, `registrable_domain` (via `publicsuffixlist` with a pinned, bundled Public Suffix List snapshot and no network fetch, private domains enabled so `user.github.io` is its own registrable domain). Built in `sightline/extraction/urls.py`; stage 2 is `sightline/extraction/domains.py`.
 
 ### Stage 2: Domain role resolution
 

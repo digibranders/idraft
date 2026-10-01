@@ -276,8 +276,8 @@ These tables are **not** tenant-scoped. A URL is a public fact. Deduplicating UR
 CREATE TABLE core.domains (
     id                  integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     host                text NOT NULL,         -- lowercased, punycode (IDNA), no trailing dot, 'www.' kept
-    registrable_domain  text NOT NULL,         -- eTLD+1 via Public Suffix List (tldts), e.g. 'example.co.uk'
-    public_suffix       text NOT NULL,
+    registrable_domain  text NOT NULL,         -- eTLD+1 via Public Suffix List (publicsuffixlist), e.g. 'example.co.uk'; the host itself for an IP
+    public_suffix       text NOT NULL,         -- '' for an IP
     is_ip               boolean NOT NULL DEFAULT false,
     default_category    text REFERENCES core.domain_categories(code),  -- global classification, see 14-citation-intelligence
     category_source     text CHECK (category_source IN ('seed_list','rule','llm','manual')),
