@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse
 
 from sightline.api.request_id import HEADER, new_request_id
 from sightline.api.routing import route_template
+from sightline.api.schemas.common import BODY_SHAPE_TAGS
 
 MEDIA_TYPE = "application/problem+json"
 MAX_VALIDATION_ERRORS = 50
@@ -312,11 +313,12 @@ def problem_response(
 
 
 def _validation_items(error: RequestValidationError) -> list[dict[str, str]]:
-    """Location, path, Pydantic error type and message. The submitted value is never included."""
+    """Location, path, Pydantic error type and message. The submitted value is never included.
+    The tag of a one-or-batch body's shape is not part of the path."""
     return [
         {
             "location": str(item["loc"][0]),
-            "path": ".".join(str(part) for part in item["loc"][1:]),
+            "path": ".".join(str(part) for part in item["loc"][1:] if part not in BODY_SHAPE_TAGS),
             "code": str(item["type"]),
             "message": str(item["msg"]),
         }

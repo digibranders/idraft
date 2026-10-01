@@ -91,6 +91,18 @@ QueryText = Annotated[
     str, StringConstraints(min_length=1, max_length=200), AfterValidator(printable)
 ]
 
+# A route that takes one item or `{ items: [...] }` validates only the shape sent, so an error
+# names the field that is wrong and not both shapes' fields. The tags are not field names: the
+# error mapper leaves them out of a path (sightline.api.problems).
+ONE_TAG = "(one)"
+BATCH_TAG = "(batch)"
+BODY_SHAPE_TAGS = frozenset({ONE_TAG, BATCH_TAG})
+
+
+def body_shape(value: object) -> str:
+    """The `Discriminator` of a one-or-batch body."""
+    return BATCH_TAG if isinstance(value, dict) and "items" in value else ONE_TAG
+
 
 class Body(BaseModel):
     """A request body. Unknown members are refused, so a misspelt field is an error, not ignored."""

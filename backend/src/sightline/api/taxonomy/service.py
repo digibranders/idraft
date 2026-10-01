@@ -11,6 +11,7 @@ so only a member who is not limited to some may change it.
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
@@ -43,6 +44,12 @@ from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.db.engine import workspace_transaction
 
 
+def fold(name: str) -> str:
+    """How term names compare: without case, and the same in composed and decomposed form
+    (`Café` typed either way)."""
+    return unicodedata.normalize("NFC", unicodedata.normalize("NFC", name).casefold())
+
+
 @dataclass(frozen=True, slots=True)
 class Branch:
     """A term and the branches under it, in path order."""
@@ -59,7 +66,7 @@ class _Level:
     slugs: set[str] = field(default_factory=set)
 
     def add(self, term: TermRecord) -> None:
-        self.by_name[term.name.casefold()] = term
+        self.by_name[fold(term.name)] = term
         self.slugs.add(term.slug)
 
 
@@ -74,8 +81,8 @@ def arrange(terms: Sequence[TermRecord], *, q: str | None, tree: bool) -> list[B
     ordered = sorted(terms, key=_path_order)
     matching = None
     if q is not None:
-        needle = q.casefold()
-        matching = {term.id for term in ordered if needle in term.name.casefold()}
+        needle = fold(q)
+        matching = {term.id for term in ordered if needle in fold(term.name)}
     if not tree:
         return [Branch(term, []) for term in ordered if matching is None or term.id in matching]
     by_id = {term.id: term for term in ordered}
@@ -310,7 +317,7 @@ class TaxonomyService:
                         for term in adder.created
                     ],
                 )
-        except TermSlugTakenError:  # pragma: no cover - the vocabulary lock orders term writes
+        except TermSlugTakenError:  # pragma: no cover - checked against the siblings first
             raise _sibling_slug() from None
         return adder.created
 
@@ -333,38 +340,19 @@ class TaxonomyService:
                 }
                 if not differing:
                     return current
-                moving = "parent_id" in differing
-                parent = await self._new_parent(db, access, vocabulary, current, differing)
-                siblings = [
-                    term
-                    for term in await repository.children_of(
-                        db,
-                        access.workspace_id,
-                        vocabulary.id,
-                        None if parent is None else parent.id,
-                    )
-                    if term.id != current.id
-                ]
-                name = str(differing.get("name", current.name))
-                slug = str(differing.get("slug", current.slug))
-                if (moving or "name" in differing) and name.casefold() in {
-                    term.name.casefold() for term in siblings
-                }:
-                    raise _sibling_name()
-                if (moving or "slug" in differing) and slug in {term.slug for term in siblings}:
-                    raise _sibling_slug()
-                path = slug if parent is None else f"{parent.path}/{slug}"
                 written = dict(differing)
-                if path != current.path:
-                    written["path"] = path
+                if differing.keys() & {"name", "slug", "parent_id"}:
+                    written |= await self._reshaped(
+                        db, access, vocabulary, current, differing, slug_given="slug" in changes
+                    )
                 await repository.update_term(db, access.workspace_id, term_id, written)
-                if path != current.path:
+                if "path" in written:
                     await repository.move_subtree(
                         db,
                         access.workspace_id,
                         vocabulary.id,
                         old_path=current.path,
-                        new_path=path,
+                        new_path=str(written["path"]),
                     )
                 await audit.record(
                     db,
@@ -374,11 +362,11 @@ class TaxonomyService:
                     target_type="term",
                     target_id=term_id,
                     info=info,
-                    before={name: _audit_value(getattr(current, name)) for name in written},
-                    after={name: _audit_value(value) for name, value in written.items()},
+                    before={field: _audit_value(getattr(current, field)) for field in written},
+                    after={field: _audit_value(value) for field, value in written.items()},
                 )
                 updated = await repository.get_term(db, access.workspace_id, term_id)
-        except TermSlugTakenError:  # pragma: no cover - the vocabulary lock orders term writes
+        except TermSlugTakenError:  # pragma: no cover - checked against the siblings first
             raise _sibling_slug() from None
         if updated is None:  # pragma: no cover - read in this transaction
             raise NotFoundError
@@ -452,6 +440,46 @@ class TaxonomyService:
         if current is None:  # pragma: no cover - deleted while this request waited for the lock
             raise NotFoundError
         return vocabulary, current
+
+    async def _reshaped(
+        self,
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        vocabulary: VocabularyRecord,
+        current: TermRecord,
+        differing: Mapping[str, object],
+        *,
+        slug_given: bool,
+    ) -> dict[str, object]:
+        """What a rename, new slug or move writes besides the fields given: the new path, and a
+        new slug when a move without a given slug lands next to a sibling with the term's slug.
+        A name or a given slug a sibling has is refused."""
+        moving = "parent_id" in differing
+        parent = await self._new_parent(db, access, vocabulary, current, differing)
+        siblings = [
+            term
+            for term in await repository.children_of(
+                db, access.workspace_id, vocabulary.id, None if parent is None else parent.id
+            )
+            if term.id != current.id
+        ]
+        name = str(differing.get("name", current.name))
+        if (moving or "name" in differing) and fold(name) in {fold(term.name) for term in siblings}:
+            raise _sibling_name()
+        taken = {term.slug for term in siblings}
+        written: dict[str, object] = {}
+        slug = str(differing.get("slug", current.slug))
+        if slug_given:
+            if (moving or "slug" in differing) and slug in taken:
+                raise _sibling_slug()
+        elif moving and slug in taken:
+            # No slug was given, so the term is numbered among its new siblings as an insert is.
+            slug = free_slug(slug, taken)
+            written["slug"] = slug
+        path = slug if parent is None else f"{parent.path}/{slug}"
+        if path != current.path:
+            written["path"] = path
+        return written
 
     @staticmethod
     async def _new_parent(
@@ -527,7 +555,7 @@ class _TermAdder:
                     message=f"A term is at most {TERM_DEPTH_MAX} levels from its root.",
                 )
         level = await self._level(parent)
-        if item.name.casefold() in level.by_name:
+        if fold(item.name) in level.by_name:
             raise _sibling_name()
         await self._insert(parent, level, item.name, item.slug, item.description)
 
@@ -537,7 +565,7 @@ class _TermAdder:
         parent: TermRecord | None = None
         for depth, name in enumerate(names, start=1):
             level = await self._level(parent)
-            existing = level.by_name.get(name.casefold())
+            existing = level.by_name.get(fold(name))
             if existing is not None:
                 parent = existing
                 continue

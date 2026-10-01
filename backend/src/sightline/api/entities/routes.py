@@ -22,7 +22,7 @@ from sightline.api.schemas.common import DomainRef, QueryText, UserRef
 from sightline.api.schemas.entities import (
     Alias,
     AliasBatch,
-    AliasInput,
+    AliasBody,
     AliasList,
     AliasResponse,
     AliasUpdate,
@@ -234,7 +234,7 @@ async def list_aliases(entity_id: UUID, access: ReadData, entities: Entities) ->
 @router.post("/{entity_id}/aliases", status_code=201, summary="Add one alias or a batch")
 async def add_aliases(
     entity_id: UUID,
-    body: AliasInput | AliasBatch,
+    body: AliasBody,
     access: WriteEntities,
     entities: Entities,
     info: Info,

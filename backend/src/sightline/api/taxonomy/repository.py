@@ -347,9 +347,9 @@ async def update_term(
 
 
 def _under(path: str) -> ColumnElement[bool]:
-    """Strictly below the term at `path`. Paths hold only `a-z`, `0-9`, `-` and `/`, which a
-    LIKE pattern takes literally."""
-    return taxonomy_terms.c.path.startswith(path + "/", autoescape=True)
+    """Strictly below the term at `path`. Paths hold only `a-z`, `0-9`, `-` and `/` (a check
+    says so), none of which LIKE treats as special, so no escaping is needed."""
+    return taxonomy_terms.c.path.like(path + "/%")
 
 
 async def move_subtree(

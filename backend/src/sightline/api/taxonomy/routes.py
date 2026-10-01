@@ -19,7 +19,7 @@ from sightline.api.schemas.common import QueryText
 from sightline.api.schemas.taxonomy import (
     Term,
     TermBatch,
-    TermInput,
+    TermBody,
     TermList,
     TermNode,
     TermResponse,
@@ -197,7 +197,7 @@ async def list_terms(
 )
 async def add_terms(
     vocabulary_id: UUID,
-    body: TermInput | TermBatch,
+    body: TermBody,
     access: WriteTaxonomy,
     taxonomy: Taxonomy,
     info: Info,

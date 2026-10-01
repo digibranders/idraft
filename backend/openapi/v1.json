@@ -3193,7 +3193,7 @@
           "path": {
             "anyOf": [
               {
-                "maxLength": 1000,
+                "maxLength": 2048,
                 "minLength": 1,
                 "type": "string"
               },
@@ -5476,7 +5476,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
+                "oneOf": [
                   {
                     "$ref": "#/components/schemas/AliasInput"
                   },
@@ -7342,7 +7342,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
+                "oneOf": [
                   {
                     "$ref": "#/components/schemas/TermInput"
                   },

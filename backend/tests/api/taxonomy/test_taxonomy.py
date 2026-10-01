@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
 from typing import Any
 
@@ -9,7 +11,7 @@ import httpx
 import pytest
 
 from sightline.api.resources import Resources
-from tests.api.auth.support import Workspace, fetch, make_workspace
+from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
@@ -165,7 +167,7 @@ async def test_a_vocabulary_is_renamed_made_single_valued_and_deleted_with_its_t
     assert left == []
     actions = await fetch(
         migrated,
-        "SELECT action FROM ops.audit_logs WHERE workspace_id = $1 ORDER BY id",
+        "SELECT action, before, after FROM ops.audit_logs WHERE workspace_id = $1 ORDER BY id",
         workspace.id,
     )
     assert [row["action"] for row in actions] == [
@@ -175,6 +177,12 @@ async def test_a_vocabulary_is_renamed_made_single_valued_and_deleted_with_its_t
         "vocabulary.updated",
         "vocabulary.deleted",
     ]
+    assert json.loads(actions[3]["before"]) == {
+        "name": vocabulary["name"],
+        "is_single_valued": False,
+    }
+    assert json.loads(actions[3]["after"]) == {"name": "Renamed", "is_single_valued": True}
+    assert json.loads(actions[4]["before"])["term_count"] == 2
 
 
 # Terms.
@@ -338,6 +346,43 @@ async def test_a_move_rewrites_the_paths_of_the_whole_subtree(
         _url(workspace, "terms", by_path["a/b"]), json={"parent_id": None}, headers=owner.headers
     )
     assert to_root.json()["data"]["path"] == "bee"
+    (entry, _) = await fetch(
+        migrated,
+        "SELECT before, after FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action = 'term.updated' ORDER BY id",
+        workspace.id,
+    )
+    assert json.loads(entry["before"]) == {"parent_id": by_path["a"], "slug": "b", "path": "a/b"}
+    assert json.loads(entry["after"]) == {"parent_id": by_path["x"], "slug": "bee", "path": "x/bee"}
+
+
+async def test_a_moved_term_whose_slug_is_taken_is_numbered_unless_one_is_given(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    vocabulary_id = (await _vocabulary(api, workspace, owner))["vocabulary_id"]
+    created = (
+        await _terms(
+            api,
+            workspace,
+            owner,
+            vocabulary_id,
+            {"items": [{"path": "A/C"}, {"path": "B/C++"}, {"path": "B/C++/Templates"}]},
+        )
+    ).json()["data"]
+    by_path = {term["path"]: term["term_id"] for term in created}
+    url = _url(workspace, "terms", by_path["b/c"])
+
+    given = await api.patch(
+        url, json={"parent_id": by_path["a"], "slug": "c"}, headers=owner.headers
+    )
+    moved = await api.patch(url, json={"parent_id": by_path["a"]}, headers=owner.headers)
+
+    assert problem(given) == (409, "duplicate")
+    assert (moved.json()["data"]["slug"], moved.json()["data"]["path"]) == ("c-2", "a/c-2")
+    flat = await _tree(api, workspace, owner, vocabulary_id, format="flat")
+    assert [term["path"] for term in flat] == ["a", "a/c", "a/c-2", "a/c-2/templates", "b"]
 
 
 async def test_a_move_into_its_own_subtree_is_a_cycle(
@@ -381,6 +426,12 @@ async def test_a_rename_keeps_the_slug_unless_one_is_given(
 
     assert (renamed.json()["data"]["name"], renamed.json()["data"]["slug"]) == ("Alpha", "a")
     assert problem(clash) == (409, "duplicate")
+    cleared = await api.patch(
+        _url(workspace, "terms", created[0]["term_id"]),
+        json={"description": None},
+        headers=owner.headers,
+    )
+    assert (cleared.json()["data"]["description"], cleared.json()["data"]["path"]) == (None, "a")
 
 
 async def test_siblings_never_share_a_name_whatever_its_case(
@@ -420,7 +471,7 @@ async def test_siblings_never_share_a_name_whatever_its_case(
     )
     slug_clash = await api.patch(
         _url(workspace, "terms", by_path["a/social"]),
-        json={"parent_id": None},
+        json={"parent_id": None, "slug": "social"},
         headers=owner.headers,
     )
 
@@ -580,6 +631,120 @@ async def test_a_term_with_children_is_deleted_only_with_cascade(
     )
     assert cascade.status_code == 204
     assert await _tree(api, workspace, owner, vocabulary_id) == []
+    deleted = await fetch(
+        migrated,
+        "SELECT target_id, before FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action = 'term.deleted' ORDER BY id",
+        workspace.id,
+    )
+    assert [(row["target_id"], json.loads(row["before"])["terms_below"]) for row in deleted] == [
+        (c, 0),
+        (a, 1),
+    ]
+    assert json.loads(deleted[1]["before"])["path"] == "a"
+
+
+async def test_paths_are_listed_level_by_level(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """`-` sorts before `/` as text, so plain text order would put `a-b` inside `a`'s subtree."""
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    vocabulary_id = (await _vocabulary(api, workspace, owner))["vocabulary_id"]
+    await _terms(
+        api,
+        workspace,
+        owner,
+        vocabulary_id,
+        {"items": [{"path": "A B"}, {"path": "A0"}, {"path": "A/C"}, {"path": "A/B"}]},
+    )
+
+    flat = await _tree(api, workspace, owner, vocabulary_id, format="flat")
+
+    assert [term["path"] for term in flat] == ["a", "a/b", "a/c", "a-b", "a0"]
+
+
+async def test_names_compare_the_same_composed_or_decomposed(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    vocabulary_id = (await _vocabulary(api, workspace, owner))["vocabulary_id"]
+    composed = "Caf\N{LATIN SMALL LETTER E WITH ACUTE}"
+    decomposed = "Cafe\N{COMBINING ACUTE ACCENT}"
+    await _terms(api, workspace, owner, vocabulary_id, {"name": composed})
+
+    again = await _terms(api, workspace, owner, vocabulary_id, {"name": decomposed})
+    reused = await _terms(api, workspace, owner, vocabulary_id, {"path": f"{decomposed}/Menu"})
+
+    assert problem(again) == (409, "duplicate")
+    assert [term["path"] for term in reused.json()["data"]] == ["cafe/menu"]
+
+
+async def test_a_batch_may_create_five_thousand_terms(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """500 paths of 10 new levels: more audit entries than one statement can carry."""
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    vocabulary_id = (await _vocabulary(api, workspace, owner))["vocabulary_id"]
+    items = [{"path": "/".join(f"T{item} L{level}" for level in range(10))} for item in range(500)]
+
+    response = await _terms(api, workspace, owner, vocabulary_id, {"items": items})
+
+    assert response.status_code == 201, response.text
+    assert len(response.json()["data"]) == 5000
+    entries = await fetch(
+        migrated,
+        "SELECT count(*) AS n FROM ops.audit_logs WHERE workspace_id = $1 "
+        "AND action = 'term.created'",
+        workspace.id,
+    )
+    assert entries[0]["n"] == 5000
+
+
+async def test_two_moves_at_once_cannot_make_a_cycle(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    vocabulary_id = (await _vocabulary(api, workspace, owner))["vocabulary_id"]
+    created = (
+        await _terms(
+            api, workspace, owner, vocabulary_id, {"items": [{"name": "A"}, {"name": "B"}]}
+        )
+    ).json()["data"]
+    a, b = created[0]["term_id"], created[1]["term_id"]
+
+    responses = await asyncio.gather(
+        api.patch(_url(workspace, "terms", a), json={"parent_id": b}, headers=owner.headers),
+        api.patch(_url(workspace, "terms", b), json={"parent_id": a}, headers=owner.headers),
+    )
+
+    assert sorted(response.status_code for response in responses) == [200, 422]
+    flat = await _tree(api, workspace, owner, vocabulary_id, format="flat")
+    assert sorted(term["path"] for term in flat) in (["a", "a/b"], ["b", "b/a"])
+
+
+async def test_one_wrong_field_is_one_error_at_its_own_path(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """A body is one term or a batch; only the shape sent is checked."""
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    vocabulary_id = (await _vocabulary(api, workspace, owner))["vocabulary_id"]
+
+    one = await _terms(api, workspace, owner, vocabulary_id, {"name": "A", "slug": "Not A Slug"})
+    batch = await _terms(
+        api, workspace, owner, vocabulary_id, {"items": [{"name": "A"}, {"name": ""}]}
+    )
+
+    assert [(e["path"], e["code"]) for e in one.json()["errors"]] == [
+        ("slug", "string_pattern_mismatch")
+    ]
+    assert [(e["path"], e["code"]) for e in batch.json()["errors"]] == [
+        ("items.1.name", "string_too_short")
+    ]
 
 
 async def test_a_text_filter_keeps_the_ancestors_in_the_tree(
@@ -664,6 +829,38 @@ async def test_a_member_limited_to_a_project_works_only_on_its_vocabularies(
             await _terms(api, workspace, scoped, hidden["vocabulary_id"], {"name": "A"}),
         ):
             assert problem(response) == (404, "not_found")
+        made = await api.post(
+            _url(workspace, "vocabularies"),
+            json={"kind": "tag", "name": "Mine", "project_id": str(theirs)},
+            headers=scoped.headers,
+        )
+        assert made.status_code == 422
+        assert made.json()["errors"][0]["code"] == "project_unknown"
+
+
+async def test_the_vocabularies_of_a_deleted_project_are_gone(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    owner = await member(resources, migrated, workspace, "owner")
+    project = await make_project(migrated, workspace.id)
+    vocabulary = await _vocabulary(api, workspace, owner, project_id=str(project))
+    await execute(migrated, "UPDATE core.projects SET deleted_at = now() WHERE id = $1", project)
+
+    listed = await api.get(_url(workspace, "vocabularies"), headers=owner.headers)
+    terms = await api.get(
+        _url(workspace, "vocabularies", vocabulary["vocabulary_id"], "terms"),
+        headers=owner.headers,
+    )
+    made = await api.post(
+        _url(workspace, "vocabularies"),
+        json={"kind": "tag", "name": "Late", "project_id": str(project)},
+        headers=owner.headers,
+    )
+
+    assert listed.json()["data"] == []
+    assert problem(terms) == (404, "not_found")
+    assert made.json()["errors"][0]["code"] == "project_unknown"
 
 
 async def test_another_workspaces_vocabulary_and_terms_are_not_found(

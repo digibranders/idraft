@@ -14,15 +14,25 @@ from uuid import UUID
 from pydantic import (
     AfterValidator,
     BaseModel,
+    Discriminator,
     Field,
     StringConstraints,
+    Tag,
     field_validator,
     model_validator,
 )
 from pydantic_core import PydanticCustomError
 
 from sightline.api.pagination import OffsetPageInfo
-from sightline.api.schemas.common import Body, Patch, printable, refuse_null
+from sightline.api.schemas.common import (
+    BATCH_TAG,
+    ONE_TAG,
+    Body,
+    Patch,
+    body_shape,
+    printable,
+    refuse_null,
+)
 
 VocabularyKind = Literal[
     "topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"
@@ -32,7 +42,8 @@ TermSource = Literal["manual", "import", "auto_cluster", "ai_suggestion"]
 VOCABULARY_NAME_MAX = 100
 TERM_NAME_MAX = 200
 SLUG_MAX = 100
-TERM_PATH_MAX = 1000
+# Room for the deepest path of the longest names, with a space on each side of every `/`.
+TERM_PATH_MAX = 2048
 TERM_DESCRIPTION_MAX = 2000
 TERM_BATCH_MAX = 500
 # Levels from a root term down. Deep enough for a product catalogue, and it bounds the nesting
@@ -146,6 +157,12 @@ class TermInput(Body):
 
 class TermBatch(Body):
     items: Annotated[list[TermInput], Field(min_length=1, max_length=TERM_BATCH_MAX)]
+
+
+TermBody = Annotated[
+    Annotated[TermInput, Tag(ONE_TAG)] | Annotated[TermBatch, Tag(BATCH_TAG)],
+    Discriminator(body_shape),
+]
 
 
 class TermUpdate(Patch):

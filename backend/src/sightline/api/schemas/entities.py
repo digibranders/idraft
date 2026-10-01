@@ -15,8 +15,10 @@ from uuid import UUID
 from pydantic import (
     AfterValidator,
     BaseModel,
+    Discriminator,
     Field,
     StringConstraints,
+    Tag,
     ValidationInfo,
     field_validator,
     model_validator,
@@ -25,11 +27,14 @@ from pydantic_core import PydanticCustomError
 
 from sightline.api.pagination import CursorPageInfo
 from sightline.api.schemas.common import (
+    BATCH_TAG,
+    ONE_TAG,
     Body,
     DomainRef,
     LanguageCode,
     Patch,
     UserRef,
+    body_shape,
     printable,
     refuse_null,
 )
@@ -161,6 +166,12 @@ class AliasInput(Body):
 
 class AliasBatch(Body):
     items: Annotated[list[AliasInput], Field(min_length=1, max_length=ALIAS_BATCH_MAX)]
+
+
+AliasBody = Annotated[
+    Annotated[AliasInput, Tag(ONE_TAG)] | Annotated[AliasBatch, Tag(BATCH_TAG)],
+    Discriminator(body_shape),
+]
 
 
 class AliasUpdate(Patch):

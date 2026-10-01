@@ -19,6 +19,8 @@ from sightline.api.request_info import RequestInfo
 from sightline.db.tables import audit_logs
 
 type Snapshot = Mapping[str, str | int | bool | list[str] | None]
+# A statement carries at most 32,767 parameters (asyncpg), and an entry takes 11.
+ROWS_PER_STATEMENT = 1000
 AuditAction = Literal[
     "workspace.created",
     "workspace.updated",
@@ -68,29 +70,26 @@ async def record_each(
     info: RequestInfo,
     entries: Sequence[Entry],
 ) -> None:
-    """One entry per target, in one statement (a batch of aliases is one request)."""
-    if not entries:
-        return
-    await db.execute(
-        insert(audit_logs).values(
-            [
-                {
-                    "workspace_id": workspace_id,
-                    "actor_type": "user",
-                    "actor_id": str(actor_id),
-                    "action": action,
-                    "target_type": target_type,
-                    "target_id": str(entry.target_id),
-                    "before": None if entry.before is None else dict(entry.before),
-                    "after": None if entry.after is None else dict(entry.after),
-                    "ip": info.ip,
-                    "user_agent": info.user_agent,
-                    "request_id": info.request_id,
-                }
-                for entry in entries
-            ]
-        )
-    )
+    """One entry per target, in as few statements as the driver allows (a batch of aliases or
+    terms is one request)."""
+    rows = [
+        {
+            "workspace_id": workspace_id,
+            "actor_type": "user",
+            "actor_id": str(actor_id),
+            "action": action,
+            "target_type": target_type,
+            "target_id": str(entry.target_id),
+            "before": None if entry.before is None else dict(entry.before),
+            "after": None if entry.after is None else dict(entry.after),
+            "ip": info.ip,
+            "user_agent": info.user_agent,
+            "request_id": info.request_id,
+        }
+        for entry in entries
+    ]
+    for start in range(0, len(rows), ROWS_PER_STATEMENT):
+        await db.execute(insert(audit_logs).values(rows[start : start + ROWS_PER_STATEMENT]))
 
 
 async def record(
