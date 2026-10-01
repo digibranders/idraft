@@ -25,6 +25,7 @@ export default async function RankingsPage({
       workspaceId={membership.workspace.workspace_id}
       projectId={current.project_id}
       timeZone={current.timezone}
+      defaults={{ location: current.default_location, languageCode: current.default_language_code }}
     />
   );
 }

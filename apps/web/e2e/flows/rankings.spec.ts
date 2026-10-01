@@ -60,4 +60,21 @@ test.describe('rankings', () => {
     await expect(next.getByText('2', { exact: true })).toBeVisible();
     await expectAccessible(page);
   });
+
+  test('keywords are added from the header, and appear pending until their metrics arrive', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.getByRole('button', { name: 'Add keywords' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add keywords' });
+    await dialog.getByRole('textbox', { name: 'Keywords' }).fill('seo reporting tool\nSEO Reporting Tool');
+    await expect(dialog.getByText('1 keyword · 1 repeat left out')).toBeVisible();
+    await expectAccessible(page);
+    await dialog.getByRole('button', { name: 'Add 1 keyword' }).click();
+    await expect(page.getByText('1 keyword added')).toBeVisible();
+    await page.getByRole('searchbox', { name: /Search/ }).fill('seo reporting');
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await expect(grid.getByRole('rowheader', { name: /seo reporting tool/ })).toBeVisible();
+    await expect(grid.getByText('Pending').first()).toBeVisible();
+  });
 });

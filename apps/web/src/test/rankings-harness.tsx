@@ -5,6 +5,7 @@ import { expect, vi } from 'vitest';
 import { RankingsScreen } from '@/features/rankings/rankings-screen';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
+import { MOCK_LOCATIONS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
@@ -26,10 +27,28 @@ export const cleanstart = fixtureProject(1);
 /** Rankings of `projectId` for a member of `role`, signed in through the mock session cookie. */
 export function rankingsAs(role: Role, projectId: string = fynix.project_id): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
+  const locationId = MOCK_PROJECTS.find((candidate) => candidate.project_id === projectId)?.location_id ?? null;
+  const location = MOCK_LOCATIONS.find((candidate) => candidate.location_id === locationId) ?? null;
   return (
     <PermissionProvider membership={membershipFactory(role)}>
       <Suspense fallback={null}>
-        <RankingsScreen workspaceId={MOCK_WORKSPACE.workspace_id} projectId={projectId} timeZone="Europe/Berlin" />
+        <RankingsScreen
+          workspaceId={MOCK_WORKSPACE.workspace_id}
+          projectId={projectId}
+          timeZone="Europe/Berlin"
+          defaults={{
+            location:
+              location === null
+                ? null
+                : {
+                    location_id: location.location_id,
+                    name: location.name,
+                    location_type: location.location_type,
+                    country_iso: location.country_iso,
+                  },
+            languageCode: 'en',
+          }}
+        />
       </Suspense>
     </PermissionProvider>
   );

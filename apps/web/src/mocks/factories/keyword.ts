@@ -4,7 +4,7 @@ import type { EntityWorld } from '../entities-state';
 import { MOCK_INVITED_USER, MOCK_USERS } from '../fixtures';
 import { fixtureReading, fixtureReadingsOf, METRICS_FETCHED_AT, type FixtureReading } from '../keyword-fixtures';
 import { keywordMetrics, metricsHistory } from '../keyword-metrics';
-import { normalizeKeyword } from '../keyword-text';
+import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   currentVersion,
   isLive,

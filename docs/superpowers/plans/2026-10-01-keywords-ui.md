@@ -113,6 +113,12 @@
 - [ ] **Step 1:** 560 px dialog: keywords one per line (counter, 700 characters each, repeats in any case once), location (`LocationCombobox`, project default), language, device (Desktop, Mobile, Both), search engine, group, tags, priority.
 - [ ] **Step 2:** Errors: `422 quota_exceeded` says "This adds 120 keywords and the plan has room for 80 (1,920 of 2,000 used)" with `both` counted twice in the preview line before sending; `409 duplicate` with `existing_id` offers "Show it" and, for an archived one, "Unarchive"; a restored deleted keyword is told apart in the toast.
 - [ ] **Step 3:** Tests, gates, Opus review, commit "Rankings: add keywords".
+- **As built.**
+  - Every add goes through `bulk-create` (`on_duplicate: skip`). Keywords tracked already come back as skipped with "Show it", plus "Unarchive" for an archived one; refused keywords come back with their reason.
+  - The search engine is not a control: the contract allows Google only, and the dialog's description says so.
+  - The device starts on the project's `seo.default_device`, and is left to the API until the settings load.
+  - Lines are read by the API's text rules, which now live in `src/lib/keywords/keyword-text.ts` for both the dialog and the mocks.
+  - A restored deleted keyword cannot be told apart yet: the create answers carry no marker. The backend was asked on 2026-10-01 for `restored` ids in `BulkCreateResult`; until then the toast counts restores as added.
 
 ### Task 7: Bulk actions
 

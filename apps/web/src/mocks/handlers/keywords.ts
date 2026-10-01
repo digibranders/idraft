@@ -5,7 +5,7 @@ import { cursorPage, pageRequest, queryError } from './rules';
 import { keywordView, metricsHistory, readingOf } from '../factories/keyword';
 import { keywordMetrics } from '../keyword-metrics';
 import { fixtureReadingsOf } from '../keyword-fixtures';
-import { normalizeKeyword } from '../keyword-text';
+import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import type { StoredKeyword, StoredTracked } from '../keywords-state';
 import { invalid, mock, problem } from '../respond';
 import type { ValidationItem } from '@/lib/api/types';

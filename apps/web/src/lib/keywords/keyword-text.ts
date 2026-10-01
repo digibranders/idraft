@@ -1,7 +1,8 @@
 /**
  * Keyword text as the API reads it (backend `keywords/text.py`): the text kept is the input with format
  * characters removed and whitespace trimmed and collapsed, casing kept; the normalized text that makes a
- * keyword's identity is NFKC, without format characters, lower case, whitespace collapsed, NFKC again.
+ * keyword's identity is NFKC, without format characters, lower case, whitespace collapsed, NFKC again. The
+ * Add keywords dialog checks lines with these rules before it sends them; the mocks answer by them.
  */
 
 /** Longest keyword, counted on the cleaned text. */
@@ -48,11 +49,3 @@ export function keywordTextProblem(raw: string): KeywordTextProblem | null {
   if (hasSearchOperator(normalizeKeyword(raw))) return 'search_operator_not_allowed';
   return null;
 }
-
-/** What the API says for each problem. */
-export const KEYWORD_TEXT_MESSAGES: Readonly<Record<KeywordTextProblem, string>> = {
-  keyword_invalid: 'The keyword holds a control character.',
-  keyword_missing: 'Enter a keyword.',
-  keyword_too_long: `A keyword is at most ${String(MAX_KEYWORD_LENGTH)} characters.`,
-  search_operator_not_allowed: 'Search operators such as site: or a minus before a word are not tracked.',
-};

@@ -1,7 +1,7 @@
 import { rowWithIdentity, workspaceKeyword, type KeywordProjectCaller } from './keyword-rules';
 import { canonicalUrl } from '../factories/keyword';
 import { MOCK_LOCATIONS } from '../entity-fixtures';
-import { cleanKeyword, keywordTextProblem, normalizeKeyword } from '../keyword-text';
+import { cleanKeyword, keywordTextProblem, normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   DEPTH_PROFILES,
   FUNNEL_STAGES,

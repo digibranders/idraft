@@ -8,7 +8,7 @@ import {
   type CreateItem,
   type KeywordProjectCaller,
 } from './keyword-rules';
-import { normalizeKeyword } from '../keyword-text';
+import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   keywordWorld,
   withKeyword,

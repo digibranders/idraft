@@ -1,7 +1,7 @@
 import { MOCK_ENTITY_IDS, MOCK_TERM_IDS } from './entity-fixtures';
 import { MOCK_CREATED_AT, MOCK_PROJECTS, MOCK_USERS } from './fixtures';
 import { KEYWORD_TABLE, type KeywordRow, type TableGroup, type TableTopic } from './keyword-table';
-import { normalizeKeyword } from './keyword-text';
+import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import type {
   StoredGroup,
   StoredKeyword,

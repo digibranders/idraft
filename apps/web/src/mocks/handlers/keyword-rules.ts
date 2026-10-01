@@ -6,7 +6,6 @@ import { stateTime } from '../entities-codec';
 import { MOCK_LOCATIONS } from '../entity-fixtures';
 import { MOCK_WORKSPACE } from '../fixtures';
 import { canonicalUrl, decimalOfCents, groupAndBelow, readingOf, type Include } from '../factories/keyword';
-import { cleanKeyword, KEYWORD_TEXT_MESSAGES, keywordTextProblem, normalizeKeyword } from '../keyword-text';
 import {
   DEPTH_PROFILES,
   FREQUENCIES,
@@ -32,6 +31,21 @@ import { invalid, problem } from '../respond';
 import { projectList } from '../workspace-state';
 import type { Permission } from '@/lib/permissions/permissions';
 import type { Problem, ValidationItem } from '@/lib/api/types';
+import {
+  cleanKeyword,
+  keywordTextProblem,
+  MAX_KEYWORD_LENGTH,
+  normalizeKeyword,
+  type KeywordTextProblem,
+} from '@/lib/keywords/keyword-text';
+
+/** What the API says for each problem of a keyword's text. */
+export const KEYWORD_TEXT_MESSAGES: Readonly<Record<KeywordTextProblem, string>> = {
+  keyword_invalid: 'The keyword holds a control character.',
+  keyword_missing: 'Enter a keyword.',
+  keyword_too_long: `A keyword is at most ${String(MAX_KEYWORD_LENGTH)} characters.`,
+  search_operator_not_allowed: 'Search operators such as site: or a minus before a word are not tracked.',
+};
 
 /**
  * The rules the keyword routes share (backend `api/keywords/service.py` on `backend/keywords`): who calls

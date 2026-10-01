@@ -1,9 +1,11 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { Plus } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
+import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
@@ -33,9 +35,10 @@ import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
-import { formatInteger, formatRelative } from '@/lib/format';
+import { formatInteger, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
+import { useCan } from '@/lib/permissions';
 import {
   formatColumns,
   formatSort,
@@ -60,18 +63,23 @@ const VIEW_STATE = {
 export interface RankingsScreenProps extends ProjectScope {
   /** The project's time zone, for the Added column. */
   timeZone: string;
+  /** The project's location and language, which new keywords start with. */
+  defaults: ProjectDefaults;
 }
 
 /**
  * SEO > Rankings for step 5 part 1 (20-frontend-specification.md section 5.3, 24-page-templates.md
  * section 9.3): the project's tracked keywords with their Labs metrics, filtered by chips, searched,
- * sorted, and switched between active and archived keywords. Every choice lives in the URL. Rank columns,
- * the metric strip and the inspector arrive with their steps.
+ * sorted, and switched between active and archived keywords, with the keyword inspector and Add keywords.
+ * Every choice lives in the URL. Rank columns and the metric strip arrive with rank collection.
  */
-export function RankingsScreen({ workspaceId, projectId, timeZone }: RankingsScreenProps): ReactNode {
+export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: RankingsScreenProps): ReactNode {
   const t = useTranslations('rankings');
   const common = useTranslations('common');
   const errors = useTranslations('status.error');
+  const locale = useLocale();
+  const canWrite = useCan('keywords:write');
+  const [adding, setAdding] = useState(false);
   const scope = useMemo((): ProjectScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
 
   const fields = useKeywordFilterFields(scope);
@@ -81,7 +89,12 @@ export function RankingsScreen({ workspaceId, projectId, timeZone }: RankingsScr
       toast({
         type: 'info',
         title: t('droppedFilters.title', { count: dropped.length }),
-        description: t('droppedFilters.description', { fields: dropped.map((field) => field.label).join(', ') }),
+        description: t('droppedFilters.description', {
+          fields: formatList(
+            dropped.map((field) => field.label),
+            locale,
+          ),
+        }),
       }),
   });
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
@@ -160,7 +173,26 @@ export function RankingsScreen({ workspaceId, projectId, timeZone }: RankingsScr
   // The search that found nothing: in server mode the one the API was sent, which lags the box by the delay
   const searched = (list.mode === 'server' ? search : view.q).trim();
   const activeFilters = Object.keys(values).length;
-  const emptyState = <EmptyState title={t('empty.title')} reason={t('empty.reason')} headingLevel={2} />;
+  const addButton = (
+    <Button variant="primary" icon={Plus} onClick={() => setAdding(true)}>
+      {t('add.open')}
+    </Button>
+  );
+  const emptyState = (
+    <EmptyState
+      title={t('empty.title')}
+      reason={t('empty.reason')}
+      headingLevel={2}
+      primaryAction={canWrite ? addButton : undefined}
+    />
+  );
+  // A keyword tracked already opens in the inspector, in the archived view when it is archived; like any
+  // other move of the inspector, it asks first about unsaved changes
+  const showKeyword = (id: string, archived: boolean): void =>
+    guarded(() => {
+      if (archived !== view.archived) void setView({ archived: archived ? true : null });
+      inspector.open({ type: 'keyword', id });
+    });
   // The tracked count is of active keywords, so the Archived view does not quote it
   const noMatchesReason = view.archived
     ? t('noMatches.reasonArchived', { count: activeFilters })
@@ -231,7 +263,11 @@ export function RankingsScreen({ workspaceId, projectId, timeZone }: RankingsScr
   return (
     <InspectorLayout inspector={keywordInspector}>
       <div className="flex h-page-body min-h-page-body-min flex-col gap-4 px-3 pt-5 pb-5 md:px-4 lg:px-5">
-        <PageHeader title={t('title')} meta={meta === '' ? undefined : meta} />
+        <PageHeader
+          title={t('title')}
+          meta={meta === '' ? undefined : meta}
+          actions={canWrite ? addButton : undefined}
+        />
         <FilterBar
           fields={fields}
           values={values}
@@ -337,6 +373,15 @@ export function RankingsScreen({ workspaceId, projectId, timeZone }: RankingsScr
           />
         </div>
       </div>
+      {canWrite ? (
+        <AddKeywordsDialog
+          scope={scope}
+          defaults={defaults}
+          open={adding}
+          onOpenChange={setAdding}
+          onShowKeyword={showKeyword}
+        />
+      ) : null}
       <DiscardChangesDialog
         open={pendingLeave !== null || leaveGuard.pending !== null}
         title={t('inspector.discard.title')}
