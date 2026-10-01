@@ -1,0 +1,101 @@
+{
+  "answers": [
+    {
+      "text": "The best CRM for startups is HubSpot, followed by Pipedrive.",
+      "spans": [["HubSpot", "HubSpot", "accepted"], ["Pipedrive", "Pipedrive", "accepted"]]
+    },
+    {
+      "text": "Fynix Digital helps small teams track their AI visibility.",
+      "spans": [["Fynix", "Fynix Digital", "accepted"]]
+    },
+    {
+      "text": "Teams on Salesforce often say SFDC when they mean the core product.",
+      "spans": [["Salesforce", "Salesforce", "accepted"], ["Salesforce", "SFDC", "accepted"]]
+    },
+    {
+      "text": "Avoid confusing sfdc with other tools.",
+      "spans": []
+    },
+    {
+      "text": "We met at Salesforce Tower in San Francisco.",
+      "spans": []
+    },
+    {
+      "text": "Let's meet on monday for the quarterly review.",
+      "spans": [["Monday", "monday", "discarded"]]
+    },
+    {
+      "text": "Our CRM is Monday, and the sales team likes it.",
+      "spans": [["Monday", "Monday", "accepted"]]
+    },
+    {
+      "text": "Visit hubspot.com/pricing for the current plans.",
+      "spans": [["HubSpot", "hubspot.com", "accepted"]]
+    },
+    {
+      "text": "Zoho CRM is cheaper than Pipedrive for large teams.",
+      "spans": [["Zoho CRM", "Zoho CRM", "accepted"], ["Pipedrive", "Pipedrive", "accepted"]]
+    },
+    {
+      "text": "PIPEDRIVE and pipedrive are the same tool.",
+      "spans": [["Pipedrive", "PIPEDRIVE", "accepted"], ["Pipedrive", "pipedrive", "accepted"]]
+    },
+    {
+      "text": "Read more at https://www.fynix.digital/blog today.",
+      "spans": [["Fynix", "fynix.digital", "accepted"]]
+    },
+    {
+      "text": "Fynix compared with HubSpot: Fynix tracks AI answers.",
+      "spans": [
+        ["Fynix", "Fynix", "accepted"],
+        ["HubSpot", "HubSpot", "accepted"],
+        ["Fynix", "Fynix", "accepted"]
+      ]
+    },
+    {
+      "text": "No vendors are named in this answer.",
+      "spans": []
+    },
+    {
+      "text": "MyHubSpot is another company's product.",
+      "spans": []
+    },
+    {
+      "text": "In Berlin, Pipedrive is popular with sales teams.",
+      "spans": [["Pipedrive", "Pipedrive", "accepted"]]
+    },
+    {
+      "markdown": "**HubSpot** vs *Salesforce*: a short comparison.",
+      "spans": [["HubSpot", "HubSpot", "accepted"], ["Salesforce", "Salesforce", "accepted"]]
+    },
+    {
+      "text": "SFDC, HubSpot and Pipedrive all integrate with Gmail.",
+      "spans": [
+        ["Salesforce", "SFDC", "accepted"],
+        ["HubSpot", "HubSpot", "accepted"],
+        ["Pipedrive", "Pipedrive", "accepted"]
+      ]
+    },
+    {
+      "text": "Salesforce and HubSpot lead the enterprise CRM market; Pipedrive and Zoho CRM follow.",
+      "spans": [
+        ["Salesforce", "Salesforce", "accepted"],
+        ["HubSpot", "HubSpot", "accepted"],
+        ["Pipedrive", "Pipedrive", "accepted"],
+        ["Zoho CRM", "Zoho CRM", "accepted"]
+      ]
+    },
+    {
+      "text": "Is Fynix better than Pipedrive? Fynix Digital says yes.",
+      "spans": [
+        ["Fynix", "Fynix", "accepted"],
+        ["Pipedrive", "Pipedrive", "accepted"],
+        ["Fynix", "Fynix Digital", "accepted"]
+      ]
+    },
+    {
+      "text": "Mondays are hard for everyone.",
+      "spans": [["Monday", "Monday", "discarded"]]
+    }
+  ]
+}

@@ -18,15 +18,23 @@ from sightline.api.auth.sessions import SessionStore
 from sightline.api.auth.throttle import LoginThrottle
 from sightline.api.auth.tokens import derive_key
 from sightline.api.auth.totp import TotpCipher
+from sightline.api.body_limit import BodyLimitMiddleware
 from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.document import router as document_router
+from sightline.api.entities.project_routes import router as project_entities_router
+from sightline.api.entities.project_service import ProjectEntityService
+from sightline.api.entities.routes import router as entities_router
+from sightline.api.entities.service import EntityService
 from sightline.api.health import router as health_router
 from sightline.api.problems import register_problem_handlers
 from sightline.api.projects.routes import router as projects_router
 from sightline.api.projects.service import ProjectService
+from sightline.api.registries import router as registries_router
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
 from sightline.api.schema import install_openapi
+from sightline.api.taxonomy.routes import router as taxonomy_router
+from sightline.api.taxonomy.service import TaxonomyService
 from sightline.api.workspaces.invitations import InvitationService
 from sightline.api.workspaces.members import MemberService
 from sightline.api.workspaces.routes import router as workspaces_router
@@ -117,6 +125,9 @@ def create_app(
                 ),
                 members=MemberService(sessions=sessions),
                 projects=ProjectService(sessions=sessions),
+                entities=EntityService(sessions=sessions),
+                project_entities=ProjectEntityService(sessions=sessions),
+                taxonomy=TaxonomyService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -138,6 +149,7 @@ def create_app(
     )
     # Added last runs first: the request id is bound before the access log line is written, and
     # a request refused for its origin still gets both.
+    app.add_middleware(BodyLimitMiddleware, app_origin=settings.app_origin)
     app.add_middleware(OriginCheckMiddleware, app_origin=settings.app_origin)
     app.add_middleware(AccessLogMiddleware, quiet_paths=HEALTH_PATHS)
     app.add_middleware(RequestIdMiddleware)
@@ -146,6 +158,10 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(workspaces_router)
     app.include_router(projects_router)
+    app.include_router(entities_router)
+    app.include_router(project_entities_router)
+    app.include_router(taxonomy_router)
+    app.include_router(registries_router)
     app.include_router(document_router)
     install_openapi(app)
     return app

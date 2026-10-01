@@ -11,6 +11,3 @@ design-preview
 
 # Hand-aligned token tables
 src/styles
-
-# The draft API contract of a backend step not yet merged (branch only, see the entities plan)
-openapi

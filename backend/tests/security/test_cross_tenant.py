@@ -79,6 +79,22 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/invitations"): {"email": "intruder@evil.example", "role": "admin"},
     ("POST", _W + "/projects"): {"name": "Planted", "slug": "planted"},
     ("PATCH", _W + "/projects/{project_id}"): {"name": "Taken over"},
+    ("POST", _W + "/entities"): {"entity_type": "brand", "canonical_name": "Planted"},
+    ("PATCH", _W + "/entities/{entity_id}"): {"canonical_name": "Taken over"},
+    ("POST", _W + "/entities/{entity_id}/aliases"): {"alias": "planted"},
+    ("PATCH", _W + "/entities/{entity_id}/aliases/{alias_id}"): {"alias": "taken over"},
+    ("POST", _W + "/entities/{entity_id}/domains"): {"domain": "planted.example"},
+    # `{name}` in a body is the id the call is made with, like the path's.
+    ("POST", _W + "/projects/{project_id}/entities"): {
+        "entity_id": "{spare_entity_id}",
+        "role": "competitor",
+    },
+    ("PATCH", _W + "/projects/{project_id}/entities/{entity_id}"): {"track_ai": False},
+    ("POST", _W + "/projects/{project_id}/alias-test"): {"text": "Acme"},
+    ("POST", _W + "/vocabularies"): {"kind": "topic", "name": "Planted"},
+    ("PATCH", _W + "/vocabularies/{vocabulary_id}"): {"name": "Taken over"},
+    ("POST", _W + "/vocabularies/{vocabulary_id}/terms"): {"name": "Planted"},
+    ("PATCH", _W + "/terms/{term_id}"): {"name": "Taken over"},
 }
 
 
@@ -91,6 +107,13 @@ class Tenant:
     project_id: uuid.UUID
     invitation_id: uuid.UUID
     invitee: str
+    entity_id: uuid.UUID
+    alias_id: uuid.UUID
+    entity_domain_id: uuid.UUID
+    # An entity whose role in the project was removed: giving it a role again succeeds.
+    spare_entity_id: uuid.UUID
+    vocabulary_id: uuid.UUID
+    term_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -98,6 +121,12 @@ class Tenant:
             "project_id": str(self.project_id),
             "user_id": str(self.member.id),
             "invitation_id": str(self.invitation_id),
+            "entity_id": str(self.entity_id),
+            "alias_id": str(self.alias_id),
+            "entity_domain_id": str(self.entity_domain_id),
+            "spare_entity_id": str(self.spare_entity_id),
+            "vocabulary_id": str(self.vocabulary_id),
+            "term_id": str(self.term_id),
         }
 
     def secrets(self) -> list[str]:
@@ -131,6 +160,71 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         hash_token(new_token()),
         owner.id,
     )
+    # The same brand in both, with an alias and a domain, named by the project.
+    entity = await fetchrow(
+        pg,
+        "INSERT INTO core.entities (workspace_id, entity_type, canonical_name) "
+        "VALUES ($1, 'brand', 'Acme') RETURNING id",
+        workspace.id,
+    )
+    alias = await fetchrow(
+        pg,
+        "INSERT INTO core.entity_aliases (workspace_id, entity_id, alias) "
+        "VALUES ($1, $2, 'Acme') RETURNING id",
+        workspace.id,
+        entity["id"],
+    )
+    domain = await fetchrow(
+        pg,
+        "INSERT INTO core.domains (host, registrable_domain, public_suffix) "
+        "VALUES ('acme.example', 'acme.example', 'example') "
+        "ON CONFLICT (host) DO UPDATE SET host = excluded.host RETURNING id",
+    )
+    entity_domain = await fetchrow(
+        pg,
+        "INSERT INTO core.entity_domains (entity_id, workspace_id, domain_id) "
+        "VALUES ($1, $2, $3) RETURNING id",
+        entity["id"],
+        workspace.id,
+        domain["id"],
+    )
+    # Not primary, so that removing the role is allowed.
+    await execute(
+        pg,
+        "INSERT INTO core.project_entities (project_id, entity_id, workspace_id, role) "
+        "VALUES ($1, $2, $3, 'own')",
+        project_id,
+        entity["id"],
+        workspace.id,
+    )
+    spare = await fetchrow(
+        pg,
+        "INSERT INTO core.entities (workspace_id, entity_type, canonical_name) "
+        "VALUES ($1, 'brand', 'Rival') RETURNING id",
+        workspace.id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.project_entities (project_id, entity_id, workspace_id, role, "
+        "removed_at) VALUES ($1, $2, $3, 'watch', now())",
+        project_id,
+        spare["id"],
+        workspace.id,
+    )
+    # The same workspace-wide vocabulary and term in both.
+    vocabulary = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, kind, name, is_hierarchical) "
+        "VALUES ($1, 'topic', 'Topics', true) RETURNING id",
+        workspace.id,
+    )
+    term = await fetchrow(
+        pg,
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, name, slug, path) "
+        "VALUES ($1, $2, 'CRM', 'crm', 'crm') RETURNING id",
+        workspace.id,
+        vocabulary["id"],
+    )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -141,6 +235,12 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         project_id=project_id,
         invitation_id=invitation["id"],
         invitee=invitee,
+        entity_id=entity["id"],
+        alias_id=alias["id"],
+        entity_domain_id=entity_domain["id"],
+        spare_entity_id=spare["id"],
+        vocabulary_id=vocabulary["id"],
+        term_id=term["id"],
     )
 
 
@@ -164,6 +264,11 @@ async def _call(
     api: httpx.AsyncClient, method: str, path: str, ids: dict[str, str], headers: dict[str, str]
 ) -> httpx.Response:
     body = None if method in _READ else BODIES.get((method, path), {})
+    if body is not None:
+        body = {
+            key: _fill(value, ids) if isinstance(value, str) else value
+            for key, value in body.items()
+        }
     return await api.request(method, _fill(path, ids), json=body, headers=headers)
 
 
@@ -182,6 +287,12 @@ _TENANT_ROWS = {
     "auth.invitations": "workspace_id",
     "core.projects": "workspace_id",
     "core.workspace_quotas": "workspace_id",
+    "core.entities": "workspace_id",
+    "core.entity_aliases": "workspace_id",
+    "core.entity_domains": "workspace_id",
+    "core.project_entities": "workspace_id",
+    "core.taxonomy_vocabularies": "workspace_id",
+    "core.taxonomy_terms": "workspace_id",
     "ops.audit_logs": "workspace_id",
 }
 
@@ -314,7 +425,7 @@ async def test_a_list_holds_nothing_of_another_workspace(
     for secret in b.secrets():
         assert secret not in response.text, f"{path} shows {secret} of another workspace"
     # The list is not empty for a trivial reason: it shows A's own data.
-    assert str(a.workspace.id) in response.text or str(a.owner.id) in response.text
+    assert any(own in response.text for own in [*a.ids().values(), str(a.owner.id)])
 
 
 async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_both(
@@ -334,10 +445,25 @@ async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_bot
     await add_member(migrated, a.workspace, both, "owner")
     await add_member(migrated, b.workspace, both, "owner")
     token, _ = await open_session(resources, both, fresh=True)
-    for path in (_W + "/members", _W + "/projects", _W + "/invitations"):
+    for path in (
+        _W + "/members",
+        _W + "/projects",
+        _W + "/invitations",
+        _W + "/entities",
+        _W + "/vocabularies",
+        _W + "/vocabularies/{vocabulary_id}/terms",
+    ):
         response = await api.get(_fill(path, a.ids()), headers=cookie(token))
         assert response.status_code == 200
-        for secret in (str(b.project_id), str(b.member.id), str(b.invitation_id), b.invitee):
+        for secret in (
+            str(b.project_id),
+            str(b.member.id),
+            str(b.invitation_id),
+            b.invitee,
+            str(b.entity_id),
+            str(b.vocabulary_id),
+            str(b.term_id),
+        ):
             assert secret not in response.text, path
     # B's children are not reachable through A's path even for a member of both.
     for method, path in CHILD_ROUTES:

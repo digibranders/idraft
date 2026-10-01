@@ -91,6 +91,7 @@ async def test_an_editor_creates_a_project(
         "slug": slug,
         "primary_domain": None,
         "default_location_id": None,
+        "default_location": None,
         "default_language_code": None,
         # The workspace's zone, when none is given.
         "timezone": "Asia/Kolkata",
@@ -269,9 +270,10 @@ async def test_a_workspace_without_a_quota_row_gets_the_default_limit(
         {"deep_check_weekday": True},
         {"default_language_code": "eng"},
         {"default_language_code": "EN"},
-        # Taken by later phases, not accepted yet.
-        {"primary_domain": "fynix.digital"},
-        {"default_location_id": 2356},
+        {"primary_domain": "not a host"},
+        {"default_location_id": 0},
+        {"default_location_id": "2356"},
+        # Taken by a later phase, not accepted yet.
         {"settings": {}},
         {"status": "paused"},
     ],

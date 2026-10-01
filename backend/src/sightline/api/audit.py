@@ -7,7 +7,8 @@ have no workspace and go through `ops.record_auth_event` instead (sightline.api.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
@@ -18,6 +19,8 @@ from sightline.api.request_info import RequestInfo
 from sightline.db.tables import audit_logs
 
 type Snapshot = Mapping[str, str | int | bool | list[str] | None]
+# A statement carries at most 32,767 parameters (asyncpg), and an entry takes 11.
+ROWS_PER_STATEMENT = 1000
 AuditAction = Literal[
     "workspace.created",
     "workspace.updated",
@@ -28,7 +31,65 @@ AuditAction = Literal[
     "invitation.accepted",
     "project.created",
     "project.updated",
+    "entity.created",
+    "entity.updated",
+    "entity.deleted",
+    "entity_alias.created",
+    "entity_alias.updated",
+    "entity_alias.deleted",
+    "entity_domain.created",
+    "entity_domain.deleted",
+    "project_entity.created",
+    "project_entity.updated",
+    "project_entity.removed",
+    "vocabulary.created",
+    "vocabulary.updated",
+    "vocabulary.deleted",
+    "term.created",
+    "term.updated",
+    "term.deleted",
 ]
+
+
+@dataclass(frozen=True, slots=True)
+class Entry:
+    """One target of `record_each`."""
+
+    target_id: UUID
+    before: Snapshot | None = None
+    after: Snapshot | None = None
+
+
+async def record_each(
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    actor_id: UUID,
+    action: AuditAction,
+    target_type: str,
+    info: RequestInfo,
+    entries: Sequence[Entry],
+) -> None:
+    """One entry per target, in as few statements as the driver allows (a batch of aliases or
+    terms is one request)."""
+    rows = [
+        {
+            "workspace_id": workspace_id,
+            "actor_type": "user",
+            "actor_id": str(actor_id),
+            "action": action,
+            "target_type": target_type,
+            "target_id": str(entry.target_id),
+            "before": None if entry.before is None else dict(entry.before),
+            "after": None if entry.after is None else dict(entry.after),
+            "ip": info.ip,
+            "user_agent": info.user_agent,
+            "request_id": info.request_id,
+        }
+        for entry in entries
+    ]
+    for start in range(0, len(rows), ROWS_PER_STATEMENT):
+        await db.execute(insert(audit_logs).values(rows[start : start + ROWS_PER_STATEMENT]))
 
 
 async def record(

@@ -54,7 +54,7 @@ CREATE TABLE ai.project_source_stats (
 
 ## 3. URL canonicalization (canonicalizer version 1)
 
-Canonicalization determines whether two citations point at "the same page". It is shared by SERP results, citations, first-party pages and owned-domain matching. All rules are in `packages/extraction/src/url/canonicalize.ts` with a test vector file.
+Canonicalization determines whether two citations point at "the same page". It is shared by SERP results, citations, first-party pages and owned-domain matching. All rules are in `backend/src/sightline/extraction/urls.py`, with the test vectors in `backend/tests/extraction/test_urls.py`.
 
 ### 3.1 Steps
 
@@ -66,7 +66,7 @@ Canonicalization determines whether two citations point at "the same page". It i
 6. **Query**: remove tracking parameters. List v1: `utm_*`, `gclid`, `gbraid`, `wbraid`, `dclid`, `fbclid`, `msclkid`, `mc_cid`, `mc_eid`, `_hsenc`, `_hsmi`, `hsCtaTracking`, `igshid`, `si` (on youtube.com, youtu.be, spotify.com only), `srsltid`, `yclid`, `ref` and `ref_src` (only when value is a known referrer tag), `spm`, `_ga`, `_gl`, `oly_enc_id`, `oly_anon_id`, `vero_id`, `mkt_tok`. The value of `utm_source` is recorded as `referral_tag` before removal. Remaining parameters are sorted by name; empty values dropped.
 7. **Path**: RFC 3986 section 6.2.2 normalizations: uppercase percent-encoding hex, decode percent-encoded unreserved characters, remove dot segments. Empty path becomes `/`. Trailing slash removed on non-root paths (heuristic, documented as unsafe by the RFC; accepted because it merges far more true duplicates than it creates false merges; per-domain exceptions list supported).
 8. **Known equivalents** (per-domain rules, v1): `m.` and `mobile.` subdomains on `wikipedia.org` map to the desktop host; `amp/` path suffixes and `?amp=1` on known publishers map to the canonical article; `youtu.be/<id>` maps to `youtube.com/watch?v=<id>`.
-9. **Registrable domain** via the Public Suffix List (`tldts`, with private domains enabled so `user.github.io` and `user.substack.com` are separate registrable domains). The PSL snapshot version is pinned and upgraded deliberately (it is part of `canonicalizer_version`).
+9. **Registrable domain** via the Public Suffix List (`publicsuffixlist`, with private domains enabled so `user.github.io` and `user.substack.com` are separate registrable domains). The PSL snapshot version is pinned and upgraded deliberately (it is part of `canonicalizer_version`).
 10. `url_hash = sha256(scheme-less canonical URL)`.
 
 We do not fetch pages to follow HTTP redirects or read `rel=canonical` in V1. That would add network cost, SSRF surface, and time-dependence to ingest. A Phase 13 option resolves `rel=canonical` for **owned** domains only, where we can trust the result, via a periodic owned-sitemap crawl.
@@ -81,6 +81,23 @@ We do not fetch pages to follow HTTP redirects or read `rel=canonical` in V1. Th
 | `https://alice.github.io/post/` | `https://alice.github.io/post` | `alice.github.io` | | |
 | `http://ACME.co.uk:80/a/./b/../c` | `http://acme.co.uk/a/c` | `acme.co.uk` | | |
 | `https://youtu.be/dQw4w9WgXcQ?si=abc` | `https://youtube.com/watch?v=dQw4w9WgXcQ` | `youtube.com` | | |
+
+### 3.3 As built (v1)
+
+Where section 3.1 leaves a detail open, version 1 settles it as follows. Changing any of it is a new `canonicalizer_version`.
+
+- **Parsing.** Python's `urllib.parse` with the WHATWG behaviour the steps need written out: surrounding whitespace and embedded tabs and newlines are ignored, and backslashes before the query are slashes. A rejected URL raises `UrlRejectedError` with a reason: `unsupported_scheme` (including a missing scheme), `missing_host`, `invalid_host`, `invalid_port` or `too_long` (over 32 KiB). A port may have leading zeros.
+- **Credentials** (`user:pass@`) are dropped; a canonical URL never carries them.
+- **Hosts.** Percent-escapes are decoded, then UTS 46 mapping and IDNA 2008 A-labels for labels that are not ASCII. ASCII labels allow letters, digits, hyphens (not first or last) and underscores. A host over 253 characters is invalid. A host whose last label is numeric must be a dotted-quad IPv4 address; IPv6 is written compressed in brackets, and a zone id (`%eth0`) is invalid. `idna` is pinned with the PSL, since its UTS 46 tables decide hosts too. For an IP, `registrable_domain` is the address and `public_suffix` is empty. A host that is itself a public suffix (`github.io`, `localhost`) is its own registrable domain.
+- **Unwrapping** repeats until no wrapper is left, so canonicalizing a canonical URL never changes it (a destination is always shorter than its wrapper, and the 32 KiB limit bounds the work). A text fragment on any level is flagged. Google means a host whose registrable domain under the ICANN suffixes alone starts with `google.` (`google.co.uk` included, `google.github.io` not); `/url` and `/goto` read `q`, then `url`. Bing's `u` is `a1` then URL-safe base64 without padding. Vertex AI grounding redirects (`vertexaisearch.cloud.google.com/grounding-api-redirect/...`) carry an opaque token, so they are always `unresolved_redirect`. A destination that is not http(s) or does not parse leaves the wrapper in place, flagged. An unresolved `href.li` link keeps no query (its query has no `=`), so all of them share `https://href.li/`.
+- **Known referrer values** for `ref` and `ref_src` (compared without case): `producthunt`, `hackernews`, `hn`, `reddit`, `twitter`, `facebook`, `linkedin`, `newsletter`, `rss`, `chatgpt.com`, `perplexity`, `perplexity.ai`, and anything starting `twsrc` (Twitter embeds).
+- **Query.** Names and values get the path's percent-encoding normalization; tracking names are matched without case. A parameter with an empty name or value is dropped. Sorting is by name and stable, so repeated names keep their order. `+` is left as it is.
+- **Path and query encoding.** Characters RFC 3986 does not allow are percent-encoded as UTF-8 (a lone surrogate as its own code unit, `%ED%A0%80`, where a browser would write U+FFFD), and a `%` that does not start an escape becomes `%25`. Trailing slashes are all removed on a non-root path; v1 has no per-domain exceptions.
+- **AMP publishers** (by registrable domain): `theguardian.com`, `cnn.com`, `bbc.com`, `bbc.co.uk`, `nytimes.com`, `washingtonpost.com`, `forbes.com`, `businessinsider.com`, `independent.co.uk`, `reuters.com`, `techcrunch.com`, `theverge.com`. On these, trailing `amp` path segments are removed and `amp=1` or `amp=true` is dropped.
+- **`youtu.be/<id>`** keeps its other parameters (`t`, for one) and replaces any `v` already there; an `&` in the id is encoded so it cannot split the query.
+- **Hosts typed by people** (entity domains, a project's primary domain) go through `normalize_host`, which accepts a bare name or a URL and maps hosts the canonicalizer never produces (`en.m.wikipedia.org`, `youtu.be`) the way it maps them. Path prefixes go through `normalize_path_prefix`, the same normalization as canonical paths; the resolver refuses a prefix in any other form.
+- **The Public Suffix List** is the snapshot bundled with the pinned `publicsuffixlist` package, whose version ends in the snapshot date.
+- **Domain roles** (stage 2 of doc 13) are resolved by `sightline/extraction/domains.py`. A path prefix matches whole segments (`/acme` covers `/acme/sdk`, not `/acmecorp`), and the longest prefix wins. A watched entity's domain is named on the result (`role_entity_id`) but counts as `third_party`. A tie at the same specificity goes to own, then competitor, then watch, then the lower entity id, and is reported as a conflict.
 
 ## 4. Domain categories
 

@@ -163,7 +163,13 @@ describe('Taxonomy', () => {
       await within(dialog).findByText('A line has more than 10 levels. Shorten it and try again.'),
     ).toBeInTheDocument();
     await user.clear(field);
-    await user.paste('SEO\nSEO/Local SEO');
+    await user.paste(`SEO/${'A'.repeat(201)}`);
+    await user.click(within(dialog).getByRole('button', { name: 'Add terms' }));
+    expect(
+      await within(dialog).findByText('A term name has at most 200 characters. Shorten the longer ones and try again.'),
+    ).toBeInTheDocument();
+    await user.clear(field);
+    await user.paste('SEO\nSEO / Local SEO');
     await user.click(within(dialog).getByRole('button', { name: 'Add terms' }));
     expect(await screen.findByText('These terms are all there already, so none was added.')).toBeInTheDocument();
   });

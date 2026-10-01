@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unicodedata
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -85,6 +85,23 @@ ImageUrl = Annotated[
     AfterValidator(printable),
 ]
 Token = Annotated[str, StringConstraints(min_length=1, max_length=TOKEN_BODY_MAX)]
+# A text filter in a query string (`filter[q]`). A control character or a lone surrogate would
+# reach the database as a 500, so it is a 422 here.
+QueryText = Annotated[
+    str, StringConstraints(min_length=1, max_length=200), AfterValidator(printable)
+]
+
+# A route that takes one item or `{ items: [...] }` validates only the shape sent, so an error
+# names the field that is wrong and not both shapes' fields. The tags are not field names: the
+# error mapper leaves them out of a path (sightline.api.problems).
+ONE_TAG = "(one)"
+BATCH_TAG = "(batch)"
+BODY_SHAPE_TAGS = frozenset({ONE_TAG, BATCH_TAG})
+
+
+def body_shape(value: object) -> str:
+    """The `Discriminator` of a one-or-batch body."""
+    return BATCH_TAG if isinstance(value, dict) and "items" in value else ONE_TAG
 
 
 class Body(BaseModel):
@@ -97,6 +114,25 @@ class UserRef(BaseModel):
     user_id: UUID
     name: str
     email: str
+
+
+class DomainRef(BaseModel):
+    domain_id: int
+    host: str
+    registrable_domain: str
+    category: str | None
+    category_source: Literal["seed_list", "rule", "llm", "manual", "tenant_override"] | None
+
+
+class LocationRef(BaseModel):
+    location_id: int
+    name: str
+    country_iso: str
+    location_type: str
+
+
+# ISO 639-1.
+LanguageCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2}$")]
 
 
 def _distinct(value: list[UUID] | None) -> list[UUID] | None:

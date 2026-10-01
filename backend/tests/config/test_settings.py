@@ -133,8 +133,6 @@ def test_credentials_read_from_a_secrets_file_lose_their_newline(
         {"DATAFORSEO_PASSWORD": ""},
         {"DATAFORSEO_LOGIN": "   "},
         {"R2_RAW_SECRET_ACCESS_KEY": ""},
-        # A task sent is paid for; without the bucket its result could never be kept.
-        {"R2_RAW_ENDPOINT": "", "R2_RAW_ACCESS_KEY_ID": "", "R2_RAW_SECRET_ACCESS_KEY": ""},
         {"R2_RAW_ENDPOINT": "r2.example.com"},
         {"R2_RAW_ENDPOINT": "https://r2.example.com/seo-raw"},
         {"R2_RAW_ENDPOINT": "https://r2.example.com?bucket=x"},
@@ -158,6 +156,20 @@ def test_a_provider_or_bucket_is_configured_whole_or_not_at_all(
     _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, **override})
     with pytest.raises(ValidationError):
         Settings()
+
+
+def test_a_worker_with_dataforseo_needs_the_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A task the worker sends is paid for; without the bucket its result could never be kept.
+    The API sends no tasks, so it starts from the same env file without one."""
+    no_bucket = {"R2_RAW_ENDPOINT": "", "R2_RAW_ACCESS_KEY_ID": "", "R2_RAW_SECRET_ACCESS_KEY": ""}
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, **no_bucket, "PROCESS_ROLE": "worker"})
+    with pytest.raises(ValidationError, match="R2_RAW_ENDPOINT"):
+        Settings()
+
+    _set(monkeypatch, {**BASE_ENV, **PROVIDERS_ENV, **no_bucket, "PROCESS_ROLE": "api"})
+    settings = Settings()
+    assert settings.dataforseo_credentials == ("api@example.com", "dfs-secret")
+    assert not settings.raw_storage_configured
 
 
 def test_a_production_server_that_spends_money_names_its_installation(

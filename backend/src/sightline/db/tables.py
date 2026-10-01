@@ -16,6 +16,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    CHAR,
     BigInteger,
     Boolean,
     Column,
@@ -23,6 +24,7 @@ from sqlalchemy import (
     DateTime,
     FetchedValue,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     LargeBinary,
     MetaData,
@@ -159,6 +161,64 @@ invitations = Table(
     schema="auth",
 )
 
+# Global dictionaries (docs/04-data-model.md sections 5.1 and 5.2): no workspace, no row-level
+# security, never listed by a route except the registries.
+providers = Table(
+    "providers",
+    metadata,
+    Column("code", Text, primary_key=True),
+    Column("label", Text, nullable=False),
+    Column("kind", Text, nullable=False),
+    schema="ops",
+)
+
+domain_categories = Table(
+    "domain_categories",
+    metadata,
+    Column("code", Text, primary_key=True),
+    Column("label", Text, nullable=False),
+    Column("description", Text, nullable=False),
+    schema="core",
+)
+
+domains = Table(
+    "domains",
+    metadata,
+    Column("id", Integer, primary_key=True, server_default=FetchedValue()),
+    Column("host", Text, nullable=False),
+    Column("registrable_domain", Text, nullable=False),
+    Column("public_suffix", Text, nullable=False),
+    Column("is_ip", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("default_category", Text, ForeignKey(domain_categories.c.code)),
+    Column("category_source", Text),
+    Column("category_version", SmallInteger),
+    Column("first_seen_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    UniqueConstraint("host", name="domains_host_key"),
+    schema="core",
+)
+
+locations = Table(
+    "locations",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=False),
+    Column("name", Text, nullable=False),
+    Column("country_iso", CHAR(2), nullable=False),
+    Column("location_type", Text, nullable=False),
+    Column("parent_id", Integer, ForeignKey("core.locations.id")),
+    Column("is_active", Boolean, nullable=False, server_default=FetchedValue()),
+    schema="core",
+)
+
+provider_location_map = Table(
+    "provider_location_map",
+    metadata,
+    Column("provider_code", Text, ForeignKey(providers.c.code), primary_key=True),
+    Column("location_id", Integer, ForeignKey(locations.c.id), primary_key=True),
+    Column("provider_value", Text, nullable=False),
+    Column("supports", ARRAY(Text), nullable=False),
+    schema="core",
+)
+
 projects = Table(
     "projects",
     metadata,
@@ -166,9 +226,8 @@ projects = Table(
     Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="RESTRICT"), nullable=False),
     Column("name", Text, nullable=False),
     Column("slug", CITEXT, nullable=False),
-    # The foreign key arrives with core.domains (Phase 2).
-    Column("primary_domain_id", Integer),
-    Column("default_location_id", Integer),
+    Column("primary_domain_id", Integer, ForeignKey(domains.c.id)),
+    Column("default_location_id", Integer, ForeignKey(locations.c.id)),
     Column("default_language_code", Text),
     Column("timezone", Text, nullable=False, server_default=FetchedValue()),
     Column("deep_check_weekday", SmallInteger, nullable=False, server_default=FetchedValue()),
@@ -181,6 +240,8 @@ projects = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
     Column("deleted_at", DateTime(timezone=True)),
     UniqueConstraint("workspace_id", "slug", name="projects_workspace_id_slug_key"),
+    # What tenant tables refer to, so a row can never point into another workspace.
+    UniqueConstraint("id", "workspace_id", name="projects_id_workspace_id_key"),
     schema="core",
 )
 
@@ -386,4 +447,174 @@ raw_payloads = Table(
     Column("expires_at", DateTime(timezone=True)),
     UniqueConstraint("retention_class", "sha256", name="raw_payloads_retention_class_sha256_key"),
     schema="ops",
+)
+
+# Entities (docs/04-data-model.md section 6). Each refers to its parents through
+# (id, workspace_id), so no row can point into another workspace.
+entities = Table(
+    "entities",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="CASCADE"), nullable=False),
+    Column("entity_type", Text, nullable=False),
+    Column("canonical_name", Text, nullable=False),
+    Column("parent_entity_id", Uuid),
+    Column("description", Text),
+    Column("is_ambiguous", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("disambiguation_hints", ARRAY(Text), nullable=False, server_default=FetchedValue()),
+    _created_at(),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    UniqueConstraint("id", "workspace_id", name="entities_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["parent_entity_id", "workspace_id"], ["core.entities.id", "core.entities.workspace_id"]
+    ),
+    schema="core",
+)
+
+entity_aliases = Table(
+    "entity_aliases",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("entity_id", Uuid, nullable=False),
+    Column("alias", Text, nullable=False),
+    Column("match_mode", Text, nullable=False, server_default=FetchedValue()),
+    Column("case_sensitive", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("language_code", Text),
+    Column("is_negative", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("requires_context", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("created_by", Uuid, ForeignKey(users.c.id, ondelete="SET NULL")),
+    _created_at(),
+    UniqueConstraint(
+        "entity_id",
+        "alias",
+        "match_mode",
+        "is_negative",
+        name="entity_aliases_entity_id_alias_match_mode_is_negative_key",
+    ),
+    ForeignKeyConstraint(
+        ["entity_id", "workspace_id"],
+        [entities.c.id, entities.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="core",
+)
+
+entity_domains = Table(
+    "entity_domains",
+    metadata,
+    _id(),
+    Column("entity_id", Uuid, nullable=False),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("domain_id", Integer, ForeignKey(domains.c.id), nullable=False),
+    Column("match_scope", Text, nullable=False, server_default=FetchedValue()),
+    Column("path_prefix", Text),
+    UniqueConstraint(
+        "entity_id",
+        "domain_id",
+        "match_scope",
+        "path_prefix",
+        name="entity_domains_entity_id_domain_id_match_scope_path_prefix_key",
+        postgresql_nulls_not_distinct=True,
+    ),
+    ForeignKeyConstraint(
+        ["entity_id", "workspace_id"],
+        [entities.c.id, entities.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="core",
+)
+
+project_entities = Table(
+    "project_entities",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("entity_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("role", Text, nullable=False),
+    Column("is_primary", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("track_seo", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("track_ai", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("color_index", SmallInteger),
+    Column("added_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    Column("removed_at", DateTime(timezone=True)),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    # No cascade: a role keeps the entity it names alive.
+    ForeignKeyConstraint(["entity_id", "workspace_id"], [entities.c.id, entities.c.workspace_id]),
+    schema="core",
+)
+
+# A view, read with the reader's rights: the base tables' policies apply to it.
+project_domain_roles = Table(
+    "project_domain_roles",
+    MetaData(),
+    Column("project_id", Uuid),
+    Column("workspace_id", Uuid),
+    Column("entity_id", Uuid),
+    Column("role", Text),
+    Column("domain_id", Integer),
+    Column("match_scope", Text),
+    Column("path_prefix", Text),
+    schema="core",
+)
+
+# Taxonomy (docs/04-data-model.md section 5.3).
+taxonomy_vocabularies = Table(
+    "taxonomy_vocabularies",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, ForeignKey(workspaces.c.id, ondelete="CASCADE"), nullable=False),
+    Column("project_id", Uuid),
+    Column("kind", Text, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("is_hierarchical", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("is_single_valued", Boolean, nullable=False, server_default=FetchedValue()),
+    # Names are unique without case through the index taxonomy_vocabularies_scope_kind_name.
+    UniqueConstraint("id", "workspace_id", name="taxonomy_vocabularies_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"],
+        [projects.c.id, projects.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="core",
+)
+
+taxonomy_terms = Table(
+    "taxonomy_terms",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("vocabulary_id", Uuid, nullable=False),
+    Column("parent_id", Uuid),
+    Column("name", Text, nullable=False),
+    Column("slug", CITEXT, nullable=False),
+    Column("path", Text, nullable=False),
+    Column("source", Text, nullable=False, server_default=FetchedValue()),
+    Column("description", Text),
+    _created_at(),
+    UniqueConstraint(
+        "vocabulary_id",
+        "parent_id",
+        "slug",
+        name="taxonomy_terms_vocabulary_id_parent_id_slug_key",
+        postgresql_nulls_not_distinct=True,
+    ),
+    UniqueConstraint("id", "workspace_id", name="taxonomy_terms_id_workspace_id_key"),
+    UniqueConstraint("id", "vocabulary_id", name="taxonomy_terms_id_vocabulary_id_key"),
+    ForeignKeyConstraint(
+        ["vocabulary_id", "workspace_id"],
+        [taxonomy_vocabularies.c.id, taxonomy_vocabularies.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    # A parent is in the same vocabulary, so in the same workspace too.
+    ForeignKeyConstraint(
+        ["parent_id", "vocabulary_id"],
+        ["core.taxonomy_terms.id", "core.taxonomy_terms.vocabulary_id"],
+        ondelete="CASCADE",
+    ),
+    schema="core",
 )

@@ -45,6 +45,46 @@ async def test_every_table_with_a_workspace_column_is_isolated(migrated: Postgre
     assert found == dict.fromkeys(TENANT_TABLES, (True, True))
 
 
+# Keys between tenant tables that do not carry the workspace, each with the reason it is safe.
+SINGLE_WORKSPACE_KEYS = {
+    # A parent term is in the same vocabulary, and the vocabulary key carries the workspace.
+    ("core.taxonomy_terms", "taxonomy_terms_parent_id_vocabulary_id_fkey"),
+    # Only the worker writes these today; they gain the workspace before a route writes them
+    # (docs/review-log.md F66).
+    ("ops.budgets", "budgets_project_id_fkey"),
+    ("ops.schedules", "schedules_project_id_fkey"),
+    ("ops.collection_runs", "collection_runs_schedule_id_fkey"),
+    ("ops.collection_runs", "collection_runs_blocked_by_budget_id_fkey"),
+}
+
+
+async def test_keys_between_tenant_tables_include_the_workspace(migrated: PostgresServer) -> None:
+    """Row-level security does not apply to foreign key checks, so a key on the id alone would
+    let a row point into another workspace. Read from the catalog, so new tables are covered."""
+    async with connection(migrated) as db:
+        rows = await db.fetch(
+            """
+            SELECT k.conrelid::regclass::text AS source, k.conname AS name,
+                   k.confrelid::regclass::text AS target,
+                   EXISTS (SELECT 1 FROM unnest(k.conkey) AS column_number
+                           JOIN pg_attribute a ON a.attrelid = k.conrelid
+                                              AND a.attnum = column_number
+                           WHERE a.attname = 'workspace_id') AS keyed_by_workspace
+            FROM pg_constraint k
+            WHERE k.contype = 'f'
+            """
+        )
+    unkeyed = {
+        (row["source"], row["name"])
+        for row in rows
+        if row["source"] in TENANT_TABLES
+        and row["target"] in TENANT_TABLES
+        and row["target"] != "auth.workspaces"
+        and not row["keyed_by_workspace"]
+    }
+    assert unkeyed == SINGLE_WORKSPACE_KEYS
+
+
 @pytest.mark.parametrize("table", sorted(TENANT_TABLES))
 async def test_without_a_workspace_the_api_sees_no_tenant_rows(
     migrated: PostgresServer, tenants: tuple[Tenant, Tenant], table: str

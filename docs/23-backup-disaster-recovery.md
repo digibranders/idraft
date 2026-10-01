@@ -882,7 +882,7 @@ When rows are truly gone (a bad migration, a buggy purge, a manual `DELETE`):
 6. **Merge in dependency order, in one transaction**, with `ON CONFLICT DO NOTHING` so rows that survived are untouched. Tables with `GENERATED ALWAYS AS IDENTITY` keys (observations, tasks, raw payloads) need `INSERT ... OVERRIDING SYSTEM VALUE` to keep their original ids, which other rows reference. Order for a whole project:
    `core.projects` > `core.entities`, `core.entity_aliases`, `core.entity_domains`, `core.project_entities` > `core.taxonomy_vocabularies`, `core.taxonomy_terms` > `seo.keywords`, `seo.tracked_keywords`, `seo.tracked_keyword_config_history`, groups and terms > `ai.prompts` (its `current_version_id` FK is deferrable), `ai.prompt_versions`, panels and memberships > `ops.schedules` > `seo.serp_snapshots`, `seo.serp_features`, `seo.domain_rank_observations` > `ai.observations`, `ai.citations`, `ai.fanout_queries`, `ai.retrieval_results`, `ai.entity_mentions`, `ai.observation_facts`.
    Global dictionaries (`core.urls`, `core.domains`) are never deleted, so referenced ids already exist in production.
-7. **Re-derive**: `REFRESH MATERIALIZED VIEW CONCURRENTLY core.project_domain_roles;`, `ops.rebuild_current_state(<project_id>)`, and enqueue rollups for the restored date range.
+7. **Re-derive**: `ops.rebuild_current_state(<project_id>)`, and enqueue rollups for the restored date range.
 8. **Record and clean up**: an `ops.audit_logs` entry (`action = 'data.partial_restore'`, source dump key, tables, row counts), then `DROP SCHEMA restore_tmp CASCADE;` and destroy the scratch instance.
 
 Estimate: 1 to 2 hours, mostly steps 2 and 6.

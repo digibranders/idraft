@@ -45,7 +45,7 @@ AUDIT_COLUMNS = (
     "request_id",
 )
 
-# table: (app_api, app_worker). Every table in the six schemas must appear here.
+# table or view: (app_api, app_worker). Every one in the six schemas must appear here.
 MATRIX: dict[str, tuple[Access, Access]] = {
     "auth.users": (
         access(
@@ -92,6 +92,23 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "auth.api_keys": (READ, NONE),
     "core.projects": (access("SELECT, INSERT, UPDATE"), access("SELECT", UPDATE=("data_version",))),
     "core.workspace_quotas": (access("SELECT, INSERT, UPDATE"), READ),
+    # Global dictionaries: the API adds a host's row when an entity or project names it, but
+    # never its classification; the worker keeps the locations.
+    "core.domain_categories": (READ, NONE),
+    "core.domains": (
+        access("SELECT", INSERT=("host", "registrable_domain", "public_suffix", "is_ip")),
+        NONE,
+    ),
+    "core.locations": (READ, access("SELECT, INSERT, UPDATE")),
+    "core.provider_location_map": (READ, access("SELECT, INSERT, UPDATE")),
+    "core.entities": (CRUD, NONE),
+    "core.entity_aliases": (CRUD, NONE),
+    "core.entity_domains": (access("SELECT, INSERT, DELETE"), NONE),
+    "core.project_entities": (access("SELECT, INSERT, UPDATE"), NONE),
+    "core.taxonomy_vocabularies": (CRUD, NONE),
+    "core.taxonomy_terms": (CRUD, NONE),
+    # A view read with the reader's rights (see the view test below).
+    "core.project_domain_roles": (READ, NONE),
     "ops.alembic_version": (READ, READ),
     "ops.budgets": (CRUD, READ),
     "ops.providers": (READ, READ),
@@ -172,7 +189,7 @@ MATRIX: dict[str, tuple[Access, Access]] = {
 _TABLES = """
     SELECT c.oid::regclass::text AS name FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = ANY($1) AND c.relkind IN ('r', 'p') AND NOT c.relispartition
+    WHERE n.nspname = ANY($1) AND c.relkind IN ('r', 'p', 'v', 'm') AND NOT c.relispartition
 """
 _TABLE_GRANTS = """
     SELECT c.oid::regclass::text AS name, pg_get_userbyid(acl.grantee) AS grantee,
@@ -180,7 +197,7 @@ _TABLE_GRANTS = """
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace,
          LATERAL aclexplode(c.relacl) AS acl
-    WHERE n.nspname = ANY($1) AND c.relkind IN ('r', 'p') AND NOT c.relispartition
+    WHERE n.nspname = ANY($1) AND c.relkind IN ('r', 'p', 'v', 'm') AND NOT c.relispartition
 """
 _COLUMN_GRANTS = """
     SELECT c.oid::regclass::text AS name, a.attname AS column_name,
@@ -189,7 +206,7 @@ _COLUMN_GRANTS = """
     JOIN pg_namespace n ON n.oid = c.relnamespace
     JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped,
          LATERAL aclexplode(a.attacl) AS acl
-    WHERE n.nspname = ANY($1) AND c.relkind IN ('r', 'p') AND NOT c.relispartition
+    WHERE n.nspname = ANY($1) AND c.relkind IN ('r', 'p', 'v', 'm') AND NOT c.relispartition
 """
 ROLES = ("app_api", "app_worker")
 
@@ -226,6 +243,28 @@ async def test_no_table_or_column_is_granted_to_public_or_to_a_role_that_is_not_
         columns = await db.fetch(_COLUMN_GRANTS, SCHEMAS)
     assert {row["grantee"] for row in tables} <= {"migrator", "app_api", "app_worker"}
     assert {row["grantee"] for row in columns} <= {"app_api", "app_worker"}
+
+
+async def test_views_a_runtime_role_reads_apply_the_readers_policies(
+    migrated: PostgresServer,
+) -> None:
+    """A view runs with its owner's rights unless it says otherwise, and the owner is not
+    subject to row-level security; a materialized view cannot have row-level security at all.
+    Either, readable by a runtime role, would show it every workspace's rows."""
+    async with connection(migrated) as db:
+        rows = await db.fetch(
+            "SELECT c.oid::regclass::text AS name, c.relkind AS kind, "
+            "coalesce('security_invoker=true' = ANY(c.reloptions), false) AS invoker, "
+            "has_table_privilege('app_api', c.oid, 'SELECT') AS api, "
+            "has_table_privilege('app_worker', c.oid, 'SELECT') AS worker "
+            "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = ANY($1) AND c.relkind IN ('v', 'm')",
+            SCHEMAS,
+        )
+    readable = [row for row in rows if row["api"] or row["worker"]]
+    assert [row["name"] for row in readable if row["kind"] == "m"] == []
+    assert [row["name"] for row in readable if not row["invoker"]] == []
+    assert "core.project_domain_roles" in {row["name"] for row in readable}
 
 
 async def test_partitions_and_sequences_carry_no_grants(migrated: PostgresServer) -> None:

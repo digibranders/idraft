@@ -17,6 +17,11 @@ Points S-01 checks against the real API before anything depends on them:
   documented values are 1 to 4, so 0 is never sent); that a keyword with `%25` and `%2B` is
   searched with `%` and `+`.
 - `id_list.json`: that `result_count` is the number of items in `result`.
+- `locations.json`: nine of the locations `GET /v3/serp/google/locations` lists, with the
+  documented fields (`location_code`, `location_name`, `location_code_parent`,
+  `country_iso_code`, `location_type`). It also fills a local database without credentials:
+  `uv run --env-file .env.worker python -m sightline.worker.sync_locations --from-file tests/fixtures/dataforseo/locations.json`
+  (see `backend/README.md`, "Locations").
 
 Tags in these files are for installation `test`, task 35 (`z` in base 36), attempt 1 and run
 `0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11`.

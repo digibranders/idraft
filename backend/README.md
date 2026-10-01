@@ -80,11 +80,25 @@ The tests start PostgreSQL 18, Redis 8 and an S3 server (versitygw, which checks
 
 ## Providers and raw storage
 
-The worker calls DataForSEO only when `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` are set, and then raw storage must be set too (`R2_RAW_ENDPOINT`, `R2_RAW_ACCESS_KEY_ID`, `R2_RAW_SECRET_ACCESS_KEY`, `R2_RAW_BUCKET`). Without them it registers no provider and sends nothing. Each installation sharing a DataForSEO account needs its own `INSTALLATION_ID` (`prod` in production): it is part of every task's tag, so one installation never takes another's results.
+The worker calls DataForSEO only when `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` are set, and then raw storage must be set too (`R2_RAW_ENDPOINT`, `R2_RAW_ACCESS_KEY_ID`, `R2_RAW_SECRET_ACCESS_KEY`, `R2_RAW_BUCKET`): the worker refuses to start with credentials and no bucket. Without credentials it registers no provider and sends nothing. The API sends no tasks, so it starts from an env file that has the credentials and no bucket. Each installation sharing a DataForSEO account needs its own `INSTALLATION_ID` (`prod` in production): it is part of every task's tag, so one installation never takes another's results.
 
 `RESOLVE_UNKNOWN_SUBMISSIONS` stays off until spike S-01 confirms that DataForSEO's `id_list` returns our tags. With it off, a submission whose answer was lost ends after 72 hours and is charged its estimate; with it on, it is looked for once it is 15 minutes old, within one reconciler pass (5 minutes) of that.
 
 No test calls the real API: the adapter's tests answer from synthetic fixtures in `tests/fixtures/dataforseo/`, which the spikes replace with captured answers.
+
+### Locations
+
+The locations a project and its keywords can target come from DataForSEO's free list, synced by the worker on the 2nd of each month at 03:00 UTC. A location the list no longer has is deactivated, not deleted, and a list less than half as long as what is active deactivates nothing. Without credentials there is nothing to sync and the list stays empty. The command runs with the worker's settings (`cp .env.worker.example .env.worker`; it connects as `app_worker`). To sync once now from DataForSEO, which needs the credentials and the bucket in `.env.worker`:
+
+```bash
+uv run --env-file .env.worker python -m sightline.worker.sync_locations
+```
+
+That calls the DataForSEO account. A local database can be filled without credentials or network from the synthetic sample (nine countries, regions and cities):
+
+```bash
+uv run --env-file .env.worker python -m sightline.worker.sync_locations --from-file tests/fixtures/dataforseo/locations.json
+```
 
 ## The image
 
@@ -142,6 +156,8 @@ Grants are least privilege. Give a role `UPDATE` on a whole table only when it m
 ```bash
 uv run python -m sightline.api.openapi > openapi/v1.json
 ```
+
+Request bodies under `/api/` are limited to 1 MB (`413 payload_too_large`), checked before they are parsed (`sightline.api.body_limit`). Put a reverse proxy's limit at least as high.
 
 ## Logs
 

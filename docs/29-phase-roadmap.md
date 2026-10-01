@@ -136,7 +136,7 @@ The product owner's rule: build what makes the product show data first, and move
 | Area | Content |
 |---|---|
 | Features | Entity editor (own brand, competitors, products), aliases with match modes and negative aliases, entity domains with scopes, project roles, taxonomy vocabularies and terms (tree), alias test tool (paste an answer, see highlighted matches) |
-| Database | `core.domains`, `core.domain_categories` (seed), `core.urls`, `core.url_remap`, `core.locations`, `core.provider_location_map`, `core.entities`, `core.entity_aliases`, `core.entity_domains`, `core.project_entities`, `core.project_domain_roles` (materialized view), `core.taxonomy_vocabularies`, `core.taxonomy_terms`, `core.publishers`, `core.publisher_domains` |
+| Database | `core.domains`, `core.domain_categories` (seed), `core.urls`, `core.url_remap`, `core.locations`, `core.provider_location_map`, `core.entities`, `core.entity_aliases`, `core.entity_domains`, `core.project_entities`, `core.project_domain_roles` (view), `core.taxonomy_vocabularies`, `core.taxonomy_terms`, `core.publishers`, `core.publisher_domains` |
 | Backend | URL canonicalizer v1 with test vectors (doc 14 section 3); domain resolver; alias automaton compiler (used later by extraction, built now for the test tool); location sync job (DataForSEO locations, free) |
 | Frontend | Onboarding steps 1 to 3 (project, domains, competitors), entities screen, taxonomy screen |
 | Tests | Canonicalizer property tests and vectors; resolver specificity tests; automaton tests (overlap, negatives, possessives) |
