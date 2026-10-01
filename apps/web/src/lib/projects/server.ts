@@ -20,12 +20,14 @@ type Project = components['schemas']['Project'];
  */
 export const projectsOfMembership = cache(async (membership: MeMembership): Promise<Project[]> => {
   const client = await serverApi();
-  const { items } = await readAllPages((offset, limit) =>
-    unwrap(
-      client.GET('/api/v1/workspaces/{workspace_id}/projects', {
-        params: { path: { workspace_id: membership.workspace.workspace_id }, query: { offset, limit } },
-      }),
-    ),
+  const { items } = await readAllPages(
+    (offset, limit) =>
+      unwrap(
+        client.GET('/api/v1/workspaces/{workspace_id}/projects', {
+          params: { path: { workspace_id: membership.workspace.workspace_id }, query: { offset, limit } },
+        }),
+      ),
+    (project) => project.project_id,
   );
   return items.filter((project) => canOpenProject(membership.project_ids, project.project_id));
 });

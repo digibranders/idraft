@@ -14,11 +14,13 @@ const INVITATIONS = '/api/v1/workspaces/{workspace_id}/invitations';
 const PROJECTS = '/api/v1/workspaces/{workspace_id}/projects';
 /** Every member: the table shows them all, whatever the page size of the API. */
 export const membersQuery = (workspaceId: string): ApiQueryOptions<typeof MEMBERS> =>
-  apiAllPagesQuery(MEMBERS, { params: { path: { workspace_id: workspaceId } } });
+  apiAllPagesQuery(MEMBERS, (member) => member.user.user_id, { params: { path: { workspace_id: workspaceId } } });
 
 /** Every pending invitation, read page by page like the members. */
 export const invitationsQuery = (workspaceId: string): ApiQueryOptions<typeof INVITATIONS> =>
-  apiAllPagesQuery(INVITATIONS, { params: { path: { workspace_id: workspaceId } } });
+  apiAllPagesQuery(INVITATIONS, (invitation) => invitation.invitation_id, {
+    params: { path: { workspace_id: workspaceId } },
+  });
 
 /**
  * Every active and paused project, for the project lists of the member and invitation dialogs. Fetched
@@ -26,7 +28,7 @@ export const invitationsQuery = (workspaceId: string): ApiQueryOptions<typeof IN
  * stale list would offer an archived project the API refuses.
  */
 export const projectsQuery = (workspaceId: string): ApiQueryOptions<typeof PROJECTS> => ({
-  ...apiAllPagesQuery(PROJECTS, { params: { path: { workspace_id: workspaceId } } }),
+  ...apiAllPagesQuery(PROJECTS, (project) => project.project_id, { params: { path: { workspace_id: workspaceId } } }),
   staleTime: 0,
 });
 

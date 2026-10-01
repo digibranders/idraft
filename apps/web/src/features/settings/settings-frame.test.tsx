@@ -1,5 +1,5 @@
 import { screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsFrame } from './settings-frame';
 import { LeaveGuardProvider } from '@/lib/navigation/use-leave-guard';
@@ -12,6 +12,10 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('SettingsFrame', () => {
+  beforeEach(() => {
+    location.pathname = '/digibranders/fynix/settings/members';
+  });
+
   it('lists the groups in the order of the navigation spec, and marks the section on screen', () => {
     renderWithProviders(
       <LeaveGuardProvider>
