@@ -14,9 +14,9 @@ const COLUMNS: SizedColumn[] = [
 const FIXED = 40 + 88 + 88 + 120;
 
 describe('resolveWidths', () => {
-  it('gives the flex column what the others leave, up to its maximum', () => {
+  it('gives the flex column what the others leave, so the table fills its panel', () => {
     expect(resolveWidths(COLUMNS, FIXED + 300).get('keyword')).toBe(300);
-    expect(resolveWidths(COLUMNS, 2000).get('keyword')).toBe(480);
+    expect(resolveWidths(COLUMNS, 2000).get('keyword')).toBe(2000 - FIXED);
   });
 
   it('shrinks the flex column to its minimum before the others', () => {

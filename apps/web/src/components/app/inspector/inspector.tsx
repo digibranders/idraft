@@ -187,7 +187,7 @@ export function Inspector({
         FRAME,
         mode === 'docked'
           ? // Beside the list, 12 px under the top bar and from the window's right and bottom edges
-            'sticky top-inspector-top z-(--z-inspector) my-3 mr-3 h-inspector-docked shrink-0'
+            'sticky top-inspector-top z-(--z-inspector) my-3 mr-3 h-inspector-docked max-h-inspector-docked-max shrink-0'
           : // Over the list, which stays usable: no scrim
             'fixed top-inspector-top right-3 bottom-3 z-(--z-drawer)',
       )}

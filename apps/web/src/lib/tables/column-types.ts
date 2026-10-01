@@ -43,16 +43,18 @@ export interface SizedColumn {
 
 /**
  * The widths of the visible columns in a region `available` pixels wide (24-page-templates.md section 9.3,
- * "Width resolution"): the flex column takes what the others leave, between its minimum and maximum; when
- * the set does not fit, the flex column shrinks to its minimum, then the others shrink toward theirs in
- * proportion; what still does not fit scrolls sideways (the sum then exceeds `available`).
+ * "Width resolution"): the flex column takes what the others leave, at least its minimum, so the table
+ * always fills its panel (past its usual maximum when few columns are shown, rather than leaving an empty
+ * strip beside the table); when the set does not fit, the flex column shrinks to its minimum, then the
+ * others shrink toward theirs in proportion; what still does not fit scrolls sideways (the sum then
+ * exceeds `available`).
  */
 export function resolveWidths(columns: readonly SizedColumn[], available: number): Map<string, number> {
   const widths = new Map(columns.map((column) => [column.id, column.width]));
   const flex = columns.find((column) => column.flex);
   const fixedTotal = columns.reduce((sum, column) => sum + (column.flex ? 0 : column.width), 0);
   if (flex !== undefined) {
-    widths.set(flex.id, Math.min(flex.max, Math.max(flex.min, available - fixedTotal)));
+    widths.set(flex.id, Math.max(flex.min, available - fixedTotal));
   }
   const total = (): number => [...widths.values()].reduce((sum, width) => sum + width, 0);
   const excess = total() - available;

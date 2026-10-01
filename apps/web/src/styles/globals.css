@@ -207,6 +207,7 @@
   --spacing-inspector-wide: var(--size-inspector-wide);
   --spacing-inspector-top: var(--size-inspector-top);
   --spacing-inspector-docked: var(--size-inspector-docked);
+  --spacing-inspector-docked-max: var(--size-inspector-docked-max);
   --spacing-drawer: var(--size-drawer);
   --spacing-popover-min: var(--size-popover-min);
   --spacing-popover-max: var(--size-popover-max);

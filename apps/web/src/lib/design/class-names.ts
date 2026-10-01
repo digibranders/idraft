@@ -45,6 +45,7 @@ export const NAMED_SIZES = [
   'inspector-wide',
   'inspector-top',
   'inspector-docked',
+  'inspector-docked-max',
   'drawer',
   'popover-min',
   'popover-max',

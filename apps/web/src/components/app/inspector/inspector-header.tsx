@@ -51,9 +51,9 @@ export interface InspectorHeaderProps {
 }
 
 /**
- * The inspector's header (16-drawers-dialogs-popovers.md section 2.1, 25 deviation 30): the title with the
- * frequent command, Open page, More and Close; the badges; then the context line (type, position,
- * freshness) with Previous and Next. Five actions at most besides Open page.
+ * The inspector's header (16-drawers-dialogs-popovers.md section 2.1, 25 deviations 30 and 131): the title
+ * with Open page, More and Close; the badges with the frequent command; then the context line (type,
+ * position, freshness) with Previous and Next. Five actions at most besides Open page.
  */
 export function InspectorHeader({
   titleId,
@@ -92,7 +92,6 @@ export function InspectorHeader({
           {title}
         </h2>
         <div className="flex shrink-0 items-center gap-1">
-          {frequentAction}
           {onOpenPage === null || onOpenPage === undefined ? null : (
             <IconButton icon={Maximize2} variant="ghost" label={t('openPage')} onClick={onOpenPage} />
           )}
@@ -108,7 +107,16 @@ export function InspectorHeader({
           ) : null}
         </div>
       </div>
-      {badges === undefined || badges === null ? null : <div className="flex flex-wrap gap-1.5">{badges}</div>}
+      {/* The frequent command sits beside the badges, not beside the title, so a 400 px card keeps the
+          title on one line where it fits (25 deviation 131) */}
+      {(badges === undefined || badges === null) && (frequentAction === undefined || frequentAction === null) ? null : (
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">{badges}</div>
+          {frequentAction === undefined || frequentAction === null ? null : (
+            <div className="shrink-0">{frequentAction}</div>
+          )}
+        </div>
+      )}
       <div className="flex min-h-control-sm items-center gap-2">
         <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 type-meta">
           {context.map((part, index) => (

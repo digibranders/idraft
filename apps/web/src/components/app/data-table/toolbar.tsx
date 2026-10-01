@@ -60,6 +60,8 @@ export function DataTableToolbar({
         <Input
           ref={input}
           size="sm"
+          // The group draws the border and the focus ring, so the field inside draws neither
+          variant="bare"
           type="search"
           value={search}
           onValueChange={onSearchChange}
