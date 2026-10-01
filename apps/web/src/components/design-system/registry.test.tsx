@@ -20,6 +20,7 @@ describe('the preview registry', () => {
       'badges',
       'tables',
       'filters',
+      'inspector',
       'overlays',
       'feedback',
     ]);

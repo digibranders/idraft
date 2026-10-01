@@ -205,6 +205,8 @@
   --spacing-icon-lg: var(--size-icon-lg);
   --spacing-control-touch: var(--size-control-touch);
   --spacing-inspector-wide: var(--size-inspector-wide);
+  --spacing-inspector-top: var(--size-inspector-top);
+  --spacing-inspector-docked: var(--size-inspector-docked);
   --spacing-drawer: var(--size-drawer);
   --spacing-popover-min: var(--size-popover-min);
   --spacing-popover-max: var(--size-popover-max);

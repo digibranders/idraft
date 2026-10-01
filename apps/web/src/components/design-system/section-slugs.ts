@@ -13,6 +13,7 @@ export const PREVIEW_SECTION_SLUGS = [
   'badges',
   'tables',
   'filters',
+  'inspector',
   'overlays',
   'feedback',
 ] as const;

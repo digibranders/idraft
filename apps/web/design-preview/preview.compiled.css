@@ -2518,6 +2518,8 @@
   --size-inspector-min: 22.5rem;
   --size-inspector-max: 40rem;
   --size-inspector-wide: 27.5rem;
+  --size-inspector-top: calc(var(--size-topbar) + 0.75rem);
+  --size-inspector-docked: calc(100dvh - var(--size-topbar) - 1.5rem);
   --size-drawer: 35rem;
   --size-dialog-sm: 25rem;
   --size-dialog-md: 35rem;

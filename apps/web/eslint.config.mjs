@@ -279,6 +279,15 @@ export default tseslint.config(
       'jsx-a11y/no-redundant-roles': ['error', { thead: ['rowgroup'], tbody: ['rowgroup'], tr: ['row'] }],
     },
   },
+  // The inspector's resize handle is a focusable separator, the WAI-ARIA window splitter: a widget with a
+  // value that keys change (16-drawers-dialogs-popovers.md section 2.2), which jsx-a11y takes for a static line.
+  {
+    files: ['src/components/app/inspector/inspector-resize-handle.tsx'],
+    rules: {
+      'jsx-a11y/no-noninteractive-element-interactions': 'off',
+      'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['separator'] }],
+    },
+  },
   { files: SOURCES, ...nextPlugin.configs['core-web-vitals'] },
   // The primitives' tests render plain anchors on purpose (a link primitive takes any element), and the
   // app's `[workspace]/[project]` routes make every two-segment path look like a page to this rule.

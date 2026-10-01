@@ -218,8 +218,15 @@ export function DataTable<TRow extends RowData>({
     index: -1,
     column: 0,
   });
-  // A key's move, kept apart from focus that follows a click, so only keys scroll and move focus
-  const [focusRequest, setFocusRequest] = useState<{ cell: GridCell; seq: number } | null>(null);
+  // A key's move, kept apart from focus that follows a click, so only keys scroll and move focus. A
+  // request `ifLost` only takes focus that fell to the page body (the inspector closed around it).
+  const [focusRequest, setFocusRequest] = useState<{
+    cell: GridCell;
+    seq: number;
+    ifLost?: boolean;
+    /** Only bring the row into view: the inspector stepped to it while focus stays in the inspector. */
+    scrollOnly?: boolean;
+  } | null>(null);
   const handledRequest = useRef(0);
   const focusedIndex = focus.rowId === null ? -1 : (indexOfId.get(focus.rowId) ?? focus.index);
   const current: GridCell = {
@@ -255,6 +262,8 @@ export function DataTable<TRow extends RowData>({
     const element = region.current;
     if (focusRequest === null || element === null || focusRequest.seq === handledRequest.current) return;
     handledRequest.current = focusRequest.seq;
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (focusRequest.ifLost === true && !lost) return;
     const { row, column } = focusRequest.cell;
     if (row >= 0) {
       const target = scrollToRow({
@@ -266,6 +275,7 @@ export function DataTable<TRow extends RowData>({
       });
       if (target !== null) element.scrollTop = target;
     }
+    if (focusRequest.scrollOnly === true) return;
     element
       .querySelector<HTMLElement>(`[data-cell="${String(row)}:${String(column)}"]`)
       ?.focus({ preventScroll: true });
@@ -274,6 +284,25 @@ export function DataTable<TRow extends RowData>({
     setFocus(cellAt(cell.row, cell.column));
     setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1 }));
   };
+  // The inspector closed: focus returns to the identity cell of the row it showed, scrolled into view, or
+  // to the grid's tab stop when that row is gone (16-drawers-dialogs-popovers.md section 2.8, rule 3)
+  const [lastActive, setLastActive] = useState(activeRowId ?? null);
+  if ((activeRowId ?? null) !== lastActive) {
+    setLastActive(activeRowId ?? null);
+    if ((activeRowId ?? null) === null && lastActive !== null && showRows) {
+      const index = indexOfId.get(lastActive);
+      const identity = grid.findIndex((column) => column.kind === 'data' && column.column.identity === true);
+      const cell = index === undefined ? current : { row: index, column: Math.max(identity, 0) };
+      setFocus(cellAt(cell.row, cell.column));
+      setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1, ifLost: true }));
+    }
+    // Stepping to another record keeps its row in view (16 section 2.10)
+    const nextIndex = activeRowId === null || activeRowId === undefined ? undefined : indexOfId.get(activeRowId);
+    if (nextIndex !== undefined) {
+      const cell = { row: nextIndex, column: current.column };
+      setFocusRequest((request) => ({ cell, seq: (request?.seq ?? 0) + 1, scrollOnly: true }));
+    }
+  }
   // Whether focus is in the grid, so a cell removed under it (a refetch dropped its row) hands focus on
   // instead of leaving it on the page body
   const focusInGrid = useRef(false);
@@ -773,6 +802,7 @@ export function DataTable<TRow extends RowData>({
                             role="row"
                             aria-rowindex={rowOffset + index + 2}
                             aria-selected={selection === undefined ? undefined : isSelected}
+                            aria-current={isActive ? 'true' : undefined}
                             data-selected={isSelected ? '' : undefined}
                             data-active={isActive ? '' : undefined}
                             className={cn('group cursor-default', density === 'compact' ? 'h-row-compact' : 'h-row')}

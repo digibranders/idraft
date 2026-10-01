@@ -301,6 +301,8 @@
   --size-inspector-min: 22.5rem;   /* 360px */
   --size-inspector-max: 40rem;     /* 640px */
   --size-inspector-wide: 27.5rem;  /* 440px: prompt and citation inspectors */
+  --size-inspector-top: calc(var(--size-topbar) + 0.75rem);           /* 12px under the top bar */
+  --size-inspector-docked: calc(100dvh - var(--size-topbar) - 1.5rem); /* the window less the top bar and 12px above and below */
   --size-drawer: 35rem;            /* 560px: non-modal StatisticsPanel */
   --size-dialog-sm: 25rem;         /* 400px */
   --size-dialog-md: 35rem;         /* 560px */

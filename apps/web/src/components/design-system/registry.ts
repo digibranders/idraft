@@ -6,6 +6,7 @@ import { FeedbackSection } from './feedback-section';
 import { FiltersSection } from './filters-section';
 import { FormsSection } from './forms-section';
 import { IconsSection } from './icons-section';
+import { InspectorPreviewSection } from './inspector-section';
 import { OverlaysSection } from './overlays-section';
 import type { PreviewSectionSlug } from './section-slugs';
 import { SizesSection } from './sizes-section';
@@ -30,6 +31,7 @@ export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'badges', title: 'Badges', render: BadgesSection },
   { slug: 'tables', title: 'Tables', render: TablesSection },
   { slug: 'filters', title: 'Filters', render: FiltersSection },
+  { slug: 'inspector', title: 'Inspector', render: InspectorPreviewSection },
   { slug: 'overlays', title: 'Overlays', render: OverlaysSection },
   { slug: 'feedback', title: 'Feedback', render: FeedbackSection },
 ];
