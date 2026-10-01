@@ -26,6 +26,11 @@ const SAMPLES: Readonly<Record<TypeStyle, { className: string; sample: string; u
     use: 'Text fields below 768 px, so iOS does not zoom on focus',
   },
   'body-strong': { className: 'type-body-strong', sample: 'Add keywords', use: 'Button labels, the chosen option' },
+  'inline-strong': {
+    className: 'type-inline-strong',
+    sample: 'Fynix',
+    use: 'Weight only, for a span in running text: the own brand in an answer',
+  },
   prose: {
     className: 'type-prose',
     sample: 'Visibility is the share of tracked keywords for which the site is in the top 10.',

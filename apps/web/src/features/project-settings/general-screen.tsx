@@ -10,7 +10,9 @@ import { z } from 'zod';
 
 import { projectQuery } from './project-query';
 import { StatusSection } from './status-section';
+import { DomainInput } from '@/components/app/forms/domain-input';
 import { FormField } from '@/components/app/forms/form-field';
+import { LocationCombobox } from '@/components/app/forms/location-combobox';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { TimeZoneCombobox } from '@/components/app/forms/time-zone-combobox';
 import { Banner } from '@/components/app/status/banner';
@@ -23,18 +25,25 @@ import { Select } from '@/components/ui/select';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
+import type { components } from '@/lib/api/schema';
 import type { Project } from '@/lib/api/types';
+import { domainMessageKey, normalizeDomain } from '@/lib/domains/normalize';
 import { applyServerErrors } from '@/lib/forms';
 import { LANGUAGE_CODES, languageName } from '@/lib/format/language';
+import { useLocationSearch } from '@/lib/locations/use-location-search';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
 import { MAX_PROJECT_NAME_LENGTH as MAX_NAME_LENGTH, NO_LANGUAGE, WEEKDAYS } from '@/lib/projects/fields';
 import { projectPath } from '@/lib/routes/paths';
 import { SLUG_MAX_LENGTH, slugMessageKey, slugProblem } from '@/lib/slugs/slug';
 
+type LocationRef = components['schemas']['LocationRef'];
+
 interface GeneralValues {
   name: string;
   slug: string;
+  primary_domain: string;
+  location: LocationRef | null;
   timezone: string;
   deep_check_weekday: string;
   default_language_code: string;
@@ -43,6 +52,8 @@ interface GeneralValues {
 const valuesOf = (project: Project): GeneralValues => ({
   name: project.name,
   slug: project.slug,
+  primary_domain: project.primary_domain?.host ?? '',
+  location: project.default_location,
   timezone: project.timezone,
   deep_check_weekday: String(project.deep_check_weekday),
   default_language_code: project.default_language_code ?? NO_LANGUAGE,
@@ -57,7 +68,7 @@ export interface ProjectGeneralScreenProps {
 
 /**
  * Settings > Project settings > General (11-navigation.md section 5, 20 section 5.19.5): the name, the
- * address, the time zone, the deep check day and the default language through the save bar, then tracking
+ * address, the site, the location rank checks target, the time zone, the deep check day and the default language through the save bar, then tracking
  * and the danger zone. A member who may not change projects sees the values read-only.
  */
 export function ProjectGeneralScreen({ project: initial, workspaceSlug }: ProjectGeneralScreenProps): ReactNode {
@@ -111,6 +122,8 @@ function ReadOnlyGeneral({ project, workspaceSlug }: { project: Project; workspa
       <ReadOnlyList className="max-w-90">
         <ReadOnlyField label={t('name')} value={project.name} />
         <ReadOnlyField label={t('slug')} value={projectPath(workspaceSlug, project.slug)} font="mono" />
+        <ReadOnlyField label={t('domain')} value={project.primary_domain?.host ?? t('none')} />
+        <ReadOnlyField label={t('location')} value={project.default_location?.name ?? t('none')} />
         <ReadOnlyField label={t('timezone')} value={project.timezone} />
         <ReadOnlyField
           label={t('weekday')}
@@ -138,6 +151,8 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
   const queryClient = useQueryClient();
   const formId = useId();
   const alertRef = useRef<HTMLDivElement>(null);
+  const domainCopy = useTranslations('common.domain');
+  const locations = useLocationSearch();
   const weekdays = useWeekdayOptions();
   const languages = useLanguageOptions(project.default_language_code);
   const [forward, setForward] = useState<string | null>(null);
@@ -156,11 +171,18 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
             const problem = slugProblem(slug, 'project');
             if (problem !== null) context.addIssue({ code: 'custom', message: t(slugMessageKey(problem)) });
           }),
+        // A project may have no site yet; one that is given has to read as a domain
+        primary_domain: z.string().superRefine((domain, context) => {
+          if (domain.trim() === '') return;
+          const preview = normalizeDomain(domain);
+          if (!preview.ok) context.addIssue({ code: 'custom', message: domainCopy(domainMessageKey(preview.code)) });
+        }),
+        location: z.custom<LocationRef | null>(),
         timezone: z.string().min(1, { error: t('timezoneUnknown') }),
         deep_check_weekday: z.string(),
         default_language_code: z.string(),
       }),
-    [t],
+    [t, domainCopy],
   );
   const form = useForm<GeneralValues>({
     resolver: zodResolver(schema),
@@ -180,6 +202,10 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
     const body = {
       ...(dirtyFields.name === true ? { name: values.name.trim() } : {}),
       ...(dirtyFields.slug === true ? { slug: values.slug.trim() } : {}),
+      ...(dirtyFields.primary_domain === true
+        ? { primary_domain: values.primary_domain.trim() === '' ? null : values.primary_domain.trim() }
+        : {}),
+      ...(dirtyFields.location !== undefined ? { default_location_id: values.location?.location_id ?? null } : {}),
       ...(dirtyFields.timezone === true ? { timezone: values.timezone } : {}),
       ...(dirtyFields.deep_check_weekday === true ? { deep_check_weekday: Number(values.deep_check_weekday) } : {}),
       ...(dirtyFields.default_language_code === true
@@ -209,9 +235,23 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
         return;
       }
       if (isApiProblem(error, 'validation_failed')) {
-        const rest = applyServerErrors(form, error.errors, {
-          fields: ['name', 'slug', 'timezone', 'deep_check_weekday', 'default_language_code'],
+        const items = error.errors.map((item) =>
+          item.path === 'default_location_id' ? { ...item, path: 'location' } : item,
+        );
+        const rest = applyServerErrors(form, items, {
+          fields: [
+            'name',
+            'slug',
+            'primary_domain',
+            'location',
+            'timezone',
+            'deep_check_weekday',
+            'default_language_code',
+          ],
           messages: {
+            invalid_domain: domainCopy('invalid'),
+            domain_is_public_suffix: domainCopy('publicSuffix'),
+            location_unknown: t('locationUnknown'),
             string_too_short: t('nameRequired'),
             string_too_long: t('nameTooLong', { max: MAX_NAME_LENGTH }),
             string_pattern_mismatch: t('slugInvalid'),
@@ -261,6 +301,44 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
               maxLength={SLUG_MAX_LENGTH}
               value={field.value}
               onValueChange={(value) => field.onChange(value.toLowerCase())}
+            />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="primary_domain"
+          label={t('domain')}
+          optional
+          render={(field) => (
+            <DomainInput
+              name={field.controlProps.name}
+              inputRef={field.controlProps.ref}
+              onBlur={field.controlProps.onBlur}
+              disabled={field.controlProps.disabled}
+              invalid={field.invalid}
+              description={t('domainHint')}
+              value={field.value}
+              onValueChange={field.onChange}
+            />
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="location"
+          label={t('location')}
+          optional
+          description={t('locationHint')}
+          render={(field) => (
+            <LocationCombobox
+              name={field.controlProps.name}
+              inputRef={field.controlProps.ref}
+              onBlur={field.controlProps.onBlur}
+              disabled={field.controlProps.disabled}
+              value={field.value}
+              onValueChange={field.onChange}
+              items={locations.items}
+              loading={locations.loading}
+              onQueryChange={locations.onQueryChange}
             />
           )}
         />

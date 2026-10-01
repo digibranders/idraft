@@ -31,6 +31,8 @@ export interface MockProjectSeed {
   readonly slug: string;
   readonly host: string;
   readonly timezone: string;
+  /** The project's default location, a DataForSEO location code of ./entity-fixtures.ts, or `null`. */
+  readonly location_id: number | null;
 }
 
 export const MOCK_PROJECTS: readonly MockProjectSeed[] = [
@@ -39,6 +41,7 @@ export const MOCK_PROJECTS: readonly MockProjectSeed[] = [
     name: 'Fynix',
     slug: 'fynix',
     host: 'fynix.digital',
+    location_id: 2276,
     timezone: 'Europe/Berlin',
   },
   {
@@ -46,6 +49,7 @@ export const MOCK_PROJECTS: readonly MockProjectSeed[] = [
     name: 'Cleanstart',
     slug: 'cleanstart',
     host: 'cleanstart.com',
+    location_id: 2840,
     timezone: 'America/New_York',
   },
   {
@@ -53,6 +57,7 @@ export const MOCK_PROJECTS: readonly MockProjectSeed[] = [
     name: 'Eventus Security',
     slug: 'eventus-security',
     host: 'eventussecurity.com',
+    location_id: 2356,
     timezone: 'Asia/Kolkata',
   },
   {
@@ -60,6 +65,7 @@ export const MOCK_PROJECTS: readonly MockProjectSeed[] = [
     name: 'Oyechats',
     slug: 'oyechats',
     host: 'oyechats.com',
+    location_id: 2356,
     timezone: 'Asia/Kolkata',
   },
   {
@@ -67,6 +73,7 @@ export const MOCK_PROJECTS: readonly MockProjectSeed[] = [
     name: 'Firstfold',
     slug: 'firstfold',
     host: 'firstfold.io',
+    location_id: 2826,
     timezone: 'Europe/London',
   },
 ];

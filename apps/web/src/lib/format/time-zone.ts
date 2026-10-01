@@ -3,7 +3,8 @@
  * name. Browsers still report some zones by the name they had before a rename (`Asia/Calcutta` for India);
  * the API stores the current name, so the app sends and lists the current one too.
  */
-const TIMEZONE_PATTERN = /^(UTC|[A-Za-z]+(\/[A-Za-z0-9_+-]+){1,2})$/;
+/** The shape of a time zone name the API takes before it looks the name up. */
+export const TIMEZONE_PATTERN = /^(UTC|[A-Za-z]+(\/[A-Za-z0-9_+-]+){1,2})$/;
 const TIMEZONE_MAX = 64;
 
 /** The renamed zones, as the API replaces them (its `_RENAMED`). */

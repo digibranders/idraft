@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { ApiProblem } from './problem';
-import { apiMutation, apiQuery, type ApiResponse } from './query';
+import { apiAllPagesQuery, apiMutation, apiQuery, type ApiResponse } from './query';
 import type { Me } from './types';
 import { TEST_API_ORIGIN, testApi } from '@/test/api-server';
 import { server } from '@/test/msw';
@@ -35,6 +35,8 @@ export function typeChecks(): void {
   apiQuery(PROJECTS, { params: { path: { workspace_id: W }, query: { limit: 10, page: 2 } } });
   // @ts-expect-error: an option that would change the response without changing its type or key
   apiQuery('/api/v1/me', { parseAs: 'text' });
+  // @ts-expect-error: a single resource is not a list paged by offset
+  apiAllPagesQuery(WORKSPACE, () => '', { params: { path: { workspace_id: W } } });
   // @ts-expect-error: no PUT on this path
   apiMutation('put', WORKSPACE);
   const rename = new MutationObserver(new QueryClient(), apiMutation('patch', WORKSPACE));
@@ -174,6 +176,56 @@ describe('apiQuery', () => {
     await queryClient.cancelQueries({ queryKey: options.queryKey });
     await pending;
     await expect.poll(() => aborted).toBe(true);
+  });
+});
+
+describe('apiAllPagesQuery', () => {
+  const projectOf = (index: number): { project_id: string; name: string } => ({
+    project_id: `p-${String(index)}`,
+    name: `Project ${String(index)}`,
+  });
+
+  it('reads every page and answers them as one page, under a key of its own', async () => {
+    const all = Array.from({ length: 450 }, (_, index) => projectOf(index));
+    const sent: string[] = [];
+    server.use(
+      http.get(`${TEST_API_ORIGIN}/api/v1/workspaces/:workspaceId/projects`, ({ request }) => {
+        const url = new URL(request.url);
+        sent.push(url.search);
+        const offset = Number(url.searchParams.get('offset'));
+        const limit = Number(url.searchParams.get('limit'));
+        return HttpResponse.json({
+          data: all.slice(offset, offset + limit),
+          page: { offset, limit, total: all.length },
+        });
+      }),
+    );
+    const options = apiAllPagesQuery(PROJECTS, (project) => project.project_id, {
+      params: { path: { workspace_id: W }, query: { limit: 10, 'filter[status_in]': ['active'] } },
+      client: testApi(),
+    });
+    expect(options.queryKey).toEqual(['ws', W, 'projects', { 'filter[status_in]': ['active'], pages: 'all' }]);
+    const answer = await client().fetchQuery(options);
+    expect(answer.data).toEqual(all);
+    expect(answer.page).toEqual({ offset: 0, limit: 200, total: 450 });
+    // The caller's limit is not the page size, the filter goes with every page, and each page after the
+    // first starts at the last project read
+    expect(sent).toEqual([
+      '?filter[status_in]=active&offset=0&limit=200',
+      '?filter[status_in]=active&offset=199&limit=200',
+      '?filter[status_in]=active&offset=398&limit=200',
+    ]);
+  });
+
+  it('rejects an answer that is not a page of a list', async () => {
+    server.use(
+      http.get(`${TEST_API_ORIGIN}/api/v1/workspaces/:workspaceId/projects`, () => HttpResponse.json({ data: {} })),
+    );
+    const options = apiAllPagesQuery(PROJECTS, (project) => project.project_id, {
+      params: { path: { workspace_id: W } },
+      client: testApi(),
+    });
+    await expect(client().fetchQuery(options)).rejects.toThrow('did not answer a page of a list');
   });
 });
 

@@ -14,6 +14,10 @@ import type { Route } from 'next';
  */
 export const isSlugShaped = (value: string): boolean => /^[a-z0-9-]+$/.test(value);
 
+/** Whether `value` is a UUID as the API writes ids in paths: hyphenated, in either case. */
+export const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
 /** The root of a workspace. */
 export const workspacePath = (slug: string): Route => `/${encodeURIComponent(slug)}` as Route;
 
@@ -26,6 +30,16 @@ export const onboardingPath = (workspace: string): Route => `/${encodeURICompone
 /** A page of a project: its root, or `rest` below it (`/settings/profile`). */
 export const projectPath = (workspace: string, project: string, rest: '' | `/${string}` = ''): Route =>
   `/${encodeURIComponent(workspace)}/${encodeURIComponent(project)}${rest}` as Route;
+
+/** The sections of Settings that exist outside any project: the account's and the workspace's. */
+export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 'workspace' | 'members';
+
+/**
+ * A section of Settings outside any project, reachable from the workspace page and when the member can
+ * open no project (11-navigation.md section 5).
+ */
+export const workspaceSettingsPath = (workspace: string, section: WorkspaceSettingsSection): Route =>
+  `/${encodeURIComponent(workspace)}/settings/${section}` as Route;
 
 /** The sign-in page. */
 export const SIGN_IN_PATH: Route = '/login';

@@ -145,7 +145,7 @@ As built:
 | Point | Who | Needed by |
 |---|---|---|
 | Is the walkthrough account an operator in the backend seed, or can the seed make one? | backend session | Task 7 |
-| An account route that needs no project (Account settings from the workspace page goes to the first project's settings) | frontend, settings plan | later |
+| An account route that needs no project (Account settings from the workspace page goes to the first project's settings) | frontend, settings plan | Done in the settings follow-ups: `/{workspace}/settings/{section}` |
 | Primary domain, default location and own brand in the new-project form | backend step 4 | the entities plan |
-| The members, invitations and project lists read one page of 200; page them for larger workspaces | frontend | before a workspace can pass 200 of any |
+| The members, invitations and project lists read one page of 200; page them for larger workspaces | frontend | Done in the settings follow-ups: every page is read (`apiAllPagesQuery`) |
 | "Confirm it is you" in a browser flow (a stale mock session), axe in the dark theme, an admin visual of Members | frontend | the next settings plan |

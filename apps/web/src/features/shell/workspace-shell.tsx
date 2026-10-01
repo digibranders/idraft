@@ -1,58 +1,35 @@
 'use client';
 
-import type { Route } from 'next';
+import { ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import { TopBarControls } from './top-bar-controls';
 import { SkipLink } from '@/components/app/shell/skip-link';
 import { TopBar } from '@/components/app/shell/top-bar';
+import { Icon } from '@/components/ui/icon';
+import { workspacePath, workspaceSettingsPath } from '@/lib/routes/paths';
 
 const MAIN_ID = 'main-content';
 
-/**
- * The value of `promise` once it settles, `null` until then or when it fails: the shell renders at once and
- * does not wait for it.
- */
-function useSettled<Value>(promise: Promise<Value | null>): Value | null {
-  const [settled, setSettled] = useState<{ promise: Promise<Value | null>; value: Value | null } | null>(null);
-  useEffect(() => {
-    let current = true;
-    promise.then(
-      (value) => {
-        if (current) setSettled({ promise, value });
-      },
-      () => {
-        if (current) setSettled({ promise, value: null });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [promise]);
-  // A new promise (another render of the page) starts from nothing again
-  return settled?.promise === promise ? settled.value : null;
-}
-
 export interface WorkspaceShellProps {
-  workspace: string;
+  workspace: { slug: string; name: string };
   /**
-   * Settings > Profile of the first listed project, or `null` when the member can open none. Account
-   * settings live under a project until they have a route of their own, so the account menu has the item
-   * once the list is known.
+   * The page below the workspace root (Settings), as the breadcrumb's current item; the workspace is then a
+   * link to its root. Omitted on the root itself, where the workspace is the current item.
    */
-  accountSettings: Promise<Route | null>;
+  page?: string | undefined;
   children: ReactNode;
 }
 
 /**
- * The workspace root around its page (Task 14): the top bar without the sidebar, since no project is
- * open. The breadcrumb is the workspace alone.
+ * The pages of a workspace outside any project (the root, New project, the workspace's own settings): the
+ * top bar without the sidebar, since no project is open. The account menu's Account settings opens the
+ * workspace's Settings > Profile, which every member can reach whatever projects they can open.
  */
-export function WorkspaceShell({ workspace, accountSettings, children }: Readonly<WorkspaceShellProps>): ReactNode {
+export function WorkspaceShell({ workspace, page, children }: Readonly<WorkspaceShellProps>): ReactNode {
   const t = useTranslations('shell');
-  const settings = useSettled(accountSettings);
   return (
     <>
       <SkipLink label={t('skipToMain')} targetId={MAIN_ID} />
@@ -61,17 +38,37 @@ export function WorkspaceShell({ workspace, accountSettings, children }: Readonl
           navigation={null}
           breadcrumb={
             <nav aria-label={t('breadcrumb')} className="min-w-0">
-              <ol className="flex min-w-0 items-center type-body">
+              <ol className="flex min-w-0 items-center gap-2 type-body">
                 <li className="min-w-0">
-                  <span aria-current="page" className="block truncate type-body-strong text-foreground">
-                    {workspace}
-                  </span>
+                  {page === undefined ? (
+                    <span aria-current="page" className="block truncate type-body-strong text-foreground">
+                      {workspace.name}
+                    </span>
+                  ) : (
+                    <Link
+                      href={workspacePath(workspace.slug)}
+                      className="block truncate rounded-sm text-foreground-tertiary hover:text-foreground focus-visible:focus-ring"
+                    >
+                      {workspace.name}
+                    </Link>
+                  )}
                 </li>
+                {page === undefined ? null : (
+                  <li className="flex shrink-0 items-center gap-2">
+                    <Icon icon={ChevronRight} size="sm" className="shrink-0 text-foreground-muted" />
+                    <span aria-current="page" className="type-body-strong whitespace-nowrap text-foreground">
+                      {page}
+                    </span>
+                  </li>
+                )}
               </ol>
             </nav>
           }
           controls={
-            <TopBarControls accountSettings={settings === null ? null : <Link href={settings} />} shortcuts={[]} />
+            <TopBarControls
+              accountSettings={<Link href={workspaceSettingsPath(workspace.slug, 'profile')} />}
+              shortcuts={[]}
+            />
           }
         />
         <main id={MAIN_ID} tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">

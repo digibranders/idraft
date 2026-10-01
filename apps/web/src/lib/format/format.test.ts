@@ -11,7 +11,9 @@ import {
   formatDetailDateTime,
   formatInteger,
   formatInterval,
+  formatList,
   formatMetricDelta,
+  formatMonth,
   formatPercent,
   formatPointsDelta,
   formatRankCell,
@@ -154,6 +156,16 @@ describe('dates', () => {
     expect(formatBusinessDate('2026-09-29')).toBe('Sep 29, 2026');
     expect(formatDateRange('2026-09-01', '2026-09-28')).toBe('Sep 1 to Sep 28, 2026');
     expect(formatDateRange('2025-12-15', '2026-01-11')).toBe('Dec 15, 2025 to Jan 11, 2026');
+  });
+  it('joins names as a sentence lists them', () => {
+    expect(formatList(['Rankforge'])).toBe('Rankforge');
+    expect(formatList(['Rankforge', 'Clickvantage', 'Northlight SEO'])).toBe(
+      'Rankforge, Clickvantage, and Northlight SEO',
+    );
+  });
+  it('names a calendar month with its year', () => {
+    expect(formatMonth(2026, 9)).toBe('Sep 2026');
+    expect(formatMonth(2025, 12)).toBe('Dec 2025');
   });
 });
 

@@ -2506,6 +2506,8 @@
   --size-row-compact: 2rem;
   --size-row-header: 2.5rem;
   --size-topbar: 3.25rem;
+  --size-page-body: calc(100dvh - var(--size-topbar));
+  --size-page-body-min: 30rem;
   --size-sidebar: 13rem;
   --size-sidebar-collapsed: 3.5rem;
   --size-sidebar-item: 2rem;
@@ -2518,6 +2520,9 @@
   --size-inspector-min: 22.5rem;
   --size-inspector-max: 40rem;
   --size-inspector-wide: 27.5rem;
+  --size-inspector-top: calc(var(--size-topbar) + 0.75rem);
+  --size-inspector-docked: calc(100dvh - var(--size-topbar) - 1.5rem);
+  --size-inspector-docked-max: calc(100% - 1.5rem);
   --size-drawer: 35rem;
   --size-dialog-sm: 25rem;
   --size-dialog-md: 35rem;

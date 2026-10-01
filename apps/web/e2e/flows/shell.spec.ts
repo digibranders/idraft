@@ -72,7 +72,7 @@ test.describe('the application shell', () => {
     await expect(page.getByRole('button', { name: /create/i })).toHaveCount(0);
     await page.goto(PROFILE);
     const links = page.getByRole('navigation', { name: 'Primary' }).getByRole('link');
-    await expect(links).toHaveText(['Settings']);
+    await expect(links).toHaveText(['Rankings', 'Settings']);
   });
 
   test('every page carries the policy, and none reports a violation', async ({ page }) => {
@@ -98,9 +98,30 @@ test.describe('the application shell', () => {
     expect(policy.violations).toEqual([]);
   });
 
+  test('in the dark theme every page still passes the accessibility checks', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('sightline.theme', 'dark');
+    });
+    await signIn(page, 'tomas@digibranders.test');
+    for (const path of [
+      '/digibranders',
+      '/digibranders/settings/profile',
+      SECURITY,
+      '/digibranders/fynix/settings/members',
+      '/digibranders/fynix/settings/entities',
+      '/digibranders/fynix/settings/taxonomy',
+      '/digibranders/fynix/seo/rankings',
+      '/digibranders/onboarding',
+    ]) {
+      await page.goto(path);
+      await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+      await expectAccessible(page);
+    }
+  });
+
   test('a planned destination is the 404 page inside the shell', async ({ page }) => {
     await signIn(page, 'priya@digibranders.test');
-    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.goto('/digibranders/fynix/seo/keywords');
     await expect(page.getByRole('heading', { level: 1, name: /does not exist/ })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
   });

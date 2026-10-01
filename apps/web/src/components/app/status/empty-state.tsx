@@ -17,6 +17,8 @@ export interface EmptyStateProps {
   primaryAction?: ReactNode | undefined;
   /** One text link. */
   secondaryAction?: ReactNode | undefined;
+  /** Below the reason: what caused the state, such as the active filters as read-only chips (17 section 2). */
+  details?: ReactNode | undefined;
   /** `h1` only where the state is the whole page (a 404, a route error). */
   headingLevel: 1 | 2 | 3;
 }
@@ -32,6 +34,7 @@ export function EmptyState({
   reason,
   primaryAction,
   secondaryAction,
+  details,
   headingLevel,
 }: EmptyStateProps): ReactElement {
   const Heading = `h${String(headingLevel)}` as 'h1' | 'h2' | 'h3';
@@ -53,6 +56,7 @@ export function EmptyState({
         {title}
       </Heading>
       <p className="mt-1 type-body text-foreground-secondary">{reason}</p>
+      {details === undefined ? null : <div className="mt-3">{details}</div>}
       {actions ? (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           {primaryAction}

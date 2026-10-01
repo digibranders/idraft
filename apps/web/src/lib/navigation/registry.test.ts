@@ -34,8 +34,8 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Settings, for now', () => {
-    expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual(['settings']);
+  it('lists only what is live: Rankings and Settings, for now', () => {
+    expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual(['rankings', 'settings']);
   });
 
   it('never shows a role a destination it cannot open', () => {
@@ -79,6 +79,6 @@ describe('the navigation registry', () => {
   });
 
   it('finds no destination for the path of a planned one among the live ones', () => {
-    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/seo/rankings', 'digibranders', 'fynix')).toBeNull();
+    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/seo/keywords', 'digibranders', 'fynix')).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { Field as FieldPrimitive } from '@base-ui/react/field';
 import { Fieldset as FieldsetPrimitive } from '@base-ui/react/fieldset';
 import { CircleX } from 'lucide-react';
-import type { ReactElement, ReactNode } from 'react';
+import type { ComponentProps, ReactElement, ReactNode } from 'react';
 
 import { Icon } from './icon';
 import { cn } from '@/lib/utils';
@@ -105,6 +105,30 @@ export function FieldError({ message, className, ...props }: FieldErrorProps): R
       <Icon icon={CircleX} size="xs" className="mt-1" />
       <span>{message}</span>
     </FieldPrimitive.Error>
+  );
+}
+
+export interface GroupErrorProps extends Omit<ComponentProps<'p'>, 'children'> {
+  /** Says what to do: "Select at least one". */
+  message: string;
+  /** Referenced by the group's `aria-describedby`, so the error is read with the group. */
+  id: string;
+}
+
+/**
+ * The error of a group of controls (a `Fieldset` of checkboxes), which has no `Field` of its own: it looks
+ * like `FieldError`, and the fieldset points at it with `aria-describedby`.
+ */
+export function GroupError({ message, className, ...props }: GroupErrorProps): ReactElement {
+  return (
+    <p
+      data-slot="group-error"
+      {...props}
+      className={cn('flex items-start gap-1 type-meta text-negative-text', className)}
+    >
+      <Icon icon={CircleX} size="xs" className="mt-1" />
+      <span>{message}</span>
+    </p>
   );
 }
 

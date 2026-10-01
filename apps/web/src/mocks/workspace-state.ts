@@ -1,3 +1,6 @@
+import { jsonCookie, readJsonCookie } from './cookie-json';
+import { domainRefFactory } from './factories/domain';
+import { locationRefFactory } from './factories/location';
 import { projectFactory } from './factories/project';
 import {
   MOCK_CREATED_AT,
@@ -7,7 +10,7 @@ import {
   MOCK_WORKSPACE,
   type MockUserSeed,
 } from './fixtures';
-import { cookieOf, hasJoined, WORKSPACE_COOKIE } from './session';
+import { hasJoined, WORKSPACE_COOKIE } from './session';
 import { z } from 'zod';
 
 import type { components } from '@/lib/api/schema';
@@ -35,7 +38,23 @@ export interface CreatedProject {
   timezone: string;
   deep_check_weekday: number;
   default_language_code: string | null;
+  /** The canonical host, or `null`. */
+  primary_domain?: string | null | undefined;
+  default_location_id?: number | null | undefined;
+  /**
+   * The own entity created with the project (19 section 3.3, `own_entity`). It is kept here, with the project,
+   * because one answer sets one cookie; ./entities-state.ts reads it as part of its base.
+   */
+  own_entity?: CreatedOwnEntity | undefined;
   created_at: string;
+}
+
+/** Ids and texts only: the rest of the entity, its aliases and domains are the defaults of `own_entity`. */
+export interface CreatedOwnEntity {
+  entity_id: string;
+  canonical_name: string;
+  aliases: { alias_id: string; alias: string }[];
+  domains: { entity_domain_id: string; host: string }[];
 }
 
 export interface ProjectEdit {
@@ -45,6 +64,9 @@ export interface ProjectEdit {
   deep_check_weekday?: number | undefined;
   default_language_code?: string | null | undefined;
   status?: Project['status'] | undefined;
+  /** The canonical host, or `null` once removed. */
+  primary_domain?: string | null | undefined;
+  default_location_id?: number | null | undefined;
 }
 
 export interface MemberEdit {
@@ -127,6 +149,16 @@ const CHANGES = z.object({
         timezone: z.string(),
         deep_check_weekday: z.number(),
         default_language_code: z.string().nullable(),
+        primary_domain: z.string().nullable().optional(),
+        default_location_id: z.number().nullable().optional(),
+        own_entity: z
+          .object({
+            entity_id: z.string(),
+            canonical_name: z.string(),
+            aliases: z.array(z.object({ alias_id: z.string(), alias: z.string() })),
+            domains: z.array(z.object({ entity_domain_id: z.string(), host: z.string() })),
+          })
+          .optional(),
         created_at: z.string(),
       }),
     )
@@ -142,6 +174,8 @@ const CHANGES = z.object({
           deep_check_weekday: z.number(),
           default_language_code: z.string().nullable(),
           status: STATUS,
+          primary_domain: z.string().nullable(),
+          default_location_id: z.number().nullable(),
         })
         .partial(),
     )
@@ -184,47 +218,19 @@ const CHANGES = z.object({
     .optional(),
 });
 
-/** UTF-8 JSON as base64url, so the value needs no escaping and decodes the same wherever it is read. */
-function encode(value: unknown): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(value));
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-}
-
-function decode(text: string): unknown {
-  const binary = atob(text.replaceAll('-', '+').replaceAll('_', '/'));
-  return JSON.parse(new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0))));
-}
-
 /** What the cookie holds, checked against its shape: a cookie that does not fit is ignored, never trusted. */
-export function readChanges(cookies: Readonly<Record<string, string>>): WorkspaceChanges {
-  const raw = cookieOf(cookies, WORKSPACE_COOKIE);
-  if (raw === undefined || raw === '') return {};
-  try {
-    const parsed = CHANGES.safeParse(decode(raw));
-    return parsed.success ? parsed.data : {};
-  } catch (error) {
-    // Not base64url or not JSON: an older format of this cookie
-    if (error instanceof SyntaxError || error instanceof DOMException) return {};
-    throw error;
-  }
-}
-
-/** One year, like the other cookies of the mocks' memory. */
-const MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
-/** Browsers refuse a cookie over 4096 bytes and say nothing: the mocks fail loudly before that. */
-const MAX_COOKIE_BYTES = 3800;
+export const readChanges = (cookies: Readonly<Record<string, string>>): WorkspaceChanges =>
+  readJsonCookie<WorkspaceChanges>(cookies, WORKSPACE_COOKIE, CHANGES, {});
 
 /** The `Set-Cookie` that keeps `changes`. Throws when they no longer fit in a cookie. */
 export function changesCookie(changes: WorkspaceChanges): string {
-  const value = encode(changes);
-  if (value.length > MAX_COOKIE_BYTES) {
+  const cookie = jsonCookie(WORKSPACE_COOKIE, changes);
+  if (cookie === null) {
     throw new Error(
-      `The mock workspace state no longer fits in its cookie (${String(value.length)} bytes). Expire the ${WORKSPACE_COOKIE} cookie to start again from the fixtures.`,
+      `The mock workspace state no longer fits in its cookie. Expire the ${WORKSPACE_COOKIE} cookie to start again from the fixtures.`,
     );
   }
-  return `${WORKSPACE_COOKIE}=${value}; Path=/; Secure; SameSite=Lax; Max-Age=${String(MAX_AGE_SECONDS)}`;
+  return cookie;
 }
 
 /** The fixture workspace as this browser changed it. */
@@ -304,6 +310,13 @@ function editOf(changes: WorkspaceChanges, projectId: string): Partial<Project> 
   if (edit.deep_check_weekday !== undefined) out.deep_check_weekday = edit.deep_check_weekday;
   if (edit.default_language_code !== undefined) out.default_language_code = edit.default_language_code;
   if (edit.status !== undefined) out.status = edit.status;
+  if (edit.primary_domain !== undefined) {
+    out.primary_domain = edit.primary_domain === null ? null : domainRefFactory(edit.primary_domain);
+  }
+  if (edit.default_location_id !== undefined) {
+    out.default_location_id = edit.default_location_id;
+    out.default_location = locationRefFactory(edit.default_location_id);
+  }
   return out;
 }
 
@@ -321,8 +334,9 @@ export function projectList(changes: WorkspaceChanges, workspaceId: string = MOC
           project_id: project.project_id,
           name: project.name,
           slug: project.slug,
-          host: '',
+          host: project.primary_domain ?? '',
           timezone: project.timezone,
+          location_id: project.default_location_id ?? null,
         },
         {
           workspace_id: project.workspace_id,

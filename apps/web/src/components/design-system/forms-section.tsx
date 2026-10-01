@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { SpecimenGroup, SpecimenRow } from './specimen';
+import { DomainInput } from '@/components/app/forms/domain-input';
 import { FormField } from '@/components/app/forms/form-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,6 +19,7 @@ import { Icon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { InputGroup } from '@/components/ui/input-group';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { OtpField } from '@/components/ui/otp-field';
 import { PasswordInput } from '@/components/ui/password-input';
 import { RadioGroup } from '@/components/ui/radio-group';
@@ -27,6 +29,9 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
 import { SettingRow } from '@/components/ui/setting-row';
 import { Switch } from '@/components/ui/switch';
+import { Tag } from '@/components/ui/tag';
+import { Textarea } from '@/components/ui/textarea';
+import { TreeView, type TreeViewNode } from '@/components/ui/tree-view';
 
 type Workload = 'rank' | 'ai' | 'audit' | 'backlinks' | 'content';
 type Device = 'desktop' | 'mobile' | 'both';
@@ -58,6 +63,25 @@ const PROJECTS: readonly Project[] = [
   { id: 'oyechats', name: 'oyechats.com', workspace: 'Digibranders' },
   { id: 'firstfold', name: 'firstfold.io', workspace: 'Digibranders' },
 ];
+const TOPICS: readonly TreeViewNode[] = [
+  {
+    id: 'crm',
+    label: 'CRM',
+    children: [
+      { id: 'crm-startups', label: 'CRM for startups', children: [] },
+      { id: 'crm-agencies', label: 'CRM for agencies', children: [] },
+    ],
+  },
+  {
+    id: 'email',
+    label: 'Email marketing',
+    children: [{ id: 'email-automation', label: 'Automation', children: [] }],
+  },
+  { id: 'seo', label: 'SEO tools', children: [] },
+];
+const TAG_SUGGESTIONS: readonly string[] = ['brand', 'comparison', 'pricing', 'q4-launch', 'support'];
+const PROMPT =
+  'Which CRM should a ten-person agency choose if it wants email sequences, a shared inbox and reporting on closed deals, and how do HubSpot, Pipedrive and Zoho compare on price for the first year?';
 const WORKLOADS = [
   { value: 'rank', label: 'Rank checks', group: 'Collection' },
   { value: 'ai', label: 'AI visibility', group: 'Collection', description: 'Prompts asked of each engine' },
@@ -169,6 +193,12 @@ export function FormsSection(): ReactNode {
   const [code, setCode] = useState('');
   const [location, setLocation] = useState<Location | null>(null);
   const [project, setProject] = useState<Project | null>(PROJECTS[0] ?? null);
+  const [domain, setDomain] = useState('https://www.hubspot.com/products/crm');
+  const [tags, setTags] = useState<readonly string[]>(['pricing', 'q4-launch']);
+  const [chosenTags, setChosenTags] = useState<readonly string[]>(['brand']);
+  const [aliases, setAliases] = useState<readonly string[]>(['HubSpot CRM']);
+  const [topic, setTopic] = useState<string | null>('crm-agencies');
+  const [openTopics, setOpenTopics] = useState<ReadonlySet<string>>(new Set(['crm']));
   return (
     <>
       <SpecimenGroup title="Field" note="10 section 2. Label, control, then helper text or error, 6 px apart.">
@@ -222,6 +252,23 @@ export function FormsSection(): ReactNode {
             <FieldLabel>New password</FieldLabel>
             <PasswordInput autoComplete="new-password" showLabel="Show password" hideLabel="Hide password" size="lg" />
             <FieldError message="Use at least 12 characters" />
+          </Field>
+        </SpecimenRow>
+        <SpecimenRow label="Textarea, counter over the limit">
+          <Field width="long">
+            <FieldLabel>Sample answer</FieldLabel>
+            <Textarea placeholder="Paste an answer from an AI engine" />
+          </Field>
+          <Field width="long" invalid>
+            <FieldLabel>Prompt</FieldLabel>
+            <Textarea defaultValue={PROMPT} counter="712 of 700" counterOver />
+            <FieldError message="Use 700 characters at most" />
+          </Field>
+        </SpecimenRow>
+        <SpecimenRow label="Domain with its preview">
+          <Field width="long">
+            <FieldLabel>Domain</FieldLabel>
+            <DomainInput value={domain} onValueChange={setDomain} description="The competitor's site" />
           </Field>
         </SpecimenRow>
         <SpecimenRow label="One-time code">
@@ -304,6 +351,81 @@ export function FormsSection(): ReactNode {
               </Button>
             }
           />
+        </SpecimenRow>
+      </SpecimenGroup>
+
+      <SpecimenGroup
+        title="Tag and multi-select"
+        note="14 section 2, 10 section 6.4. Chips inside the field; Backspace in the empty field removes the last one."
+      >
+        <SpecimenRow label="Tags, read-only and removable">
+          <Tag label="Brand" />
+          {tags.map((tag) => (
+            <Tag
+              key={tag}
+              label={tag}
+              onRemove={() => setTags(tags.filter((kept) => kept !== tag))}
+              removeLabel={`Remove ${tag}`}
+            />
+          ))}
+        </SpecimenRow>
+        <SpecimenRow label="Suggestions, free values">
+          <Field width="long">
+            <FieldLabel>Tags</FieldLabel>
+            <MultiSelect
+              value={chosenTags}
+              onValueChange={setChosenTags}
+              items={TAG_SUGGESTIONS}
+              itemToString={(tag) => tag}
+              itemKey={(tag) => tag}
+              placeholder="pricing"
+              emptyText={(query) => `No tags match "${query}"`}
+              chipsLabel="Chosen tags"
+              removeLabel={(tag) => `Remove ${tag}`}
+              chipsHint={(count) =>
+                `${String(count)} chosen. From the start of the field, press Left Arrow to reach them.`
+              }
+              chipHint="Press Backspace or Delete to remove"
+            />
+          </Field>
+          <Field width="long">
+            <FieldLabel>Aliases</FieldLabel>
+            <MultiSelect
+              value={aliases}
+              onValueChange={setAliases}
+              items={[]}
+              itemToString={(alias) => alias}
+              itemKey={(alias) => alias.toLocaleLowerCase()}
+              creatable={{ label: (query) => `Add "${query}"`, onCreate: (query) => query }}
+              placeholder="HubSpot CRM"
+              emptyText={() => 'Type a name and press Enter'}
+              chipsLabel="Aliases"
+              removeLabel={(alias) => `Remove ${alias}`}
+              chipsHint={(count) =>
+                `${String(count)} aliases. From the start of the field, press Left Arrow to reach them.`
+              }
+              chipHint="Press Backspace or Delete to remove"
+            />
+            <FieldDescription>Other names AI answers use for this brand</FieldDescription>
+          </Field>
+        </SpecimenRow>
+      </SpecimenGroup>
+
+      <SpecimenGroup
+        title="Tree view"
+        note="WAI-ARIA tree, single selection following focus. Arrows move and open; actions sit outside the tree."
+      >
+        <SpecimenRow label="Nested terms">
+          <div className="w-full max-w-90 rounded-lg border border-border bg-surface p-1">
+            <TreeView
+              label="Topics"
+              nodes={TOPICS}
+              selected={topic}
+              onSelect={setTopic}
+              expanded={openTopics}
+              onExpandedChange={setOpenTopics}
+            />
+          </div>
         </SpecimenRow>
       </SpecimenGroup>
 

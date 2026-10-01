@@ -2,7 +2,7 @@
 
 Status: Accepted (design-system v2)
 Last updated: 2026-09-29
-Implementation: `components/app/data-table/` built on TanStack Table v9 (`@tanstack/react-table` 9.x, `useTable` API) and TanStack Virtual 3 (`@tanstack/react-virtual`). Versions verified 2026-09-29 in `research/09-frontend-stack.md`.
+Implementation: `components/app/data-table/` built on TanStack Table v9 (`@tanstack/react-table` 9.x, `useTable` API, client sorting). Row windowing is computed in `lib/tables/row-window.ts`, not with TanStack Virtual, which the React Compiler cannot compile (25-component-inventory.md, deviation 124). Versions verified 2026-09-29 in `research/09-frontend-stack.md`.
 
 Tables are the primary instrument of this product. There is exactly one table component for record lists, `DataTable`. Small read-only key-value tables (inside inspectors, chart data alternatives) use `SimpleTable` (section 15).
 

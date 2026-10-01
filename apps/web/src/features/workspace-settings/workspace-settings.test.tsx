@@ -24,14 +24,14 @@ vi.mock('next/navigation', () => ({
 
 const WORKSPACE = workspaceFactory();
 
-function screenAs(role: Role): ReactElement {
+function screenAs(role: Role, projectSlug: string | null = 'fynix'): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <PermissionProvider membership={membershipFactory(role)}>
       <FreshSessionProvider>
         <LeaveGuardProvider>
           <Suspense fallback={null}>
-            <WorkspaceGeneralScreen workspace={WORKSPACE} projectSlug="fynix" />
+            <WorkspaceGeneralScreen workspace={WORKSPACE} projectSlug={projectSlug} />
           </Suspense>
         </LeaveGuardProvider>
       </FreshSessionProvider>
@@ -70,6 +70,15 @@ describe('Workspace settings > General', () => {
     expect(screen.getByText('Used in links: /dgb-agency')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/dgb-agency/fynix/settings/workspace'));
+  });
+
+  it("outside a project, moves to the workspace's own settings at the new address", async () => {
+    const { user } = renderWithProviders(screenAs('owner', null));
+    const slug = await screen.findByLabelText('Address');
+    await user.clear(slug);
+    await user.type(slug, 'dgb-agency');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/dgb-agency/settings/workspace'));
   });
 
   it('puts a taken address on its field', async () => {

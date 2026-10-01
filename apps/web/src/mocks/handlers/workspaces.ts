@@ -1,5 +1,6 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
+import { offsetPageOf, offsetPaging } from './rules';
 import { workspaceFactory } from '../factories/identity';
 import { PERMISSION_HOLDERS } from '../factories/permissions';
 import { MOCK_INVITED_USER, MOCK_USERS, MOCK_WORKSPACE, type MockUserSeed } from '../fixtures';
@@ -288,6 +289,8 @@ export const workspaceHandlers: HttpHandler[] = [
     const changes = readChanges(cookies);
     const access = accessTo(params.workspace_id, session.user, changes, cookies);
     if (!access) return problem(request, 'not_found');
+    const paging = offsetPaging(new URL(request.url));
+    if (Array.isArray(paging)) return invalid(request, paging);
     const viewer = { user_id: session.user.user_id, canManage: can(access, 'members:manage') };
     // A workspace an operator created here has its owner only
     const members =
@@ -296,7 +299,7 @@ export const workspaceHandlers: HttpHandler[] = [
         : memberList({}, {}, viewer)
             .filter((member) => member.user.user_id === session.user.user_id)
             .map((member) => ({ ...member, role: 'owner' as const, project_ids: null }));
-    return HttpResponse.json({ data: members, page: { offset: 0, limit: 50, total: members.length } });
+    return HttpResponse.json(offsetPageOf(members, paging));
   }),
 
   mock('patch', '/api/v1/workspaces/{workspace_id}/members/{user_id}', async ({ request, cookies, params }) => {
@@ -392,8 +395,10 @@ export const workspaceHandlers: HttpHandler[] = [
     const access = accessTo(params.workspace_id, session.user, changes, cookies);
     if (!access) return problem(request, 'not_found');
     if (!can(access, 'members:manage')) return problem(request, 'forbidden');
+    const paging = offsetPaging(new URL(request.url));
+    if (Array.isArray(paging)) return invalid(request, paging);
     const invitations = invitationList(changes, cookies, access.workspace.workspace_id);
-    return HttpResponse.json({ data: invitations, page: { offset: 0, limit: 50, total: invitations.length } });
+    return HttpResponse.json(offsetPageOf(invitations, paging));
   }),
 
   mock('post', '/api/v1/workspaces/{workspace_id}/invitations', async ({ request, cookies, params }) => {

@@ -2,12 +2,13 @@
 
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox';
 import { Check, ChevronDown, X } from 'lucide-react';
-import { useMemo, useState, type ReactElement, type ReactNode, type Ref } from 'react';
+import { useMemo, useRef, useState, type ReactElement, type ReactNode, type Ref } from 'react';
 
 import { Icon } from './icon';
 import { IconButton } from './icon-button';
 import { InputGroup } from './input-group';
 import { inputVariants, type InputSize } from './input-variants';
+import { nameListAfterField } from './popup-label';
 import { POPUP_COLLISION, POPUP_GROUP_LABEL, POPUP_ITEM, POPUP_MOTION, POPUP_SURFACE } from './popup-styles';
 import { Spinner } from './spinner';
 import { cn } from '@/lib/utils';
@@ -127,6 +128,8 @@ export function Combobox<TItem>({
   className,
 }: ComboboxProps<TItem>): ReactElement {
   const [query, setQuery] = useState('');
+  // The element around the text field, which names the list after the field's label
+  const field = useRef<HTMLDivElement>(null);
   const groups = useMemo(() => (groupOf ? grouped(items, groupOf) : undefined), [items, groupOf]);
   const row = (item: TItem): ReactElement => (
     <ComboboxPrimitive.Item key={itemKey(item)} value={item} className={cn(POPUP_ITEM, 'h-auto min-h-8 py-1.5')}>
@@ -165,6 +168,7 @@ export function Combobox<TItem>({
         <ComboboxPrimitive.InputGroup
           render={
             <InputGroup
+              ref={field}
               data-slot="combobox"
               size={size}
               className={className}
@@ -234,7 +238,10 @@ export function Combobox<TItem>({
                 <span className="flex min-h-8 items-center px-3 py-1.5 type-meta">{emptyText(query)}</span>
               )}
             </ComboboxPrimitive.Empty>
-            <ComboboxPrimitive.List className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 outline-none data-empty:hidden">
+            <ComboboxPrimitive.List
+              ref={(list) => nameListAfterField(field.current, list)}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 outline-none data-empty:hidden"
+            >
               {groups
                 ? (group: ItemGroup<TItem>) => (
                     <ComboboxPrimitive.Group key={group.value} items={group.items}>

@@ -30,6 +30,8 @@ export interface TabsProps<TValue extends string> extends Omit<
   /** One `TabsPanel` per item. */
   children: ReactNode;
   className?: string | undefined;
+  /** Layout of the tab row only: the inspector pads it to its header's edges. */
+  listClassName?: string | undefined;
 }
 
 /** The label with an unseen heavier copy under it, so the tab has the same width whether chosen or not. */
@@ -57,6 +59,7 @@ export function Tabs<TValue extends string>({
   items,
   children,
   className,
+  listClassName,
   ...props
 }: TabsProps<TValue>): ReactElement {
   const underline = variant === 'underline';
@@ -74,7 +77,7 @@ export function Tabs<TValue extends string>({
       <TabsPrimitive.List
         aria-label={label}
         activateOnFocus
-        className={cn('relative flex', underline ? 'gap-6 border-b border-border' : 'w-fit')}
+        className={cn('relative flex', underline ? 'gap-6 border-b border-border' : 'w-fit', listClassName)}
       >
         {items.map((item) => (
           <TabsPrimitive.Tab

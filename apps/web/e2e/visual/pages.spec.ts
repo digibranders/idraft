@@ -20,16 +20,25 @@ const SIGNED_OUT = [
   { name: 'reset-password', path: '/reset-password' },
 ] as const;
 
-const SIGNED_IN = [
+const EDITOR = 'priya@digibranders.test';
+/** An admin manages members: the invitations, the two-factor column and the row actions show. */
+const ADMIN = 'tomas@digibranders.test';
+
+const SIGNED_IN: readonly { name: string; path: string; as?: string }[] = [
   { name: 'workspace', path: '/digibranders' },
+  { name: 'workspace-settings-profile', path: '/digibranders/settings/profile' },
   { name: 'settings-profile', path: '/digibranders/fynix/settings/profile' },
   { name: 'settings-security', path: '/digibranders/fynix/settings/security' },
   { name: 'settings-preferences', path: '/digibranders/fynix/settings/preferences' },
   { name: 'settings-project-general', path: '/digibranders/fynix/settings/general' },
   { name: 'settings-workspace-general', path: '/digibranders/fynix/settings/workspace' },
   { name: 'settings-members', path: '/digibranders/fynix/settings/members' },
+  { name: 'settings-members-admin', path: '/digibranders/fynix/settings/members', as: ADMIN },
   { name: 'new-project', path: '/digibranders/onboarding' },
-] as const;
+  { name: 'settings-entities', path: '/digibranders/fynix/settings/entities' },
+  { name: 'settings-domains', path: '/digibranders/fynix/settings/domains' },
+  { name: 'settings-taxonomy', path: '/digibranders/fynix/settings/taxonomy' },
+];
 
 /** Waits until nothing on the page will still move: the content is there, the fonts are in, no request is out. */
 async function settle(page: Page): Promise<void> {
@@ -71,9 +80,9 @@ for (const theme of THEMES) {
       });
     }
 
-    for (const { name, path } of SIGNED_IN) {
+    for (const { name, path, as = EDITOR } of SIGNED_IN) {
       test(`${name}`, async ({ page }) => {
-        await signIn(page, 'priya@digibranders.test');
+        await signIn(page, as);
         await page.goto(path);
         await expectPage(page, `${name}-${theme}`);
       });

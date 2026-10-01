@@ -349,6 +349,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/domain-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Domain categories */
+        get: operations["list_domain_categories_api_v1_domain_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invitations/accept": {
         parameters: {
             query?: never;
@@ -363,6 +380,23 @@ export interface paths {
          * @description For a signed-in account whose verified address is the one the invitation was sent to. Accepting again returns the same membership.
          */
         post: operations["accept_invitation_api_v1_invitations_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Locations collection can target, by name */
+        get: operations["list_locations_api_v1_locations_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -446,6 +480,160 @@ export interface paths {
         patch: operations["update_workspace_api_v1_workspaces__workspace_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/budgets/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Each budget's spend in a month
+         * @description `month` is `YYYY-MM` (UTC; this month when left out). `spent_usd` is read from the cost events; `committed_estimate_usd` is what runs under way are still expected to spend, this month only. `state` is `hard_exceeded` from the limit and `soft_exceeded` from its soft share. A member limited to some projects sees their budgets only.
+         */
+        get: operations["budget_status_api_v1_workspaces__workspace_id__budgets_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Costs grouped by the given keys
+         * @description From `from` to `to`, both included (UTC days, at most 366). `group_by` is a comma list of `project`, `workload`, `provider`, `endpoint`, `engine`, `day`, `channel`; without it there is one total row. Rows are most expensive first. Read from the hourly rollup, so up to an hour behind; `meta.cost_sources` is read from the cost events. Money has six decimal places.
+         */
+        get: operations["list_costs_api_v1_workspaces__workspace_id__costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The workspace's entities, by name */
+        get: operations["list_entities_api_v1_workspaces__workspace_id__entities_get"];
+        put?: never;
+        /** Create an entity, with aliases and domains */
+        post: operations["create_entity_api_v1_workspaces__workspace_id__entities_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One entity, with aliases, domains and project roles */
+        get: operations["get_entity_api_v1_workspaces__workspace_id__entities__entity_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an entity no project has ever named
+         * @description Its aliases and domains go with it. `409 entity_in_use` when a project role, even a removed one, or a product names it.
+         */
+        delete: operations["delete_entity_api_v1_workspaces__workspace_id__entities__entity_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change an entity */
+        patch: operations["update_entity_api_v1_workspaces__workspace_id__entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An entity's aliases */
+        get: operations["list_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_get"];
+        put?: never;
+        /** Add one alias or a batch */
+        post: operations["add_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases/{alias_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an alias */
+        delete: operations["delete_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change an alias */
+        patch: operations["update_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An entity's domains */
+        get: operations["list_entity_domains_api_v1_workspaces__workspace_id__entities__entity_id__domains_get"];
+        put?: never;
+        /**
+         * Add a domain
+         * @description A registrable rule is stored against the registrable domain itself (`https://www.acme.com/x` is `acme.com`); host and path prefix rules keep the host.
+         */
+        post: operations["add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains/{entity_domain_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a domain */
+        delete: operations["delete_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains__entity_domain_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/invitations": {
         parameters: {
             query?: never;
@@ -482,6 +670,63 @@ export interface paths {
          * @description The link stops working. Withdrawing twice is not an error.
          */
         delete: operations["cancel_invitation_api_v1_workspaces__workspace_id__invitations__invitation_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The workspace's keywords
+         * @description By normalized text. `filter[q]` matches part of the normalized text.
+         */
+        get: operations["list_keywords_api_v1_workspaces__workspace_id__keywords_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A keyword with its current metrics and tracked variants */
+        get: operations["get_keyword_api_v1_workspaces__workspace_id__keywords__keyword_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A keyword's metric snapshots, trend and seasonality
+         * @description Snapshots oldest first; `from` and `to` are UTC dates of `fetched_at`. The trend and seasonality are those of the latest snapshot in the range.
+         */
+        get: operations["get_metrics_history_api_v1_workspaces__workspace_id__keywords__keyword_id__metrics_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -528,6 +773,26 @@ export interface paths {
         patch: operations["update_member_api_v1_workspaces__workspace_id__members__user_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/price-book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verified provider prices
+         * @description The prices valid on `valid_at` (today when left out). They give the estimates budgets are judged by; what is charged is what the provider reports.
+         */
+        get: operations["price_book_api_v1_workspaces__workspace_id__price_book_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects": {
         parameters: {
             query?: never;
@@ -570,6 +835,765 @@ export interface paths {
         patch: operations["update_project_api_v1_workspaces__workspace_id__projects__project_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * What extraction would count in a text, with today's aliases
+         * @description Nothing is stored. Offsets are UTF-16 code units, as JavaScript indexes the text. `413 payload_too_large` over 100 KB; `422 too_many_matches` over 250,000 matches.
+         */
+        post: operations["alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The domains of the project's entities, with their roles */
+        get: operations["list_project_domains_api_v1_workspaces__workspace_id__projects__project_id__domains_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The entities a project has given a role */
+        get: operations["list_project_entities_api_v1_workspaces__workspace_id__projects__project_id__entities_get"];
+        put?: never;
+        /**
+         * Give an entity a role in the project
+         * @description An entity whose role was removed gets it back, on the same row.
+         */
+        post: operations["add_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an entity's role; its history is kept */
+        delete: operations["remove_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change an entity's role in the project */
+        patch: operations["update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Keyword groups as a tree or flat
+         * @description In path order. `flat` lists every group with empty `children`. `keyword_count` counts the active tracked keywords in the group or under it, once each.
+         */
+        get: operations["list_groups_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_get"];
+        put?: never;
+        /**
+         * Create a group
+         * @description `409 duplicate` when a sibling has the name in any case. A `parent_id` that is not a group of the project is `422 validation_failed` with `group_unknown`.
+         */
+        post: operations["create_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a group (subgroups go too; members are unlinked) */
+        delete: operations["delete_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename or move a group
+         * @description The paths of the group and its subtree follow. A parent that is the group or under it is `422 cycle_detected`; `parent_id: null` moves it to the root.
+         */
+        patch: operations["update_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add tracked keywords to a group
+         * @description Ids that are not live tracked keywords of the project are left out; `added` counts those that were not in the group.
+         */
+        post: operations["add_members_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}/members/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take tracked keywords out of a group */
+        post: operations["remove_members_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__members_remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's imports, newest first */
+        get: operations["list_imports_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_get"];
+        put?: never;
+        /** Import keywords from paste text or rows */
+        post: operations["create_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import keywords from a CSV file (multipart, up to 50 MB) */
+        post: operations["upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One import */
+        get: operations["get_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the mapping, defaults or row actions */
+        patch: operations["update_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel an import before it writes */
+        post: operations["cancel_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Write the import */
+        post: operations["confirm_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The import report as CSV */
+        get: operations["import_report_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The preview rows, in file order */
+        get: operations["import_rows_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__rows_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-metrics/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh keyword metrics now (a manual run)
+         * @description The given keywords (which the project tracks; `422 validation_failed` with `keyword_unknown` otherwise), else the project's tracked keywords whose metrics are older than `stale_days` (default 25). The run is `planned` and the worker plans it within a minute; a budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; runs the system starts for new keywords do not count.
+         */
+        post: operations["refresh_keyword_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The project's runs
+         * @description Newest first. `meta.manual_runs_today` says how many of the day's (UTC) manual runs people have used.
+         */
+        get: operations["list_runs_api_v1_workspaces__workspace_id__projects__project_id__runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One run
+         * @description With how many of its tasks are in each status, and the configuration it ran with.
+         */
+        get: operations["get_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a run
+         * @description A planned or running run (`409 invalid_state_transition` otherwise). Needs `schedules:write`, or `runs:trigger` for a manual run the caller asked for. Pending tasks are cancelled within minutes; tasks the provider already has are still fetched, since they are paid for. `reason` is audited.
+         */
+        post: operations["cancel_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's schedules */
+        get: operations["list_schedules_api_v1_workspaces__workspace_id__projects__project_id__schedules_get"];
+        put?: never;
+        /**
+         * Create a schedule
+         * @description `keyword_metrics` (provider mode `live`; selector `stale_days`, `all`, `groups`, `terms`) and `seo_rank` (selector `all`, `groups`, `terms`, `priority_lte`, and not empty) are offered; others are `422 validation_failed` with `workload_not_available`. Cadence `daily`, `weekly` (with `weekday`, 0 is Sunday) or `monthly` (with `month_day`, 1 to 28); `cron` is `cadence_not_supported`. A selector member the workload does not take is `selector_not_supported` at `selector.<member>`. `next_run_at` is the next window start in the schedule's time zone.
+         */
+        post: operations["create_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One schedule */
+        get: operations["get_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a schedule
+         * @description Its runs keep naming it. `409 schedule_in_use` while tracked keywords name it.
+         */
+        delete: operations["delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a schedule
+         * @description `next_run_at` is computed again. A change of cadence drops the day the new cadence does not use, and a weekly or monthly cadence needs its day (`required`).
+         */
+        patch: operations["update_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause a schedule
+         * @description Not planned until resumed. The body (`reason`) is optional and audited.
+         */
+        post: operations["pause_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume a schedule
+         * @description From its next window after now: windows missed while paused are not caught up.
+         */
+        post: operations["resume_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's settings */
+        get: operations["get_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the project's settings
+         * @description A JSON merge patch of `seo`: members left out keep their value. The `seo` defaults apply to tracked keywords created after the change.
+         */
+        patch: operations["update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/term-assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add, remove or replace terms of tracked keywords
+         * @description Exactly one of `subject_ids` (up to 5,000) and `subject_filter` (the list's filters; `422 too_many_subjects` over 20,000 matches). `add` with a term of a single-valued vocabulary replaces the keyword's other term of it; `replace` makes the given terms the keyword's only ones within their vocabularies, and other vocabularies are kept. Two terms of one single-valued vocabulary are `422 validation_failed` with `single_valued_vocabulary`; `subject_type: 'prompt'` is `subject_type_not_supported` until prompts exist.
+         */
+        post: operations["assign_terms_api_v1_workspaces__workspace_id__projects__project_id__term_assignments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The project's tracked keywords
+         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority` and `created_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric sorts keywords without one last in both directions. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
+         */
+        get: operations["list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get"];
+        put?: never;
+        /**
+         * Track a keyword (two rows for device both)
+         * @description Defaults come from the project: its location and language, and `settings.seo`. `409 duplicate` with `existing_id` when the project tracks the keyword already, archived included; a deleted one comes back with its stored settings. `422 quota_exceeded` carries `limit`, `used` and `requested`.
+         */
+        post: operations["create_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive or unarchive tracked keywords
+         * @description Exactly one of `ids` and `filter`. Archived keywords are not collected and do not count against the quota; unarchiving is `422 quota_exceeded` when they would not fit.
+         */
+        post: operations["bulk_archive_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track up to 1,000 keywords
+         * @description Items that cannot be tracked are in `rejected` with their code; duplicates are in `skipped`. Over the quota, nothing is written (`422 quota_exceeded`).
+         */
+        post: operations["bulk_create_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_create_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete tracked keywords
+         * @description Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches). As the single delete: history stays, and tracking the same keyword again brings the row back with its settings.
+         */
+        post: operations["bulk_delete_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change tracked keywords by ids or by filter
+         * @description Exactly one of `ids` (up to 5,000) and `filter` (`422 too_many_subjects` over 20,000 matches, with `limit`). `set` takes the fields of a single change; a new `depth_profile` or `target_url` makes a configuration version for each row it changes (`config_versions_created`). `add_term_ids` with a term of a single-valued vocabulary replaces the keyword's other term of that vocabulary.
+         */
+        post: operations["bulk_update_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One tracked keyword
+         * @description With its current metrics, groups, terms, competitor overrides and schedule.
+         */
+        get: operations["get_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a tracked keyword (history kept)
+         * @description Tracking the same keyword again brings the row back with its settings.
+         */
+        delete: operations["delete_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a tracked keyword
+         * @description A new `depth_profile` or `target_url` makes a new `config_version` with a history row. The identity (`keyword`, `search_engine`, `location_id`, `language_code`, `device`, `os`) cannot change: `422 validation_failed` with `immutable_field`. Unarchiving (`is_active: true`) counts against the quota.
+         */
+        patch: operations["update_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/competitors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the keyword's competitor overrides
+         * @description Replaces the overrides. The effective set is the project's SEO competitors, with `include` added and `exclude` taken away. An entity without a live role in the project is `422 validation_failed` with `entity_not_in_project`.
+         */
+        put: operations["set_competitors_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__competitors_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/config-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Configuration versions */
+        get: operations["get_config_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__config_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Runs of the projects the caller can see */
+        get: operations["list_workspace_runs_api_v1_workspaces__workspace_id__runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/terms/{term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a term
+         * @description `409 has_children` for a term with children, unless `cascade=true`.
+         */
+        delete: operations["delete_term_api_v1_workspaces__workspace_id__terms__term_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change or move a term
+         * @description A new `slug` or `parent_id` rewrites the paths of the whole subtree. The name keeps its slug unless a slug is given. `422 cycle_detected` for a parent under the term.
+         */
+        patch: operations["update_term_api_v1_workspaces__workspace_id__terms__term_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/vocabularies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vocabularies, by name */
+        get: operations["list_vocabularies_api_v1_workspaces__workspace_id__vocabularies_get"];
+        put?: never;
+        /**
+         * Create a vocabulary
+         * @description Workspace-wide without `project_id`, which a member limited to some projects cannot create. `409 duplicate` when the scope has a vocabulary of this kind with this name, in any case.
+         */
+        post: operations["create_vocabulary_api_v1_workspaces__workspace_id__vocabularies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a vocabulary and its terms */
+        delete: operations["delete_vocabulary_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change a vocabulary */
+        patch: operations["update_vocabulary_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A vocabulary's terms, as a tree or flat
+         * @description In path order. `flat` lists every term with empty `children`.
+         */
+        get: operations["list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get"];
+        put?: never;
+        /**
+         * Add one term or a batch
+         * @description Items are added in order. A `path` reuses the terms it names that exist, matched by name in any case, and creates the others; a path that exists adds nothing. The response lists the terms created. `409 duplicate` when a `name` item, or a given `slug`, is taken under its parent; `422 not_hierarchical` for a parent in a flat vocabulary.
+         */
+        post: operations["add_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -595,6 +1619,506 @@ export interface components {
         /** AcceptedInvitationResponse */
         AcceptedInvitationResponse: {
             data: components["schemas"]["AcceptedInvitation"];
+        };
+        /** Actor */
+        Actor: {
+            /** Actor Id */
+            actor_id: string;
+            /**
+             * Actor Type
+             * @enum {string}
+             */
+            actor_type: "user" | "api_key" | "system";
+            /** Label */
+            label: string;
+        };
+        /** Alias */
+        Alias: {
+            /** Alias */
+            alias: string;
+            /**
+             * Alias Id
+             * Format: uuid
+             */
+            alias_id: string;
+            /** Case Sensitive */
+            case_sensitive: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Is Negative */
+            is_negative: boolean;
+            /** Language Code */
+            language_code: string | null;
+            /**
+             * Match Mode
+             * @enum {string}
+             */
+            match_mode: "word_boundary" | "exact_case" | "substring" | "regex";
+            /** Requires Context */
+            requires_context: boolean;
+        };
+        /** AliasBatch */
+        AliasBatch: {
+            /** Items */
+            items: components["schemas"]["AliasInput"][];
+        };
+        /** AliasInput */
+        AliasInput: {
+            /** Alias */
+            alias: string;
+            /**
+             * Case Sensitive
+             * @default false
+             */
+            case_sensitive: boolean;
+            /**
+             * Is Negative
+             * @description A phrase that must not count.
+             * @default false
+             */
+            is_negative: boolean;
+            /** Language Code */
+            language_code?: string | null;
+            /**
+             * Match Mode
+             * @default word_boundary
+             * @enum {string}
+             */
+            match_mode: "word_boundary" | "exact_case" | "substring" | "regex";
+            /**
+             * Requires Context
+             * @description Counts only near a disambiguation hint.
+             * @default false
+             */
+            requires_context: boolean;
+        };
+        /** AliasList */
+        AliasList: {
+            /** Data */
+            data: components["schemas"]["Alias"][];
+        };
+        /** AliasResponse */
+        AliasResponse: {
+            data: components["schemas"]["Alias"];
+        };
+        /** AliasTestMention */
+        AliasTestMention: {
+            /** Confidence */
+            confidence: number;
+            entity: components["schemas"]["EntityRef"];
+            /** Spans */
+            spans: components["schemas"]["AliasTestSpan"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "accepted" | "uncertain" | "discarded";
+        };
+        /** AliasTestNegative */
+        AliasTestNegative: {
+            /**
+             * Alias Id
+             * Format: uuid
+             */
+            alias_id: string;
+            /** End */
+            end: number;
+            /** Start */
+            start: number;
+        };
+        /**
+         * AliasTestRequest
+         * @description Exactly one of `text` and `markdown`, at most 100 KB as UTF-8 (`413 payload_too_large`
+         *     beyond). Markdown is matched as its source text for now; an observation id is taken once
+         *     observations exist (step 8).
+         */
+        AliasTestRequest: {
+            /** Markdown */
+            markdown?: string | null;
+            /** Text */
+            text?: string | null;
+        };
+        /** AliasTestResponse */
+        AliasTestResponse: {
+            data: components["schemas"]["AliasTestResult"];
+        };
+        /** AliasTestResult */
+        AliasTestResult: {
+            /** Mentions */
+            mentions: components["schemas"]["AliasTestMention"][];
+            /** Negatives Applied */
+            negatives_applied: components["schemas"]["AliasTestNegative"][];
+            /**
+             * Skipped Alias Ids
+             * @description Stored patterns the matcher cannot run (doc 13 stage 4), left out.
+             */
+            skipped_alias_ids: string[];
+        };
+        /** AliasTestSpan */
+        AliasTestSpan: {
+            /**
+             * Alias Id
+             * @description The stored alias that matched; None for the canonical name (`alias_name`) and a domain-shaped alias (`alias_domain`).
+             */
+            alias_id: string | null;
+            /** End */
+            end: number;
+            /**
+             * Match Method
+             * @enum {string}
+             */
+            match_method: "alias_word" | "alias_exact" | "alias_substring" | "alias_regex" | "alias_name" | "alias_domain" | "via_product";
+            /** Score */
+            score: number;
+            /**
+             * Start
+             * @description Offset into the text sent, in UTF-16 code units.
+             */
+            start: number;
+            /**
+             * Status
+             * @description This span's own status; see doc 13 stage 5.
+             * @enum {string}
+             */
+            status: "accepted" | "uncertain" | "discarded";
+            /**
+             * Via Entity Id
+             * @description For `via_product`: the product whose mention counts for this entity.
+             */
+            via_entity_id: string | null;
+        };
+        /**
+         * AliasUpdate
+         * @description At least one member. `language_code: null` removes it; the others cannot be null.
+         */
+        AliasUpdate: {
+            /** Alias */
+            alias?: string;
+            /** Case Sensitive */
+            case_sensitive?: boolean;
+            /** Is Negative */
+            is_negative?: boolean;
+            /** Language Code */
+            language_code?: string | null;
+            /**
+             * Match Mode
+             * @enum {string}
+             */
+            match_mode?: "word_boundary" | "exact_case" | "substring" | "regex";
+            /** Requires Context */
+            requires_context?: boolean;
+        };
+        /** Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post */
+        Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post: {
+            /**
+             * File
+             * @description CSV, UTF-8 (a BOM is fine).
+             */
+            file: string;
+            /**
+             * Options
+             * @description The JSON of `ImportOptions`.
+             */
+            options?: string | null;
+        };
+        /** Budget */
+        Budget: {
+            /**
+             * Action On Hard
+             * @enum {string}
+             */
+            action_on_hard: "pause" | "alert_only";
+            /**
+             * Budget Id
+             * Format: uuid
+             */
+            budget_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Limit Usd
+             * @example 0.012000
+             */
+            limit_usd: string;
+            /**
+             * Period
+             * @constant
+             */
+            period: "month";
+            /** Project Id */
+            project_id: string | null;
+            /** Soft Limit Pct */
+            soft_limit_pct: number;
+            /**
+             * Workload
+             * @enum {string}
+             */
+            workload: "seo_rank" | "ai_prompt" | "keyword_research" | "ai_benchmark" | "extraction_llm" | "first_party" | "all";
+        };
+        /** BudgetStatus */
+        BudgetStatus: {
+            /** Blocked Runs */
+            blocked_runs: number;
+            budget: components["schemas"]["Budget"];
+            /**
+             * Committed Estimate Usd
+             * @example 0.012000
+             */
+            committed_estimate_usd: string;
+            /** Pct Used */
+            pct_used: number;
+            /**
+             * Spent Usd
+             * @example 0.012000
+             */
+            spent_usd: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "soft_exceeded" | "hard_exceeded";
+        };
+        /** BudgetStatusList */
+        BudgetStatusList: {
+            /** Data */
+            data: components["schemas"]["BudgetStatus"][];
+        };
+        /** BulkArchiveResponse */
+        BulkArchiveResponse: {
+            data: components["schemas"]["BulkArchiveResult"];
+        };
+        /** BulkArchiveResult */
+        BulkArchiveResult: {
+            /** Matched */
+            matched: number;
+            /** Updated */
+            updated: number;
+        };
+        /** BulkCreateResponse */
+        BulkCreateResponse: {
+            data: components["schemas"]["BulkCreateResult"];
+        };
+        /** BulkCreateResult */
+        BulkCreateResult: {
+            /** Created */
+            created: string[];
+            /** Rejected */
+            rejected: components["schemas"]["BulkRejected"][];
+            /**
+             * Restored
+             * @description The ids of `created` that were deleted and came back with their settings.
+             */
+            restored: string[];
+            /** Skipped */
+            skipped: components["schemas"]["BulkSkipped"][];
+        };
+        /** BulkDeleteResponse */
+        BulkDeleteResponse: {
+            data: components["schemas"]["BulkDeleteResult"];
+        };
+        /** BulkDeleteResult */
+        BulkDeleteResult: {
+            /** Deleted */
+            deleted: number;
+            /** Matched */
+            matched: number;
+        };
+        /** BulkRejected */
+        BulkRejected: {
+            /** Code */
+            code: string;
+            /** Index */
+            index: number;
+            /** Message */
+            message: string;
+        };
+        /** BulkSkipped */
+        BulkSkipped: {
+            /**
+             * Existing Id
+             * Format: uuid
+             */
+            existing_id: string;
+            /** Index */
+            index: number;
+        };
+        /** BulkUpdateResponse */
+        BulkUpdateResponse: {
+            data: components["schemas"]["BulkUpdateResult"];
+        };
+        /** BulkUpdateResult */
+        BulkUpdateResult: {
+            /** Config Versions Created */
+            config_versions_created: number;
+            /** Matched */
+            matched: number;
+            /** Updated */
+            updated: number;
+        };
+        /** CompetitorOverride */
+        CompetitorOverride: {
+            entity: components["schemas"]["EntityRef"];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "include" | "exclude";
+        };
+        /**
+         * CompetitorOverrides
+         * @description Entities with a project role added to, or taken from, the project's competitor set for
+         *     one keyword.
+         */
+        CompetitorOverrides: {
+            /** Exclude */
+            exclude?: string[];
+            /** Include */
+            include?: string[];
+        };
+        /** CompetitorSet */
+        CompetitorSet: {
+            /** Effective Competitors */
+            effective_competitors: components["schemas"]["EntityRef"][];
+            /** Overrides */
+            overrides: components["schemas"]["CompetitorOverride"][];
+        };
+        /** CompetitorSetResponse */
+        CompetitorSetResponse: {
+            data: components["schemas"]["CompetitorSet"];
+        };
+        /** ConfigHistory */
+        ConfigHistory: {
+            /** Data */
+            data: components["schemas"]["ConfigVersion"][];
+        };
+        /** ConfigVersion */
+        ConfigVersion: {
+            /** Change Reason */
+            change_reason: string | null;
+            changed_by: components["schemas"]["UserRef"] | null;
+            /** Config Version */
+            config_version: number;
+            /**
+             * Depth Profile
+             * @enum {string}
+             */
+            depth_profile: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
+            target_url: components["schemas"]["UrlRef"] | null;
+            /**
+             * Valid From
+             * Format: date-time
+             */
+            valid_from: string;
+            /** Valid To */
+            valid_to: string | null;
+        };
+        /** CostList */
+        CostList: {
+            /** Data */
+            data: components["schemas"]["CostRow"][];
+            meta: components["schemas"]["CostMeta"];
+        };
+        /** CostMeta */
+        CostMeta: {
+            cost_sources: components["schemas"]["CostSources"];
+            /**
+             * Total Cost Usd
+             * @example 0.012000
+             */
+            total_cost_usd: string;
+        };
+        /** CostRow */
+        CostRow: {
+            /**
+             * Cost Usd
+             * @example 0.012000
+             */
+            cost_usd: string;
+            /** Keys */
+            keys: {
+                [key: string]: string;
+            };
+            /** Request Count */
+            request_count: number;
+            /** Subjects */
+            subjects: number;
+        };
+        /** CostSources */
+        CostSources: {
+            /**
+             * Computed From Tokens
+             * @example 0.012000
+             */
+            computed_from_tokens: string;
+            /**
+             * Price Book Estimate
+             * @example 0.012000
+             */
+            price_book_estimate: string;
+            /**
+             * Provider Reported
+             * @example 0.012000
+             */
+            provider_reported: string;
+        };
+        /**
+         * CostWorkload
+         * @enum {string}
+         */
+        CostWorkload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync" | "ai_overview" | "extraction_llm" | "keyword_research" | "first_party";
+        /**
+         * CursorPageInfo
+         * @description A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.
+         */
+        CursorPageInfo: {
+            /** Has More */
+            has_more: boolean;
+            /** Limit */
+            limit: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DomainCategory */
+        DomainCategory: {
+            /** Code */
+            code: string;
+            /** Description */
+            description: string;
+            /** Label */
+            label: string;
+        };
+        /** DomainCategoryList */
+        DomainCategoryList: {
+            /** Data */
+            data: components["schemas"]["DomainCategory"][];
+        };
+        /** DomainInput */
+        DomainInput: {
+            /** Domain */
+            domain: string;
+            /**
+             * Match Scope
+             * @default registrable
+             * @enum {string}
+             */
+            match_scope: "path_prefix" | "host" | "registrable";
+            /**
+             * Path Prefix
+             * @description Given exactly when `match_scope` is `path_prefix`.
+             */
+            path_prefix?: string | null;
         };
         /** DomainRef */
         DomainRef: {
@@ -623,6 +2147,254 @@ export interface components {
             /** Email */
             email: string;
         };
+        /** Entity */
+        Entity: {
+            /** Alias Count */
+            alias_count: number;
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Disambiguation Hints */
+            disambiguation_hints: string[];
+            /** Domains */
+            domains: components["schemas"]["EntityDomain"][];
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "brand" | "product" | "organization" | "person" | "other";
+            /** Is Ambiguous */
+            is_ambiguous: boolean;
+            /** Parent Entity Id */
+            parent_entity_id: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EntityCreate */
+        EntityCreate: {
+            /** Aliases */
+            aliases?: components["schemas"]["AliasInput"][];
+            /** Canonical Name */
+            canonical_name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Disambiguation Hints
+             * @description Words that confirm the entity nearby (`crm`).
+             */
+            disambiguation_hints?: string[];
+            /** Domains */
+            domains?: components["schemas"]["DomainInput"][];
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "brand" | "product" | "organization" | "person" | "other";
+            /**
+             * Is Ambiguous
+             * @description The name is also a common word (`Notion`, `Monday`).
+             * @default false
+             */
+            is_ambiguous: boolean;
+            /** Parent Entity Id */
+            parent_entity_id?: string | null;
+        };
+        /** EntityDetail */
+        EntityDetail: {
+            /** Alias Count */
+            alias_count: number;
+            /** Aliases */
+            aliases: components["schemas"]["Alias"][];
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Disambiguation Hints */
+            disambiguation_hints: string[];
+            /** Domains */
+            domains: components["schemas"]["EntityDomain"][];
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "brand" | "product" | "organization" | "person" | "other";
+            /** Is Ambiguous */
+            is_ambiguous: boolean;
+            /** Parent Entity Id */
+            parent_entity_id: string | null;
+            /**
+             * Projects
+             * @description Every project that has given the entity a role, removed roles included.
+             */
+            projects: components["schemas"]["EntityProjectRole"][];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EntityDetailResponse */
+        EntityDetailResponse: {
+            data: components["schemas"]["EntityDetail"];
+        };
+        /** EntityDomain */
+        EntityDomain: {
+            domain: components["schemas"]["DomainRef"];
+            /**
+             * Entity Domain Id
+             * Format: uuid
+             */
+            entity_domain_id: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Match Scope
+             * @enum {string}
+             */
+            match_scope: "path_prefix" | "host" | "registrable";
+            /** Path Prefix */
+            path_prefix: string | null;
+        };
+        /** EntityDomainCreated */
+        EntityDomainCreated: {
+            data: components["schemas"]["EntityDomain"];
+            meta: components["schemas"]["EntityDomainMeta"];
+        };
+        /** EntityDomainList */
+        EntityDomainList: {
+            /** Data */
+            data: components["schemas"]["EntityDomain"][];
+        };
+        /** EntityDomainMeta */
+        EntityDomainMeta: {
+            /**
+             * Warnings
+             * @description `domain_role_conflict`: another entity in a project that has this one claims the same domain at the same specificity (doc 13 stage 2).
+             */
+            warnings: "domain_role_conflict"[];
+        };
+        /** EntityPage */
+        EntityPage: {
+            /** Data */
+            data: components["schemas"]["Entity"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** EntityProjectRole */
+        EntityProjectRole: {
+            /** Is Primary */
+            is_primary: boolean;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Removed At */
+            removed_at: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch";
+        };
+        /** EntityRef */
+        EntityRef: {
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Color Index
+             * @description `--chart-1` to `--chart-6`; null lets the client choose.
+             */
+            color_index: number | null;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "brand" | "product" | "organization" | "person" | "other";
+            /**
+             * Role
+             * @description The role in the project asked about, if any.
+             */
+            role: ("own" | "competitor" | "watch") | null;
+        };
+        /** EntityResponse */
+        EntityResponse: {
+            data: components["schemas"]["Entity"];
+        };
+        /**
+         * EntityUpdate
+         * @description At least one member. `parent_entity_id` and `description` may be null to remove them.
+         */
+        EntityUpdate: {
+            /** Canonical Name */
+            canonical_name?: string;
+            /** Description */
+            description?: string | null;
+            /** Disambiguation Hints */
+            disambiguation_hints?: string[];
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type?: "brand" | "product" | "organization" | "person" | "other";
+            /** Is Ambiguous */
+            is_ambiguous?: boolean;
+            /** Parent Entity Id */
+            parent_entity_id?: string | null;
+        };
+        FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[];
+        FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[];
+        FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___: ("manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste")[];
+        FilterList_Literal__tofu____mofu____bofu____retention____unknown___: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[];
+        FilterList_UUID_: string[];
+        /** GroupMembers */
+        GroupMembers: {
+            /** Tracked Keyword Ids */
+            tracked_keyword_ids: string[];
+        };
+        /** GroupRef */
+        GroupRef: {
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+        };
         /** Health */
         Health: {
             /**
@@ -630,6 +2402,120 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** ImportCounts */
+        ImportCounts: {
+            /** Conflict */
+            conflict: number;
+            /** Created */
+            created: number;
+            /** Duplicate */
+            duplicate: number;
+            /** Invalid */
+            invalid: number;
+            /** Merged */
+            merged: number;
+            /** New */
+            new: number;
+            /** Rows Total */
+            rows_total: number;
+            /** Skipped */
+            skipped: number;
+            /** Variant */
+            variant: number;
+        };
+        /**
+         * ImportDefaults
+         * @description Values for rows that leave a field out; the project's defaults otherwise.
+         */
+        ImportDefaults: {
+            /** Depth Profile */
+            depth_profile?: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100") | null;
+            /** Device */
+            device?: ("desktop" | "mobile" | "both") | null;
+            /** Group Path */
+            group_path?: string | null;
+            /** Language Code */
+            language_code?: string | null;
+            /** Location Id */
+            location_id?: number | null;
+            /** Priority */
+            priority?: number | null;
+            /**
+             * Tags Vocabulary Id
+             * @description The vocabulary the `tags` column names terms of.
+             */
+            tags_vocabulary_id?: string | null;
+            /**
+             * Topic Vocabulary Id
+             * @description The vocabulary the `topic` column names term paths of.
+             */
+            topic_vocabulary_id?: string | null;
+        };
+        /**
+         * ImportField
+         * @description A field a column maps to. A named enum, so the API document gives the mapping's values a
+         *     schema of their own that generated clients can index.
+         * @enum {string}
+         */
+        ImportField: "keyword" | "country" | "location" | "language" | "device" | "tags" | "topic" | "group" | "intent" | "funnel_stage" | "priority" | "target_url" | "depth_profile";
+        /** ImportQuota */
+        ImportQuota: {
+            /** Limit */
+            limit: number;
+            /** Used */
+            used: number;
+            /**
+             * Would Use
+             * @description Active tracked keywords after the import as previewed.
+             */
+            would_use: number;
+        };
+        /** ImportRow */
+        ImportRow: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "create" | "skip" | "merge" | "force_separate";
+            /** Device */
+            device: string | null;
+            /** Existing Tracked Keyword Id */
+            existing_tracked_keyword_id: string | null;
+            /** Keyword */
+            keyword: string | null;
+            /** Language Code */
+            language_code: string | null;
+            /** Location Id */
+            location_id: number | null;
+            /** Normalized Text */
+            normalized_text: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "new" | "duplicate" | "variant" | "conflict" | "invalid";
+            /**
+             * Part
+             * @description 1, or 2 for the mobile half of a `both` row.
+             */
+            part: number;
+            /** Raw */
+            raw: {
+                [key: string]: string;
+            };
+            /** Reason */
+            reason: string | null;
+            /** Reason Code */
+            reason_code: string | null;
+            /** Row No */
+            row_no: number;
+        };
+        /** ImportRowPage */
+        ImportRowPage: {
+            /** Data */
+            data: components["schemas"]["ImportRow"][];
+            page: components["schemas"]["CursorPageInfo"];
         };
         /** Invitation */
         Invitation: {
@@ -700,6 +2586,361 @@ export interface components {
              * Format: uuid
              */
             workspace_id: string;
+        };
+        /** Keyword */
+        Keyword: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Keyword Id
+             * Format: uuid
+             */
+            keyword_id: string;
+            /** Language Code */
+            language_code: string;
+            /** Normalized Text */
+            normalized_text: string;
+            /**
+             * Text
+             * @description As first entered: what the provider receives.
+             */
+            text: string;
+        };
+        /** KeywordDetail */
+        KeywordDetail: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Keyword Id
+             * Format: uuid
+             */
+            keyword_id: string;
+            /** Language Code */
+            language_code: string;
+            /**
+             * Metrics
+             * @description Current metrics per location and source.
+             */
+            metrics: components["schemas"]["KeywordMetrics"][];
+            /** Normalized Text */
+            normalized_text: string;
+            /**
+             * Text
+             * @description As first entered: what the provider receives.
+             */
+            text: string;
+            /**
+             * Tracked
+             * @description Tracked variants the caller can see.
+             */
+            tracked: components["schemas"]["TrackedVariant"][];
+        };
+        /** KeywordDetailResponse */
+        KeywordDetailResponse: {
+            data: components["schemas"]["KeywordDetail"];
+        };
+        /** KeywordGroup */
+        KeywordGroup: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /**
+             * Keyword Count
+             * @description Active tracked keywords in the group or under it, each keyword once.
+             */
+            keyword_count: number;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /**
+             * Path
+             * @description Names from the root down, joined by `/`.
+             */
+            path: string;
+        };
+        /** KeywordGroupCreate */
+        KeywordGroupCreate: {
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id?: string | null;
+        };
+        /** KeywordGroupNode */
+        KeywordGroupNode: {
+            /**
+             * Children
+             * @description Empty in the flat format.
+             */
+            children: components["schemas"]["KeywordGroupNode"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
+            /**
+             * Keyword Count
+             * @description Active tracked keywords in the group or under it, each keyword once.
+             */
+            keyword_count: number;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /**
+             * Path
+             * @description Names from the root down, joined by `/`.
+             */
+            path: string;
+        };
+        /** KeywordGroupResponse */
+        KeywordGroupResponse: {
+            data: components["schemas"]["KeywordGroup"];
+        };
+        /** KeywordGroupTree */
+        KeywordGroupTree: {
+            /** Data */
+            data: components["schemas"]["KeywordGroupNode"][];
+        };
+        /**
+         * KeywordGroupUpdate
+         * @description At least one member. `parent_id: null` moves the group to the root.
+         */
+        KeywordGroupUpdate: {
+            /** Name */
+            name?: string;
+            /** Parent Id */
+            parent_id?: string | null;
+        };
+        /** KeywordImport */
+        KeywordImport: {
+            /** Column Mapping */
+            column_mapping: {
+                [key: string]: string;
+            };
+            counts: components["schemas"]["ImportCounts"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["UserRef"];
+            /** Defaults */
+            defaults: {
+                [key: string]: unknown;
+            };
+            /** Error Code */
+            error_code: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Import Id
+             * Format: uuid
+             */
+            import_id: string;
+            operation: components["schemas"]["Operation"];
+            /** Original Filename */
+            original_filename: string | null;
+            /** @description Once the preview is ready. */
+            quota: components["schemas"]["ImportQuota"] | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "upload" | "paste" | "api";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "uploaded" | "parsing" | "needs_mapping" | "preview_ready" | "writing" | "completed" | "completed_with_errors" | "failed" | "cancelled" | "expired";
+        };
+        /** KeywordImportConfirm */
+        KeywordImportConfirm: {
+            /**
+             * Duplicate Action
+             * @description For rows left at the default action: `merge_terms` merges groups and terms into the duplicate.
+             * @default skip
+             * @enum {string}
+             */
+            duplicate_action: "skip" | "merge_terms";
+        };
+        /**
+         * KeywordImportCreate
+         * @description `paste`: one keyword per line, tags after a TAB. `api`: `rows`, each a field to value
+         *     map.
+         */
+        KeywordImportCreate: {
+            /**
+             * Column Mapping
+             * @description File header to field; headers are matched by name otherwise.
+             */
+            column_mapping?: {
+                [key: string]: components["schemas"]["ImportField"];
+            } | null;
+            defaults?: components["schemas"]["ImportDefaults"];
+            /** Paste */
+            paste?: string | null;
+            /** Rows */
+            rows?: {
+                [key: string]: string;
+            }[] | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "paste" | "api";
+        };
+        /** KeywordImportPage */
+        KeywordImportPage: {
+            /** Data */
+            data: components["schemas"]["KeywordImport"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** KeywordImportResponse */
+        KeywordImportResponse: {
+            data: components["schemas"]["KeywordImport"];
+        };
+        /**
+         * KeywordImportUpdate
+         * @description A new mapping or new defaults read the source again; row actions apply to the current
+         *     preview.
+         */
+        KeywordImportUpdate: {
+            /** Column Mapping */
+            column_mapping?: {
+                [key: string]: components["schemas"]["ImportField"];
+            } | null;
+            defaults?: components["schemas"]["ImportDefaults"] | null;
+            /** Row Actions */
+            row_actions?: components["schemas"]["RowActionInput"][] | null;
+        };
+        /** KeywordMetrics */
+        KeywordMetrics: {
+            /** Competition */
+            competition: number | null;
+            /** Competition Level */
+            competition_level: ("LOW" | "MEDIUM" | "HIGH") | null;
+            /** Cpc Usd */
+            cpc_usd: string | null;
+            /** Data Month */
+            data_month: string | null;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Intent Main */
+            intent_main: string | null;
+            /** Is Seasonal */
+            is_seasonal: boolean | null;
+            /** Keyword Difficulty */
+            keyword_difficulty: number | null;
+            /** Language Code */
+            language_code: string;
+            /** Location Id */
+            location_id: number;
+            search_volume: components["schemas"]["MetricValue"];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "dataforseo_labs" | "dataforseo_google_ads" | "dataforseo_clickstream";
+            /** Trend Pct Per Month */
+            trend_pct_per_month: number | null;
+        };
+        /** KeywordMetricsHistory */
+        KeywordMetricsHistory: {
+            seasonality: components["schemas"]["Seasonality"];
+            /** Snapshots */
+            snapshots: components["schemas"]["MetricsSnapshot"][];
+            trend: components["schemas"]["MetricValue"];
+        };
+        /** KeywordMetricsHistoryResponse */
+        KeywordMetricsHistoryResponse: {
+            data: components["schemas"]["KeywordMetricsHistory"];
+        };
+        /** KeywordPage */
+        KeywordPage: {
+            /** Data */
+            data: components["schemas"]["Keyword"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** Location */
+        Location: {
+            /** Country Iso */
+            country_iso: string;
+            /**
+             * Location Id
+             * @description The Google Ads geo target id, as DataForSEO uses it.
+             */
+            location_id: number;
+            /**
+             * Location Type
+             * @description As DataForSEO gives it: `Country`, `State`, `City`, `DMA Region`, ...
+             */
+            location_type: string;
+            /**
+             * Name
+             * @description As DataForSEO gives it: `Austin,Texas,United States`.
+             */
+            name: string;
+            /** Parent Id */
+            parent_id: number | null;
+            /**
+             * Supports
+             * @description Surfaces a provider can collect there: `serp`.
+             */
+            supports: string[];
+        };
+        /** LocationPage */
+        LocationPage: {
+            /** Data */
+            data: components["schemas"]["Location"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** LocationRef */
+        LocationRef: {
+            /** Country Iso */
+            country_iso: string;
+            /** Location Id */
+            location_id: number;
+            /** Location Type */
+            location_type: string;
+            /** Name */
+            name: string;
+        };
+        /** ManualRuns */
+        ManualRuns: {
+            /** Limit */
+            limit: number;
+            /**
+             * Used
+             * @description Manual runs people started in the project today (UTC).
+             */
+            used: number;
         };
         /** Me */
         Me: {
@@ -829,6 +3070,119 @@ export interface components {
             project_ids?: string[] | null;
             role?: components["schemas"]["Role"];
         };
+        /** MembersAdded */
+        MembersAdded: {
+            /** Added */
+            added: number;
+        };
+        /** MembersAddedResponse */
+        MembersAddedResponse: {
+            data: components["schemas"]["MembersAdded"];
+        };
+        /** MembersRemoved */
+        MembersRemoved: {
+            /** Removed */
+            removed: number;
+        };
+        /** MembersRemovedResponse */
+        MembersRemovedResponse: {
+            data: components["schemas"]["MembersRemoved"];
+        };
+        /**
+         * MetricValue
+         * @description A metric with what it was computed from. Fields of doc 19 section 2.6 that no route
+         *     built so far fills (`ci`, `aggregation`, `engines`, ...) are left out until one does.
+         */
+        MetricValue: {
+            /** Denominator */
+            denominator: number | null;
+            /** Filters */
+            filters: {
+                [key: string]: unknown;
+            };
+            /** Is Estimate */
+            is_estimate: boolean;
+            /** Method */
+            method: string;
+            /** Method Version */
+            method_version: number;
+            /** Metric */
+            metric: string;
+            /** N Keywords */
+            n_keywords?: number | null;
+            /** N Observations */
+            n_observations: number;
+            /** Numerator */
+            numerator: number | null;
+            /** Source */
+            source?: string | null;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "ratio" | "count" | "rank" | "score" | "usd" | "clicks";
+            /** Value */
+            value: number | null;
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** MetricWindow */
+        MetricWindow: {
+            /** From */
+            from: string;
+            /** Timezone */
+            timezone: string;
+            /** To */
+            to: string;
+        };
+        /**
+         * MetricsRefresh
+         * @description Keywords to refresh: the given ones (tracked by the project), else the project's tracked
+         *     keywords whose metrics are older than `stale_days` (default 25).
+         */
+        MetricsRefresh: {
+            /** Keyword Ids */
+            keyword_ids?: string[] | null;
+            /** Stale Days */
+            stale_days?: number | null;
+        };
+        /** MetricsSnapshot */
+        MetricsSnapshot: {
+            /** Cpc Usd */
+            cpc_usd: string | null;
+            /** Data Month */
+            data_month: string | null;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Is Material Change */
+            is_material_change: boolean;
+            /** Keyword Difficulty */
+            keyword_difficulty: number | null;
+            /** Monthly Searches */
+            monthly_searches: components["schemas"]["MonthlySearches"][];
+            /** Search Volume */
+            search_volume: number | null;
+            /** Snapshot Id */
+            snapshot_id: string;
+        };
+        /** MonthIndex */
+        MonthIndex: {
+            /** Index */
+            index: number;
+            /** Month */
+            month: number;
+        };
+        /** MonthlySearches */
+        MonthlySearches: {
+            /** Month */
+            month: number;
+            /** Search Volume */
+            search_volume: number | null;
+            /** Year */
+            year: number;
+        };
         /** OffsetPageInfo */
         OffsetPageInfo: {
             /** Limit */
@@ -837,6 +3191,57 @@ export interface components {
             offset: number;
             /** Total */
             total: number;
+        };
+        /** Operation */
+        Operation: {
+            error: components["schemas"]["OperationError"] | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "collection_run" | "keyword_import";
+            links: components["schemas"]["OperationLinks"];
+            progress: components["schemas"]["Progress"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "waiting_for_input" | "succeeded" | "succeeded_with_errors" | "failed" | "cancelled" | "blocked";
+        };
+        /** OperationError */
+        OperationError: {
+            /** Code */
+            code: string;
+            /** Detail */
+            detail: string;
+        };
+        /** OperationLinks */
+        OperationLinks: {
+            /** Cancel */
+            cancel?: string | null;
+            /** Result */
+            result?: string | null;
+            /** Self */
+            self: string;
+        };
+        /** OwnEntityInput */
+        OwnEntityInput: {
+            /**
+             * Aliases
+             * @description Word aliases that ignore case, trimmed; repeats in any case are one alias.
+             */
+            aliases?: string[];
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Domains
+             * @description Hosts or URLs, each matched by registrable domain.
+             */
+            domains?: string[];
         };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
@@ -851,6 +3256,49 @@ export interface components {
             new_password: string;
             /** Token */
             token: string;
+        };
+        /** Price */
+        Price: {
+            /** Conditions */
+            conditions: {
+                [key: string]: unknown;
+            };
+            /** Endpoint */
+            endpoint: string;
+            /**
+             * Price Id
+             * Format: uuid
+             */
+            price_id: string;
+            /** Price Unit */
+            price_unit: string;
+            /** Provider Code */
+            provider_code: string;
+            /** Source Url */
+            source_url: string;
+            /**
+             * Unit Price Usd
+             * @example 0.012000
+             */
+            unit_price_usd: string;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /** Valid To */
+            valid_to: string | null;
+            /**
+             * Verified At
+             * Format: date
+             */
+            verified_at: string;
+        };
+        /** PricePage */
+        PricePage: {
+            /** Data */
+            data: components["schemas"]["Price"][];
+            page: components["schemas"]["OffsetPageInfo"];
         };
         /**
          * Problem
@@ -886,6 +3334,18 @@ export interface components {
             /** Name */
             name?: string;
         };
+        /** Progress */
+        Progress: {
+            /** Done */
+            done: number;
+            /** Total */
+            total: number | null;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "tasks" | "rows" | "observations" | "days" | "items";
+        };
         /** Project */
         Project: {
             /**
@@ -903,6 +3363,8 @@ export interface components {
             deep_check_weekday: number;
             /** Default Language Code */
             default_language_code: string | null;
+            /** @description The location `default_location_id` names. */
+            default_location: components["schemas"]["LocationRef"] | null;
             /** Default Location Id */
             default_location_id: number | null;
             /** Entity Config Version */
@@ -954,8 +3416,20 @@ export interface components {
             deep_check_weekday: number;
             /** Default Language Code */
             default_language_code?: string | null;
+            /**
+             * Default Location Id
+             * @description A `location_id` of `GET /api/v1/locations`.
+             */
+            default_location_id?: number | null;
             /** Name */
             name: string;
+            /** @description Created with role `own`, primary. */
+            own_entity?: components["schemas"]["OwnEntityInput"] | null;
+            /**
+             * Primary Domain
+             * @description A host or URL; its host is stored.
+             */
+            primary_domain?: string | null;
             /** Slug */
             slug: string;
             /**
@@ -963,6 +3437,115 @@ export interface components {
              * @description An IANA time zone name. Defaults to the workspace's.
              */
             timezone?: string | null;
+        };
+        /** ProjectDomain */
+        ProjectDomain: {
+            domain: components["schemas"]["DomainRef"];
+            entity: components["schemas"]["EntityRef"];
+            /**
+             * Match Scope
+             * @enum {string}
+             */
+            match_scope: "path_prefix" | "host" | "registrable";
+            /** Path Prefix */
+            path_prefix: string | null;
+        };
+        /** ProjectDomainList */
+        ProjectDomainList: {
+            /** Data */
+            data: components["schemas"]["ProjectDomain"][];
+        };
+        /** ProjectEntity */
+        ProjectEntity: {
+            /**
+             * Added At
+             * Format: date-time
+             */
+            added_at: string;
+            /** Alias Count */
+            alias_count: number;
+            /** Color Index */
+            color_index: number | null;
+            /** Domains */
+            domains: components["schemas"]["EntityDomain"][];
+            entity: components["schemas"]["EntityRef"];
+            /** Is Primary */
+            is_primary: boolean;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Removed At */
+            removed_at: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch";
+            /** Track Ai */
+            track_ai: boolean;
+            /** Track Seo */
+            track_seo: boolean;
+        };
+        /** ProjectEntityCreate */
+        ProjectEntityCreate: {
+            /** Color Index */
+            color_index?: number | null;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Is Primary
+             * @description Only for `own`; one per project, so the current primary one stops being primary.
+             * @default false
+             */
+            is_primary: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "own" | "competitor" | "watch";
+            /**
+             * Track Ai
+             * @default true
+             */
+            track_ai: boolean;
+            /**
+             * Track Seo
+             * @default true
+             */
+            track_seo: boolean;
+        };
+        /** ProjectEntityList */
+        ProjectEntityList: {
+            /** Data */
+            data: components["schemas"]["ProjectEntity"][];
+        };
+        /** ProjectEntityResponse */
+        ProjectEntityResponse: {
+            data: components["schemas"]["ProjectEntity"];
+        };
+        /**
+         * ProjectEntityUpdate
+         * @description At least one member. `color_index: null` removes it; the others cannot be null.
+         */
+        ProjectEntityUpdate: {
+            /** Color Index */
+            color_index?: number | null;
+            /** Is Primary */
+            is_primary?: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role?: "own" | "competitor" | "watch";
+            /** Track Ai */
+            track_ai?: boolean;
+            /** Track Seo */
+            track_seo?: boolean;
         };
         /** ProjectPage */
         ProjectPage: {
@@ -974,17 +3557,48 @@ export interface components {
         ProjectResponse: {
             data: components["schemas"]["Project"];
         };
+        /** ProjectSettings */
+        ProjectSettings: {
+            /**
+             * Entity Config Version
+             * @description Read-only: bumped by entity changes.
+             */
+            entity_config_version: number;
+            seo?: components["schemas"]["SeoSettings"];
+            /**
+             * Version
+             * @default 1
+             * @constant
+             */
+            version: 1;
+        };
+        /**
+         * ProjectSettingsPatch
+         * @description A JSON merge patch (RFC 7396) of the settings: members left out keep their value.
+         */
+        ProjectSettingsPatch: {
+            seo: components["schemas"]["SeoSettingsPatch"];
+        };
+        /** ProjectSettingsResponse */
+        ProjectSettingsResponse: {
+            data: components["schemas"]["ProjectSettings"];
+        };
         /**
          * ProjectUpdate
-         * @description At least one member. `default_language_code: null` removes it; the others cannot be null.
+         * @description At least one member. `default_language_code`, `primary_domain` and `default_location_id`
+         *     may be null to remove them; the others cannot be null.
          */
         ProjectUpdate: {
             /** Deep Check Weekday */
             deep_check_weekday?: number;
             /** Default Language Code */
             default_language_code?: string | null;
+            /** Default Location Id */
+            default_location_id?: number | null;
             /** Name */
             name?: string;
+            /** Primary Domain */
+            primary_domain?: string | null;
             /** Slug */
             slug?: string;
             /**
@@ -1078,6 +3692,457 @@ export interface components {
          * @enum {string}
          */
         Role: "owner" | "admin" | "editor" | "analyst" | "viewer" | "billing";
+        /** RowActionInput */
+        RowActionInput: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "create" | "skip" | "merge" | "force_separate";
+            /**
+             * Part
+             * @default 1
+             */
+            part: number;
+            /** Row No */
+            row_no: number;
+        };
+        /** Run */
+        Run: {
+            /** Actual Cost Usd */
+            actual_cost_usd: string | null;
+            /** Blocked By Budget Id */
+            blocked_by_budget_id: string | null;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["Actor"] | null;
+            /** Estimated Cost Usd */
+            estimated_cost_usd: string | null;
+            operation: components["schemas"]["Operation"];
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Schedule Id */
+            schedule_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "planned" | "running" | "completed" | "completed_with_errors" | "failed" | "cancelled" | "budget_blocked";
+            /** Status Reason */
+            status_reason: string | null;
+            /** Tasks Failed */
+            tasks_failed: number;
+            /** Tasks Succeeded */
+            tasks_succeeded: number;
+            /** Tasks Total */
+            tasks_total: number;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "schedule" | "manual" | "backfill" | "retry";
+            /**
+             * Window End
+             * Format: date-time
+             */
+            window_end: string;
+            /**
+             * Window Start
+             * Format: date-time
+             */
+            window_start: string;
+            /**
+             * Workload
+             * @enum {string}
+             */
+            workload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync";
+        };
+        /** RunCancel */
+        RunCancel: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** RunDetail */
+        RunDetail: {
+            /** Actual Cost Usd */
+            actual_cost_usd: string | null;
+            /** Blocked By Budget Id */
+            blocked_by_budget_id: string | null;
+            /** Completed At */
+            completed_at: string | null;
+            /** Config Snapshot */
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["Actor"] | null;
+            /** Estimated Cost Usd */
+            estimated_cost_usd: string | null;
+            operation: components["schemas"]["Operation"];
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Schedule Id */
+            schedule_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "planned" | "running" | "completed" | "completed_with_errors" | "failed" | "cancelled" | "budget_blocked";
+            /** Status Reason */
+            status_reason: string | null;
+            /** Tasks By Status */
+            tasks_by_status: {
+                [key: string]: number;
+            };
+            /** Tasks Failed */
+            tasks_failed: number;
+            /** Tasks Succeeded */
+            tasks_succeeded: number;
+            /** Tasks Total */
+            tasks_total: number;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "schedule" | "manual" | "backfill" | "retry";
+            /**
+             * Window End
+             * Format: date-time
+             */
+            window_end: string;
+            /**
+             * Window Start
+             * Format: date-time
+             */
+            window_start: string;
+            /**
+             * Workload
+             * @enum {string}
+             */
+            workload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync";
+        };
+        /** RunDetailResponse */
+        RunDetailResponse: {
+            data: components["schemas"]["RunDetail"];
+        };
+        /** RunPage */
+        RunPage: {
+            /** Data */
+            data: components["schemas"]["Run"][];
+            meta: components["schemas"]["RunPageMeta"];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** RunPageMeta */
+        RunPageMeta: {
+            /** @description On a project's list: how many manual runs are left today. */
+            manual_runs_today?: components["schemas"]["ManualRuns"] | null;
+        };
+        /** RunResponse */
+        RunResponse: {
+            data: components["schemas"]["Run"];
+        };
+        /** Schedule */
+        Schedule: {
+            /**
+             * Cadence
+             * @enum {string}
+             */
+            cadence: "daily" | "weekly" | "monthly" | "cron";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Cron Expr */
+            cron_expr: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Last Run Id */
+            last_run_id: string | null;
+            /** Month Day */
+            month_day: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Next Run At
+             * Format: date-time
+             */
+            next_run_at: string;
+            /**
+             * Priority
+             * @enum {string}
+             */
+            priority: "high" | "standard" | "low";
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Provider Mode
+             * @enum {string}
+             */
+            provider_mode: "standard_queue" | "priority_queue" | "live";
+            /**
+             * Schedule Id
+             * Format: uuid
+             */
+            schedule_id: string;
+            selector: components["schemas"]["Selector"];
+            /** Timezone */
+            timezone: string;
+            /** Weekday */
+            weekday: number | null;
+            /** Window Hours */
+            window_hours: number;
+            /**
+             * Window Start Local
+             * Format: time
+             */
+            window_start_local: string;
+            /**
+             * Workload
+             * @enum {string}
+             */
+            workload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync";
+        };
+        /** ScheduleInput */
+        ScheduleInput: {
+            /**
+             * Cadence
+             * @enum {string}
+             */
+            cadence: "daily" | "weekly" | "monthly" | "cron";
+            /** Cron Expr */
+            cron_expr?: string | null;
+            /**
+             * Month Day
+             * @description Monthly cadence: 1 to 28, so every month has the day.
+             */
+            month_day?: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Priority
+             * @default standard
+             * @enum {string}
+             */
+            priority: "high" | "standard" | "low";
+            /**
+             * Provider Mode
+             * @description Left out: `live` for `keyword_metrics`, `standard_queue` for `seo_rank`.
+             */
+            provider_mode?: ("standard_queue" | "priority_queue" | "live") | null;
+            selector?: components["schemas"]["Selector"];
+            /** Timezone */
+            timezone: string;
+            /**
+             * Weekday
+             * @description Weekly cadence: 0 is Sunday.
+             */
+            weekday?: number | null;
+            /**
+             * Window Hours
+             * @default 6
+             */
+            window_hours: number;
+            /**
+             * Window Start Local
+             * Format: time
+             * @description Local `HH:MM`.
+             */
+            window_start_local: string;
+            /**
+             * Workload
+             * @enum {string}
+             */
+            workload: "seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync";
+        };
+        /** SchedulePage */
+        SchedulePage: {
+            /** Data */
+            data: components["schemas"]["Schedule"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** SchedulePause */
+        SchedulePause: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** ScheduleRef */
+        ScheduleRef: {
+            /** Name */
+            name: string;
+            /**
+             * Next Run At
+             * Format: date-time
+             */
+            next_run_at: string;
+            /**
+             * Schedule Id
+             * Format: uuid
+             */
+            schedule_id: string;
+        };
+        /** ScheduleResponse */
+        ScheduleResponse: {
+            data: components["schemas"]["Schedule"];
+        };
+        /**
+         * ScheduleUpdate
+         * @description At least one member; `next_run_at` is computed again.
+         */
+        ScheduleUpdate: {
+            /**
+             * Cadence
+             * @enum {string}
+             */
+            cadence?: "daily" | "weekly" | "monthly" | "cron";
+            /** Month Day */
+            month_day?: number | null;
+            /** Name */
+            name?: string;
+            /**
+             * Priority
+             * @enum {string}
+             */
+            priority?: "high" | "standard" | "low";
+            /**
+             * Provider Mode
+             * @enum {string}
+             */
+            provider_mode?: "standard_queue" | "priority_queue" | "live";
+            selector?: components["schemas"]["Selector"];
+            /** Timezone */
+            timezone?: string;
+            /** Weekday */
+            weekday?: number | null;
+            /** Window Hours */
+            window_hours?: number;
+            /**
+             * Window Start Local
+             * Format: time
+             */
+            window_start_local?: string;
+        };
+        /** Seasonality */
+        Seasonality: {
+            /**
+             * Index By Month
+             * @description Empty without twelve months of volume.
+             */
+            index_by_month: components["schemas"]["MonthIndex"][];
+            /**
+             * Is Seasonal
+             * @description Null without twelve months of volume.
+             */
+            is_seasonal: boolean | null;
+            /** Method */
+            method: string;
+        };
+        /**
+         * Selector
+         * @description Which subjects a schedule collects. `keyword_metrics` takes `stale_days`, `all`,
+         *     `groups` and `terms`; `seo_rank` takes `all`, `groups`, `terms` and `priority_lte`.
+         */
+        Selector: {
+            /** All */
+            all?: true | null;
+            /** Groups */
+            groups?: string[] | null;
+            /** Priority Lte */
+            priority_lte?: number | null;
+            /** Stale Days */
+            stale_days?: number | null;
+            /** Terms */
+            terms?: string[] | null;
+        };
+        /** SeoSettings */
+        SeoSettings: {
+            /**
+             * Default Depth Profile
+             * @default standard
+             * @enum {string}
+             */
+            default_depth_profile: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
+            /**
+             * Default Device
+             * @default desktop
+             * @enum {string}
+             */
+            default_device: "desktop" | "mobile" | "both";
+            /**
+             * Default Frequency
+             * @default daily
+             * @enum {string}
+             */
+            default_frequency: "daily" | "weekly";
+            /**
+             * Visibility Volume Mode
+             * @default annual_average
+             * @enum {string}
+             */
+            visibility_volume_mode: "annual_average" | "seasonal";
+            /**
+             * Visibility Weight Scheme
+             * @default uniform
+             * @enum {string}
+             */
+            visibility_weight_scheme: "uniform" | "priority" | "business_value";
+        };
+        /** SeoSettingsPatch */
+        SeoSettingsPatch: {
+            /**
+             * Default Depth Profile
+             * @enum {string}
+             */
+            default_depth_profile?: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
+            /**
+             * Default Device
+             * @enum {string}
+             */
+            default_device?: "desktop" | "mobile" | "both";
+            /**
+             * Default Frequency
+             * @enum {string}
+             */
+            default_frequency?: "daily" | "weekly";
+            /**
+             * Visibility Volume Mode
+             * @enum {string}
+             */
+            visibility_volume_mode?: "annual_average" | "seasonal";
+            /**
+             * Visibility Weight Scheme
+             * @enum {string}
+             */
+            visibility_weight_scheme?: "uniform" | "priority" | "business_value";
+        };
         /** SessionItem */
         SessionItem: {
             /**
@@ -1122,6 +4187,196 @@ export interface components {
              */
             status: "signed_in" | "totp_required";
         };
+        /** Term */
+        Term: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /**
+             * Path
+             * @description Slugs from the root down, joined by `/`.
+             */
+            path: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "import" | "auto_cluster" | "ai_suggestion";
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+            /**
+             * Vocabulary Id
+             * Format: uuid
+             */
+            vocabulary_id: string;
+        };
+        /**
+         * TermAssignment
+         * @description `replace` takes the subjects' terms away within the vocabularies of `term_ids`, then
+         *     adds `term_ids`; other vocabularies are not touched. Exactly one of `subject_ids` and
+         *     `subject_filter`.
+         */
+        TermAssignment: {
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "add" | "remove" | "replace";
+            subject_filter?: components["schemas"]["TrackedKeywordFilter"] | null;
+            /** Subject Ids */
+            subject_ids?: string[] | null;
+            /**
+             * Subject Type
+             * @description `prompt` arrives with prompts.
+             * @enum {string}
+             */
+            subject_type: "tracked_keyword" | "prompt";
+            /** Term Ids */
+            term_ids: string[];
+        };
+        /** TermAssignmentResponse */
+        TermAssignmentResponse: {
+            data: components["schemas"]["TermAssignmentResult"];
+        };
+        /** TermAssignmentResult */
+        TermAssignmentResult: {
+            /** Assignments Added */
+            assignments_added: number;
+            /** Assignments Removed */
+            assignments_removed: number;
+            /** Subjects Matched */
+            subjects_matched: number;
+        };
+        /** TermBatch */
+        TermBatch: {
+            /** Items */
+            items: components["schemas"]["TermInput"][];
+        };
+        /**
+         * TermInput
+         * @description One term: a `name` under `parent_id` (a root when left out), or a `path` of names from
+         *     the root (`CRM/CRM for Startups`), which creates any missing parent. `slug` is made from the
+         *     name when left out; with `path` it is the last term's.
+         */
+        TermInput: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Path */
+            path?: string | null;
+            /** Slug */
+            slug?: string | null;
+        };
+        /** TermList */
+        TermList: {
+            /** Data */
+            data: components["schemas"]["Term"][];
+        };
+        /** TermNode */
+        TermNode: {
+            /**
+             * Children
+             * @description Empty in the flat format.
+             */
+            children: components["schemas"]["TermNode"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /**
+             * Keyword Count
+             * @description Active tracked keywords with the term or one under it, in projects the caller can see; each keyword once.
+             */
+            keyword_count: number;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /**
+             * Path
+             * @description Slugs from the root down, joined by `/`.
+             */
+            path: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "import" | "auto_cluster" | "ai_suggestion";
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+            /**
+             * Vocabulary Id
+             * Format: uuid
+             */
+            vocabulary_id: string;
+        };
+        /** TermRef */
+        TermRef: {
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
+            /**
+             * Vocabulary Id
+             * Format: uuid
+             */
+            vocabulary_id: string;
+            /** Vocabulary Kind */
+            vocabulary_kind: string;
+        };
+        /** TermResponse */
+        TermResponse: {
+            data: components["schemas"]["Term"];
+        };
+        /** TermTree */
+        TermTree: {
+            /** Data */
+            data: components["schemas"]["TermNode"][];
+        };
+        /**
+         * TermUpdate
+         * @description At least one member. `parent_id: null` moves the term to the root, which recomputes the
+         *     path of its whole subtree; `description: null` removes it.
+         */
+        TermUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Slug */
+            slug?: string;
+        };
         /** TotpConfirmRequest */
         TotpConfirmRequest: {
             /** Code */
@@ -1150,6 +4405,529 @@ export interface components {
             /** Recovery Code */
             recovery_code?: string | null;
         };
+        /** TrackedKeyword */
+        TrackedKeyword: {
+            /** Business Value */
+            business_value: string | null;
+            /** Config Version */
+            config_version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Depth Profile
+             * @enum {string}
+             */
+            depth_profile: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "custom";
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Intent Source */
+            intent_source: ("provider" | "manual" | "rule") | null;
+            /** Is Active */
+            is_active: boolean;
+            keyword: components["schemas"]["Keyword"];
+            /** Language Code */
+            language_code: string;
+            location: components["schemas"]["LocationRef"];
+            /** Location Id */
+            location_id: number;
+            /** Os */
+            os: ("windows" | "macos" | "android" | "ios") | null;
+            /** Priority */
+            priority: number;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Schedule Id */
+            schedule_id: string | null;
+            /**
+             * Search Engine
+             * @enum {string}
+             */
+            search_engine: "google" | "bing";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste";
+            target_url: components["schemas"]["UrlRef"] | null;
+            /**
+             * Tracked Keyword Id
+             * Format: uuid
+             */
+            tracked_keyword_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** TrackedKeywordBulkArchive */
+        TrackedKeywordBulkArchive: {
+            /**
+             * Archive
+             * @description false unarchives, within the quota.
+             */
+            archive: boolean;
+            filter?: components["schemas"]["TrackedKeywordFilter"] | null;
+            /** Ids */
+            ids?: string[] | null;
+        };
+        /** TrackedKeywordBulkCreate */
+        TrackedKeywordBulkCreate: {
+            /** Items */
+            items: components["schemas"]["TrackedKeywordCreate"][];
+            /**
+             * On Duplicate
+             * @description `merge_terms` adds the item's groups and terms to the tracked keyword it duplicates.
+             * @default skip
+             * @enum {string}
+             */
+            on_duplicate: "skip" | "merge_terms";
+        };
+        /**
+         * TrackedKeywordBulkDelete
+         * @description The chosen rows are deleted as one by one: their history stays, and tracking the same
+         *     keyword again brings the row back (plan decision D3).
+         */
+        TrackedKeywordBulkDelete: {
+            filter?: components["schemas"]["TrackedKeywordFilter"] | null;
+            /** Ids */
+            ids?: string[] | null;
+        };
+        /**
+         * TrackedKeywordBulkUpdate
+         * @description At least one of `set` and the group and term lists. `add_term_ids` with a term of a
+         *     single-valued vocabulary replaces the keyword's other term of that vocabulary.
+         */
+        TrackedKeywordBulkUpdate: {
+            /** Add Group Ids */
+            add_group_ids?: string[];
+            /** Add Term Ids */
+            add_term_ids?: string[];
+            filter?: components["schemas"]["TrackedKeywordFilter"] | null;
+            /** Ids */
+            ids?: string[] | null;
+            /** Remove Group Ids */
+            remove_group_ids?: string[];
+            /** Remove Term Ids */
+            remove_term_ids?: string[];
+            set?: components["schemas"]["TrackedKeywordPatch"] | null;
+        };
+        /**
+         * TrackedKeywordCreate
+         * @description Defaults come from the project: its location and language, and its settings
+         *     (`seo.default_device`, `default_depth_profile`, `default_frequency`).
+         */
+        TrackedKeywordCreate: {
+            /** Business Value */
+            business_value?: number | string | null;
+            competitor_overrides?: components["schemas"]["CompetitorOverrides"] | null;
+            /** Depth Profile */
+            depth_profile?: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100") | null;
+            /**
+             * Device
+             * @description `both` makes two rows.
+             */
+            device?: ("desktop" | "mobile" | "both") | null;
+            /** Frequency */
+            frequency?: ("daily" | "weekly" | "custom") | null;
+            /**
+             * Funnel Stage
+             * @default unknown
+             * @enum {string}
+             */
+            funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /** Group Ids */
+            group_ids?: string[];
+            /**
+             * Intent
+             * @description Given: `intent_source` is `manual`.
+             */
+            intent?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown") | null;
+            /** Keyword */
+            keyword: string;
+            /** Language Code */
+            language_code?: string | null;
+            /** Location Id */
+            location_id?: number | null;
+            /** Os */
+            os?: ("windows" | "macos" | "android" | "ios") | null;
+            /**
+             * Priority
+             * @default 3
+             */
+            priority: number;
+            /** Schedule Id */
+            schedule_id?: string | null;
+            /**
+             * Search Engine
+             * @description Bing arrives with its collection.
+             * @default google
+             * @constant
+             */
+            search_engine: "google";
+            /** Target Url */
+            target_url?: string | null;
+            /** Term Ids */
+            term_ids?: string[];
+        };
+        /** TrackedKeywordDetail */
+        TrackedKeywordDetail: {
+            /** Business Value */
+            business_value: string | null;
+            /** Competitor Overrides */
+            competitor_overrides: components["schemas"]["CompetitorOverride"][];
+            /** Config History Count */
+            config_history_count: number;
+            /** Config Version */
+            config_version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Depth Profile
+             * @enum {string}
+             */
+            depth_profile: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "custom";
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /** Groups */
+            groups: components["schemas"]["GroupRef"][];
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Intent Source */
+            intent_source: ("provider" | "manual" | "rule") | null;
+            /** Is Active */
+            is_active: boolean;
+            keyword: components["schemas"]["Keyword"];
+            /** Language Code */
+            language_code: string;
+            location: components["schemas"]["LocationRef"];
+            /** Location Id */
+            location_id: number;
+            metrics: components["schemas"]["KeywordMetrics"] | null;
+            /** Os */
+            os: ("windows" | "macos" | "android" | "ios") | null;
+            /** Priority */
+            priority: number;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            schedule: components["schemas"]["ScheduleRef"] | null;
+            /** Schedule Id */
+            schedule_id: string | null;
+            /**
+             * Search Engine
+             * @enum {string}
+             */
+            search_engine: "google" | "bing";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste";
+            target_url: components["schemas"]["UrlRef"] | null;
+            /** Terms */
+            terms: components["schemas"]["TermRef"][];
+            /**
+             * Tracked Keyword Id
+             * Format: uuid
+             */
+            tracked_keyword_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** TrackedKeywordDetailResponse */
+        TrackedKeywordDetailResponse: {
+            data: components["schemas"]["TrackedKeywordDetail"];
+        };
+        /**
+         * TrackedKeywordFilter
+         * @description The list's filters, as a body: what bulk changes and term assignments select by.
+         *     The same names as the list's `filter[...]` parameters, without the brackets. A list holds
+         *     at least one value. `is_active` left out takes archived and active keywords alike (the
+         *     list itself defaults it to true).
+         */
+        TrackedKeywordFilter: {
+            depth_profile_in?: components["schemas"]["FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"] | null;
+            /** Device */
+            device?: ("desktop" | "mobile") | null;
+            funnel_stage_in?: components["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"] | null;
+            /** Group */
+            group?: string | null;
+            intent_in?: components["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"] | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Keyword Difficulty Lte */
+            keyword_difficulty_lte?: number | null;
+            /** Language Code */
+            language_code?: string | null;
+            /** Location Id */
+            location_id?: number | null;
+            /** Priority Lte */
+            priority_lte?: number | null;
+            /** Q */
+            q?: string | null;
+            /** Search Engine */
+            search_engine?: ("google" | "bing") | null;
+            /** Search Volume Gte */
+            search_volume_gte?: number | null;
+            source_in?: components["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"] | null;
+            /** @description Each term or one under it; terms of one vocabulary: either, of two: both. */
+            term?: components["schemas"]["FilterList_UUID_"] | null;
+            /** @description Any of these terms or one under them. */
+            term_in?: components["schemas"]["FilterList_UUID_"] | null;
+        };
+        /** TrackedKeywordList */
+        TrackedKeywordList: {
+            /** Data */
+            data: components["schemas"]["TrackedKeyword"][];
+        };
+        /** TrackedKeywordPage */
+        TrackedKeywordPage: {
+            /** Data */
+            data: components["schemas"]["TrackedKeywordRow"][];
+            page: components["schemas"]["TrackedKeywordPageInfo"];
+        };
+        /** TrackedKeywordPageInfo */
+        TrackedKeywordPageInfo: {
+            /** Has More */
+            has_more: boolean;
+            /** Limit */
+            limit: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
+        /**
+         * TrackedKeywordPatch
+         * @description At least one member. `depth_profile` or `target_url` makes a new configuration version
+         *     (`config_version`) with a history row; identity fields cannot change.
+         */
+        TrackedKeywordPatch: {
+            /** Business Value */
+            business_value?: number | string | null;
+            /** Change Reason */
+            change_reason?: string;
+            /**
+             * Depth Profile
+             * @enum {string}
+             */
+            depth_profile?: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency?: "daily" | "weekly" | "custom";
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage?: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent?: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Is Active */
+            is_active?: boolean;
+            /** Priority */
+            priority?: number;
+            /** Schedule Id */
+            schedule_id?: string | null;
+            /** Target Url */
+            target_url?: string | null;
+        };
+        /** TrackedKeywordResponse */
+        TrackedKeywordResponse: {
+            data: components["schemas"]["TrackedKeyword"];
+        };
+        /**
+         * TrackedKeywordRow
+         * @description A list row. The blocks named in `include` are filled; the others are null.
+         */
+        TrackedKeywordRow: {
+            /** Business Value */
+            business_value: string | null;
+            /**
+             * Competitors
+             * @description `include=competitors`: the keyword's overrides.
+             */
+            competitors?: components["schemas"]["CompetitorOverride"][] | null;
+            /** Config Version */
+            config_version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            created_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Depth Profile
+             * @enum {string}
+             */
+            depth_profile: "light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100";
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "custom";
+            /**
+             * Funnel Stage
+             * @enum {string}
+             */
+            funnel_stage: "tofu" | "mofu" | "bofu" | "retention" | "unknown";
+            /**
+             * Groups
+             * @description `include=groups`.
+             */
+            groups?: components["schemas"]["GroupRef"][] | null;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown";
+            /** Intent Source */
+            intent_source: ("provider" | "manual" | "rule") | null;
+            /** Is Active */
+            is_active: boolean;
+            keyword: components["schemas"]["Keyword"];
+            /** Language Code */
+            language_code: string;
+            location: components["schemas"]["LocationRef"];
+            /** Location Id */
+            location_id: number;
+            /** @description `include=metrics`. */
+            metrics?: components["schemas"]["KeywordMetrics"] | null;
+            /** Os */
+            os: ("windows" | "macos" | "android" | "ios") | null;
+            /** Priority */
+            priority: number;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Schedule Id */
+            schedule_id: string | null;
+            /**
+             * Search Engine
+             * @enum {string}
+             */
+            search_engine: "google" | "bing";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste";
+            target_url: components["schemas"]["UrlRef"] | null;
+            /**
+             * Terms
+             * @description `include=terms`.
+             */
+            terms?: components["schemas"]["TermRef"][] | null;
+            /**
+             * Tracked Keyword Id
+             * Format: uuid
+             */
+            tracked_keyword_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** TrackedVariant */
+        TrackedVariant: {
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+            /** Is Active */
+            is_active: boolean;
+            /** Language Code */
+            language_code: string;
+            /** Location Id */
+            location_id: number;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Tracked Keyword Id
+             * Format: uuid
+             */
+            tracked_keyword_id: string;
+        };
+        /** UrlRef */
+        UrlRef: {
+            /** Canonical Url */
+            canonical_url: string;
+            /** Host */
+            host: string;
+            /** Path */
+            path: string;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Url Id */
+            url_id: string;
+        };
         /** UserRef */
         UserRef: {
             /** Email */
@@ -1177,6 +4955,75 @@ export interface components {
         VerifyEmailRequest: {
             /** Token */
             token: string;
+        };
+        /** Vocabulary */
+        Vocabulary: {
+            /** Is Hierarchical */
+            is_hierarchical: boolean;
+            /** Is Single Valued */
+            is_single_valued: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "topic" | "cluster" | "product" | "service" | "market" | "campaign" | "persona" | "tag" | "custom";
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: string | null;
+            /** Term Count */
+            term_count: number;
+            /**
+             * Vocabulary Id
+             * Format: uuid
+             */
+            vocabulary_id: string;
+        };
+        /** VocabularyCreate */
+        VocabularyCreate: {
+            /**
+             * Is Hierarchical
+             * @default false
+             */
+            is_hierarchical: boolean;
+            /**
+             * Is Single Valued
+             * @description A subject has at most one term of this vocabulary.
+             * @default false
+             */
+            is_single_valued: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "topic" | "cluster" | "product" | "service" | "market" | "campaign" | "persona" | "tag" | "custom";
+            /** Name */
+            name: string;
+            /**
+             * Project Id
+             * @description null: workspace-wide.
+             */
+            project_id?: string | null;
+        };
+        /** VocabularyPage */
+        VocabularyPage: {
+            /** Data */
+            data: components["schemas"]["Vocabulary"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** VocabularyResponse */
+        VocabularyResponse: {
+            data: components["schemas"]["Vocabulary"];
+        };
+        /**
+         * VocabularyUpdate
+         * @description At least one member; neither can be null.
+         */
+        VocabularyUpdate: {
+            /** Is Single Valued */
+            is_single_valued?: boolean;
+            /** Name */
+            name?: string;
         };
         /** Workspace */
         Workspace: {
@@ -1816,6 +5663,35 @@ export interface operations {
             };
         };
     };
+    list_domain_categories_api_v1_domain_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DomainCategoryList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     accept_invitation_api_v1_invitations_accept_post: {
         parameters: {
             query?: never;
@@ -1836,6 +5712,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AcceptedInvitationResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_locations_api_v1_locations_get: {
+        parameters: {
+            query?: {
+                "filter[q]"?: string | null;
+                "filter[country_iso]"?: string | null;
+                "filter[location_type]"?: string | null;
+                "filter[supports]"?: ("serp" | "ai_mode" | "llm_scraper") | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationPage"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -2072,6 +5985,485 @@ export interface operations {
             };
         };
     };
+    budget_status_api_v1_workspaces__workspace_id__budgets_status_get: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetStatusList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_costs_api_v1_workspaces__workspace_id__costs_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                group_by?: ("project" | "workload" | "provider" | "endpoint" | "engine" | "day" | "channel")[] | null;
+                "filter[project_id]"?: string | null;
+                "filter[workload_in]"?: components["schemas"]["CostWorkload"][] | null;
+                "filter[provider_code]"?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_entities_api_v1_workspaces__workspace_id__entities_get: {
+        parameters: {
+            query?: {
+                "filter[entity_type]"?: ("brand" | "product" | "organization" | "person" | "other") | null;
+                "filter[q]"?: string | null;
+                "filter[project_id]"?: string | null;
+                /** @description A live role, in any project or the one given. */
+                "filter[role]"?: ("own" | "competitor" | "watch") | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_entity_api_v1_workspaces__workspace_id__entities_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_entity_api_v1_workspaces__workspace_id__entities__entity_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_entity_api_v1_workspaces__workspace_id__entities__entity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_entity_api_v1_workspaces__workspace_id__entities__entity_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_aliases_api_v1_workspaces__workspace_id__entities__entity_id__aliases_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasInput"] | components["schemas"]["AliasBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                alias_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_alias_api_v1_workspaces__workspace_id__entities__entity_id__aliases__alias_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                alias_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_entity_domains_api_v1_workspaces__workspace_id__entities__entity_id__domains_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityDomainList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DomainInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntityDomainCreated"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_entity_domain_api_v1_workspaces__workspace_id__entities__entity_id__domains__entity_domain_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity_id: string;
+                entity_domain_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_invitations_api_v1_workspaces__workspace_id__invitations_get: {
         parameters: {
             query?: {
@@ -2171,6 +6563,113 @@ export interface operations {
             };
         };
     };
+    list_keywords_api_v1_workspaces__workspace_id__keywords_get: {
+        parameters: {
+            query?: {
+                "filter[q]"?: string | null;
+                "filter[language_code]"?: string | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_keyword_api_v1_workspaces__workspace_id__keywords__keyword_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_metrics_history_api_v1_workspaces__workspace_id__keywords__keyword_id__metrics_history_get: {
+        parameters: {
+            query: {
+                location_id: number;
+                language_code: string;
+                source?: "dataforseo_labs" | "dataforseo_google_ads" | "dataforseo_clickstream";
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path: {
+                keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordMetricsHistoryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_members_api_v1_workspaces__workspace_id__members_get: {
         parameters: {
             query?: {
@@ -2258,6 +6757,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    price_book_api_v1_workspaces__workspace_id__price_book_get: {
+        parameters: {
+            query?: {
+                "filter[provider_code]"?: string | null;
+                "filter[endpoint]"?: string | null;
+                valid_at?: string | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricePage"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -2410,6 +6946,1978 @@ export interface operations {
             };
         };
     };
+    alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasTestResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_project_domains_api_v1_workspaces__workspace_id__projects__project_id__domains_get: {
+        parameters: {
+            query?: {
+                "filter[role]"?: ("own" | "competitor" | "watch") | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDomainList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_project_entities_api_v1_workspaces__workspace_id__projects__project_id__entities_get: {
+        parameters: {
+            query?: {
+                "filter[role]"?: ("own" | "competitor" | "watch") | null;
+                "filter[include_removed]"?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEntityList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectEntityCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                entity_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectEntityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_groups_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_get: {
+        parameters: {
+            query?: {
+                format?: "tree" | "flat";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordGroupTree"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordGroupResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                group_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_group_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                group_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordGroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordGroupResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_members_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__members_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                group_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupMembers"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembersAddedResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    remove_members_api_v1_workspaces__workspace_id__projects__project_id__keyword_groups__group_id__members_remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                group_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupMembers"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembersRemovedResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_imports_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_get: {
+        parameters: {
+            query?: {
+                "filter[status]"?: ("uploaded" | "parsing" | "needs_mapping" | "preview_ready" | "writing" | "completed" | "completed_with_errors" | "failed" | "cancelled" | "expired") | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordImportCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                import_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                import_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordImportUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                import_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    confirm_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                import_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordImportConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    import_report_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                import_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                    "text/plain": string;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    import_rows_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__rows_get: {
+        parameters: {
+            query?: {
+                "filter[outcome_in]"?: ("new" | "duplicate" | "variant" | "conflict" | "invalid")[] | null;
+                "filter[action]"?: ("create" | "skip" | "merge" | "force_separate") | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                import_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRowPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    refresh_keyword_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetricsRefresh"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_runs_api_v1_workspaces__workspace_id__projects__project_id__runs_get: {
+        parameters: {
+            query?: {
+                "filter[schedule_id]"?: string | null;
+                "filter[workload_in]"?: ("seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync")[] | null;
+                "filter[status_in]"?: ("planned" | "running" | "completed" | "completed_with_errors" | "failed" | "cancelled" | "budget_blocked")[] | null;
+                "filter[trigger_in]"?: ("schedule" | "manual" | "backfill" | "retry")[] | null;
+                /** @description Created at or after. */
+                from?: string | null;
+                /** @description Created before. */
+                to?: string | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_run_api_v1_workspaces__workspace_id__projects__project_id__runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RunCancel"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_schedules_api_v1_workspaces__workspace_id__projects__project_id__schedules_get: {
+        parameters: {
+            query?: {
+                "filter[workload]"?: ("seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync") | null;
+                "filter[is_active]"?: boolean | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchedulePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pause_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__pause_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SchedulePause"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resume_schedule_api_v1_workspaces__workspace_id__projects__project_id__schedules__schedule_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSettingsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectSettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSettingsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    assign_terms_api_v1_workspaces__workspace_id__projects__project_id__term_assignments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermAssignment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermAssignmentResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get: {
+        parameters: {
+            query?: {
+                sort?: string | null;
+                /** @description Blocks to fill: a comma list, or the parameter repeated. */
+                include?: ("metrics" | "groups" | "terms" | "competitors")[] | null;
+                "filter[q]"?: string | null;
+                /** @description The group or one under it. */
+                "filter[group]"?: string | null;
+                /** @description Each given term or one under it; terms of one vocabulary: either, of two: both. */
+                "filter[term]"?: string[] | null;
+                /** @description Any of these terms or one under them. */
+                "filter[term_in]"?: string[] | null;
+                "filter[device]"?: ("desktop" | "mobile") | null;
+                "filter[location_id]"?: number | null;
+                "filter[language_code]"?: string | null;
+                "filter[search_engine]"?: ("google" | "bing") | null;
+                "filter[intent_in]"?: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[] | null;
+                "filter[funnel_stage_in]"?: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[] | null;
+                "filter[priority_lte]"?: number | null;
+                "filter[is_active]"?: boolean;
+                "filter[source_in]"?: ("manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste")[] | null;
+                "filter[depth_profile_in]"?: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[] | null;
+                "filter[search_volume_gte]"?: number | null;
+                "filter[keyword_difficulty_lte]"?: number | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedKeywordPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackedKeywordCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedKeywordList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    bulk_archive_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackedKeywordBulkArchive"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkArchiveResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    bulk_create_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_create_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackedKeywordBulkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkCreateResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    bulk_delete_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackedKeywordBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkDeleteResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    bulk_update_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_bulk_update_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackedKeywordBulkUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkUpdateResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedKeywordDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackedKeywordPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedKeywordResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_competitors_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__competitors_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitorOverrides"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitorSetResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_config_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__config_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigHistory"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_workspace_runs_api_v1_workspaces__workspace_id__runs_get: {
+        parameters: {
+            query?: {
+                "filter[project_id]"?: string | null;
+                "filter[workload_in]"?: ("seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync")[] | null;
+                "filter[status_in]"?: ("planned" | "running" | "completed" | "completed_with_errors" | "failed" | "cancelled" | "budget_blocked")[] | null;
+                "filter[trigger_in]"?: ("schedule" | "manual" | "backfill" | "retry")[] | null;
+                from?: string | null;
+                to?: string | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_term_api_v1_workspaces__workspace_id__terms__term_id__delete: {
+        parameters: {
+            query?: {
+                /** @description Delete its subtree too. */
+                cascade?: boolean;
+            };
+            header?: never;
+            path: {
+                term_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_term_api_v1_workspaces__workspace_id__terms__term_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_vocabularies_api_v1_workspaces__workspace_id__vocabularies_get: {
+        parameters: {
+            query?: {
+                /** @description That project's vocabularies and the workspace-wide ones. */
+                "filter[project_id]"?: string | null;
+                "filter[kind]"?: ("topic" | "cluster" | "product" | "service" | "market" | "campaign" | "persona" | "tag" | "custom") | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VocabularyPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_vocabulary_api_v1_workspaces__workspace_id__vocabularies_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VocabularyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VocabularyResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_vocabulary_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vocabulary_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_vocabulary_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vocabulary_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VocabularyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VocabularyResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_get: {
+        parameters: {
+            query?: {
+                format?: "tree" | "flat";
+                /** @description Terms whose name holds the text; the tree keeps their ancestors. */
+                "filter[q]"?: string | null;
+            };
+            header?: never;
+            path: {
+                vocabulary_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermTree"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    add_terms_api_v1_workspaces__workspace_id__vocabularies__vocabulary_id__terms_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vocabulary_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermInput"] | components["schemas"]["TermBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TermList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
 }
 type FlattenedDeepRequired<T> = {
     [K in keyof T]-?: FlattenedDeepRequired<T[K] extends unknown[] | undefined | null ? Extract<T[K], unknown[]>[number] : T[K]>;
@@ -2419,14 +8927,161 @@ type ReadonlyArray<T> = [
 ] extends [
     unknown[]
 ] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
+export const pathsApiV1LocationsGetParametersQueryFilterSupportsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/locations"]["get"]["parameters"]["query"]["filter[supports]"]> = ["serp", "ai_mode", "llm_scraper"];
+export const pathsApiV1WorkspacesWorkspace_idCostsGetParametersQueryGroup_byAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/costs"]["get"]["parameters"]["query"]["group_by"]> = ["project", "workload", "provider", "endpoint", "engine", "day", "channel"];
+export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEntity_typeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[entity_type]"]> = ["brand", "product", "organization", "person", "other"];
+export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGetParametersQuerySourceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history"]["get"]["parameters"]["query"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"]["get"]["parameters"]["query"]["filter[status]"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterActionAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[action]"]> = ["create", "skip", "merge", "force_separate"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterWorkload_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[workload_in]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idSchedulesGetParametersQueryFilterWorkloadAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules"]["get"]["parameters"]["query"]["filter[workload]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[device]"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSearch_engineAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[search_engine]"]> = ["google", "bing"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterFunnel_stage_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[funnel_stage_in]"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSource_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[source_in]"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDepth_profile_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[depth_profile_in]"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const pathsApiV1WorkspacesWorkspace_idRunsGetParametersQueryFilterWorkload_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/runs"]["get"]["parameters"]["query"]["filter[workload_in]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
+export const pathsApiV1WorkspacesWorkspace_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
+export const pathsApiV1WorkspacesWorkspace_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
+export const pathsApiV1WorkspacesWorkspace_idVocabulariesGetParametersQueryFilterKindAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies"]["get"]["parameters"]["query"]["filter[kind]"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
+export const pathsApiV1WorkspacesWorkspace_idVocabulariesVocabulary_idTermsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
+export const actorActor_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Actor"]["actor_type"]> = ["user", "api_key", "system"];
+export const aliasMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Alias"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
+export const aliasInputMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasInput"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
+export const aliasTestMentionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestMention"]["status"]> = ["accepted", "uncertain", "discarded"];
+export const aliasTestSpanMatch_methodValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["match_method"]> = ["alias_word", "alias_exact", "alias_substring", "alias_regex", "alias_name", "alias_domain", "via_product"];
+export const aliasTestSpanStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestSpan"]["status"]> = ["accepted", "uncertain", "discarded"];
+export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
+export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
+export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
+export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
+export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
+export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
+export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
+export const entityEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Entity"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const entityCreateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityCreate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const entityDetailEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityDetail"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const entityDomainMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityDomain"]["match_scope"]> = ["path_prefix", "host", "registrable"];
+export const entityProjectRoleRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityProjectRole"]["role"]> = ["own", "competitor", "watch"];
+export const entityRefEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const entityRefRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["role"]> = ["own", "competitor", "watch"];
+export const entityUpdateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityUpdate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const filterList_Literal__informational____navigational____commercial____transactional____local____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const filterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const filterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const filterList_Literal__tofu____mofu____bofu____retention____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const importDefaultsDepth_profileAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const importDefaultsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["device"]> = ["desktop", "mobile", "both"];
+export const importFieldValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportField"]> = ["keyword", "country", "location", "language", "device", "tags", "topic", "group", "intent", "funnel_stage", "priority", "target_url", "depth_profile"];
+export const importRowActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["action"]> = ["create", "skip", "merge", "force_separate"];
+export const importRowOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportRow"]["outcome"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
+export const keywordImportSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["source"]> = ["upload", "paste", "api"];
+export const keywordImportStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["status"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
+export const keywordImportConfirmDuplicate_actionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportConfirm"]["duplicate_action"]> = ["skip", "merge_terms"];
+export const keywordImportCreateSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportCreate"]["source"]> = ["paste", "api"];
+export const keywordMetricsCompetition_levelAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["competition_level"]> = ["LOW", "MEDIUM", "HIGH"];
+export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
 export const meWorkspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MeWorkspace"]["status"]> = ["active", "suspended", "deleting"];
+export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
+export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
+export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];
+export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];
 export const projectStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Project"]["status"]> = ["active", "paused", "archived"];
+export const projectDomainMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectDomain"]["match_scope"]> = ["path_prefix", "host", "registrable"];
+export const projectEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntity"]["role"]> = ["own", "competitor", "watch"];
+export const projectEntityCreateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityCreate"]["role"]> = ["own", "competitor", "watch"];
+export const projectEntityUpdateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityUpdate"]["role"]> = ["own", "competitor", "watch"];
 export const projectUpdateStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectUpdate"]["status"]> = ["active", "paused", "archived"];
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];
 export const reservedProjectSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedProjectSlug"]> = ["billing", "costs", "members", "new", "onboarding", "ops", "projects", "settings"];
 export const reservedWorkspaceSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedWorkspaceSlug"]> = ["account", "admin", "api", "assets", "design-system", "docs", "favicon", "forgot-password", "health", "healthz", "help", "icon", "invite", "login", "logout", "new", "null", "onboarding", "public", "reset-password", "robots", "settings", "sign-in", "sign-up", "signup", "sitemap", "static", "two-factor", "undefined", "verify-email", "www"];
 export const roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Role"]> = ["owner", "admin", "editor", "analyst", "viewer", "billing"];
+export const rowActionInputActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RowActionInput"]["action"]> = ["create", "skip", "merge", "force_separate"];
+export const runStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["status"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
+export const runTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["trigger"]> = ["schedule", "manual", "backfill", "retry"];
+export const runWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
+export const runDetailStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RunDetail"]["status"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
+export const runDetailTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RunDetail"]["trigger"]> = ["schedule", "manual", "backfill", "retry"];
+export const runDetailWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RunDetail"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
+export const scheduleCadenceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Schedule"]["cadence"]> = ["daily", "weekly", "monthly", "cron"];
+export const schedulePriorityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Schedule"]["priority"]> = ["high", "standard", "low"];
+export const scheduleProvider_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Schedule"]["provider_mode"]> = ["standard_queue", "priority_queue", "live"];
+export const scheduleWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Schedule"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
+export const scheduleInputCadenceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["cadence"]> = ["daily", "weekly", "monthly", "cron"];
+export const scheduleInputPriorityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["priority"]> = ["high", "standard", "low"];
+export const scheduleInputProvider_modeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["provider_mode"]> = ["standard_queue", "priority_queue", "live"];
+export const scheduleInputWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleInput"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
+export const scheduleUpdateCadenceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleUpdate"]["cadence"]> = ["daily", "weekly", "monthly", "cron"];
+export const scheduleUpdatePriorityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleUpdate"]["priority"]> = ["high", "standard", "low"];
+export const scheduleUpdateProvider_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ScheduleUpdate"]["provider_mode"]> = ["standard_queue", "priority_queue", "live"];
+export const seoSettingsDefault_depth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettings"]["default_depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const seoSettingsDefault_deviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettings"]["default_device"]> = ["desktop", "mobile", "both"];
+export const seoSettingsDefault_frequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettings"]["default_frequency"]> = ["daily", "weekly"];
+export const seoSettingsVisibility_volume_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettings"]["visibility_volume_mode"]> = ["annual_average", "seasonal"];
+export const seoSettingsVisibility_weight_schemeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettings"]["visibility_weight_scheme"]> = ["uniform", "priority", "business_value"];
+export const seoSettingsPatchDefault_depth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettingsPatch"]["default_depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const seoSettingsPatchDefault_deviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettingsPatch"]["default_device"]> = ["desktop", "mobile", "both"];
+export const seoSettingsPatchDefault_frequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettingsPatch"]["default_frequency"]> = ["daily", "weekly"];
+export const seoSettingsPatchVisibility_volume_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettingsPatch"]["visibility_volume_mode"]> = ["annual_average", "seasonal"];
+export const seoSettingsPatchVisibility_weight_schemeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettingsPatch"]["visibility_weight_scheme"]> = ["uniform", "priority", "business_value"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
+export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
+export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];
+export const termAssignmentSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["subject_type"]> = ["tracked_keyword", "prompt"];
+export const termNodeSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermNode"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
+export const trackedKeywordDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const trackedKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["device"]> = ["desktop", "mobile"];
+export const trackedKeywordFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["frequency"]> = ["daily", "weekly", "custom"];
+export const trackedKeywordFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const trackedKeywordIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const trackedKeywordIntent_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["intent_source"]> = ["provider", "manual", "rule"];
+export const trackedKeywordOsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["os"]> = ["windows", "macos", "android", "ios"];
+export const trackedKeywordSearch_engineValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["search_engine"]> = ["google", "bing"];
+export const trackedKeywordSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["source"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const trackedKeywordBulkCreateOn_duplicateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordBulkCreate"]["on_duplicate"]> = ["skip", "merge_terms"];
+export const trackedKeywordCreateDepth_profileAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordCreate"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const trackedKeywordCreateDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordCreate"]["device"]> = ["desktop", "mobile", "both"];
+export const trackedKeywordCreateFrequencyAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordCreate"]["frequency"]> = ["daily", "weekly", "custom"];
+export const trackedKeywordCreateFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordCreate"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const trackedKeywordCreateIntentAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordCreate"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const trackedKeywordCreateOsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordCreate"]["os"]> = ["windows", "macos", "android", "ios"];
+export const trackedKeywordDetailDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const trackedKeywordDetailDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["device"]> = ["desktop", "mobile"];
+export const trackedKeywordDetailFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["frequency"]> = ["daily", "weekly", "custom"];
+export const trackedKeywordDetailFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const trackedKeywordDetailIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const trackedKeywordDetailIntent_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["intent_source"]> = ["provider", "manual", "rule"];
+export const trackedKeywordDetailOsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["os"]> = ["windows", "macos", "android", "ios"];
+export const trackedKeywordDetailSearch_engineValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["search_engine"]> = ["google", "bing"];
+export const trackedKeywordDetailSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordDetail"]["source"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const trackedKeywordFilterDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordFilter"]["device"]> = ["desktop", "mobile"];
+export const trackedKeywordFilterSearch_engineAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordFilter"]["search_engine"]> = ["google", "bing"];
+export const trackedKeywordPatchDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordPatch"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const trackedKeywordPatchFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordPatch"]["frequency"]> = ["daily", "weekly", "custom"];
+export const trackedKeywordPatchFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordPatch"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const trackedKeywordPatchIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordPatch"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const trackedKeywordRowDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const trackedKeywordRowDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["device"]> = ["desktop", "mobile"];
+export const trackedKeywordRowFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["frequency"]> = ["daily", "weekly", "custom"];
+export const trackedKeywordRowFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const trackedKeywordRowIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
+export const trackedKeywordRowIntent_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["intent_source"]> = ["provider", "manual", "rule"];
+export const trackedKeywordRowOsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["os"]> = ["windows", "macos", "android", "ios"];
+export const trackedKeywordRowSearch_engineValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["search_engine"]> = ["google", "bing"];
+export const trackedKeywordRowSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["source"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const trackedVariantDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedVariant"]["device"]> = ["desktop", "mobile"];
+export const vocabularyKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Vocabulary"]["kind"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
+export const vocabularyCreateKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["VocabularyCreate"]["kind"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
 export const workspaceStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Workspace"]["status"]> = ["active", "suspended", "deleting"];

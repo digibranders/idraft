@@ -2,12 +2,16 @@ import type { ReactNode } from 'react';
 
 import { BadgesSection } from './badges-section';
 import { ButtonsSection } from './buttons-section';
+import { DataDisplaySection } from './data-display-section';
 import { FeedbackSection } from './feedback-section';
+import { FiltersSection } from './filters-section';
 import { FormsSection } from './forms-section';
 import { IconsSection } from './icons-section';
+import { InspectorPreviewSection } from './inspector-section';
 import { OverlaysSection } from './overlays-section';
 import type { PreviewSectionSlug } from './section-slugs';
 import { SizesSection } from './sizes-section';
+import { TablesSection } from './tables-section';
 import { TokensSection } from './tokens-section';
 import { TypographySection } from './typography-section';
 
@@ -26,6 +30,10 @@ export const PREVIEW_SECTIONS: readonly PreviewSection[] = [
   { slug: 'buttons', title: 'Buttons and controls', render: ButtonsSection },
   { slug: 'forms', title: 'Forms', render: FormsSection },
   { slug: 'badges', title: 'Badges', render: BadgesSection },
+  { slug: 'tables', title: 'Tables', render: TablesSection },
+  { slug: 'filters', title: 'Filters', render: FiltersSection },
+  { slug: 'inspector', title: 'Inspector', render: InspectorPreviewSection },
+  { slug: 'data-display', title: 'Data display', render: DataDisplaySection },
   { slug: 'overlays', title: 'Overlays', render: OverlaysSection },
   { slug: 'feedback', title: 'Feedback', render: FeedbackSection },
 ];

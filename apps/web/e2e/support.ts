@@ -21,6 +21,21 @@ export async function waitForContent(page: Page): Promise<void> {
  */
 export async function expectAccessible(page: Page): Promise<void> {
   await waitForContent(page);
+  // A dialog still fading in would be measured at part of its opacity, so contrast is checked once it is in
+  // Only animations that are running and will end; a paused one never would, and 2 s bounds the wait
+  await page.evaluate(async () => {
+    const ending = document
+      .getAnimations()
+      .filter(
+        (animation) =>
+          animation.playState === 'running' &&
+          animation.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY,
+      );
+    await Promise.race([
+      Promise.all(ending.map((animation) => animation.finished.catch(() => undefined))),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
+  });
   expect(await page.locator('body').innerText()).not.toMatch(/[\u2013\u2014]/);
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
   expect(
@@ -65,4 +80,39 @@ export async function signIn(page: Page, email: string, { code = false }: { code
   }
   // Signing in ends with a full page load; the next step starts once it has landed
   await page.waitForURL((url) => !['/login', '/two-factor'].includes(url.pathname));
+}
+
+/**
+ * Makes the mock session stale: still signed in, but past the 10 minutes after sign-in in which the API
+ * takes sensitive changes without asking again (`403 fresh_session_required`). The mock session is the
+ * cookie's own value, `mock.active.<user id>.<fresh until>` (src/mocks/session.ts), so the page rewrites
+ * its last part: in the browser's cookie, which server renders read, and in the copy the mock worker keeps
+ * in its own cookie store (`__msw-cookie-store__`, which wins over the browser's). The worker reads that
+ * store when it starts, so the page is loaded again.
+ */
+export async function ageSession(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const name = '__Host-session';
+    const storeKey = '__msw-cookie-store__';
+    const current = document.cookie
+      .split('; ')
+      .find((entry) => entry.startsWith(`${name}=mock.active.`))
+      ?.slice(name.length + 1);
+    if (current === undefined) throw new Error('No active mock session to age');
+    const stale = current.split('.').slice(0, -1).concat('0').join('.');
+    document.cookie = `${name}=${stale}; Path=/; Secure; SameSite=Lax`;
+    const stored: unknown = JSON.parse(localStorage.getItem(storeKey) ?? '[]');
+    if (!Array.isArray(stored)) throw new Error('The mock cookie store is not a list');
+    let rewritten = 0;
+    const aged: unknown[] = stored.map((cookie: unknown) => {
+      if (typeof cookie !== 'object' || cookie === null || !('key' in cookie) || cookie.key !== name) return cookie;
+      rewritten += 1;
+      return { ...cookie, value: stale };
+    });
+    // Without a stored copy the worker would keep the fresh session, and the flow would fail far from here
+    if (rewritten === 0) throw new Error(`The mock cookie store has no ${name}: its format may have changed`);
+    localStorage.setItem(storeKey, JSON.stringify(aged));
+  });
+  await page.reload();
+  await waitForContent(page);
 }

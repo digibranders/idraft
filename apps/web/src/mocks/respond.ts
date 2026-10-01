@@ -30,6 +30,9 @@ type RequestBody<M extends Method, P extends ApiPath<M>> =
 export type MockBody<M extends Method, P extends ApiPath<M>> =
   (ApiResponse<M, P> extends undefined ? null : ApiResponse<M, P>) | Problem;
 
+/** The largest request body the API reads (19 section 2.7, `413 payload_too_large`). */
+const MAX_BODY_BYTES = 1024 * 1024;
+
 /** `/api/v1/workspaces/{workspace_id}` as an MSW path on any origin: `*\/api/v1/workspaces/:workspace_id`. */
 export const mswPath = (path: string): string => `*${path.replace(/\{([^}]+)\}/g, ':$1')}`;
 
@@ -37,8 +40,18 @@ export function mock<M extends Method, P extends ApiPath<M>>(
   method: M,
   path: P,
   resolver: HttpResponseResolver<PathParams<ParamNames<M, P>>, RequestBody<M, P>, MockBody<M, P>>,
+  /** A route with its own larger limit (the keyword upload, D11) checks it in its resolver. */
+  { maxBodyBytes = MAX_BODY_BYTES }: { maxBodyBytes?: number } = {},
 ): HttpHandler {
-  return http[method]<PathParams<ParamNames<M, P>>, RequestBody<M, P>, MockBody<M, P>>(mswPath(path), resolver);
+  return http[method]<PathParams<ParamNames<M, P>>, RequestBody<M, P>, MockBody<M, P>>(mswPath(path), async (info) => {
+    // The API refuses any body over 1 MB before it reads it (backend middleware)
+    if (method !== 'get' && (await info.request.clone().arrayBuffer()).byteLength > maxBodyBytes) {
+      return problem(info.request, 'payload_too_large', {
+        detail: `A request body is at most ${String(Math.round(maxBodyBytes / (1024 * 1024)))} MB.`,
+      });
+    }
+    return resolver(info);
+  });
 }
 
 /**
@@ -50,10 +63,15 @@ export function requestIdOf(request: Request): string {
   return incoming !== null && isRequestId(incoming) ? incoming : newRequestId();
 }
 
-/** The problems the mocks send, with the status and title the API gives each code (backend problems.py). */
+/**
+ * The problems the mocks send, with the status and title the API gives each code (backend problems.py). The
+ * step 4 codes the backend has not built yet carry the status of 19 section 2.7 and the catalog, and a title
+ * of the same style.
+ */
 const PROBLEMS = {
   validation_failed: [422, 'Request validation failed'],
   invalid_token: [400, 'Link is not valid'],
+  invalid_cursor: [400, 'Cursor is not valid'],
   unauthenticated: [401, 'Authentication required'],
   session_expired: [401, 'Session expired'],
   invalid_credentials: [401, 'Email or password is not correct'],
@@ -68,9 +86,23 @@ const PROBLEMS = {
   duplicate: [409, 'Already exists'],
   last_owner: [409, 'The workspace needs an owner'],
   invalid_state_transition: [409, 'Not possible in this state'],
-  quota_exceeded: [422, 'Quota exceeded'],
+  entity_in_use: [409, 'Entity is in use'],
+  cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
+  has_children: [409, 'Term has children'],
+  schedule_in_use: [409, 'Schedule is in use'],
+  single_valued_violation: [409, 'A keyword has two terms of this vocabulary'],
+  payload_too_large: [413, 'Payload too large'],
+  unsupported_media_type: [415, 'Unsupported media type'],
+  quota_exceeded: [422, 'Workspace limit reached'],
+  too_many_subjects: [422, 'Too many subjects'],
+  competitor_limit: [422, 'Competitor limit reached'],
+  cycle_detected: [422, 'Would make a cycle'],
+  too_many_matches: [422, 'Too many matches'],
+  // The mocks' own: what a browser changed no longer fits in its cookie
+  mock_state_full: [422, 'Mock state is full'],
   weak_password: [422, 'Password is not strong enough'],
   rate_limited: [429, 'Too many requests'],
+  manual_run_limit: [429, 'Manual run limit reached'],
 } as const satisfies Record<string, readonly [number, string]>;
 
 export type MockProblemCode = keyof typeof PROBLEMS;

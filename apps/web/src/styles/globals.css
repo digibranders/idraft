@@ -117,6 +117,14 @@
   --color-chart-5: var(--chart-5);
   --color-chart-6: var(--chart-6);
   --color-chart-other: var(--chart-other);
+  /* Mention highlights in evidence (23 section 5.3): an entity's chart color at 18% */
+  --color-entity-1-highlight: var(--entity-1-highlight);
+  --color-entity-2-highlight: var(--entity-2-highlight);
+  --color-entity-3-highlight: var(--entity-3-highlight);
+  --color-entity-4-highlight: var(--entity-4-highlight);
+  --color-entity-5-highlight: var(--entity-5-highlight);
+  --color-entity-6-highlight: var(--entity-6-highlight);
+  --color-entity-other-highlight: var(--entity-other-highlight);
   --color-chart-reference: var(--chart-reference);
   --color-chart-bar-neutral: var(--chart-bar-neutral);
   --color-theme-switch-day: var(--theme-switch-day);
@@ -179,6 +187,8 @@
   --spacing-row-compact: var(--size-row-compact);
   --spacing-row-header: var(--size-row-header);
   --spacing-topbar: var(--size-topbar);
+  --spacing-page-body: var(--size-page-body);
+  --spacing-page-body-min: var(--size-page-body-min);
   --spacing-sidebar: var(--size-sidebar);
   --spacing-sidebar-collapsed: var(--size-sidebar-collapsed);
   --spacing-sidebar-item: var(--size-sidebar-item);
@@ -197,6 +207,9 @@
   --spacing-icon-lg: var(--size-icon-lg);
   --spacing-control-touch: var(--size-control-touch);
   --spacing-inspector-wide: var(--size-inspector-wide);
+  --spacing-inspector-top: var(--size-inspector-top);
+  --spacing-inspector-docked: var(--size-inspector-docked);
+  --spacing-inspector-docked-max: var(--size-inspector-docked-max);
   --spacing-drawer: var(--size-drawer);
   --spacing-popover-min: var(--size-popover-min);
   --spacing-popover-max: var(--size-popover-max);
@@ -254,6 +267,11 @@
 }
 @utility type-body-strong {
   font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; letter-spacing: 0;
+}
+/* Weight 500 for a span inside running text, which keeps the size and line height of that text: the own
+   brand's mention highlight (23 section 5.3). Whole lines take type-body-strong. */
+@utility type-inline-strong {
+  font-weight: 500;
 }
 @utility type-prose {
   font-size: 0.875rem; line-height: 1.375rem; font-weight: 400; letter-spacing: 0;
@@ -333,6 +351,20 @@
 @utility focus-ring-inset {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
+}
+
+/* The row open in the inspector: a 2 px primary edge inside its first cell (12-tables.md section 3). */
+@utility row-active-edge {
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+/* A mention highlight keeps the system's own mark colors when the user forces colors (23 section 5.3). */
+@utility forced-mark {
+  @media (forced-colors: active) {
+    background-color: Mark;
+    color: MarkText;
+    forced-color-adjust: none;
+  }
 }
 
 /* InsufficientData (12 section 7.3): 1 px diagonal lines, 4 px apart, in border-subtle on surface-subtle. */

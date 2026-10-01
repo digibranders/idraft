@@ -147,7 +147,8 @@ const ELEMENTS = [
 const FILES = [
   // cn() is the one piece of lib a primitive may use (shadcn convention), so it is named as a file.
   { category: 'class-helper', pattern: 'src/lib/utils.ts' },
-  // The clients that talk to the API, and the lib modules that call them (the session and the project list).
+  // The clients that talk to the API, and the lib modules that call them (the session, the project list and
+  // the location search).
   // Components never reach them, by alias or by relative path.
   {
     category: 'api-client',
@@ -157,6 +158,7 @@ const FILES = [
       'src/lib/api/query.ts',
       'src/lib/session/**',
       'src/lib/projects/**',
+      'src/lib/locations/**',
     ],
   },
   // The message catalog, and the two files that may read it. Everything else gets text through next-intl.
@@ -258,6 +260,32 @@ export default tseslint.config(
       // Safari drops the list role of a list without bullets (Tailwind's reset removes them), so a list
       // that should be announced as one says so
       'jsx-a11y/no-redundant-roles': ['error', { nav: ['navigation'], ul: ['list'], ol: ['list'] }],
+    },
+  },
+  // The WAI-ARIA tree pattern is a list of items: `ul role="tree"` holding `li role="treeitem"`. The strict
+  // preset allows no interactive role on a list, so the tree primitive, and only it, may use these.
+  {
+    files: ['src/components/ui/tree-view.tsx'],
+    rules: {
+      'jsx-a11y/no-noninteractive-element-to-interactive-role': ['error', { ul: ['tree'], li: ['treeitem'] }],
+    },
+  },
+  // The data table is the WAI-ARIA grid on a native table (20-accessibility.md section 6.2). Virtualized rows
+  // can lose native table semantics in WebKit, so every part carries its role explicitly; only it may.
+  {
+    files: ['src/components/app/data-table/data-table.tsx'],
+    rules: {
+      'jsx-a11y/no-noninteractive-element-to-interactive-role': ['error', { table: ['grid'] }],
+      'jsx-a11y/no-redundant-roles': ['error', { thead: ['rowgroup'], tbody: ['rowgroup'], tr: ['row'] }],
+    },
+  },
+  // The inspector's resize handle is a focusable separator, the WAI-ARIA window splitter: a widget with a
+  // value that keys change (16-drawers-dialogs-popovers.md section 2.2), which jsx-a11y takes for a static line.
+  {
+    files: ['src/components/app/inspector/inspector-resize-handle.tsx'],
+    rules: {
+      'jsx-a11y/no-noninteractive-element-interactions': 'off',
+      'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['separator'] }],
     },
   },
   { files: SOURCES, ...nextPlugin.configs['core-web-vitals'] },

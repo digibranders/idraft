@@ -100,6 +100,12 @@ export const joinedCookie = memoryCookie(JOINED_COOKIE, 'yes');
 
 /** What a browser changed in the workspace (./workspace-state.ts). */
 export const WORKSPACE_COOKIE = 'mock-workspace';
+/** What a browser changed in the entities and the taxonomy (./entities-state.ts). */
+export const ENTITIES_COOKIE = 'mock-entities';
+/** What a browser changed in the keywords, groups, terms and keyword settings (./keywords-state.ts). */
+export const KEYWORDS_COOKIE = 'mock-keywords';
+/** What a browser changed in the schedules and runs (./operations-state.ts). */
+export const OPERATIONS_COOKIE = 'mock-operations';
 
 /** Every cookie of the mocks: a test expires them all, so it starts from the fixtures, signed out. */
 export const MOCK_COOKIES: readonly string[] = [
@@ -108,6 +114,9 @@ export const MOCK_COOKIES: readonly string[] = [
   INVITEE_COOKIE,
   JOINED_COOKIE,
   WORKSPACE_COOKIE,
+  ENTITIES_COOKIE,
+  KEYWORDS_COOKIE,
+  OPERATIONS_COOKIE,
 ];
 
 /** The `Set-Cookie` that expires cookie `name`. */

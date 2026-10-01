@@ -56,6 +56,13 @@ describe('Combobox', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 
+  it('names its open list after the field, as it names the text field', async () => {
+    const { user } = renderWithProviders(<LocationField />);
+    await user.click(input());
+    await user.keyboard('b');
+    expect(await screen.findByRole('listbox', { name: 'Location' })).toBeInTheDocument();
+  });
+
   it('lists the items that match what is typed and takes the one that is clicked', async () => {
     const onChange = vi.fn();
     const { user } = renderWithProviders(<LocationField onChange={onChange} />);
