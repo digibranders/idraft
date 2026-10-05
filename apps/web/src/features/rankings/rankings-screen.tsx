@@ -1,5 +1,6 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { FolderTree, MoreHorizontal, Plus, Upload } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
@@ -10,7 +11,7 @@ import { useBulkActions } from './bulk/bulk-actions';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
 import { ImportDialog } from './import/import-dialog';
 import { ImportProgress } from './import/import-progress';
-import { useWritingImport } from './import/import-queries';
+import { forgetWritingImport, useWritingImport } from './import/import-queries';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
@@ -102,10 +103,11 @@ export function RankingsScreen({
   const canImport = useCan('imports:write');
   const [adding, setAdding] = useState(false);
   const [managing, setManaging] = useState(false);
-  // The import whose write the header follows: the one Confirm just started, or one a reload found under way.
-  // An import that ended is remembered, so the answer of the first read does not bring it back.
-  const [startedImport, setStartedImport] = useState<string | null>(null);
-  const [endedImport, setEndedImport] = useState<string | null>(null);
+  // The imports whose writes the header follows: those Confirm started, and one a reload found under way.
+  // An import that ended is remembered, so no later read of the writes under way brings it back.
+  const [startedImports, setStartedImports] = useState<readonly string[]>([]);
+  const [endedImports, setEndedImports] = useState<ReadonlySet<string>>(new Set());
+  const queryClient = useQueryClient();
   // Where focus returns to when Manage groups closes
   const moreButton = useRef<HTMLButtonElement>(null);
   const scope = useMemo((): ProjectScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
@@ -140,11 +142,21 @@ export function RankingsScreen({
   const list = useKeywordList({ scope, filters, sort, search });
   const tracked = useTrackedCount(scope);
   const writingNow = useWritingImport(scope, canImport).data?.import_id ?? null;
-  const followedImport = startedImport ?? (writingNow === endedImport ? null : writingNow);
-  const onImportSettled = useCallback((): void => {
-    setEndedImport(followedImport);
-    setStartedImport(null);
-  }, [followedImport]);
+  const followedImports = [...startedImports, ...(writingNow === null ? [] : [writingNow])].filter(
+    (importId, index, all) => !endedImports.has(importId) && all.indexOf(importId) === index,
+  );
+  const onImportConfirmed = useCallback((importId: string): void => {
+    setStartedImports((started) => (started.includes(importId) ? started : [...started, importId]));
+  }, []);
+  const onImportSettled = useCallback(
+    (importId: string): void => {
+      setEndedImports((ended) => new Set(ended).add(importId));
+      setStartedImports((started) => started.filter((candidate) => candidate !== importId));
+      // The read of "the import being written" is kept for 30 seconds: it must not hold this one any longer
+      forgetWritingImport(queryClient, scope, importId);
+    },
+    [queryClient, scope],
+  );
 
   // The chosen keywords, kept through sorting and a search in memory, and dropped when the list asked
   // for changes: other filters, the other view, or a search the API runs. Only the API's search goes with
@@ -358,15 +370,15 @@ export function RankingsScreen({
           meta={meta === '' ? undefined : meta}
           actions={canWrite || canImport ? headerActions : undefined}
         />
-        {followedImport === null ? null : (
+        {followedImports.map((importId) => (
           <ImportProgress
-            key={followedImport}
+            key={importId}
             scope={scope}
-            importId={followedImport}
+            importId={importId}
             timeZone={timeZone}
             onSettled={onImportSettled}
           />
-        )}
+        ))}
         <FilterBar
           fields={fields}
           values={values}
@@ -502,7 +514,7 @@ export function RankingsScreen({
           scope={scope}
           open={importOpen}
           onOpenChange={(open) => onImportOpenChange?.(open)}
-          onConfirmed={setStartedImport}
+          onConfirmed={onImportConfirmed}
           defaults={defaults}
         />
       ) : null}

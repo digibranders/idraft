@@ -37,12 +37,14 @@ export function rankingsAs(
   role: Role,
   projectId: string = fynix.project_id,
   importProps: ImportProps = {},
+  /** The projects a member limited to some may open; `null` is every project. */
+  projectIds: readonly string[] | null = null,
 ): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   const locationId = MOCK_PROJECTS.find((candidate) => candidate.project_id === projectId)?.location_id ?? null;
   const location = MOCK_LOCATIONS.find((candidate) => candidate.location_id === locationId) ?? null;
   return (
-    <PermissionProvider membership={membershipFactory(role)}>
+    <PermissionProvider membership={membershipFactory(role, { projectIds })}>
       <Suspense fallback={null}>
         <RankingsScreen
           workspaceId={MOCK_WORKSPACE.workspace_id}

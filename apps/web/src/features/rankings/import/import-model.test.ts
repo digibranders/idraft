@@ -3,14 +3,19 @@ import { describe, expect, it } from 'vitest';
 import {
   autoMapping,
   confirmPlan,
+  FAILURE_CODES,
+  FAILURE_KEYS,
   FIELD_KEYS,
   IMPORT_FIELDS,
   importPhase,
+  isFailureCode,
   isReasonCode,
   mappingProblems,
   outcomeSummary,
   REASON_CODES,
   REASON_KEYS,
+  reportLinkOf,
+  selectableVocabularies,
   stepsOf,
   type Counts,
 } from './import-model';
@@ -106,5 +111,64 @@ describe('import model', () => {
     expect(isReasonCode('repeated_row')).toBe(true);
     expect(isReasonCode('something_new')).toBe(false);
     expect(isReasonCode(null)).toBe(false);
+  });
+
+  it('names a message for every failure code of an import, in camelCase', () => {
+    const { failures } = messages.rankings.import;
+    expect(Object.keys(FAILURE_KEYS).sort()).toEqual([...FAILURE_CODES].sort());
+    expect(Object.values(FAILURE_KEYS).sort()).toEqual(Object.keys(failures).sort());
+    expect(FAILURE_CODES).toEqual(
+      expect.arrayContaining([
+        'not_utf8',
+        'not_csv',
+        'no_header',
+        'no_rows',
+        'duplicate_headers',
+        'too_many_rows',
+        'too_many_columns',
+        'parse_failed',
+        'write_failed',
+        'source_corrupt',
+        'source_unreadable',
+        'project_gone',
+        'expired',
+      ]),
+    );
+  });
+
+  it('knows the failure codes it has words for', () => {
+    expect(isFailureCode('too_many_rows')).toBe(true);
+    expect(isFailureCode('provider_down')).toBe(false);
+    expect(isFailureCode(null)).toBe(false);
+    expect(isFailureCode(undefined)).toBe(false);
+  });
+
+  it('offers a member limited to some projects only the vocabularies of a project', () => {
+    const shared = { vocabulary_id: 'a', project_id: null };
+    const own = { vocabulary_id: 'b', project_id: 'p1' };
+    expect(selectableVocabularies([shared, own], false)).toEqual([shared, own]);
+    expect(selectableVocabularies([shared, own], true)).toEqual([own]);
+  });
+
+  it('takes the report from the link of a finished import, and only from a path of this app', () => {
+    const origin = 'https://app.example';
+    const fallback = '/api/v1/known/report';
+    expect(reportLinkOf({ self: '/api/v1/i', result: '/api/v1/i/report?x=1' }, fallback, origin)).toBe(
+      '/api/v1/i/report?x=1',
+    );
+    expect(reportLinkOf({ self: '/api/v1/i', result: `${origin}/api/v1/i/report` }, fallback, origin)).toBe(
+      '/api/v1/i/report',
+    );
+    // A link that leaves the app, or the API, is not followed: the known path is used instead
+    expect(reportLinkOf({ self: '/api/v1/i', result: 'https://evil.example/api/v1/i/report' }, fallback, origin)).toBe(
+      fallback,
+    );
+    expect(reportLinkOf({ self: '/api/v1/i', result: '//evil.example/api/v1/x' }, fallback, origin)).toBe(fallback);
+    expect(reportLinkOf({ self: '/api/v1/i', result: '/logout' }, fallback, origin)).toBe(fallback);
+    expect(reportLinkOf({ self: '/api/v1/i', result: '/api/v1/../logout' }, fallback, origin)).toBe(fallback);
+    // No link, no report to offer
+    expect(reportLinkOf({ self: '/api/v1/i' }, fallback, origin)).toBeNull();
+    expect(reportLinkOf({ self: '/api/v1/i', result: null }, fallback, origin)).toBeNull();
+    expect(reportLinkOf({ self: '/api/v1/i', result: '' }, fallback, origin)).toBeNull();
   });
 });

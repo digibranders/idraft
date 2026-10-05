@@ -85,13 +85,29 @@ export function useImport(scope: ProjectScope, importId: string | null, pollMs: 
   });
 }
 
+/** How long a Continue waits for the API to read a file: past it the read is given up on. */
+export const READ_TIMEOUT_MS = 3 * 60_000;
+
+/** The API did not finish reading the import in the time given. */
+export class ReadTimeoutError extends Error {
+  constructor() {
+    super('The API did not finish reading the import in time');
+    this.name = 'ReadTimeoutError';
+  }
+}
+
 /**
  * Resolves with the import once it is out of `uploaded` and `parsing`: the answer a Continue was waiting
  * for. It reads the cache and does not ask the API itself, so the polling of `useImport` is the only
- * traffic. It rejects when the reads fail for good, and with an `AbortError` when the signal fires (the
- * dialog was closed).
+ * traffic. It rejects when the reads fail for good, with a `ReadTimeoutError` when the import is still being
+ * read after `timeoutMs`, and with an `AbortError` when the signal fires (the dialog was closed).
  */
-export function settledImport(queryClient: QueryClient, key: QueryKey, signal: AbortSignal): Promise<KeywordImport> {
+export function settledImport(
+  queryClient: QueryClient,
+  key: QueryKey,
+  signal: AbortSignal,
+  timeoutMs: number = READ_TIMEOUT_MS,
+): Promise<KeywordImport> {
   return new Promise((resolve, reject) => {
     const abortError = (): DOMException => new DOMException('The wait was stopped', 'AbortError');
     if (signal.aborted) {
@@ -100,9 +116,14 @@ export function settledImport(queryClient: QueryClient, key: QueryKey, signal: A
     }
     const cache = queryClient.getQueryCache();
     const stop = (): void => {
+      clearTimeout(timer);
       unsubscribe();
       signal.removeEventListener('abort', onAbort);
     };
+    const timer = setTimeout(() => {
+      stop();
+      reject(new ReadTimeoutError());
+    }, timeoutMs);
     const check = (): void => {
       const state = queryClient.getQueryState<KeywordImport, Error>(key);
       if (state?.data !== undefined && importPhase(state.data.status) !== 'reading') {
@@ -123,10 +144,23 @@ export function settledImport(queryClient: QueryClient, key: QueryKey, signal: A
   });
 }
 
+/** The key of the read of the import being written. */
+export const writingImportKey = (scope: ProjectScope): QueryKey => [...importsKey(scope), 'writing'];
+
+/**
+ * An import ended: the read of "the import being written" no longer holds it, and must not bring it back
+ * (the read is kept for 30 seconds, long enough for the next import to end before it is read again).
+ */
+export function forgetWritingImport(queryClient: QueryClient, scope: ProjectScope, importId: string): void {
+  queryClient.setQueryData<KeywordImport | null>(writingImportKey(scope), (held) =>
+    held !== undefined && held !== null && held.import_id === importId ? null : held,
+  );
+}
+
 /** The import the project is writing now, if any: Rankings asks once on mount to resume its header progress. */
 export function useWritingImport(scope: ProjectScope, enabled = true): UseQueryResult<KeywordImport | null> {
   return useQuery({
-    queryKey: [...importsKey(scope), 'writing'],
+    queryKey: writingImportKey(scope),
     enabled,
     queryFn: async ({ signal }) => {
       const page = await unwrap(
@@ -178,10 +212,14 @@ export async function readRows(
 /** The most rows the API answers a page. */
 const ROWS_PAGE = 200;
 
+/** The reason code of a row that repeats an earlier row of the file: it takes `skip` and nothing else. */
+const REPEATED_ROW = 'repeated_row';
+
 /**
  * A row action for every conflict row of the import, read page by page: `merge` is what unarchiving the
  * archived keywords sends just before Confirm, and `skip` takes it back when the person changed their mind
- * after a Confirm that did not go through.
+ * after a Confirm that did not go through. A row that repeats an earlier row of the file takes `skip` only
+ * (the API refuses `merge` for it), so it is left out of the unarchiving.
  */
 export async function conflictRowActions(
   scope: ProjectScope,
@@ -192,7 +230,10 @@ export async function conflictRowActions(
   let cursor: string | null = null;
   do {
     const { rows, next } = await readRowsPage(scope, importId, 'conflict', ROWS_PAGE, cursor);
-    for (const row of rows) actions.push({ row_no: row.row_no, part: row.part, action });
+    for (const row of rows) {
+      if (action === 'merge' && row.reason_code === REPEATED_ROW) continue;
+      actions.push({ row_no: row.row_no, part: row.part, action });
+    }
     cursor = next;
   } while (cursor !== null);
   return actions;

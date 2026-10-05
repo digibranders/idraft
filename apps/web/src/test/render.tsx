@@ -17,6 +17,8 @@ export interface ProvidedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   searchParams?: string;
   /** Called with each URL change the component makes, so a test can read the query string it wrote. */
   onUrlUpdate?: OnUrlUpdateFunction;
+  /** Called when the API answers that the session is gone, after the cache is emptied; jsdom cannot navigate. */
+  onSignedOut?: () => boolean;
 }
 
 /**
@@ -27,10 +29,10 @@ export interface ProvidedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
  */
 export function renderWithProviders(
   ui: ReactElement,
-  { searchParams = '', onUrlUpdate, ...options }: ProvidedRenderOptions = {},
+  { searchParams = '', onUrlUpdate, onSignedOut = () => false, ...options }: ProvidedRenderOptions = {},
 ): ProvidedRender {
   // jsdom cannot navigate, so a signed-out answer only empties the cache here
-  const queryClient = makeQueryClient({ retry: false, onSignedOut: () => false });
+  const queryClient = makeQueryClient({ retry: false, onSignedOut });
   function TestProviders({ children }: { children: ReactNode }): ReactNode {
     return (
       <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">

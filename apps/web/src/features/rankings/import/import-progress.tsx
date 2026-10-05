@@ -4,8 +4,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, type ReactElement } from 'react';
 
+import { useFailureText } from './import-failure';
 import { IMPORT_POLL_MS, reportPath, useImport } from './import-queries';
-import { importPhase } from './import-model';
+import { importPhase, reportLinkOf } from './import-model';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
 import { refreshGroups, refreshVocabularies } from '../taxonomy-queries';
 import { CollectionProgress } from '@/components/app/status/collection-progress';
@@ -18,8 +19,8 @@ export interface ImportProgressProps {
   importId: string;
   /** The project's time zone, for the date in the report's file name. */
   timeZone: string;
-  /** The write ended, or cannot be followed: the header lets go of it. Called once. */
-  onSettled: () => void;
+  /** The write ended, or cannot be followed: the header lets go of it. Called once, with the id. */
+  onSettled: (importId: string) => void;
 }
 
 /**
@@ -31,6 +32,7 @@ export interface ImportProgressProps {
  */
 export function ImportProgress({ scope, importId, timeZone, onSettled }: ImportProgressProps): ReactElement | null {
   const t = useTranslations('rankings.import');
+  const failureText = useFailureText();
   const queryClient = useQueryClient();
   const current = useImport(scope, importId, IMPORT_POLL_MS);
   const imported = current.data;
@@ -46,7 +48,7 @@ export function ImportProgress({ scope, importId, timeZone, onSettled }: ImportP
       if (lost) {
         handled.current = true;
         toast({ id: toastId, type: 'error', title: t('progressLost') });
-        onSettled();
+        onSettled(importId);
       }
       return;
     }
@@ -58,6 +60,9 @@ export function ImportProgress({ scope, importId, timeZone, onSettled }: ImportP
       void refreshVocabularies(queryClient, scope.workspaceId);
       const { created, merged, skipped } = imported.counts;
       const date = formatIsoDate(imported.finished_at ?? new Date(), timeZone);
+      // The report is offered when the import links to one, and downloaded from that link when it is a path of
+      // this app's API (the known path stands in for any other)
+      const report = reportLinkOf(imported.operation.links, reportPath(scope, importId), window.location.origin);
       toast({
         id: toastId,
         type: 'success',
@@ -69,25 +74,27 @@ export function ImportProgress({ scope, importId, timeZone, onSettled }: ImportP
                 skipped: formatInteger(skipped),
               })
             : t('finished', { created: formatInteger(created), skipped: formatInteger(skipped) }),
-        action: {
-          label: t('downloadReport'),
-          onAction: () => downloadUrl(reportPath(scope, importId), t('reportName', { date })),
-        },
+        action:
+          report === null
+            ? undefined
+            : { label: t('downloadReport'), onAction: () => downloadUrl(report, t('reportName', { date })) },
       });
-      onSettled();
+      onSettled(importId);
     } else if (phase === 'failed') {
       handled.current = true;
       toast({
         id: toastId,
         type: 'error',
-        title: t('finishedFailed', { reason: imported.operation.error?.detail ?? t('requestFailed') }),
+        title: t('finishedFailed', {
+          reason: failureText(imported.error_code ?? imported.operation.error?.code, t('requestFailed')),
+        }),
       });
-      onSettled();
+      onSettled(importId);
     } else if (phase === 'gone' || phase === 'expired') {
       handled.current = true;
-      onSettled();
+      onSettled(importId);
     }
-  }, [imported, lost, importId, scope, timeZone, queryClient, onSettled, t]);
+  }, [imported, lost, importId, scope, timeZone, queryClient, onSettled, failureText, t]);
 
   if (imported === undefined) return null;
   const phase = importPhase(imported.status);

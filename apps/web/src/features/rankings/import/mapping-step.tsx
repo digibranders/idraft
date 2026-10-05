@@ -4,8 +4,10 @@ import { useTranslations } from 'next-intl';
 import { useId, type ReactElement, type ReactNode } from 'react';
 
 import { FIELD_KEYS, IMPORT_FIELDS, type ImportField, type MappingRowProblem } from './import-model';
+import type { VocabularyProblems } from './import-state';
+import { VocabularyField, type VocabularyListState } from './vocabulary-field';
 import type { Vocabulary } from '../taxonomy-queries';
-import { Field, FieldError, FieldLabel, GroupError } from '@/components/ui/field';
+import { GroupError } from '@/components/ui/field';
 import { FormAlert } from '@/components/ui/form-alert';
 import { Select, type SelectOption } from '@/components/ui/select';
 import { Truncate } from '@/components/ui/truncate';
@@ -25,8 +27,16 @@ export interface MappingStepProps {
   tagsVocabulary: string | null;
   topicVocabulary: string | null;
   onVocabularyChange: (kind: VocabularyKind, vocabularyId: string) => void;
+  /** The vocabularies the member may name. */
   vocabularies: readonly Vocabulary[];
-  problems: { form: 'keyword_missing' | null; rows: Readonly<Record<string, MappingRowProblem>> };
+  /** Whether the vocabularies have arrived, and a way to ask again when they did not. */
+  vocabularyList: { state: VocabularyListState; onRetry: () => void };
+  problems: {
+    form: 'keyword_missing' | null;
+    rows: Readonly<Record<string, MappingRowProblem>>;
+    /** What the API said of the vocabularies chosen. */
+    vocabulary: VocabularyProblems;
+  };
   /** A message of the server that belongs to no row. */
   alert: string | null;
   /** While the file is read again after a change. */
@@ -96,6 +106,7 @@ export function MappingStep({
   topicVocabulary,
   onVocabularyChange,
   vocabularies,
+  vocabularyList,
   problems,
   alert,
   busy,
@@ -112,24 +123,24 @@ export function MappingStep({
   // The first column mapped to a field owns its vocabulary choice; a second one is an error of its own
   const firstOf = (field: ImportField): string | undefined => headers.find((header) => mapping[header] === field);
   const rowError = (header: string): string | null =>
-    problems.rows[header] === 'mapped_twice' ? t('mappedTwice') : null;
+    problems.rows[header] === 'mapped_twice'
+      ? t('mappedTwice')
+      : problems.rows[header] === 'header_repeated'
+        ? t('headerRepeated')
+        : null;
 
   const vocabularyField = (kind: VocabularyKind, header: string, field: ImportField): ReactElement | null => {
     if (firstOf(field) !== header) return null;
-    const chosen = kind === 'tags' ? tagsVocabulary : topicVocabulary;
-    const missing = problems.rows[header] === 'vocabulary_missing';
     return (
-      <Field invalid={missing} disabled={busy}>
-        <FieldLabel>{kind === 'tags' ? t('tagsVocabulary') : t('topicVocabulary')}</FieldLabel>
-        <Select<string>
-          value={chosen}
-          onValueChange={(id) => onVocabularyChange(kind, id)}
-          placeholder={t('vocabularyPlaceholder')}
-          options={vocabularyOptions(kind)}
-          aria-invalid={missing ? true : undefined}
-        />
-        {missing ? <FieldError message={t('vocabularyMissing')} /> : null}
-      </Field>
+      <VocabularyField
+        label={kind === 'tags' ? t('tagsVocabulary') : t('topicVocabulary')}
+        value={kind === 'tags' ? tagsVocabulary : topicVocabulary}
+        onChange={(id) => onVocabularyChange(kind, id)}
+        options={vocabularyOptions(kind)}
+        list={vocabularyList}
+        problem={problems.rows[header] === 'vocabulary_missing' ? 'missing' : problems.vocabulary[kind]}
+        disabled={busy}
+      />
     );
   };
 

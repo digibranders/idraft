@@ -2,20 +2,33 @@
 
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react';
 import { z } from 'zod';
 
 import { ConfirmStep } from './confirm-step';
+import { useFailureText } from './import-failure';
 import {
   NO_COUNTS,
   importDefaults,
   isMappingCurrent,
   mappedTwiceRows,
   readingProgress,
+  repeatedHeaderRows,
+  sameSource,
   sameSubmission,
   startingMapping,
   submissionOf,
   uploadErrorsOf,
+  vocabularyProblemsOf,
 } from './import-flow';
 import {
   CANCEL_IMPORT,
@@ -23,6 +36,8 @@ import {
   CONFIRM_IMPORT,
   CREATE_IMPORT,
   DIALOG_POLL_MS,
+  READ_TIMEOUT_MS,
+  ReadTimeoutError,
   conflictRowActions,
   importKey,
   importQueryOptions,
@@ -38,12 +53,15 @@ import {
   importPhase,
   mappingProblems,
   outcomeSummary,
+  selectableVocabularies,
   stepsOf,
   type KeywordImport,
   type Outcome,
   type StepId,
 } from './import-model';
 import {
+  NO_MAP_PROBLEMS,
+  NO_UPLOAD_ERRORS,
   importReducer,
   initialState,
   initialValues,
@@ -55,6 +73,7 @@ import {
 import { MappingStep } from './mapping-step';
 import { ReviewStep, type RowsState } from './review-step';
 import { UploadStep } from './upload-step';
+import type { VocabularyListState } from './vocabulary-field';
 import type { ProjectDefaults } from '../add-keywords/add-keywords-dialog';
 import type { ProjectScope } from '../rankings-queries';
 import { useVocabularyList } from '../taxonomy-queries';
@@ -64,6 +83,7 @@ import { StepperDialog } from '@/components/ui/stepper-dialog';
 import { isApiProblem } from '@/lib/api/problem';
 import { uploadForm } from '@/lib/api/upload';
 import { formatInteger } from '@/lib/format';
+import { useMembership } from '@/lib/permissions';
 
 /** The rows each outcome lists in Review; the report holds all of them. */
 const ROWS_SHOWN = 20;
@@ -85,6 +105,17 @@ export interface ImportDialogProps {
 
 const isAbort = (error: unknown): boolean => error instanceof DOMException && error.name === 'AbortError';
 
+/** The catalog key of the words for an import that cannot go on, other than a failure (told by its code). */
+const ENDED_KEYS = {
+  expired: 'expired',
+  failed: 'failed',
+  gone: 'gone',
+  slow: 'readingSlow',
+} as const satisfies Record<Ended, string>;
+
+/** The code that says why an import failed: its own, or the one of its operation. */
+const failureCodeOf = (read: KeywordImport): string | null => read.error_code ?? read.operation.error?.code ?? null;
+
 /**
  * Import keywords (16-drawers-dialogs-popovers.md section 4.6, 10-forms.md section 15): a `StepperDialog`
  * with Upload, Map columns (files only), Review and Confirm. The steps draw what the state holds; this
@@ -94,7 +125,9 @@ const isAbort = (error: unknown): boolean => error instanceof DOMException && er
 export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults }: ImportDialogProps): ReactElement {
   const t = useTranslations('rankings.import');
   const common = useTranslations('common');
+  const failureText = useFailureText();
   const queryClient = useQueryClient();
+  const membership = useMembership();
   const path = { workspace_id: scope.workspaceId, project_id: scope.projectId };
 
   const start = useMemo(
@@ -115,8 +148,22 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
   const confirming = useRef(false);
   // The import whose archived rows were last told to unarchive, which a later Confirm may have to take back
   const unarchiveSent = useRef<string | null>(null);
+  // The import that needs no more stopping: the dialog closed on it, or its write started
+  const abandoned = useRef<string | null>(null);
+  // The dialog was closed and still holds what it showed, which it drops when it opens again
+  const closed = useRef(false);
+  // Where focus goes after Start again
+  const [focusRequest, setFocusRequest] = useState(0);
 
   const vocabularies = useVocabularyList(scope, open);
+  // A member limited to some projects may name only the vocabularies of a project (the API refuses the others)
+  const vocabularyList = useMemo(
+    () => selectableVocabularies(vocabularies.data?.data ?? [], membership.project_ids !== null),
+    [vocabularies.data, membership.project_ids],
+  );
+  const vocabularyState: VocabularyListState =
+    vocabularies.data !== undefined ? 'ready' : vocabularies.isError ? 'error' : 'loading';
+  const vocabularyLoad = { state: vocabularyState, onRetry: () => void vocabularies.refetch() };
   const current = useImport(scope, state.importId, DIALOG_POLL_MS);
   const imported = current.data;
   const phase = imported === undefined ? null : importPhase(imported.status);
@@ -150,6 +197,19 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
   const changeImport = useMutation(CHANGE_IMPORT);
   const confirmImport = useMutation(CONFIRM_IMPORT);
   const { mutate: cancelImport } = useMutation(CANCEL_IMPORT);
+  // The upload goes through the mutation cache like every other write, so an answer that says the session is
+  // gone is handled where all of them are handled
+  const sendFile = useMutation({
+    mutationFn: ({ form, signal }: { form: FormData; signal: AbortSignal }): Promise<unknown> =>
+      uploadForm(uploadPath(scope), form, {
+        signal,
+        onProgress: ({ loaded, total }) =>
+          dispatch({
+            type: 'progress',
+            percent: total === null || total === 0 ? null : Math.min(100, Math.round((loaded / total) * 100)),
+          }),
+      }),
+  });
 
   /** The words for what the API refused or did not answer; `null` for a wait that was cut short on purpose. */
   const problemText = (error: unknown): string | null => {
@@ -172,8 +232,34 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     if (message !== null) dispatch({ type: 'alert', message });
     return 'invalid';
   };
-  const end = (reason: Ended): Verdict => {
-    dispatch({ type: 'ended', reason });
+  const end = (reason: Ended, code: string | null = null): Verdict => {
+    dispatch({ type: 'ended', reason, code });
+    return 'invalid';
+  };
+
+  /**
+   * What the API said of the vocabularies chosen, put on the choice it is about: on the Map step for a file, on
+   * the Upload step for a paste's tags. `null` when the refusal is about something else.
+   */
+  const refuseVocabulary = (error: unknown, held: ImportState): Verdict | null => {
+    if (!isApiProblem(error, 'validation_failed')) return null;
+    const refused = vocabularyProblemsOf(error.errors);
+    if (refused.tags === null && refused.topic === null) return null;
+    if (held.values.source === 'paste' && held.step === 'upload' && refused.tags !== null) {
+      dispatch({ type: 'upload-errors', errors: { ...NO_UPLOAD_ERRORS, tagsVocabularyProblem: refused.tags } });
+      return 'invalid';
+    }
+    dispatch({ type: 'map-problems', problems: { ...NO_MAP_PROBLEMS, checked: true, vocabulary: refused } });
+    // From Upload the choice is on the next step: the person is told here, and goes there to change it
+    if (held.step === 'upload') {
+      dispatch({
+        type: 'alert',
+        message:
+          refused.tags === 'not_allowed' || refused.topic === 'not_allowed'
+            ? t('vocabularyNotAllowed')
+            : t('vocabularyUnknown'),
+      });
+    }
     return 'invalid';
   };
 
@@ -190,14 +276,21 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     [queryClient, scope, cancelImport],
   );
 
-  /** Back to an empty first step, and the end of every request and wait the dialog had going. */
+  /**
+   * The end of a session: every request and wait the dialog had going stops, and the import it held is stopped.
+   * What the dialog shows stays as it was (it is closing, and an empty first step would flash while it does);
+   * it is dropped when the dialog opens again.
+   */
   const abandon = useCallback((): void => {
     const held = latest.current;
     session.current.controller.abort();
     session.current.controller = new AbortController();
-    if (held.importId !== null && !confirming.current) stopImport(held.importId);
-    latest.current = initialState(startValues.current);
-    dispatch({ type: 'reset', values: startValues.current });
+    // A close is seen twice (the handler, then the route's change of `open`): the import is stopped once
+    if (held.importId !== null && held.importId !== abandoned.current && !confirming.current) {
+      stopImport(held.importId);
+    }
+    abandoned.current = held.importId;
+    closed.current = true;
   }, [stopImport]);
 
   // A screen that goes away with the dialog open ends its requests and waits and stops the import, as a close
@@ -213,7 +306,9 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     return () => {
       holder.controller.abort();
       const held = latest.current;
-      if (held.importId !== null && !confirming.current) stopLatest.current(held.importId);
+      if (held.importId !== null && held.importId !== abandoned.current && !confirming.current) {
+        stopLatest.current(held.importId);
+      }
     };
   }, []);
 
@@ -224,22 +319,30 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     wasOpen.current = open;
   }, [open, abandon]);
 
+  // Opened again after a session: an empty first step, before it is seen
+  useLayoutEffect(() => {
+    if (!open || !closed.current) return;
+    closed.current = false;
+    abandoned.current = null;
+    dispatch({ type: 'reset', values: startValues.current });
+  }, [open]);
+
   const settle = (importId: string): Promise<KeywordImport> =>
-    settledImport(queryClient, importKey(scope, importId), session.current.controller.signal);
+    settledImport(queryClient, importKey(scope, importId), session.current.controller.signal, READ_TIMEOUT_MS);
 
   /** What the dialog does with an import that finished reading: on to the next step, or why not. */
   const arrive = (read: KeywordImport, held: ImportState, fresh: boolean): Verdict => {
     const from = held.step;
     const values = held.values;
     const next = importPhase(read.status);
-    if (next === 'failed') return end('failed');
+    if (next === 'failed') return end('failed', failureCodeOf(read));
     if (next === 'expired') return end('expired');
     if (next === 'gone') return end('gone');
     if (next !== 'ready' && next !== 'needs_mapping') return fail(new Error(`Unexpected import status ${read.status}`));
     if (values.source === 'paste') {
       if (next === 'needs_mapping') {
         if (read.error_code === 'tags_vocabulary_missing') {
-          dispatch({ type: 'upload-errors', errors: { file: null, paste: null, tagsVocabulary: true } });
+          dispatch({ type: 'upload-errors', errors: { ...NO_UPLOAD_ERRORS, tagsVocabulary: true } });
           return 'invalid';
         }
         return fail(new Error(`Unexpected mapping problem ${read.error_code ?? 'none'}`));
@@ -255,18 +358,19 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
         tagsVocabulary: values.tagsVocabulary,
         topicVocabulary: values.topicVocabulary,
       });
-      if (found.form === null && Object.keys(found.rows).length === 0) {
-        return fail(new Error(`Unexpected mapping problem ${read.error_code ?? 'none'}`));
-      }
-      dispatch({ type: 'map-problems', problems: { checked: true, server: {} } });
-      // From Upload the person goes to Map to fix it; from Map they stay there
+      const blocked = found.form !== null || Object.keys(found.rows).length > 0;
+      // From Map, a mapping the check finds sound and the API does not is not something the person can fix
+      if (from === 'map' && !blocked) return fail(new Error(`Unexpected mapping problem ${read.error_code ?? 'none'}`));
+      dispatch({ type: 'map-problems', problems: { ...NO_MAP_PROBLEMS, checked: true } });
+      // From Map the person stays to fix it. From Upload they go there whatever the check says: a choice made on
+      // Map and not sent yet (Back came first) may be what the import is waiting for.
       if (from === 'map') return 'invalid';
     }
     dispatch({ type: 'passed', step: from });
     return 'ok';
   };
 
-  /** Sends the file or the paste and answers the new import's id. */
+  /** Sends the file or the paste and answers the new import's id; a paste's answer is the import itself. */
   const createFrom = async (values: UploadValues, signal: AbortSignal): Promise<string> => {
     const body = importDefaults(values);
     if (values.source === 'paste') {
@@ -274,22 +378,14 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
         params: { path },
         body: { source: 'paste', paste: values.paste, defaults: body },
       });
+      queryClient.setQueryData(importKey(scope, answer.data.import_id), answer.data);
       return answer.data.import_id;
     }
     if (values.file === null) throw new Error('The upload has no file');
     const form = new FormData();
     form.set('file', values.file);
     form.set('options', JSON.stringify({ defaults: body }));
-    const answer = UPLOAD_ANSWER.parse(
-      await uploadForm(uploadPath(scope), form, {
-        signal,
-        onProgress: ({ loaded, total }) =>
-          dispatch({
-            type: 'progress',
-            percent: total === null || total === 0 ? null : Math.min(100, Math.round((loaded / total) * 100)),
-          }),
-      }),
-    );
+    const answer = UPLOAD_ANSWER.parse(await sendFile.mutateAsync({ form, signal }));
     return answer.data.import_id;
   };
 
@@ -306,22 +402,41 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     dispatch({ type: 'working', on: true });
     try {
       let importId = held.importId;
-      const fresh = importId === null || !sameSubmission(held.submitted, submitted);
+      const unchanged = sameSubmission(held.submitted, submitted);
+      // The same file or paste with other defaults is the same import, read again: nothing is sent twice
+      const defaultsOnly = !unchanged && sameSource(held.submitted, submitted);
+      const fresh = importId === null || (!unchanged && !defaultsOnly);
       if (fresh) {
-        // Another file or other defaults than the import was made from: it is replaced
+        // Another file than the import was made from: it is replaced
         if (importId !== null) stopImport(importId);
-        importId = await createFrom(held.values, signal);
+        const made = await createFrom(held.values, signal);
+        // Closed while it went up: the import exists, and nothing else would stop it
+        if (signal.aborted) {
+          stopImport(made);
+          return 'invalid';
+        }
+        importId = made;
         dispatch({ type: 'progress', percent: null });
-        await queryClient.fetchQuery(importQueryOptions(scope, importId));
+        dispatch({ type: 'imported', importId: made, submitted });
+      } else if (defaultsOnly && importId !== null) {
+        // The rows listed were of the old reading
+        queryClient.removeQueries({ queryKey: rowsKey(scope, importId) });
+        const answer = await changeImport.mutateAsync({
+          params: { path: { ...path, import_id: importId } },
+          body: { defaults: importDefaults(held.values) },
+        });
         if (signal.aborted) return 'invalid';
-        dispatch({ type: 'imported', importId, submitted });
+        queryClient.setQueryData(importKey(scope, importId), answer.data);
+        dispatch({ type: 'resubmitted', submitted });
       }
       if (importId === null) return 'invalid';
       const read = await settle(importId);
       return arrive(read, { ...held, importId }, fresh);
     } catch (error) {
       // A dialog closed meanwhile has nothing to show an error on
-      return signal.aborted ? 'invalid' : fail(error);
+      if (signal.aborted) return 'invalid';
+      if (error instanceof ReadTimeoutError) return end('slow');
+      return refuseVocabulary(error, held) ?? fail(error);
     } finally {
       if (!signal.aborted) dispatch({ type: 'working', on: false });
       if (!signal.aborted) dispatch({ type: 'progress', percent: null });
@@ -334,7 +449,7 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     const importId = held.importId;
     const chosen = { tagsVocabulary: held.values.tagsVocabulary, topicVocabulary: held.values.topicVocabulary };
     const found = mappingProblems(held.mapping, chosen);
-    dispatch({ type: 'map-problems', problems: { checked: true, server: {} } });
+    dispatch({ type: 'map-problems', problems: { ...NO_MAP_PROBLEMS, checked: true } });
     if (found.form !== null || Object.keys(found.rows).length > 0) return 'invalid';
     const known = queryClient.getQueryData<KeywordImport>(importKey(scope, importId));
     if (known !== undefined && importPhase(known.status) === 'ready' && isMappingCurrent(known, held.mapping, chosen)) {
@@ -352,13 +467,25 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
       });
       if (signal.aborted) return 'invalid';
       queryClient.setQueryData(importKey(scope, importId), answer.data);
+      // What was reviewed and confirmed was of the reading that is over
+      dispatch({ type: 'reparsed' });
       return arrive(await settle(importId), held, false);
     } catch (error) {
       if (signal.aborted) return 'invalid';
+      if (error instanceof ReadTimeoutError) return end('slow');
       if (isApiProblem(error, 'validation_failed')) {
-        const twice = mappedTwiceRows(error.errors, held.mapping);
-        if (Object.keys(twice).length > 0) {
-          dispatch({ type: 'map-problems', problems: { checked: true, server: twice } });
+        const rows = {
+          ...mappedTwiceRows(error.errors, held.mapping),
+          ...repeatedHeaderRows(error.errors, held.mapping),
+        };
+        const refused = vocabularyProblemsOf(error.errors);
+        if (Object.keys(rows).length > 0 || refused.tags !== null || refused.topic !== null) {
+          dispatch({ type: 'map-problems', problems: { checked: true, server: rows, vocabulary: refused } });
+          return 'invalid';
+        }
+        // Two keys that name one header, though no two columns do: the file is not one this step can map
+        if (error.errors.some((item) => item.code === 'header_repeated')) {
+          dispatch({ type: 'alert', message: t('headerRepeated') });
           return 'invalid';
         }
       }
@@ -385,14 +512,22 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
       const unarchiving = chosen.unarchive > 0;
       if (unarchiving || (known.counts.conflict > 0 && unarchiveSent.current === importId)) {
         const actions = await conflictRowActions(scope, importId, unarchiving ? 'merge' : 'skip');
+        // Marked before the first request: a batch may be applied on the API though its answer never arrives, and
+        // a later choice to leave the keywords archived must still take them all back
+        if (unarchiving) unarchiveSent.current = importId;
         for (let at = 0; at < actions.length; at += ROW_ACTIONS_PER_REQUEST) {
           if (signal.aborted) return 'invalid';
-          await changeImport.mutateAsync({
+          const answer = await changeImport.mutateAsync({
             params: { path: { ...path, import_id: importId } },
             body: { row_actions: actions.slice(at, at + ROW_ACTIONS_PER_REQUEST) },
           });
+          // The answer is the import as the actions leave it, with the quota they use
+          queryClient.setQueryData(importKey(scope, importId), answer.data);
         }
-        unarchiveSent.current = unarchiving ? importId : null;
+        if (!unarchiving) unarchiveSent.current = null;
+        const after = queryClient.getQueryData<KeywordImport>(importKey(scope, importId));
+        // Unarchiving can take the import over the limit: the step says so, instead of the refusal of Confirm
+        if (after !== undefined && outcomeSummary(after.counts, after.quota).overQuota > 0) return 'invalid';
       }
       if (signal.aborted) return 'invalid';
       confirming.current = true;
@@ -404,6 +539,8 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
       queryClient.setQueryData(importKey(scope, importId), started.data);
       // The write has started: the header follows it, and closing the dialog now stops nothing
       onConfirmed(importId);
+      // An answer that comes after the dialog was closed has nobody to move
+      if (signal.aborted) return 'invalid';
       abandon();
       onOpenChange(false);
       return 'ok';
@@ -411,7 +548,11 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
       if (signal.aborted) return 'invalid';
       if (isApiProblem(error, 'invalid_state_transition')) {
         const over = await endedState(importId);
-        if (over !== null) return end(over);
+        if (over !== null) return end(over.reason, over.code);
+      }
+      if (isApiProblem(error, 'forbidden')) {
+        dispatch({ type: 'alert', message: t('confirmForbidden') });
+        return 'invalid';
       }
       return fail(error);
     } finally {
@@ -424,11 +565,13 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
    * Why an import cannot be confirmed any more, from what it is now. A read that fails says nothing more
    * than the refusal did, which the caller shows.
    */
-  const endedState = async (importId: string): Promise<Ended | null> => {
+  const endedState = async (importId: string): Promise<{ reason: Ended; code: string | null } | null> => {
     try {
       const read = await queryClient.fetchQuery({ ...importQueryOptions(scope, importId), staleTime: 0 });
       const next = importPhase(read.status);
-      return next === 'expired' || next === 'gone' || next === 'failed' ? next : null;
+      if (next === 'expired') return { reason: 'expired', code: null };
+      if (next === 'gone') return { reason: 'gone', code: null };
+      return next === 'failed' ? { reason: 'failed', code: failureCodeOf(read) } : null;
     } catch {
       return null;
     }
@@ -451,15 +594,16 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
   };
 
   const startAgain = (): void => {
-    // Nothing left to stop: the import is over. The options stay, the file goes.
+    // The import is over, or was given up on: a read that never ended is stopped. The options stay, the file goes.
+    if (state.importId !== null) stopImport(state.importId);
     session.current.controller.abort();
     session.current.controller = new AbortController();
     dispatch({ type: 'reset', values: { ...state.values, file: null, head: null } });
+    setFocusRequest((count) => count + 1);
   };
 
   const ids = stepsOf(state.values.source);
   const steps = ids.map((id): { id: StepId; label: string } => ({ id, label: t(`steps.${id}`) }));
-  const vocabularyList = vocabularies.data?.data ?? [];
   const mapProblems = mappingProblems(state.mapping, {
     tagsVocabulary: state.values.tagsVocabulary,
     topicVocabulary: state.values.topicVocabulary,
@@ -467,6 +611,7 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
   const shownProblems = {
     form: state.mapProblems.checked ? mapProblems.form : null,
     rows: { ...(state.mapProblems.checked ? mapProblems.rows : {}), ...state.mapProblems.server },
+    vocabulary: state.mapProblems.vocabulary,
   };
 
   // How far an upload has gone, or the reading of it: the Upload step's bar
@@ -520,7 +665,11 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     >
       {state.ended !== null ? (
         <>
-          <FormAlert message={t(state.ended)} tabIndex={-1} live={false} />
+          <FormAlert
+            message={state.ended === 'failed' ? failureText(state.endedCode, t('failed')) : t(ENDED_KEYS[state.ended])}
+            tabIndex={-1}
+            live={false}
+          />
           <div>
             <Button variant="secondary" onClick={startAgain}>
               {t('startAgain')}
@@ -548,6 +697,8 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
               progressText={progressText}
               busy={state.working}
               vocabularies={vocabularyList}
+              vocabularyList={vocabularyLoad}
+              focusRequest={focusRequest}
             />
           ) : null}
           {state.step === 'map' && state.values.head !== null ? (
@@ -562,6 +713,7 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
                 dispatch({ type: 'values', patch: kind === 'tags' ? { tagsVocabulary: id } : { topicVocabulary: id } })
               }
               vocabularies={vocabularyList}
+              vocabularyList={vocabularyLoad}
               problems={shownProblems}
               alert={state.alert}
               busy={state.working}

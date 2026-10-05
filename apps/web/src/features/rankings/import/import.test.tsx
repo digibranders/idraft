@@ -1,28 +1,36 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { getResponse, http, HttpResponse } from 'msw';
-import { useState, type ReactElement } from 'react';
+import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
 
 import { CANCEL_PATH, CONFIRM_PATH, IMPORT, IMPORTS } from './import-queries';
-import type { Role } from '@/lib/api/types';
 import { MOCK_VOCABULARY_IDS } from '@/mocks/entity-fixtures';
-import { handlers } from '@/mocks/handlers';
 import { forgetImports } from '@/mocks/handlers/keyword-imports';
 import { mswPath, problem } from '@/mocks/respond';
-import { KEYWORD_IMPORT } from '@/test/api-shapes';
 import { axe } from '@/test/axe';
-import { server } from '@/test/msw';
 import {
-  fynix,
-  keywordsIn,
-  loadedGrid,
-  rankingsAs as as,
-  restoreWideScreen,
-  stubWideScreen,
-} from '@/test/rankings-harness';
-import { renderWithProviders, type ProvidedRender } from '@/test/render';
+  Controlled,
+  NEW_AND_TAGGED,
+  PARSED,
+  SLOW_TEST,
+  UPLOAD,
+  WRITE_TEST,
+  WRITTEN,
+  answerImportAs,
+  choose,
+  countIn,
+  csv,
+  fileInput,
+  importPaste,
+  openImport,
+  press,
+  spy,
+  uploadAndContinue,
+} from '@/test/import-harness';
+import { importFixture } from '@/test/import-fixtures';
+import { server } from '@/test/msw';
+import { fynix, keywordsIn, loadedGrid, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
+import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
@@ -42,97 +50,6 @@ afterEach(() => {
   // The mocks keep imports in memory: one test's write must not be the next test's "write under way"
   forgetImports();
 });
-
-/** A parse of the mocks takes 1.5 seconds and the dialog asks again every second. */
-const PARSED = { timeout: 8_000 };
-const SLOW_TEST = 30_000;
-
-const PROJECT = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
-const UPLOAD = `${PROJECT}/keyword-imports/upload`;
-const IMPORT_SHAPE = z.object({ data: KEYWORD_IMPORT });
-
-const csv = (text: string, name = 'keywords.csv'): File => new File([text], name, { type: 'text/csv' });
-
-/** Every request of a route, with its JSON body, answered as before: `return undefined` passes it on. */
-function spy(method: 'post' | 'patch' | 'get', path: string): { bodies: unknown[] } {
-  const seen: { bodies: unknown[] } = { bodies: [] };
-  const handler = async ({ request }: { request: Request }): Promise<undefined> => {
-    const text = await request.clone().text();
-    seen.bodies.push(text === '' ? null : text.startsWith('{') ? JSON.parse(text) : text);
-    return undefined;
-  };
-  server.use(http[method](mswPath(path), handler));
-  return seen;
-}
-
-/** The answers about an import, changed by `change`: what the API would say of an import in another state. */
-function answerImportAs(change: (view: z.infer<typeof KEYWORD_IMPORT>) => z.infer<typeof KEYWORD_IMPORT>): void {
-  server.use(
-    http.get(mswPath(IMPORT), async ({ request }) => {
-      const real = await getResponse([...handlers], new Request(request.url, { headers: request.headers }));
-      const body = IMPORT_SHAPE.parse(await real?.json());
-      return HttpResponse.json({ data: change(body.data) });
-    }),
-  );
-}
-
-/** Rankings with the Import button wired to a state, as the route does. */
-function Controlled({ member = 'editor', changes }: { member?: Role; changes: boolean[] }): ReactElement {
-  const [open, setOpen] = useState(false);
-  return as(member, fynix.project_id, {
-    importOpen: open,
-    onImportOpenChange: (next) => {
-      changes.push(next);
-      setOpen(next);
-    },
-  });
-}
-
-async function openImport(
-  user: ProvidedRender['user'],
-  changes: boolean[] = [],
-): Promise<{ dialog: HTMLElement; changes: boolean[] }> {
-  await loadedGrid();
-  await user.click(screen.getByRole('button', { name: 'Import' }));
-  return { dialog: await screen.findByRole('dialog', { name: 'Import keywords' }), changes };
-}
-
-/** The value of a metric of the strip: the definition after the term named `label`. */
-function countIn(strip: HTMLElement, label: string): HTMLElement {
-  const value = within(strip).getByText(label).closest('dt')?.nextElementSibling;
-  if (!(value instanceof HTMLElement)) throw new Error(`The summary has no count for ${label}`);
-  return value;
-}
-
-const fileInput = (): HTMLInputElement => {
-  const input = document.querySelector<HTMLInputElement>('input[type="file"]');
-  if (input === null) throw new Error('The dialog has no file input');
-  return input;
-};
-
-const press = (dialog: HTMLElement, name: string): Promise<void> =>
-  userEvent.click(within(dialog).getByRole('button', { name }));
-
-/** Chooses `option` in the Select named `name`. */
-async function choose(user: ProvidedRender['user'], dialog: HTMLElement, name: string, option: string): Promise<void> {
-  await user.click(within(dialog).getByRole('combobox', { name }));
-  await user.click(await screen.findByRole('option', { name: option }));
-}
-
-/** Uploads `file` and continues to the next step. */
-async function uploadAndContinue(user: ProvidedRender['user'], dialog: HTMLElement, file: File): Promise<void> {
-  await user.upload(fileInput(), file);
-  await within(dialog).findByText(new RegExp(`^${file.name}, `));
-  await user.click(within(dialog).getByRole('button', { name: 'Continue' }));
-}
-
-const NEW_AND_TAGGED = [
-  'keyword,tags',
-  'rank tracker api,blog',
-  'seo audit,guides',
-  'site:example.com seo,blog',
-  'backlink watcher,blog',
-].join('\n');
 
 describe('Import dialog', () => {
   it(
@@ -475,60 +392,8 @@ describe('Import dialog', () => {
   });
 });
 
-/** The header asks about a write every 5 seconds, and the mock writes three rows in 3. */
-const WRITTEN = { timeout: 15_000 };
-const WRITE_TEST = 40_000;
-
-type KeywordImport = z.infer<typeof KEYWORD_IMPORT>;
-
 /** An import that is being written, 12 rows of 40 done: what a reload finds. */
-const WRITING: KeywordImport = {
-  import_id: '0192d1a8-e007-7a10-8e07-0000000009aa',
-  source: 'upload',
-  original_filename: 'keywords.csv',
-  status: 'writing',
-  column_mapping: { keyword: 'keyword' },
-  defaults: {},
-  counts: {
-    rows_total: 40,
-    new: 40,
-    duplicate: 0,
-    variant: 0,
-    conflict: 0,
-    invalid: 0,
-    created: 0,
-    skipped: 0,
-    merged: 0,
-  },
-  quota: null,
-  error_code: null,
-  created_by: { user_id: '0192d1a8-0000-7000-8000-000000000001', name: 'Mira Okafor', email: 'mira@fynix.io' },
-  created_at: '2026-10-05T09:00:00Z',
-  expires_at: '2026-10-12T09:00:00Z',
-  finished_at: null,
-  operation: {
-    kind: 'keyword_import',
-    status: 'running',
-    progress: { done: 12, total: 40, unit: 'rows' },
-    started_at: '2026-10-05T09:00:00Z',
-    finished_at: null,
-    error: null,
-    links: { self: '/api/v1/import' },
-  },
-};
-
-/** Pastes `text`, goes through Review and Confirm, and presses the last button. */
-async function importPaste(user: ProvidedRender['user'], text: string, button: string): Promise<void> {
-  const { dialog } = await openImport(user);
-  await user.click(within(dialog).getByRole('radio', { name: 'Paste' }));
-  await user.click(within(dialog).getByRole('textbox', { name: 'Keywords' }));
-  await user.paste(text);
-  await press(dialog, 'Continue');
-  await within(dialog).findByRole('heading', { name: 'New' }, PARSED);
-  await press(dialog, 'Continue');
-  await press(dialog, button);
-  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Import keywords' })).toBeNull());
-}
+const WRITING = importFixture();
 
 describe('Import progress', () => {
   afterEach(() => {
@@ -616,7 +481,7 @@ describe('Import progress', () => {
               operation: {
                 ...view.operation,
                 status: 'failed',
-                error: { code: 'provider_down', detail: 'The disk is full' },
+                error: { code: 'write_failed', detail: 'The disk is full' },
               },
             }
           : view,
@@ -624,8 +489,16 @@ describe('Import progress', () => {
       const { user } = renderWithProviders(<Controlled changes={[]} />);
       await loadedGrid();
       await importPaste(user, 'rank tracker api\nbacklink watcher', 'Import 2 keywords');
-      // An error toast is announced as well as shown, so the text is found twice
-      expect(await screen.findAllByText('Import failed: The disk is full', undefined, WRITTEN)).not.toHaveLength(0);
+      // An error toast is announced as well as shown, so the text is found twice; the code is told in words,
+      // and the API's own English detail is not shown
+      expect(
+        await screen.findAllByText(
+          'Import failed: The keywords could not be saved. Try the import again in a few minutes.',
+          undefined,
+          WRITTEN,
+        ),
+      ).not.toHaveLength(0);
+      expect(screen.queryByText(/The disk is full/)).toBeNull();
       await waitFor(() => expect(screen.queryByRole('progressbar', { name: 'Importing keywords' })).toBeNull());
     },
     WRITE_TEST,

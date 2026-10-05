@@ -2,7 +2,7 @@
 
 import { FileText, Upload, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useId, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useId, useRef, useState, type ReactElement, type Ref } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { GroupError } from '@/components/ui/field';
@@ -19,6 +19,8 @@ export interface FileDropzoneProps {
   file: { name: string; sizeText: string } | null;
   onFile: (file: File) => void;
   onRemove: () => void;
+  /** The "Choose file" button, for focus to be sent to. */
+  chooseRef?: Ref<HTMLButtonElement> | undefined;
   error: string | null;
   /** 0 to 100 while uploading; `null` otherwise. */
   progress: number | null;
@@ -39,6 +41,7 @@ export function FileDropzone({
   file,
   onFile,
   onRemove,
+  chooseRef,
   error,
   progress,
   progressText,
@@ -113,7 +116,13 @@ export function FileDropzone({
         >
           <Icon icon={Upload} className="shrink-0 text-foreground-tertiary" />
           <p className="type-body text-foreground-secondary">{dragging ? t('dropzoneActive') : t('dropzone')}</p>
-          <Button variant="secondary" size="sm" disabled={disabled} onClick={() => input.current?.click()}>
+          <Button
+            ref={chooseRef}
+            variant="secondary"
+            size="sm"
+            disabled={disabled}
+            onClick={() => input.current?.click()}
+          >
             {t('chooseFile')}
           </Button>
         </div>

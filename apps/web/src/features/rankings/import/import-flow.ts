@@ -6,8 +6,16 @@ import {
   type KeywordImport,
   type MappingRowProblem,
 } from './import-model';
-import { NO_UPLOAD_ERRORS, type Submitted, type UploadErrors, type UploadValues } from './import-state';
+import {
+  NO_UPLOAD_ERRORS,
+  type Submitted,
+  type UploadErrors,
+  type UploadValues,
+  type VocabularyProblem,
+  type VocabularyProblems,
+} from './import-state';
 import type { ImportDefaults, ValidationItem } from '@/lib/api/types';
+import { headerKey } from '@/lib/csv/csv-head';
 
 /** The counts of an import that has none yet. */
 export const NO_COUNTS: Counts = {
@@ -74,24 +82,29 @@ export function submissionOf(values: UploadValues): Submitted {
   };
 }
 
-export const sameSubmission = (first: Submitted | null, second: Submitted): boolean =>
-  first !== null &&
-  first.source === second.source &&
-  first.file === second.file &&
-  first.paste === second.paste &&
-  first.options === second.options;
+/** The same file or paste as the import was made from, whatever the options: only its defaults may differ. */
+export const sameSource = (first: Submitted | null, second: Submitted): boolean =>
+  first !== null && first.source === second.source && first.file === second.file && first.paste === second.paste;
 
-/** The mapping the Map step starts from: the API's own, or the one the file's headers name. */
+export const sameSubmission = (first: Submitted | null, second: Submitted): boolean =>
+  first !== null && sameSource(first, second) && first.options === second.options;
+
+/**
+ * The mapping the Map step starts from: the API's own, or the one the file's headers name. The API's keys are
+ * put onto the headers the browser read, matched trimmed and without case as the API matches them, so the
+ * mapping holds one entry per column of the file and never a key the Map step does not show.
+ */
 export function startingMapping(
   imported: Pick<KeywordImport, 'column_mapping'>,
   headers: readonly string[],
 ): Record<string, ImportField> {
-  const known = Object.fromEntries(
-    Object.entries(imported.column_mapping).flatMap(([header, name]): [string, ImportField][] => {
-      const field = IMPORT_FIELDS.find((candidate) => candidate === name);
-      return field === undefined ? [] : [[header, field]];
-    }),
-  );
+  const headerOf = new Map(headers.map((header) => [headerKey(header), header]));
+  const known: Record<string, ImportField> = {};
+  for (const [key, name] of Object.entries(imported.column_mapping)) {
+    const field = IMPORT_FIELDS.find((candidate) => candidate === name);
+    const header = headerOf.get(headerKey(key));
+    if (field !== undefined && header !== undefined) known[header] = field;
+  }
   return Object.keys(known).length > 0 ? known : autoMapping(headers);
 }
 
@@ -110,11 +123,12 @@ export function isMappingCurrent(
   mapping: Readonly<Record<string, ImportField>>,
   vocabularies: { tagsVocabulary: string | null; topicVocabulary: string | null },
 ): boolean {
-  const sent = imported.column_mapping;
+  // The API's keys are the file's own header text; the mapping's are the trimmed ones the browser sends
+  const sent = new Map(Object.entries(imported.column_mapping).map(([key, field]) => [headerKey(key), field]));
   const entries = Object.entries(mapping);
   return (
-    entries.length === Object.keys(sent).length &&
-    entries.every(([header, field]) => sent[header] === field) &&
+    entries.length === sent.size &&
+    entries.every(([header, field]) => sent.get(headerKey(header)) === field) &&
     vocabularyOf(imported, 'tags_vocabulary_id') === vocabularies.tagsVocabulary &&
     vocabularyOf(imported, 'topic_vocabulary_id') === vocabularies.topicVocabulary
   );
@@ -131,11 +145,45 @@ export function mappedTwiceRows(
   const rows: Record<string, MappingRowProblem> = {};
   for (const item of errors) {
     if (item.code !== 'field_mapped_twice') continue;
-    const field = mapping[item.path.replace(/^column_mapping\./, '')];
+    const named = headerKey(item.path.replace(/^column_mapping\./, ''));
+    const field = Object.entries(mapping).find(([header]) => headerKey(header) === named)?.[1];
     if (field === undefined) continue;
     for (const [header, other] of Object.entries(mapping)) {
       if (other === field) rows[header] = 'mapped_twice';
     }
   }
   return rows;
+}
+
+/**
+ * Every column whose header reads as another's once trimmed and without case, when the API refused the mapping
+ * with `header_repeated`. The file's headers are checked for this before they are shown, so a column is
+ * marked only if a mapping held two of them; an empty answer means the refusal names none.
+ */
+export function repeatedHeaderRows(
+  errors: readonly ValidationItem[],
+  mapping: Readonly<Record<string, ImportField>>,
+): Record<string, MappingRowProblem> {
+  if (!errors.some((item) => item.code === 'header_repeated')) return {};
+  const headers = Object.keys(mapping);
+  const rows: Record<string, MappingRowProblem> = {};
+  for (const header of headers) {
+    if (headers.filter((other) => headerKey(other) === headerKey(header)).length > 1) rows[header] = 'header_repeated';
+  }
+  return rows;
+}
+
+/**
+ * The vocabulary a refusal of the defaults is about: `vocabulary_not_allowed` for a workspace-wide one that a
+ * member limited to some projects may not name, any other `vocabulary_*` code for one the project cannot see.
+ */
+export function vocabularyProblemsOf(errors: readonly ValidationItem[]): VocabularyProblems {
+  const problems: Record<'tags' | 'topic', VocabularyProblem | null> = { tags: null, topic: null };
+  for (const item of errors) {
+    if (!item.code.startsWith('vocabulary_')) continue;
+    const problem: VocabularyProblem = item.code === 'vocabulary_not_allowed' ? 'not_allowed' : 'unknown';
+    if (item.path === 'defaults.tags_vocabulary_id') problems.tags = problem;
+    else if (item.path === 'defaults.topic_vocabulary_id') problems.topic = problem;
+  }
+  return problems;
 }

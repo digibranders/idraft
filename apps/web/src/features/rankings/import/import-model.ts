@@ -1,4 +1,5 @@
 import type { components } from '@/lib/api/schema';
+import { headerKey } from '@/lib/csv/csv-head';
 
 export type KeywordImport = components['schemas']['KeywordImport'];
 export type ImportStatus = KeywordImport['status'];
@@ -62,13 +63,13 @@ export function importPhase(status: ImportStatus): ImportPhase {
 export function autoMapping(headers: readonly string[]): Record<string, ImportField> {
   const mapping: Record<string, ImportField> = {};
   for (const header of headers) {
-    const field = IMPORT_FIELDS.find((candidate) => candidate === header.trim().toLowerCase());
+    const field = IMPORT_FIELDS.find((candidate) => candidate === headerKey(header));
     if (field !== undefined) mapping[header] = field;
   }
   return mapping;
 }
 
-export type MappingRowProblem = 'mapped_twice' | 'vocabulary_missing';
+export type MappingRowProblem = 'mapped_twice' | 'vocabulary_missing' | 'header_repeated';
 
 /** What stops a mapping: no keyword column (the form), a field mapped twice or a vocabulary missing (a row). */
 export function mappingProblems(
@@ -174,6 +175,7 @@ export const REASON_CODES = [
   'depth_profile_invalid',
   'target_url_invalid',
   'group_path_invalid',
+  'tags_invalid',
   'repeated_row',
   'already_tracked',
   'variant',
@@ -194,6 +196,7 @@ export const REASON_KEYS = {
   depth_profile_invalid: 'depthProfileInvalid',
   target_url_invalid: 'targetUrlInvalid',
   group_path_invalid: 'groupPathInvalid',
+  tags_invalid: 'tagsInvalid',
   repeated_row: 'repeatedRow',
   already_tracked: 'alreadyTracked',
   variant: 'variant',
@@ -201,3 +204,81 @@ export const REASON_KEYS = {
 } as const satisfies Record<ReasonCode, string>;
 export const isReasonCode = (code: string | null): code is ReasonCode =>
   code !== null && (REASON_CODES as readonly string[]).includes(code);
+
+/** The most rows and columns the API reads from one file: past them an import fails with the codes below. */
+export const MAX_IMPORT_ROWS = 10_000;
+export const MAX_IMPORT_COLUMNS = 100;
+
+/** Why an import failed, as the API names it (`error_code` of the import, `operation.error.code`). */
+export const FAILURE_CODES = [
+  'not_utf8',
+  'not_csv',
+  'no_header',
+  'no_rows',
+  'duplicate_headers',
+  'too_many_rows',
+  'too_many_columns',
+  'parse_failed',
+  'write_failed',
+  'source_corrupt',
+  'source_unreadable',
+  'project_gone',
+  'expired',
+] as const;
+export type FailureCode = (typeof FAILURE_CODES)[number];
+
+/** The catalog key of a failure under `rankings.import.failures`: `t(`failures.${FAILURE_KEYS[code]}`)`. */
+export const FAILURE_KEYS = {
+  not_utf8: 'notUtf8',
+  not_csv: 'notCsv',
+  no_header: 'noHeader',
+  no_rows: 'noRows',
+  duplicate_headers: 'duplicateHeaders',
+  too_many_rows: 'tooManyRows',
+  too_many_columns: 'tooManyColumns',
+  parse_failed: 'parseFailed',
+  write_failed: 'writeFailed',
+  source_corrupt: 'sourceCorrupt',
+  source_unreadable: 'sourceUnreadable',
+  project_gone: 'projectGone',
+  expired: 'expired',
+} as const satisfies Record<FailureCode, string>;
+export const isFailureCode = (code: string | null | undefined): code is FailureCode =>
+  code !== null && code !== undefined && (FAILURE_CODES as readonly string[]).includes(code);
+
+/**
+ * The vocabularies a person can name in an import. A member limited to some projects may name only the
+ * vocabularies of a project: the workspace-wide ones are shared by every project, and the API refuses them
+ * (`vocabulary_not_allowed`).
+ */
+export function selectableVocabularies<T extends { project_id: string | null }>(
+  vocabularies: readonly T[],
+  limitedToProjects: boolean,
+): T[] {
+  return limitedToProjects ? vocabularies.filter((vocabulary) => vocabulary.project_id !== null) : [...vocabularies];
+}
+
+/** The path of this app's API in a link, or `null` for a link that leaves the app or the API. */
+function apiPathOf(link: string, origin: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(link, origin);
+  } catch {
+    return null;
+  }
+  return url.origin === origin && url.pathname.startsWith('/api/v1/') ? `${url.pathname}${url.search}` : null;
+}
+
+/**
+ * Where a finished import's report downloads from: its `result` link when it has one and the link is a path
+ * of this app's API, else the path the app knows. `null` when the import offers no report at all.
+ */
+export function reportLinkOf(
+  links: components['schemas']['OperationLinks'],
+  knownPath: string,
+  origin: string,
+): string | null {
+  const result = links.result;
+  if (result === undefined || result === null || result === '') return null;
+  return apiPathOf(result, origin) ?? knownPath;
+}

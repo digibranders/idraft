@@ -22,6 +22,8 @@ export default async function RankingsLayout({
   return (
     <Suspense fallback={<PageSkeleton />}>
       <RankingsRoute
+        workspaceSlug={workspace}
+        projectSlug={project}
         workspaceId={membership.workspace.workspace_id}
         projectId={current.project_id}
         timeZone={current.timezone}
