@@ -149,9 +149,10 @@ describe('ProjectShell', () => {
         .map((link) => `${link.textContent ?? ''} ${link.getAttribute('href') ?? ''}`);
       unmount();
     }
+    // Runs lists one project at a time: the link opens it on the project the member is in
     expect(asked).toEqual({
-      editor: ['Costs /digibranders/costs', 'Runs /digibranders/ops/runs'],
-      viewer: ['Runs /digibranders/ops/runs'],
+      editor: ['Costs /digibranders/costs', 'Runs /digibranders/ops/runs?project=fynix'],
+      viewer: ['Runs /digibranders/ops/runs?project=fynix'],
       billing: ['Costs /digibranders/costs'],
     });
   });

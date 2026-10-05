@@ -82,10 +82,18 @@ export const workspaceBudget = (list: readonly BudgetStatus[]): BudgetStatus | n
 
 /**
  * The budget a project's row shows: its budget for all workloads, else the one of its workload budgets that
- * is the most used. `null` when the project has none.
+ * is the most used. With a Workload filter the row's cost is that of the filtered workloads, so only a budget
+ * that covers them counts: the one for all workloads, or one for a workload that is filtered. `null` when the
+ * project has none to show.
  */
-export function projectBudget(list: readonly BudgetStatus[], projectId: string): BudgetStatus | null {
-  const own = list.filter((row) => row.budget.project_id === projectId);
+export function projectBudget(
+  list: readonly BudgetStatus[],
+  projectId: string,
+  workloads: readonly string[] = [],
+): BudgetStatus | null {
+  const covers = (row: BudgetStatus): boolean =>
+    workloads.length === 0 || row.budget.workload === 'all' || workloads.includes(row.budget.workload);
+  const own = list.filter((row) => row.budget.project_id === projectId && covers(row));
   return (
     own.find((row) => row.budget.workload === 'all') ??
     own.reduce<BudgetStatus | null>((most, row) => (most === null || row.pct_used > most.pct_used ? row : most), null)

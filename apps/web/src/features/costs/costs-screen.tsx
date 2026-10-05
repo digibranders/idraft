@@ -4,14 +4,15 @@ import { Ban } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs';
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 
 import { BudgetMeter } from './budget-meter';
 import { COST_TABS, CostBreakdown, type CostsProject } from './cost-breakdown';
-import { dayWorkloadSeries, money, shareOf, workspaceBudget } from './cost-model';
+import { money, shareOf, workspaceBudget } from './cost-model';
 import { CostTable, type CostColumn } from './cost-table';
 import { CostsError } from './costs-error';
 import { useBudgetStatus, useCosts, type CostScope } from './costs-queries';
+import { useSpendChart } from './use-spend-chart';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import type { FilterField } from '@/components/app/filters/types';
@@ -19,12 +20,15 @@ import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { MetricStrip, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import { PageHeader } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
+import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
+import { toast } from '@/components/ui/toast';
 import { costWorkloadValues } from '@/lib/api/schema';
 import type { CostRow } from '@/lib/api/types';
+import { useUtcDay } from '@/lib/dom/use-utc-day';
 import type { FilterValue } from '@/lib/filters/filter-values';
-import { EMPTY_VALUE, formatChartDate, formatCurrency, formatDateRange, formatPercent } from '@/lib/format';
+import { EMPTY_VALUE, formatCurrency, formatDateRange, formatInteger, formatList, formatPercent } from '@/lib/format';
 import { currentMonth, monthDays, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
 import { useCan } from '@/lib/permissions';
 import { workspacePath } from '@/lib/routes/paths';
@@ -74,10 +78,11 @@ export function CostsScreen(props: CostsScreenProps): ReactElement {
 
 function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement {
   const t = useTranslations('costs');
+  const common = useTranslations('common');
   const locale = useLocale();
   const workloadName = useWorkloadName();
-  // One clock for the page's life: the keys of its queries never change between renders
-  const [now] = useState(() => new Date());
+  // The same date all UTC day, so the keys of its queries hold; a new day (or a tab woken after one) is read
+  const now = useUtcDay();
   const months = useMemo(() => recentMonths(now), [now]);
   const thisMonth = currentMonth(now);
   const [monthParam, setMonthParam] = useQueryState('month', parseAsString.withOptions({ history: 'replace' }));
@@ -87,7 +92,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
     parseAsStringLiteral(COST_TABS).withDefault('provider').withOptions({ history: 'replace' }),
   );
   const label = monthLabel(month, locale);
-  const range = monthDays(month, now);
+  const { from, to } = monthDays(month, now);
 
   // The providers the month has costs for, whatever the filters: the options of the Provider filter
   const providerRows = useCosts({ workspaceId, month }, ['provider'], now);
@@ -120,7 +125,21 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
     ],
     [t, projects, workloadName, providerRows.data, providerRows.isPending, providerRows.isError],
   );
-  const [values, setValues] = useUrlFilters(fields);
+  // A filter of the link that the month has nothing for (a provider with no costs in it) is left out, and the person is told
+  const [values, setValues] = useUrlFilters(fields, {
+    onDropped: (dropped) =>
+      toast({
+        type: 'info',
+        title: t('droppedFilters.title', { count: dropped.length }),
+        description: t('droppedFilters.description', {
+          fields: formatList(
+            dropped.map((field) => field.label),
+            locale,
+          ),
+          month: label,
+        }),
+      }),
+  });
   const [projectId] = enumValues(values.project);
   const [provider] = enumValues(values.provider);
   const scope: CostScope = {
@@ -138,9 +157,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
   const byWorkload = useCosts(scope, ['workload'], now);
   const budgets = useBudgetStatus(workspaceId, month);
 
-  // The React Compiler memoizes these by their inputs, so the chart's option is rebuilt only when they change
-  const chart = dayWorkloadSeries(byDay.data?.data ?? [], range, workloadName, t('other'));
-  const categories = chart.days.map((day) => formatChartDate(day));
+  const chart = useSpendChart(byDay.data?.data, from, to);
 
   const budgetList = budgets.data?.data ?? [];
   const workspace = workspaceBudget(budgetList);
@@ -151,10 +168,20 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
       id: 'monthToDate',
       label: t('monthToDate'),
       value: totalUsd === undefined ? EMPTY_VALUE : usd(totalUsd),
-      context: formatDateRange(range.from, range.to),
+      context: formatDateRange(from, to),
     },
     budgets.isError
-      ? { id: 'budget', label: t('budget'), value: EMPTY_VALUE, unknown: { kind: 'not-applicable' } }
+      ? {
+          id: 'budget',
+          label: t('budget'),
+          value: t('budgetFailed'),
+          unknown: { kind: 'pending' },
+          meter: (
+            <Button variant="secondary" size="sm" loading={budgets.isFetching} onClick={() => void budgets.refetch()}>
+              {common('retry')}
+            </Button>
+          ),
+        }
       : workspace === null
         ? { id: 'budget', label: t('budget'), value: t('noBudget'), unknown: { kind: 'not-applicable' } }
         : {
@@ -177,7 +204,12 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
               />
             ),
           },
-    ...(blockedRuns > 0 ? [{ id: 'blockedRuns', label: t('blockedRuns'), value: String(blockedRuns) }] : []),
+    // Without the budgets the count is unknown, not zero
+    ...(budgets.isError
+      ? [{ id: 'blockedRuns', label: t('blockedRuns'), value: EMPTY_VALUE, unknown: { kind: 'pending' as const } }]
+      : blockedRuns > 0
+        ? [{ id: 'blockedRuns', label: t('blockedRuns'), value: formatInteger(blockedRuns) }]
+        : []),
   ];
 
   const stripGroups = [{ id: 'month', items: stripItems }];
@@ -212,6 +244,19 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
           <FilterBar fields={fields} values={values} onChange={setValues} />
         </div>
       </div>
+      {providerRows.isError ? (
+        <div role="status" className="flex flex-wrap items-center gap-3">
+          <p className="type-meta">{t('providersFailed')}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={providerRows.isFetching}
+            onClick={() => void providerRows.refetch()}
+          >
+            {common('retry')}
+          </Button>
+        </div>
+      ) : null}
       {total.isError ? (
         <div className="rounded-lg border border-border bg-surface">
           <CostsError onRetry={() => void total.refetch()} retrying={total.isFetching} />
@@ -242,12 +287,12 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
               variant="panel"
               kind="bar"
               stacked
-              categories={categories}
+              categories={chart.categories}
               categoryHeader={t('day')}
               series={chart.series}
               formatValue={axisCurrency}
               height={240}
-              summary={t('chartSummary', { total: totalUsd === undefined ? EMPTY_VALUE : usd(totalUsd) })}
+              summary={t('chartSummary', { month: label, total: totalUsd === undefined ? EMPTY_VALUE : usd(totalUsd) })}
               status={byDay.isPending ? 'loading' : 'ready'}
               footnote={
                 sources === undefined

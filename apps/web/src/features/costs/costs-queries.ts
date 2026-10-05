@@ -9,9 +9,9 @@ import { monthDays, type MonthKey } from '@/lib/format/month';
 
 /**
  * What a workspace spends (19 section 3.11): costs grouped for a month, the month's budget states and the
- * price book. The month's days are UTC, as the API counts them; `now` comes from the screen, which holds one
- * `Date` for its whole life, so a key never changes between renders and the last day of a running month is
- * today.
+ * price book. The month's days are UTC, as the API counts them; `now` comes from the screen (`useUtcDay`),
+ * the same `Date` for the whole UTC day, so a key never changes between renders within a day and the last
+ * day of a running month is today.
  */
 
 const COSTS = '/api/v1/workspaces/{workspace_id}/costs';
@@ -28,8 +28,6 @@ export interface CostScope {
   projectId?: string | undefined;
   workloads?: readonly CostWorkload[] | undefined;
   provider?: string | undefined;
-  /** `false` sends nothing (a member without `costs:read`). */
-  enabled?: boolean | undefined;
 }
 
 /** The request for the month with `groupBy`; none gives the total in one row. */
@@ -53,7 +51,7 @@ export function costsQuery(scope: CostScope, groupBy: readonly CostGroup[], now:
 
 /** `GET {W}/costs` for the month with `groupBy` (none is the total). */
 export function useCosts(scope: CostScope, groupBy: readonly CostGroup[], now: Date): UseQueryResult<CostList> {
-  return useQuery({ ...costsQuery(scope, groupBy, now), enabled: scope.enabled ?? true });
+  return useQuery(costsQuery(scope, groupBy, now));
 }
 
 /** The request for the budget states of a month; budgets ignore the filters of the page. */
@@ -62,12 +60,8 @@ export function budgetStatusQuery(workspaceId: string, month: MonthKey): ApiQuer
 }
 
 /** `GET {W}/budgets/status` for the month. */
-export function useBudgetStatus(
-  workspaceId: string,
-  month: MonthKey,
-  enabled = true,
-): UseQueryResult<BudgetStatusList> {
-  return useQuery({ ...budgetStatusQuery(workspaceId, month), enabled });
+export function useBudgetStatus(workspaceId: string, month: MonthKey): UseQueryResult<BudgetStatusList> {
+  return useQuery(budgetStatusQuery(workspaceId, month));
 }
 
 /** The prices valid on the month's last day (today in a running month), every page. */
@@ -82,7 +76,6 @@ export function usePriceBook(
   workspaceId: string,
   month: MonthKey,
   now: Date,
-  enabled = true,
 ): UseQueryResult<ApiResponse<'get', typeof PRICE_BOOK>> {
-  return useQuery({ ...priceBookQuery(workspaceId, month, now), enabled });
+  return useQuery(priceBookQuery(workspaceId, month, now));
 }

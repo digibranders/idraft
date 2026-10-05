@@ -1256,9 +1256,16 @@
     "budget": "Budget",
     "budgetValue": "{pct} of {limit}",
     "noBudget": "No budget",
+    "budgetFailed": "Not loaded",
+    "workloadBudget": "{workload} budget",
+    "providersFailed": "The list of providers could not be loaded.",
+    "droppedFilters": {
+      "title": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
+      "description": "{fields}: the link holds a value that this page has nothing for in {month}."
+    },
     "blockedRuns": "Blocked runs",
     "chartTitle": "Spend by day, by workload",
-    "chartSummary": "Spend per day this month, stacked by workload. {total} in all.",
+    "chartSummary": "Spend per day in {month}, stacked by workload. {total} in all.",
     "day": "Day",
     "other": "Other",
     "byWorkload": "By workload",
@@ -1312,7 +1319,7 @@
   "runs": {
     "pageTitle": "Runs",
     "title": "Runs",
-    "meta": "{project}, {month}",
+    "meta": "{project}, {month}. Times in {timeZone}.",
     "project": "Project",
     "month": "Month",
     "filters": {
@@ -1390,11 +1397,14 @@
     "clearFilters": "Clear filters",
     "loadFailed": "The runs could not be loaded",
     "loadFailedReason": "The server returned an error. Your filters are unchanged.",
+    "noAccessTitle": "You do not have access to Runs",
+    "noAccessReason": "Viewing runs needs the data:read permission, which owners and admins can grant.",
+    "backToOverview": "Back to Overview",
     "noProjects": "No projects to show runs for",
     "noProjectsReason": "Runs are listed per project. Create a project, or ask an admin for access to one.",
     "toProjects": "All projects",
     "incomplete": "Showing {loaded} runs. The rest did not load.",
-    "metaWithManual": "{project}, {month}. {manual}",
+    "metaWithManual": "{project}, {month}. {manual}. Times in {timeZone}.",
     "rowName": "{workload}, started {started}",
     "inspector": {
       "type": "Run",
@@ -1416,6 +1426,7 @@
       "estimate": "Estimate",
       "actual": "Actual",
       "loadFailed": "This run did not load",
+      "stale": "Could not refresh. These are the last figures read.",
       "position": "{index} of {count}"
     }
   },

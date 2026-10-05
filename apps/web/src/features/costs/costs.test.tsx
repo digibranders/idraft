@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import type { ReactElement } from 'react';
@@ -20,7 +20,14 @@ import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
 // jsdom has no canvas: the chart frame is tested with a stand-in for the ECharts canvas
-vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+// It keeps the options it was given: a canvas that is handed a new one is redrawn, and loses its tooltip
+const drawn = vi.hoisted(() => ({ options: [] as unknown[] }));
+vi.mock('@/components/app/chart/echart', () => ({
+  EChart: ({ option }: { option: unknown }) => {
+    drawn.options.push(option);
+    return <div data-testid="echart-canvas" />;
+  },
+}));
 
 const W = '/api/v1/workspaces/{workspace_id}';
 const COSTS = `${W}/costs`;
@@ -136,6 +143,106 @@ describe('Costs', () => {
     expect(screen.getByRole('meter', { name: '112.0% of $100.00' })).toHaveAttribute('aria-valuenow', '100');
   });
 
+  it('names the month of the chart in its summary, and groups blocked runs by thousands', async () => {
+    server.use(
+      http.get(mswPath(BUDGETS), () =>
+        HttpResponse.json({
+          data: [
+            {
+              budget: {
+                budget_id: '0192d1a8-0000-7000-8000-000000000001',
+                project_id: null,
+                workload: 'all',
+                period: 'month',
+                limit_usd: '100.000000',
+                soft_limit_pct: 80,
+                action_on_hard: 'pause',
+                created_at: '2026-08-01T00:00:00Z',
+              },
+              spent_usd: '112.000000',
+              committed_estimate_usd: '0.000000',
+              pct_used: 112,
+              state: 'hard_exceeded',
+              blocked_runs: 1234,
+            },
+          ],
+        }),
+      ),
+    );
+    renderWithProviders(costsAs('admin'), { searchParams: '?month=2026-08' });
+    expect(await screen.findByText(/^Spend per day in August 2026, stacked by workload\./)).toBeInTheDocument();
+    expect(screen.queryByText(/this month/)).toBeNull();
+    await waitFor(() => expect(stripValue('Blocked runs')).toBe('1,234'));
+  });
+
+  it('says the budget did not load in the summary, with Try again, and shows it once it does', async () => {
+    let fail = true;
+    server.use(
+      http.get(mswPath(BUDGETS), () =>
+        fail
+          ? HttpResponse.json({ code: 'internal_error', title: 'Internal error', status: 500 }, { status: 500 })
+          : undefined,
+      ),
+    );
+    const { user } = renderWithProviders(costsAs('admin'));
+    const strip = await screen.findByRole('group', { name: 'Month summary' });
+    // Not "No budget": the month may well have one
+    expect(await within(strip).findByText('Not loaded')).toBeInTheDocument();
+    expect(within(strip).queryByText('No budget')).toBeNull();
+    // The runs a budget blocked are as unknown as the budget
+    expect(within(strip).getByText('Blocked runs')).toBeInTheDocument();
+    fail = false;
+    await user.click(within(strip).getByRole('button', { name: 'Try again' }));
+    expect(await within(strip).findByRole('meter')).toBeInTheDocument();
+    expect(within(strip).queryByText('Not loaded')).toBeNull();
+    expect(within(strip).queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it('says the providers did not load beside the filters, with Try again, and keeps a provider of the link meanwhile', async () => {
+    let fail = true;
+    const costs = recordRequests('/costs');
+    server.use(
+      http.get(mswPath(COSTS), ({ request }) => {
+        const query = new URL(request.url).searchParams;
+        const ofProviders = query.get('group_by') === 'provider' && !query.has('filter[provider_code]');
+        return fail && ofProviders
+          ? HttpResponse.json({ code: 'internal_error', title: 'Internal error', status: 500 }, { status: 500 })
+          : undefined;
+      }),
+    );
+    const url = urlWrites();
+    const { user } = renderWithProviders(costsAs('admin'), {
+      searchParams: '?provider=dataforseo',
+      onUrlUpdate: url.onUrlUpdate,
+    });
+    const failed = (await screen.findByText('The list of providers could not be loaded.')).closest('div');
+    if (failed === null) throw new Error('no failure note');
+    // The link's provider is not dropped as unknown while its options cannot be known
+    expect(costs.some((query) => query.get('filter[provider_code]') === 'dataforseo')).toBe(true);
+    expect(url.latest().has('provider')).toBe(false);
+    fail = false;
+    await user.click(within(failed).getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByText('The list of providers could not be loaded.')).toBeNull());
+    expect(await screen.findByRole('button', { name: 'Provider: dataforseo. Edit filter' })).toBeInTheDocument();
+  });
+
+  it('says so when a provider of the link has no costs in the month that is chosen', async () => {
+    const url = urlWrites();
+    const { user } = renderWithProviders(costsAs('admin'), {
+      searchParams: '?provider=dataforseo',
+      onUrlUpdate: url.onUrlUpdate,
+    });
+    expect(await screen.findByRole('button', { name: 'Provider: dataforseo. Edit filter' })).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Month' }));
+    await user.click(await screen.findByRole('option', { name: 'December 2025' }));
+    // That month has no costs, so no provider: the filter is left out of the URL and the person is told
+    expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
+    expect(
+      screen.getByText('Provider: the link holds a value that this page has nothing for in December 2025.'),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(url.latest().has('provider')).toBe(false));
+  });
+
   it('draws spend by day as a table of every day of the month and a column per workload', async () => {
     const { user } = renderWithProviders(costsAs('admin'));
     await user.click(await screen.findByRole('button', { name: 'Table' }));
@@ -149,6 +256,21 @@ describe('Costs', () => {
     const twentieth = within(table).getByRole('row', { name: /^Sep 20/ });
     expect(within(twentieth).getAllByRole('cell')[0]).not.toHaveTextContent('n/a');
     expect(screen.getByText(/^Cost sources: provider reported/)).toBeInTheDocument();
+  });
+
+  it('hands the chart the same option while its data is the same, so a hovered tooltip stays', async () => {
+    drawn.options.length = 0;
+    const { rerender } = renderWithProviders(costsAs('admin'));
+    await screen.findByRole('row', { name: /dataforseo/ });
+    await screen.findByTestId('echart-canvas');
+    // Let every request of the page settle
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const settled = drawn.options.at(-1);
+    expect(settled).toBeDefined();
+    // A render for any other reason (a query settling, a tab changing) draws the same chart
+    rerender(costsAs('admin'));
+    rerender(costsAs('admin'));
+    expect(drawn.options.at(-1)).toBe(settled);
   });
 
   it('lists the workloads with their cost and share, the shares adding up to the whole', async () => {
@@ -210,6 +332,80 @@ describe('Costs', () => {
     expect(within(budgets).getByRole('row', { name: /Workspace.*All workloads/ })).toHaveTextContent('$250.00');
     expect(within(budgets).getByRole('row', { name: /Fynix.*SEO rank/ })).toHaveTextContent('$40.00');
     expect(within(budgets).getAllByText('Within budget')).toHaveLength(3);
+  });
+
+  describe('the budget of a project row', () => {
+    const fynixId = projects[0]?.id ?? '';
+    const projectBudgetStatus = (workload: BudgetStatus['budget']['workload'], pct: number): BudgetStatus => ({
+      budget: {
+        budget_id: `0192d1a8-0000-7000-8000-${String(pct).padStart(12, '0')}`,
+        project_id: fynixId,
+        workload,
+        period: 'month',
+        limit_usd: '100.000000',
+        soft_limit_pct: 80,
+        action_on_hard: 'pause',
+        created_at: '2026-09-01T00:00:00Z',
+      },
+      spent_usd: String(pct),
+      committed_estimate_usd: '0.000000',
+      pct_used: pct,
+      state: 'ok',
+      blocked_runs: 0,
+    });
+    /** Fynix has a budget for SEO rank (10%) and one for AI prompts (70%), none for all workloads. */
+    function serveFynix(): void {
+      server.use(
+        http.get(mswPath(BUDGETS), () =>
+          HttpResponse.json({ data: [projectBudgetStatus('seo_rank', 10), projectBudgetStatus('ai_prompt', 70)] }),
+        ),
+        http.get(mswPath(COSTS), ({ request }) => {
+          if (new URL(request.url).searchParams.get('group_by') !== 'project') return undefined;
+          return HttpResponse.json({
+            data: [{ keys: { project: fynixId }, cost_usd: '2.000000', request_count: 2, subjects: 2 }],
+            meta: {
+              total_cost_usd: '2.000000',
+              cost_sources: {
+                provider_reported: '2.000000',
+                computed_from_tokens: '0.000000',
+                price_book_estimate: '0.000000',
+              },
+            },
+          });
+        }),
+      );
+    }
+
+    it('says which workload the budget is for when the project has none for all workloads', async () => {
+      serveFynix();
+      renderWithProviders(costsAs('admin'), { searchParams: '?tab=project' });
+      const row = await within(await screen.findByRole('table', { name: 'By project' })).findByRole('row', {
+        name: /Fynix/,
+      });
+      // The most used of its budgets, named: the meter does not pass for the project's whole budget
+      await waitFor(() => expect(row).toHaveTextContent('70.0%'));
+      expect(row).toHaveTextContent('AI prompts budget');
+      expect(within(row).getByRole('meter')).toBeInTheDocument();
+    });
+
+    it('shows the budget of the filtered workload, and none when no budget covers the filter', async () => {
+      serveFynix();
+      const first = renderWithProviders(costsAs('admin'), { searchParams: '?tab=project&workload=seo_rank' });
+      const covered = await within(await screen.findByRole('table', { name: 'By project' })).findByRole('row', {
+        name: /Fynix/,
+      });
+      await waitFor(() => expect(covered).toHaveTextContent('10.0%'));
+      expect(covered).toHaveTextContent('SEO rank budget');
+      first.unmount();
+
+      renderWithProviders(costsAs('admin'), { searchParams: '?tab=project&workload=discovery' });
+      const table = await screen.findByRole('table', { name: 'By project' });
+      const row = await within(table).findByRole('row', { name: /Fynix/ });
+      await waitFor(() => expect(screen.getByRole('group', { name: 'Month summary' })).toBeInTheDocument());
+      // Neither budget is for discovery, so the row says nothing of a budget
+      expect(within(row).queryByRole('meter')).toBeNull();
+      expect(within(table).queryByRole('columnheader', { name: 'Used' })).toBeNull();
+    });
   });
 
   it('names a project that is no longer there, and costs that belong to none', async () => {
@@ -304,6 +500,32 @@ describe('Costs', () => {
     await waitFor(() => expect(url.latest().has('month')).toBe(false));
   });
 
+  it('asks for the new day when the UTC day turns under a tab left open, and again on focus after a sleep', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-09-30T23:59:55Z') });
+    const costs = recordRequests('/costs');
+    const budgets = recordRequests('/budgets/status');
+    renderWithProviders(costsAs('admin'));
+    await waitFor(() => expect(costs.some((query) => query.get('to') === '2026-09-30')).toBe(true));
+    expect(costs.every((query) => query.get('from') === '2026-09-01')).toBe(true);
+
+    // Midnight passes with the page open: the month it offers and the days it asks for move on
+    await vi.advanceTimersByTimeAsync(10_000);
+    await waitFor(() => expect(costs.some((query) => query.get('from') === '2026-10-01')).toBe(true));
+    expect(
+      costs.filter((query) => query.get('from') === '2026-10-01').every((query) => query.get('to') === '2026-10-01'),
+    ).toBe(true);
+    await waitFor(() => expect(budgets.some((query) => query.get('month') === '2026-10')).toBe(true));
+    expect(screen.getByRole('combobox', { name: 'Month' })).toHaveTextContent('October 2026');
+
+    // A machine that slept through the timer asks as soon as the window is focused
+    const before = costs.length;
+    vi.setSystemTime(new Date('2026-10-04T08:00:00Z'));
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await waitFor(() => expect(costs.slice(before).some((query) => query.get('to') === '2026-10-04')).toBe(true));
+  });
+
   it('keeps the current month for a month the list does not offer', async () => {
     const costs = recordRequests('/costs');
     renderWithProviders(costsAs('admin'), { searchParams: '?month=1999-01' });
@@ -330,7 +552,12 @@ describe('Costs', () => {
     // The rest of the page stays
     expect(screen.getByRole('table', { name: 'By workload' })).toBeInTheDocument();
     fail = false;
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    // The provider list of the filter fails with the table, and says so beside the filters: the table's own Retry
+    const tableRetry = screen
+      .getAllByRole('button', { name: 'Try again' })
+      .find((button) => button.closest('[role="status"]') === null);
+    if (tableRetry === undefined) throw new Error('no Try again in the table');
+    await user.click(tableRetry);
     expect(
       await within(await screen.findByRole('table', { name: 'By provider' })).findByRole('row', { name: /dataforseo/ }),
     ).toBeInTheDocument();
@@ -363,6 +590,15 @@ describe('BudgetMeter', () => {
     expect(meter).toHaveClass('w-40');
     expect(container.querySelector<HTMLElement>('[style*="left: 80%"]')).not.toBeNull();
     expect(container.querySelector<HTMLElement>('[style*="width: 64%"]')).not.toBeNull();
+  });
+
+  it('reads the real share to assistive technology when it passes the end of the track', () => {
+    renderWithProviders(
+      <BudgetMeter pct={112} softLimitPct={80} state="hard_exceeded" size="summary" label="112.0% of $100.00" />,
+    );
+    const meter = screen.getByRole('meter', { name: '112.0% of $100.00' });
+    expect(meter).toHaveAttribute('aria-valuenow', '100');
+    expect(meter).toHaveAttribute('aria-valuetext', '112.0%');
   });
 
   it('turns warning from the soft limit up, and wholly warning once the limit is reached', () => {

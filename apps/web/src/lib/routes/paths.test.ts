@@ -16,6 +16,11 @@ describe('Rankings paths', () => {
     expect(costsPath('a b')).toBe('/a%20b/costs');
   });
 
+  it('opens Runs on a project when it is given one, with the slug encoded', () => {
+    expect(runsPath('digibranders', 'fynix')).toBe('/digibranders/ops/runs?project=fynix');
+    expect(runsPath('w', 'a b')).toBe('/w/ops/runs?project=a%20b');
+  });
+
   it('keeps the query string of the page, and adds none when there is none', () => {
     expect(withQuery(rankingsPath('w', 'p'), 'q=seo&archived=true')).toBe('/w/p/seo/rankings?q=seo&archived=true');
     expect(withQuery(rankingsPath('w', 'p'), '')).toBe('/w/p/seo/rankings');

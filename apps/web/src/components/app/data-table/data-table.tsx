@@ -494,8 +494,10 @@ export function DataTable<TRow extends RowData>({
         return;
       }
       if (row === undefined) return;
-      if (column?.kind === 'actions') setMenu({ kind: 'row', id: getRowId(row) });
-      else if (column?.kind === 'select' && selection !== undefined) toggleRow(getRowId(row), false);
+      if (column?.kind === 'actions') {
+        // A row without actions has no menu to open, as with Shift+F10
+        if (actionsOf(rowActions, row).length > 0) setMenu({ kind: 'row', id: getRowId(row) });
+      } else if (column?.kind === 'select' && selection !== undefined) toggleRow(getRowId(row), false);
       else openRow(row, event);
     }
   };

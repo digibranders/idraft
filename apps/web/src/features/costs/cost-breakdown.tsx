@@ -132,8 +132,11 @@ function ProjectPanel({
   const total = query.data?.meta.total_cost_usd ?? '0';
   const budgetList = budgets.data?.data ?? [];
   const rows = query.data?.data ?? [];
+  // A row's cost is of the filtered workloads, so its budget is one that covers them
+  const budgetOf = (row: CostRow): BudgetStatus | null =>
+    projectBudget(budgetList, row.keys.project ?? '', scope.workloads ?? []);
   // The budget columns appear when any listed project has a budget
-  const showBudgets = rows.some((row) => projectBudget(budgetList, row.keys.project ?? '') !== null);
+  const showBudgets = rows.some((row) => budgetOf(row) !== null);
   const nameOf = (row: CostRow): string => {
     const id = row.keys.project ?? '';
     if (id === '') return t('noProject');
@@ -150,8 +153,8 @@ function ProjectPanel({
             header: t('used'),
             align: 'left',
             cell: (row: CostRow): ReactElement | null => {
-              const status = projectBudget(budgetList, row.keys.project ?? '');
-              return status === null ? null : <BudgetUse status={status} />;
+              const status = budgetOf(row);
+              return status === null ? null : <BudgetUse status={status} showWorkload />;
             },
           } satisfies CostColumn<CostRow>,
           {
@@ -159,7 +162,7 @@ function ProjectPanel({
             header: t('status'),
             align: 'left',
             cell: (row: CostRow): ReactElement | null => {
-              const status = projectBudget(budgetList, row.keys.project ?? '');
+              const status = budgetOf(row);
               return status === null ? null : <BudgetStatusBadge state={status.state} />;
             },
           } satisfies CostColumn<CostRow>,
@@ -179,9 +182,13 @@ function ProjectPanel({
   );
 }
 
-/** The meter of a budget with the share used beside it. */
-function BudgetUse({ status }: { status: BudgetStatus }): ReactElement {
+/**
+ * The meter of a budget with the share used beside it. Where the budget is not named elsewhere in the row
+ * (a project's row picks one of its budgets), a budget for one workload says which: "SEO rank budget".
+ */
+function BudgetUse({ status, showWorkload = false }: { status: BudgetStatus; showWorkload?: boolean }): ReactElement {
   const t = useTranslations('costs');
+  const workloadName = useWorkloadName();
   return (
     <span className="flex items-center gap-2">
       <BudgetMeter
@@ -195,13 +202,18 @@ function BudgetUse({ status }: { status: BudgetStatus }): ReactElement {
         })}
       />
       <span className="num">{formatPercent(status.pct_used / 100, { decimals: 1 })}</span>
+      {showWorkload && status.budget.workload !== 'all' ? (
+        <span className="type-meta whitespace-nowrap text-foreground-tertiary">
+          {t('workloadBudget', { workload: workloadName(status.budget.workload) })}
+        </span>
+      ) : null}
     </span>
   );
 }
 
 function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'month' | 'now'>): ReactElement {
   const t = useTranslations('costs');
-  const query = usePriceBook(scope.workspaceId, month, now, scope.enabled ?? true);
+  const query = usePriceBook(scope.workspaceId, month, now);
   const columns: CostColumn<Price>[] = [
     { id: 'provider', header: t('provider'), align: 'left', cell: (row) => row.provider_code },
     { id: 'endpoint', header: t('endpoint'), align: 'left', cell: (row) => row.endpoint },

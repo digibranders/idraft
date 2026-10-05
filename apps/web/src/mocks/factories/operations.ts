@@ -249,7 +249,8 @@ export function runView(workspaceId: string, schedules: readonly StoredSchedule[
     workload: run.workload,
     trigger: run.trigger,
     status: state.status,
-    status_reason: state.status === 'cancelled' ? (run.cancel_reason ?? 'Cancelled.') : run.status_reason,
+    // The API names a cancel by its code; any free text a member gave is kept for the audit, not sent here
+    status_reason: state.status === 'cancelled' ? 'cancelled_by_user' : run.status_reason,
     window_start: run.created_at,
     window_end: new Date(windowStart + windowHours * HOUR_MS).toISOString(),
     tasks_total: run.tasks_total,

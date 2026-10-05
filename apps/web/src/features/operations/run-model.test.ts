@@ -4,6 +4,8 @@ import {
   canCancel,
   collectionStatusOf,
   isOpen,
+  needsListRead,
+  overlayRuns,
   reasonKeyOf,
   REASON_KEYS,
   RUN_STATUS_KEYS,
@@ -95,6 +97,42 @@ describe('run model', () => {
       { code: 'mystery', key: null, count: 1 },
     ]);
     expect(taskStatusRows({})).toEqual([]);
+  });
+
+  it('puts the newer reading of a run over its row, and leaves the other rows and their order alone', () => {
+    const rows = [
+      { run_id: 'a', done: 1 },
+      { run_id: 'b', done: 2 },
+      { run_id: 'c', done: 3 },
+    ];
+    expect(overlayRuns(rows, [{ run_id: 'b', done: 9 }])).toEqual([
+      { run_id: 'a', done: 1 },
+      { run_id: 'b', done: 9 },
+      { run_id: 'c', done: 3 },
+    ]);
+    // A run the list does not hold is not added: that is a reason to read the list
+    expect(overlayRuns(rows, [{ run_id: 'z', done: 9 }])).toEqual(rows);
+    expect(overlayRuns(rows, [])).toBe(rows);
+  });
+
+  it('says the list is out of date when a run it holds as open is gone from the open runs, or one it does not hold is there', () => {
+    const listed = [
+      { run_id: 'a', status: 'running' as const },
+      { run_id: 'b', status: 'completed' as const },
+    ];
+    const page = (ids: string[], hasMore = false) => ({
+      data: ids.map((run_id) => ({ run_id })),
+      page: { has_more: hasMore },
+    });
+    expect(needsListRead(listed, page(['a']))).toBe(false);
+    // The open run ended: it is no longer among the open ones
+    expect(needsListRead(listed, page([]))).toBe(true);
+    // A run was started after the list was read
+    expect(needsListRead(listed, page(['a', 'n']))).toBe(true);
+    // A run that ended long ago is not news, whether or not the poll hears of it
+    expect(needsListRead([{ run_id: 'b', status: 'completed' as const }], page([]))).toBe(false);
+    // A poll with more than one page cannot say what is gone
+    expect(needsListRead(listed, page([], true))).toBe(false);
   });
 
   it('puts a reason in words only when it is one of the codes the API documents', () => {

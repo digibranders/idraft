@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 
 import type { BudgetStatus } from '@/lib/api/types';
+import { formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export interface BudgetMeterProps {
@@ -35,6 +36,8 @@ export function BudgetMeter({ pct, softLimitPct, state, size, label }: BudgetMet
     <div
       role="meter"
       aria-valuenow={used}
+      // The value stops at the track's end, so the real share is said in words
+      aria-valuetext={formatPercent(Number.isFinite(pct) ? pct / 100 : 0, { decimals: 1 })}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-label={label}

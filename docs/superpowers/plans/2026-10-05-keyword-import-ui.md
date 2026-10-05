@@ -1262,4 +1262,4 @@ git add apps/web docs/superpowers/plans/2026-10-01-keywords-ui.md
 git commit -m "Rankings: import keywords"
 ```
 
-When the backend sends the regenerated draft after its imports Part A, copy it to `apps/web/openapi/step-5-draft.json`, run `pnpm gen:api`, and fix any difference before the review. Never add `.claude/launch.json` or `research/`. No attribution lines. Push only on the user's word.
+The client is generated from `backend/openapi/v1.json` (there is no draft folder in `apps/web`). When the backend changes that document after its imports Part A, run `pnpm gen:api` in `apps/web` and fix any difference before the review. Never add `.claude/launch.json` or `research/`. No attribution lines. Push only on the user's word.

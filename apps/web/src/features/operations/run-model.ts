@@ -93,6 +93,31 @@ export const collectionStatusOf = (status: RunStatus): CollectionStatus => (stat
 /** Planned and running runs may still be cancelled (19 section 3.11.4). */
 export const isOpen = (run: Pick<Run, 'status'>): boolean => run.status === 'planned' || run.status === 'running';
 
+/** `rows` with the newer reading of the runs among them: each run `newer` holds replaces its row. */
+export function overlayRuns<T extends Pick<Run, 'run_id'>>(rows: readonly T[], newer: readonly T[]): readonly T[] {
+  if (newer.length === 0) return rows;
+  const byId = new Map(newer.map((run) => [run.run_id, run]));
+  return rows.map((row) => byId.get(row.run_id) ?? row);
+}
+
+/**
+ * Whether the poll's answer (the first page of the month's open runs) says the list is out of date: a run
+ * the list holds as open is not among them, so it has ended; or one is that the list does not hold, so it was
+ * started since. A poll that did not fit in one page can say neither.
+ */
+export function needsListRead(
+  listed: readonly Pick<Run, 'run_id' | 'status'>[],
+  heard: { data: readonly Pick<Run, 'run_id'>[]; page: { has_more: boolean } },
+): boolean {
+  if (heard.page.has_more) return false;
+  const heardIds = new Set(heard.data.map((run) => run.run_id));
+  const listedIds = new Set(listed.map((run) => run.run_id));
+  return (
+    listed.some((run) => isOpen(run) && !heardIds.has(run.run_id)) ||
+    heard.data.some((run) => !listedIds.has(run.run_id))
+  );
+}
+
 /**
  * Whether the member may cancel the run: `schedules:write` cancels any open run, `runs:trigger` the manual
  * runs the member asked for, which the run's actor names as a user with the member's id.

@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { Suspense, type ReactElement } from 'react';
@@ -166,6 +166,193 @@ function serveRuns(runs: StoredRun[]): { cancels: string[]; lists: () => number 
   return { cancels, lists: () => lists };
 }
 
+/** The clock the polling tests freeze their runs at: a run created five seconds before it is still running. */
+const FROZEN = NOW.getTime();
+
+interface PagedRuns {
+  /** The run on the first page, and the clock the mock reads its state at. */
+  run: StoredRun;
+  now: number;
+}
+
+/**
+ * Answers the list in two pages (the run first, an older one after it) and the run's detail, and counts what
+ * is asked. A poll for the open runs is answered from the run's state at `paged.now`, after `hold` if one is set.
+ */
+function servePaged(paged: PagedRuns): {
+  lists: () => URLSearchParams[];
+  follows: () => number;
+  details: () => number;
+  hold: () => () => void;
+} {
+  const older = store({ run_id: uuid(2), created_at: '2026-09-02T10:00:00.000Z' });
+  const lists: URLSearchParams[] = [];
+  let details = 0;
+  let held: Promise<void> = Promise.resolve();
+  const view = (run: StoredRun) => runView(MOCK_WORKSPACE.workspace_id, [], run, paged.now);
+  const meta = { manual_runs_today: { used: 3, limit: 20 } };
+  server.use(
+    http.get(mswPath(RUNS), async ({ request }) => {
+      const query = new URL(request.url).searchParams;
+      lists.push(query);
+      if (query.get('filter[status_in]') === 'planned,running') {
+        await held;
+        const open = [view(paged.run)].filter((row) => row.status === 'planned' || row.status === 'running');
+        return HttpResponse.json({ data: open, page: { has_more: false, next_cursor: null, limit: 200 }, meta });
+      }
+      const second = query.get('cursor') === 'next';
+      return HttpResponse.json({
+        data: [view(second ? older : paged.run)],
+        page: { has_more: !second, next_cursor: second ? null : 'next', limit: 200 },
+        meta,
+      });
+    }),
+    http.get(mswPath(RUN), () => {
+      details += 1;
+      return HttpResponse.json({ data: runDetailView(MOCK_WORKSPACE.workspace_id, [], paged.run, paged.now) });
+    }),
+  );
+  return {
+    lists: () => lists,
+    follows: () => lists.filter((query) => query.get('filter[status_in]') === 'planned,running').length,
+    details: () => details,
+    hold: () => {
+      let release = (): void => undefined;
+      held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return release;
+    },
+  };
+}
+
+describe('Runs while a run is open', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: NOW });
+  });
+
+  it('follows the open runs alone: no busy table, no other page, and the run it hears of is updated', async () => {
+    const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
+    const served = servePaged(paged);
+    renderWithProviders(runsAs('admin'));
+    const table = await grid();
+    await waitFor(() => expect(bodyRows(table)).toHaveLength(2));
+    // The list's two pages, and the poll's first look at the open runs
+    await waitFor(() => expect(served.follows()).toBe(1));
+    expect(bodyRows(table)[0]).toHaveTextContent('of 100 done');
+
+    // The next answer of the poll is held, and says the run has more tasks than the list did
+    const release = served.hold();
+    paged.run = { ...paged.run, tasks_total: 200 };
+    await vi.advanceTimersByTimeAsync(10_000);
+    await waitFor(() => expect(served.follows()).toBe(2));
+    await vi.advanceTimersByTimeAsync(1_000);
+    // A poll is not a reload: no progress bar, no busy state, no "Updating"
+    expect(table).not.toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Updating')).toBeNull();
+    release();
+    await waitFor(() => expect(bodyRows(table)[0]).toHaveTextContent('of 200 done'));
+    expect(table).not.toHaveAttribute('aria-busy', 'true');
+    expect(bodyRows(table)).toHaveLength(2);
+
+    // The polls ask for the open runs of the month alone, never for a later page; the list's pages were read once each
+    const follow = served.lists().find((query) => query.get('filter[status_in]') === 'planned,running');
+    expect(follow?.get('from')).toBe('2026-09-01T00:00:00Z');
+    expect(follow?.has('cursor')).toBe(false);
+    expect(served.lists().filter((query) => query.has('cursor'))).toHaveLength(1);
+    expect(served.lists().filter((query) => query.get('filter[status_in]') !== 'planned,running')).toHaveLength(2);
+  });
+
+  it('keeps a status filter of the person in the poll, and asks nothing when it leaves out the open ones', async () => {
+    const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
+    const served = servePaged(paged);
+    renderWithProviders(runsAs('admin'), { searchParams: '?status=completed,failed' });
+    await grid();
+    await waitFor(() => expect(served.lists().length).toBeGreaterThan(0));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(served.follows()).toBe(0);
+  });
+
+  it('does not poll a month whose runs have all ended', async () => {
+    const paged: PagedRuns = { run: store({ run_id: uuid(1), created_at: '2026-09-28T09:00:00.000Z' }), now: FROZEN };
+    const served = servePaged(paged);
+    renderWithProviders(runsAs('admin'));
+    const table = await grid();
+    await waitFor(() => expect(bodyRows(table)).toHaveLength(2));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(served.follows()).toBe(0);
+    expect(served.lists()).toHaveLength(2);
+  });
+
+  it('reads the list again once, quietly, when a run it followed has ended, and then stops', async () => {
+    const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
+    const served = servePaged(paged);
+    renderWithProviders(runsAs('admin'));
+    const table = await grid();
+    await waitFor(() => expect(bodyRows(table)).toHaveLength(2));
+    expect(bodyRows(table)[0]).toHaveTextContent('Running');
+    await waitFor(() => expect(served.follows()).toBe(1));
+
+    // The run ends: the open runs no longer hold it, and the list says how it ended
+    paged.now = FROZEN + 60_000;
+    await vi.advanceTimersByTimeAsync(10_000);
+    await waitFor(() => expect(bodyRows(table)[0]).toHaveTextContent('Completed'));
+    expect(table).not.toHaveAttribute('aria-busy', 'true');
+    const polls = served.follows();
+    const reads = served.lists().length;
+    expect(polls).toBe(2);
+    // The two pages of the list were read again, and nothing else
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(served.follows()).toBe(polls);
+    expect(served.lists()).toHaveLength(reads);
+  });
+
+  it('keeps the tasks it showed, with a note, when one poll of the open run fails', async () => {
+    const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
+    servePaged(paged);
+    let fail = false;
+    server.use(
+      http.get(mswPath(RUN), () =>
+        fail
+          ? serverError()
+          : HttpResponse.json({ data: runDetailView(MOCK_WORKSPACE.workspace_id, [], paged.run, paged.now) }),
+      ),
+    );
+    renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(1)}` });
+    const panel = await screen.findByRole('complementary');
+    expect(await within(panel).findByText('Pending', { selector: 'dt' })).toBeInTheDocument();
+    expect(within(panel).queryByText(/Could not refresh/)).toBeNull();
+
+    fail = true;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await within(panel).findByText('Could not refresh. These are the last figures read.')).toBeInTheDocument();
+    // What was on screen stays; the error view is for a first read that fails
+    expect(within(panel).getByText('Pending', { selector: 'dt' })).toBeInTheDocument();
+    expect(within(panel).getByText('Ingested', { selector: 'dt' })).toBeInTheDocument();
+    expect(within(panel).queryByText('This run did not load')).toBeNull();
+
+    // The next poll that works takes the note away
+    fail = false;
+    await vi.advanceTimersByTimeAsync(10_000);
+    await waitFor(() => expect(within(panel).queryByText(/Could not refresh/)).toBeNull());
+  });
+
+  it('stops reading the open run once its inspector is closed', async () => {
+    const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
+    const served = servePaged(paged);
+    renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(1)}` });
+    expect(await screen.findByText('Tasks by status')).toBeInTheDocument();
+    await waitFor(() => expect(served.details()).toBe(1));
+    await vi.advanceTimersByTimeAsync(10_000);
+    await waitFor(() => expect(served.details()).toBe(2));
+
+    act(() => screen.getByRole('button', { name: 'Close' }).click());
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(served.details()).toBe(2);
+  });
+});
+
 describe('Runs', () => {
   it("lists the first project's runs of the month, the newest first, with what the plan names", async () => {
     const asked = recordRequests('/runs');
@@ -229,6 +416,44 @@ describe('Runs', () => {
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
     expect(asked.every((request) => request.path.includes(fynix.project_id))).toBe(true);
     expect(asked.every((request) => request.query.get('from') === '2026-09-01T00:00:00Z')).toBe(true);
+  });
+
+  it('opens on the project of the link the project switcher gives, the slug in `project`', async () => {
+    const asked = recordRequests('/runs');
+    renderWithProviders(runsAs('admin'), { searchParams: '?project=cleanstart' });
+    await waitFor(() => expect(asked.length).toBeGreaterThan(0));
+    expect(asked.every((request) => request.path.includes(cleanstart.project_id))).toBe(true);
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveTextContent('Cleanstart');
+  });
+
+  it('names the time zone of the times, which is the project’s while the month is counted in UTC', async () => {
+    // Late on 30 September in UTC is already 1 October in Berlin: the run belongs to September's list
+    const lateRun = store({
+      run_id: uuid(1),
+      created_at: '2026-09-30T23:30:00.000Z',
+      ending: 'completed',
+    });
+    const asked = recordRequests('/runs');
+    server.use(
+      http.get(mswPath(RUNS), () =>
+        HttpResponse.json({
+          data: [runView(MOCK_WORKSPACE.workspace_id, [], lateRun, FROZEN + 3_600_000)],
+          page: { has_more: false, next_cursor: null, limit: 200 },
+          meta: { manual_runs_today: { used: 3, limit: 20 } },
+        }),
+      ),
+    );
+    const berlin = { id: fynix.project_id, slug: fynix.slug, name: fynix.name, timeZone: 'Europe/Berlin' };
+    renderWithProviders(runsAs('admin', [berlin]), { searchParams: '?month=2026-09' });
+    const table = await grid();
+    await waitFor(() => expect(bodyRows(table)).toHaveLength(1));
+    expect(asked[0]?.query.get('from')).toBe('2026-09-01T00:00:00Z');
+    expect(asked[0]?.query.get('to')).toBe('2026-10-01T00:00:00Z');
+    // 23:30 UTC is 01:30 on 1 October in Berlin, and the page says whose clock that is
+    expect(bodyRows(table)[0]).toHaveTextContent(/Oct 1\b/);
+    expect(
+      screen.getByText('Fynix, September 2026. 3 of 20 manual runs used today. Times in Europe/Berlin.'),
+    ).toBeInTheDocument();
   });
 
   it('asks for the month that is chosen, in UTC, and the next month as its end', async () => {
@@ -307,6 +532,30 @@ describe('Runs', () => {
     expect(within(table).queryByRole('button', { name: /^Actions for / })).toBeNull();
   });
 
+  it('says in words that a cancelled run was cancelled by a member, whatever free text the mock keeps', async () => {
+    serveRuns([
+      store({ run_id: uuid(1), cancelled_at: new Date(NOW.getTime() - 1_000).toISOString() }),
+      store({
+        run_id: uuid(2),
+        created_at: new Date(NOW.getTime() - 6_000).toISOString(),
+        cancelled_at: new Date(NOW.getTime() - 2_000).toISOString(),
+        cancel_reason: 'Started by mistake',
+      }),
+    ]);
+    const { user } = renderWithProviders(runsAs('admin'));
+    const table = await grid();
+    await waitFor(() => expect(within(table).getAllByText('Cancelled')).toHaveLength(2));
+    for (const at of [0, 1]) {
+      const row = bodyRows(table)[at];
+      if (row === undefined) throw new Error('no row');
+      await user.click(within(row).getByRole('rowheader'));
+      const panel = await screen.findByRole('complementary');
+      expect(await within(panel).findByText('Cancelled by a member')).toBeInTheDocument();
+      expect(within(panel).queryByText('Cancelled.')).toBeNull();
+      expect(within(panel).queryByText('Started by mistake')).toBeNull();
+    }
+  });
+
   it('keeps the run when the question is answered Keep run', async () => {
     const served = serveRuns([store({ run_id: uuid(1) })]);
     const { user } = renderWithProviders(runsAs('admin'));
@@ -316,6 +565,32 @@ describe('Runs', () => {
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Keep run' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(served.cancels).toEqual([]);
+  });
+
+  it('puts focus on a cell of the grid when the question closes, after Keep run and after Cancel run', async () => {
+    serveRuns([store({ run_id: uuid(1) }), store({ run_id: uuid(2) })]);
+    const { user } = renderWithProviders(runsAs('admin'));
+    const table = await grid();
+    await waitFor(() => expect(within(table).getAllByRole('button', { name: /^Actions for / })).toHaveLength(2));
+    const onGridCell = (): boolean =>
+      document.activeElement instanceof HTMLElement &&
+      table.contains(document.activeElement) &&
+      document.activeElement.dataset.cell !== undefined;
+
+    // The menu item that opened the question is gone when it closes: focus must not fall to the page
+    await user.click(within(table).getAllByRole('button', { name: /^Actions for / })[0] ?? table);
+    await user.click(await screen.findByRole('menuitem', { name: 'Cancel run' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Keep run' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() => expect(onGridCell()).toBe(true));
+
+    await user.click(within(table).getAllByRole('button', { name: /^Actions for / })[0] ?? table);
+    await user.click(await screen.findByRole('menuitem', { name: 'Cancel run' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Cancel run' }));
+    expect(await screen.findByText('Run cancelled')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    await waitFor(() => expect(onGridCell()).toBe(true));
+    expect(document.body).not.toBe(document.activeElement);
   });
 
   it('offers Cancel to schedules:write on every open run, and to runs:trigger on the manual runs it started', async () => {
@@ -447,6 +722,19 @@ describe('Runs', () => {
     fail = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(bodyRows(screen.getByRole('grid', { name: 'Runs' })).length).toBeGreaterThan(0));
+  });
+
+  it('gives a member without data:read the no-access state, and asks for nothing', async () => {
+    const asked = recordRequests('/runs');
+    renderWithProviders(runsAs('billing'), { searchParams: `?inspect=run:${uuid(1)}` });
+    expect(await screen.findByRole('heading', { name: 'You do not have access to Runs' })).toBeInTheDocument();
+    expect(screen.getByText(/Viewing runs needs the data:read permission/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
+    expect(screen.getByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
+    expect(screen.queryByRole('grid')).toBeNull();
+    expect(screen.queryByText('The runs could not be loaded')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(asked).toEqual([]);
   });
 
   it('says there is nothing to show when the member has no project', async () => {

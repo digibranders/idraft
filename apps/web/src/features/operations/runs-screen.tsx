@@ -1,7 +1,7 @@
 'use client';
 
 import { useQueryClient, useMutation } from '@tanstack/react-query';
-import { CircleSlash, FolderOpen } from 'lucide-react';
+import { Ban, CircleSlash, FolderOpen } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { parseAsString, useQueryStates } from 'nuqs';
@@ -12,6 +12,7 @@ import { DEFAULT_SORT, rowId, SORT_FIELDS, useRunColumns } from './run-columns';
 import { canCancel, RUN_STATUS_KEYS, RUN_STATUSES, RUN_TRIGGERS, RUN_WORKLOADS, TRIGGER_KEYS } from './run-model';
 import { CANCEL_RUN, MAX_RUNS, refreshRuns, useMonthRuns, type RunFilters, type RunsScope } from './runs-queries';
 import { DataTable } from '@/components/app/data-table/data-table';
+import { gridFocus } from '@/components/app/data-table/grid-focus';
 import type { RecordAction, RowActions, TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
@@ -30,11 +31,12 @@ import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import type { Run } from '@/lib/api/types';
+import { useUtcDay } from '@/lib/dom/use-utc-day';
 import type { FilterValue } from '@/lib/filters/filter-values';
 import { formatInteger } from '@/lib/format';
 import { currentMonth, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
 import { formatInspectTarget } from '@/lib/inspector/placement';
-import { can, useMembership } from '@/lib/permissions';
+import { can, useCan, useMembership } from '@/lib/permissions';
 import { workspacePath } from '@/lib/routes/paths';
 import { useMe } from '@/lib/session/use-me';
 import {
@@ -88,7 +90,24 @@ const enumValues = (value: FilterValue | undefined): string[] => (value?.kind ==
  */
 export function RunsScreen(props: RunsScreenProps): ReactNode {
   const t = useTranslations('runs');
+  const canRead = useCan('data:read');
   const [first] = props.projects;
+  if (!canRead) {
+    return (
+      <div className={PAGE}>
+        <PageHeader title={t('title')} />
+        <EmptyState
+          icon={Ban}
+          title={t('noAccessTitle')}
+          reason={t('noAccessReason')}
+          headingLevel={2}
+          secondaryAction={
+            <TextLink render={<Link href={workspacePath(props.workspaceSlug)} />}>{t('backToOverview')}</TextLink>
+          }
+        />
+      </div>
+    );
+  }
   if (first === undefined) {
     return (
       <div className={PAGE}>
@@ -118,8 +137,8 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
   const membership = useMembership();
   const { user } = useMe();
 
-  // One clock for the page's life: the months it offers never change under the person
-  const [now] = useState(() => new Date());
+  // The same date all UTC day, so the months it offers do not change under the person; a new day is read
+  const now = useUtcDay();
   const months = useMemo(() => recentMonths(now), [now]);
   const thisMonth = currentMonth(now);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
@@ -266,10 +285,11 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
   const manual = list.manualRunsToday;
   const meta =
     manual === null
-      ? t('meta', { project: project.name, month: label })
+      ? t('meta', { project: project.name, month: label, timeZone: project.timeZone })
       : t('metaWithManual', {
           project: project.name,
           month: label,
+          timeZone: project.timeZone,
           manual: t('manualToday', { used: formatInteger(manual.used), limit: formatInteger(manual.limit) }),
         });
 
@@ -424,6 +444,8 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
         cancelLabel={t('keepRunning')}
         error={cancelError}
         onConfirm={confirmCancel}
+        // The row's menu item is gone when the question closes, and the run's row may be too
+        finalFocus={gridFocus}
       />
     </InspectorLayout>
   );

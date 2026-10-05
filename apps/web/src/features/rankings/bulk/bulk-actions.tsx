@@ -13,6 +13,7 @@ import { TagsDialog } from './tags-dialog';
 import { TargetUrlDialog } from './target-url-dialog';
 import { refreshKeywords, type KeywordFilters, type ProjectScope } from '../rankings-queries';
 import { refreshGroups } from '../taxonomy-queries';
+import { gridTabStop } from '@/components/app/data-table/grid-focus';
 import type { ActionScope, RecordAction } from '@/components/app/data-table/types';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import { toast } from '@/components/ui/toast';
@@ -95,7 +96,7 @@ export function useBulkActions(context: BulkContext): {
   const gridFocus = useMemo(
     (): RefObject<HTMLElement | null> => ({
       get current(): HTMLElement | null {
-        return changed.current ? document.querySelector<HTMLElement>('[role="grid"] [tabindex="0"]') : null;
+        return changed.current ? gridTabStop() : null;
       },
     }),
     [],

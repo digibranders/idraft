@@ -364,6 +364,16 @@ describe('DataTable', () => {
     // No menu for a row without actions: the key opens nothing
     await user.keyboard('{Shift>}{F10}{/Shift}');
     expect(screen.queryByRole('menuitem')).toBeNull();
+    // Nor does Enter on that row's empty actions cell: the key is not taken for a menu that cannot open
+    const emptyActions = within(grid())
+      .getAllByRole('gridcell')
+      .filter((candidate) => candidate.closest('tr') === cell.closest('tr'))
+      .at(-1);
+    if (emptyActions === undefined) throw new Error('no actions cell');
+    act(() => emptyActions.focus());
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('menuitem')).toBeNull();
+    expect(onOpen).not.toHaveBeenCalled();
     const first = within(grid()).getAllByRole('rowheader')[0];
     if (first === undefined) throw new Error('no row');
     act(() => first.focus());

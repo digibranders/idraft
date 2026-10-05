@@ -1,9 +1,9 @@
 'use client';
 
 import { useInfiniteQuery, useQuery, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { isOpen } from './run-model';
+import { isOpen, needsListRead, overlayRuns } from './run-model';
 import { api, unwrap } from '@/lib/api/client';
 import { projectKey, type QueryKey } from '@/lib/api/keys';
 import { apiMutation, apiQuery, type ApiQueryOptions } from '@/lib/api/query';
@@ -48,6 +48,8 @@ const PAGE = 200;
 const FIRST_PAGE: string | null = null;
 /** How often the page asks again while a run is still open (the API's `Retry-After`, 19 section 2.10). */
 const FOLLOW_MS = 10_000;
+/** The statuses of a run that has not ended: what the poll asks for. */
+const OPEN_STATUSES: readonly RunStatusFilter[] = ['planned', 'running'];
 
 /** Every query of a project's runs, the list and each run: `refreshRuns` invalidates them all. */
 export const runsKey = (scope: RunsScope): QueryKey => [...projectKey(scope.workspaceId, scope.projectId), 'runs'];
@@ -85,12 +87,22 @@ async function readPage(
   );
 }
 
+/** The filters of the poll: the open runs the person's filters let through, or `null` when they let none. */
+export function followFilters(filters: RunFilters): RunFilters | null {
+  const statuses =
+    filters.statuses.length === 0 ? OPEN_STATUSES : OPEN_STATUSES.filter((s) => filters.statuses.includes(s));
+  return statuses.length === 0 ? null : { ...filters, statuses };
+}
+
 /** What Runs shows of the list: the rows at hand and how they were read. */
 export interface MonthRuns {
   rows: readonly Run[];
   /** The first page has not arrived. */
   loading: boolean;
-  /** Any page is being read, the first or a later one, or the list is read again. */
+  /**
+   * The person is waiting for a read: the first load, a later page, or their Retry. The poll that follows
+   * open runs is not one, so the table does not flash every few seconds.
+   */
   fetching: boolean;
   /** The first page failed. */
   error: unknown;
@@ -104,8 +116,10 @@ export interface MonthRuns {
 }
 
 /**
- * The runs of `month` for the filters, every page of them up to `MAX_RUNS`. While a run is open the list is
- * read again every few seconds, so a run is followed to its end.
+ * The runs of `month` for the filters, every page of them up to `MAX_RUNS`. While a run is open a small
+ * second query asks every few seconds for the open runs alone (one page, not the ten the list may hold), and
+ * what it hears replaces those runs' rows. A run it no longer hears of has ended, and a run it hears of that
+ * the list does not hold was started since: either way the list is read again, once and quietly.
  */
 export function useMonthRuns(scope: RunsScope, month: MonthKey, filters: RunFilters): MonthRuns {
   const query = useInfiniteQuery({
@@ -113,27 +127,55 @@ export function useMonthRuns(scope: RunsScope, month: MonthKey, filters: RunFilt
     queryFn: ({ pageParam, signal }) => readPage(scope, month, filters, pageParam, signal),
     initialPageParam: FIRST_PAGE,
     getNextPageParam: (last) => (last.page.has_more ? last.page.next_cursor : null),
-    // Open runs are the newest, so the first page tells whether anything is still moving
-    refetchInterval: (state) => (state.state.data?.pages[0]?.data.some(isOpen) === true ? FOLLOW_MS : false),
   });
-  const { data, hasNextPage, isFetching, isError, fetchNextPage } = query;
+  const { data, hasNextPage, isFetching, isError, fetchNextPage, refetch, dataUpdatedAt } = query;
   const loaded = useMemo(() => (data === undefined ? [] : allRows(data)), [data]);
   // The rest of the pages follow one after another, up to the cap, while nothing else is being read
   useEffect(() => {
     if (hasNextPage && !isFetching && !isError && loaded.length < MAX_RUNS) void fetchNextPage();
   }, [hasNextPage, isFetching, isError, loaded.length, fetchNextPage]);
-  const rows = loaded.length > MAX_RUNS ? loaded.slice(0, MAX_RUNS) : loaded;
+  const capped = loaded.length >= MAX_RUNS && (hasNextPage || loaded.length > MAX_RUNS);
+  const listed = useMemo(() => (loaded.length > MAX_RUNS ? loaded.slice(0, MAX_RUNS) : loaded), [loaded]);
+
+  // The poll runs while the list holds an open run, and stops by itself when the list says none is
+  const open = followFilters(filters);
+  const follow = useQuery({
+    queryKey: [...runsKey(scope), 'following', month, open],
+    queryFn: ({ signal }) => readPage(scope, month, open ?? filters, FIRST_PAGE, signal),
+    enabled: open !== null && listed.some(isOpen),
+    refetchInterval: FOLLOW_MS,
+  });
+  // What the poll heard counts while it is newer than the list's last read
+  const heard = follow.data !== undefined && follow.dataUpdatedAt > dataUpdatedAt ? follow.data : null;
+  const rows = useMemo(() => (heard === null ? listed : overlayRuns(listed, heard.data)), [listed, heard]);
+
+  const answered = useRef(0);
+  useEffect(() => {
+    if (heard === null) return;
+    // A read of the list under way brings the news itself; a later poll will look again. At the cap a
+    // run beyond it is never in the list, so its absence is not news.
+    if (isFetching || hasNextPage || capped || answered.current === follow.dataUpdatedAt) return;
+    answered.current = follow.dataUpdatedAt;
+    if (needsListRead(listed, heard)) void refetch();
+  }, [heard, listed, isFetching, hasNextPage, capped, follow.dataUpdatedAt, refetch]);
+
+  // The person's Retry is a wait they can see; the polls and the reads they cause are not
+  const [retrying, setRetrying] = useState(false);
+  const retry = (): void => {
+    setRetrying(true);
+    void refetch().finally(() => setRetrying(false));
+  };
   const failedLater = query.isFetchNextPageError;
   return {
     rows,
     loading: query.isPending,
-    fetching: isFetching,
+    fetching: (isFetching && query.isPending) || query.isFetchingNextPage || retrying,
     // A failed later page leaves the rows that loaded; the list says it is incomplete instead
     error: failedLater ? null : query.error,
-    refetch: () => void query.refetch(),
-    capped: loaded.length >= MAX_RUNS && (hasNextPage || loaded.length > MAX_RUNS),
+    refetch: retry,
+    capped,
     incomplete: failedLater ? { retry: () => void fetchNextPage(), retrying: query.isFetchingNextPage } : null,
-    manualRunsToday: data?.pages[0]?.meta.manual_runs_today ?? null,
+    manualRunsToday: (heard ?? data?.pages[0])?.meta.manual_runs_today ?? null,
   };
 }
 

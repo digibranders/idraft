@@ -110,7 +110,9 @@ export function ProjectShell({
     ...(can(permissions, 'costs:read')
       ? [{ href: costsPath(workspace.slug), label: nav('workspaceLinks.costs') }]
       : []),
-    ...(can(permissions, 'data:read') ? [{ href: runsPath(workspace.slug), label: nav('workspaceLinks.runs') }] : []),
+    ...(can(permissions, 'data:read')
+      ? [{ href: runsPath(workspace.slug, project.slug), label: nav('workspaceLinks.runs') }]
+      : []),
   ];
   const workspaceLabel = nav('workspaceLinks.label');
 

@@ -150,7 +150,8 @@ describe('runs', () => {
     const cancelled = await analyst.call('POST', `${P}/runs/${run.run_id}/cancel`, { reason: 'Started by mistake' });
     expect(dataOf(cancelled, RUN)).toMatchObject({
       status: 'cancelled',
-      status_reason: 'Started by mistake',
+      // The API's code, not the member's words
+      status_reason: 'cancelled_by_user',
       actual_cost_usd: '0.000000',
     });
     expect(await analyst.call('POST', `${P}/runs/${run.run_id}/cancel`)).toMatchObject({

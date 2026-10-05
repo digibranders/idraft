@@ -137,6 +137,26 @@ describe('cost model', () => {
     expect(projectBudget(list, 'p3')).toBeNull();
   });
 
+  it('shows only a budget that covers the workloads the row is filtered to', () => {
+    const used = (status: BudgetStatus, pct: number): BudgetStatus => ({ ...status, pct_used: pct });
+    const list = [
+      used(budgetStatus('p1', 'seo_rank'), 10),
+      used(budgetStatus('p1', 'ai_prompt'), 70),
+      used(budgetStatus('p2', 'all'), 5),
+      used(budgetStatus('p2', 'seo_rank'), 90),
+    ];
+    // A filter of one workload picks the budget of that workload, not the most used of them all
+    expect(projectBudget(list, 'p1', ['seo_rank'])?.budget.budget_id).toBe('p1-seo_rank');
+    expect(projectBudget(list, 'p1', ['seo_rank', 'ai_prompt'])?.budget.budget_id).toBe('p1-ai_prompt');
+    // None of the project's budgets is for a filtered workload: no budget, rather than another workload's
+    expect(projectBudget(list, 'p1', ['discovery'])).toBeNull();
+    // The budget for all workloads covers any filter
+    expect(projectBudget(list, 'p2', ['discovery'])?.budget.budget_id).toBe('p2-all');
+    expect(projectBudget(list, 'p2', ['seo_rank'])?.budget.budget_id).toBe('p2-all');
+    // No filter is the same as before
+    expect(projectBudget(list, 'p1', [])?.budget.budget_id).toBe('p1-ai_prompt');
+  });
+
   it('lists project budgets by project, the all-workloads one first', () => {
     const list = [
       budgetStatus('p2', 'ai_prompt'),

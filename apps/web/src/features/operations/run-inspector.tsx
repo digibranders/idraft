@@ -167,8 +167,10 @@ export function RunInspector({
             <InspectorSection
               title={t('inspector.byStatus')}
               icon={ListChecks}
+              // A poll that fails after a good read leaves what is on screen, and says so; the error view is
+              // for a read that has given nothing yet
               status={
-                detail.isError ? 'error' : tasks === undefined ? 'loading' : taskRows.length === 0 ? 'empty' : 'ready'
+                tasks === undefined ? (detail.isError ? 'error' : 'loading') : taskRows.length === 0 ? 'empty' : 'ready'
               }
               error={loadError}
               empty={
@@ -182,6 +184,7 @@ export function RunInspector({
             >
               {counts === null ? null : (
                 <div className="flex flex-col gap-2">
+                  {detail.isError ? <p className="type-meta">{t('inspector.stale')}</p> : null}
                   <p className="type-meta">
                     {t('tasks', {
                       done: formatInteger(counts.done),

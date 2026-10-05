@@ -45,8 +45,12 @@ export const withQuery = (path: Route, query: string): Route => (query === '' ? 
 /** Workspace Costs (11-navigation.md section 1). */
 export const costsPath = (workspace: string): Route => `/${encodeURIComponent(workspace)}/costs` as Route;
 
-/** Workspace Operations > Runs. */
-export const runsPath = (workspace: string): Route => `/${encodeURIComponent(workspace)}/ops/runs` as Route;
+/** Workspace Operations > Runs, on `project` (its slug, the page's `project` key) when one is given. */
+export const runsPath = (workspace: string, project?: string): Route =>
+  withQuery(
+    `/${encodeURIComponent(workspace)}/ops/runs` as Route,
+    project === undefined ? '' : `project=${encodeURIComponent(project)}`,
+  );
 
 /** The sections of Settings that exist outside any project: the account's and the workspace's. */
 export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 'workspace' | 'members';
