@@ -936,6 +936,7 @@ CREATE TABLE seo.serp_current_results (
 - Grants: the API reads all of them; the worker inserts into the observation tables and `seo.serp_feature_types` (an unknown DataForSEO type becomes `other:<type>`), changes the state in named columns only, and replaces the current results (INSERT and DELETE). The worker reads `core.entities`, `core.entity_domains`, `core.project_entities`, `core.project_domain_roles` and `seo.tracked_keyword_competitors` to resolve ranks.
 - `seo.serp_snapshot_raw(snapshot_id)` is a `SECURITY DEFINER` function the API calls for the raw route (`app_api` only): it returns the registry row of the snapshot's payload when the snapshot belongs to the current workspace (review log F8).
 - The price book gets the SERP rows of `serp/google/organic`: $0.0006, $0.0012 and $0.002 a page (`conditions.queue` is `standard`, `priority` or `live`) and the asynchronous AI Overview surcharge ($0.0006 a task).
+- A check now is a task with `provider_endpoint = 'serp/google/organic/live'` and `ready_source = 'live'`, which goes from `submit_unknown` straight to `fetched` and has no provider task id; the month's count of such tasks is the usage of `core.workspace_quotas.max_serp_checks_per_month`. The tracked keyword's state takes its check like any other (`current_depth_requested` is the depth asked).
 - Schedules of the `seo_rank` workload made before this revision have their `next_run_at` moved to now, so the planner starts them at their next window instead of recording the past ones as missed (review log F72).
 
 ### 7.7 SEO rollups

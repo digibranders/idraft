@@ -47,6 +47,8 @@ Content retention: we store short feature text needed for product features (PAA 
 
 On each check the ingest also updates `seo.tracked_keyword_state.feature_types_present` and `owned_feature_types` for fast table rendering, and writes `feature_gained`, `feature_lost`, `aio_appeared`, `aio_disappeared`, `aio_citation_gained`, `aio_citation_lost` events to `seo.rank_events`.
 
+**As built (step 5, rank collection).** Features are written for the whole depth checked, but the state (`feature_types_present`, `owned_feature_types`) follows page one only (ranks up to the tenth organic result's absolute rank), so it does not change with the depth of the check. The AI Overview is a feature row of type `ai_overview` whose payload holds its state (`present`, `present_async_loaded`, `present_not_loaded`, `absent`) and its cited URLs; it is cited, not owned, so it is not an owned feature type, and `aio_citation_gained` and `aio_citation_lost` follow the citations of checks where it loaded in both. An unknown DataForSEO feature type is stored as `other:<type>`. `ai.*` tables wait for step 8.
+
 ## 4. Metrics
 
 | Metric | Formula | Denominator |

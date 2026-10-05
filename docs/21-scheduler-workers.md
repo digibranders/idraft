@@ -75,6 +75,8 @@ for schedule in SELECT ... FROM ops.schedules
 2. **Planned manual runs.** A manual run (a user's refresh, or the system run above) is planned like a schedule's window, through the same workload code, budget check and ledger. Its window opens when it is planned and lasts one hour, every task is due at once (a project's keywords at one location and language go out in one Labs call), and its `config_snapshot` is the plan's (adapter, provider mode, source) with the selector it was asked with. A run whose project no longer collects is `cancelled` with `project_not_collecting`; one over a used-up budget is `budget_blocked`; one that no worker can plan (no DataForSEO credentials) is `cancelled` with `workload_unavailable` after 10 minutes.
 3. **Due schedules.** As above.
 
+**As built (step 5, rank collection).** The tick runs a fourth step, between the first and the second: **new keywords' first rank check.** For each collecting project with active tracked keywords that have never been checked and have had no `seo_rank` task in the last 24 hours, one `planned` `seo_rank` run is recorded (trigger `manual`, created by `system`, selector `{"new": true}`), on the standard queue and due at once, so a new keyword has a rank within minutes. The first keyword a project tracks also makes its default daily `seo_rank` schedule (`keywords/writer.py`, `ensure_rank_schedule`), so collection starts without anyone asking. A check now is a manual `seo_rank` run whose selector names the tracked keywords and `live: true`: it is planned like any manual run and its tasks go to the live endpoint (section 4); its keywords are planned whatever their schedule or what ran today. The `seo_rank` selector is: `all`, `groups`, `terms`, `priority_lte`, `new`, and for check now `tracked_keyword_ids` (at most 100), `live` and `depth` (10, 20, 50 or 100). A keyword is planned once a project-local day across `seo_rank` schedules (a check now does not count as that day's check); the deep-check weekday of the project replaces the daily check with the full depth.
+
 ### 3.2 Selector resolution
 
 | Workload | Selector JSON | Resolves to |
@@ -135,7 +137,7 @@ FOR UPDATE OF t SKIP LOCKED;
 - Each batch becomes one `submit_batch` Taskiq message with dedupe key `submit:` + sha256(sorted task ids) (section 5.2). The budget check against `ops.budgets` runs before the message is sent.
 - Tasks stay in `status = 'pending'` with `dispatched_at` set, so they are not selected again until a handler takes them, the dispatcher releases a batch it could not send, or the reconciler clears a stale `dispatched_at`.
 
-**As built (step 5, keywords).** The worker runs six ticks (`worker/assembly.py`). Each runs in one process per interval, under the Redis lock `lock:<name>`, which expires just before the next run is due:
+**As built (step 5, keywords).** The worker runs six ticks (`worker/assembly.py`), and a seventh, `rank_ingest`, since rank collection. Each runs in one process per interval, under the Redis lock `lock:<name>`, which expires just before the next run is due:
 
 | Tick | Every | Lock TTL | Work |
 |---|---|---|---|
@@ -143,6 +145,7 @@ FOR UPDATE OF t SKIP LOCKED;
 | `dispatcher` | 15 s | 14 s | section 4 |
 | `ready_poll` | 60 s | 55 s | section 8.1 |
 | `keyword_metrics_ingest` | 30 s | 28 s | reads fetched `keyword_metrics` tasks into snapshots; needs the raw bucket |
+| `rank_ingest` | 30 s | 28 s | (rank collection) reads fetched `seo_rank` tasks into snapshots, observations, features, state and rank events, one transaction a task; needs the raw bucket. Registered with the `seo_rank` workload |
 | `keyword_imports` | 5 s | 4 s | ends imports past `expires_at`, then reads the next import waiting to be previewed; needs the raw bucket |
 | `keyword_import_writes` | 5 s | 4 s | writes the next confirmed import in batches; needs no bucket, and runs apart from the reading tick so a long write never holds up a preview |
 
@@ -150,6 +153,8 @@ FOR UPDATE OF t SKIP LOCKED;
 - **Live batches.** A live endpoint's batch (DataForSEO Labs) is sent by the same `submit_batch` job as a queued one. Its tasks go from `submit_unknown` straight to `fetched` in that call, so the catalog's separate `live_call` job is not used for it. Keyword metrics are read by the `keyword_metrics_ingest` tick, not by a `process` job `ingest_keyword_metrics`.
 - **Registration.** The `keyword_metrics` workload is registered only when DataForSEO credentials are set. Without them the new-keyword step does nothing, a manual keyword metrics run is cancelled after 10 minutes with `workload_unavailable`, and the worker spends nothing.
 - **Cost jobs.** `cost_rollup` and `cost_rebuild` (section 10) take no payload.
+- **Account jobs (rank collection).** `balance_check` (every 15 minutes) reads `appendix/user_data`, works out the days the balance lasts at the trailing seven-day spend from `ops.cost_daily` (warning under 14 days, error under 5), and keeps the reading in Redis (`provider:balance:<provider>`) with the day's spend so far (`provider:spend:<provider>:<day>`). `cost_reconcile` (00:45 UTC) compares the last spend reading of the day before with the cost events written up to that reading and keeps the difference (`provider:reconcile:<provider>:<day>`); it reports and books nothing, since refunds, add-ons and the asynchronous AI Overview surcharge make the two differ, and a person looks first. Both do nothing without the provider, and running either twice changes nothing. The account's day is taken to be the UTC day. The alert rows (`ops.platform_alerts`) and the Healthchecks pings arrive with the operations step.
+- **Live SERP.** A check now goes out as one live call per search (`serp/google/organic/live/advanced`, batch size 1, its own limit family `serp_live` of 120 a minute), straight from `submit_unknown` to `fetched`. A live search is tried twice at most (`MAX_LIVE_ATTEMPTS`), because a call that failed may have been paid for with no cost event to show it (review log F78, still open for the cost event).
 
 Why a dispatcher rather than 10,000 delayed queue messages: delayed messages work, but they put the schedule in Redis. With the dispatcher, the schedule stays in PostgreSQL where it is queryable ("what will run in the next hour"), survives Redis loss, and can be rescheduled with one UPDATE.
 
