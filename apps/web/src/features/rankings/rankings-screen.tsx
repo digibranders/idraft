@@ -23,6 +23,8 @@ import {
   type KeywordList,
   type ProjectScope,
 } from './rankings-queries';
+import { usePendingMetrics } from './refresh/pending-metrics';
+import { useMetricsRefresh } from './refresh/use-metrics-refresh';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -37,7 +39,7 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
-import { Menu } from '@/components/ui/menu';
+import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
@@ -101,6 +103,7 @@ export function RankingsScreen({
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
+  const canRefresh = useCan('runs:trigger');
   const [adding, setAdding] = useState(false);
   const [managing, setManaging] = useState(false);
   // The imports whose writes the header follows: those Confirm started, and one a reload found under way.
@@ -139,7 +142,13 @@ export function RankingsScreen({
   const filters = useMemo(() => keywordFilters(values, view.archived), [values, view.archived]);
   const search = useDebouncedValue(view.q, SEARCH_DELAY_MS);
 
-  const list = useKeywordList({ scope, filters, sort, search });
+  const loadedList = useKeywordList({ scope, filters, sort, search });
+  // New keywords wait for their first metrics: the poll lays what it hears over the rows, and only those
+  const rows = usePendingMetrics({ scope, filters, rows: loadedList.rows });
+  const list = useMemo(
+    (): KeywordList => (rows === loadedList.rows ? loadedList : { ...loadedList, rows }),
+    [loadedList, rows],
+  );
   const tracked = useTrackedCount(scope);
   const writingNow = useWritingImport(scope, canImport).data?.import_id ?? null;
   const followedImports = [...startedImports, ...(writingNow === null ? [] : [writingNow])].filter(
@@ -190,6 +199,28 @@ export function RankingsScreen({
     onDone: clearSelection,
   });
   const filtered = Object.keys(values).length > 0;
+  const refresh = useMetricsRefresh({
+    scope,
+    enabled: canRefresh,
+    archived: view.archived,
+    list,
+    chosen,
+    narrowed: filtered,
+    menuButton: moreButton,
+  });
+  // Refresh metrics sits with the other changes to the chosen keywords, ahead of Archive and Delete
+  const firstDestructive = bulk.actions.findIndex((action) => action.group === 'destructive');
+  const refreshAt = firstDestructive === -1 ? bulk.actions.length : firstDestructive;
+  const bulkActions =
+    refresh.barAction === null
+      ? bulk.actions
+      : [...bulk.actions.slice(0, refreshAt), refresh.barAction, ...bulk.actions.slice(refreshAt)];
+  const menuItems: MenuItemDef[] = [
+    ...(refresh.menuItem === null ? [] : [refresh.menuItem]),
+    ...(canWrite
+      ? [{ id: MANAGE_GROUPS, label: t('groups.manage.open'), icon: FolderTree, onSelect: () => setManaging(true) }]
+      : []),
+  ];
   const status = statusOf(list, filtered || view.archived || (list.mode === 'server' && search.trim() !== ''));
   const updated = newestFetch(list.rows);
   const updatedText = updated === null ? null : t('updated', { time: formatRelative(updated, timeZone) });
@@ -258,18 +289,13 @@ export function RankingsScreen({
   );
   const headerActions = (
     <>
-      {canWrite ? (
+      {menuItems.length > 0 ? (
         <Menu
           align="end"
           trigger={<IconButton ref={moreButton} icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
-          items={[
-            {
-              id: MANAGE_GROUPS,
-              label: t('groups.manage.open'),
-              icon: FolderTree,
-              onSelect: () => setManaging(true),
-            },
-          ]}
+          items={menuItems}
+          header={refresh.menuHeader}
+          onOpenChange={refresh.onMenuOpenChange}
         />
       ) : null}
       {canImport ? (
@@ -368,7 +394,7 @@ export function RankingsScreen({
         <PageHeader
           title={t('title')}
           meta={meta === '' ? undefined : meta}
-          actions={canWrite || canImport ? headerActions : undefined}
+          actions={menuItems.length > 0 || canImport ? headerActions : undefined}
         />
         {followedImports.map((importId) => (
           <ImportProgress
@@ -379,6 +405,7 @@ export function RankingsScreen({
             onSettled={onImportSettled}
           />
         ))}
+        {refresh.progress}
         <FilterBar
           fields={fields}
           values={values}
@@ -492,10 +519,11 @@ export function RankingsScreen({
                   }
                 : undefined
             }
-            bulkActions={canWrite ? bulk.actions : undefined}
+            bulkActions={canWrite ? bulkActions : undefined}
           />
         </div>
       </div>
+      {refresh.dialog}
       {canWrite ? bulk.dialogs : null}
       {canWrite ? (
         <ManageGroupsDialog scope={scope} open={managing} onOpenChange={setManaging} finalFocus={moreButton} />

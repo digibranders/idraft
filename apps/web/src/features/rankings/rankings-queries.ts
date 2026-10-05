@@ -115,7 +115,8 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
   };
 }
 
-async function readPage(scope: ProjectScope, query: ListQuery, signal: AbortSignal): Promise<ListPage> {
+/** One page of the tracked keywords: the list's own reads, and the poll that waits for first metrics. */
+export async function readPage(scope: ProjectScope, query: ListQuery, signal: AbortSignal): Promise<ListPage> {
   return unwrap(
     api.GET(TRACKED, {
       params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId }, query },
