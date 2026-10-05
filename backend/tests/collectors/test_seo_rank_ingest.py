@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -189,6 +190,42 @@ async def test_ingesting_twice_writes_one_snapshot(
     assert len(await _rows(migrated, "seo.serp_snapshots", keyword, "id")) == 1
     assert len(await _rows(migrated, "seo.domain_rank_observations", keyword, "role")) == 2
     assert (await _state(migrated, keyword))["current_rank"] == 3
+
+
+async def test_the_business_date_of_a_check_is_the_projects_local_day(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    await execute(
+        migrated,
+        "UPDATE core.projects SET timezone = 'Asia/Kolkata' WHERE id = $1",
+        world.project.id,
+    )
+    keyword = await track(migrated, world.project)
+    # 20:30 UTC is 02:00 the next day in Kolkata.
+    at = NOW.replace(hour=20, minute=30, second=0, microsecond=0)
+    store = MemoryStore()
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(results(own_at=4), when=at),
+        store,
+        fetched_at=at,
+    )
+
+    await ingest(worker_db, store)
+
+    (snapshot,) = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    (observation,) = await fetch(
+        migrated,
+        "SELECT DISTINCT observed_date FROM seo.domain_rank_observations "
+        "WHERE tracked_keyword_id = $1 AND entity_id = $2",
+        keyword,
+        world.own,
+    )
+    expected = (at + timedelta(hours=5, minutes=30)).date()
+    assert snapshot["observed_date"] == observation["observed_date"] == expected
 
 
 async def test_the_next_days_check_moves_the_state_and_writes_the_events(

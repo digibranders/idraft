@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from typing import Any, Final
 
 import structlog
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import and_, delete, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -41,6 +41,7 @@ from sightline.collectors.seo_rank_rows import (
 from sightline.db import dictionaries
 from sightline.db.tables import (
     domain_rank_observations,
+    projects,
     rank_events,
     serp_current_results,
     serp_feature_types,
@@ -271,9 +272,16 @@ async def _keyword(
                 tracked_keywords.c.location_id,
                 tracked_keywords.c.config_version,
                 urls.c.url_hash,
+                projects.c.timezone,
             )
             .select_from(
-                tracked_keywords.outerjoin(urls, urls.c.id == tracked_keywords.c.target_url_id)
+                tracked_keywords.join(
+                    projects,
+                    and_(
+                        projects.c.id == tracked_keywords.c.project_id,
+                        projects.c.workspace_id == tracked_keywords.c.workspace_id,
+                    ),
+                ).outerjoin(urls, urls.c.id == tracked_keywords.c.target_url_id)
             )
             .where(
                 tracked_keywords.c.id == tracked_keyword_id,
@@ -292,6 +300,7 @@ async def _keyword(
         location_id=row.location_id,
         config_version=row.config_version,
         target_url_hash=row.url_hash,
+        timezone=row.timezone,
     )
 
 

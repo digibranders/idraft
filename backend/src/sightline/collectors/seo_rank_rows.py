@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Final
+from zoneinfo import ZoneInfo
 
 from sightline.db.dictionaries import UrlRow
 from sightline.extraction.urls import CANONICALIZER_VERSION, CanonicalUrl
@@ -42,6 +43,8 @@ class KeywordRef:
     location_id: int
     config_version: int
     target_url_hash: bytes | None
+    # The project's time zone: the business date of a check is the project's day (doc 04).
+    timezone: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,7 +148,7 @@ def build_rows(
     organic = serp.organic
     snapshot: dict[str, Any] = {
         "observed_at": observed_at,
-        "observed_date": observed_at.astimezone(UTC).date(),
+        "observed_date": observed_at.astimezone(ZoneInfo(keyword.timezone)).date(),
         "workspace_id": keyword.workspace_id,
         "project_id": keyword.project_id,
         "tracked_keyword_id": keyword.tracked_keyword_id,
