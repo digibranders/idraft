@@ -927,6 +927,17 @@ CREATE TABLE seo.serp_current_results (
 );
 ```
 
+**As built (step 5, rank tables, migration 0013).** The tables of sections 7.3 to 7.6 and `seo.rank_events` (doc 09 section 4.1) exist, with these differences:
+
+- Every tenant table carries `workspace_id`, and keys between tenant tables include it. `seo.tracked_keyword_state` and `seo.serp_current_results` gain `workspace_id` and `project_id` and refer to `seo.tracked_keywords` through `(id, project_id, workspace_id)` with `ON DELETE CASCADE`; so do the snapshots and the events. Features and observations refer to their snapshot through `(id, observed_at, workspace_id)`. PostgreSQL copies such a key onto each partition of the table it refers to; the metadata test ignores the copies. Entity ids and URL ids carry no key.
+- One snapshot per task: `(collection_task_id, observed_at)` is unique. The arrays of a snapshot run in parallel (equal lengths), the extras are at most 8 KB and a feature's payload 4 KB. A ranked entity has a ranking URL and an unranked one has none. An event type is one of the 21 of doc 09.
+- `seo.tracked_keyword_state` adds `consecutive_beyond` (the debounce of `new_ranking` and `lost_ranking`) and `previous_depth_requested` (the previous check counts only when its depth was the same or greater). `seo.serp_current_results` holds ranks 1 to 20.
+- The four observation tables are monthly partitions, registered in `ops.partitioned_tables`; the worker creates them ahead as for the ledger.
+- Grants: the API reads all of them; the worker inserts into the observation tables and `seo.serp_feature_types` (an unknown DataForSEO type becomes `other:<type>`), changes the state in named columns only, and replaces the current results (INSERT and DELETE). The worker reads `core.entities`, `core.entity_domains`, `core.project_entities`, `core.project_domain_roles` and `seo.tracked_keyword_competitors` to resolve ranks.
+- `seo.serp_snapshot_raw(snapshot_id)` is a `SECURITY DEFINER` function the API calls for the raw route (`app_api` only): it returns the registry row of the snapshot's payload when the snapshot belongs to the current workspace (review log F8).
+- The price book gets the SERP rows of `serp/google/organic`: $0.0006, $0.0012 and $0.002 a page (`conditions.queue` is `standard`, `priority` or `live`) and the asynchronous AI Overview surcharge ($0.0006 a task).
+- Schedules of the `seo_rank` workload made before this revision have their `next_run_at` moved to now, so the planner starts them at their next window instead of recording the past ones as missed (review log F72).
+
 ### 7.7 SEO rollups
 
 ```sql

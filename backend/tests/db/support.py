@@ -46,6 +46,12 @@ TENANT_TABLES: dict[str, str] = {
     "seo.keyword_metrics_current": "workspace_id",
     "seo.keyword_imports": "workspace_id",
     "seo.keyword_import_rows": "workspace_id",
+    "seo.serp_snapshots": "workspace_id",
+    "seo.serp_features": "workspace_id",
+    "seo.domain_rank_observations": "workspace_id",
+    "seo.tracked_keyword_state": "workspace_id",
+    "seo.serp_current_results": "workspace_id",
+    "seo.rank_events": "workspace_id",
 }
 
 
@@ -306,6 +312,103 @@ async def seed_keywords(
         "action) VALUES ($1, 1, $2, '{\"keyword\": \"crm\"}', 'new', 'create')",
         import_id,
         workspace_id,
+    )
+    await seed_rank(db, workspace_id, project_id, tracked_id, entity_id)
+
+
+async def seed_rank(
+    db: asyncpg.Connection[Any],
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    tracked_id: uuid.UUID,
+    entity_id: uuid.UUID,
+) -> None:
+    """One row in every rank table: a snapshot of the keyword's SERP with a feature, the own
+    entity's observation, the keyword's state, a current result and an event."""
+    raw_payload_id: int = await db.fetchval(
+        "INSERT INTO ops.raw_payloads (storage, object_key, sha256, bytes_raw, bytes_stored, "
+        "compression, content_type, provider_code, provider_endpoint, fetched_at, "
+        "retention_class, expires_at) VALUES ('r2', $1, $2, 10, 10, 'zstd', "
+        "'application/json', 'dataforseo', 'serp/google/organic/task_get/advanced', now(), "
+        "'serp_raw', now() + interval '400 days') RETURNING id",
+        f"serp_raw/{uuid.uuid4().hex}",
+        uuid.uuid4().bytes + uuid.uuid4().bytes,
+    )
+    domain_id: int = await db.fetchval("SELECT id FROM core.domains ORDER BY id LIMIT 1")
+    url_id: int = await db.fetchval(
+        "INSERT INTO core.urls (url_hash, canonical_url, domain_id, path, canonicalizer_version) "
+        "VALUES ($1, 'https://example.com/crm', $2, '/crm', 1) RETURNING id",
+        uuid.uuid4().bytes + uuid.uuid4().bytes,
+        domain_id,
+    )
+    observed_at = await db.fetchval("SELECT now()")
+    snapshot_id: int = await db.fetchval(
+        "INSERT INTO seo.serp_snapshots (observed_at, observed_date, workspace_id, project_id, "
+        "tracked_keyword_id, config_version, provider_code, provider_endpoint, location_id, "
+        "language_code, device, depth_requested, depth_returned, item_types, organic_url_ids, "
+        "organic_domain_ids, organic_abs_positions, has_ai_overview, ai_overview_state, "
+        "raw_payload_id, parser_version, canonicalizer_version) VALUES ($1, current_date, $2, $3, "
+        "$4, 1, 'dataforseo', 'serp/google/organic/task_get/advanced', $5, 'en', 'desktop', 20, "
+        "1, '{organic,featured_snippet}', ARRAY[$6::bigint], ARRAY[$7::integer], "
+        "ARRAY[1::smallint], false, 'absent', $8, 1, 1) RETURNING id",
+        observed_at,
+        workspace_id,
+        project_id,
+        tracked_id,
+        SEED_LOCATION,
+        url_id,
+        domain_id,
+        raw_payload_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.serp_features (observed_at, serp_snapshot_id, workspace_id, project_id, "
+        "tracked_keyword_id, feature_type, ordinal, owned_by_project, parser_version) "
+        "VALUES ($1, $2, $3, $4, $5, 'featured_snippet', 1, false, 1)",
+        observed_at,
+        snapshot_id,
+        workspace_id,
+        project_id,
+        tracked_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.domain_rank_observations (serp_snapshot_id, observed_at, observed_date, "
+        "workspace_id, project_id, tracked_keyword_id, entity_id, role, depth_requested) "
+        "VALUES ($1, $2, current_date, $3, $4, $5, $6, 'own', 20)",
+        snapshot_id,
+        observed_at,
+        workspace_id,
+        project_id,
+        tracked_id,
+        entity_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.tracked_keyword_state (tracked_keyword_id, workspace_id, project_id, "
+        "last_snapshot_id, last_observed_at) VALUES ($1, $2, $3, $4, $5)",
+        tracked_id,
+        workspace_id,
+        project_id,
+        snapshot_id,
+        observed_at,
+    )
+    await db.execute(
+        "INSERT INTO seo.serp_current_results (tracked_keyword_id, workspace_id, project_id, "
+        "organic_rank, serp_snapshot_id, url_id, domain_id) VALUES ($1, $2, $3, 1, $4, $5, $6)",
+        tracked_id,
+        workspace_id,
+        project_id,
+        snapshot_id,
+        url_id,
+        domain_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.rank_events (occurred_at, workspace_id, project_id, tracked_keyword_id, "
+        "entity_id, event_type, serp_snapshot_id) VALUES ($1, $2, $3, $4, $5, 'new_ranking', $6)",
+        observed_at,
+        workspace_id,
+        project_id,
+        tracked_id,
+        entity_id,
+        snapshot_id,
     )
 
 
