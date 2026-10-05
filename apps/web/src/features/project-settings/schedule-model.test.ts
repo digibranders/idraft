@@ -161,6 +161,35 @@ describe('the selector a form sends', () => {
     const ranked = withSchedule({ selector: { priority_lte: 2, terms: [TERM] } });
     expect(selectorOfValues(valuesOfSchedule(ranked), ranked.selector)).toEqual({ priority_lte: 2, terms: [TERM] });
   });
+
+  it('keeps nothing of a stale or priority selector once it is switched to groups', () => {
+    const stale = withSchedule({ workload: 'keyword_metrics', selector: { stale_days: 25 } });
+    expect(selectorOfValues(valuesWith({ selector_mode: 'groups', groups: [GROUP] }, stale), stale.selector)).toEqual({
+      groups: [GROUP],
+    });
+    const priority = withSchedule({ selector: { priority_lte: 2 } });
+    expect(
+      selectorOfValues(valuesWith({ selector_mode: 'groups', terms: [TERM] }, priority), priority.selector),
+    ).toEqual({ terms: [TERM] });
+    const all = withSchedule({ selector: { all: true } });
+    expect(selectorOfValues(valuesWith({ selector_mode: 'groups', groups: [GROUP] }, all), all.selector)).toEqual({
+      groups: [GROUP],
+    });
+  });
+
+  it('keeps what a groups selector already had when its groups change', () => {
+    const kept = withSchedule({ workload: 'keyword_metrics', selector: { stale_days: 25, groups: [GROUP] } });
+    expect(selectorOfValues(valuesWith({ groups: [OTHER_GROUP] }, kept), kept.selector)).toEqual({
+      groups: [OTHER_GROUP],
+      stale_days: 25,
+    });
+    // A member the workload does not take is not carried over to its selector
+    const ranked = withSchedule({ selector: { priority_lte: 2, groups: [GROUP] } });
+    expect(selectorOfValues(valuesWith({ groups: [OTHER_GROUP] }, ranked), ranked.selector)).toEqual({
+      groups: [OTHER_GROUP],
+      priority_lte: 2,
+    });
+  });
 });
 
 describe('the body of a new schedule', () => {
@@ -273,6 +302,46 @@ describe('the body of a change', () => {
   it('sends the provider mode of a rank schedule when it changed', () => {
     expect(updateBodyOf(valuesWith({ provider_mode: 'live' }), SCHEDULE)).toEqual({ provider_mode: 'live' });
   });
+
+  it('sends the name alone for a rename, whatever the selector holds that the form cannot show', () => {
+    // All keywords up to a priority: the radio shows "all keywords", and the priority is not its to rewrite
+    const allAndPriority = withSchedule({ selector: { all: true, priority_lte: 2 } });
+    expect(updateBodyOf(valuesWith({ name: 'Renamed' }, allAndPriority), allAndPriority)).toEqual({ name: 'Renamed' });
+    // A keyword metrics schedule with no selector at all reads as the staleness default
+    const bare = withSchedule({ workload: 'keyword_metrics', provider_mode: 'live', selector: {} });
+    expect(updateBodyOf(valuesWith({ name: 'Renamed' }, bare), bare)).toEqual({ name: 'Renamed' });
+    const groupsAndDays = withSchedule({
+      workload: 'keyword_metrics',
+      provider_mode: 'live',
+      selector: { stale_days: 25, groups: [GROUP] },
+    });
+    expect(updateBodyOf(valuesWith({ name: 'Renamed' }, groupsAndDays), groupsAndDays)).toEqual({ name: 'Renamed' });
+  });
+
+  it('sends no selector when its controls were changed and then put back', () => {
+    const allAndPriority = withSchedule({ selector: { all: true, priority_lte: 2 } });
+    // The priority was picked in the other mode and abandoned: the radio is back on all keywords
+    expect(updateBodyOf(valuesWith({ priority_lte: '4', name: 'Renamed' }, allAndPriority), allAndPriority)).toEqual({
+      name: 'Renamed',
+    });
+    const stale = withSchedule({ workload: 'keyword_metrics', provider_mode: 'live', selector: { stale_days: 25 } });
+    expect(updateBodyOf(valuesWith({ stale_days: ' 25 ' }, stale), stale)).toEqual({});
+  });
+
+  it('sends the selector alone when only a selector control changed', () => {
+    const allAndPriority = withSchedule({ selector: { all: true, priority_lte: 2 } });
+    expect(
+      updateBodyOf(valuesWith({ selector_mode: 'priority', priority_lte: '3' }, allAndPriority), allAndPriority),
+    ).toEqual({ selector: { priority_lte: 3 } });
+    const groupsAndDays = withSchedule({
+      workload: 'keyword_metrics',
+      provider_mode: 'live',
+      selector: { stale_days: 25, groups: [GROUP] },
+    });
+    expect(updateBodyOf(valuesWith({ groups: [GROUP, OTHER_GROUP] }, groupsAndDays), groupsAndDays)).toEqual({
+      selector: { groups: [GROUP, OTHER_GROUP], stale_days: 25 },
+    });
+  });
 });
 
 describe('the words of a selector', () => {
@@ -301,6 +370,18 @@ describe('the words of a selector', () => {
     expect(selectorParts({ groups: [GROUP], terms: [TERM] }, { groups: null, terms: null })).toEqual([
       { kind: 'groups', names: [], removed: 0, pending: 1 },
       { kind: 'terms', names: [], removed: 0, pending: 1 },
+    ]);
+  });
+
+  it('tells a list that failed to load apart from one still loading', () => {
+    expect(
+      selectorParts({ groups: [GROUP, OTHER_GROUP], terms: [TERM] }, { groups: 'failed', terms: known.terms }),
+    ).toEqual([
+      { kind: 'groups', names: [], removed: 0, pending: 0, unread: 2 },
+      { kind: 'terms', names: ['Topics: SEO'], removed: 0, pending: 0 },
+    ]);
+    expect(selectorParts({ terms: [TERM] }, { groups: null, terms: 'failed' })).toEqual([
+      { kind: 'terms', names: [], removed: 0, pending: 0, unread: 1 },
     ]);
   });
 

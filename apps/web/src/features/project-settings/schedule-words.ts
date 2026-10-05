@@ -5,32 +5,42 @@ import { useCallback, useMemo } from 'react';
 
 import { clockOf, selectorParts, WEEKDAYS, type SelectorNames, type SelectorPart } from './schedule-model';
 import type { Schedule, Selector } from '@/lib/api/types';
-import { formatList } from '@/lib/format';
+import { formatList, formatTableDateTime } from '@/lib/format';
 import { useKeywordGroups, useVocabularies, type TaxonomyScope } from '@/lib/keywords/taxonomy-reads';
 
 /**
- * The names of the groups and terms a selector holds ids of. A list still loading, or one that failed,
- * leaves its names `null`: the words then count the ids instead of naming them.
+ * The names of the groups and terms a selector holds ids of. A list still loading leaves its names `null`
+ * and one that failed leaves `'failed'`: the words then count the ids instead of naming them, and say
+ * which of the two it is.
  */
 export function useSelectorNames(scope: TaxonomyScope): SelectorNames {
   const t = useTranslations('projectSettings.schedules.selector');
   const groups = useKeywordGroups(scope);
   const vocabularies = useVocabularies(scope);
   const groupData = groups.data?.data;
-  const termsReady = !vocabularies.pending && !vocabularies.error;
+  const groupsFailed = groups.isError;
+  const termsFailed = vocabularies.error;
+  const termsPending = vocabularies.pending;
   const loaded = vocabularies.loaded;
   return useMemo(
-    () => ({
-      groups: groupData === undefined ? null : new Map(groupData.map((group) => [group.group_id, group.path])),
-      terms: termsReady
-        ? new Map(
-            loaded.flatMap(({ vocabulary, terms }) =>
-              terms.map((term) => [term.termId, t('termName', { vocabulary: vocabulary.name, term: term.path })]),
+    (): SelectorNames => ({
+      groups:
+        groupData !== undefined
+          ? new Map(groupData.map((group) => [group.group_id, group.path]))
+          : groupsFailed
+            ? 'failed'
+            : null,
+      terms: termsFailed
+        ? 'failed'
+        : termsPending
+          ? null
+          : new Map(
+              loaded.flatMap(({ vocabulary, terms }) =>
+                terms.map((term) => [term.termId, t('termName', { vocabulary: vocabulary.name, term: term.path })]),
+              ),
             ),
-          )
-        : null,
     }),
-    [groupData, termsReady, loaded, t],
+    [groupData, groupsFailed, termsFailed, termsPending, loaded, t],
   );
 }
 
@@ -39,6 +49,11 @@ export interface ScheduleWords {
   when: (schedule: Schedule) => string;
   /** What the schedule collects: "All keywords", "Groups: Brand and Local". */
   collects: (selector: Selector, names: SelectorNames) => string;
+  /**
+   * When the schedule runs next, as a toast says it: in the schedule's own time zone, which is named when it
+   * is not the project's ("Next run Oct 7, 06:00 (Asia/Tokyo)").
+   */
+  nextRun: (schedule: Schedule, projectTimeZone: string) => string;
 }
 
 /** The words the Schedules section puts to a schedule's rule, in one place for the table and the toasts. */
@@ -71,11 +86,13 @@ export function useScheduleWords(): ScheduleWords {
         case 'priority':
           return t('selector.priority', { max: item.max });
         case 'groups': {
+          if (item.unread !== undefined) return t('selector.groupsUnread', { count: item.unread });
           if (item.pending > 0) return t('selector.groupsPending', { count: item.pending });
           const removed = item.removed > 0 ? [t('selector.groupsRemoved', { count: item.removed })] : [];
           return t('selector.groups', { names: formatList([...item.names, ...removed]) });
         }
         case 'terms': {
+          if (item.unread !== undefined) return t('selector.termsUnread', { count: item.unread });
           if (item.pending > 0) return t('selector.termsPending', { count: item.pending });
           const removed = item.removed > 0 ? [t('selector.termsRemoved', { count: item.removed })] : [];
           return t('selector.terms', { names: formatList([...item.names, ...removed]) });
@@ -93,5 +110,14 @@ export function useScheduleWords(): ScheduleWords {
     },
     [t, part],
   );
-  return { when, collects };
+  const nextRun = useCallback(
+    (schedule: Schedule, projectTimeZone: string): string => {
+      const when = formatTableDateTime(schedule.next_run_at, schedule.timezone);
+      return schedule.timezone === projectTimeZone
+        ? t('nextRun', { when })
+        : t('nextRunInZone', { when, timezone: schedule.timezone });
+    },
+    [t],
+  );
+  return { when, collects, nextRun };
 }

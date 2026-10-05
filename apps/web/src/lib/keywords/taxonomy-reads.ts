@@ -61,6 +61,8 @@ export interface Vocabularies {
   /** A list is still loading or failed: a value that names a term may yet be known. */
   pending: boolean;
   error: boolean;
+  /** Reads again whatever failed: the list of vocabularies, or the terms of the ones that did not load. */
+  retry: () => void;
 }
 
 /** Each term's place by name, depth first. */
@@ -73,11 +75,19 @@ function namedPaths(nodes: readonly TermNode[], above = ''): NamedTerm[] {
 
 /** The trees of the vocabularies, and whether any is still loading or failed. */
 const combineTrees = (
-  results: readonly { data?: TermTree | undefined; isPending: boolean; isError: boolean }[],
-): { trees: (TermTree | undefined)[]; pending: boolean; error: boolean } => ({
+  results: readonly {
+    data?: TermTree | undefined;
+    isPending: boolean;
+    isError: boolean;
+    refetch: () => Promise<unknown>;
+  }[],
+): { trees: (TermTree | undefined)[]; pending: boolean; error: boolean; retry: () => void } => ({
   trees: results.map((result) => result.data),
   pending: results.some((result) => result.isPending),
   error: results.some((result) => result.isError),
+  retry: () => {
+    for (const result of results) if (result.isError) void result.refetch();
+  },
 });
 
 /** The read of the vocabularies the project sees, without their terms. */
@@ -121,5 +131,9 @@ export function useVocabularies(scope: TaxonomyScope): Vocabularies {
     loaded,
     pending: vocabularies.isPending || terms.pending,
     error: vocabularies.isError || terms.error,
+    retry: () => {
+      if (vocabularies.isError) void vocabularies.refetch();
+      terms.retry();
+    },
   };
 }

@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -18,6 +18,7 @@ import {
   KEYWORD_PRIORITIES,
   MAX_NAME_LENGTH,
   MAX_STALE_DAYS,
+  MIN_STALE_DAYS,
   MONTH_DAYS,
   newScheduleValues,
   PROVIDER_MODE_KEYS,
@@ -35,11 +36,12 @@ import {
   type ScheduleValues,
   type SelectorMode,
 } from './schedule-model';
+import { useScheduleWords } from './schedule-words';
 import { FormField } from '@/components/app/forms/form-field';
 import { TimeZoneCombobox } from '@/components/app/forms/time-zone-combobox';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader, type DialogProps } from '@/components/ui/dialog';
 import { FormAlert } from '@/components/ui/form-alert';
 import { Input } from '@/components/ui/input';
 import { MultiSelect } from '@/components/ui/multi-select';
@@ -47,10 +49,9 @@ import { RadioGroup } from '@/components/ui/radio-group';
 import { ReadOnlyField, ReadOnlyList } from '@/components/ui/read-only-field';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
-import { ApiProblem, isApiProblem } from '@/lib/api/problem';
+import { isApiProblem } from '@/lib/api/problem';
 import type { Schedule, ValidationItem } from '@/lib/api/types';
 import { applyServerErrors } from '@/lib/forms';
-import { formatTableDateTime } from '@/lib/format';
 import { useKeywordGroups, useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 import { textLength } from '@/lib/text/length';
@@ -83,18 +84,25 @@ interface Choice {
   label: string;
 }
 
+/**
+ * How the dialog ended: a schedule was `created` or `saved`; the schedule being changed was `gone` (deleted by
+ * someone else, so the row it was opened from is going too); or it was `dismissed` without a change.
+ */
+export type ScheduleDialogOutcome = 'created' | 'saved' | 'gone' | 'dismissed';
+
 export interface ScheduleDialogProps {
   scope: ScheduleScope;
   /** `'new'` makes a schedule; a schedule changes it; `null` keeps the dialog closed. */
   schedule: EditableSchedule | 'new' | null;
   /** The project's time zone, which a new schedule starts in. */
   timeZone: string;
-  onClose: () => void;
+  /** Called once with how the dialog ended, before it goes away. */
+  onClose: (outcome: ScheduleDialogOutcome) => void;
   /**
-   * Where focus goes when the dialog closes, when what opened it may be gone by then (the button of an empty
-   * list); by default back to what opened it.
+   * Where focus goes when the dialog closes; by default back to what opened it. It is read when the dialog goes
+   * away, after `onClose`, so a caller can name another place for the outcomes that leave what opened it gone.
    */
-  finalFocus?: RefObject<HTMLElement | null> | undefined;
+  finalFocus?: DialogProps['finalFocus'];
 }
 
 /**
@@ -123,6 +131,7 @@ function ScheduleForm({
   const discard = useTranslations('account.discard');
   const queryClient = useQueryClient();
   const workloadName = useWorkloadName();
+  const words = useScheduleWords();
   const create = useMutation(CREATE_SCHEDULE);
   const update = useMutation(UPDATE_SCHEDULE);
   const [alert, setAlert] = useState<string | null>(null);
@@ -164,7 +173,10 @@ function ScheduleForm({
           if (!isClock(values.window_start_local)) {
             context.addIssue({ code: 'custom', path: ['window_start_local'], message: errors('timeInvalid') });
           }
-          if (values.selector_mode === 'stale' && wholeNumber(values.stale_days, 1, MAX_STALE_DAYS) === null) {
+          if (
+            values.selector_mode === 'stale' &&
+            wholeNumber(values.stale_days, MIN_STALE_DAYS, MAX_STALE_DAYS) === null
+          ) {
             context.addIssue({ code: 'custom', path: ['stale_days'], message: t('staleDaysInvalid') });
           }
           if (values.selector_mode === 'groups' && values.groups.length === 0 && values.terms.length === 0) {
@@ -200,6 +212,12 @@ function ScheduleForm({
   );
   const taxonomyPending = groups.isPending || vocabularies.pending;
   const taxonomyFailed = groups.isError || vocabularies.error;
+  // The groups and terms are chosen from lists: until they are read, a schedule that selects by them cannot be saved
+  const waitingForTaxonomy = selectorMode === 'groups' && (taxonomyPending || taxonomyFailed);
+  const readTaxonomyAgain = (): void => {
+    if (groups.isError) void groups.refetch();
+    vocabularies.retry();
+  };
 
   const weekdayOptions = WEEK_ORDER.map((index) => ({ value: String(index), label: days(WEEKDAYS[index]) }));
   const modeOptions = WORKLOAD_SELECTOR_MODES[workload].map((mode) => ({
@@ -210,12 +228,8 @@ function ScheduleForm({
 
   const finish = async (saved: Schedule, title: string): Promise<void> => {
     await refreshSchedules(queryClient, scope);
-    toast({
-      type: 'success',
-      title,
-      description: toasts('nextRun', { when: formatTableDateTime(saved.next_run_at, saved.timezone) }),
-    });
-    onClose();
+    toast({ type: 'success', title, description: words.nextRun(saved, timeZone) });
+    onClose(editing === null ? 'created' : 'saved');
   };
 
   const showErrors = (items: readonly ValidationItem[]): void => {
@@ -256,7 +270,7 @@ function ScheduleForm({
         }
         const body = updateBodyOf(values, editing);
         if (Object.keys(body).length === 0) {
-          onClose();
+          onClose('dismissed');
           return;
         }
         const saved = await update.mutateAsync({
@@ -279,12 +293,7 @@ function ScheduleForm({
           // Deleted by someone else while it was open: the list says so
           void refreshSchedules(queryClient, scope);
           toast({ type: 'info', title: toasts('gone', { name: editing.name }) });
-          onClose();
-          return;
-        }
-        if (error instanceof ApiProblem && error.status === 409) {
-          void refreshSchedules(queryClient, scope);
-          setAlert(t('conflict'));
+          onClose('gone');
           return;
         }
         setAlert(isApiProblem(error, 'forbidden') ? t('forbidden') : t('saveFailed'));
@@ -304,7 +313,7 @@ function ScheduleForm({
     <Dialog
       open
       onOpenChange={(next) => {
-        if (!next && !busy) onClose();
+        if (!next && !busy) onClose('dismissed');
       }}
       size="md"
       {...(finalFocus === undefined ? {} : { finalFocus })}
@@ -324,6 +333,7 @@ function ScheduleForm({
         />
         <DialogBody>
           {alert === null ? null : <FormAlert message={alert} />}
+          {selectorMode === 'groups' && taxonomyFailed ? <FormAlert message={t('readFailed')} /> : null}
           <FormField
             control={form.control}
             name="name"
@@ -416,8 +426,9 @@ function ScheduleForm({
                 <Input
                   {...field.controlProps}
                   autoComplete="off"
-                  inputMode="numeric"
-                  placeholder="06:00"
+                  // A digits-only keypad has no colon, which "06:30" needs
+                  inputMode="text"
+                  placeholder={t('timePlaceholder')}
                   value={field.value}
                   onValueChange={field.onChange}
                 />
@@ -551,7 +562,11 @@ function ScheduleForm({
             taxonomyPending ? (
               <p className="type-meta">{t('reading')}</p>
             ) : taxonomyFailed ? (
-              <FormAlert message={t('readFailed')} />
+              <div>
+                <Button type="button" variant="secondary" onClick={readTaxonomyAgain}>
+                  {common('retry')}
+                </Button>
+              </div>
             ) : (
               <>
                 <FormField
@@ -617,7 +632,7 @@ function ScheduleForm({
             </DialogClose>
           }
           primary={
-            <Button type="submit" variant="primary" loading={busy}>
+            <Button type="submit" variant="primary" loading={busy} disabled={waitingForTaxonomy}>
               {editing === null ? t('create') : common('save')}
             </Button>
           }

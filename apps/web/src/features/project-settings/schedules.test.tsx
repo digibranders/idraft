@@ -229,6 +229,17 @@ describe('Project settings > Schedules', () => {
     expect(screen.getByRole('heading', { name: 'Schedules' })).toHaveFocus();
   });
 
+  it('returns focus to the button of the empty state when the dialog it opened is cancelled', async () => {
+    server.use(listing());
+    const { user } = renderWithProviders(screenAs('editor'));
+    await user.click(await screen.findByRole('button', { name: 'New schedule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'New schedule' })).toHaveFocus();
+    expect(screen.getByRole('heading', { name: 'Schedules' })).not.toHaveFocus();
+  });
+
   it('is read-only without schedules:write: the list, one banner and no actions', async () => {
     for (const role of ['analyst', 'viewer'] as const) {
       const { unmount } = renderWithProviders(screenAs(role));
@@ -241,9 +252,25 @@ describe('Project settings > Schedules', () => {
     }
   });
 
-  it('says so when the role cannot read the schedules at all', async () => {
+  it('says so when the role cannot read the schedules at all, in one banner and not two', async () => {
     renderWithProviders(screenAs('billing'));
     expect(await screen.findByText('Your role cannot see the schedules of this project.')).toBeInTheDocument();
+    expect(screen.queryByText('Owners, admins and editors can change schedules.')).toBeNull();
+  });
+
+  it('says when the names of a selector could not be loaded, apart from names still loading', async () => {
+    server.use(
+      listing({
+        ...SCHEDULE,
+        name: 'By groups',
+        selector: { groups: [MOCK_GROUP_IDS.brand, MOCK_GROUP_IDS.local] },
+      }),
+      http.get(mswPath(`${P}/keyword-groups`), ({ request }) => problem(request, 'rate_limited')),
+    );
+    renderWithProviders(screenAs('editor'));
+    expect(
+      await within(await rowOf('By groups')).findByText('2 groups (names could not be loaded)'),
+    ).toBeInTheDocument();
   });
 
   it('offers a retry when the list does not load', async () => {
@@ -366,16 +393,42 @@ describe('Schedules: making one', () => {
     await user.type(time, '6:30');
     const days = within(dialog).getByRole('textbox', { name: 'Days since the last refresh' });
     await user.clear(days);
-    await user.type(days, '0');
+    await user.type(days, '366');
     await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
     expect(await within(dialog).findByText('Enter a name.')).toBeInTheDocument();
     expect(within(dialog).getByText('Enter the time as hours and minutes, such as 06:00.')).toBeInTheDocument();
-    expect(within(dialog).getByText('Enter a whole number of days from 1 to 365.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Enter a whole number of days from 0 to 365.')).toBeInTheDocument();
     // The selector that names groups or terms names at least one
     await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
     expect(await within(dialog).findByText('Choose at least one group or term.')).toBeInTheDocument();
     expect(bodies).toEqual([]);
+  });
+
+  it('takes a staleness of zero days, which the contract allows', async () => {
+    const bodies = recordBodies('POST');
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await user.click(screen.getByRole('button', { name: 'New schedule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Everything');
+    const days = within(dialog).getByRole('textbox', { name: 'Days since the last refresh' });
+    await user.clear(days);
+    await user.type(days, '0');
+    await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(bodies).toMatchObject([{ selector: { stale_days: 0 } }]);
+  });
+
+  it('offers a keypad that has a colon for the start time, and says what it looks like', async () => {
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await user.click(screen.getByRole('button', { name: 'New schedule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
+    const time = within(dialog).getByRole('textbox', { name: 'Start time' });
+    // A digits-only keypad has no colon, so "06:30" could not be typed on a phone
+    expect(time).toHaveAttribute('inputmode', 'text');
+    expect(time).toHaveAttribute('placeholder', '06:00');
   });
 
   it('puts what the API refuses on its fields, and what belongs to none in an alert', async () => {
@@ -425,6 +478,58 @@ describe('Schedules: making one', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
     expect(await within(dialog).findByText('Choose which keywords to collect.')).toBeInTheDocument();
     expect(within(dialog).getByText('A schedule repeats every day, week or month.')).toBeInTheDocument();
+  });
+
+  it('waits for the groups and terms before a schedule that selects by them can be made', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(mswPath(`${P}/keyword-groups`), async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await user.click(screen.getByRole('button', { name: 'New schedule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Waiting');
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
+    expect(within(dialog).getByText('Reading the groups and terms')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Create schedule' })).toBeDisabled();
+    release();
+    expect(await within(dialog).findByRole('combobox', { name: /^Groups/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Create schedule' })).toBeEnabled();
+  });
+
+  it('says at the top of the dialog when the groups and terms did not load, and reads them again on request', async () => {
+    let failing = true;
+    server.use(
+      http.get(mswPath(`${P}/keyword-groups`), ({ request }) =>
+        failing ? problem(request, 'rate_limited') : undefined,
+      ),
+    );
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await user.click(screen.getByRole('button', { name: 'New schedule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
+    const alert = await within(dialog).findByText(
+      'The groups and terms could not be loaded, so they cannot be chosen yet.',
+    );
+    // House rule: what belongs to no field is an alert at the top of the body, above the first field
+    const name = within(dialog).getByRole('textbox', { name: 'Name' });
+    expect(alert.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(within(dialog).getByRole('button', { name: 'Create schedule' })).toBeDisabled();
+    failing = false;
+    await user.click(within(dialog).getByRole('button', { name: 'Try again' }));
+    expect(await within(dialog).findByRole('combobox', { name: /^Groups/ })).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText('The groups and terms could not be loaded, so they cannot be chosen yet.'),
+    ).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Create schedule' })).toBeEnabled();
   });
 
   it('asks before a dialog with changes is closed', async () => {
@@ -524,31 +629,110 @@ describe('Schedules: changing one', () => {
     expect(await within(dialog).findByText('Choose the weekday.')).toBeInTheDocument();
   });
 
-  it('says so when the schedule was deleted while it was open, and reads the list again', async () => {
-    server.use(http.patch(mswPath(`${SCHEDULES}/:schedule_id`), ({ request }) => problem(request, 'not_found')));
+  it('says so when the schedule was deleted while it was open, reads the list again and hands focus to the heading', async () => {
+    // The list no longer has the row once it is read again, so the menu the dialog came from is gone
+    const held: Schedule[] = [SCHEDULE];
+    server.use(
+      http.get(mswPath(SCHEDULES), () =>
+        HttpResponse.json({ data: held, page: { offset: 0, limit: 50, total: held.length } }),
+      ),
+      http.patch(mswPath(`${SCHEDULES}/:schedule_id`), ({ request }) => {
+        held.length = 0;
+        return problem(request, 'not_found');
+      }),
+    );
     const { user } = renderWithProviders(screenAs('editor'));
-    await rowOf('Daily rankings');
-    await openMenu(user, 'Daily rankings', 'Edit');
-    const dialog = await screen.findByRole('dialog', { name: 'Edit Daily rankings' });
+    await rowOf('Local rankings');
+    await openMenu(user, 'Local rankings', 'Edit');
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Local rankings' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), ' 2');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     expect(
-      await screen.findByText('Daily rankings was deleted by someone else. The list is up to date.'),
+      await screen.findByText('Local rankings was deleted by someone else. The list is up to date.'),
     ).toBeInTheDocument();
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('rowheader', { name: /^Local rankings/ })).toBeNull());
+    expect(screen.getByRole('heading', { name: 'Schedules' })).toHaveFocus();
   });
 
-  it('keeps the dialog open with a sentence when the schedule changed meanwhile', async () => {
-    server.use(
-      http.patch(mswPath(`${SCHEDULES}/:schedule_id`), ({ request }) => problem(request, 'invalid_state_transition')),
-    );
+  it('keeps the dialog open with a sentence when a change is not saved', async () => {
+    server.use(http.patch(mswPath(`${SCHEDULES}/:schedule_id`), ({ request }) => problem(request, 'rate_limited')));
     const { user } = renderWithProviders(screenAs('editor'));
     await rowOf('Daily rankings');
     await openMenu(user, 'Daily rankings', 'Edit');
     const dialog = await screen.findByRole('dialog', { name: 'Edit Daily rankings' });
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), ' 2');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-    expect(await within(dialog).findByText(/changed while you were editing it/)).toBeInTheDocument();
+    expect(await within(dialog).findByText('The schedule was not saved. Try again in a moment.')).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('switches the days of a keyword metrics schedule to groups without carrying the days along', async () => {
+    const bodies = recordBodies('PATCH');
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Keyword metrics');
+    await openMenu(user, 'Keyword metrics', 'Edit');
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Keyword metrics' });
+    await user.click(within(dialog).getByRole('radio', { name: /^Groups and terms/ }));
+    await user.click(await within(dialog).findByRole('combobox', { name: /^Groups/ }));
+    await user.click(await screen.findByRole('option', { name: 'Local' }));
+    await user.keyboard('{Escape}');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(bodies).toEqual([{ selector: { groups: [MOCK_GROUP_IDS.local] } }]);
+    expect(within(await rowOf('Keyword metrics')).getByText('Groups: Local')).toBeInTheDocument();
+  });
+
+  it('sends the name alone for a rename, whatever the selector holds that the form does not show', async () => {
+    const ranks: Schedule = { ...SCHEDULE, name: 'Top ranks', selector: { all: true, priority_lte: 2 } };
+    const metrics: Schedule = {
+      ...SCHEDULE,
+      schedule_id: MOCK_SCHEDULE_IDS.keywordMetrics,
+      name: 'Bare metrics',
+      workload: 'keyword_metrics',
+      cadence: 'daily',
+      weekday: null,
+      provider_mode: 'live',
+      selector: {},
+    };
+    server.use(
+      listing(ranks, metrics),
+      http.patch(mswPath(`${SCHEDULES}/:schedule_id`), async ({ request, params }) => {
+        const body: unknown = await request.clone().json();
+        const found = params.schedule_id === ranks.schedule_id ? ranks : metrics;
+        const name = typeof body === 'object' && body !== null && 'name' in body ? body.name : undefined;
+        return HttpResponse.json({ data: { ...found, name: typeof name === 'string' ? name : found.name } });
+      }),
+    );
+    const bodies = recordBodies('PATCH');
+    const { user } = renderWithProviders(screenAs('editor'));
+    for (const name of ['Top ranks', 'Bare metrics']) {
+      await rowOf(name);
+      await openMenu(user, name, 'Edit');
+      const dialog = await screen.findByRole('dialog', { name: `Edit ${name}` });
+      await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), ' 2');
+      await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    }
+    expect(bodies).toEqual([{ name: 'Top ranks 2' }, { name: 'Bare metrics 2' }]);
+  });
+
+  it('names the time zone of the next run in a toast when it is not the project’s', async () => {
+    const { user } = renderWithProviders(screenAs('editor', 'America/New_York'));
+    await rowOf('Daily rankings');
+    await openMenu(user, 'Daily rankings', 'Edit');
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Daily rankings' });
+    await choose(user, dialog, 'Window', '4 hours');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Next run Oct 2, 02:00 (Europe/Berlin)')).toBeInTheDocument();
+  });
+
+  it('names the time zone of the next run when a schedule in another one is resumed', async () => {
+    const { user } = renderWithProviders(screenAs('editor', 'America/New_York'));
+    await rowOf('Content keywords, weekly');
+    await openMenu(user, 'Content keywords, weekly', 'Resume');
+    expect(await screen.findByText('Content keywords, weekly resumed')).toBeInTheDocument();
+    expect(screen.getByText(/^Next run .*\(Europe\/Berlin\)$/)).toBeInTheDocument();
   });
 
   it('does not offer to edit a schedule of another workload or a cron schedule', async () => {
@@ -637,19 +821,16 @@ describe('Schedules: pausing, resuming and deleting', () => {
     expect(screen.getByRole('heading', { name: 'Schedules' })).toHaveFocus();
   });
 
-  it('keeps the schedule when tracked keywords still follow it, and says how many', async () => {
-    server.use(
-      http.delete(mswPath(`${SCHEDULES}/:schedule_id`), ({ request }) =>
-        problem(request, 'schedule_in_use', { tracked_keyword_count: 2 }),
-      ),
-    );
+  it('keeps the schedule when keywords still follow it, and says what to do, with no count the API does not give', async () => {
+    // As the backend answers: the code and a sentence, no number of keywords
+    server.use(http.delete(mswPath(`${SCHEDULES}/:schedule_id`), ({ request }) => problem(request, 'schedule_in_use')));
     const { user } = renderWithProviders(screenAs('editor'));
     await rowOf('Daily rankings');
     await openMenu(user, 'Daily rankings', 'Delete');
     const confirm = await screen.findByRole('alertdialog', { name: 'Delete Daily rankings?' });
     await user.click(within(confirm).getByRole('button', { name: 'Delete schedule' }));
     expect(
-      await within(confirm).findByText('2 tracked keywords follow this schedule. Give them another schedule first.'),
+      await within(confirm).findByText('Keywords still follow this schedule. Give them another schedule first.'),
     ).toBeInTheDocument();
     await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
     expect(await rowOf('Daily rankings')).toBeInTheDocument();

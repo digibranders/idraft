@@ -48,6 +48,8 @@ export const DEFAULT_SELECTOR_MODE: Readonly<Record<ScheduleWorkload, SelectorMo
 
 /** The staleness the monthly keyword metrics schedule of every project uses (D8). */
 export const DEFAULT_STALE_DAYS = 25;
+/** The contract's range for `stale_days`: 0 refreshes every keyword each time. */
+export const MIN_STALE_DAYS = 0;
 export const MAX_STALE_DAYS = 365;
 export const MAX_NAME_LENGTH = 100;
 /** Keyword priorities run from 1, the highest, to 5 (the API's `priority_lte`). */
@@ -165,11 +167,14 @@ export function valuesOfSchedule(schedule: Schedule): ScheduleValues {
 
 /**
  * What a schedule that names groups or terms also names, which the form has no control for: the days of
- * a keyword metrics selector, the priority of a rank selector. An edit of the groups keeps them.
+ * a keyword metrics selector, the priority of a rank selector. An edit of the groups keeps them, but only
+ * when the schedule already named groups or terms: a schedule switched to groups from the days, the
+ * priority or all keywords leaves what its old mode held behind, since the form shows none of it.
  */
 function keptMembers(workload: ScheduleWorkload, original: Selector | undefined): Selector {
-  if (workload === 'keyword_metrics') return original?.stale_days == null ? {} : { stale_days: original.stale_days };
-  return original?.priority_lte == null ? {} : { priority_lte: original.priority_lte };
+  if (original === undefined || modeOf(original, workload) !== 'groups') return {};
+  if (workload === 'keyword_metrics') return original.stale_days == null ? {} : { stale_days: original.stale_days };
+  return original.priority_lte == null ? {} : { priority_lte: original.priority_lte };
 }
 
 /** The selector the form's choice stands for. `original` is the selector of the schedule being edited. */
@@ -190,18 +195,30 @@ export function selectorOfValues(values: ScheduleValues, original?: Selector): S
   }
 }
 
-/** A selector as one comparable value: members left out and empty lists are the same thing, as the API reads them. */
-function normalized(selector: Selector): string {
-  return JSON.stringify({
-    all: selector.all === true,
-    groups: [...(selector.groups ?? [])].sort(),
-    terms: [...(selector.terms ?? [])].sort(),
-    priority_lte: selector.priority_lte ?? null,
-    stale_days: selector.stale_days ?? null,
-  });
+/** Whether two lists of ids hold the same ids, in any order. */
+function sameIds(first: readonly string[], second: readonly string[]): boolean {
+  const sorted = [...second].sort();
+  return first.length === second.length && [...first].sort().every((id, index) => id === sorted[index]);
 }
 
-const sameSelector = (first: Selector, second: Selector): boolean => normalized(first) === normalized(second);
+/**
+ * Whether the person changed the selector: its mode, or the control of the mode it is on. A selector the
+ * form cannot show whole (a priority beside all keywords) is not rebuilt from what the form does show
+ * unless they changed it, so a rename never rewrites what the schedule collects.
+ */
+function selectorTouched(values: ScheduleValues, initial: ScheduleValues): boolean {
+  if (values.selector_mode !== initial.selector_mode) return true;
+  switch (values.selector_mode) {
+    case 'all':
+      return false;
+    case 'stale':
+      return Number(values.stale_days) !== Number(initial.stale_days);
+    case 'priority':
+      return Number(values.priority_lte) !== Number(initial.priority_lte);
+    case 'groups':
+      return !sameIds(values.groups, initial.groups) || !sameIds(values.terms, initial.terms);
+  }
+}
 
 /**
  * The body of a new schedule. The provider mode is left out for keyword metrics, whose only mode is the
@@ -226,12 +243,12 @@ export function createBodyOf(values: ScheduleValues): ScheduleInput {
 /**
  * The body of a change: only what differs from `schedule`, since every change of the rule moves the next
  * run. A cadence that starts to use a day names it (`required` otherwise); one that stops using it does
- * not (`not_applicable` otherwise). The body is empty while nothing changed.
+ * not (`not_applicable` otherwise). The selector is sent only when a control of it changed. The body is
+ * empty while nothing changed.
  */
 export function updateBodyOf(values: ScheduleValues, schedule: Schedule): ScheduleUpdate {
   const initial = valuesOfSchedule(schedule);
   const cadenceChanged = values.cadence !== initial.cadence;
-  const selector = selectorOfValues(values, schedule.selector);
   return {
     ...(values.name.trim() === schedule.name ? {} : { name: values.name.trim() }),
     ...(cadenceChanged ? { cadence: values.cadence } : {}),
@@ -250,14 +267,17 @@ export function updateBodyOf(values: ScheduleValues, schedule: Schedule): Schedu
     ...(values.workload === 'seo_rank' && values.provider_mode !== initial.provider_mode
       ? { provider_mode: values.provider_mode }
       : {}),
-    ...(sameSelector(selector, schedule.selector) ? {} : { selector }),
+    ...(selectorTouched(values, initial) ? { selector: selectorOfValues(values, schedule.selector) } : {}),
   };
 }
 
-/** The names the table puts to the ids of a selector; `null` while the list they come from has not loaded. */
+/** The names of the groups or the terms of a project by id: `null` while the list is loading, `'failed'` when it did not load. */
+export type NameList = ReadonlyMap<string, string> | 'failed' | null;
+
+/** The names the table puts to the ids of a selector. */
 export interface SelectorNames {
-  groups: ReadonlyMap<string, string> | null;
-  terms: ReadonlyMap<string, string> | null;
+  groups: NameList;
+  terms: NameList;
 }
 
 /** One thing a selector says, before it is put into words. */
@@ -265,15 +285,24 @@ export type SelectorPart =
   | { kind: 'all' }
   | { kind: 'stale'; days: number }
   | { kind: 'priority'; max: number }
-  | { kind: 'groups' | 'terms'; names: string[]; removed: number; pending: number };
+  | {
+      kind: 'groups' | 'terms';
+      names: string[];
+      removed: number;
+      /** Ids whose names are still loading. */
+      pending: number;
+      /** Ids whose names could not be loaded; the member is left out while the list did not fail. */
+      unread?: number;
+    };
 
 function namedPart(
   kind: 'groups' | 'terms',
   ids: readonly string[] | null | undefined,
-  names: ReadonlyMap<string, string> | null,
+  names: NameList,
 ): SelectorPart[] {
   if (ids == null || ids.length === 0) return [];
   if (names === null) return [{ kind, names: [], removed: 0, pending: ids.length }];
+  if (names === 'failed') return [{ kind, names: [], removed: 0, pending: 0, unread: ids.length }];
   const found = ids.flatMap((id) => {
     const name = names.get(id);
     return name === undefined ? [] : [name];

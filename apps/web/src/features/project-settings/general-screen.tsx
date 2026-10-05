@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { KeywordDefaultsSection } from './keyword-defaults-section';
 import { projectQuery } from './project-query';
 import { StatusSection } from './status-section';
+import { useReportUnsaved, useUnsavedForms, type UnsavedFormBinding } from './unsaved-forms';
 import { DomainInput } from '@/components/app/forms/domain-input';
 import { FormField } from '@/components/app/forms/form-field';
 import { LocationCombobox } from '@/components/app/forms/location-combobox';
@@ -71,12 +72,17 @@ export interface ProjectGeneralScreenProps {
  * Settings > Project settings > General (11-navigation.md section 5, 20 section 5.19.5): the name, the
  * address, the site, the location rank checks target, the time zone, the deep check day and the default language through the save bar, then the
  * keyword defaults (their own save), tracking and the danger zone. A member who may not change projects sees the values read-only.
+ * The two forms that save apart share one guard: leaving with changes in either asks one question for the
+ * page, and discarding puts both back.
  */
 export function ProjectGeneralScreen({ project: initial, workspaceSlug }: ProjectGeneralScreenProps): ReactNode {
   const t = useTranslations('projectSettings.general');
+  const account = useTranslations('account');
   const canWrite = useCan('projects:write');
   const query = useQuery({ ...projectQuery(initial), initialData: { data: initial } });
   const project = query.data.data;
+  const unsaved = useUnsavedForms();
+  const guard = useLeaveGuard(unsaved.dirty);
   return (
     <section aria-labelledby="project-general-title" className="flex flex-col gap-5">
       <div>
@@ -86,12 +92,24 @@ export function ProjectGeneralScreen({ project: initial, workspaceSlug }: Projec
         <p className="mt-1 type-meta">{t('description')}</p>
       </div>
       {canWrite ? (
-        <GeneralForm project={project} workspaceSlug={workspaceSlug} />
+        <GeneralForm project={project} workspaceSlug={workspaceSlug} unsaved={unsaved.bindings.details} />
       ) : (
         <ReadOnlyGeneral project={project} workspaceSlug={workspaceSlug} />
       )}
-      <KeywordDefaultsSection project={project} />
+      <KeywordDefaultsSection project={project} unsaved={unsaved.bindings.defaults} />
       {canWrite ? <StatusSection project={project} workspaceSlug={workspaceSlug} /> : null}
+      <DiscardChangesDialog
+        open={guard.pending !== null}
+        title={t('discardTitle')}
+        description={t('discardDescription')}
+        keepEditingLabel={account('discard.keepEditing')}
+        discardLabel={account('discard.discard')}
+        onKeepEditing={guard.stay}
+        onDiscard={() => {
+          unsaved.discardAll();
+          guard.leave();
+        }}
+      />
     </section>
   );
 }
@@ -146,7 +164,15 @@ function ReadOnlyGeneral({ project, workspaceSlug }: { project: Project; workspa
   );
 }
 
-function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSlug: string }): ReactNode {
+function GeneralForm({
+  project,
+  workspaceSlug,
+  unsaved,
+}: {
+  project: Project;
+  workspaceSlug: string;
+  unsaved: UnsavedFormBinding;
+}): ReactNode {
   const t = useTranslations('projectSettings.general');
   const account = useTranslations('account');
   const router = useRouter();
@@ -194,7 +220,8 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
   });
   const update = useMutation(apiMutation('patch', '/api/v1/workspaces/{workspace_id}/projects/{project_id}'));
   const { isDirty, dirtyFields } = form.formState;
-  const guard = useLeaveGuard(isDirty);
+  // The page asks before it is left, and puts this form back when the changes are discarded
+  useReportUnsaved(unsaved, isDirty, () => form.reset(valuesOf(project)));
   // A change saved elsewhere is the new baseline, unless the person is editing
   useEffect(() => {
     if (!form.formState.isDirty) form.reset(valuesOf(project));
@@ -401,18 +428,6 @@ function GeneralForm({ project, workspaceSlug }: { project: Project; workspaceSl
         onDiscard={() => form.reset(valuesOf(project))}
         discardLabel={account('saveBar.discard')}
         saveLabel={account('saveBar.save')}
-      />
-      <DiscardChangesDialog
-        open={guard.pending !== null}
-        title={account('discard.title')}
-        description={t('discardDescription')}
-        keepEditingLabel={account('discard.keepEditing')}
-        discardLabel={account('discard.discard')}
-        onKeepEditing={guard.stay}
-        onDiscard={() => {
-          form.reset(valuesOf(project));
-          guard.leave();
-        }}
       />
     </>
   );

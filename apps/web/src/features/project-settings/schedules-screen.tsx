@@ -71,8 +71,10 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
   const [busy, setBusy] = useState<string | null>(null);
   // Once a row is gone together with its menu button, a closing dialog hands focus to the section's heading
   const [rowGone, setRowGone] = useState(false);
-  // Whether the dialog was opened from the empty state, whose button is gone by the time it closes
+  // Whether the dialog was opened from the empty state, whose button is gone once a schedule is made
   const [fromEmptyState, setFromEmptyState] = useState(false);
+  // Whether focus goes to the heading when the dialog goes away: what opened it is gone, or about to be
+  const focusHeading = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const rows = schedules.data?.data ?? [];
   // A role without `data:read` cannot list the schedules at all, which is not a failure to retry
@@ -94,9 +96,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
         toast({
           type: 'success',
           title: t('resumedDone', { name: schedule.name }),
-          description: t('nextRun', {
-            when: formatTableDateTime(resumed.data.next_run_at, resumed.data.timezone),
-          }),
+          description: words.nextRun(resumed.data, timeZone),
         });
       }
     } catch (error) {
@@ -127,11 +127,8 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
         void refreshSchedules(queryClient, scope);
         return;
       }
-      setDeleteError(
-        isApiProblem(error, 'schedule_in_use')
-          ? t('deleteInUse', { count: error.number('tracked_keyword_count') ?? 0 })
-          : t('deleteFailed'),
-      );
+      // The problem names the code and gives a sentence in English; the count of keywords is not part of it
+      setDeleteError(isApiProblem(error, 'schedule_in_use') ? t('deleteInUse') : t('deleteFailed'));
       throw error;
     }
     toast({ type: 'success', title: t('deleted', { name }), description: t('deletedHint') });
@@ -192,7 +189,9 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
         </div>
         {canWrite && rows.length > 0 ? newSchedule : null}
       </div>
-      {canWrite ? null : <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />}
+      {canWrite || forbidden ? null : (
+        <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />
+      )}
       {schedules.isError ? (
         forbidden ? (
           <Banner tone="info" placement="region" message={t('forbidden')} />
@@ -310,9 +309,14 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
         scope={scope}
         schedule={editing}
         timeZone={timeZone}
-        onClose={() => setEditing(null)}
-        // The first schedule is made from the empty state, whose button is gone once the list has a row
-        {...(fromEmptyState ? { finalFocus: heading } : {})}
+        onClose={(outcome) => {
+          // The first schedule is made from the empty state, whose button is gone once the list has a row; a
+          // schedule deleted by someone else takes its row, and the menu the dialog came from, with it
+          focusHeading.current = outcome === 'gone' || (outcome === 'created' && fromEmptyState);
+          setEditing(null);
+        }}
+        // Read when the dialog goes away, after `onClose` has said how it ended; `true` is back to what opened it
+        finalFocus={() => (focusHeading.current ? heading.current : true)}
       />
       <ConfirmDialog
         open={deleting !== null}

@@ -110,6 +110,31 @@ describe('Project settings > General > Keyword defaults', () => {
     await waitFor(() => expect(seen.map((request) => request.method)).toEqual(['GET', 'PATCH', 'GET']));
   });
 
+  it('holds the controls still while the save is on its way, so a change made then is not overwritten', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.patch(mswPath(SETTINGS), async () => {
+        await gate;
+        return undefined;
+      }),
+    );
+    const { user } = renderWithProviders(screenAs('editor'));
+    const section = await editableDefaults();
+    await user.click(within(section).getByRole('combobox', { name: 'Default device' }));
+    await user.click(await screen.findByRole('option', { name: 'Mobile' }));
+    await user.click(within(section).getByRole('button', { name: 'Save defaults' }));
+    for (const name of ['Default device', 'Default depth profile', 'Default check frequency']) {
+      await waitFor(() => expect(within(section).getByRole('combobox', { name })).toBeDisabled());
+    }
+    release();
+    await waitFor(() => expect(within(section).getByRole('combobox', { name: 'Default device' })).toBeEnabled());
+    expect(within(section).getByRole('combobox', { name: 'Default device' })).toHaveTextContent('Mobile');
+    expect(within(section).queryByRole('button', { name: 'Save defaults' })).toBeNull();
+  });
+
   it('keeps the other settings of the section while one is changed, and discards on request', async () => {
     const { user } = renderWithProviders(screenAs('editor'));
     const section = await editableDefaults();

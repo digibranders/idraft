@@ -38,6 +38,7 @@ const SIGNED_IN: readonly { name: string; path: string; as?: string }[] = [
   { name: 'settings-entities', path: '/digibranders/fynix/settings/entities' },
   { name: 'settings-domains', path: '/digibranders/fynix/settings/domains' },
   { name: 'settings-taxonomy', path: '/digibranders/fynix/settings/taxonomy' },
+  { name: 'settings-schedules', path: '/digibranders/fynix/settings/schedules' },
 ];
 
 /** Waits until nothing on the page will still move: the content is there, the fonts are in, no request is out. */

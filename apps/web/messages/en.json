@@ -379,7 +379,8 @@
       "timezoneForward": "New business dates use {timezone}. Dates already recorded keep the time zone they were counted in.",
       "readOnlyLead": "Read only:",
       "readOnly": "Owners, admins and editors can change project settings.",
-      "discardDescription": "Your changes to the project's settings will be lost."
+      "discardTitle": "Discard your unsaved changes on this page?",
+      "discardDescription": "Changes to the project's details and to the keyword defaults that are not saved will be lost."
     },
     "status": {
       "title": "Tracking",
@@ -443,8 +444,7 @@
       "saveFailed": "The defaults were not saved. Try again in a moment.",
       "depthNotAvailable": "This depth profile is not available yet. Choose another.",
       "loadFailed": "The keyword defaults could not be loaded.",
-      "loadFailedReason": "The server did not answer. Try again in a moment.",
-      "discardDescription": "Your changes to the keyword defaults will be lost."
+      "loadFailedReason": "The server did not answer. Try again in a moment."
     },
     "schedules": {
       "title": "Schedules",
@@ -490,13 +490,16 @@
         "groups": "Groups: {names}",
         "groupsPending": "{count, plural, one {# group} other {# groups}}",
         "groupsRemoved": "{count, plural, one {# removed group} other {# removed groups}}",
+        "groupsUnread": "{count, plural, one {# group} other {# groups}} (names could not be loaded)",
         "terms": "{names}",
         "termsPending": "{count, plural, one {# term} other {# terms}}",
         "termsRemoved": "{count, plural, one {# removed term} other {# removed terms}}",
+        "termsUnread": "{count, plural, one {# term} other {# terms}} (names could not be loaded)",
         "termName": "{vocabulary}: {term}",
         "none": "Nothing selected"
       },
       "nextRun": "Next run {when}",
+      "nextRunInZone": "Next run {when} ({timezone})",
       "created": "{name} created",
       "saved": "{name} saved",
       "pausedDone": "{name} paused",
@@ -509,7 +512,7 @@
       "deleteTitle": "Delete {name}?",
       "deleteDescription": "{name} stops collecting and leaves the list. Its past runs stay in Runs.",
       "deleteConfirm": "Delete schedule",
-      "deleteInUse": "{count, plural, one {# tracked keyword follows} other {# tracked keywords follow}} this schedule. Give them another schedule first.",
+      "deleteInUse": "Keywords still follow this schedule. Give them another schedule first.",
       "deleteFailed": "The schedule was not deleted. Try again in a moment.",
       "dialog": {
         "createTitle": "New schedule",
@@ -533,6 +536,7 @@
         "monthDayOption": "Day {day}",
         "time": "Start time",
         "timeHint": "24-hour time in the time zone below, such as 06:00.",
+        "timePlaceholder": "06:00",
         "window": "Window",
         "windowHint": "The collection starts at some point inside the window.",
         "windowOption": "{hours, plural, one {# hour} other {# hours}}",
@@ -571,8 +575,8 @@
           "priority": "Keywords with a priority up to the one you choose. 1 is the highest."
         },
         "staleDays": "Days since the last refresh",
-        "staleDaysHint": "1 to 365 days.",
-        "staleDaysInvalid": "Enter a whole number of days from 1 to 365.",
+        "staleDaysHint": "0 to 365 days.",
+        "staleDaysInvalid": "Enter a whole number of days from 0 to 365.",
         "priorityLte": "Lowest priority collected",
         "priorityOption": "{priority, select, 1 {1, highest} 5 {5, lowest} other {{priority}}}",
         "groups": "Groups",
@@ -590,11 +594,10 @@
         "chipHint": "Press Backspace or Delete to remove",
         "groupsOrTermsRequired": "Choose at least one group or term.",
         "reading": "Reading the groups and terms",
-        "readFailed": "The groups and terms could not be loaded. Close this dialog and try again.",
+        "readFailed": "The groups and terms could not be loaded, so they cannot be chosen yet.",
         "discardDescription": "The changes to this schedule will be lost.",
         "saveFailed": "The schedule was not saved. Try again in a moment.",
         "forbidden": "Your role cannot change schedules.",
-        "conflict": "The schedule changed while you were editing it. Close this dialog and open it again to see the current rule.",
         "daysMismatch": "The weekday or the day of the month does not fit how often the schedule repeats."
       },
       "errors": {

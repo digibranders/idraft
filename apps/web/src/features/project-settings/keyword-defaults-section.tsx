@@ -17,10 +17,10 @@ import {
   type DefaultsValues,
 } from './keyword-defaults-values';
 import { projectSettingsQuery } from './project-query';
+import { useReportUnsaved, type UnsavedFormBinding } from './unsaved-forms';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { InlineError } from '@/components/app/status/inline-error';
-import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { FormAlert } from '@/components/ui/form-alert';
 import { ReadOnlyField, ReadOnlyList } from '@/components/ui/read-only-field';
@@ -32,7 +32,6 @@ import { apiMutation } from '@/lib/api/query';
 import type { components } from '@/lib/api/schema';
 import type { Project } from '@/lib/api/types';
 import { applyServerErrors } from '@/lib/forms';
-import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
 
 type SeoSettingsPatch = components['schemas']['SeoSettingsPatch'];
@@ -45,9 +44,16 @@ const FIELDS = ['default_device', 'default_depth_profile', 'default_frequency'] 
  * check frequency a keyword gets when it is added without its own choice. They apply to keywords added
  * afterwards. The section saves on its own, apart from the project's details: a different request, and a
  * different thing to be sure about. The API tracks Google only, so there is no search engine to choose.
- * A member who may not change the project sees the values.
+ * A member who may not change the project sees the values. Unsaved changes are reported to the page, which
+ * asks once for it and for the project's details.
  */
-export function KeywordDefaultsSection({ project }: { project: Project }): ReactNode {
+export function KeywordDefaultsSection({
+  project,
+  unsaved,
+}: {
+  project: Project;
+  unsaved: UnsavedFormBinding;
+}): ReactNode {
   const t = useTranslations('projectSettings.keywordDefaults');
   const common = useTranslations('common');
   const canWrite = useCan('projects:write');
@@ -77,7 +83,7 @@ export function KeywordDefaultsSection({ project }: { project: Project }): React
       ) : settings.isPending ? (
         <Skeleton shape="text-14" widthPct={48} />
       ) : canWrite ? (
-        <DefaultsForm project={project} values={values} />
+        <DefaultsForm project={project} values={values} unsaved={unsaved} />
       ) : (
         <ReadOnlyDefaults values={values} />
       )}
@@ -96,15 +102,24 @@ function ReadOnlyDefaults({ values }: { values: DefaultsValues }): ReactNode {
   );
 }
 
-function DefaultsForm({ project, values }: { project: Project; values: DefaultsValues }): ReactNode {
+function DefaultsForm({
+  project,
+  values,
+  unsaved,
+}: {
+  project: Project;
+  values: DefaultsValues;
+  unsaved: UnsavedFormBinding;
+}): ReactNode {
   const t = useTranslations('projectSettings.keywordDefaults');
-  const account = useTranslations('account');
   const queryClient = useQueryClient();
   const formId = useId();
   const form = useForm<DefaultsValues>({ mode: 'onTouched', defaultValues: values });
   const update = useMutation(UPDATE);
   const { isDirty, dirtyFields } = form.formState;
-  const guard = useLeaveGuard(isDirty);
+  const reset = (): void => form.reset(values);
+  // The page asks before it is left, and puts this form back when the changes are discarded
+  useReportUnsaved(unsaved, isDirty, reset);
   // A change saved elsewhere is the new baseline, unless the person is editing
   useEffect(() => {
     if (!form.formState.isDirty) form.reset(values);
@@ -154,7 +169,7 @@ function DefaultsForm({ project, values }: { project: Project; values: DefaultsV
   });
   const onSubmit = useSubmitOnce(submit);
   const rootError = form.formState.errors.root?.message;
-  const reset = (): void => form.reset(values);
+  const saving = update.isPending;
 
   return (
     <>
@@ -169,6 +184,8 @@ function DefaultsForm({ project, values }: { project: Project; values: DefaultsV
           render={(field) => (
             <Select<DefaultDevice>
               {...field.controlProps}
+              // A change made while the save is on its way would be overwritten by what the save returns
+              disabled={saving}
               value={field.value}
               onValueChange={field.onChange}
               placeholder={t('device')}
@@ -185,6 +202,7 @@ function DefaultsForm({ project, values }: { project: Project; values: DefaultsV
           render={(field) => (
             <Select<DefaultDepth>
               {...field.controlProps}
+              disabled={saving}
               value={field.value}
               onValueChange={field.onChange}
               placeholder={t('depth')}
@@ -201,6 +219,7 @@ function DefaultsForm({ project, values }: { project: Project; values: DefaultsV
           render={(field) => (
             <Select<DefaultFrequency>
               {...field.controlProps}
+              disabled={saving}
               value={field.value}
               onValueChange={field.onChange}
               placeholder={t('frequency')}
@@ -212,28 +231,16 @@ function DefaultsForm({ project, values }: { project: Project; values: DefaultsV
         <div className="flex min-h-control items-center gap-2">
           {isDirty ? (
             <>
-              <Button type="submit" variant="secondary" loading={update.isPending}>
+              <Button type="submit" variant="secondary" loading={saving}>
                 {t('save')}
               </Button>
-              <Button variant="ghost" disabled={update.isPending} onClick={reset}>
+              <Button variant="ghost" disabled={saving} onClick={reset}>
                 {t('discard')}
               </Button>
             </>
           ) : null}
         </div>
       </form>
-      <DiscardChangesDialog
-        open={guard.pending !== null}
-        title={account('discard.title')}
-        description={t('discardDescription')}
-        keepEditingLabel={account('discard.keepEditing')}
-        discardLabel={account('discard.discard')}
-        onKeepEditing={guard.stay}
-        onDiscard={() => {
-          reset();
-          guard.leave();
-        }}
-      />
     </>
   );
 }

@@ -514,9 +514,9 @@ export const scheduleHandlers: HttpHandler[] = [
       (row) => row.schedule_id === current.schedule_id && row.deleted_at === null,
     ).length;
     if (naming > 0) {
+      // As the backend answers: the code and a sentence, no count
       return problem(request, 'schedule_in_use', {
-        detail: `${String(naming)} tracked keywords use this schedule. Give them another schedule first.`,
-        tracked_keyword_count: naming,
+        detail: 'Tracked keywords use this schedule. Move them to another one first.',
       });
     }
     const cookie = savedOperations(

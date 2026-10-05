@@ -247,11 +247,11 @@ describe('schedules', () => {
       name: 'Daily rankings',
       next_run_at: '2026-10-02T00:00:00.000Z',
     });
-    expect(await editor.call('DELETE', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`)).toMatchObject({
-      status: 409,
-      code: 'schedule_in_use',
-      body: { tracked_keyword_count: 1 },
-    });
+    const refused = await editor.call('DELETE', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`);
+    expect(refused).toMatchObject({ status: 409, code: 'schedule_in_use' });
+    // The backend's problem carries a sentence and no count of the keywords
+    expect(refused.body).not.toHaveProperty('tracked_keyword_count');
+    expect(refused.body.detail).toBe('Tracked keywords use this schedule. Move them to another one first.');
     await editor.call('PATCH', tracked, { schedule_id: null });
     expect((await editor.call('DELETE', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`)).status).toBe(204);
     expect(await editor.call('GET', `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`)).toMatchObject({ status: 404 });

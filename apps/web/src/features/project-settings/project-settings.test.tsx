@@ -1,14 +1,15 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { Suspense, type ReactElement } from 'react';
+import { Suspense, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectGeneralScreen } from './general-screen';
 import { FreshSessionProvider } from '@/features/session';
 import { LIVE_REGION_ID } from '@/lib/a11y/announcer';
 import type { Role } from '@/lib/api/types';
-import { LeaveGuardProvider } from '@/lib/navigation/use-leave-guard';
+import { LeaveGuardProvider, useGuardedPush } from '@/lib/navigation/use-leave-guard';
 import { PermissionProvider } from '@/lib/permissions';
+import { projectPath } from '@/lib/routes/paths';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { projectFactory } from '@/mocks/factories/project';
 import { MOCK_PROJECTS, mockUser } from '@/mocks/fixtures';
@@ -28,12 +29,25 @@ if (!fynixSeed) throw new Error('no fixture project');
 const FYNIX = projectFactory(fynixSeed);
 const PROJECT_ROUTE = `*/api/v1/workspaces/${FYNIX.workspace_id}/projects/${FYNIX.project_id}`;
 
-function screenAs(role: Role): ReactElement {
+const PROFILE = projectPath('digibranders', 'fynix', '/settings/profile');
+
+/** What the settings frame does for the section select of a narrow screen: a push that asks first. */
+function SectionSelect(): ReactNode {
+  const push = useGuardedPush();
+  return (
+    <button type="button" onClick={() => push(PROFILE)}>
+      Go to profile
+    </button>
+  );
+}
+
+function screenAs(role: Role, beside: ReactNode = null): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <PermissionProvider membership={membershipFactory(role)}>
       <FreshSessionProvider>
         <LeaveGuardProvider>
+          {beside}
           <Suspense fallback={null}>
             <ProjectGeneralScreen project={FYNIX} workspaceSlug="digibranders" />
           </Suspense>
@@ -169,8 +183,80 @@ describe('Project settings > General', () => {
     );
     await user.type(await screen.findByLabelText('Name'), ' 2');
     await user.click(screen.getByRole('link', { name: 'Profile' }));
-    expect(await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Discard your unsaved changes on this page?' }),
+    ).toBeInTheDocument();
     expect(router.push).not.toHaveBeenCalled();
+  });
+
+  describe('with changes in the details and in the keyword defaults', () => {
+    /** The page with both forms changed: the name, and the default check frequency. */
+    async function changeBoth(user: ReturnType<typeof renderWithProviders>['user']): Promise<HTMLElement> {
+      const name = await screen.findByLabelText('Name');
+      await user.type(name, ' 2');
+      const defaults = await screen.findByRole('region', { name: 'Keyword defaults' });
+      await waitFor(() =>
+        expect(within(defaults).getByRole('combobox', { name: 'Default check frequency' })).toHaveTextContent('Daily'),
+      );
+      await user.click(within(defaults).getByRole('combobox', { name: 'Default check frequency' }));
+      await user.click(await screen.findByRole('option', { name: 'Weekly' }));
+      return defaults;
+    }
+
+    it('asks one question for the page when a link is followed, and keeps both on request', async () => {
+      const { user } = renderWithProviders(
+        screenAs('editor', <a href="/digibranders/fynix/settings/profile">Profile</a>),
+      );
+      const defaults = await changeBoth(user);
+      await user.click(screen.getByRole('link', { name: 'Profile' }));
+      const question = await screen.findByRole('alertdialog', { name: 'Discard your unsaved changes on this page?' });
+      expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+      await user.click(within(question).getByRole('button', { name: 'Keep editing' }));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+      expect(router.push).not.toHaveBeenCalled();
+      expect(screen.getByLabelText('Name')).toHaveValue('Fynix 2');
+      expect(within(defaults).getByRole('combobox', { name: 'Default check frequency' })).toHaveTextContent('Weekly');
+    });
+
+    it('drops both when the question is answered with discard, and goes where the link led', async () => {
+      const { user } = renderWithProviders(
+        screenAs('editor', <a href="/digibranders/fynix/settings/profile">Profile</a>),
+      );
+      const defaults = await changeBoth(user);
+      await user.click(screen.getByRole('link', { name: 'Profile' }));
+      const question = await screen.findByRole('alertdialog', { name: 'Discard your unsaved changes on this page?' });
+      await user.click(within(question).getByRole('button', { name: 'Discard changes' }));
+      expect(router.push).toHaveBeenCalledExactlyOnceWith(PROFILE);
+      expect(screen.getByLabelText('Name')).toHaveValue('Fynix');
+      expect(within(defaults).getByRole('combobox', { name: 'Default check frequency' })).toHaveTextContent('Daily');
+    });
+
+    it('asks the same single question of the section select of a narrow screen', async () => {
+      const { user } = renderWithProviders(screenAs('editor', <SectionSelect />));
+      const defaults = await changeBoth(user);
+      await user.click(screen.getByRole('button', { name: 'Go to profile' }));
+      const question = await screen.findByRole('alertdialog', { name: 'Discard your unsaved changes on this page?' });
+      expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+      expect(router.push).not.toHaveBeenCalled();
+      await user.click(within(question).getByRole('button', { name: 'Discard changes' }));
+      expect(router.push).toHaveBeenCalledExactlyOnceWith(PROFILE);
+      expect(screen.getByLabelText('Name')).toHaveValue('Fynix');
+      expect(within(defaults).getByRole('combobox', { name: 'Default check frequency' })).toHaveTextContent('Daily');
+    });
+
+    it('asks for the keyword defaults alone as well', async () => {
+      const { user } = renderWithProviders(screenAs('editor', <SectionSelect />));
+      const defaults = await screen.findByRole('region', { name: 'Keyword defaults' });
+      await waitFor(() =>
+        expect(within(defaults).getByRole('combobox', { name: 'Default check frequency' })).toHaveTextContent('Daily'),
+      );
+      await user.click(within(defaults).getByRole('combobox', { name: 'Default check frequency' }));
+      await user.click(await screen.findByRole('option', { name: 'Weekly' }));
+      await user.click(screen.getByRole('button', { name: 'Go to profile' }));
+      expect(
+        await screen.findByRole('alertdialog', { name: 'Discard your unsaved changes on this page?' }),
+      ).toBeInTheDocument();
+    });
   });
 
   it('says when pausing failed, and resumes a paused project', async () => {

@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState, type ReactElement } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -167,13 +167,18 @@ export function AddKeywordsDialog({
     reValidateMode: 'onChange',
     defaultValues: initialValues(null),
   });
-  // The project's default device arrives with its settings; a person who chose one already keeps it
+  // The project's default device arrives with its settings; a person who chose one already keeps it. The
+  // settings may already be cached when the dialog is first rendered, before its fields exist, and
+  // `resetField` does nothing for a field that is not there: `reset` sets the default of every field
   const defaultDevice = settings.data?.data.seo?.default_device ?? null;
-  useEffect(() => {
-    if (defaultDevice !== null && !form.getFieldState('device').isDirty) {
-      form.resetField('device', { defaultValue: defaultDevice });
+  const startOnDevice = useEffectEvent((next: Device): void => {
+    if (!form.getFieldState('device').isDirty) {
+      form.reset(initialValues(next), { keepDirtyValues: true, keepDirty: true });
     }
-  }, [defaultDevice, form]);
+  });
+  useEffect(() => {
+    if (defaultDevice !== null) startOnDevice(defaultDevice);
+  }, [defaultDevice]);
 
   const text = useWatch({ control: form.control, name: 'keywords' });
   const device = useWatch({ control: form.control, name: 'device' });
