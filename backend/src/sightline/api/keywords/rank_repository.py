@@ -377,14 +377,14 @@ async def features_of(
         if row.feature_type == "ai_overview":
             cited[row.tracked_keyword_id] = list(row.source_url_ids or [])
     wanted = {url_id for ids in cited.values() for url_id in ids}
-    refs = await _urls_by_id(db, wanted)
+    refs = await urls_by_id(db, wanted)
     return features, {
         tracked_id: [refs[url_id] for url_id in ids if url_id in refs]
         for tracked_id, ids in cited.items()
     }
 
 
-async def _urls_by_id(db: AsyncSession, url_ids: Collection[int]) -> dict[int, UrlRecord]:
+async def urls_by_id(db: AsyncSession, url_ids: Collection[int]) -> dict[int, UrlRecord]:
     if not url_ids:
         return {}
     rows = await db.execute(

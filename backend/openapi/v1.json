@@ -112,6 +112,116 @@
         "title": "AioCitations",
         "type": "object"
       },
+      "AioHistoryItem": {
+        "properties": {
+          "ai_overview_state": {
+            "enum": [
+              "absent",
+              "present_not_cited",
+              "present_cited",
+              "not_loaded",
+              "unknown"
+            ],
+            "title": "Ai Overview State",
+            "type": "string"
+          },
+          "competitors_cited": {
+            "items": {
+              "$ref": "#/components/schemas/EntityRef"
+            },
+            "title": "Competitors Cited",
+            "type": "array"
+          },
+          "device": {
+            "title": "Device",
+            "type": "string"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "observation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Id"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "organic_rank": {
+            "$ref": "#/components/schemas/RankCell"
+          },
+          "own_citation_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Citation Position"
+          },
+          "own_cited": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Cited"
+          },
+          "serp_snapshot_id": {
+            "title": "Serp Snapshot Id",
+            "type": "string"
+          },
+          "source_count": {
+            "title": "Source Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "observed_at",
+          "serp_snapshot_id",
+          "device",
+          "location_id",
+          "ai_overview_state",
+          "own_cited",
+          "own_citation_position",
+          "competitors_cited",
+          "source_count",
+          "organic_rank",
+          "observation_id"
+        ],
+        "title": "AioHistoryItem",
+        "type": "object"
+      },
+      "AioHistoryResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AioHistoryItem"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AioHistoryResponse",
+        "type": "object"
+      },
       "AioStateInfo": {
         "properties": {
           "citation_position": {
@@ -2079,6 +2189,38 @@
         "title": "EntityUpdate",
         "type": "object"
       },
+      "FeatureCheck": {
+        "properties": {
+          "depth_requested": {
+            "title": "Depth Requested",
+            "type": "integer"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/SerpFeatureOut"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "serp_snapshot_id": {
+            "title": "Serp Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "observed_at",
+          "serp_snapshot_id",
+          "depth_requested",
+          "features"
+        ],
+        "title": "FeatureCheck",
+        "type": "object"
+      },
       "FeatureOnPage": {
         "properties": {
           "feature_type": {
@@ -2124,6 +2266,27 @@
           "owned_position"
         ],
         "title": "FeatureOnPage",
+        "type": "object"
+      },
+      "FeaturePresence": {
+        "properties": {
+          "feature_type": {
+            "title": "Feature Type",
+            "type": "string"
+          },
+          "own_ownership_rate": {
+            "$ref": "#/components/schemas/MetricValue"
+          },
+          "presence_rate": {
+            "$ref": "#/components/schemas/MetricValue"
+          }
+        },
+        "required": [
+          "feature_type",
+          "presence_rate",
+          "own_ownership_rate"
+        ],
+        "title": "FeaturePresence",
         "type": "object"
       },
       "FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___": {
@@ -2286,6 +2449,439 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "HistoryBand": {
+        "properties": {
+          "depth_requested": {
+            "title": "Depth Requested",
+            "type": "integer"
+          },
+          "entity_id": {
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "kind": {
+            "const": "beyond_depth",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "from",
+          "to",
+          "kind",
+          "depth_requested",
+          "label"
+        ],
+        "title": "HistoryBand",
+        "type": "object"
+      },
+      "HistoryColumns": {
+        "description": "`format=columns`: the points of one entity as parallel arrays.",
+        "properties": {
+          "absolute_rank": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Absolute Rank",
+            "type": "array"
+          },
+          "depth_requested": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Depth Requested",
+            "type": "array"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          },
+          "rank": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Rank",
+            "type": "array"
+          },
+          "serp_snapshot_id": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Serp Snapshot Id",
+            "type": "array"
+          },
+          "state": {
+            "items": {
+              "enum": [
+                "ranked",
+                "beyond_depth",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "title": "State",
+            "type": "array"
+          },
+          "t": {
+            "items": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "T",
+            "type": "array"
+          },
+          "url_id": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Url Id",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entity",
+          "t",
+          "state",
+          "rank",
+          "absolute_rank",
+          "depth_requested",
+          "url_id",
+          "serp_snapshot_id"
+        ],
+        "title": "HistoryColumns",
+        "type": "object"
+      },
+      "HistoryConfig": {
+        "properties": {
+          "config_version": {
+            "title": "Config Version",
+            "type": "integer"
+          },
+          "depth_profile": {
+            "title": "Depth Profile",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "config_version",
+          "depth_profile",
+          "valid_from",
+          "valid_to"
+        ],
+        "title": "HistoryConfig",
+        "type": "object"
+      },
+      "HistoryEvent": {
+        "properties": {
+          "entity_id": {
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "from_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Rank"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "rank_event_id": {
+            "title": "Rank Event Id",
+            "type": "string"
+          },
+          "to_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Rank"
+          }
+        },
+        "required": [
+          "rank_event_id",
+          "occurred_at",
+          "event_type",
+          "entity_id",
+          "from_rank",
+          "to_rank"
+        ],
+        "title": "HistoryEvent",
+        "type": "object"
+      },
+      "HistoryPoint": {
+        "properties": {
+          "absolute_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=absolute`.",
+            "title": "Absolute Rank"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "depth_requested": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for a failed check.",
+            "title": "Depth Requested"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null unless `state` is `ranked`.",
+            "title": "Rank"
+          },
+          "serp_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serp Snapshot Id"
+          },
+          "state": {
+            "enum": [
+              "ranked",
+              "beyond_depth",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "url_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=url`; a key of `urls`.",
+            "title": "Url Id"
+          }
+        },
+        "required": [
+          "date",
+          "observed_at",
+          "state",
+          "rank",
+          "absolute_rank",
+          "depth_requested",
+          "url_id",
+          "serp_snapshot_id"
+        ],
+        "title": "HistoryPoint",
+        "type": "object"
+      },
+      "HistorySeries": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entity",
+          "points"
+        ],
+        "title": "HistorySeries",
+        "type": "object"
+      },
+      "HistorySummary": {
+        "properties": {
+          "average_rank": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "beyond_depth_checks": {
+            "title": "Beyond Depth Checks",
+            "type": "integer"
+          },
+          "checks": {
+            "title": "Checks",
+            "type": "integer"
+          },
+          "failed_checks": {
+            "title": "Failed Checks",
+            "type": "integer"
+          },
+          "ranked_checks": {
+            "title": "Ranked Checks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "average_rank",
+          "checks",
+          "ranked_checks",
+          "beyond_depth_checks",
+          "failed_checks"
+        ],
+        "title": "HistorySummary",
+        "type": "object"
+      },
+      "HistoryWindow": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "timezone"
+        ],
+        "title": "HistoryWindow",
         "type": "object"
       },
       "ImportCounts": {
@@ -5736,6 +6332,256 @@
         "title": "RankChange",
         "type": "object"
       },
+      "RankEventOut": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "feature_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Type"
+          },
+          "from_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Rank"
+          },
+          "from_url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UrlRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "other_entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rank_event_id": {
+            "title": "Rank Event Id",
+            "type": "string"
+          },
+          "serp_snapshot_id": {
+            "title": "Serp Snapshot Id",
+            "type": "string"
+          },
+          "to_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Rank"
+          },
+          "to_url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UrlRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tracked_keyword_id": {
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank_event_id",
+          "occurred_at",
+          "tracked_keyword_id",
+          "keyword",
+          "entity",
+          "event_type",
+          "feature_type",
+          "from_rank",
+          "to_rank",
+          "from_url",
+          "to_url",
+          "other_entity",
+          "serp_snapshot_id"
+        ],
+        "title": "RankEventOut",
+        "type": "object"
+      },
+      "RankEventPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RankEventOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "RankEventPage",
+        "type": "object"
+      },
+      "RankHistory": {
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryBand"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HistoryColumns"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`format=columns`.",
+            "title": "Columns"
+          },
+          "config_history": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryConfig"
+            },
+            "title": "Config History",
+            "type": "array"
+          },
+          "deep_check_weekday": {
+            "title": "Deep Check Weekday",
+            "type": "integer"
+          },
+          "events": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HistoryEvent"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=events`.",
+            "title": "Events"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HistorySeries"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`format=points`.",
+            "title": "Series"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/HistorySummary"
+          },
+          "tracked_keyword_id": {
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          },
+          "urls": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/UrlRef"
+            },
+            "title": "Urls",
+            "type": "object"
+          },
+          "version_boundaries": {
+            "items": {
+              "$ref": "#/components/schemas/VersionBoundary"
+            },
+            "title": "Version Boundaries",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/HistoryWindow"
+          }
+        },
+        "required": [
+          "tracked_keyword_id",
+          "window",
+          "deep_check_weekday",
+          "config_history",
+          "urls",
+          "series",
+          "columns",
+          "bands",
+          "events",
+          "summary",
+          "version_boundaries"
+        ],
+        "title": "RankHistory",
+        "type": "object"
+      },
+      "RankHistoryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RankHistory"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "RankHistoryResponse",
+        "type": "object"
+      },
       "Readiness": {
         "properties": {
           "checks": {
@@ -7168,6 +8014,820 @@
           }
         },
         "title": "SeoSettingsPatch",
+        "type": "object"
+      },
+      "SerpCurrent": {
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SerpResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "serp_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serp Snapshot Id"
+          }
+        },
+        "required": [
+          "serp_snapshot_id",
+          "observed_at",
+          "results"
+        ],
+        "title": "SerpCurrent",
+        "type": "object"
+      },
+      "SerpCurrentResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SerpCurrent"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SerpCurrentResponse",
+        "type": "object"
+      },
+      "SerpDomain": {
+        "properties": {
+          "domain_id": {
+            "title": "Domain Id",
+            "type": "integer"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain_id",
+          "host",
+          "registrable_domain"
+        ],
+        "title": "SerpDomain",
+        "type": "object"
+      },
+      "SerpFeatureHistory": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "presence": {
+            "items": {
+              "$ref": "#/components/schemas/FeaturePresence"
+            },
+            "title": "Presence",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checks",
+          "presence"
+        ],
+        "title": "SerpFeatureHistory",
+        "type": "object"
+      },
+      "SerpFeatureHistoryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SerpFeatureHistory"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SerpFeatureHistoryResponse",
+        "type": "object"
+      },
+      "SerpFeatureOut": {
+        "properties": {
+          "competitor_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Competitor Entity Ids",
+            "type": "array"
+          },
+          "feature_type": {
+            "title": "Feature Type",
+            "type": "string"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "owned_by_project": {
+            "title": "Owned By Project",
+            "type": "boolean"
+          },
+          "owned_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owned Position"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          },
+          "rank_absolute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Absolute"
+          },
+          "source_urls": {
+            "items": {
+              "$ref": "#/components/schemas/UrlRef"
+            },
+            "title": "Source Urls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "feature_type",
+          "ordinal",
+          "rank_absolute",
+          "source_urls",
+          "owned_by_project",
+          "owned_position",
+          "competitor_entity_ids",
+          "payload"
+        ],
+        "title": "SerpFeatureOut",
+        "type": "object"
+      },
+      "SerpOrganicItem": {
+        "properties": {
+          "absolute_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Rank"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/SerpDomain"
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organic_rank": {
+            "title": "Organic Rank",
+            "type": "integer"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "$ref": "#/components/schemas/UrlRef"
+          }
+        },
+        "required": [
+          "organic_rank",
+          "absolute_rank",
+          "url",
+          "domain",
+          "entity",
+          "title",
+          "snippet"
+        ],
+        "title": "SerpOrganicItem",
+        "type": "object"
+      },
+      "SerpProvenance": {
+        "properties": {
+          "canonicalizer_version": {
+            "title": "Canonicalizer Version",
+            "type": "integer"
+          },
+          "collection_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Task Id"
+          },
+          "parser_version": {
+            "title": "Parser Version",
+            "type": "integer"
+          },
+          "provider_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Task Id"
+          },
+          "raw_payload_id": {
+            "title": "Raw Payload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "raw_payload_id",
+          "parser_version",
+          "canonicalizer_version",
+          "provider_task_id",
+          "collection_task_id"
+        ],
+        "title": "SerpProvenance",
+        "type": "object"
+      },
+      "SerpResult": {
+        "properties": {
+          "absolute_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Rank"
+          },
+          "domain": {
+            "$ref": "#/components/schemas/SerpDomain"
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The own or competitor entity the result belongs to at the last check."
+          },
+          "organic_rank": {
+            "title": "Organic Rank",
+            "type": "integer"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "$ref": "#/components/schemas/UrlRef"
+          }
+        },
+        "required": [
+          "organic_rank",
+          "absolute_rank",
+          "url",
+          "domain",
+          "title",
+          "snippet",
+          "entity"
+        ],
+        "title": "SerpResult",
+        "type": "object"
+      },
+      "SerpSnapshotDetail": {
+        "properties": {
+          "ai_overview_observation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Overview Observation Id"
+          },
+          "ai_overview_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "absent",
+                  "present",
+                  "present_async_loaded",
+                  "present_not_loaded"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Overview State"
+          },
+          "config_version": {
+            "title": "Config Version",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "depth_requested": {
+            "title": "Depth Requested",
+            "type": "integer"
+          },
+          "depth_returned": {
+            "title": "Depth Returned",
+            "type": "integer"
+          },
+          "device": {
+            "title": "Device",
+            "type": "string"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/SerpFeatureOut"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "has_ai_mode_link": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Ai Mode Link"
+          },
+          "has_ai_overview": {
+            "title": "Has Ai Overview",
+            "type": "boolean"
+          },
+          "item_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Item Types",
+            "type": "array"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "observed_date": {
+            "format": "date",
+            "title": "Observed Date",
+            "type": "string"
+          },
+          "organic": {
+            "items": {
+              "$ref": "#/components/schemas/SerpOrganicItem"
+            },
+            "title": "Organic",
+            "type": "array"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "own": {
+            "$ref": "#/components/schemas/RankCell"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SerpProvenance"
+          },
+          "provider_code": {
+            "title": "Provider Code",
+            "type": "string"
+          },
+          "provider_endpoint": {
+            "title": "Provider Endpoint",
+            "type": "string"
+          },
+          "se_domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Se Domain"
+          },
+          "se_results_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Se Results Count"
+          },
+          "serp_snapshot_id": {
+            "title": "Serp Snapshot Id",
+            "type": "string"
+          },
+          "served_from_cache": {
+            "title": "Served From Cache",
+            "type": "boolean"
+          },
+          "titles_source": {
+            "enum": [
+              "domain_rank_observations",
+              "serp_current_results",
+              "unavailable"
+            ],
+            "title": "Titles Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serp_snapshot_id",
+          "observed_at",
+          "observed_date",
+          "config_version",
+          "provider_code",
+          "provider_endpoint",
+          "se_domain",
+          "location_id",
+          "language_code",
+          "device",
+          "os",
+          "depth_requested",
+          "depth_returned",
+          "se_results_count",
+          "item_types",
+          "has_ai_overview",
+          "ai_overview_state",
+          "has_ai_mode_link",
+          "served_from_cache",
+          "cost_usd",
+          "own",
+          "organic",
+          "titles_source",
+          "features",
+          "ai_overview_observation_id",
+          "provenance"
+        ],
+        "title": "SerpSnapshotDetail",
+        "type": "object"
+      },
+      "SerpSnapshotDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SerpSnapshotDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SerpSnapshotDetailResponse",
+        "type": "object"
+      },
+      "SerpSnapshotPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SerpSnapshotSummary"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/SerpSnapshotPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "SerpSnapshotPage",
+        "type": "object"
+      },
+      "SerpSnapshotPageInfo": {
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "limit",
+          "next_cursor",
+          "has_more"
+        ],
+        "title": "SerpSnapshotPageInfo",
+        "type": "object"
+      },
+      "SerpSnapshotSummary": {
+        "properties": {
+          "ai_overview_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "absent",
+                  "present",
+                  "present_async_loaded",
+                  "present_not_loaded"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Overview State"
+          },
+          "config_version": {
+            "title": "Config Version",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "depth_requested": {
+            "title": "Depth Requested",
+            "type": "integer"
+          },
+          "depth_returned": {
+            "title": "Depth Returned",
+            "type": "integer"
+          },
+          "device": {
+            "title": "Device",
+            "type": "string"
+          },
+          "has_ai_mode_link": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Ai Mode Link"
+          },
+          "has_ai_overview": {
+            "title": "Has Ai Overview",
+            "type": "boolean"
+          },
+          "item_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Item Types",
+            "type": "array"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "location_id": {
+            "title": "Location Id",
+            "type": "integer"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "observed_date": {
+            "format": "date",
+            "title": "Observed Date",
+            "type": "string"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "own": {
+            "$ref": "#/components/schemas/RankCell"
+          },
+          "provider_code": {
+            "title": "Provider Code",
+            "type": "string"
+          },
+          "provider_endpoint": {
+            "title": "Provider Endpoint",
+            "type": "string"
+          },
+          "se_domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Se Domain"
+          },
+          "se_results_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Se Results Count"
+          },
+          "serp_snapshot_id": {
+            "title": "Serp Snapshot Id",
+            "type": "string"
+          },
+          "served_from_cache": {
+            "title": "Served From Cache",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "serp_snapshot_id",
+          "observed_at",
+          "observed_date",
+          "config_version",
+          "provider_code",
+          "provider_endpoint",
+          "se_domain",
+          "location_id",
+          "language_code",
+          "device",
+          "os",
+          "depth_requested",
+          "depth_returned",
+          "se_results_count",
+          "item_types",
+          "has_ai_overview",
+          "ai_overview_state",
+          "has_ai_mode_link",
+          "served_from_cache",
+          "cost_usd",
+          "own"
+        ],
+        "title": "SerpSnapshotSummary",
         "type": "object"
       },
       "SessionItem": {
@@ -9999,6 +11659,36 @@
           "token"
         ],
         "title": "VerifyEmailRequest",
+        "type": "object"
+      },
+      "VersionBoundary": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "component": {
+            "const": "tracked_keyword_config",
+            "title": "Component",
+            "type": "string"
+          },
+          "from": {
+            "title": "From",
+            "type": "integer"
+          },
+          "to": {
+            "title": "To",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "component",
+          "from",
+          "to"
+        ],
+        "title": "VersionBoundary",
         "type": "object"
       },
       "Vocabulary": {
@@ -15994,6 +17684,393 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events": {
+      "get": {
+        "description": "Newest first. `from` and `to` take dates or timestamps. A cursor is bound to its filters (`400 invalid_cursor` otherwise).",
+        "operationId": "rank_events_api_v1_workspaces__workspace_id__projects__project_id__seo_rank_events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[event_type_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 30,
+              "title": "Filter[Event Type In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[tracked_keyword_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Tracked Keyword Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[entity_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Entity Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[group]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Group]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankEventPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's rank events",
+        "tags": [
+          "ranks"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/serp-snapshots/{serp_snapshot_id}": {
+      "get": {
+        "description": "The organic results with the entity each belongs to (as the rules stood when it was checked), the features and the provenance. `include=titles` adds titles and snippets where the tables keep them (the own and competitor entities' ranking pages, and the current top 20); `titles_source` says where they came from.",
+        "operationId": "serp_snapshot_api_v1_workspaces__workspace_id__projects__project_id__serp_snapshots__serp_snapshot_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "serp_snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Serp Snapshot Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A hint to find the month.",
+            "in": "query",
+            "name": "observed_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint to find the month.",
+              "title": "Observed At"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "const": "titles",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SerpSnapshotDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "A SERP snapshot",
+        "tags": [
+          "ranks"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/serp-snapshots/{serp_snapshot_id}/raw": {
+      "get": {
+        "description": "`raw:read`. `410 raw_expired` once the answer is past its retention; `503 raw_unavailable` when it could not be read now.",
+        "operationId": "serp_snapshot_raw_api_v1_workspaces__workspace_id__projects__project_id__serp_snapshots__serp_snapshot_id__raw_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "serp_snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Serp Snapshot Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A hint to find the month.",
+            "in": "query",
+            "name": "observed_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint to find the month.",
+              "title": "Observed At"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The provider's answer for a SERP snapshot, as received",
+        "tags": [
+          "ranks"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings": {
       "get": {
         "operationId": "get_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_get",
@@ -17364,6 +19441,108 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/aio-history": {
+      "get": {
+        "description": "Per check: whether an AI Overview showed, whether the project and which competitors were cited, and how many sources it listed. At most 1,000 checks.",
+        "operationId": "aio_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__aio_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First local day, included.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day, included.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last local day, included.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day, included.",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AioHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "AI Overview history of a keyword's checks",
+        "tags": [
+          "ranks"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/competitors": {
       "put": {
         "description": "Replaces the overrides. The effective set is the project's SEO competitors, with `include` added and `exclude` taken away. An entity without a live role in the project is `422 validation_failed` with `entity_not_in_project`.",
@@ -17498,6 +19677,549 @@
         "summary": "Configuration versions",
         "tags": [
           "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history": {
+      "get": {
+        "description": "One point per successful check on the project-local date it happened, for the project's primary own entity and the keyword's effective competitors (at most 11, or `entity_ids`). `from` and `to`, or `window` (`last_7d` to `last_365d`, default `last_90d`); at most 400 days. A rank is known within the depth checked: `beyond_depth` has no rank and is never drawn through; a check that failed for good is a `failed` point. `bands` shade the runs of beyond-depth checks. `format=columns` gives parallel arrays.",
+        "operationId": "rank_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__rank_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First local day, included.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day, included.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last local day, included.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day, included.",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Window"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entity_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 11,
+              "title": "Entity Ids"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "absolute",
+                      "url",
+                      "events"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "points",
+              "enum": [
+                "points",
+                "columns"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "A keyword's rank over time",
+        "tags": [
+          "ranks"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/serp-current": {
+      "get": {
+        "description": "The top 20 of the last check, with the own or competitor entity each result belongs to. Empty before the first check.",
+        "operationId": "serp_current_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_current_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SerpCurrentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "A keyword's current top results",
+        "tags": [
+          "ranks"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/serp-features": {
+      "get": {
+        "description": "The last `limit_checks` checks in the window (default 30, newest first) with their features, and how often each feature was present and owned by the project.",
+        "operationId": "serp_features_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_features_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First local day, included.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day, included.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last local day, included.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day, included.",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[feature_type_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 20,
+              "title": "Filter[Feature Type In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit_checks",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit Checks",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SerpFeatureHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The SERP features of a keyword's recent checks",
+        "tags": [
+          "ranks"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/serp-snapshots": {
+      "get": {
+        "description": "Newest first. Each carries the own site's rank cell. A cursor is bound to its filters (`400 invalid_cursor` otherwise).",
+        "operationId": "serp_snapshots_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_snapshots_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First local day, included.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day, included.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last local day, included.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day, included.",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[depth_requested]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 700,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Depth Requested]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[has_ai_overview]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Has Ai Overview]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SerpSnapshotPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "A keyword's SERP snapshots",
+        "tags": [
+          "ranks"
         ]
       }
     },

@@ -90,8 +90,10 @@ async def _check(
     days_ago: int = 0,
     extra: list[dict[str, Any]] | None = None,
     depth: int = 20,
+    store: MemoryStore | None = None,
+    ingest_it: bool = True,
 ) -> None:
-    store = MemoryStore()
+    store = store or MemoryStore()
     when = NOW - days_ago * DAY
     await fetched_task(
         sessions,
@@ -102,7 +104,8 @@ async def _check(
         store,
         fetched_at=when,
     )
-    await ingest(sessions, store)
+    if ingest_it:
+        await ingest(sessions, store)
 
 
 async def _list(

@@ -21,6 +21,7 @@ from sightline.api.operations.runs import RunService
 from sightline.api.operations.schedules import ScheduleService
 from sightline.api.operations.settings import SettingsService
 from sightline.api.projects.service import ProjectService
+from sightline.api.ranks.service import RankService
 from sightline.api.taxonomy.service import TaxonomyService
 from sightline.api.workspaces.invitations import InvitationService
 from sightline.api.workspaces.members import MemberService
@@ -58,6 +59,7 @@ class Resources:
     project_settings: SettingsService
     costs: CostService
     imports: ImportService
+    ranks: RankService
 
 
 def get_resources(request: Request) -> Resources:

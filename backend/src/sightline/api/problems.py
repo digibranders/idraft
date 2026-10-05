@@ -238,6 +238,18 @@ class StorageUnavailableError(ProblemError):
     status, code, title = 503, "storage_unavailable", "Storage unavailable"
 
 
+class RawExpiredError(ProblemError):
+    """The provider's answer was kept for its retention period, and that has passed."""
+
+    status, code, title = 410, "raw_expired", "The raw answer is past its retention"
+
+
+class RawUnavailableError(ProblemError):
+    """The stored answer could not be read now; it may be there when asked again."""
+
+    status, code, title = 503, "raw_unavailable", "The raw answer is not available now"
+
+
 class LastOwnerError(ProblemError):
     status, code, title = 409, "last_owner", "A workspace needs an owner"
 
