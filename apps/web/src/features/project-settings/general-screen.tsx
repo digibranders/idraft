@@ -8,6 +8,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
+import { KeywordDefaultsSection } from './keyword-defaults-section';
 import { projectQuery } from './project-query';
 import { StatusSection } from './status-section';
 import { DomainInput } from '@/components/app/forms/domain-input';
@@ -68,8 +69,8 @@ export interface ProjectGeneralScreenProps {
 
 /**
  * Settings > Project settings > General (11-navigation.md section 5, 20 section 5.19.5): the name, the
- * address, the site, the location rank checks target, the time zone, the deep check day and the default language through the save bar, then tracking
- * and the danger zone. A member who may not change projects sees the values read-only.
+ * address, the site, the location rank checks target, the time zone, the deep check day and the default language through the save bar, then the
+ * keyword defaults (their own save), tracking and the danger zone. A member who may not change projects sees the values read-only.
  */
 export function ProjectGeneralScreen({ project: initial, workspaceSlug }: ProjectGeneralScreenProps): ReactNode {
   const t = useTranslations('projectSettings.general');
@@ -89,6 +90,7 @@ export function ProjectGeneralScreen({ project: initial, workspaceSlug }: Projec
       ) : (
         <ReadOnlyGeneral project={project} workspaceSlug={workspaceSlug} />
       )}
+      <KeywordDefaultsSection project={project} />
       {canWrite ? <StatusSection project={project} workspaceSlug={workspaceSlug} /> : null}
     </section>
   );
