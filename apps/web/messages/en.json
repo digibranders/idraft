@@ -1804,6 +1804,56 @@
       }
     },
     "moreActions": "More actions",
+    "refresh": {
+      "menuItem": "Refresh metrics",
+      "left": "{left} of {limit} left today",
+      "limitReached": "No manual refreshes left today. The limit resets at 00:00 UTC.",
+      "archivedView": "Not for archived keywords",
+      "dialog": {
+        "title": "Refresh metrics",
+        "description": "Reads search volume, keyword difficulty and cost per click again.",
+        "choices": "What to refresh",
+        "selection": "{count, plural, one {The chosen keyword} other {The # chosen keywords}}",
+        "selectionHint": "A keyword tracked in several places is refreshed in each.",
+        "matching": "{count, plural, one {The keyword matching the filters} other {All # keywords matching the filters}}",
+        "matchingAll": "{count, plural, one {The keyword in the list} other {All # keywords in the list}}",
+        "matchingHint": "The search box is left out.",
+        "matchingLoading": "The list is still loading, so its keywords cannot be counted yet.",
+        "stale": "All keywords with stale metrics",
+        "staleHint": "Metrics older than {days} days, and keywords without metrics yet.",
+        "tooMany": "One refresh takes up to {limit} keywords. Narrow the list, or refresh all keywords with stale metrics.",
+        "left": "{left} of {limit} manual refreshes left today.",
+        "submit": "Refresh metrics",
+        "submitCount": "{count, plural, one {Refresh metrics for # keyword} other {Refresh metrics for # keywords}}"
+      },
+      "errors": {
+        "limit": "This project has used its {limit} manual refreshes for today. The limit resets at 00:00 UTC.",
+        "keywordUnknown": "A keyword was archived or removed in the meantime. The list is up to date again: choose the keywords once more.",
+        "forbidden": "You do not have permission to refresh metrics in this project.",
+        "failed": "The refresh could not be started. Try again in a moment.",
+        "budgetBlocked": "A budget for keyword research is used up this month. The refresh did not start."
+      },
+      "progress": {
+        "queued": "Metrics refresh queued",
+        "running": "Refreshing metrics",
+        "counts": "{done} of {total} keywords read",
+        "countsFailed": "{done} of {total} keywords read, {failed} failed"
+      },
+      "finished": {
+        "completed": "{count, plural, one {Metrics refreshed for # keyword} other {Metrics refreshed for # keywords}}",
+        "nothing": "No keyword needed new metrics",
+        "completedWithErrors": "Metrics refreshed for {done} of {total} keywords, {failed} failed",
+        "failed": "The metrics refresh failed",
+        "cancelled": "The metrics refresh was cancelled",
+        "budgetBlocked": "The metrics refresh did not start: a budget for keyword research is used up this month"
+      },
+      "reasons": {
+        "cancelledByUser": "A member cancelled it.",
+        "projectNotCollecting": "This project no longer collects data.",
+        "workloadUnavailable": "Keyword metrics cannot be collected on this installation.",
+        "budgetExceeded": "A budget for keyword research is used up this month."
+      }
+    },
     "caption": "Tracked keywords",
     "noun": {
       "one": "keyword",

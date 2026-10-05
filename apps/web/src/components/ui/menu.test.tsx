@@ -112,6 +112,38 @@ describe('Menu', () => {
     expect(check).not.toHaveBeenCalled();
   });
 
+  it('shows a detail at the end of an enabled item, and the item stays described by it', async () => {
+    const run = vi.fn();
+    const { user } = renderWithProviders(
+      <Menu
+        trigger={<Button>More actions</Button>}
+        items={[{ id: 'refresh', label: 'Refresh metrics', detail: '14 of 20 left today', onSelect: run }]}
+      />,
+    );
+    const menu = await open(user);
+    const item = within(menu).getByRole('menuitem', { name: /Refresh metrics/ });
+    expect(item).not.toHaveAttribute('aria-disabled', 'true');
+    expect(item).toHaveTextContent('14 of 20 left today');
+    expect(item).toHaveAccessibleDescription('14 of 20 left today');
+    await user.click(item);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the reason of a disabled item in place of its detail', async () => {
+    const { user } = renderWithProviders(
+      <Menu
+        trigger={<Button>More actions</Button>}
+        items={[
+          { id: 'refresh', label: 'Refresh metrics', detail: '14 of 20 left today', disabledReason: 'None left' },
+        ]}
+      />,
+    );
+    const menu = await open(user);
+    const item = within(menu).getByRole('menuitem', { name: /Refresh metrics/ });
+    expect(item).toHaveTextContent('None left');
+    expect(item).not.toHaveTextContent('14 of 20');
+  });
+
   it('shows checkbox items with their state and keeps the menu in step with the caller', async () => {
     const toggle = vi.fn();
     const { user } = renderWithProviders(

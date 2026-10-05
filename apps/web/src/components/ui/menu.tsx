@@ -27,6 +27,8 @@ export interface MenuItemDef {
   tone?: 'default' | 'destructive' | undefined;
   /** Disables the item and shows why in place of the shortcut. The item stays reachable by keyboard. */
   disabledReason?: string | undefined;
+  /** A short fact at the end of the item, such as "14 of 20 left today". It takes the place of a shortcut; a reason takes its place. */
+  detail?: string | undefined;
   onSelect?: (() => void) | undefined;
   /** The link to render for `kind: 'link'`: the router's `<Link href="..." />` or an `<a>`. */
   link?: ReactElement | undefined;
@@ -109,9 +111,9 @@ function RowContent({
       )}
       {item.icon ? <Icon icon={item.icon} size="sm" className={tertiary} /> : null}
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {item.disabledReason !== undefined ? (
+      {item.disabledReason !== undefined || item.detail !== undefined ? (
         <span id={reasonId} className="pl-4 type-meta">
-          {item.disabledReason}
+          {item.disabledReason ?? item.detail}
         </span>
       ) : item.shortcut ? (
         <Kbd keys={item.shortcut} decorative className="pl-4" />
@@ -127,7 +129,7 @@ function Row({ item, nested }: RowProps): ReactElement {
   const shared = {
     disabled,
     'aria-keyshortcuts': ariaKeyShortcuts,
-    'aria-describedby': disabled ? reasonId : undefined,
+    'aria-describedby': disabled || item.detail !== undefined ? reasonId : undefined,
     className: cn(POPUP_ITEM, item.tone === 'destructive' && DESTRUCTIVE),
   };
   switch (item.kind) {
