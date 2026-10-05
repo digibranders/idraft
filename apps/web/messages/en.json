@@ -1261,6 +1261,7 @@
     "unit": "Unit",
     "unitPrice": "Unit price (USD)",
     "estimate": "Estimate",
+    "noPrices": "No prices are listed for this month.",
     "unitCostsNote": "Prices from the price book. They estimate costs; actual costs come from what providers report.",
     "validFrom": "Valid from",
     "verified": "Checked",

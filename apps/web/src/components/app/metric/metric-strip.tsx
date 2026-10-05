@@ -26,6 +26,8 @@ export interface MetricStripItem {
   delta?: ReactNode;
   /** The denominator, sample or variant: "of 986 keywords". */
   context?: string | null | undefined;
+  /** A `BudgetMeter` or similar bar under the value, in the context position (23 section 11.1). */
+  meter?: ReactNode;
 }
 
 export interface MetricStripGroup {
@@ -130,6 +132,9 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
                 )}
                 {item.context === undefined || item.context === null ? null : (
                   <Truncate text={item.context} className="type-meta text-foreground-tertiary" />
+                )}
+                {item.meter === undefined || item.meter === null || status === 'loading' ? null : (
+                  <span className="mt-1.5 flex">{item.meter}</span>
                 )}
               </dd>
             </div>

@@ -42,6 +42,12 @@ export const rankingsImportPath = (workspace: string, project: string): Route =>
 /** `path` with the query string `query` (without its `?`) kept, as when a dialog opens over a filtered page. */
 export const withQuery = (path: Route, query: string): Route => (query === '' ? path : (`${path}?${query}` as Route));
 
+/** Workspace Costs (11-navigation.md section 1). */
+export const costsPath = (workspace: string): Route => `/${encodeURIComponent(workspace)}/costs` as Route;
+
+/** Workspace Operations > Runs. */
+export const runsPath = (workspace: string): Route => `/${encodeURIComponent(workspace)}/ops/runs` as Route;
+
 /** The sections of Settings that exist outside any project: the account's and the workspace's. */
 export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 'workspace' | 'members';
 

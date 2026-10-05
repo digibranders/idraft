@@ -5,6 +5,7 @@ import {
   dayWorkloadSeries,
   isCostWorkload,
   money,
+  projectBudget,
   shareOf,
   STATE_KEYS,
   WORKLOAD_KEYS,
@@ -130,6 +131,20 @@ describe('cost model', () => {
     expect(workspaceBudget(list)?.budget.budget_id).toBe('null-all');
     expect(workspaceBudget([budgetStatus('p1', 'all')])).toBeNull();
     expect(budgetRows(list).map((row) => row.budget.budget_id)).toEqual(['null-all', 'null-seo_rank', 'p1-all']);
+  });
+
+  it('picks the budget a project row stands for: the one for all workloads, else the most used', () => {
+    const used = (status: BudgetStatus, pct: number): BudgetStatus => ({ ...status, pct_used: pct });
+    const list = [
+      used(budgetStatus('p1', 'seo_rank'), 10),
+      used(budgetStatus('p1', 'ai_prompt'), 70),
+      used(budgetStatus('p2', 'all'), 5),
+      used(budgetStatus('p2', 'seo_rank'), 90),
+      budgetStatus(null, 'all'),
+    ];
+    expect(projectBudget(list, 'p1')?.budget.budget_id).toBe('p1-ai_prompt');
+    expect(projectBudget(list, 'p2')?.budget.budget_id).toBe('p2-all');
+    expect(projectBudget(list, 'p3')).toBeNull();
   });
 
   it('lists project budgets by project, the all-workloads one first', () => {

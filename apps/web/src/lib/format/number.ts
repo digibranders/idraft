@@ -130,6 +130,22 @@ export function formatCurrency(
   return fmt({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * USD price of one unit, as a price book lists it: at least two decimals and as many as six when the price
+ * needs them, so $0.012 stays $0.012 and is never rounded to a cent (23 section 11.4).
+ */
+export function formatUnitPrice(usd: number | null | undefined, { locale }: FormatOptions = {}): string {
+  if (!isFiniteNumber(usd)) return EMPTY_VALUE;
+  return withMinus(
+    new Intl.NumberFormat(locale ?? DEFAULT_LOCALE, {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    }).format(usd),
+  );
+}
+
 /** Decimal with fixed precision for scores and estimates: 0.0421 -> "0.042". */
 export function formatDecimal(
   value: number | null | undefined,

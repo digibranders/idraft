@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { monthDays, monthInstants, monthLabel, parseMonth, recentMonths } from './month';
+import { currentMonth, monthDays, monthInstants, monthLabel, parseMonth, recentMonths } from './month';
 
 const now = new Date('2026-10-05T12:00:00Z');
 
@@ -15,6 +15,12 @@ describe('months', () => {
   it('counts the months in UTC when the local day is already the next month', () => {
     expect(recentMonths(new Date('2026-10-31T23:59:59Z'), 2)).toEqual(['2026-10', '2026-09']);
     expect(recentMonths(new Date('2027-01-01T00:00:00Z'), 2)).toEqual(['2027-01', '2026-12']);
+  });
+
+  it('names this month by the UTC clock', () => {
+    expect(currentMonth(now)).toBe('2026-10');
+    expect(currentMonth(new Date('2026-09-30T23:59:59Z'))).toBe('2026-09');
+    expect(currentMonth(new Date('2026-10-01T00:00:00Z'))).toBe('2026-10');
   });
 
   it('reads a month key, or null', () => {

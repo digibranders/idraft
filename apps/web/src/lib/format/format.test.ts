@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMPTY_VALUE,
   MINUS,
   classifyRankChange,
   displayUrl,
@@ -25,6 +26,7 @@ import {
   formatSampleCount,
   formatSignedInteger,
   formatTableDateTime,
+  formatUnitPrice,
   rankBucket,
   truncatePath,
 } from './index';
@@ -71,6 +73,14 @@ describe('numbers', () => {
     expect(formatCurrency(0)).toBe('$0.00');
     expect(formatCurrency(1_240_000, { context: 'summary' })).toBe('$1.24M');
     expect(formatCurrency(1_240_000, { context: 'table' })).toBe('$1,240,000.00');
+  });
+
+  it('formats a unit price with the decimals it needs, never rounded to a cent', () => {
+    expect(formatUnitPrice(0.012)).toBe('$0.012');
+    expect(formatUnitPrice(0.00012)).toBe('$0.00012');
+    expect(formatUnitPrice(0.5)).toBe('$0.50');
+    expect(formatUnitPrice(2)).toBe('$2.00');
+    expect(formatUnitPrice(null)).toBe(EMPTY_VALUE);
   });
 
   it('formats file sizes in the largest unit that keeps them above one', () => {

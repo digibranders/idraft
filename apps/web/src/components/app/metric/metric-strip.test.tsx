@@ -63,6 +63,22 @@ describe('MetricStrip', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('draws a meter under the value of an item that has one, and none while loading', () => {
+    const withMeter: MetricStripGroup[] = [
+      {
+        id: 'budget',
+        items: [{ id: 'budget', label: 'Budget', value: '64% of $2,000.00', meter: <span data-testid="meter" /> }],
+      },
+    ];
+    const { unmount } = renderWithProviders(
+      <MetricStrip size="md" label="Summary" groups={withMeter} status="ready" />,
+    );
+    expect(within(screen.getByRole('definition')).getByTestId('meter')).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<MetricStrip size="md" label="Summary" groups={withMeter} status="loading" />);
+    expect(screen.queryByTestId('meter')).toBeNull();
+  });
+
   it('keeps one row while every cell gets 140 px', () => {
     renderWithProviders(<MetricStrip size="md" label="Summary" groups={GROUPS} status="ready" />);
     expect(columnsOf('Summary')).toBe('repeat(4, minmax(0, 1fr))');

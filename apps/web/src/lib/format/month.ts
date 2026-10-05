@@ -27,6 +27,9 @@ function partsOf(key: MonthKey): { year: number; monthIndex: number } {
 export const parseMonth = (value: string | null): MonthKey | null =>
   value !== null && isMonthKey(value) ? value : null;
 
+/** This month, counted in UTC. */
+export const currentMonth = (now: Date): MonthKey => keyOf(now.getUTCFullYear(), now.getUTCMonth());
+
 /** This month (UTC) and the ones before it, newest first; 12 by default. */
 export function recentMonths(now: Date, count = 12): MonthKey[] {
   return Array.from({ length: count }, (_, back) => {

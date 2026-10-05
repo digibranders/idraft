@@ -107,6 +107,18 @@ export function dayWorkloadSeries(
 export const workspaceBudget = (list: readonly BudgetStatus[]): BudgetStatus | null =>
   list.find((row) => row.budget.project_id === null && row.budget.workload === 'all') ?? null;
 
+/**
+ * The budget a project's row shows: its budget for all workloads, else the one of its workload budgets that
+ * is the most used. `null` when the project has none.
+ */
+export function projectBudget(list: readonly BudgetStatus[], projectId: string): BudgetStatus | null {
+  const own = list.filter((row) => row.budget.project_id === projectId);
+  return (
+    own.find((row) => row.budget.workload === 'all') ??
+    own.reduce<BudgetStatus | null>((most, row) => (most === null || row.pct_used > most.pct_used ? row : most), null)
+  );
+}
+
 /** Budgets in reading order: the workspace's first, then each project's; within one, all workloads first. */
 export function budgetRows(list: readonly BudgetStatus[]): BudgetStatus[] {
   const scope = (row: BudgetStatus): string => row.budget.project_id ?? '';
