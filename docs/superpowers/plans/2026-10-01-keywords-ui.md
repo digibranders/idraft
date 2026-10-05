@@ -26,6 +26,7 @@
 - **Preconditions.** Two things are not this session's to decide alone:
   1. `pnpm add @tanstack/react-table@9 @tanstack/react-virtual@3` needs the user's go-ahead (installs need permission). Ask before Task 1.
   2. The draft contract. Until the backend sends its path, Task 1 to 3 need no generated types; from Task 4 on, `pnpm gen:api` reads `apps/web/openapi/step-5-draft.json` on this branch only, with its `.prettierignore` line, exactly as the entities plan did. The draft guard in `src/lib/api/schema.test.ts` tells when `backend/openapi/v1.json` has every draft route; then point `gen:api` back, delete `apps/web/openapi/`, regenerate (Task 13).
+  - **Done (2026-10-05):** the draft was replaced by `backend/openapi/v1.json` once the keyword routes were on main (`e117336`); `apps/web/openapi/` and its `.prettierignore` line are gone, and `gen:api` reads the backend's own document.
 - Every task ends with the gates (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `NEXT_PUBLIC_API_MOCKING=off pnpm build`, `pnpm run preview`, `pnpm e2e`), an independent review on the Opus model, fixes, the gates again, and a commit. No attribution lines. Push only on the user's word.
 - The house rules hold: strict TypeScript, no literal strings in JSX, token utilities only, no en or em dash anywhere (a map of such characters is keyed by code point, as `foldName` does), `design-taste-frontend` before markup, files written with the Write and Edit tools, text limits counted with `textLength`.
 - Paged lists that a screen shows whole use `apiAllPagesQuery`; the tracked keyword list is the exception: it pages on the server by cursor, since a project may track tens of thousands of keywords.
@@ -224,10 +225,14 @@
 
 ### Task 13: Contract switch, end to end, documents, review
 
-- [ ] **Step 1:** Once the backend's branch is on main: point `gen:api` back at `../../backend/openapi/v1.json`, delete `apps/web/openapi/` and its `.prettierignore` line, regenerate, fix differences.
-- [ ] **Step 2:** E2E flows: add keywords and see them pending then filled; import a CSV through review and confirm; bulk move and archive with undo; edit in the inspector; a schedule change; Costs and Runs load. Visual: Rankings, the inspector, the import review step, Schedules, Costs, Runs, light and dark.
-- [ ] **Step 3:** Documents: doc 20 as-built notes (5.3, 5.3.1, 5.16, 5.18, 5.19), 11-navigation, the component inventory rows for the new components, the review log.
+- [x] **Step 1:** Once the backend's branch is on main: point `gen:api` back at `../../backend/openapi/v1.json`, delete `apps/web/openapi/` and its `.prettierignore` line, regenerate, fix differences.
+- [x] **Step 2:** E2E flows: add keywords and see them pending then filled; import a CSV through review and confirm; bulk move and archive with undo; edit in the inspector; a schedule change; Costs and Runs load. Visual: Rankings, the inspector, the import review step, Schedules, Costs, Runs, light and dark.
+- [x] **Step 3:** Documents: doc 20 as-built notes (5.3, 5.3.1, 5.16, 5.18, 5.19), 11-navigation, the component inventory rows for the new components, the review log.
 - [ ] **Step 4:** Whole-branch Opus review, fixes, gates, commit; merge on the user's word.
+- **As built (steps 2 and 3).**
+  - Flows in `e2e/flows/rankings.spec.ts`: a new keyword is pending, then filled once the page's clock moves 2 minutes on (`page.clock`; the mocks read the page's clock for the delay D8 names, so the mock needed no change); import with an invalid row and a duplicate on the Review step, and the merge choice changing what Confirm says; bulk move to an existing group, then archive and Undo; an inspector setting saved and still there after a reload. The earlier flows already covered filters and the archived view, the inspector and J, bulk priority, creating and renaming groups, the metrics refresh with its header progress, the CSV import, Schedules and keyword defaults, and Costs and Runs.
+  - Visual specs (`e2e/visual/pages.spec.ts`) gained Rankings, Rankings with the inspector open, the import dialog on its Review step, Costs and Runs, light and dark at both widths. A page may now carry a `prepare` step. Costs and Runs read the fixed month of the suite (September 2026). No baseline is committed: they are made only in the pinned image.
+  - Documents: doc 20 sections 5.3, 5.3.1, 5.16, 5.18 and 5.19; doc 11 sections 1 and 5; doc 25 deviations 132 to 140; the review log entry of 2026-10-05.
 
 ## Self-review
 
