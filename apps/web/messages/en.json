@@ -1321,6 +1321,7 @@
       "deviceDesktop": "Desktop",
       "deviceMobile": "Mobile",
       "deviceBoth": "Both",
+      "deviceDefault": "Project default",
       "tagsVocabulary": "Vocabulary for tags",
       "topicVocabulary": "Vocabulary for topics",
       "vocabularyPlaceholder": "Choose a vocabulary",
@@ -1367,6 +1368,10 @@
         "invalid": "Skipped. Each row says why.",
         "overQuota": "{count, plural, one {# keyword is} other {# keywords are}} over your plan's limit of {limit}. Skip rows or archive keywords, then import again."
       },
+      "reviewSummary": "Rows by outcome",
+      "duplicateLegend": "What to do with duplicates",
+      "conflictLegend": "What to do with archived keywords",
+      "rowsFailed": "These rows could not be loaded.",
       "duplicateSkip": "Skip them",
       "duplicateMerge": "Add their groups and tags to the tracked keywords",
       "duplicateRepeatNote": "Rows that repeat an earlier row of the file are always skipped.",

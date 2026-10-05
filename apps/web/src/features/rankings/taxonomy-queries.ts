@@ -21,7 +21,8 @@ const VOCABULARY_PAGE = 200;
 
 type GroupList = ApiResponse<'get', typeof GROUPS>;
 type TermTree = ApiResponse<'get', typeof TERMS>;
-export type Vocabulary = ApiResponse<'get', typeof VOCABULARIES>['data'][number];
+type VocabularyList = ApiResponse<'get', typeof VOCABULARIES>;
+export type Vocabulary = VocabularyList['data'][number];
 
 /** After a change of which keywords a group holds: its keyword count moved. */
 export function refreshGroups(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
@@ -93,16 +94,23 @@ const combineTrees = (
   error: results.some((result) => result.isError),
 });
 
+/** The read of the vocabularies the project sees, without their terms. */
+const vocabulariesQuery = (scope: ProjectScope): ApiQueryOptions<typeof VOCABULARIES> =>
+  apiQuery(VOCABULARIES, {
+    params: {
+      path: { workspace_id: scope.workspaceId },
+      query: { 'filter[project_id]': scope.projectId, limit: VOCABULARY_PAGE },
+    },
+  });
+
+/** The vocabularies the project sees, for a choice of one; `enabled` holds the read back until it is needed. */
+export function useVocabularyList(scope: ProjectScope, enabled = true): UseQueryResult<VocabularyList> {
+  return useQuery({ ...vocabulariesQuery(scope), enabled });
+}
+
 /** The vocabularies the project sees, each with its terms. */
 export function useVocabularies(scope: ProjectScope): Vocabularies {
-  const vocabularies = useQuery(
-    apiQuery(VOCABULARIES, {
-      params: {
-        path: { workspace_id: scope.workspaceId },
-        query: { 'filter[project_id]': scope.projectId, limit: VOCABULARY_PAGE },
-      },
-    }),
-  );
+  const vocabularies = useQuery(vocabulariesQuery(scope));
   const terms = useQueries({
     queries: (vocabularies.data?.data ?? []).map((vocabulary) =>
       apiQuery(TERMS, {

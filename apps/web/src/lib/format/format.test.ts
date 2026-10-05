@@ -4,6 +4,7 @@ import {
   classifyRankChange,
   displayUrl,
   formatBusinessDate,
+  formatBytes,
   formatCompact,
   formatCount,
   formatCurrency,
@@ -69,6 +70,16 @@ describe('numbers', () => {
     expect(formatCurrency(0)).toBe('$0.00');
     expect(formatCurrency(1_240_000, { context: 'summary' })).toBe('$1.24M');
     expect(formatCurrency(1_240_000, { context: 'table' })).toBe('$1,240,000.00');
+  });
+
+  it('formats file sizes in the largest unit that keeps them above one', () => {
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(812)).toBe('812 B');
+    expect(formatBytes(1536)).toBe('1.5 KB');
+    expect(formatBytes(10_240)).toBe('10 KB');
+    expect(formatBytes(5_452_595)).toBe('5.2 MB');
+    expect(formatBytes(52_428_800)).toBe('50 MB');
+    expect(formatBytes(null)).toBe('n/a');
   });
 
   it('formats intervals and sample counts without dashes', () => {

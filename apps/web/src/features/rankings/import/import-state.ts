@@ -1,0 +1,200 @@
+import {
+  DEFAULT_CHOICES,
+  type ImportField,
+  type ImportSource,
+  type MappingRowProblem,
+  type ReviewChoices,
+  type StepId,
+} from './import-model';
+import type { components } from '@/lib/api/schema';
+import type { CsvHead } from '@/lib/csv/csv-head';
+
+type LocationRef = components['schemas']['LocationRef'];
+
+export type Device = 'desktop' | 'mobile' | 'both';
+export type CsvHeadOk = Extract<CsvHead, { kind: 'ok' }>;
+
+/** What the Upload step has: the source, its content and the defaults for rows that leave them out. */
+export interface UploadValues {
+  source: ImportSource;
+  file: File | null;
+  head: CsvHeadOk | null;
+  paste: string;
+  /** The project's location unless the person picks another. */
+  location: LocationRef | null;
+  languageCode: string | null;
+  /** `null` is the project's default device. */
+  device: Device | null;
+  tagsVocabulary: string | null;
+  topicVocabulary: string | null;
+}
+
+/** Why a file was not taken, or why the step cannot go on without one. */
+export type FileProblem = 'not_csv' | 'too_large' | 'not_utf8' | 'empty' | 'required';
+
+export interface UploadErrors {
+  file: FileProblem | null;
+  paste: 'required' | null;
+  /** A paste with tabs holds tags, which need a vocabulary. */
+  tagsVocabulary: boolean;
+}
+
+export const NO_UPLOAD_ERRORS: UploadErrors = { file: null, paste: null, tagsVocabulary: false };
+
+/** What the Map step shows as wrong: asked once Continue found a problem, and what the API answered. */
+export interface MapProblems {
+  /** Continue checked the mapping, so the problems it finds show and follow every change. */
+  checked: boolean;
+  /** Problems the API reported for a header, which show until the mapping changes. */
+  server: Readonly<Record<string, MappingRowProblem>>;
+}
+
+/** An import that cannot go on: the person starts again. */
+export type Ended = 'expired' | 'failed' | 'gone';
+
+/** What the Upload step sent, to tell a Continue that changed nothing from one that needs a new import. */
+export interface Submitted {
+  source: ImportSource;
+  file: File | null;
+  paste: string;
+  /** The options as sent, as text. */
+  options: string;
+}
+
+export interface ImportState {
+  values: UploadValues;
+  importId: string | null;
+  submitted: Submitted | null;
+  step: StepId;
+  completed: ReadonlySet<StepId>;
+  mapping: Readonly<Record<string, ImportField>>;
+  mapProblems: MapProblems;
+  choices: ReviewChoices;
+  /** 0 to 100 while the file goes up; `null` otherwise. */
+  uploadProgress: number | null;
+  uploadErrors: UploadErrors;
+  /** A message of the server that belongs to no field, shown at the top of the step. */
+  alert: string | null;
+  ended: Ended | null;
+}
+
+export function initialValues(location: LocationRef | null, languageCode: string | null): UploadValues {
+  return {
+    source: 'upload',
+    file: null,
+    head: null,
+    paste: '',
+    location,
+    languageCode,
+    device: null,
+    tagsVocabulary: null,
+    topicVocabulary: null,
+  };
+}
+
+export function initialState(values: UploadValues): ImportState {
+  return {
+    values,
+    importId: null,
+    submitted: null,
+    step: 'upload',
+    completed: new Set(),
+    mapping: {},
+    mapProblems: { checked: false, server: {} },
+    choices: DEFAULT_CHOICES,
+    uploadProgress: null,
+    uploadErrors: NO_UPLOAD_ERRORS,
+    alert: null,
+    ended: null,
+  };
+}
+
+export type ImportAction =
+  | { type: 'values'; patch: Partial<UploadValues> }
+  | { type: 'file'; file: File; head: CsvHeadOk }
+  | { type: 'file-problem'; problem: FileProblem }
+  | { type: 'upload-errors'; errors: UploadErrors }
+  | { type: 'mapping'; header: string; field: ImportField | null }
+  | { type: 'map-problems'; problems: MapProblems }
+  | { type: 'choices'; patch: Partial<ReviewChoices> }
+  | { type: 'step'; step: StepId }
+  | { type: 'passed'; step: StepId }
+  | { type: 'imported'; importId: string; submitted: Submitted; mapping: Readonly<Record<string, ImportField>> }
+  | { type: 'mapping-sent'; mapping: Readonly<Record<string, ImportField>> }
+  | { type: 'progress'; percent: number | null }
+  | { type: 'alert'; message: string | null }
+  | { type: 'ended'; reason: Ended }
+  /** Back to an empty Upload step with these values: the defaults, or the ones to keep when starting again. */
+  | { type: 'reset'; values: UploadValues };
+
+/**
+ * The dialog's state changes in one place, so a step never shows what another has moved past: a new file
+ * clears the problems of the old one, a new mapping clears what the server said about the last, and a new
+ * import starts with the choices of none.
+ */
+export function importReducer(state: ImportState, action: ImportAction): ImportState {
+  switch (action.type) {
+    case 'values':
+      return {
+        ...state,
+        values: { ...state.values, ...action.patch },
+        uploadErrors: NO_UPLOAD_ERRORS,
+        alert: null,
+      };
+    case 'file':
+      return {
+        ...state,
+        values: { ...state.values, file: action.file, head: action.head },
+        uploadErrors: NO_UPLOAD_ERRORS,
+        alert: null,
+      };
+    case 'file-problem':
+      return {
+        ...state,
+        values: { ...state.values, file: null, head: null },
+        uploadErrors: { ...NO_UPLOAD_ERRORS, file: action.problem },
+        alert: null,
+      };
+    case 'upload-errors':
+      return { ...state, uploadErrors: action.errors };
+    case 'mapping': {
+      const others = Object.fromEntries(Object.entries(state.mapping).filter(([header]) => header !== action.header));
+      return {
+        ...state,
+        mapping: action.field === null ? others : { ...others, [action.header]: action.field },
+        mapProblems: { ...state.mapProblems, server: {} },
+        alert: null,
+      };
+    }
+    case 'map-problems':
+      return { ...state, mapProblems: action.problems };
+    case 'choices':
+      return { ...state, choices: { ...state.choices, ...action.patch } };
+    case 'step':
+      return { ...state, step: action.step, alert: null };
+    case 'passed':
+      return { ...state, completed: new Set([...state.completed, action.step]) };
+    case 'imported':
+      return {
+        ...state,
+        importId: action.importId,
+        submitted: action.submitted,
+        mapping: action.mapping,
+        mapProblems: { checked: false, server: {} },
+        choices: DEFAULT_CHOICES,
+        uploadProgress: null,
+        alert: null,
+        ended: null,
+      };
+    case 'mapping-sent':
+      return { ...state, mapping: action.mapping, mapProblems: { checked: false, server: {} }, alert: null };
+    case 'progress':
+      return { ...state, uploadProgress: action.percent };
+    case 'alert':
+      return { ...state, alert: action.message };
+    case 'ended':
+      return { ...state, ended: action.reason, uploadProgress: null };
+    case 'reset':
+      return initialState(action.values);
+  }
+}

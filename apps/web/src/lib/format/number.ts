@@ -155,6 +155,26 @@ export function formatInterval(
   return `${formatPercent(low, { decimals })} to ${formatPercent(high, { decimals })}`;
 }
 
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB'] as const;
+const BYTES_PER_UNIT = 1024;
+
+/** File size in binary units, one decimal below 10 and none above: 1536 -> "1.5 KB", 52428800 -> "50 MB". */
+export function formatBytes(bytes: number | null | undefined, opts: FormatOptions = {}): string {
+  if (!isFiniteNumber(bytes) || bytes < 0) return EMPTY_VALUE;
+  let size = bytes;
+  let unit = 0;
+  while (size >= BYTES_PER_UNIT && unit < BYTE_UNITS.length - 1) {
+    size /= BYTES_PER_UNIT;
+    unit += 1;
+  }
+  const digits = unit > 0 && size < 10 ? 1 : 0;
+  const text = new Intl.NumberFormat(opts.locale ?? DEFAULT_LOCALE, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  }).format(size);
+  return `${text} ${BYTE_UNITS[unit] ?? 'B'}`;
+}
+
 /** Sample count text: (612, 1800) -> "612 of 1,800". */
 export function formatSampleCount(k: number | null | undefined, n: number | null | undefined): string {
   if (!isFiniteNumber(k) || !isFiniteNumber(n)) return EMPTY_VALUE;
