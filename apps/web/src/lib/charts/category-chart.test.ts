@@ -56,6 +56,52 @@ describe('categoryChartOption', () => {
     const [first] = option('bar').series as Record<string, unknown>[];
     expect(first).toMatchObject({ type: 'bar', barMaxWidth: 24 });
   });
+
+  it('stacks bars into one column per category, rounding only the top of each', () => {
+    const stacked = categoryChartOption({
+      kind: 'bar',
+      stacked: true,
+      categories: ['Oct 1', 'Oct 2'],
+      series: [
+        { id: 'a', name: 'A', role: { kind: 'palette', index: 2 }, values: [1, 2] },
+        { id: 'b', name: 'B', role: { kind: 'palette', index: 3 }, values: [3, 4] },
+      ],
+      hidden: new Set(),
+      patterns: false,
+      tokens: TOKENS,
+      formatValue: String,
+    });
+    expect(stacked.series).toMatchObject([
+      { stack: 'total', itemStyle: { borderRadius: [0, 0, 0, 0] } },
+      { stack: 'total', itemStyle: { borderRadius: [2, 2, 0, 0] } },
+    ]);
+  });
+
+  it('rounds the top of the last series that is shown when a stacked series is hidden', () => {
+    const stacked = categoryChartOption({
+      kind: 'bar',
+      stacked: true,
+      categories: ['Oct 1'],
+      series: [
+        { id: 'a', name: 'A', role: { kind: 'palette', index: 2 }, values: [1] },
+        { id: 'b', name: 'B', role: { kind: 'palette', index: 3 }, values: [3] },
+      ],
+      hidden: new Set(['b']),
+      patterns: false,
+      tokens: TOKENS,
+      formatValue: String,
+    });
+    expect(stacked.series).toMatchObject([{ id: 'a', stack: 'total', itemStyle: { borderRadius: [2, 2, 0, 0] } }]);
+  });
+
+  it('leaves bars side by side and each rounded when not stacked', () => {
+    expect(option('bar').series).toMatchObject([
+      { itemStyle: { borderRadius: [2, 2, 0, 0] } },
+      { itemStyle: { borderRadius: [2, 2, 0, 0] } },
+      { itemStyle: { borderRadius: [2, 2, 0, 0] } },
+    ]);
+    expect(option('bar').series).not.toContainEqual(expect.objectContaining({ stack: expect.anything() }));
+  });
 });
 
 describe('series colours', () => {

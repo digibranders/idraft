@@ -32,6 +32,8 @@ export interface ChartFrameProps {
   categoryHeader: string;
   series: readonly CategorySeries[];
   formatValue: (value: number) => string;
+  /** Bars of a category stack into one column; lines ignore it. */
+  stacked?: boolean | undefined;
   height: ChartHeight;
   /** What the chart shows, in one or two sentences, for people who cannot see it. */
   summary: string;
@@ -53,6 +55,7 @@ export function ChartFrame({
   categoryHeader,
   series,
   formatValue,
+  stacked,
   height,
   summary,
   status,
@@ -70,8 +73,9 @@ export function ChartFrame({
       return next;
     });
   const option = useCallback(
-    (tokens: ChartTokens) => categoryChartOption({ kind, categories, series, hidden, patterns, tokens, formatValue }),
-    [kind, categories, series, hidden, patterns, formatValue],
+    (tokens: ChartTokens) =>
+      categoryChartOption({ kind, categories, series, hidden, patterns, tokens, formatValue, stacked }),
+    [kind, categories, series, hidden, patterns, formatValue, stacked],
   );
   const inspector = variant === 'inspector';
   const Title = inspector ? 'h3' : 'h2';

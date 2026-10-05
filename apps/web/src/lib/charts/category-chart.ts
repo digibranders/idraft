@@ -30,6 +30,8 @@ export interface CategoryChartInput {
   tokens: ChartTokens;
   /** Formats a value for the axis and the tooltip: "8,100". */
   formatValue: (value: number) => string;
+  /** Bars of a category stack into one column (a total that means something, 15 section 4); lines ignore it. */
+  stacked?: boolean | undefined;
 }
 
 /** Markers show on series this short or shorter (15 section 4). */
@@ -60,7 +62,7 @@ function escapeHtml(text: string): string {
 }
 
 export function categoryChartOption(input: CategoryChartInput): Record<string, unknown> {
-  const { kind, categories, series, hidden, patterns, tokens, formatValue } = input;
+  const { kind, categories, series, hidden, patterns, tokens, formatValue, stacked } = input;
   const shown = series.filter((entry) => !hidden.has(entry.id));
   // Axis labels in the page's font, 12 px, with tabular figures as type-label draws them
   const label = { color: tokens.label, fontSize: 12, fontFamily: tokens.fontFamily };
@@ -116,7 +118,16 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
       const position = series.indexOf(entry);
       const base = { id: entry.id, name: entry.name, data: [...entry.values], color };
       if (kind === 'bar') {
-        return { ...base, type: 'bar', barMaxWidth: 24, barGap: '8%', itemStyle: { borderRadius: [2, 2, 0, 0] } };
+        // In a stack only the series on top is rounded, so the column reads as one bar
+        const top = stacked === true && entry === shown[shown.length - 1];
+        return {
+          ...base,
+          type: 'bar',
+          barMaxWidth: 24,
+          barGap: '8%',
+          ...(stacked === true ? { stack: 'total' } : {}),
+          itemStyle: { borderRadius: stacked === true && !top ? [0, 0, 0, 0] : [2, 2, 0, 0] },
+        };
       }
       return {
         ...base,
