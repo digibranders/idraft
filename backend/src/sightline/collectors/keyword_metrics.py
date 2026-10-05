@@ -192,14 +192,19 @@ def _has_snapshot() -> ColumnElement[bool]:
 
 
 def _recent_task(now: datetime) -> ColumnElement[bool]:
-    t, task = tracked_keywords.c, collection_tasks.c
+    """A task for the keyword from a run made within `NEW_KEYWORD_QUIET`. The run's time, not
+    the task's: the ledger sets a task's `created_at` to the start of its window's month (its
+    partition key), which is more than a day old from the second day of the month on."""
+    t, task, run = tracked_keywords.c, collection_tasks.c, collection_runs.c
     return exists().where(
         task.workload == WORKLOAD.value,
         task.subject_type == SUBJECT_TYPE,
         task.subject_id == func.concat(t.keyword_id, ":", t.language_code),
         task.location_id == t.location_id,
         task.workspace_id == t.workspace_id,
-        task.created_at >= now - NEW_KEYWORD_QUIET,
+        run.id == task.run_id,
+        run.workspace_id == task.workspace_id,
+        run.created_at >= now - NEW_KEYWORD_QUIET,
     )
 
 

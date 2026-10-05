@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
@@ -18,7 +18,7 @@ from sightline.api.auth.sessions import SessionStore
 from sightline.api.auth.throttle import LoginThrottle
 from sightline.api.auth.tokens import derive_key
 from sightline.api.auth.totp import TotpCipher
-from sightline.api.body_limit import BodyLimitMiddleware
+from sightline.api.body_limit import UPLOADS, BodyLimitMiddleware
 from sightline.api.csrf import OriginCheckMiddleware
 from sightline.api.document import router as document_router
 from sightline.api.entities.project_routes import router as project_entities_router
@@ -26,6 +26,8 @@ from sightline.api.entities.project_service import ProjectEntityService
 from sightline.api.entities.routes import router as entities_router
 from sightline.api.entities.service import EntityService
 from sightline.api.health import router as health_router
+from sightline.api.imports.routes import router as imports_router
+from sightline.api.imports.service import ImportService
 from sightline.api.keywords.group_routes import router as keyword_groups_router
 from sightline.api.keywords.group_service import GroupService
 from sightline.api.keywords.routes import keywords_router
@@ -59,12 +61,32 @@ from sightline.config.settings import Settings, load_settings
 from sightline.db.engine import create_engine, create_session_factory
 from sightline.db.migrate import migration_state
 from sightline.providers.email import EmailSender, build_email_sender
+from sightline.storage.raw import ObjectStore, RawStore, open_raw_store
 
 REDIS_TIMEOUT_SECONDS = 1.0
 HTTP_TIMEOUT_SECONDS = 10.0
+# Connections to the bucket: an upload is one request, and few run at once.
+IMPORT_STORE_CONNECTIONS = 4
 SESSION_CACHE_KEY_LABEL = b"sightline session cache v1"
 TOTP_SECRET_KEY_LABEL = b"sightline totp secrets v1"
 HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz"})
+
+
+def _open_import_store(settings: Settings) -> AbstractAsyncContextManager[RawStore]:
+    """The bucket the API keeps import sources in: the raw bucket the worker reads them from."""
+    if (
+        settings.r2_raw_endpoint is None
+        or settings.r2_raw_access_key_id is None
+        or settings.r2_raw_secret_access_key is None
+    ):  # pragma: no cover - checked by `raw_storage_configured` and the settings' validator
+        raise ValueError("raw storage is not configured")
+    return open_raw_store(
+        endpoint=settings.r2_raw_endpoint,
+        bucket=settings.r2_raw_bucket,
+        access_key_id=settings.r2_raw_access_key_id.get_secret_value(),
+        secret_access_key=settings.r2_raw_secret_access_key.get_secret_value(),
+        max_connections=IMPORT_STORE_CONNECTIONS,
+    )
 
 
 def create_app(
@@ -72,11 +94,13 @@ def create_app(
     *,
     email_sender: EmailSender | None = None,
     http_transport: httpx.AsyncBaseTransport | None = None,
+    import_store: ObjectStore | None = None,
 ) -> FastAPI:
     """Build the application.
 
     `email_sender` replaces the configured sender and `http_transport` the network for outbound
-    calls; tests pass a recorder and a mock so nothing leaves the process.
+    calls, and `import_store` the bucket keyword import sources are kept in; tests pass a
+    recorder, a mock and a memory store so nothing leaves the process.
     """
     settings = settings or load_settings()
     configure_logging(
@@ -115,6 +139,9 @@ def create_app(
             session_store = SessionStore(
                 sessions, redis, cache_key=derive_key(settings.totp_key, SESSION_CACHE_KEY_LABEL)
             )
+            sources = import_store
+            if sources is None and settings.raw_storage_configured:
+                sources = await stack.enter_async_context(_open_import_store(settings))
             app.state.resources = Resources(
                 settings=settings,
                 engine=engine,
@@ -123,6 +150,7 @@ def create_app(
                 migrations=migrations,
                 http=http,
                 email=email,
+                import_store=sources,
                 session_store=session_store,
                 auth=AuthService(
                     sessions=sessions,
@@ -148,6 +176,7 @@ def create_app(
                 schedules=ScheduleService(sessions=sessions),
                 project_settings=SettingsService(sessions=sessions),
                 costs=CostService(sessions=sessions),
+                imports=ImportService(sessions=sessions, store=sources),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -169,7 +198,7 @@ def create_app(
     )
     # Added last runs first: the request id is bound before the access log line is written, and
     # a request refused for its origin still gets both.
-    app.add_middleware(BodyLimitMiddleware, app_origin=settings.app_origin)
+    app.add_middleware(BodyLimitMiddleware, app_origin=settings.app_origin, larger=UPLOADS)
     app.add_middleware(OriginCheckMiddleware, app_origin=settings.app_origin)
     app.add_middleware(AccessLogMiddleware, quiet_paths=HEALTH_PATHS)
     app.add_middleware(RequestIdMiddleware)
@@ -189,6 +218,7 @@ def create_app(
     app.include_router(schedule_routes_router)
     app.include_router(settings_routes_router)
     app.include_router(cost_routes_router)
+    app.include_router(imports_router)
     app.include_router(registries_router)
     app.include_router(document_router)
     install_openapi(app)

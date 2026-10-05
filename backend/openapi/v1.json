@@ -514,6 +514,33 @@
         "title": "AliasUpdate",
         "type": "object"
       },
+      "Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "CSV, UTF-8 (a BOM is fine).",
+            "title": "File",
+            "type": "string"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The JSON of `ImportOptions`.",
+            "title": "Options"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post",
+        "type": "object"
+      },
       "Budget": {
         "properties": {
           "action_on_hard": {
@@ -2078,6 +2105,389 @@
         "title": "Health",
         "type": "object"
       },
+      "ImportCounts": {
+        "properties": {
+          "conflict": {
+            "title": "Conflict",
+            "type": "integer"
+          },
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "integer"
+          },
+          "invalid": {
+            "title": "Invalid",
+            "type": "integer"
+          },
+          "merged": {
+            "title": "Merged",
+            "type": "integer"
+          },
+          "new": {
+            "title": "New",
+            "type": "integer"
+          },
+          "rows_total": {
+            "title": "Rows Total",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows_total",
+          "new",
+          "duplicate",
+          "variant",
+          "conflict",
+          "invalid",
+          "created",
+          "skipped",
+          "merged"
+        ],
+        "title": "ImportCounts",
+        "type": "object"
+      },
+      "ImportDefaults": {
+        "additionalProperties": false,
+        "description": "Values for rows that leave a field out; the project's defaults otherwise.",
+        "properties": {
+          "depth_profile": {
+            "anyOf": [
+              {
+                "enum": [
+                  "light",
+                  "standard",
+                  "deep",
+                  "full",
+                  "weekly",
+                  "weekly_light",
+                  "until_own_match_100"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Profile"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "enum": [
+                  "desktop",
+                  "mobile",
+                  "both"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "group_path": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Path"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "tags_vocabulary_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vocabulary the `tags` column names terms of.",
+            "title": "Tags Vocabulary Id"
+          },
+          "topic_vocabulary_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vocabulary the `topic` column names term paths of.",
+            "title": "Topic Vocabulary Id"
+          }
+        },
+        "title": "ImportDefaults",
+        "type": "object"
+      },
+      "ImportField": {
+        "description": "A field a column maps to. A named enum, so the API document gives the mapping's values a\nschema of their own that generated clients can index.",
+        "enum": [
+          "keyword",
+          "country",
+          "location",
+          "language",
+          "device",
+          "tags",
+          "topic",
+          "group",
+          "intent",
+          "funnel_stage",
+          "priority",
+          "target_url",
+          "depth_profile"
+        ],
+        "title": "ImportField",
+        "type": "string"
+      },
+      "ImportQuota": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "would_use": {
+            "description": "Active tracked keywords after the import as previewed.",
+            "title": "Would Use",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "used",
+          "would_use"
+        ],
+        "title": "ImportQuota",
+        "type": "object"
+      },
+      "ImportRow": {
+        "properties": {
+          "action": {
+            "enum": [
+              "create",
+              "skip",
+              "merge",
+              "force_separate"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "existing_tracked_keyword_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing Tracked Keyword Id"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword"
+          },
+          "language_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Code"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "normalized_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Text"
+          },
+          "outcome": {
+            "enum": [
+              "new",
+              "duplicate",
+              "variant",
+              "conflict",
+              "invalid"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "part": {
+            "description": "1, or 2 for the mobile half of a `both` row.",
+            "title": "Part",
+            "type": "integer"
+          },
+          "raw": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Raw",
+            "type": "object"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "row_no": {
+            "title": "Row No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_no",
+          "part",
+          "raw",
+          "keyword",
+          "normalized_text",
+          "language_code",
+          "device",
+          "location_id",
+          "outcome",
+          "reason_code",
+          "reason",
+          "existing_tracked_keyword_id",
+          "action"
+        ],
+        "title": "ImportRow",
+        "type": "object"
+      },
+      "ImportRowPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "ImportRowPage",
+        "type": "object"
+      },
       "Invitation": {
         "properties": {
           "created_at": {
@@ -2546,6 +2956,298 @@
           }
         },
         "title": "KeywordGroupUpdate",
+        "type": "object"
+      },
+      "KeywordImport": {
+        "properties": {
+          "column_mapping": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Column Mapping",
+            "type": "object"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ImportCounts"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserRef"
+          },
+          "defaults": {
+            "additionalProperties": true,
+            "title": "Defaults",
+            "type": "object"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "import_id": {
+            "format": "uuid",
+            "title": "Import Id",
+            "type": "string"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "original_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Filename"
+          },
+          "quota": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImportQuota"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Once the preview is ready."
+          },
+          "source": {
+            "enum": [
+              "upload",
+              "paste",
+              "api"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "uploaded",
+              "parsing",
+              "needs_mapping",
+              "preview_ready",
+              "writing",
+              "completed",
+              "completed_with_errors",
+              "failed",
+              "cancelled",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "import_id",
+          "source",
+          "original_filename",
+          "status",
+          "column_mapping",
+          "defaults",
+          "counts",
+          "quota",
+          "error_code",
+          "created_by",
+          "created_at",
+          "expires_at",
+          "finished_at",
+          "operation"
+        ],
+        "title": "KeywordImport",
+        "type": "object"
+      },
+      "KeywordImportCreate": {
+        "additionalProperties": false,
+        "description": "`paste`: one keyword per line, tags after a TAB. `api`: `rows`, each a field to value\nmap.",
+        "properties": {
+          "column_mapping": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ImportField"
+                },
+                "maxProperties": 50,
+                "propertyNames": {
+                  "maxLength": 200,
+                  "minLength": 1
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "File header to field; headers are matched by name otherwise.",
+            "title": "Column Mapping"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/ImportDefaults"
+          },
+          "paste": {
+            "anyOf": [
+              {
+                "maxLength": 1000000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paste"
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "maxProperties": 50,
+                  "propertyNames": {
+                    "maxLength": 200,
+                    "minLength": 1
+                  },
+                  "type": "object"
+                },
+                "maxItems": 10000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rows"
+          },
+          "source": {
+            "enum": [
+              "paste",
+              "api"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "KeywordImportCreate",
+        "type": "object"
+      },
+      "KeywordImportPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordImport"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "KeywordImportPage",
+        "type": "object"
+      },
+      "KeywordImportResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeywordImport"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordImportResponse",
+        "type": "object"
+      },
+      "KeywordImportUpdate": {
+        "additionalProperties": false,
+        "description": "A new mapping or new defaults read the source again; row actions apply to the current\npreview.",
+        "properties": {
+          "column_mapping": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ImportField"
+                },
+                "maxProperties": 50,
+                "propertyNames": {
+                  "maxLength": 200,
+                  "minLength": 1
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column Mapping"
+          },
+          "defaults": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImportDefaults"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "row_actions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RowActionInput"
+                },
+                "maxItems": 20000,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Actions"
+          }
+        },
+        "title": "KeywordImportUpdate",
         "type": "object"
       },
       "KeywordMetrics": {
@@ -4911,6 +5613,39 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "RowActionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "create",
+              "skip",
+              "merge",
+              "force_separate"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "part": {
+            "default": 1,
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Part",
+            "type": "integer"
+          },
+          "row_no": {
+            "minimum": 1.0,
+            "title": "Row No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_no",
+          "action"
+        ],
+        "title": "RowActionInput",
+        "type": "object"
       },
       "Run": {
         "properties": {
@@ -12826,6 +13561,647 @@
         "summary": "Take tracked keywords out of a group",
         "tags": [
           "keywords"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports": {
+      "get": {
+        "operationId": "list_imports_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "uploaded",
+                    "parsing",
+                    "needs_mapping",
+                    "preview_ready",
+                    "writing",
+                    "completed",
+                    "completed_with_errors",
+                    "failed",
+                    "cancelled",
+                    "expired"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Status]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordImportPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's imports, newest first",
+        "tags": [
+          "imports"
+        ]
+      },
+      "post": {
+        "description": "`source: 'paste'` takes `paste` (one keyword per line, tags after a TAB); `source: 'api'` takes `rows`. The worker reads the source into a preview within seconds: poll the import until it is `preview_ready` (or `needs_mapping`). A vocabulary named for tags or topics needs `taxonomy:write`.",
+        "operationId": "create_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordImportCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Import keywords from paste text or rows",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/upload": {
+      "post": {
+        "description": "Parts: `file` (CSV, UTF-8; a byte order mark is fine) and `options` (the JSON of `ImportOptions`). `415 unsupported_media_type` for another kind of file, `413` over 50 MB. The delimiter is the comma, semicolon or tab the header line uses most.",
+        "operationId": "upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Import keywords from a CSV file (multipart, up to 50 MB)",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}": {
+      "get": {
+        "operationId": "get_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One import",
+        "tags": [
+          "imports"
+        ]
+      },
+      "patch": {
+        "description": "`column_mapping` (file header to field) and `defaults` make the worker read the source again: the import is `uploaded` until its new preview is ready. `row_actions` choose what happens to rows of the ready preview, and cannot be sent together with the others. Allowed actions: `create` or `skip` for a new row or a casing variant; `skip` or `merge` for a tracked duplicate or an archived keyword; `skip` for the rest. `409 invalid_state_transition` once the import is writing or has ended.",
+        "operationId": "update_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordImportUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change the mapping, defaults or row actions",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/cancel": {
+      "post": {
+        "description": "`409 invalid_state_transition` once it is writing or has ended.",
+        "operationId": "cancel_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Cancel an import before it writes",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/report": {
+      "get": {
+        "description": "One line per row (`row_no`, `part`, `keyword`, `location_id`, `language_code`, `device`, `outcome`, `reason_code`, `reason`, `action`, `result`, `tracked_keyword_id`, `write_error_code`). A cell a spreadsheet could run as a formula starts with `'`. `409 invalid_state_transition` while there is nothing to report on.",
+        "operationId": "import_report_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "The report."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The import report as CSV",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows": {
+      "get": {
+        "description": "`409 invalid_state_transition` until the worker has read the source. A row with `device: 'both'` is two rows (`part` 1 and 2). `keyword` is the cleaned text, or what was typed for an invalid row.",
+        "operationId": "import_rows_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__rows_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[outcome_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "new",
+                      "duplicate",
+                      "variant",
+                      "conflict",
+                      "invalid"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 5,
+              "title": "Filter[Outcome In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[action]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "create",
+                    "skip",
+                    "merge",
+                    "force_separate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Action]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRowPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The preview rows, in file order",
+        "tags": [
+          "imports"
         ]
       }
     },

@@ -13,6 +13,7 @@ from sightline.api.resources import Resources
 from sightline.config.settings import Settings
 from tests.api.auth.support import RecordingEmailSender, probes
 from tests.api.workspaces.support import workspace_probes
+from tests.collectors.test_fetching import MemoryStore
 from tests.conftest import BASE_URL
 
 
@@ -22,8 +23,16 @@ def mailbox() -> RecordingEmailSender:
 
 
 @pytest.fixture
-async def auth_app(app_settings: Settings, mailbox: RecordingEmailSender) -> AsyncIterator[FastAPI]:
-    application = create_app(app_settings, email_sender=mailbox)
+def import_store() -> MemoryStore:
+    """Where the application keeps the sources of keyword imports."""
+    return MemoryStore()
+
+
+@pytest.fixture
+async def auth_app(
+    app_settings: Settings, mailbox: RecordingEmailSender, import_store: MemoryStore
+) -> AsyncIterator[FastAPI]:
+    application = create_app(app_settings, email_sender=mailbox, import_store=import_store)
     application.include_router(probes)
     application.include_router(workspace_probes)
     async with LifespanManager(application):

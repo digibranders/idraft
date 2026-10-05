@@ -152,7 +152,19 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", _W + "/projects/{project_id}/schedules/{schedule_id}/resume"): {},
     ("POST", _W + "/projects/{project_id}/runs/{run_id}/cancel"): {"reason": "taken"},
     ("PATCH", _W + "/projects/{project_id}/settings"): {"seo": {"default_device": "mobile"}},
+    ("POST", _W + "/projects/{project_id}/keyword-imports"): {
+        "source": "paste",
+        "paste": "planted",
+    },
+    # The file goes as a multipart part (see UPLOADS); the body here only marks the route.
+    ("POST", _W + "/projects/{project_id}/keyword-imports/upload"): {},
+    ("PATCH", _W + "/projects/{project_id}/keyword-imports/{import_id}"): {
+        "row_actions": [{"row_no": 1, "action": "skip"}],
+    },
+    ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/cancel"): {},
 }
+# Routes that take a file instead of JSON.
+UPLOADS = {("POST", _W + "/projects/{project_id}/keyword-imports/upload")}
 # Query parameters a route requires, so that it answers for its path and not for a missing
 # parameter.
 QUERIES: dict[tuple[str, str], dict[str, str]] = {
@@ -191,6 +203,8 @@ class Tenant:
     run_id: uuid.UUID
     # The project's budget; the project has costs too.
     budget_id: uuid.UUID
+    # A keyword import whose preview is ready, so changing or cancelling it would succeed.
+    import_id: uuid.UUID
 
     def ids(self) -> dict[str, str]:
         return {
@@ -210,6 +224,7 @@ class Tenant:
             "schedule_id": str(self.schedule_id),
             "run_id": str(self.run_id),
             "budget_id": str(self.budget_id),
+            "import_id": str(self.import_id),
         }
 
     def secrets(self) -> list[str]:
@@ -401,6 +416,27 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         workspace.id,
         project_id,
     )
+    # The same import in both, with one row of its preview.
+    keyword_import = await fetchrow(
+        pg,
+        "INSERT INTO seo.keyword_imports (workspace_id, project_id, source, original_filename, "
+        "upload_object_key, status, counts, created_by, expires_at) VALUES ($1, $2, 'upload', "
+        "'keywords.csv', 'imports/v1/planted/source', 'preview_ready', "
+        "'{\"rows_total\": 1, \"new\": 1}', $3, now() + interval '7 days') RETURNING id",
+        workspace.id,
+        project_id,
+        owner.id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO seo.keyword_import_rows (import_id, row_no, workspace_id, raw, keyword_text, "
+        "normalized_text, language_code, device, location_id, outcome, action) VALUES ($1, 1, "
+        "$2, '{\"keyword\": \"crm software\"}', 'crm software', 'crm software', 'en', 'desktop', "
+        "$3, 'new', 'create')",
+        keyword_import["id"],
+        workspace.id,
+        LOCATION,
+    )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -423,6 +459,7 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         schedule_id=schedule["id"],
         run_id=run["id"],
         budget_id=budget["id"],
+        import_id=keyword_import["id"],
     )
 
 
@@ -445,6 +482,14 @@ def _fill(path: str, ids: dict[str, str]) -> str:
 async def _call(
     api: httpx.AsyncClient, method: str, path: str, ids: dict[str, str], headers: dict[str, str]
 ) -> httpx.Response:
+    if (method, path) in UPLOADS:
+        return await api.request(
+            method,
+            _fill(path, ids),
+            files={"file": ("keywords.csv", b"keyword\nplanted\n", "text/csv")},
+            data={"options": "{}"},
+            headers=headers,
+        )
     body = None if method in _READ else BODIES.get((method, path), {})
     if body is not None:
         body = {key: _fill_value(value, ids) for key, value in body.items()}
@@ -496,6 +541,8 @@ _TENANT_ROWS = {
     "seo.keyword_groups": "workspace_id",
     "seo.keyword_group_members": "workspace_id",
     "seo.tracked_keyword_terms": "workspace_id",
+    "seo.keyword_imports": "workspace_id",
+    "seo.keyword_import_rows": "workspace_id",
     "ops.schedules": "workspace_id",
     "ops.budgets": "workspace_id",
     "ops.cost_daily": "workspace_id",

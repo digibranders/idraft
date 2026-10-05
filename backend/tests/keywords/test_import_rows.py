@@ -363,6 +363,24 @@ def test_without_any_location_a_row_has_none() -> None:
     assert parsed.code == "location_unknown"
 
 
+def test_a_default_location_that_is_no_longer_active_is_not_used() -> None:
+    defaults = Defaults(
+        location_id=99999,
+        language_code="en",
+        device="desktop",
+        priority=3,
+        depth_profile="standard",
+        group_path=(),
+        tags_vocabulary_id=None,
+        topic_vocabulary_id=None,
+    )
+
+    parsed = parse_row({"keyword": "crm"}, defaults, LOCATIONS)
+
+    assert isinstance(parsed, RowError)
+    assert parsed.code == "location_unknown"
+
+
 def test_without_any_language_a_row_has_none() -> None:
     defaults = Defaults(
         location_id=2840,

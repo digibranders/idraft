@@ -13,6 +13,7 @@ from sightline.api.auth.service import AuthService
 from sightline.api.auth.sessions import SessionStore
 from sightline.api.entities.project_service import ProjectEntityService
 from sightline.api.entities.service import EntityService
+from sightline.api.imports.service import ImportService
 from sightline.api.keywords.group_service import GroupService
 from sightline.api.keywords.service import KeywordService
 from sightline.api.operations.costs import CostService
@@ -27,6 +28,7 @@ from sightline.api.workspaces.service import WorkspaceService
 from sightline.config.settings import Settings
 from sightline.db.migrate import MigrationState
 from sightline.providers.email import EmailSender
+from sightline.storage.raw import ObjectStore
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,8 @@ class Resources:
     migrations: MigrationState
     http: httpx.AsyncClient
     email: EmailSender
+    # Where keyword import sources are kept; None without R2 settings.
+    import_store: ObjectStore | None
     session_store: SessionStore
     auth: AuthService
     workspaces: WorkspaceService
@@ -53,6 +57,7 @@ class Resources:
     schedules: ScheduleService
     project_settings: SettingsService
     costs: CostService
+    imports: ImportService
 
 
 def get_resources(request: Request) -> Resources:

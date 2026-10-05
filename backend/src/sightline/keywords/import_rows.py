@@ -255,7 +255,8 @@ def _location(cells: Mapping[str, str], defaults: Defaults, locations: Locations
             return unknown
         by_country = locations.by_country.get(country.upper())
         return unknown if by_country is None else by_country
-    return unknown if defaults.location_id is None else defaults.location_id
+    # A default that has been deactivated since it was chosen is no longer a place to track.
+    return defaults.location_id if defaults.location_id in locations.active_ids else unknown
 
 
 def _path(cell: str, *, depth_max: int) -> tuple[str, ...] | None:

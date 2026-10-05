@@ -634,6 +634,22 @@ async def _runs(pg: PostgresServer, project: Project) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+async def test_a_keyword_still_without_metrics_a_day_after_its_run_is_asked_for_again(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    """The quiet time counts from the run, not from the task's `created_at`, which the ledger
+    sets to the start of the month: this holds on every day of the month."""
+    project = await make_tenant(migrated)
+    await _track(migrated, project, "new crm")
+    await queue_new_keywords(worker_db, now=NOW)
+    await plan_manual_runs(worker_db, _registry(), now=NOW + timedelta(minutes=5))
+
+    within_the_day = await queue_new_keywords(worker_db, now=NOW + timedelta(hours=23))
+    after_the_day = await queue_new_keywords(worker_db, now=NOW + timedelta(hours=25))
+
+    assert (within_the_day, after_the_day) == (0, 1)
+
+
 async def test_new_keywords_get_one_run_which_the_planner_plans_at_once(
     worker_db: Ledger, migrated: PostgresServer
 ) -> None:

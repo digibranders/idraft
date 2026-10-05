@@ -228,6 +228,16 @@ class PayloadTooLargeError(ProblemError):
     status, code, title = 413, "payload_too_large", "Payload too large"
 
 
+class UnsupportedMediaTypeError(ProblemError):
+    status, code, title = 415, "unsupported_media_type", "Unsupported media type"
+
+
+class StorageUnavailableError(ProblemError):
+    """Object storage is not configured or did not answer; nothing was recorded."""
+
+    status, code, title = 503, "storage_unavailable", "Storage unavailable"
+
+
 class LastOwnerError(ProblemError):
     status, code, title = 409, "last_owner", "A workspace needs an owner"
 
