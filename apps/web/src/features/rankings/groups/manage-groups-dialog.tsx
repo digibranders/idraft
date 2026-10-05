@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactElement, type Re
 
 import { MAX_GROUP_DEPTH, MAX_GROUP_NAME } from './group-paths';
 import { groupRefusal } from './group-refusals';
-import { ancestorsOf, flattenGroups, subtreeIds, toTreeNodes, type GroupNode } from './group-tree';
+import { ancestorsOf, flattenGroups, moveTargets, subtreeIds, toTreeNodes, type GroupNode } from './group-tree';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
 import { refreshGroups, useKeywordGroupTree } from '../taxonomy-queries';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -48,6 +48,10 @@ type GroupForm =
 const openerOf = (form: GroupForm): string =>
   form.kind === 'add' ? (form.parent === null ? 'add-group' : 'add-subgroup') : form.kind;
 
+/** The group a form is about: the one it renames or moves, or the parent a subgroup is added to. */
+const formGroupId = (form: GroupForm): string | null =>
+  form.kind === 'add' ? (form.parent?.group_id ?? null) : form.group.group_id;
+
 export interface ManageGroupsDialogProps {
   scope: ProjectScope;
   open: boolean;
@@ -63,14 +67,36 @@ export interface ManageGroupsDialogProps {
  * top. Every change is applied by its own form, so the dialog has no primary action of its own.
  */
 export function ManageGroupsDialog({ scope, open, onOpenChange, finalFocus }: ManageGroupsDialogProps): ReactElement {
+  const t = useTranslations('rankings.groups.manage');
+  const discard = useTranslations('account.discard');
+  // Whether an inline form holds a change that closing the dialog would lose
+  const [dirty, setDirty] = useState(false);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} size="md" finalFocus={finalFocus}>
-      <ManageGroups scope={scope} />
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="md"
+      finalFocus={finalFocus}
+      dirty={dirty}
+      discard={{
+        title: discard('title'),
+        description: t('discardDescription'),
+        keepEditingLabel: discard('keepEditing'),
+        discardLabel: discard('discard'),
+      }}
+    >
+      <ManageGroups scope={scope} onDirtyChange={setDirty} />
     </Dialog>
   );
 }
 
-function ManageGroups({ scope }: { scope: ProjectScope }): ReactElement {
+function ManageGroups({
+  scope,
+  onDirtyChange,
+}: {
+  scope: ProjectScope;
+  onDirtyChange: (dirty: boolean) => void;
+}): ReactElement {
   const t = useTranslations('rankings.groups.manage');
   const refusals = useTranslations('rankings.groups.refusals');
   const common = useTranslations('common');
@@ -94,6 +120,11 @@ function ManageGroups({ scope }: { scope: ProjectScope }): ReactElement {
     const above = ancestorsOf(tree, reveal);
     setReveal(null);
     if (above.some((id) => !expanded.has(id))) setExpanded(new Set([...expanded, ...above]));
+  }
+  // A form is closed when its group is gone, such as a group a teammate deleted meanwhile
+  if (form !== null && groups.data !== undefined) {
+    const formGroup = formGroupId(form);
+    if (formGroup !== null && !all.some((candidate) => candidate.group_id === formGroup)) setForm(null);
   }
   const atDepthLimit = group !== null && ancestorsOf(tree, group.group_id).length + 1 >= MAX_GROUP_DEPTH;
 
@@ -120,6 +151,9 @@ function ManageGroups({ scope }: { scope: ProjectScope }): ReactElement {
         throw error;
       }
     }
+    // A form for the deleted group, or one under it, has nothing left to change
+    const formGroup = form === null ? null : formGroupId(form);
+    if (formGroup !== null && subtreeIds(deleting).has(formGroup)) setForm(null);
     await refreshGroups(queryClient, scope);
     // The keyword list shows each keyword's groups, and a delete or a move changes them
     void refreshKeywords(queryClient, scope);
@@ -127,7 +161,8 @@ function ManageGroups({ scope }: { scope: ProjectScope }): ReactElement {
     toast({ type: 'success', title: t('deleted', { name: deleting.name }) });
   };
 
-  if (groups.isError) {
+  // A read that fails after the tree was shown keeps the tree: what it shows is old, not gone
+  if (groups.isError && groups.data === undefined) {
     return (
       <>
         <DialogHeader title={t('title')} description={t('description')} closeLabel={common('close')} />
@@ -211,6 +246,7 @@ function ManageGroups({ scope }: { scope: ProjectScope }): ReactElement {
             scope={scope}
             form={form}
             groups={all}
+            onDirtyChange={onDirtyChange}
             onCancel={closeForm}
             onDone={(changed) => {
               setSelected(changed);
@@ -234,7 +270,11 @@ function ManageGroups({ scope }: { scope: ProjectScope }): ReactElement {
               label={t('treeLabel')}
               nodes={toTreeNodes(tree, (count) => t('count', { count }))}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={(id) => {
+                // A rename or move form belongs to the group it was opened for
+                if (form !== null && form.kind !== 'add' && form.group.group_id !== id) setForm(null);
+                setSelected(id);
+              }}
               expanded={expanded}
               onExpandedChange={setExpanded}
             />
@@ -277,6 +317,8 @@ interface GroupFormRowProps {
   form: GroupForm;
   /** Every group, depth first. */
   groups: readonly GroupNode[];
+  /** Whether the form holds a change that differs from where it started. */
+  onDirtyChange: (dirty: boolean) => void;
   onCancel: () => void;
   /** The group the change leaves selected. */
   onDone: (groupId: string) => void;
@@ -286,7 +328,7 @@ interface GroupFormRowProps {
  * The inline compact form of one change (10-forms.md section 16): a name for add and rename, a new parent
  * for move. Enter applies, Escape cancels, and errors show after Apply, not while typing.
  */
-function GroupFormRow({ scope, form, groups, onCancel, onDone }: GroupFormRowProps): ReactElement {
+function GroupFormRow({ scope, form, groups, onDirtyChange, onCancel, onDone }: GroupFormRowProps): ReactElement {
   const t = useTranslations('rankings.groups.manage');
   const pickers = useTranslations('rankings.groups');
   const refusals = useTranslations('rankings.groups.refusals');
@@ -300,6 +342,16 @@ function GroupFormRow({ scope, form, groups, onCancel, onDone }: GroupFormRowPro
   const [alert, setAlert] = useState<string | null>(null);
   const busy = create.isPending || change.isPending;
   const project = { workspace_id: scope.workspaceId, project_id: scope.projectId };
+
+  const dirty =
+    form.kind === 'move'
+      ? parent !== (form.group.parent_id ?? TOP_LEVEL)
+      : name.trim() !== (form.kind === 'rename' ? form.group.name : '');
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
+  // A form that closes holds nothing any more
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
 
   // The field takes focus when the form opens
   useEffect(() => {
@@ -402,12 +454,10 @@ function GroupFormRow({ scope, form, groups, onCancel, onDone }: GroupFormRowPro
 
   const parentOptions = (): { value: string; label: string }[] => {
     if (form.kind !== 'move') return [];
-    const blocked = subtreeIds(form.group);
+    // Not the group or its subgroups, and not a group so deep that the subtree would pass 10 levels
     return [
       { value: TOP_LEVEL, label: t('topLevel') },
-      ...groups
-        .filter((candidate) => !blocked.has(candidate.group_id))
-        .map((candidate) => ({ value: candidate.group_id, label: candidate.path })),
+      ...moveTargets(groups, form.group).map((candidate) => ({ value: candidate.group_id, label: candidate.path })),
     ];
   };
 
@@ -417,8 +467,8 @@ function GroupFormRow({ scope, form, groups, onCancel, onDone }: GroupFormRowPro
         ? t('addGroup')
         : t('addSubgroupOf', { name: form.parent.name })
       : form.kind === 'rename'
-        ? t('rename')
-        : t('moveTo');
+        ? t('renameOf', { name: form.group.name })
+        : t('moveUnderOf', { name: form.group.name });
   return (
     <form
       ref={formElement}
@@ -432,7 +482,7 @@ function GroupFormRow({ scope, form, groups, onCancel, onDone }: GroupFormRowPro
         <div className="min-w-48 flex-1">
           {form.kind === 'move' ? (
             <Field>
-              <FieldLabel display="visually-hidden">{t('newParent')}</FieldLabel>
+              <FieldLabel display="visually-hidden">{label}</FieldLabel>
               <Select<string>
                 size="sm"
                 value={parent}
@@ -443,7 +493,7 @@ function GroupFormRow({ scope, form, groups, onCancel, onDone }: GroupFormRowPro
             </Field>
           ) : (
             <Field invalid={nameError !== null}>
-              <FieldLabel display="visually-hidden">{t('name')}</FieldLabel>
+              <FieldLabel display="visually-hidden">{form.kind === 'rename' ? label : t('name')}</FieldLabel>
               <Input
                 size="sm"
                 aria-required

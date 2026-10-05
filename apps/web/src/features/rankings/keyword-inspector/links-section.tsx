@@ -15,10 +15,15 @@ import {
   type KeywordScope,
 } from './inspector-queries';
 import { EditButton, useEditFocus, type SectionEdit } from './section-edit';
-import { useEnsureGroups, useGroupChoices, useGroupPathCheck, type GroupChoice } from '../groups/group-choices';
+import {
+  useEnsureGroups,
+  useGroupChoices,
+  useGroupMessages,
+  useGroupPathCheck,
+  type GroupChoice,
+} from '../groups/group-choices';
 import { GroupPicker } from '../groups/group-picker';
-import { groupRefusal } from '../groups/group-refusals';
-import { useVocabularies, type VocabularyTerms } from '../taxonomy-queries';
+import { refreshGroups, useVocabularies, type VocabularyTerms } from '../taxonomy-queries';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
@@ -165,11 +170,11 @@ function LinksForm({
 }): ReactElement {
   const t = useTranslations('rankings.inspector.links');
   const inspector = useTranslations('rankings.inspector');
-  const refusals = useTranslations('rankings.groups.refusals');
   const queryClient = useQueryClient();
   const groups = useGroupChoices(scope);
   const ensureGroups = useEnsureGroups(scope);
   const checkGroupPaths = useGroupPathCheck();
+  const groupMessages = useGroupMessages();
   const [alert, setAlert] = useState<string | null>(null);
   // What the keyword had when the edit began: a teammate's change that arrives meanwhile is not undone
   const [initial] = useState(() => valuesOf(detail, vocabularies, groups.byId));
@@ -199,13 +204,17 @@ function LinksForm({
       setSaving(true);
       // Each request is whole on its own; a retry after a partial save sends them again, which changes nothing twice
       let landed = 0;
+      // Groups made by this save stay when a later request fails; a retry reuses them
+      let made: readonly string[] = [];
       try {
         // Groups typed and not yet made are made now, so cancelling the edit leaves none behind
         let groupIds: string[];
         try {
-          groupIds = await ensureGroups(values.groups);
+          const ensured = await ensureGroups(values.groups);
+          groupIds = ensured.groups.map((group) => group.groupId);
+          made = ensured.made;
         } catch (error) {
-          setAlert(groupRefusal(error, refusals).message);
+          setAlert(groupMessages.refusal(error, { single: true }));
           return;
         }
         const before = new Set(initialGroupIds);
@@ -224,6 +233,8 @@ function LinksForm({
           });
           landed += 1;
         }
+        // The groups' keyword counts moved with the members
+        if (landed > 0) void refreshGroups(queryClient, scope);
         // A changed vocabulary that keeps terms is replaced in one request; one that was emptied is cleared
         const replaced: string[] = [];
         const cleared: string[] = [];
@@ -254,7 +265,10 @@ function LinksForm({
       } catch {
         // What landed shows in read mode once the person leaves; the form keeps their choices for a retry
         void refreshAfterWrite(queryClient, scope);
-        setAlert(inspector(landed > 0 ? 'partialSave' : 'saveFailed'));
+        if (landed > 0) void refreshGroups(queryClient, scope);
+        const failed = inspector(landed > 0 ? 'partialSave' : 'saveFailed');
+        const note = groupMessages.leftover(made, { single: true });
+        setAlert(note === null ? failed : `${failed} ${note}`);
       } finally {
         setSaving(false);
       }

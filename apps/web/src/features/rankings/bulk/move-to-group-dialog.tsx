@@ -6,9 +6,8 @@ import { useForm } from 'react-hook-form';
 
 import { BulkDialog } from './bulk-dialog';
 import { failureText } from './bulk-failure';
-import { useEnsureGroups, useGroupChoices, type GroupChoice } from '../groups/group-choices';
+import { useEnsureGroups, useGroupChoices, useGroupMessages, type GroupChoice } from '../groups/group-choices';
 import { GroupSelect } from '../groups/group-picker';
-import { groupRefusal } from '../groups/group-refusals';
 import type { ProjectScope } from '../rankings-queries';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
@@ -40,9 +39,9 @@ export function MoveToGroupDialog({
 }: MoveToGroupDialogProps): ReactElement {
   const t = useTranslations('rankings.bulk.groupDialog');
   const bulk = useTranslations('rankings.bulk');
-  const refusals = useTranslations('rankings.groups.refusals');
   const groups = useGroupChoices(scope);
   const ensure = useEnsureGroups(scope);
+  const groupMessages = useGroupMessages();
   const [alert, setAlert] = useState<string | null>(null);
   const form = useForm<{ group: GroupChoice | null }>({ defaultValues: { group: null } });
   const close = (): void => {
@@ -63,24 +62,33 @@ export function MoveToGroupDialog({
         return;
       }
       let target: string | null = null;
+      // The group's path as the groups list has it, which is what the typed text becomes
+      let name: string | null = group.kind === 'none' ? null : group.path;
+      let made: readonly string[] = [];
       if (group.kind === 'existing') {
         target = group.groupId;
       } else if (group.kind === 'new') {
         try {
-          target = (await ensure([group]))[0] ?? null;
+          const ensured = await ensure([group]);
+          const [chosen] = ensured.groups;
+          if (chosen === undefined) throw new Error('No group was made for the typed path');
+          target = chosen.groupId;
+          name = chosen.path;
+          made = ensured.made;
         } catch (error) {
-          setAlert(groupRefusal(error, refusals).message);
+          setAlert(groupMessages.refusal(error));
           return;
         }
       }
       // A group made just now has no members to leave
       const others = groups.choices.map((candidate) => candidate.groupId).filter((id) => id !== target);
-      const name = group.kind === 'none' ? null : group.path;
       try {
         await onApply(target, others, name);
         close();
       } catch (error) {
-        setAlert(failureText(error, bulk('failed')));
+        const failed = failureText(error, bulk('failed'));
+        const note = groupMessages.leftover(made);
+        setAlert(note === null ? failed : `${failed} ${note}`);
       }
     }),
   );

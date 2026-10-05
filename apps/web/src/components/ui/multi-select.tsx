@@ -28,6 +28,13 @@ export interface MultiSelectProps<TItem> {
   /** A stable key, which also decides whether two values are the same one. */
   itemKey: (item: TItem) => string;
   creatable?: MultiSelectCreatable<TItem> | undefined;
+  /**
+   * Whether text left in the field when focus leaves it becomes a value (with `creatable`), so an alias typed
+   * before Save is not lost. Default `true`. Turn it off where a value has a cost when it is made, such as a
+   * group created on save: text that is only a search then stays a search, and a value is added by choosing
+   * its row or pressing Enter.
+   */
+  commitOnBlur?: boolean | undefined;
   /** An example of a value, shown while nothing is chosen. */
   placeholder: string;
   /** What the open list says with no row to show: "No tags match "q4"", or how to add one. */
@@ -70,6 +77,7 @@ export function MultiSelect<TItem>({
   itemToString,
   itemKey,
   creatable,
+  commitOnBlur = true,
   placeholder,
   emptyText,
   chipsLabel,
@@ -121,7 +129,7 @@ export function MultiSelect<TItem>({
   // Leaving the field keeps what was typed as a value, so an alias typed before Save is not lost
   const leave = (event: FocusEvent<HTMLDivElement>): void => {
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-    if (create !== null) change([...chosen, create]);
+    if (commitOnBlur && create !== null) change([...chosen, create]);
     onBlur?.();
   };
 

@@ -150,6 +150,33 @@ describe('MultiSelect', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('keeps nothing of what was typed when focus leaves a field that does not commit on blur', async () => {
+    const onChange = vi.fn();
+    const onBlur = vi.fn();
+    const { user } = renderWithProviders(
+      <>
+        <TagField
+          items={[]}
+          onChange={onChange}
+          onBlur={onBlur}
+          commitOnBlur={false}
+          creatable={{ label: (query) => `Add "${query}"`, onCreate: (query) => query }}
+        />
+        <button type="button">Save</button>
+      </>,
+    );
+    await user.click(input());
+    await user.keyboard('HubSpot');
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Save', hidden: true })).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onBlur).toHaveBeenCalledTimes(1);
+    // A value is still added on purpose, with Enter
+    await user.click(input());
+    await user.keyboard('HubSpot{Enter}');
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(['HubSpot']));
+  });
+
   it('names its open list after the field', async () => {
     const { user } = renderWithProviders(<TagField />);
     await user.click(input());

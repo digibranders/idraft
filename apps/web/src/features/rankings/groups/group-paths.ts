@@ -30,11 +30,18 @@ export function pathProblem(text: string): PathProblem | null {
   return names.length > MAX_GROUP_DEPTH ? 'too_deep' : null;
 }
 
-const same = (a: string, b: string): boolean => a.toLocaleLowerCase() === b.toLocaleLowerCase();
+/**
+ * Names are equal when they are in any case, as the server compares them: by Unicode case folding, never by
+ * the locale of the browser (which would make INFO and info differ in Turkish).
+ */
+const same = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
 /** The child of `parentId` named `name`, in any case. */
-const childNamed = <G extends GroupLike>(groups: readonly G[], parentId: string | null, name: string): G | null =>
-  groups.find((group) => group.parent_id === parentId && same(group.name, name)) ?? null;
+export const childNamed = <G extends GroupLike>(
+  groups: readonly G[],
+  parentId: string | null,
+  name: string,
+): G | null => groups.find((group) => group.parent_id === parentId && same(group.name, name)) ?? null;
 
 /** The group at the end of `names`, or `null` when some level does not exist. */
 export function findGroup<G extends GroupLike>(groups: readonly G[], names: readonly string[]): G | null {

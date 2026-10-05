@@ -8,9 +8,8 @@ import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import { AddKeywordsResult, type AddOutcome } from './add-keywords-result';
-import { useEnsureGroups, useGroupPathCheck, type GroupChoice } from '../groups/group-choices';
+import { useEnsureGroups, useGroupMessages, useGroupPathCheck, type GroupChoice } from '../groups/group-choices';
 import { GroupPicker } from '../groups/group-picker';
-import { groupRefusal } from '../groups/group-refusals';
 import { PRIORITIES } from '../keyword-values';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
 import { refreshGroups } from '../taxonomy-queries';
@@ -104,7 +103,6 @@ export function AddKeywordsDialog({
   const t = useTranslations('rankings.add');
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
-  const refusals = useTranslations('rankings.groups.refusals');
   const filters = useTranslations('rankings.filters');
   const tracking = useTranslations('rankings.inspector.tracking');
   const locale = useLocale();
@@ -114,6 +112,7 @@ export function AddKeywordsDialog({
   const settings = useQuery({ ...apiQuery(SETTINGS, { params: { path: projectPath } }), enabled: open });
   const ensureGroups = useEnsureGroups(scope);
   const checkGroupPaths = useGroupPathCheck();
+  const groupMessages = useGroupMessages();
   const [alert, setAlert] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<AddOutcome | null>(null);
 
@@ -202,12 +201,20 @@ export function AddKeywordsDialog({
       }
       // Groups typed and not yet made are made now, so cancelling the form leaves none behind
       let groupIds: string[];
+      let made: readonly string[];
       try {
-        groupIds = await ensureGroups(values.groups);
+        const ensured = await ensureGroups(values.groups);
+        groupIds = ensured.groups.map((group) => group.groupId);
+        made = ensured.made;
       } catch (error) {
-        setAlert(groupRefusal(error, refusals).message);
+        setAlert(groupMessages.refusal(error));
         return;
       }
+      // Groups made now stay when the keywords are not added; the next try reuses them
+      const withLeftover = (text: string): string => {
+        const note = groupMessages.leftover(made);
+        return note === null ? text : `${text} ${note}`;
+      };
       const read = readKeywordLines(values.keywords);
       // Created counts tracked keywords: with both devices, two of each keyword
       const both = values.device === 'both' ? 'yes' : 'no';
@@ -258,12 +265,14 @@ export function AddKeywordsDialog({
           const limit = error.number('limit') ?? 0;
           const used = error.number('used') ?? 0;
           setAlert(
-            t('quota', {
-              requested: formatInteger(error.number('requested') ?? items.length * (both === 'yes' ? 2 : 1)),
-              room: formatInteger(Math.max(limit - used, 0)),
-              used: formatInteger(used),
-              limit: formatInteger(limit),
-            }),
+            withLeftover(
+              t('quota', {
+                requested: formatInteger(error.number('requested') ?? items.length * (both === 'yes' ? 2 : 1)),
+                room: formatInteger(Math.max(limit - used, 0)),
+                used: formatInteger(used),
+                limit: formatInteger(limit),
+              }),
+            ),
           );
           return;
         }
@@ -277,6 +286,7 @@ export function AddKeywordsDialog({
               : [t('lineProblem', { line, problem: problemText(item.code) })];
           });
           if (keywordErrors.length > 0) {
+            setAlert(groupMessages.leftover(made));
             form.setError(
               'keywords',
               { type: 'server', message: formatList(keywordErrors, locale) },
@@ -285,7 +295,7 @@ export function AddKeywordsDialog({
             return;
           }
         }
-        setAlert(t('failed'));
+        setAlert(withLeftover(t('failed')));
       }
     }),
   );

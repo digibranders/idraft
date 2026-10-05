@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 
 import type { ProjectScope } from './rankings-queries';
 import { projectKey } from '@/lib/api/keys';
-import { apiQuery, type ApiResponse } from '@/lib/api/query';
+import { apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
 import type { TermNode } from '@/lib/api/types';
 
 /**
@@ -30,16 +30,18 @@ export function refreshGroups(queryClient: QueryClient, scope: ProjectScope): Pr
   });
 }
 
+/** The read of the project's groups as a flat list, for `useKeywordGroups` and for a form that reads it on save. */
+export const keywordGroupsQuery = (scope: ProjectScope): ApiQueryOptions<typeof GROUPS> =>
+  apiQuery(GROUPS, {
+    params: {
+      path: { workspace_id: scope.workspaceId, project_id: scope.projectId },
+      query: { format: 'flat' },
+    },
+  });
+
 /** The project's groups as a flat list, each with its path ("Services / Audits"). */
 export function useKeywordGroups(scope: ProjectScope): UseQueryResult<GroupList> {
-  return useQuery(
-    apiQuery(GROUPS, {
-      params: {
-        path: { workspace_id: scope.workspaceId, project_id: scope.projectId },
-        query: { format: 'flat' },
-      },
-    }),
-  );
+  return useQuery(keywordGroupsQuery(scope));
 }
 
 /** The project's groups as a tree, for Manage groups. Shares `refreshGroups` with the flat list. */

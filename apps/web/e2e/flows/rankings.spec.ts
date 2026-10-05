@@ -102,7 +102,7 @@ test.describe('rankings', () => {
     await page.keyboard.press('ArrowRight');
     await tree.getByRole('treeitem', { name: 'Group', exact: true }).click();
     await manage.getByRole('button', { name: 'Rename' }).click();
-    await manage.getByRole('textbox', { name: 'Name' }).fill('Renamed');
+    await manage.getByRole('textbox', { name: 'Rename Group' }).fill('Renamed');
     await expectAccessible(page);
     await manage.getByRole('button', { name: 'Apply' }).click();
     await expect(page.getByText('Group renamed to Renamed')).toBeVisible();
