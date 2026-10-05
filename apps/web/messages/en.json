@@ -1363,6 +1363,25 @@
         "done": "Done"
       }
     },
+    "groups": {
+      "pickerPlaceholder": "Choose or type a group",
+      "selectPlaceholder": "Choose a group",
+      "create": "Create group \"{path}\"",
+      "empty": "No groups match \"{query}\". Type a path such as Blog/Guides to create one.",
+      "noneYet": "No groups yet. Type a name to create one.",
+      "chips": "Chosen groups",
+      "remove": "Remove {value}",
+      "chipsHint": "{count, plural, one {# group chosen.} other {# groups chosen.}} Press Left Arrow to reach them.",
+      "chipHint": "Press Backspace or Delete to remove",
+      "clear": "Clear",
+      "open": "Show groups",
+      "none": "No group",
+      "newBadge": "New",
+      "count": "{count, plural, one {# keyword} other {# keywords}}",
+      "pathEmpty": "Each level of a group path needs a name.",
+      "pathTooLong": "A group name has 100 characters at most.",
+      "pathTooDeep": "Groups go 10 levels deep at most."
+    },
     "caption": "Tracked keywords",
     "noun": {
       "one": "keyword",
