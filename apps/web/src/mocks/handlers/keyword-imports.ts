@@ -41,7 +41,6 @@ import {
   uuidError,
 } from './rules';
 import { savedEntities } from './access';
-import { parseCsv, toCsv } from '../csv';
 import { entityWorld, idMinter, withCreated, type EntityChanges, type StoredTerm } from '../entities-state';
 import { MOCK_LOCATIONS } from '../entity-fixtures';
 import { userRef } from '../factories/keyword';
@@ -61,6 +60,7 @@ import { termSlug } from '../term-slug';
 import { invalid, mock, problem } from '../respond';
 import type { components } from '@/lib/api/schema';
 import type { ValidationItem } from '@/lib/api/types';
+import { parseCsv, toCsv } from '@/lib/csv/csv';
 
 /**
  * Keyword imports (19 section 3.5, backend plan D11 to D13): a paste, JSON rows or a CSV upload is parsed
