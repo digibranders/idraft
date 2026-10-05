@@ -9,12 +9,12 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { DETAIL, refreshAfterWrite, type KeywordDetail, type KeywordScope } from './inspector-queries';
-import { KeyValues, type KeyValue } from './key-values';
 import { EditButton, useEditFocus, type SectionEdit } from './section-edit';
 import { DEPTH_KEY, FUNNEL_STAGES, INTENTS, PRIORITIES, SOURCE_KEY, oneOf } from '../keyword-values';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
+import { KeyValues, type KeyValue } from '@/components/app/inspector/key-values';
 import { FormAlert } from '@/components/ui/form-alert';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';

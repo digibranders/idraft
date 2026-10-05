@@ -32,6 +32,17 @@ const LOOK: Readonly<Record<CollectionStatus, { icon: LucideIcon; tone: string }
   cancelled: { icon: CircleSlash, tone: cn('text-foreground-tertiary') },
 };
 
+/**
+ * The glyph of a collection status in its color (rotating while it runs, unless motion is reduced). Tables
+ * show it beside the status word, so a run reads the same there as in the progress line.
+ */
+export function CollectionStatusIcon({ status }: { status: CollectionStatus }): ReactElement {
+  const { icon, tone } = LOOK[status];
+  return (
+    <Icon icon={icon} size="sm" className={cn('shrink-0', tone, status === 'running' && 'motion-safe:animate-spin')} />
+  );
+}
+
 export interface CollectionProgressProps {
   /** `compact`: one 20 px line for a meta line. `standard`: title, bar and counts, under a page header. */
   density: 'compact' | 'standard';
@@ -68,16 +79,13 @@ export function CollectionProgress({
   meta,
   action,
 }: CollectionProgressProps): ReactElement {
-  const { icon, tone } = LOOK[status];
   const spoken = useRef(status);
   useEffect(() => {
     if (spoken.current === status) return;
     spoken.current = status;
     announce(text);
   }, [status, text]);
-  const glyph = (
-    <Icon icon={icon} size="sm" className={cn('shrink-0', tone, status === 'running' && 'motion-safe:animate-spin')} />
-  );
+  const glyph = <CollectionStatusIcon status={status} />;
 
   if (density === 'compact') {
     return (

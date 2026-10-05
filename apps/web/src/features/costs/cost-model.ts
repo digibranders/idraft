@@ -1,5 +1,6 @@
 import type { CategorySeries, SeriesRole } from '@/lib/charts/category-chart';
 import type { BudgetStatus, CostRow } from '@/lib/api/types';
+import { money } from '@/lib/format/money';
 
 /** The catalog key of a budget state under `costs.states`. */
 export const STATE_KEYS = {
@@ -8,11 +9,7 @@ export const STATE_KEYS = {
   hard_exceeded: 'hardExceeded',
 } as const satisfies Record<BudgetStatus['state'], string>;
 
-/** A money string of the API as a number, or `null` when it is not one. */
-export function money(value: string): number | null {
-  if (!/^-?\d+(\.\d+)?$/.test(value)) return null;
-  return Number(value);
-}
+export { money };
 
 /** A row's part of a total, or `null` when the total is zero or either is not money. */
 export function shareOf(value: string, total: string): number | null {

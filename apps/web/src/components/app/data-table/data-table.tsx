@@ -20,7 +20,7 @@ import { BulkActionBar } from './bulk-action-bar';
 import { ColumnChooser } from './column-chooser';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
-import type { ActionScope, DataTableColumn, DataTableProps, RecordAction } from './types';
+import type { ActionScope, DataTableColumn, DataTableProps, RecordAction, RowActions } from './types';
 import { useSortedRows } from './use-sorted-rows';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Icon } from '@/components/ui/icon';
@@ -49,6 +49,10 @@ const GROUP_ORDER: Readonly<Record<RecordAction<unknown>['group'], number>> = {
   copy: 2,
   destructive: 3,
 };
+
+/** The actions of one row's menu. */
+const actionsOf = <TRow,>(rowActions: RowActions<TRow> | undefined, row: TRow): readonly RecordAction<TRow>[] =>
+  rowActions === undefined ? [] : typeof rowActions === 'function' ? rowActions(row) : rowActions;
 
 /** The identity cell is the row header (20-accessibility.md section 6.2, rule 1). */
 const cellTag = (identity: boolean): 'th' | 'td' => (identity ? 'th' : 'td');
@@ -159,7 +163,9 @@ export function DataTable<TRow extends RowData>({
   const grid: GridColumn<TRow>[] = [
     ...(selection === undefined ? [] : [{ kind: 'select' as const }]),
     ...shown.map((column) => ({ kind: 'data' as const, column })),
-    ...(rowActions === undefined || rowActions.length === 0 ? [] : [{ kind: 'actions' as const }]),
+    ...(rowActions === undefined || (typeof rowActions !== 'function' && rowActions.length === 0)
+      ? []
+      : [{ kind: 'actions' as const }]),
   ];
 
   // Rows: searched and sorted here in client mode, as given in server mode
@@ -468,7 +474,7 @@ export function DataTable<TRow extends RowData>({
       return;
     }
     if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
-      if (row !== undefined && rowActions !== undefined && rowActions.length > 0) {
+      if (row !== undefined && actionsOf(rowActions, row).length > 0) {
         event.preventDefault();
         setMenu({ kind: 'row', id: getRowId(row) });
       }
@@ -875,27 +881,29 @@ export function DataTable<TRow extends RowData>({
                                       className="justify-center"
                                     />
                                   ) : column.kind === 'actions' ? (
-                                    <Menu
-                                      align="end"
-                                      open={menuOpen('row', id)}
-                                      onOpenChange={onMenuChange('row', id)}
-                                      // Back to the cell, not the trigger, so the arrow keys work again
-                                      finalFocus={() => cellElement(index, columnIndex) ?? true}
-                                      trigger={
-                                        <IconButton
-                                          icon={Ellipsis}
-                                          size="icon-xs"
-                                          variant="ghost"
-                                          tabIndex={-1}
-                                          label={t('rowActions', { name })}
-                                        />
-                                      }
-                                      items={[...(rowActions ?? [])]
-                                        .sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group])
-                                        .map((action) =>
-                                          toMenuItem(action, [row], { ids: new Set([id]), allMatching: false }),
-                                        )}
-                                    />
+                                    actionsOf(rowActions, row).length === 0 ? null : (
+                                      <Menu
+                                        align="end"
+                                        open={menuOpen('row', id)}
+                                        onOpenChange={onMenuChange('row', id)}
+                                        // Back to the cell, not the trigger, so the arrow keys work again
+                                        finalFocus={() => cellElement(index, columnIndex) ?? true}
+                                        trigger={
+                                          <IconButton
+                                            icon={Ellipsis}
+                                            size="icon-xs"
+                                            variant="ghost"
+                                            tabIndex={-1}
+                                            label={t('rowActions', { name })}
+                                          />
+                                        }
+                                        items={[...actionsOf(rowActions, row)]
+                                          .sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group])
+                                          .map((action) =>
+                                            toMenuItem(action, [row], { ids: new Set([id]), allMatching: false }),
+                                          )}
+                                      />
+                                    )
                                   ) : (
                                     column.column.cell(row)
                                   )}

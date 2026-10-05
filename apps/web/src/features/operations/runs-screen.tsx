@@ -1,0 +1,430 @@
+'use client';
+
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { CircleSlash, FolderOpen } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { parseAsString, useQueryStates } from 'nuqs';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
+
+import { RunInspector } from './run-inspector';
+import { DEFAULT_SORT, rowId, SORT_FIELDS, useRunColumns } from './run-columns';
+import { canCancel, RUN_STATUS_KEYS, RUN_STATUSES, RUN_TRIGGERS, RUN_WORKLOADS, TRIGGER_KEYS } from './run-model';
+import { CANCEL_RUN, MAX_RUNS, refreshRuns, useMonthRuns, type RunFilters, type RunsScope } from './runs-queries';
+import { DataTable } from '@/components/app/data-table/data-table';
+import type { RecordAction, RowActions, TableStatus } from '@/components/app/data-table/types';
+import { FilterBar } from '@/components/app/filters/filter-bar';
+import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
+import type { FilterField } from '@/components/app/filters/types';
+import { useUrlFilters } from '@/components/app/filters/use-url-filters';
+import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import { useInspector } from '@/components/app/inspector/use-inspector';
+import { PageHeader } from '@/components/app/shell/page-header';
+import { Banner } from '@/components/app/status/banner';
+import { EmptyState } from '@/components/app/status/empty-state';
+import { InlineError } from '@/components/app/status/inline-error';
+import { ConfirmDialog } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+import { TextLink } from '@/components/ui/text-link';
+import { toast } from '@/components/ui/toast';
+import { isApiProblem } from '@/lib/api/problem';
+import type { Run } from '@/lib/api/types';
+import type { FilterValue } from '@/lib/filters/filter-values';
+import { formatInteger } from '@/lib/format';
+import { currentMonth, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
+import { formatInspectTarget } from '@/lib/inspector/placement';
+import { can, useMembership } from '@/lib/permissions';
+import { workspacePath } from '@/lib/routes/paths';
+import { useMe } from '@/lib/session/use-me';
+import {
+  formatColumns,
+  formatSort,
+  parseColumns,
+  parseDensity,
+  parseSort,
+  sameSort,
+  type Density,
+  type SortKey,
+} from '@/lib/tables/table-state';
+import { useWorkloadName } from '@/lib/workloads/use-workload-name';
+
+export interface RunsProject {
+  id: string;
+  slug: string;
+  name: string;
+  /** The project's time zone, for the times of its runs. */
+  timeZone: string;
+}
+
+export interface RunsScreenProps {
+  workspaceId: string;
+  workspaceSlug: string;
+  /** The projects the member can open: Runs shows one of them at a time. */
+  projects: readonly RunsProject[];
+}
+
+const PAGE = 'flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
+
+/** The URL's keys besides the filters': the project, the month, and the table's state. */
+const VIEW_STATE = {
+  project: parseAsString,
+  month: parseAsString,
+  q: parseAsString.withDefault(''),
+  sort: parseAsString,
+  cols: parseAsString,
+  density: parseAsString,
+  inspect: parseAsString,
+  itab: parseAsString,
+};
+
+const enumValues = (value: FilterValue | undefined): string[] => (value?.kind === 'enum' ? [...value.values] : []);
+
+/**
+ * Operations > Runs of one project (20-frontend-specification.md section 5.18): the project's collection
+ * runs of a month, newest first, with their status, tasks and cost, a run inspector, and Cancel for the
+ * runs the member may stop. The workspace-wide list is not in step 5 part 1, so the project is chosen on
+ * the page; every choice lives in the URL.
+ */
+export function RunsScreen(props: RunsScreenProps): ReactNode {
+  const t = useTranslations('runs');
+  const [first] = props.projects;
+  if (first === undefined) {
+    return (
+      <div className={PAGE}>
+        <PageHeader title={t('title')} />
+        <EmptyState
+          icon={FolderOpen}
+          title={t('noProjects')}
+          reason={t('noProjectsReason')}
+          headingLevel={2}
+          secondaryAction={
+            <TextLink render={<Link href={workspacePath(props.workspaceSlug)} />}>{t('toProjects')}</TextLink>
+          }
+        />
+      </div>
+    );
+  }
+  return <RunsContent {...props} first={first} />;
+}
+
+function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first: RunsProject }): ReactNode {
+  const t = useTranslations('runs');
+  const common = useTranslations('common');
+  const errors = useTranslations('status.error');
+  const locale = useLocale();
+  const workloadName = useWorkloadName();
+  const queryClient = useQueryClient();
+  const membership = useMembership();
+  const { user } = useMe();
+
+  // One clock for the page's life: the months it offers never change under the person
+  const [now] = useState(() => new Date());
+  const months = useMemo(() => recentMonths(now), [now]);
+  const thisMonth = currentMonth(now);
+  const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
+  const project = projects.find((candidate) => candidate.slug === view.project) ?? first;
+  const month: MonthKey = months.find((candidate) => candidate === view.month) ?? thisMonth;
+  const label = monthLabel(month, locale);
+  const scope = useMemo((): RunsScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
+
+  const fields = useMemo(
+    (): FilterField[] => [
+      {
+        id: 'workload',
+        kind: 'enum',
+        label: t('filters.workload'),
+        multi: true,
+        options: RUN_WORKLOADS.map((value) => ({ value, label: workloadName(value) })),
+      },
+      {
+        id: 'status',
+        kind: 'enum',
+        label: t('filters.status'),
+        multi: true,
+        options: RUN_STATUSES.map((value) => ({ value, label: t(`statuses.${RUN_STATUS_KEYS[value]}`) })),
+      },
+      {
+        id: 'trigger',
+        kind: 'enum',
+        label: t('filters.trigger'),
+        multi: true,
+        options: RUN_TRIGGERS.map((value) => ({ value, label: t(`triggers.${TRIGGER_KEYS[value]}`) })),
+      },
+    ],
+    [t, workloadName],
+  );
+  const [values, setValues] = useUrlFilters(fields);
+  const filters = useMemo((): RunFilters => {
+    const workloads = enumValues(values.workload);
+    const statuses = enumValues(values.status);
+    const triggers = enumValues(values.trigger);
+    return {
+      workloads: RUN_WORKLOADS.filter((value) => workloads.includes(value)),
+      statuses: RUN_STATUSES.filter((value) => statuses.includes(value)),
+      triggers: RUN_TRIGGERS.filter((value) => triggers.includes(value)),
+    };
+  }, [values]);
+  const filtered = Object.keys(values).length > 0;
+
+  const list = useMonthRuns(scope, month, filters);
+  const { columns, searchText, rowName } = useRunColumns(project.timeZone);
+  const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
+  const sort = useMemo((): readonly SortKey[] => {
+    const parsed = parseSort(view.sort, SORT_FIELDS);
+    return parsed.length === 0 ? DEFAULT_SORT : parsed;
+  }, [view.sort]);
+  const visible = useMemo(() => parseColumns(view.cols, columnIds, ['workload']), [view.cols, columnIds]);
+  const density = parseDensity(view.density);
+
+  // A choice of project or month leaves the run that was open: it belongs to the other list
+  const choose = (change: { project?: string | null; month?: string | null }): void => {
+    void setView({ ...change, inspect: null, itab: null });
+  };
+
+  // The inspector: opened from a row, stepping in the table's order
+  const inspector = useInspector();
+  const openId = inspector.target?.type === 'run' ? inspector.target.id : null;
+  const [order, setOrder] = useState<readonly string[]>([]);
+  const at = inspector.position(order);
+  const step = (direction: 'next' | 'previous'): void => {
+    if (at === null || (direction === 'next' ? at.index === at.count - 1 : at.index === 0)) return;
+    inspector.step(direction, order);
+  };
+  const openRow = openId === null ? null : (list.rows.find((row) => row.run_id === openId) ?? null);
+  const onRowOpen = (row: Run, intent: 'inspector' | 'new-tab'): void => {
+    const target = { type: 'run' as const, id: row.run_id };
+    if (intent === 'new-tab') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('inspect', formatInspectTarget(target));
+      url.searchParams.delete('itab');
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    if (row.run_id !== openId) inspector.open(target);
+  };
+
+  // Cancel: asked first, since tasks already sent to the provider still finish and are paid
+  const [cancelling, setCancelling] = useState<Run | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const cancel = useMutation(CANCEL_RUN);
+  const member = useMemo(
+    () => ({ userId: user.user_id, permissions: membership.permissions }),
+    [user.user_id, membership.permissions],
+  );
+  // A member who may cancel nothing gets no actions column; the others get Cancel on the runs they may stop
+  const mayCancelSome = can(member.permissions, 'schedules:write') || can(member.permissions, 'runs:trigger');
+  const cancelAction = (row: Run): RecordAction<Run> => ({
+    id: 'cancel',
+    label: t('cancel'),
+    icon: CircleSlash,
+    group: 'destructive',
+    onSelect: () => {
+      setCancelError(null);
+      setCancelling(row);
+    },
+  });
+  const rowActions: RowActions<Run> | undefined = mayCancelSome
+    ? (row) => (canCancel(row, member) ? [cancelAction(row)] : [])
+    : undefined;
+  const confirmCancel = async (): Promise<void> => {
+    if (cancelling === null) return;
+    // The run's own project, which is the project on screen unless the page moved on since the dialog opened
+    const runScope: RunsScope = { workspaceId, projectId: cancelling.project_id };
+    setCancelError(null);
+    try {
+      await cancel.mutateAsync({
+        params: {
+          path: { workspace_id: workspaceId, project_id: cancelling.project_id, run_id: cancelling.run_id },
+        },
+      });
+    } catch (error) {
+      if (isApiProblem(error, 'invalid_state_transition')) {
+        setCancelError(t('cancelEnded'));
+        void refreshRuns(queryClient, runScope);
+      } else if (isApiProblem(error, 'forbidden')) {
+        setCancelError(t('cancelForbidden'));
+      } else {
+        setCancelError(t('cancelFailed'));
+      }
+      throw error;
+    }
+    toast({ type: 'success', title: t('cancelled') });
+    // The list and the open run's detail read again, so no row keeps saying the run is open
+    void refreshRuns(queryClient, runScope);
+  };
+
+  const status = ((): TableStatus => {
+    if (list.error !== null && list.rows.length === 0) return 'error';
+    if (list.loading) return 'loading';
+    if (list.rows.length === 0) return filtered ? 'filtered-empty' : 'empty';
+    return list.fetching ? 'refetching' : 'ready';
+  })();
+  const errorId = isApiProblem(list.error) ? list.error.requestId : null;
+  const clearFilters = useCallback(() => setValues({}), [setValues]);
+
+  const manual = list.manualRunsToday;
+  const meta =
+    manual === null
+      ? t('meta', { project: project.name, month: label })
+      : t('metaWithManual', {
+          project: project.name,
+          month: label,
+          manual: t('manualToday', { used: formatInteger(manual.used), limit: formatInteger(manual.limit) }),
+        });
+
+  const runInspector =
+    openId === null ? null : (
+      <RunInspector
+        // Another project's run is another inspector, not the same one with new data
+        key={project.id}
+        scope={scope}
+        runId={openId}
+        row={openRow}
+        timeZone={project.timeZone}
+        positionText={
+          at === null
+            ? null
+            : t('inspector.position', { index: formatInteger(at.index + 1), count: formatInteger(at.count) })
+        }
+        navigation={
+          at === null
+            ? null
+            : {
+                onPrevious: () => step('previous'),
+                onNext: () => step('next'),
+                atFirst: at.index === 0,
+                atLast: at.index === at.count - 1,
+              }
+        }
+        onStep={at === null ? undefined : step}
+        onClose={() => inspector.close()}
+      />
+    );
+
+  return (
+    <InspectorLayout inspector={runInspector}>
+      <div className="flex h-page-body min-h-page-body-min flex-col gap-4 px-3 pt-5 pb-5 md:px-4 lg:px-5">
+        <PageHeader title={t('title')} meta={meta} />
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="w-56">
+            <Select<string>
+              size="sm"
+              aria-label={t('project')}
+              placeholder={t('project')}
+              value={project.slug}
+              onValueChange={(next) => choose({ project: next === first.slug ? null : next })}
+              options={projects.map((candidate) => ({ value: candidate.slug, label: candidate.name }))}
+            />
+          </div>
+          <div className="w-48">
+            <Select<MonthKey>
+              size="sm"
+              aria-label={t('month')}
+              placeholder={t('month')}
+              value={month}
+              onValueChange={(next) => choose({ month: next === thisMonth ? null : next })}
+              options={months.map((value) => ({ value, label: monthLabel(value, locale) }))}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <FilterBar fields={fields} values={values} onChange={setValues} />
+          </div>
+        </div>
+        {list.capped ? (
+          <Banner tone="info" placement="region" message={t('cappedNotice', { count: formatInteger(MAX_RUNS) })} />
+        ) : null}
+        {list.incomplete === null ? null : (
+          <Banner
+            tone="warning"
+            placement="region"
+            live
+            message={t('incomplete', { loaded: formatInteger(list.rows.length) })}
+            actions={
+              <Button variant="secondary" size="sm" onClick={list.incomplete.retry} loading={list.incomplete.retrying}>
+                {common('retry')}
+              </Button>
+            }
+          />
+        )}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <DataTable<Run>
+            caption={t('caption')}
+            itemNoun={{ one: t('noun.one'), other: t('noun.other') }}
+            columns={columns}
+            getRowId={rowId}
+            rows={list.rows}
+            total={list.rows.length}
+            sort={sort}
+            onSortChange={(next) => void setView({ sort: sameSort(next, DEFAULT_SORT) ? null : formatSort(next) })}
+            defaultSort={DEFAULT_SORT}
+            density={density}
+            onDensityChange={(next: Density) => void setView({ density: next === 'default' ? null : next })}
+            columnState={{
+              visible,
+              onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),
+            }}
+            search={view.q}
+            onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
+            searchPlaceholder={t('search')}
+            searchText={searchText}
+            rowName={rowName}
+            rowActions={rowActions}
+            status={status}
+            errorState={
+              <InlineError
+                title={t('loadFailed')}
+                reason={t('loadFailedReason')}
+                errorId={
+                  errorId === null
+                    ? null
+                    : {
+                        id: errorId,
+                        label: errors('errorId', { id: errorId }),
+                        copyLabel: errors('copyErrorId'),
+                        copiedLabel: errors('copied'),
+                      }
+                }
+                onRetry={list.refetch}
+                retrying={list.fetching}
+                retryLabel={common('retry')}
+                live
+              />
+            }
+            emptyState={<EmptyState title={t('empty', { month: label })} reason={t('emptyReason')} headingLevel={2} />}
+            filteredEmptyState={
+              <EmptyState
+                title={t('emptyFiltered', { month: label })}
+                reason={t('emptyFilteredReason')}
+                headingLevel={2}
+                details={filtered ? <ReadOnlyFilterChips fields={fields} values={values} /> : undefined}
+                primaryAction={
+                  filtered ? (
+                    <Button variant="secondary" onClick={clearFilters}>
+                      {t('clearFilters')}
+                    </Button>
+                  ) : undefined
+                }
+              />
+            }
+            onRowOpen={onRowOpen}
+            activeRowId={openId}
+            onRowOrderChange={setOrder}
+          />
+        </div>
+      </div>
+      <ConfirmDialog
+        open={cancelling !== null}
+        onOpenChange={(next) => {
+          if (!next) setCancelling(null);
+        }}
+        title={t('cancelTitle')}
+        description={t('cancelDescription')}
+        confirmLabel={t('cancelConfirm')}
+        cancelLabel={t('keepRunning')}
+        error={cancelError}
+        onConfirm={confirmCancel}
+      />
+    </InspectorLayout>
+  );
+}

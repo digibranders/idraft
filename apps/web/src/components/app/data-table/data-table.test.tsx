@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { col } from './columns';
 import { DataTable } from './data-table';
-import type { RecordAction, ServerPaging, TableStatus } from './types';
+import type { RecordAction, RowActions, ServerPaging, TableStatus } from './types';
 import type { Density, SortKey } from '@/lib/tables/table-state';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
@@ -59,12 +59,14 @@ function Harness({
   matchingTotal = null,
   server,
   onRowOrderChange,
+  rowActions = ACTIONS,
 }: {
   rows: Row[];
   status?: TableStatus;
   matchingTotal?: number | null;
   server?: ServerPaging;
   onRowOrderChange?: (ids: readonly string[]) => void;
+  rowActions?: RowActions<Row>;
 }): ReactElement {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
   const [density, setDensity] = useState<Density>('default');
@@ -100,7 +102,7 @@ function Harness({
           onAllMatchingChange: setAllMatching,
         }}
         bulkActions={ACTIONS}
-        rowActions={ACTIONS}
+        rowActions={rowActions}
         rowName={(row) => row.keyword}
         onRowOpen={onOpen}
         onRowOrderChange={onRowOrderChange}
@@ -350,5 +352,23 @@ describe('DataTable', () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(actionsCell);
     });
+  });
+
+  it('gives a menu only to the rows the actions function names actions for', async () => {
+    const onlyTheFirst = (row: Row): readonly RecordAction<Row>[] => (row.id === 'k2' ? ACTIONS : []);
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} rowActions={onlyTheFirst} />);
+    expect(within(grid()).getAllByRole('button', { name: /^Actions for / })).toHaveLength(1);
+    const cell = within(grid()).getAllByRole('rowheader')[1];
+    if (cell === undefined) throw new Error('no row');
+    act(() => cell.focus());
+    // No menu for a row without actions: the key opens nothing
+    await user.keyboard('{Shift>}{F10}{/Shift}');
+    expect(screen.queryByRole('menuitem')).toBeNull();
+    const first = within(grid()).getAllByRole('rowheader')[0];
+    if (first === undefined) throw new Error('no row');
+    act(() => first.focus());
+    await user.keyboard('{Shift>}{F10}{/Shift}');
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledWith([expect.objectContaining({ id: 'k2' })], expect.anything());
   });
 });

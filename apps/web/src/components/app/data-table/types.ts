@@ -20,6 +20,9 @@ export interface RecordAction<TRow> {
   onSelect: (rows: readonly TRow[], scope: ActionScope) => void;
 }
 
+/** The actions of a row's menu: the same for every row, or chosen by the row. */
+export type RowActions<TRow> = readonly RecordAction<TRow>[] | ((row: TRow) => readonly RecordAction<TRow>[]);
+
 /** What a record action applies to beyond the rows at hand. */
 export interface ActionScope {
   ids: ReadonlySet<string>;
@@ -118,7 +121,11 @@ export interface DataTableProps<TRow> {
   searchText?: ((row: TRow) => string) | undefined;
   selection?: Selection | undefined;
   bulkActions?: readonly RecordAction<TRow>[] | undefined;
-  rowActions?: readonly RecordAction<TRow>[] | undefined;
+  /**
+   * The actions of a row's menu: one list for every row, or a function of the row for actions that not
+   * every row has (a run that has ended cannot be cancelled). A row with no action shows no menu.
+   */
+  rowActions?: RowActions<TRow> | undefined;
   /** The name a row's checkbox and menu carry ("Select crm pricing", "Actions for crm pricing"). */
   rowName: (row: TRow) => string;
   onRowOpen?: ((row: TRow, intent: 'inspector' | 'new-tab') => void) | undefined;

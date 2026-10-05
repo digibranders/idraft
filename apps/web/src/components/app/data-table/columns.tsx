@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 
 import type { ColumnPriority, DataTableColumn } from './types';
+import { CollectionStatusIcon, type CollectionStatus } from '@/components/app/status/collection-progress';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Truncate } from '@/components/ui/truncate';
@@ -171,6 +172,33 @@ export const col = {
         const instant = value(row);
         return instant === null ? null : Date.parse(instant);
       },
+    );
+  },
+
+  /**
+   * A collection status: its glyph in the status color beside its word (17-empty-loading-error-states.md
+   * section 4.1). Sorts by the word.
+   */
+  status<TRow>(
+    id: string,
+    value: (row: TRow) => { status: CollectionStatus; label: string } | null,
+    options: Options & { unknown?: ((row: TRow) => UnknownValue) | undefined },
+  ): DataTableColumn<TRow> {
+    return base(
+      id,
+      'status',
+      options,
+      (row) => {
+        const state = value(row);
+        if (state === null) return <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} />;
+        return (
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            <CollectionStatusIcon status={state.status} />
+            <Truncate text={state.label} />
+          </span>
+        );
+      },
+      (row) => value(row)?.label.toLocaleLowerCase() ?? null,
     );
   },
 

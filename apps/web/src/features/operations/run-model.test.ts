@@ -7,6 +7,9 @@ import {
   reasonKeyOf,
   REASON_KEYS,
   RUN_STATUS_KEYS,
+  RUN_STATUSES,
+  RUN_TRIGGERS,
+  RUN_WORKLOADS,
   taskStatusRows,
   taskSummary,
   TASK_STATUS_KEYS,
@@ -42,8 +45,11 @@ describe('run model', () => {
     expect(Object.values(REASON_KEYS).sort()).toEqual(Object.keys(reasons).sort());
   });
 
-  it('has a workload name for every workload a run can have', () => {
+  it('has a workload name for every workload a run can have, and lists the API enums the filters offer', () => {
     expect(runWorkloadValues.every((workload) => Object.hasOwn(WORKLOAD_KEYS, workload))).toBe(true);
+    expect([...RUN_WORKLOADS].sort()).toEqual([...runWorkloadValues].sort());
+    expect([...RUN_STATUSES].sort()).toEqual([...statusValues].sort());
+    expect([...RUN_TRIGGERS].sort()).toEqual([...triggerValues].sort());
   });
 
   it('shows a planned run with the queued look', () => {

@@ -11,6 +11,30 @@ export type RunFacts = Pick<
   'status' | 'trigger' | 'created_by' | 'tasks_total' | 'tasks_succeeded' | 'tasks_failed'
 >;
 
+/** The values of the list's filters, in the order the filter bar offers them; a test holds them to the API's enums. */
+export const RUN_WORKLOADS: readonly Run['workload'][] = [
+  'seo_rank',
+  'ai_prompt',
+  'ai_mode_keyword',
+  'keyword_metrics',
+  'discovery',
+  'ai_benchmark',
+  'gsc_sync',
+  'bing_sync',
+  'ga4_sync',
+  'cloudflare_sync',
+];
+export const RUN_STATUSES: readonly RunStatus[] = [
+  'planned',
+  'running',
+  'completed',
+  'completed_with_errors',
+  'failed',
+  'cancelled',
+  'budget_blocked',
+];
+export const RUN_TRIGGERS: readonly RunTrigger[] = ['schedule', 'manual', 'backfill', 'retry'];
+
 /** The catalog key of a run status under `runs.statuses`: keys are camelCase, the API's codes are not. */
 export const RUN_STATUS_KEYS = {
   planned: 'planned',
