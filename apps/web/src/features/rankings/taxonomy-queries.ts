@@ -42,6 +42,18 @@ export function useKeywordGroups(scope: ProjectScope): UseQueryResult<GroupList>
   );
 }
 
+/** The project's groups as a tree, for Manage groups. Shares `refreshGroups` with the flat list. */
+export function useKeywordGroupTree(scope: ProjectScope): UseQueryResult<GroupList> {
+  return useQuery(
+    apiQuery(GROUPS, {
+      params: {
+        path: { workspace_id: scope.workspaceId, project_id: scope.projectId },
+        query: { format: 'tree' },
+      },
+    }),
+  );
+}
+
 /** One term with its place by name, "SEO / Local SEO". */
 export interface NamedTerm {
   termId: string;

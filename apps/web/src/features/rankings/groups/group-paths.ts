@@ -39,9 +39,11 @@ const childNamed = <G extends GroupLike>(groups: readonly G[], parentId: string 
 /** The group at the end of `names`, or `null` when some level does not exist. */
 export function findGroup<G extends GroupLike>(groups: readonly G[], names: readonly string[]): G | null {
   let found: G | null = null;
+  let parentId: string | null = null;
   for (const name of names) {
-    found = childNamed(groups, found?.group_id ?? null, name);
+    found = childNamed(groups, parentId, name);
     if (found === null) return null;
+    parentId = found.group_id;
   }
   return found;
 }
@@ -53,7 +55,7 @@ export function missingNames(
 ): { parentId: string | null; names: string[] } {
   let parentId: string | null = null;
   for (const [index, name] of names.entries()) {
-    const child = childNamed(groups, parentId, name);
+    const child: GroupLike | null = childNamed(groups, parentId, name);
     if (child === null) return { parentId, names: names.slice(index) };
     parentId = child.group_id;
   }
