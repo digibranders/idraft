@@ -15,6 +15,7 @@ const P = `${W}/projects/${fynix.project_id}`;
 const I = `${P}/keyword-imports`;
 const ROWS = z.array(IMPORT_ROW);
 const IMPORTS = z.array(KEYWORD_IMPORT);
+type KeywordImport = z.infer<typeof KEYWORD_IMPORT>;
 const ACTIVE = KEYWORD_TABLE.filter((row) => row.archived !== true).length;
 /** Long enough for a parse or a write to finish. */
 const SETTLE_MS = 5_000;
@@ -54,7 +55,7 @@ describe('keyword imports', () => {
     const started = dataOf(answer, KEYWORD_IMPORT);
     expect(started).toMatchObject({
       source: 'paste',
-      status: 'parsing',
+      status: 'uploaded',
       quota: null,
       operation: { status: 'running' },
     });
@@ -145,7 +146,7 @@ describe('keyword imports', () => {
     const mapped = await editor.call('PATCH', path, {
       column_mapping: { 'Search term': 'keyword', Device: 'device', Location: 'location', Group: 'group' },
     });
-    expect(dataOf(mapped, KEYWORD_IMPORT).status).toBe('parsing');
+    expect(dataOf(mapped, KEYWORD_IMPORT).status).toBe('uploaded');
     clock += SETTLE_MS;
     const rows = dataOf(await editor.call('GET', `${path}/rows`), ROWS);
     expect(rows.map((row) => [row.row_no, row.part, row.device, row.outcome, row.reason_code])).toEqual([
@@ -272,5 +273,114 @@ describe('keyword imports', () => {
     ]);
     const onlyCancelled = dataOf(await editor.call('GET', `${I}?filter[status]=cancelled&limit=200`), IMPORTS);
     expect(onlyCancelled.every((entry) => entry.status === 'cancelled')).toBe(true);
+  });
+});
+
+describe('keyword imports as the backend builds them', () => {
+  const statusOf = async (browser: MockBrowser, path: string): Promise<KeywordImport> =>
+    dataOf(await browser.call('GET', path), KEYWORD_IMPORT);
+
+  it('reads uploaded, never parsing, after an upload and after a new mapping', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, 'keyword\nseo audit\nfresh idea\n'), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    expect(started.status).toBe('uploaded');
+    expect((await statusOf(editor, path)).status).toBe('uploaded');
+    clock += SETTLE_MS;
+    expect((await statusOf(editor, path)).status).toBe('preview_ready');
+
+    const mapped = await editor.call('PATCH', path, { column_mapping: { keyword: 'keyword' } });
+    expect(mapped.status).toBe(202);
+    expect(dataOf(mapped, KEYWORD_IMPORT).status).toBe('uploaded');
+    expect((await statusOf(editor, path)).status).toBe('uploaded');
+    clock += SETTLE_MS;
+    expect((await statusOf(editor, path)).status).toBe('preview_ready');
+  });
+
+  it('asks for a keyword column when the headers hold none', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, 'Search term,Device\nseo audit,desktop\n'), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    expect(started).toMatchObject({ status: 'uploaded', error_code: null });
+    clock += SETTLE_MS;
+    expect(await statusOf(editor, path)).toMatchObject({
+      status: 'needs_mapping',
+      error_code: 'keyword_column_missing',
+    });
+  });
+
+  it.each([
+    ['tags', 'tags_vocabulary_missing', 'tags_vocabulary_id'],
+    ['topic', 'topic_vocabulary_missing', 'topic_vocabulary_id'],
+  ] as const)('asks for a vocabulary when a file maps %s and none is chosen', async (column, code, defaultsKey) => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, `keyword,${column}\nfresh idea,blog\n`), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    clock += SETTLE_MS;
+    expect(await statusOf(editor, path)).toMatchObject({ status: 'needs_mapping', error_code: code });
+
+    const fixed = await editor.call('PATCH', path, { defaults: { [defaultsKey]: MOCK_VOCABULARY_IDS.topics } });
+    expect(fixed.status).toBe(202);
+    expect(dataOf(fixed, KEYWORD_IMPORT).status).toBe('uploaded');
+    clock += SETTLE_MS;
+    expect(await statusOf(editor, path)).toMatchObject({ status: 'preview_ready', error_code: null });
+  });
+
+  it('asks for the tags vocabulary when a paste line holds a tab, and only then', async () => {
+    const editor = mockBrowser('editor');
+    const tabbed = dataOf(await editor.call('POST', I, { source: 'paste', paste: 'fresh idea\tblog' }), KEYWORD_IMPORT);
+    const plain = dataOf(await editor.call('POST', I, { source: 'paste', paste: 'fresh idea' }), KEYWORD_IMPORT);
+    clock += SETTLE_MS;
+    expect(await statusOf(editor, `${I}/${tabbed.import_id}`)).toMatchObject({
+      status: 'needs_mapping',
+      error_code: 'tags_vocabulary_missing',
+    });
+    expect(await statusOf(editor, `${I}/${plain.import_id}`)).toMatchObject({ status: 'preview_ready' });
+  });
+
+  it('refuses a column mapping on a paste', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await editor.call('POST', I, { source: 'paste', paste: 'fresh idea' }), KEYWORD_IMPORT);
+    clock += SETTLE_MS;
+    expect(
+      fieldCodes(await editor.call('PATCH', `${I}/${started.import_id}`, { column_mapping: { keyword: 'keyword' } })),
+    ).toEqual(['column_mapping:not_applicable']);
+    expect(
+      fieldCodes(
+        await editor.call('POST', I, { source: 'paste', paste: 'fresh idea', column_mapping: { keyword: 'keyword' } }),
+      ),
+    ).toEqual(['column_mapping:not_applicable']);
+  });
+
+  it('refuses row actions sent together with a mapping or defaults', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, 'keyword\nseo audit\n'), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    clock += SETTLE_MS;
+    const rowActions = [{ row_no: 1, action: 'skip' }];
+    expect(
+      fieldCodes(await editor.call('PATCH', path, { row_actions: rowActions, defaults: { priority: 2 } })),
+    ).toEqual(['row_actions:not_with_mapping']);
+    expect(
+      fieldCodes(await editor.call('PATCH', path, { row_actions: rowActions, column_mapping: { keyword: 'keyword' } })),
+    ).toEqual(['row_actions:not_with_mapping']);
+    expect((await editor.call('PATCH', path, { row_actions: rowActions })).status).toBe(202);
+  });
+
+  it('lets a row that repeats an earlier row be skipped and nothing else', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(
+      await editor.call('POST', I, { source: 'paste', paste: 'fresh idea\nfresh idea' }),
+      KEYWORD_IMPORT,
+    );
+    const path = `${I}/${started.import_id}`;
+    clock += SETTLE_MS;
+    const [first, repeat] = dataOf(await editor.call('GET', `${path}/rows`), ROWS);
+    expect(first).toMatchObject({ outcome: 'new', action: 'create' });
+    expect(repeat).toMatchObject({ outcome: 'duplicate', reason_code: 'repeated_row', action: 'skip' });
+    expect(fieldCodes(await editor.call('PATCH', path, { row_actions: [{ row_no: 2, action: 'merge' }] }))).toEqual([
+      'row_actions.0.action:action_not_allowed',
+    ]);
+    expect((await editor.call('PATCH', path, { row_actions: [{ row_no: 2, action: 'skip' }] })).status).toBe(202);
   });
 });

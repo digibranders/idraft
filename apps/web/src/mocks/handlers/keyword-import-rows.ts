@@ -78,6 +78,8 @@ export interface AnalyzedRow {
   existing_tracked_keyword_id: string | null;
   /** The action of the outcome, before the user changes it. */
   default_action: RowAction;
+  /** The actions the user may choose for this row: its outcome's, but a row that repeats another takes `skip` only. */
+  allowed_actions: readonly RowAction[];
   /** The earlier row of the file this one repeats. */
   repeats: { row_no: number; part: number } | null;
   priority: number;
@@ -233,6 +235,7 @@ export function analyzeRows(
         reason: REASONS[code] ?? null,
         existing_tracked_keyword_id: null,
         default_action: DEFAULT_ACTION.invalid,
+        allowed_actions: ACTIONS_OF.invalid,
       });
       return;
     }
@@ -261,6 +264,7 @@ export function analyzeRows(
           reason: `Repeats row ${String(first.row_no)}; its groups and tags join that row.`,
           existing_tracked_keyword_id: null,
           default_action: DEFAULT_ACTION.duplicate,
+          allowed_actions: ['skip'],
           repeats: first,
         });
         return;
@@ -294,6 +298,7 @@ export function analyzeRows(
         reason,
         existing_tracked_keyword_id: live?.tracked_keyword_id ?? null,
         default_action: DEFAULT_ACTION[outcome],
+        allowed_actions: ACTIONS_OF[outcome],
       });
     });
   });

@@ -69,6 +69,11 @@ import type { ValidationItem } from '@/lib/api/types';
  * browser's worker, or the test's server): their rows do not fit in a cookie, so a reload forgets them.
  * Confirming writes into the keyword and entity cookies at once; the import then shows `writing` for a
  * moment, as the API's batches would.
+ *
+ * Statuses as the backend commits them: a new import and every PATCH of the mapping or the defaults read
+ * `uploaded` until the parse ends (`parsing` is in the contract but never produced), then `preview_ready`, or
+ * `needs_mapping` with an `error_code` of what is missing: a keyword column, or a vocabulary for the tags or
+ * the topic. `error_code` is otherwise the reason of a `failed` import.
  */
 
 type KeywordImport = components['schemas']['KeywordImport'];
@@ -125,6 +130,8 @@ interface StoredImport {
   created_at: number;
   headers: string[];
   records: Record<string, string>[];
+  /** A paste with a TAB in some line: those lines carry tags, which need a vocabulary. */
+  tabbed: boolean;
   mapping: Record<string, ImportField>;
   defaults: ImportDefaults;
   /** When the current parse ends; a new mapping or new defaults parse again. */
@@ -144,7 +151,22 @@ let lastImport = 0;
 const rowKey = (row: { row_no: number; part: number }): string => `${String(row.row_no)}:${String(row.part)}`;
 const actionOf = (entry: StoredImport, row: AnalyzedRow): RowAction =>
   entry.actions.get(rowKey(row)) ?? row.default_action;
-const keywordColumn = (entry: StoredImport): boolean => Object.values(entry.mapping).includes('keyword');
+
+type MappingProblem = 'keyword_column_missing' | 'tags_vocabulary_missing' | 'topic_vocabulary_missing';
+
+/**
+ * What stops the preview, in the order the backend checks: a keyword column, then a vocabulary for tags, then
+ * one for the topic. Tags and topic count when a mapped column names them or, for a paste, when a line holds
+ * a TAB.
+ */
+function mappingProblem(entry: StoredImport): MappingProblem | null {
+  const fields = Object.values(entry.mapping);
+  if (!fields.includes('keyword')) return 'keyword_column_missing';
+  const hasTags = entry.source === 'paste' ? entry.tabbed : fields.includes('tags');
+  if (hasTags && entry.defaults.tags_vocabulary_id === null) return 'tags_vocabulary_missing';
+  if (fields.includes('topic') && entry.defaults.topic_vocabulary_id === null) return 'topic_vocabulary_missing';
+  return null;
+}
 
 function statusOf(entry: StoredImport, at: number): ImportStatus {
   if (entry.cancelled_at !== null) return 'cancelled';
@@ -154,8 +176,8 @@ function statusOf(entry: StoredImport, at: number): ImportStatus {
     return entry.rows.some((row) => row.outcome === 'invalid') ? 'completed_with_errors' : 'completed';
   }
   if (at >= entry.created_at + EXPIRY_MS) return 'expired';
-  if (at < entry.parsed_at) return 'parsing';
-  return keywordColumn(entry) ? 'preview_ready' : 'needs_mapping';
+  if (at < entry.parsed_at) return 'uploaded';
+  return mappingProblem(entry) === null ? 'preview_ready' : 'needs_mapping';
 }
 
 const OPERATION_STATUS: Readonly<Record<ImportStatus, components['schemas']['Operation']['status']>> = {
@@ -189,7 +211,7 @@ function importView(caller: KeywordProjectCaller, entry: StoredImport, at: numbe
     return action === 'create' || (row.outcome === 'conflict' && action === 'merge');
   }).length;
   const self = `/api/v1/workspaces/${entry.workspace_id}/projects/${entry.project_id}/keyword-imports/${entry.import_id}`;
-  const parsing = status === 'parsing' || status === 'uploaded';
+  const parsing = status === 'uploaded';
   const writingDone =
     entry.written === null
       ? 0
@@ -221,7 +243,7 @@ function importView(caller: KeywordProjectCaller, entry: StoredImport, at: numbe
     quota: ready
       ? { limit: MAX_TRACKED_KEYWORDS, used, would_use: used + (entry.written === null ? wouldUse : 0) }
       : null,
-    error_code: entry.error_code,
+    error_code: entry.error_code ?? (status === 'needs_mapping' ? mappingProblem(entry) : null),
     created_by: userRef(entry.created_by) ?? { user_id: entry.created_by, name: 'Member', email: '' },
     created_at: iso(entry.created_at),
     expires_at: iso(entry.created_at + EXPIRY_MS),
@@ -287,6 +309,8 @@ function importOf(caller: KeywordProjectCaller, id: string | readonly string[] |
 interface Source0 {
   headers: string[];
   records: Record<string, string>[];
+  /** A paste with a TAB in some line; always `false` for the other sources. */
+  tabbed: boolean;
 }
 
 /** The automatic mapping: a header that names a field, without case, maps to it. */
@@ -309,6 +333,7 @@ function fromCsv(text: string): Source0 {
   return {
     headers,
     records: lines.map((cells) => Object.fromEntries(headers.map((name, index) => [name, cells[index] ?? '']))),
+    tabbed: false,
   };
 }
 
@@ -321,6 +346,7 @@ function fromPaste(text: string): Source0 {
       const [keyword = '', ...rest] = line.split('\t');
       return { keyword, tags: rest.join('|') };
     }),
+    tabbed: lines.some((line) => line.includes('\t')),
   };
 }
 
@@ -336,10 +362,14 @@ function fromRows(rows: readonly Readonly<Record<string, unknown>>[]): Source0 {
         }),
       ),
     ),
+    tabbed: false,
   };
 }
 
 // Options: the column mapping and the defaults
+
+/** A paste has no columns to map (backend rule 4). */
+const NO_COLUMNS_ERROR: ValidationItem = bodyError('column_mapping', 'not_applicable', 'A paste has no columns.');
 
 function mappingErrors(value: unknown, headers: readonly string[] | null): ValidationItem[] {
   if (value === undefined || value === null) return [];
@@ -449,7 +479,7 @@ function defaultsOf(value: unknown, base: ImportDefaults): ImportDefaults {
   };
 }
 
-/** A new import of `source`, parsing now. */
+/** A new import of `source`, read now: it shows `uploaded` until `parsed_at`. */
 function created(
   caller: KeywordProjectCaller,
   source: Source,
@@ -471,6 +501,7 @@ function created(
     created_at: createdAt,
     headers: read.headers,
     records: read.records,
+    tabbed: read.tabbed,
     mapping: columns,
     defaults,
     parsed_at: createdAt + PARSE_MS,
@@ -721,6 +752,7 @@ export const keywordImportHandlers: HttpHandler[] = [
       ...(body.source === 'api' && !Array.isArray(rows)
         ? [bodyError('rows', 'missing', 'An api import needs rows.')]
         : []),
+      ...(body.source === 'paste' && body.column_mapping !== undefined ? [NO_COLUMNS_ERROR] : []),
       ...defaultsErrors(caller, body.defaults),
     ];
     if (errors.length > 0) return invalid(request, errors);
@@ -819,7 +851,14 @@ export const keywordImportHandlers: HttpHandler[] = [
     const actions = body.row_actions;
     const errors: ValidationItem[] = [
       ...extraMembers(body, ['column_mapping', 'defaults', 'row_actions']),
-      ...mappingErrors(body.column_mapping, entry.headers),
+      ...(entry.source === 'paste'
+        ? body.column_mapping === undefined
+          ? []
+          : [NO_COLUMNS_ERROR]
+        : mappingErrors(body.column_mapping, entry.headers)),
+      ...(actions !== undefined && (body.column_mapping !== undefined || body.defaults !== undefined)
+        ? [bodyError('row_actions', 'not_with_mapping', 'Row actions apply to a preview; send them on their own.')]
+        : []),
       ...defaultsErrors(caller, body.defaults),
       ...(actions === undefined || actions === null
         ? []
@@ -869,13 +908,9 @@ export const keywordImportHandlers: HttpHandler[] = [
         );
       } else if (row === undefined) {
         service.push(bodyError(at(path, 'row_no'), 'row_unknown', 'The import has no such row.'));
-      } else if (!ACTIONS_OF[row.outcome].includes(item.action)) {
+      } else if (!row.allowed_actions.includes(item.action)) {
         service.push(
-          bodyError(
-            at(path, 'action'),
-            'action_not_allowed',
-            `A ${row.outcome} row takes ${ACTIONS_OF[row.outcome].join(' or ')}.`,
-          ),
+          bodyError(at(path, 'action'), 'action_not_allowed', `This row takes ${row.allowed_actions.join(' or ')}.`),
         );
       } else {
         changes.push({ key: rowKey(row), action: item.action });
@@ -919,7 +954,7 @@ export const keywordImportHandlers: HttpHandler[] = [
     // An action the row's outcome no longer takes goes back to the outcome's default
     for (const row of entry.rows) {
       const chosen = entry.actions.get(rowKey(row));
-      if (chosen !== undefined && !ACTIONS_OF[row.outcome].includes(chosen)) entry.actions.delete(rowKey(row));
+      if (chosen !== undefined && !row.allowed_actions.includes(chosen)) entry.actions.delete(rowKey(row));
     }
     const duplicateAction = body.duplicate_action === 'merge_terms' ? 'merge_terms' : 'skip';
     const requested = entry.rows.filter((row) => {
