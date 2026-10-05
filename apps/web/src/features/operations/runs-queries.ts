@@ -3,13 +3,14 @@
 import { useInfiniteQuery, useQuery, type QueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { isOpen, needsListRead, overlayRuns } from './run-model';
+import { needsListRead, overlayRuns } from './run-model';
 import { api, unwrap } from '@/lib/api/client';
 import { projectKey, type QueryKey } from '@/lib/api/keys';
 import { apiMutation, apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { paths } from '@/lib/api/schema';
 import type { ManualRuns, Run, RunDetail } from '@/lib/api/types';
 import { monthInstants, type MonthKey } from '@/lib/format/month';
+import { isOpenRun } from '@/lib/runs/run-status';
 
 /**
  * A project's collection runs (19 section 3.11.4). The list is read for one month by `created_at`, newest
@@ -142,7 +143,7 @@ export function useMonthRuns(scope: RunsScope, month: MonthKey, filters: RunFilt
   const follow = useQuery({
     queryKey: [...runsKey(scope), 'following', month, open],
     queryFn: ({ signal }) => readPage(scope, month, open ?? filters, FIRST_PAGE, signal),
-    enabled: open !== null && listed.some(isOpen),
+    enabled: open !== null && listed.some(isOpenRun),
     refetchInterval: FOLLOW_MS,
   });
   // What the poll heard counts while it is newer than the list's last read
@@ -193,7 +194,8 @@ export function useRunDetail(scope: RunsScope, runId: string | null): UseQueryRe
   return useQuery({
     ...runDetailQuery(scope, runId ?? ''),
     enabled: runId !== null,
-    refetchInterval: (state) => (state.state.data !== undefined && isOpen(state.state.data.data) ? FOLLOW_MS : false),
+    refetchInterval: (state) =>
+      state.state.data !== undefined && isOpenRun(state.state.data.data) ? FOLLOW_MS : false,
   });
 }
 

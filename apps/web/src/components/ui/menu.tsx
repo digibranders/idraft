@@ -29,6 +29,11 @@ export interface MenuItemDef {
   disabledReason?: string | undefined;
   /** A short fact at the end of the item, such as "14 of 20 left today". It takes the place of a shortcut; a reason takes its place. */
   detail?: string | undefined;
+  /**
+   * What assistive technology reads after the name, when the reason or the detail on show is only the short
+   * form of it. It is not shown, and takes the place of the reason or detail as the description.
+   */
+  description?: string | undefined;
   onSelect?: (() => void) | undefined;
   /** The link to render for `kind: 'link'`: the router's `<Link href="..." />` or an `<a>`. */
   link?: ReactElement | undefined;
@@ -87,6 +92,9 @@ function runs(items: readonly MenuItemDef[]): (MenuItemDef | MenuItemDef[])[] {
   return result;
 }
 
+/** The id of the full description of a row, which sits beside the short reason or detail it is made for. */
+const descriptionIdOf = (reasonId: string): string => `${reasonId}-description`;
+
 interface RowProps {
   item: MenuItemDef;
   /** A submenu cannot open another one. */
@@ -112,12 +120,18 @@ function RowContent({
       {item.icon ? <Icon icon={item.icon} size="sm" className={tertiary} /> : null}
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
       {item.disabledReason !== undefined || item.detail !== undefined ? (
-        <span id={reasonId} className="pl-4 type-meta">
+        // Hidden from the item's name and read as its description, which `aria-describedby` still reaches
+        <span id={reasonId} aria-hidden="true" className="pl-4 type-meta">
           {item.disabledReason ?? item.detail}
         </span>
       ) : item.shortcut ? (
         <Kbd keys={item.shortcut} decorative className="pl-4" />
       ) : null}
+      {item.description === undefined ? null : (
+        <span id={descriptionIdOf(reasonId)} aria-hidden="true" className="sr-only">
+          {item.description}
+        </span>
+      )}
     </>
   );
 }
@@ -129,7 +143,12 @@ function Row({ item, nested }: RowProps): ReactElement {
   const shared = {
     disabled,
     'aria-keyshortcuts': ariaKeyShortcuts,
-    'aria-describedby': disabled || item.detail !== undefined ? reasonId : undefined,
+    'aria-describedby':
+      item.description !== undefined
+        ? descriptionIdOf(reasonId)
+        : disabled || item.detail !== undefined
+          ? reasonId
+          : undefined,
     className: cn(POPUP_ITEM, item.tone === 'destructive' && DESTRUCTIVE),
   };
   switch (item.kind) {

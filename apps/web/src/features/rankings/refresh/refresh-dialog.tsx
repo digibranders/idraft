@@ -1,13 +1,20 @@
 'use client';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState, type ReactElement, type RefObject } from 'react';
 
-import { MAX_REFRESH_KEYWORDS, STALE_DAYS, leftToday, refreshBody, type RefreshChoice } from './refresh-model';
+import {
+  MAX_REFRESH_KEYWORDS,
+  STALE_DAYS,
+  leftToday,
+  refreshBody,
+  unknownPositions,
+  type RefreshChoice,
+} from './refresh-model';
 import { REFRESH_METRICS } from './refresh-queries';
 import { BulkDialog } from '../bulk/bulk-dialog';
-import { refreshKeywords, type ProjectScope } from '../rankings-queries';
+import type { ProjectScope } from '../rankings-queries';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { RadioGroup, type RadioOption } from '@/components/ui/radio-group';
 import { isApiProblem } from '@/lib/api/problem';
@@ -20,9 +27,14 @@ export interface RefreshTargets {
   selection: readonly string[] | null;
   /**
    * The keywords the filters match. `ids` is `null` when they cannot be named: the list holds more than a
-   * page's worth of them (`too-many`), or has not finished loading (`loading`).
+   * page's worth of them (`too-many`), has not finished loading, or still shows the previous filters'
+   * rows (`loading`), or a page after the first did not load (`incomplete`).
    */
-  matching: { count: number; ids: readonly string[] | null; why: 'too-many' | 'loading' | null } | null;
+  matching: {
+    count: number;
+    ids: readonly string[] | null;
+    why: 'too-many' | 'loading' | 'incomplete' | null;
+  } | null;
   /** Filters or a search narrow the list, so refreshing what it shows is a choice worth starting on. */
   narrowed: boolean;
   /** Every keyword the filters match is chosen in the table. */
@@ -41,6 +53,11 @@ export interface RefreshDialogProps {
   onStarted: (run: Run) => void;
   /** The day's count is out of date: the API said the limit is reached. */
   onLimitReached: () => void;
+  /**
+   * The API said a keyword is not tracked any more. `keywordIds` are those it named, which may be none: the
+   * list is read again, and the chosen keywords that left it are no longer chosen.
+   */
+  onKeywordsUnknown: (keywordIds: readonly string[]) => void;
 }
 
 interface Choices {
@@ -61,23 +78,32 @@ export function RefreshDialog({
   manual,
   onStarted,
   onLimitReached,
+  onKeywordsUnknown,
 }: RefreshDialogProps): ReactElement {
   const t = useTranslations('rankings.refresh');
-  const queryClient = useQueryClient();
   const refresh = useMutation(REFRESH_METRICS);
   const [picked, setPicked] = useState<RefreshChoice | null>(null);
   const [alert, setAlert] = useState<string | null>(null);
+  // What the dialog starts on is worked out once, when it opens: a list that finishes loading while it is
+  // open adds an option, and must not move the choice from under the person
+  const [started, setStarted] = useState<RefreshChoice>('stale');
+  const [wasOpen, setWasOpen] = useState(false);
 
   const choices = choicesOf(targets, t);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setStarted(choices.start);
+      setPicked(null);
+      setAlert(null);
+    }
+  }
   const enabled = new Set(choices.options.filter((option) => option.disabled !== true).map((option) => option.value));
-  const choice = picked !== null && enabled.has(picked) ? picked : choices.start;
+  // A choice that is gone (the chosen keywords all left the list) falls back to what the dialog offers first
+  const choice = picked !== null && enabled.has(picked) ? picked : enabled.has(started) ? started : choices.start;
   const count = choices.counts[choice];
 
-  const close = (): void => {
-    setPicked(null);
-    setAlert(null);
-    onOpenChange(false);
-  };
+  const close = (): void => onOpenChange(false);
   const submit = useSubmitOnce(async (event) => {
     event.preventDefault();
     setAlert(null);
@@ -99,8 +125,9 @@ export function RefreshDialog({
         isApiProblem(error, 'validation_failed') &&
         error.errors.some((item) => item.code === 'keyword_unknown')
       ) {
-        // A keyword was archived or removed meanwhile: the list is read again, and the choice made once more
-        void refreshKeywords(queryClient, scope);
+        // A keyword was archived or removed meanwhile: the list is read again, and the chosen keywords that
+        // left it are dropped, so the choice made once more is not refused for the same keyword
+        onKeywordsUnknown(unknownPositions(error.errors).flatMap((position) => ids[position] ?? []));
         setAlert(t('errors.keywordUnknown'));
       } else if (isApiProblem(error) && error.status === 403) {
         setAlert(t('errors.forbidden'));
@@ -170,7 +197,9 @@ function choicesOf(targets: RefreshTargets, t: Translate): Choices {
           ? t('dialog.tooMany', { limit })
           : why === 'loading'
             ? t('dialog.matchingLoading')
-            : t('dialog.matchingHint'),
+            : why === 'incomplete'
+              ? t('dialog.matchingIncomplete')
+              : t('dialog.matchingHint'),
       disabled: why !== null,
     });
   }

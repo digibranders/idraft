@@ -4,14 +4,7 @@ import { ClipboardList, ListChecks } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
-import {
-  collectionStatusOf,
-  reasonKeyOf,
-  RUN_STATUS_KEYS,
-  taskStatusRows,
-  taskSummary,
-  TRIGGER_KEYS,
-} from './run-model';
+import { RUN_STATUS_KEYS, taskStatusRows, taskSummary, TRIGGER_KEYS } from './run-model';
 import { useRunDetail, type RunsScope } from './runs-queries';
 import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorBody } from '@/components/app/inspector/inspector-tabs';
@@ -25,6 +18,8 @@ import { isApiProblem } from '@/lib/api/problem';
 import type { Run, RunDetail } from '@/lib/api/types';
 import { EMPTY_VALUE, formatCurrency, formatDetailDateTime, formatInteger } from '@/lib/format';
 import { money } from '@/lib/format/money';
+import { collectionStatusOf } from '@/lib/runs/run-status';
+import { useRunReason } from '@/lib/runs/use-run-reason';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 
 export interface RunInspectorProps {
@@ -61,6 +56,7 @@ export function RunInspector({
   const errors = useTranslations('status.error');
   const inspector = useTranslations('inspector');
   const workloadName = useWorkloadName();
+  const reasonText = useRunReason();
   const detail = useRunDetail(scope, runId);
   const run: Run | RunDetail | null = detail.data?.data ?? row;
   const notFound = isApiProblem(detail.error, 'not_found');
@@ -75,8 +71,7 @@ export function RunInspector({
       : candidate.created_by.label;
 
   const summary = (candidate: Run): KeyValue[] => {
-    const reasonKey = reasonKeyOf(candidate.status_reason);
-    const reason = reasonKey === null ? candidate.status_reason : t(`reasons.${reasonKey}`);
+    const reason = reasonText(candidate.status_reason) ?? candidate.status_reason;
     return [
       { id: 'trigger', label: t('inspector.trigger'), value: t(`triggers.${TRIGGER_KEYS[candidate.trigger]}`) },
       {

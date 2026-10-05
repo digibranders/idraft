@@ -293,7 +293,12 @@ export const runHandlers: HttpHandler[] = [
     const keywordIds = Array.isArray(body.keyword_ids)
       ? body.keyword_ids.filter((id): id is string => typeof id === 'string')
       : null;
-    const tracked = new Set(liveTrackedOf(caller.keywords, caller.project.project_id).map((row) => row.keyword_id));
+    // Keywords the project tracks and has neither archived nor deleted (19-api-specification.md section 3.6.1)
+    const tracked = new Set(
+      liveTrackedOf(caller.keywords, caller.project.project_id)
+        .filter((row) => row.is_active)
+        .map((row) => row.keyword_id),
+    );
     if (keywordIds !== null && keywordIds.some((id) => !tracked.has(id))) {
       return invalid(request, [
         bodyError('keyword_ids', 'keyword_unknown', 'A keyword is not one this project tracks.'),

@@ -1,9 +1,11 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { getResponse, http, HttpResponse } from 'msw';
+import { delay, getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
+import { api } from '@/lib/api/client';
 import type { Run } from '@/lib/api/types';
+import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { handlers } from '@/mocks/handlers';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
@@ -11,6 +13,7 @@ import { server } from '@/test/msw';
 import {
   answerTrackedAsMany,
   fynix,
+  keywordsIn,
   loadedGrid,
   rankingsAs as as,
   restoreWideScreen,
@@ -29,6 +32,7 @@ const RUNS = `${P}/runs`;
 const RUN = `${P}/runs/{run_id}`;
 const REFRESH = `${P}/keyword-metrics/refresh`;
 const TRACKED = `${P}/tracked-keywords`;
+const BULK_ARCHIVE = `${TRACKED}/bulk-archive`;
 
 const RUN_ID = '0192d1a8-e00b-7a10-8e07-000000000a01';
 const OTHER_RUN_ID = '0192d1a8-e00b-7a10-8e07-000000000a02';
@@ -39,6 +43,8 @@ beforeEach(stubWideScreen);
 afterEach(() => {
   restoreWideScreen();
   server.events.removeAllListeners();
+  // A spy on the document (the hidden tab) must not outlive its test
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -208,6 +214,9 @@ describe('The Refresh metrics item of More actions', () => {
     const item = await within(menu).findByRole('menuitem', { name: /Refresh metrics/ });
     await waitFor(() => expect(item).toHaveTextContent('14 of 20 left today'));
     expect(item).not.toHaveAttribute('aria-disabled', 'true');
+    // The count is the item's description and not part of its name
+    expect(item).toHaveAccessibleName('Refresh metrics');
+    expect(item).toHaveAccessibleDescription('14 of 20 left today');
     // Manage groups stays with it for a member who may write keywords
     expect(within(menu).getByRole('menuitem', { name: 'Manage groups' })).toBeInTheDocument();
   });
@@ -220,9 +229,11 @@ describe('The Refresh metrics item of More actions', () => {
     const item = await within(menu).findByRole('menuitem', { name: /Refresh metrics/ });
     await waitFor(() => expect(item).toHaveAttribute('aria-disabled', 'true'));
     expect(item).toHaveTextContent('0 of 20 left today');
-    expect(
-      within(menu).getByText('No manual refreshes left today. The limit resets at 00:00 UTC.'),
-    ).toBeInTheDocument();
+    const header = menu.querySelector<HTMLElement>('[data-slot="menu-header"]');
+    expect(header).toHaveTextContent('No manual runs left today. The limit resets at 00:00 UTC.');
+    // Assistive technology reaches the reset time from the item: the header is not focusable
+    expect(item).toHaveAccessibleName('Refresh metrics');
+    expect(item).toHaveAccessibleDescription('No manual runs left today. The limit resets at 00:00 UTC.');
     await user.click(item);
     expect(screen.queryByRole('dialog', { name: 'Refresh metrics' })).toBeNull();
   });
@@ -259,6 +270,43 @@ describe('Who sees Refresh metrics', () => {
     const menu = await openMenu(user);
     expect(await within(menu).findByRole('menuitem', { name: /Refresh metrics/ })).toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: 'Manage groups' })).toBeNull();
+  });
+
+  /** An analyst holds runs:trigger but not keywords:write: the dialog opens from the menu, which has no Manage groups. */
+  async function openRefreshAsAnalyst(user: User): Promise<HTMLElement> {
+    await loadedGrid();
+    const menu = await openMenu(user);
+    expect(within(menu).queryByRole('menuitem', { name: 'Manage groups' })).toBeNull();
+    await user.click(await within(menu).findByRole('menuitem', { name: /Refresh metrics/ }));
+    return screen.findByRole('dialog', { name: 'Refresh metrics' });
+  }
+
+  it('lets an analyst refresh the keywords matching the filters, which it has no chosen keywords for', async () => {
+    serveRuns({ used: 0, open: [] });
+    const seen = watchRows();
+    const sent = serveRefresh(() => accepted(run()));
+    const { user } = renderWithProviders(as('analyst'), { searchParams: '?intent=commercial' });
+    const dialog = await openRefreshAsAnalyst(user);
+    // Rows cannot be chosen without keywords:write, so nothing is offered to start on but the list
+    expect(within(dialog).queryByRole('radio', { name: /chosen/ })).toBeNull();
+    const label = within(dialog).getByText(/^All \d+ keywords matching the filters$/);
+    expect(within(dialog).getByRole('radio', { name: label.textContent ?? '' })).toBeChecked();
+    const count = Number(/\d+/.exec(label.textContent ?? '')?.[0]);
+    await submit(user, dialog, `Refresh metrics for ${String(count)} keywords`);
+    await waitFor(() => expect(sent.bodies).toHaveLength(1));
+    const body = z.object({ keyword_ids: z.array(z.string()) }).parse(sent.bodies[0]);
+    expect(body.keyword_ids).toHaveLength(count);
+    expect(body.keyword_ids.every((id) => seen.all().includes(id))).toBe(true);
+  });
+
+  it('lets an analyst refresh the stale keywords', async () => {
+    serveRuns({ used: 0, open: [] });
+    const sent = serveRefresh(() => accepted(run()));
+    const { user } = renderWithProviders(as('analyst'));
+    const dialog = await openRefreshAsAnalyst(user);
+    expect(within(dialog).getByRole('radio', { name: 'All keywords with stale metrics' })).toBeChecked();
+    await submit(user, dialog, 'Refresh metrics');
+    await waitFor(() => expect(sent.bodies).toEqual([{ stale_days: 25 }]));
   });
 
   it('gives an editor both items', async () => {
@@ -307,7 +355,7 @@ describe('What the dialog refreshes', () => {
     expect(
       within(dialog).getByText('Metrics older than 25 days, and keywords without metrics yet.'),
     ).toBeInTheDocument();
-    expect(within(dialog).getByText('20 of 20 manual refreshes left today.')).toBeInTheDocument();
+    expect(within(dialog).getByText('20 of 20 manual runs left today.')).toBeInTheDocument();
     expect(await axe(dialog)).toHaveNoViolations();
     await submit(user, dialog, 'Refresh metrics');
     await waitFor(() => expect(sent.bodies).toEqual([{ stale_days: 25 }]));
@@ -420,6 +468,131 @@ describe('What the dialog refreshes', () => {
     );
     expect(within(dialog).getByRole('radio', { name: 'All keywords with stale metrics' })).toBeChecked();
   });
+
+  it('names the keywords chosen on several pages of a list above 10,000, which only the pages seen can tell', async () => {
+    serveRuns({ used: 0, open: [] });
+    answerTrackedAsMany({ total: 12_000, pages: 3 });
+    const seen = watchRows();
+    const sent = serveRefresh(() => accepted(run()));
+    const { user } = renderWithProviders(as('editor'));
+    await loadedGrid();
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    // The second page holds the same keywords under ids of their own: the first page's choice is not ticked
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Select seo agency' })).not.toBeChecked());
+    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker' }));
+    const dialog = await openRefresh(user);
+    expect(within(dialog).getByRole('radio', { name: 'The 2 chosen keywords' })).toBeChecked();
+    await submit(user, dialog, 'Refresh metrics for 2 keywords');
+    await waitFor(() => expect(sent.bodies).toHaveLength(1));
+    expect(sent.bodies[0]).toEqual({
+      keyword_ids: [seen.ids('seo agency').keyword, seen.ids('backlink checker').keyword],
+    });
+  });
+
+  it('cannot send the ids of the previous filters while the list of the new ones loads', async () => {
+    serveRuns({ used: 0, open: [] });
+    const seen = watchRows();
+    const sent = serveRefresh(() => accepted(run()));
+    // Without the filter the list answers late, and the rows of the filter stay on screen meanwhile
+    server.use(
+      http.get(mswPath(TRACKED), async ({ request }) => {
+        const url = new URL(request.url);
+        if (url.searchParams.get('limit') !== '1' && !url.searchParams.has('filter[intent_in]')) await delay(1_500);
+        return undefined;
+      }),
+    );
+    const { user } = renderWithProviders(as('editor'), { searchParams: '?intent=commercial' });
+    const grid = await loadedGrid();
+    const filtered = keywordsIn(grid).length;
+    await user.click(screen.getByRole('button', { name: 'Remove filter Intent: Commercial' }));
+    const menu = await openMenu(user);
+    await user.click(await within(menu).findByRole('menuitem', { name: /Refresh metrics/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Refresh metrics' });
+    const matching = within(dialog).getByRole('radio', { name: /^All \d+ keywords in the list$/ });
+    expect(matching).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      within(dialog).getByText('The list is still loading, so its keywords cannot be counted yet.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: 'All keywords with stale metrics' })).toBeChecked();
+    // Once the new list has loaded, the whole list is named, not the rows that were on screen
+    await waitFor(() => expect(matching).not.toHaveAttribute('aria-disabled', 'true'), { timeout: 5_000 });
+    await user.click(matching);
+    const count = Number(/\d+/.exec(within(dialog).getByText(/^All \d+ keywords in the list$/).textContent)?.[0]);
+    expect(count).toBeGreaterThan(filtered);
+    await submit(user, dialog, `Refresh metrics for ${String(count)} keywords`);
+    await waitFor(() => expect(sent.bodies).toHaveLength(1));
+    const body = z.object({ keyword_ids: z.array(z.string()) }).parse(sent.bodies[0]);
+    expect(body.keyword_ids).toHaveLength(count);
+    expect(body.keyword_ids.every((id) => seen.all().includes(id))).toBe(true);
+  });
+
+  it('says when a later page of the list did not load, not that the list is still loading', async () => {
+    serveRuns({ used: 0, open: [] });
+    answerTrackedAsMany({ total: 450, pages: 3, failSecond: () => true });
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openRefresh(user);
+    expect(await within(dialog).findByText('The list could not be fully loaded. Try again.')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/still loading/)).toBeNull();
+    expect(within(dialog).getByRole('radio', { name: 'All 450 keywords in the list' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+  });
+
+  it('keeps the choice it opened on when the list finishes loading with the dialog open', async () => {
+    serveRuns({ used: 0, open: [] });
+    answerTrackedAsMany({ total: 450, pages: 3 });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // The pages after the first wait until the test lets them go
+    server.use(
+      http.get(mswPath(TRACKED), async ({ request }) => {
+        if (new URL(request.url).searchParams.has('cursor')) await held;
+        return undefined;
+      }),
+    );
+    const { user } = renderWithProviders(as('editor'), { searchParams: '?intent=commercial' });
+    const dialog = await openRefresh(user);
+    const stale = within(dialog).getByRole('radio', { name: 'All keywords with stale metrics' });
+    const matching = within(dialog).getByRole('radio', { name: /^All 450 keywords matching the filters$/ });
+    expect(matching).toHaveAttribute('aria-disabled', 'true');
+    expect(stale).toBeChecked();
+    release();
+    await waitFor(() => expect(matching).not.toHaveAttribute('aria-disabled', 'true'));
+    // Narrowed filters would start on the list had it been loaded at the start: the choice does not move
+    expect(stale).toBeChecked();
+    expect(matching).not.toBeChecked();
+  });
+
+  it('keeps its choices while the dialog closes, which they would not if the selection went with it', async () => {
+    serveRuns({ used: 0, open: [] });
+    const { user } = renderWithProviders(as('editor'));
+    await loadedGrid();
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    const dialog = await openRefresh(user);
+    expect(within(dialog).getByRole('radio', { name: 'The chosen keyword' })).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(within(dialog).getByRole('radio', { name: 'The chosen keyword' })).toBeChecked();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Refresh metrics' })).toBeNull());
+  });
+
+  it('says that every location and language of a keyword is read, whatever the filters narrow', async () => {
+    serveRuns({ used: 0, open: [] });
+    const { user } = renderWithProviders(as('editor'));
+    await loadedGrid();
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    const dialog = await openRefresh(user);
+    const hint = 'A keyword is read at every location and language it is tracked in.';
+    expect(within(dialog).getByText(hint)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        'The search box is left out. Each keyword is read at every location and language it is tracked in, whatever a filter says about them.',
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 /** The list answered with `count` keywords in one page, the real rows over again with ids of their own. */
@@ -468,12 +641,10 @@ describe('When the API does not take the refresh', () => {
       return problem(request, 'manual_run_limit', { limit: 20, used: 20, retry_after_seconds: 3600 });
     }, state);
     expect(
-      await within(dialog).findByText(
-        'This project has used its 20 manual refreshes for today. The limit resets at 00:00 UTC.',
-      ),
+      await within(dialog).findByText('This project has used its 20 manual runs today. The limit resets at 00:00 UTC.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Refresh metrics' })).toBeInTheDocument();
-    await waitFor(() => expect(within(dialog).getByText('0 of 20 manual refreshes left today.')).toBeInTheDocument());
+    await waitFor(() => expect(within(dialog).getByText('0 of 20 manual runs left today.')).toBeInTheDocument());
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     const menu = await openMenu(user);
     expect(within(menu).getByRole('menuitem', { name: /Refresh metrics/ })).toHaveAttribute('aria-disabled', 'true');
@@ -491,11 +662,46 @@ describe('When the API does not take the refresh', () => {
     await submit(user, dialog, 'Refresh metrics');
     expect(
       await within(dialog).findByText(
-        'A keyword was archived or removed in the meantime. The list is up to date again: choose the keywords once more.',
+        'A keyword was archived or removed in the meantime. The list was read again, and the keywords that left it are no longer chosen. Check the choice and try again.',
       ),
     ).toBeInTheDocument();
     await waitFor(() => expect(listReads()).toBeGreaterThan(before));
     expect(screen.getByRole('dialog', { name: 'Refresh metrics' })).toBeInTheDocument();
+  });
+
+  it('drops the chosen keyword that left the list after the 422, so the second try offers the rest and goes through', async () => {
+    serveRuns({ used: 6, open: [] });
+    const seen = watchRows();
+    // The mock refuses a keyword the project no longer tracks, as the API does
+    const sent = serveRefresh();
+    const { user } = renderWithProviders(as('editor'));
+    await loadedGrid();
+    for (const name of ['seo agency', 'backlink checker', 'crawl budget']) {
+      await user.click(screen.getByRole('checkbox', { name: `Select ${name}` }));
+    }
+    // Another member archives one of the three while the dialog is open
+    const dialog = await openRefresh(user);
+    expect(within(dialog).getByRole('radio', { name: 'The 3 chosen keywords' })).toBeChecked();
+    const archived = await api.POST(BULK_ARCHIVE, {
+      params: { path: { workspace_id: MOCK_WORKSPACE.workspace_id, project_id: fynix.project_id } },
+      body: { ids: [seen.ids('backlink checker').tracked], archive: true },
+    });
+    expect(archived.response.ok).toBe(true);
+
+    await submit(user, dialog, 'Refresh metrics for 3 keywords');
+    expect(await within(dialog).findByText(/^A keyword was archived or removed in the meantime/)).toBeInTheDocument();
+    // The list is read again, and the keyword that left it is no longer chosen, here or in the table
+    await waitFor(() => expect(within(dialog).getByRole('radio', { name: 'The 2 chosen keywords' })).toBeChecked());
+    // The table is behind the dialog, which leaves it out of the accessibility tree
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency', hidden: true })).toBeChecked();
+    expect(screen.queryByRole('checkbox', { name: 'Select backlink checker', hidden: true })).toBeNull();
+
+    await submit(user, dialog, 'Refresh metrics for 2 keywords');
+    await waitFor(() => expect(sent.bodies).toHaveLength(2));
+    expect(sent.bodies[1]).toEqual({
+      keyword_ids: [seen.ids('seo agency').keyword, seen.ids('crawl budget').keyword],
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Refresh metrics' })).toBeNull());
   });
 
   it('tells a refusal for lack of permission', async () => {
@@ -556,13 +762,13 @@ describe('A refresh in the header', () => {
     expect(await screen.findByText('Refreshing metrics')).toBeInTheDocument();
     const bar = screen.getByRole('progressbar', { name: 'Refreshing metrics' });
     expect(bar).toHaveAttribute('aria-valuenow', '4');
-    expect(bar).toHaveAttribute('aria-valuetext', '4 of 10 keywords read');
+    expect(bar).toHaveAttribute('aria-valuetext', '4 of 10 read');
 
     const before = listReads();
     current = run({ status: 'completed', tasks_total: 10, tasks_succeeded: 10, completed_at: NOW });
     await act(() => vi.advanceTimersByTimeAsync(5_000));
-    expect(await screen.findByText('Metrics refreshed for 10 keywords')).toBeInTheDocument();
-    expect(screen.getAllByText('Metrics refreshed for 10 keywords')).toHaveLength(1);
+    expect(await screen.findByText('Metrics refreshed: 10 of 10 read')).toBeInTheDocument();
+    expect(screen.getAllByText('Metrics refreshed: 10 of 10 read')).toHaveLength(1);
     expect(screen.queryByRole('progressbar')).toBeNull();
     await waitFor(() => expect(listReads()).toBeGreaterThan(before));
 
@@ -618,7 +824,7 @@ describe('A refresh in the header', () => {
     {
       name: 'completed with errors',
       run: { status: 'completed_with_errors', tasks_total: 10, tasks_succeeded: 7, tasks_failed: 3 },
-      title: 'Metrics refreshed for 7 of 10 keywords, 3 failed',
+      title: 'Metrics refreshed: 7 of 10 read, 3 failed',
       reason: null,
     },
     {
@@ -631,13 +837,13 @@ describe('A refresh in the header', () => {
       name: 'failed',
       run: { status: 'failed', status_reason: 'project_not_collecting' },
       title: 'The metrics refresh failed',
-      reason: 'This project no longer collects data.',
+      reason: 'The project no longer collects data',
     },
     {
       name: 'cancelled for lack of credentials',
       run: { status: 'cancelled', status_reason: 'workload_unavailable' },
       title: 'The metrics refresh was cancelled',
-      reason: 'Keyword metrics cannot be collected on this installation.',
+      reason: 'This kind of data cannot be collected here',
     },
     {
       name: 'cancelled for a reason the app has no words for',
@@ -671,11 +877,11 @@ describe('A refresh in the header', () => {
     serveRun(() => current);
     const { user } = renderWithProviders(as('editor'));
     expect(await screen.findByText('Refreshing metrics')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '3 of 10 keywords read');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '3 of 10 read');
 
     current = run({ status: 'completed', tasks_total: 10, tasks_succeeded: 10 });
     await act(() => vi.advanceTimersByTimeAsync(5_000));
-    expect(await screen.findByText('Metrics refreshed for 10 keywords')).toBeInTheDocument();
+    expect(await screen.findByText('Metrics refreshed: 10 of 10 read')).toBeInTheDocument();
     expect(screen.queryByText('Refreshing metrics')).toBeNull();
 
     // A later read of the open runs that still names the run (the list is a little behind) does not bring it back
@@ -724,6 +930,142 @@ describe('A refresh in the header', () => {
     const asked = reads.reads();
     await act(() => vi.advanceTimersByTimeAsync(30_000));
     expect(reads.reads()).toBe(asked);
+  });
+
+  it('announces that the refresh was queued, which the bar does not say when it first shows', async () => {
+    serveRuns({ used: 0, open: [] });
+    serveRun(() => run());
+    serveRefresh(() => accepted(run()));
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openRefresh(user);
+    await submit(user, dialog, 'Refresh metrics');
+    await waitFor(() =>
+      expect(document.getElementById('live-region-polite')).toHaveTextContent(
+        'Metrics refresh queued. Its progress shows under the page title.',
+      ),
+    );
+  });
+
+  it('shows a refresh a reload found at once, from the open runs, before its own read has answered', async () => {
+    serveRuns({ used: 3, open: [running(3, 10)] });
+    server.use(
+      http.get(mswPath(RUN), async () => {
+        await delay(3_000);
+        return HttpResponse.json({ data: running(3, 10) });
+      }),
+    );
+    renderWithProviders(as('editor'));
+    expect(await screen.findByText('Refreshing metrics')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '3 of 10 read');
+  });
+
+  describe('that cannot be followed', () => {
+    /** The run is answered with `answer` every time; counts the reads. */
+    function answerRunWith(answer: (request: Request) => Response): { reads: () => number } {
+      let reads = 0;
+      server.use(
+        http.get(mswPath(RUN), ({ request }) => {
+          reads += 1;
+          return answer(request);
+        }),
+      );
+      return { reads: () => reads };
+    }
+
+    it('is let go of at once when the API refuses to say, with one word that it may still run', async () => {
+      serveRuns({ used: 3, open: [running(3, 10)] });
+      const reads = answerRunWith((request) => problem(request, 'forbidden'));
+      renderWithProviders(as('editor'));
+      await act(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(
+        await screen.findByText('This refresh could not be followed here. It may still be running.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('progressbar')).toBeNull();
+      const asked = reads.reads();
+      expect(asked).toBeGreaterThan(0);
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      expect(reads.reads()).toBe(asked);
+    });
+
+    it('is let go of after five reads in a row that the API did not answer, and not before', async () => {
+      serveRuns({ used: 3, open: [running(3, 10)] });
+      const reads = answerRunWith(() => new HttpResponse('Bad gateway', { status: 502 }));
+      renderWithProviders(as('editor'));
+      await waitFor(() => expect(reads.reads()).toBeGreaterThanOrEqual(1));
+      while (reads.reads() < 4) await act(() => vi.advanceTimersByTimeAsync(5_000));
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      expect(screen.getByRole('progressbar')).toBeInTheDocument();
+      expect(screen.queryByText('This refresh could not be followed here. It may still be running.')).toBeNull();
+      while (reads.reads() < 5) await act(() => vi.advanceTimersByTimeAsync(5_000));
+      expect(
+        await screen.findByText('This refresh could not be followed here. It may still be running.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('progressbar')).toBeNull();
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      expect(reads.reads()).toBe(5);
+    });
+
+    it('starts over the count of failed reads with every read that is answered', async () => {
+      serveRuns({ used: 3, open: [running(3, 10)] });
+      let failing = true;
+      const reads = answerRunWith(() =>
+        failing ? new HttpResponse('Bad gateway', { status: 502 }) : HttpResponse.json({ data: running(4, 10) }),
+      );
+      renderWithProviders(as('editor'));
+      while (reads.reads() < 4) await act(() => vi.advanceTimersByTimeAsync(5_000));
+      failing = false;
+      await act(() => vi.advanceTimersByTimeAsync(5_000));
+      failing = true;
+      const answered = reads.reads();
+      while (reads.reads() < answered + 4) await act(() => vi.advanceTimersByTimeAsync(5_000));
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    });
+  });
+
+  it('says when a queued run has waited longer than usual, and keeps following it', async () => {
+    serveRuns({ used: 0, open: [run()] });
+    const reads = serveRun(() => run());
+    renderWithProviders(as('editor'));
+    expect(await screen.findByText('Metrics refresh queued')).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(14 * 60_000));
+    expect(screen.queryByText('Metrics refresh is taking longer than usual to start')).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(2 * 60_000));
+    expect(await screen.findByText('Metrics refresh is taking longer than usual to start')).toBeInTheDocument();
+    const asked = reads.reads();
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(reads.reads()).toBeGreaterThan(asked);
+  });
+
+  it('reports a run that ended once, however often the screen is left and opened again', async () => {
+    const runs = serveRuns({ used: 3, open: [running(3, 10)] });
+    let current = running(3, 10);
+    const reads = serveRun(() => current);
+    const listReads = countListReads();
+    const view = renderWithProviders(as('editor'));
+    expect(await screen.findByText('Refreshing metrics')).toBeInTheDocument();
+    current = run({ status: 'completed', tasks_total: 10, tasks_succeeded: 10 });
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    expect(await screen.findByText('Metrics refreshed: 10 of 10 read')).toBeInTheDocument();
+    // The toast goes by itself after a while
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    await waitFor(() => expect(screen.queryByText('Metrics refreshed: 10 of 10 read')).toBeNull());
+
+    // The open runs still name the run, as a list that is a little behind does
+    const readsBefore = reads.reads();
+    const runsBefore = runs.reads();
+    const listBefore = listReads();
+    view.rerender(<div />);
+    view.rerender(as('editor'));
+    await loadedGrid();
+    await waitFor(() => expect(runs.reads()).toBeGreaterThan(runsBefore));
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+    expect(screen.queryByText('Metrics refreshed: 10 of 10 read')).toBeNull();
+    expect(screen.queryByText('Refreshing metrics')).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    // Nothing asked about the run again, and the one read of the list is the screen's own, not a report's
+    expect(reads.reads()).toBe(readsBefore);
+    expect(listReads()).toBe(listBefore + 1);
   });
 
   it('keeps a viewer out of it: nothing is read, nothing follows', async () => {
@@ -842,5 +1184,194 @@ describe('Keywords that wait for their first metrics', () => {
     hidden.mockReturnValue(false);
     await act(() => vi.advanceTimersByTimeAsync(30_000));
     await waitFor(() => expect(poll.polls()).toBe(1));
+  });
+
+  it('are read at once when the tab is shown again, and the hidden time does not count towards the 15 minutes', async () => {
+    const poll = servePoll();
+    const hidden = vi.spyOn(Document.prototype, 'hidden', 'get').mockReturnValue(true);
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    expect(pending(grid)).toBeGreaterThan(0);
+    await act(() => vi.advanceTimersByTimeAsync(20 * 60_000));
+    expect(poll.polls()).toBe(0);
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event('visibilitychange'));
+    // No wait for the next tick, and no giving up for the 20 minutes the tab was away
+    await waitFor(() => expect(poll.polls()).toBe(1));
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    await waitFor(() => expect(poll.polls()).toBe(2));
+  });
+
+  it('are not read at once when the tab is hidden, which is what the event also says', async () => {
+    const poll = servePoll();
+    const hidden = vi.spyOn(Document.prototype, 'hidden', 'get').mockReturnValue(false);
+    renderWithProviders(as('editor'));
+    await loadedGrid();
+    hidden.mockReturnValue(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(poll.polls()).toBe(0);
+  });
+});
+
+/** The metrics a row of the list has once they have arrived: the first of the fixture's own. */
+const donorMetrics = (rows: z.infer<typeof ROWS>['data']): unknown =>
+  rows.find((row) => row.metrics !== null && row.metrics !== undefined)?.metrics;
+
+interface Synthetic {
+  /** The reads of the list, the polls among them, in order. */
+  asked: URLSearchParams[];
+  /** The reads of the poll in client mode: the newest first by creation. */
+  polls: () => URLSearchParams[];
+  /** The metrics the keywords that waited have now. */
+  arrive: () => void;
+}
+
+/**
+ * A list of `count` keywords, the newest first, read in cursor pages whatever the sort; the oldest from
+ * `waitingFrom` on have no metrics until `arrive`. `total` is what the page says matches (above 10,000 the
+ * screen reads one page at a time).
+ */
+function serveSynthetic({
+  count,
+  waitingFrom,
+  waitingTo = count,
+  total = count,
+}: {
+  count: number;
+  waitingFrom: number;
+  /** The keywords from `waitingFrom` up to this one wait; the older ones have their metrics. */
+  waitingTo?: number;
+  total?: number;
+}): Synthetic {
+  let arrived = false;
+  const asked: URLSearchParams[] = [];
+  const newest = Date.parse('2026-10-01T09:00:00.000Z');
+  server.use(
+    http.get(mswPath(TRACKED), async ({ request }) => {
+      const url = new URL(request.url);
+      if (url.searchParams.get('limit') === '1') return undefined;
+      asked.push(new URLSearchParams(url.searchParams));
+      const cursor = url.searchParams.get('cursor');
+      // A page that takes a moment, as one from the network does: the list reads on from the state in between
+      await delay(50);
+      const limit = Number(url.searchParams.get('limit') ?? 200);
+      // The real answer of the first page for the same filters gives the rows to copy
+      url.searchParams.delete('cursor');
+      const real = await getResponse([...handlers], new Request(url, { headers: request.headers }));
+      const body = ROWS.parse(await real?.json());
+      const donor = donorMetrics(body.data);
+      const from = cursor === null ? 0 : Number(cursor.slice(1));
+      const rows = Array.from({ length: Math.min(limit, count - from) }, (_, offset) => {
+        const index = from + offset;
+        const row = body.data[index % body.data.length];
+        if (row === undefined) throw new Error('The list has no row to copy');
+        const suffix = String(index).padStart(6, '0');
+        return {
+          ...row,
+          tracked_keyword_id: `0192d1a8-0000-7a10-8e07-${suffix}`,
+          keyword: { ...row.keyword, keyword_id: `0192d1a8-1111-7a10-8e07-${suffix}` },
+          is_active: true,
+          created_at: new Date(newest - index * 60_000).toISOString(),
+          metrics: index >= waitingFrom && index < waitingTo && !arrived ? null : donor,
+        };
+      });
+      const more = from + limit < count;
+      return HttpResponse.json({
+        data: rows,
+        page: { ...body.page, limit, total, has_more: more, next_cursor: more ? `c${String(from + limit)}` : null },
+      });
+    }),
+  );
+  return {
+    asked,
+    polls: () => asked.filter((query) => query.get('sort') === '-created_at'),
+    arrive: () => {
+      arrived = true;
+    },
+  };
+}
+
+describe('Keywords that wait beyond the first page of the poll', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  // The table shows a window of its rows: the polls tell what was waited for, and when nothing is
+  const pending = (grid: HTMLElement): number => within(grid).queryAllByText('Pending').length;
+  const cursors = (polls: readonly URLSearchParams[]): (string | null)[] => polls.map((poll) => poll.get('cursor'));
+  /** The pages of the list itself read so far, in client mode. */
+  const listPages = (feed: Synthetic): number => feed.asked.filter((query) => query.get('sort') === 'keyword').length;
+  /** A little over one tick of the poll, with the effect that sets it going started afresh by the last page. */
+  const tick = async (): Promise<void> => {
+    await act(() => vi.advanceTimersByTimeAsync(35_000));
+  };
+
+  it('reads on by cursor, newest first, to the oldest waiting keyword, so 500 of 1,000 get their metrics', async () => {
+    const feed = serveSynthetic({ count: 1_000, waitingFrom: 500 });
+    renderWithProviders(as('editor'));
+    await loadedGrid();
+    await waitFor(() => expect(listPages(feed)).toBe(5), { timeout: 20_000 });
+    await tick();
+    await waitFor(() => expect(cursors(feed.polls())).toEqual([null, 'c200', 'c400', 'c600', 'c800']), {
+      timeout: 20_000,
+    });
+    // Nothing has arrived: the next poll reads the same five pages, and the waiting go on
+    await tick();
+    await waitFor(() => expect(feed.polls()).toHaveLength(10), { timeout: 20_000 });
+    feed.arrive();
+    await tick();
+    await waitFor(() => expect(feed.polls()).toHaveLength(15), { timeout: 20_000 });
+    // All 500 keywords that waited have their metrics, from pages the first 200 never held: no more reads
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60_000));
+    expect(feed.polls()).toHaveLength(15);
+  });
+
+  it('stops at the page that holds the oldest waiting keyword, and reads no further', async () => {
+    const feed = serveSynthetic({ count: 1_000, waitingFrom: 250, waitingTo: 450 });
+    renderWithProviders(as('editor'));
+    await loadedGrid();
+    await waitFor(() => expect(listPages(feed)).toBe(5), { timeout: 20_000 });
+    // The oldest waiting keyword is the 450th: the third page holds it, so the poll reads three pages
+    await tick();
+    await waitFor(() => expect(feed.polls()).toHaveLength(3), { timeout: 20_000 });
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(cursors(feed.polls())).toEqual([null, 'c200', 'c400']);
+  });
+
+  it('reads at most five pages a poll, whatever the list holds', async () => {
+    const feed = serveSynthetic({ count: 1_300, waitingFrom: 1_000 });
+    renderWithProviders(as('editor'));
+    await loadedGrid();
+    await waitFor(() => expect(listPages(feed)).toBe(7), { timeout: 20_000 });
+    await tick();
+    await waitFor(() => expect(feed.polls()).toHaveLength(5), { timeout: 20_000 });
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(cursors(feed.polls())).toEqual([null, 'c200', 'c400', 'c600', 'c800']);
+    // The next poll reads the same five, not the seven that would reach the oldest
+    await tick();
+    await waitFor(() => expect(feed.polls()).toHaveLength(10), { timeout: 20_000 });
+    expect(cursors(feed.polls().slice(5))).toEqual([null, 'c200', 'c400', 'c600', 'c800']);
+  });
+
+  it('reads the page on screen again in server mode, with the request the list made for it, and nothing else', async () => {
+    // The 20 keywords on top of the page wait; the table shows them first
+    const feed = serveSynthetic({ count: 400, waitingFrom: 0, waitingTo: 20, total: 12_000 });
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    await waitFor(() => expect(pending(grid)).toBeGreaterThan(0));
+    const [, listRequest] = feed.asked;
+    expect(listRequest?.get('sort')).not.toBe('-created_at');
+    const before = feed.asked.length;
+    await tick();
+    await waitFor(() => expect(feed.asked.length).toBe(before + 1));
+    const poll = feed.asked.at(-1);
+    expect(Object.fromEntries(poll ?? [])).toEqual(Object.fromEntries(listRequest ?? []));
+    feed.arrive();
+    await tick();
+    await waitFor(() => expect(pending(grid)).toBe(0));
+    expect(feed.asked.length).toBe(before + 2);
+    await act(() => vi.advanceTimersByTimeAsync(2 * 60_000));
+    expect(feed.asked.length).toBe(before + 2);
   });
 });

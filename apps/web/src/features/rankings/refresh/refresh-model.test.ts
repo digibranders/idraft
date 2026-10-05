@@ -3,16 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   FINISH_KEYS,
   MAX_REFRESH_KEYWORDS,
-  REASON_KEYS,
   STALE_DAYS,
-  collectionStatusOf,
-  isFinished,
-  isOpenRun,
+  chosenKeywordIds,
   isPendingMetrics,
+  leftTheList,
   leftToday,
-  reasonKeyOf,
   refreshBody,
   uniqueKeywordIds,
+  unknownPositions,
 } from './refresh-model';
 import messages from '../../../../messages/en.json';
 import { keywordMetrics } from '@/mocks/keyword-metrics';
@@ -70,35 +68,59 @@ describe('Waiting for first metrics', () => {
   });
 });
 
-describe('Runs', () => {
-  it('are queued while planned, and open until they end', () => {
-    expect(collectionStatusOf('planned')).toBe('queued');
-    expect(collectionStatusOf('running')).toBe('running');
-    expect(collectionStatusOf('budget_blocked')).toBe('budget_blocked');
-    expect(isOpenRun({ status: 'planned' })).toBe(true);
-    expect(isOpenRun({ status: 'running' })).toBe(true);
-    expect(isOpenRun({ status: 'completed' })).toBe(false);
-    expect(isFinished('planned')).toBe(false);
-    expect(isFinished('cancelled')).toBe(true);
+describe('The keywords behind a choice', () => {
+  const seen = new Map([
+    ['t1', { keywordId: 'k1', active: true }],
+    ['t2', { keywordId: 'k2', active: true }],
+    ['t3', { keywordId: 'k1', active: true }],
+    ['t4', { keywordId: 'k4', active: false }],
+  ]);
+
+  it('names the keywords of the chosen rows seen and still active, each once, and none it has not seen', () => {
+    expect(chosenKeywordIds(new Set(['t1', 't2', 't3']), seen)).toEqual(['k1', 'k2']);
+    expect(chosenKeywordIds(new Set(['t4', 't9']), seen)).toEqual([]);
+    expect(chosenKeywordIds(new Set(), seen)).toEqual([]);
+  });
+
+  it('finds the chosen rows a list read again no longer holds, all of them when it holds every keyword', () => {
+    const chosen = new Set(['t1', 't2', 't5']);
+    const now = [{ tracked_keyword_id: 't1' }];
+    const before = [{ tracked_keyword_id: 't1' }, { tracked_keyword_id: 't2' }];
+    expect(leftTheList(chosen, before, now, true)).toEqual(['t2', 't5']);
+  });
+
+  it('finds, in a list of one page, only the chosen rows that were on the page and are not any more', () => {
+    const chosen = new Set(['t1', 't2', 't5']);
+    const now = [{ tracked_keyword_id: 't1' }];
+    const before = [{ tracked_keyword_id: 't1' }, { tracked_keyword_id: 't2' }];
+    // t5 is on another page: nothing says it left
+    expect(leftTheList(chosen, before, now, false)).toEqual(['t2']);
+  });
+
+  it('reads which keywords a keyword_unknown error names, and nothing from one that names the field', () => {
+    const item = (
+      path: string,
+      code = 'keyword_unknown',
+    ): { location: string; path: string; code: string; message: string } => ({
+      location: 'body',
+      path,
+      code,
+      message: 'A keyword is not one this project tracks.',
+    });
+    expect(unknownPositions([item('keyword_ids.2'), item('keyword_ids[5]'), item('keyword_ids/7')])).toEqual([2, 5, 7]);
+    expect(unknownPositions([item('keyword_ids')])).toEqual([]);
+    expect(unknownPositions([item('keyword_ids.2', 'value_error')])).toEqual([]);
+    expect(unknownPositions([item('stale_days.2')])).toEqual([]);
   });
 });
 
 describe('The words for how a refresh ends', () => {
-  it('names a message for every way a run ends, and for every reason code, in camelCase', () => {
-    const { finished, reasons } = messages.rankings.refresh;
+  it('names a message for every way a run ends, in camelCase', () => {
+    const { finished } = messages.rankings.refresh;
     expect(Object.keys(FINISH_KEYS).sort()).toEqual(
       ['budget_blocked', 'cancelled', 'completed', 'completed_with_errors', 'failed'].sort(),
     );
     // "nothing" is the words for a completed run that had nothing to read
     expect([...Object.values(FINISH_KEYS), 'nothing'].sort()).toEqual(Object.keys(finished).sort());
-    expect(Object.values(REASON_KEYS).sort()).toEqual(Object.keys(reasons).sort());
-  });
-
-  it('knows the reason codes it has words for, and nothing the API wrote in English', () => {
-    expect(reasonKeyOf('workload_unavailable')).toBe('workloadUnavailable');
-    expect(reasonKeyOf('cancelled_by_user')).toBe('cancelledByUser');
-    expect(reasonKeyOf('A budget for keyword research is used up for this month.')).toBeNull();
-    expect(reasonKeyOf(null)).toBeNull();
-    expect(reasonKeyOf(undefined)).toBeNull();
   });
 });

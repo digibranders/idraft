@@ -123,6 +123,10 @@ describe('runs', () => {
     expect(
       fieldCodes(await editor.call('POST', `${P}/keyword-metrics/refresh`, { keyword_ids: [mockId('keyword', 999)] })),
     ).toEqual(['keyword_ids:keyword_unknown']);
+    // An archived keyword is not tracked for this purpose either
+    expect(
+      fieldCodes(await editor.call('POST', `${P}/keyword-metrics/refresh`, { keyword_ids: [keywordIdOf('seo meme')] })),
+    ).toEqual(['keyword_ids:keyword_unknown']);
     expect(await editor.as('viewer').call('POST', `${P}/keyword-metrics/refresh`, {})).toMatchObject({
       status: 403,
     });

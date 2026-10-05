@@ -144,7 +144,13 @@ export function RankingsScreen({
 
   const loadedList = useKeywordList({ scope, filters, sort, search });
   // New keywords wait for their first metrics: the poll lays what it hears over the rows, and only those
-  const rows = usePendingMetrics({ scope, filters, rows: loadedList.rows });
+  const rows = usePendingMetrics({
+    scope,
+    filters,
+    rows: loadedList.rows,
+    mode: loadedList.mode,
+    pageRequest: loadedList.pageRequest,
+  });
   const list = useMemo(
     (): KeywordList => (rows === loadedList.rows ? loadedList : { ...loadedList, rows }),
     [loadedList, rows],
@@ -184,6 +190,10 @@ export function RankingsScreen({
   const setChosenIds = (ids: ReadonlySet<string>): void => setSelection((current) => ({ ...current, ids }));
   const setAllMatching = (allMatching: boolean): void => setSelection((current) => ({ ...current, allMatching }));
   const clearSelection = (): void => setSelection(emptySelection);
+  // Keywords that left the list are not chosen any more
+  const dropChosen = useCallback((gone: ReadonlySet<string>): void => {
+    setSelection((current) => ({ ...current, ids: new Set([...current.ids].filter((id) => !gone.has(id))) }));
+  }, []);
   // "Select all N matching" is offered while the table holds fewer rows than match, and not while a
   // search in memory narrows what it shows
   const matchingTotal =
@@ -207,6 +217,7 @@ export function RankingsScreen({
     chosen,
     narrowed: filtered,
     menuButton: moreButton,
+    onDrop: dropChosen,
   });
   // Refresh metrics sits with the other changes to the chosen keywords, ahead of Archive and Delete
   const firstDestructive = bulk.actions.findIndex((action) => action.group === 'destructive');

@@ -107,9 +107,33 @@ describe('Menu', () => {
     const menu = await open(user);
     const item = within(menu).getByRole('menuitem', { name: /Check now/ });
     expect(item).toHaveAttribute('aria-disabled', 'true');
+    // The reason is the description, not part of the name: a screen reader does not say it twice
+    expect(item).toHaveAccessibleName('Check now');
     expect(item).toHaveAccessibleDescription('20 of 20 used today');
+    expect(within(item).getByText('20 of 20 used today')).toHaveAttribute('aria-hidden', 'true');
     await user.click(item);
     expect(check).not.toHaveBeenCalled();
+  });
+
+  it('speaks a fuller description than the short reason it shows, as the description alone', async () => {
+    const { user } = renderWithProviders(
+      <Menu
+        trigger={<Button>More actions</Button>}
+        items={[
+          {
+            id: 'refresh',
+            label: 'Refresh metrics',
+            disabledReason: '0 of 20 left today',
+            description: 'None left today. The limit resets at 00:00 UTC.',
+          },
+        ]}
+      />,
+    );
+    const menu = await open(user);
+    const item = within(menu).getByRole('menuitem', { name: 'Refresh metrics' });
+    expect(item).toHaveAccessibleName('Refresh metrics');
+    expect(item).toHaveAccessibleDescription('None left today. The limit resets at 00:00 UTC.');
+    expect(item).toHaveTextContent('0 of 20 left today');
   });
 
   it('shows a detail at the end of an enabled item, and the item stays described by it', async () => {
@@ -121,9 +145,11 @@ describe('Menu', () => {
       />,
     );
     const menu = await open(user);
-    const item = within(menu).getByRole('menuitem', { name: /Refresh metrics/ });
+    const item = within(menu).getByRole('menuitem', { name: 'Refresh metrics' });
     expect(item).not.toHaveAttribute('aria-disabled', 'true');
     expect(item).toHaveTextContent('14 of 20 left today');
+    // The detail describes the item and is not part of its name
+    expect(item).toHaveAccessibleName('Refresh metrics');
     expect(item).toHaveAccessibleDescription('14 of 20 left today');
     await user.click(item);
     expect(run).toHaveBeenCalledTimes(1);

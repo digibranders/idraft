@@ -3,12 +3,13 @@
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { collectionStatusOf, RUN_STATUS_KEYS, TRIGGER_KEYS } from './run-model';
+import { RUN_STATUS_KEYS, TRIGGER_KEYS } from './run-model';
 import { col } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { Run } from '@/lib/api/types';
 import { formatInteger, formatTableDateTime } from '@/lib/format';
 import { money } from '@/lib/format/money';
+import { collectionStatusOf } from '@/lib/runs/run-status';
 import type { SortKey } from '@/lib/tables/table-state';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 

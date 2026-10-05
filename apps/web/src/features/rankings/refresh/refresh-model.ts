@@ -1,9 +1,10 @@
-import type { CollectionStatus } from '@/components/app/status/collection-progress';
-import type { ManualRuns, Run } from '@/lib/api/types';
+import type { ManualRuns, ValidationItem } from '@/lib/api/types';
+import type { FinishedStatus } from '@/lib/runs/run-status';
 
 /**
  * What the metrics refresh knows without asking anyone (19-api-specification.md section 3.6.1, "As built
  * (step 5, metrics refresh)"): the request it sends, the runs it follows and the words for how they end.
+ * What a run's status and reason mean is shared with Runs (`@/lib/runs/run-status`).
  */
 
 /** Metrics older than this many days are stale: the API's own default, sent so the dialog's words are true. */
@@ -12,15 +13,18 @@ export const STALE_DAYS = 25;
 export const MAX_REFRESH_KEYWORDS = 1000;
 /** How often a run that has not ended is asked about. */
 export const RUN_POLL_MS = 5_000;
+/** A run still queued after this long is said to take longer than usual: the worker plans one within a minute. */
+export const RUN_SLOW_MS = 15 * 60_000;
+/** A run that cannot be read this many times in a row is let go of: it is followed no longer. */
+export const RUN_FAILURES_MAX = 5;
 /** How often the list is read again while a keyword on screen waits for its first metrics. */
 export const PENDING_POLL_MS = 30_000;
-/** A keyword the page saw pending is waited for this long, and no longer. */
+/** A keyword the page saw pending is waited for this long (with the tab shown), and no longer. */
 export const PENDING_CAP_MS = 15 * 60_000;
+/** The most pages one poll for first metrics reads in client mode, 200 keywords each. */
+export const PENDING_PAGES_MAX = 5;
 /** The open manual refreshes a reload looks for: a project starts at most 20 manual runs a day. */
 export const OPEN_RUNS_LIMIT = 20;
-
-export type RunStatus = Run['status'];
-export type FinishedStatus = Exclude<RunStatus, 'planned' | 'running'>;
 
 /** What a refresh is asked to cover. */
 export type RefreshChoice = 'selection' | 'matching' | 'stale';
@@ -41,18 +45,59 @@ export function uniqueKeywordIds(rows: readonly { keyword: { keyword_id: string 
   return [...seen];
 }
 
-/** How many manual refreshes the project may still start today. */
+/** How many manual runs the project may still start today. */
 export const leftToday = (manual: ManualRuns): number => Math.max(manual.limit - manual.used, 0);
 
 /** A keyword that waits for its first metrics: active, and none read yet. */
 export const isPendingMetrics = (row: { is_active: boolean; metrics?: unknown }): boolean =>
   row.is_active && (row.metrics === null || row.metrics === undefined);
 
-/** Whether the run has not ended: it is planned or running. */
-export const isOpenRun = (run: Pick<Run, 'status'>): boolean => run.status === 'planned' || run.status === 'running';
+/** What the screen has seen of a tracked keyword: which keyword it tracks, and whether it was active. */
+export interface SeenKeyword {
+  keywordId: string;
+  active: boolean;
+}
 
-/** The status as `CollectionProgress` names it: a planned run is queued (17-empty-loading-error-states.md section 4.1). */
-export const collectionStatusOf = (status: RunStatus): CollectionStatus => (status === 'planned' ? 'queued' : status);
+/**
+ * The keywords behind the chosen tracked keywords, each once: those seen on a page and still known as
+ * active. A chosen row may sit on a page that is no longer on screen, which is why the rows seen are kept.
+ */
+export function chosenKeywordIds(chosen: ReadonlySet<string>, seen: ReadonlyMap<string, SeenKeyword>): string[] {
+  const ids = new Set<string>();
+  for (const id of chosen) {
+    const keyword = seen.get(id);
+    if (keyword?.active === true) ids.add(keyword.keywordId);
+  }
+  return [...ids];
+}
+
+/**
+ * The chosen tracked keywords the list no longer holds, after it was read again. A list that holds every
+ * keyword (client mode, read to its end) tells it for all of them; a list of one page (server mode) only for
+ * those that were on the page before: a chosen keyword of another page may well be there still.
+ */
+export function leftTheList(
+  chosen: ReadonlySet<string>,
+  before: readonly { tracked_keyword_id: string }[],
+  now: readonly { tracked_keyword_id: string }[],
+  complete: boolean,
+): string[] {
+  const held = new Set(now.map((row) => row.tracked_keyword_id));
+  const known = complete ? null : new Set(before.map((row) => row.tracked_keyword_id));
+  return [...chosen].filter((id) => !held.has(id) && (known === null || known.has(id)));
+}
+
+/**
+ * The positions in `keyword_ids` that a `keyword_unknown` error names (`keyword_ids.3`, `keyword_ids[3]`),
+ * or an empty list when it names the field as a whole, which is what says nothing about which keyword.
+ */
+export function unknownPositions(errors: readonly ValidationItem[]): number[] {
+  return errors.flatMap((item) => {
+    if (item.code !== 'keyword_unknown') return [];
+    const found = /^keyword_ids(?:\.|\[|\/)(\d+)\]?$/.exec(item.path);
+    return found?.[1] === undefined ? [] : [Number(found[1])];
+  });
+}
 
 /** The catalog key of how a run ended, under `rankings.refresh.finished`: keys are camelCase, the API's codes are not. */
 export const FINISH_KEYS = {
@@ -62,24 +107,3 @@ export const FINISH_KEYS = {
   cancelled: 'cancelled',
   budget_blocked: 'budgetBlocked',
 } as const satisfies Record<FinishedStatus, string>;
-
-/** The catalog key of a run's `status_reason` code, under `rankings.refresh.reasons`. */
-export const REASON_KEYS = {
-  cancelled_by_user: 'cancelledByUser',
-  project_not_collecting: 'projectNotCollecting',
-  workload_unavailable: 'workloadUnavailable',
-  budget_exceeded: 'budgetExceeded',
-} as const;
-
-type ReasonCode = keyof typeof REASON_KEYS;
-export type ReasonKey = (typeof REASON_KEYS)[ReasonCode];
-
-const isReasonCode = (code: string): code is ReasonCode => Object.hasOwn(REASON_KEYS, code);
-
-/** The key of the words for a status reason, or `null` for a code this client has no words for (or none). */
-export function reasonKeyOf(reason: string | null | undefined): ReasonKey | null {
-  return reason !== null && reason !== undefined && isReasonCode(reason) ? REASON_KEYS[reason] : null;
-}
-
-/** Whether a run's status says it ended (any status but planned and running). */
-export const isFinished = (status: RunStatus): status is FinishedStatus => status !== 'planned' && status !== 'running';

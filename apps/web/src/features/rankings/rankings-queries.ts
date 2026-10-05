@@ -29,7 +29,7 @@ import { formatSort, type SortKey } from '@/lib/tables/table-state';
  */
 
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
-type ListQuery = NonNullable<paths[typeof TRACKED]['get']['parameters']['query']>;
+export type ListQuery = NonNullable<paths[typeof TRACKED]['get']['parameters']['query']>;
 type ListPage = paths[typeof TRACKED]['get']['responses'][200]['content']['application/json'];
 
 /** The list's filters as the API takes them: everything but the sort, the paging and the search. */
@@ -146,6 +146,8 @@ export interface KeywordList {
   incomplete: { retry: () => void; retrying: boolean } | null;
   /** Server mode only. */
   server: ServerPages | null;
+  /** Server mode: the request that reads the page asked for, which the poll for new metrics repeats. */
+  pageRequest: ListQuery | null;
 }
 
 /** The page sizes Rankings offers: the API answers at most 200 rows a page. */
@@ -222,6 +224,7 @@ export function useKeywordList({ scope, filters, sort, search }: ListArgs): Keyw
       refetch: server.refetch,
       incomplete: null,
       server: server.pages,
+      pageRequest: server.request,
     };
   }
   return {
@@ -237,6 +240,7 @@ export function useKeywordList({ scope, filters, sort, search }: ListArgs): Keyw
     refetch: () => void all.refetch(),
     incomplete: all.isFetchNextPageError ? { retry: () => void fetchNextPage(), retrying: isFetchingNextPage } : null,
     server: null,
+    pageRequest: null,
   };
 }
 
@@ -251,6 +255,7 @@ function useServerPage(
   error: unknown;
   refetch: () => void;
   pages: ServerPages;
+  request: ListQuery;
 } {
   const [pageSize, setPageSize] = useState<PageSize>(PAGE);
   // The cursors of the pages visited, from the first (`null`); any change of what is asked starts over
@@ -286,6 +291,7 @@ function useServerPage(
     fetching: result.isFetching,
     error: result.error,
     refetch: () => void result.refetch(),
+    request: query,
     pages: {
       offset: result.data?.offset ?? offset,
       hasPrevious: cursors.length > 1,

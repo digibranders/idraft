@@ -2,12 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canCancel,
-  collectionStatusOf,
-  isOpen,
   needsListRead,
   overlayRuns,
-  reasonKeyOf,
-  REASON_KEYS,
   RUN_STATUS_KEYS,
   RUN_STATUSES,
   RUN_TRIGGERS,
@@ -38,13 +34,12 @@ const run = (over: Partial<RunFacts> = {}): RunFacts => ({
 
 describe('run model', () => {
   it('names a message for every run status, trigger and known task status, in camelCase as the catalog keys are', () => {
-    const { statuses, triggers, taskStatuses, reasons } = messages.runs;
+    const { statuses, triggers, taskStatuses } = messages.runs;
     expect(Object.keys(RUN_STATUS_KEYS).sort()).toEqual([...statusValues].sort());
     expect(Object.values(RUN_STATUS_KEYS).sort()).toEqual(Object.keys(statuses).sort());
     expect(Object.keys(TRIGGER_KEYS).sort()).toEqual([...triggerValues].sort());
     expect(Object.values(TRIGGER_KEYS).sort()).toEqual(Object.keys(triggers).sort());
     expect(Object.values(TASK_STATUS_KEYS).sort()).toEqual(Object.keys(taskStatuses).sort());
-    expect(Object.values(REASON_KEYS).sort()).toEqual(Object.keys(reasons).sort());
   });
 
   it('has a workload name for every workload a run can have, and lists the API enums the filters offer', () => {
@@ -52,18 +47,6 @@ describe('run model', () => {
     expect([...RUN_WORKLOADS].sort()).toEqual([...runWorkloadValues].sort());
     expect([...RUN_STATUSES].sort()).toEqual([...statusValues].sort());
     expect([...RUN_TRIGGERS].sort()).toEqual([...triggerValues].sort());
-  });
-
-  it('shows a planned run with the queued look', () => {
-    expect(collectionStatusOf('planned')).toBe('queued');
-    expect(collectionStatusOf('budget_blocked')).toBe('budget_blocked');
-  });
-
-  it('knows which runs are still open', () => {
-    expect(isOpen(run())).toBe(true);
-    expect(isOpen(run({ status: 'planned' }))).toBe(true);
-    expect(isOpen(run({ status: 'completed' }))).toBe(false);
-    expect(isOpen(run({ status: 'cancelled' }))).toBe(false);
   });
 
   it('lets schedules:write cancel any open run, runs:trigger only the manual runs its holder asked for', () => {
@@ -133,12 +116,5 @@ describe('run model', () => {
     expect(needsListRead([{ run_id: 'b', status: 'completed' as const }], page([]))).toBe(false);
     // A poll with more than one page cannot say what is gone
     expect(needsListRead(listed, page([], true))).toBe(false);
-  });
-
-  it('puts a reason in words only when it is one of the codes the API documents', () => {
-    expect(reasonKeyOf('cancelled_by_user')).toBe('cancelledByUser');
-    expect(reasonKeyOf('toString')).toBeNull();
-    expect(reasonKeyOf('DataForSEO Labs did not answer in time.')).toBeNull();
-    expect(reasonKeyOf(null)).toBeNull();
   });
 });

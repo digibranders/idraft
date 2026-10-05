@@ -1,8 +1,7 @@
-import type { CollectionStatus } from '@/components/app/status/collection-progress';
 import type { Run } from '@/lib/api/types';
 import { can } from '@/lib/permissions';
+import { isOpenRun, type RunStatus } from '@/lib/runs/run-status';
 
-export type RunStatus = Run['status'];
 export type RunTrigger = Run['trigger'];
 
 /** What a run's cancel rule and its task counts read: the fields of a `Run` they use. */
@@ -71,27 +70,10 @@ export const TASK_STATUS_KEYS = {
   cancelled: 'cancelled',
 } as const;
 
-/** The reasons the API gives as codes (19 section 3.11.4), with their keys under `runs.reasons`. */
-export const REASON_KEYS = {
-  cancelled_by_user: 'cancelledByUser',
-  budget_exceeded: 'budgetExceeded',
-  project_not_collecting: 'projectNotCollecting',
-  workload_unavailable: 'workloadUnavailable',
-} as const;
-
 type TaskStatusCode = keyof typeof TASK_STATUS_KEYS;
-type ReasonCode = keyof typeof REASON_KEYS;
 export type TaskStatusKey = (typeof TASK_STATUS_KEYS)[TaskStatusCode];
-export type ReasonKey = (typeof REASON_KEYS)[ReasonCode];
 
 const isTaskStatus = (code: string): code is TaskStatusCode => Object.hasOwn(TASK_STATUS_KEYS, code);
-const isReason = (code: string): code is ReasonCode => Object.hasOwn(REASON_KEYS, code);
-
-/** The status as `CollectionProgress` names it: a planned run is queued (17 section 4.1). */
-export const collectionStatusOf = (status: RunStatus): CollectionStatus => (status === 'planned' ? 'queued' : status);
-
-/** Planned and running runs may still be cancelled (19 section 3.11.4). */
-export const isOpen = (run: Pick<Run, 'status'>): boolean => run.status === 'planned' || run.status === 'running';
 
 /** `rows` with the newer reading of the runs among them: each run `newer` holds replaces its row. */
 export function overlayRuns<T extends Pick<Run, 'run_id'>>(rows: readonly T[], newer: readonly T[]): readonly T[] {
@@ -113,7 +95,7 @@ export function needsListRead(
   const heardIds = new Set(heard.data.map((run) => run.run_id));
   const listedIds = new Set(listed.map((run) => run.run_id));
   return (
-    listed.some((run) => isOpen(run) && !heardIds.has(run.run_id)) ||
+    listed.some((run) => isOpenRun(run) && !heardIds.has(run.run_id)) ||
     heard.data.some((run) => !listedIds.has(run.run_id))
   );
 }
@@ -126,7 +108,7 @@ export function canCancel(
   run: Pick<Run, 'status' | 'trigger' | 'created_by'>,
   member: { userId: string; permissions: readonly string[] },
 ): boolean {
-  if (!isOpen(run)) return false;
+  if (!isOpenRun(run)) return false;
   if (can(member.permissions, 'schedules:write')) return true;
   return (
     can(member.permissions, 'runs:trigger') &&
@@ -177,7 +159,3 @@ export function taskStatusRows(tasks: Readonly<Record<string, number>>): TaskSta
     .map(([code, count]): TaskStatusRow => ({ code, key: isTaskStatus(code) ? TASK_STATUS_KEYS[code] : null, count }))
     .sort((a, b) => rank(a.code) - rank(b.code) || a.code.localeCompare(b.code));
 }
-
-/** The message key of a status reason that is one of the documented codes; `null` for anything else. */
-export const reasonKeyOf = (reason: string | null): ReasonKey | null =>
-  reason !== null && isReason(reason) ? REASON_KEYS[reason] : null;
