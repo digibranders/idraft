@@ -24,7 +24,41 @@ const EDITOR = 'priya@digibranders.test';
 /** An admin manages members: the invitations, the two-factor column and the row actions show. */
 const ADMIN = 'tomas@digibranders.test';
 
-const SIGNED_IN: readonly { name: string; path: string; as?: string }[] = [
+interface SignedInPage {
+  name: string;
+  path: string;
+  as?: string;
+  /** What a person does on the page before it is the one to compare: open a panel, go to a step. */
+  prepare?: (page: Page) => Promise<void>;
+}
+
+/** The first keyword of Rankings, opened in the inspector with its volume chart drawn. */
+async function openFirstKeyword(page: Page): Promise<void> {
+  await page.getByRole('grid', { name: 'Tracked keywords' }).getByRole('rowheader').first().click();
+  // Docked beside the table on a wide screen and a sheet on a narrow one, so it is found by its heading
+  await expect(page.getByRole('heading', { level: 2, name: 'seo agency' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Search volume by month' })).toBeVisible();
+}
+
+/** A file of one new keyword, one that cannot be tracked and one that Fynix tracks already, taken to Review. */
+async function reviewImport(page: Page): Promise<void> {
+  // The mocks read the file 1.5 s after it is uploaded, by the page's clock, which stands still here: it runs on
+  await page.clock.setSystemTime(NOW);
+  const dialog = page.getByRole('dialog', { name: 'Import keywords' });
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: 'keywords.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('keyword\nimport review one\nsite:fynix.example\nseo audit\n'),
+  });
+  await dialog.getByRole('button', { name: 'Continue' }).click();
+  await expect(dialog.getByText(/^Choose what each column of the file holds/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Continue' }).click();
+  await expect(dialog.getByRole('group', { name: 'Rows by outcome' })).toBeVisible();
+  // The rows of each outcome load after the counts
+  await expect(dialog.getByText('Search operators such as site: are not tracked.')).toBeVisible();
+}
+
+const SIGNED_IN: readonly SignedInPage[] = [
   { name: 'workspace', path: '/digibranders' },
   { name: 'workspace-settings-profile', path: '/digibranders/settings/profile' },
   { name: 'settings-profile', path: '/digibranders/fynix/settings/profile' },
@@ -39,6 +73,12 @@ const SIGNED_IN: readonly { name: string; path: string; as?: string }[] = [
   { name: 'settings-domains', path: '/digibranders/fynix/settings/domains' },
   { name: 'settings-taxonomy', path: '/digibranders/fynix/settings/taxonomy' },
   { name: 'settings-schedules', path: '/digibranders/fynix/settings/schedules' },
+  { name: 'rankings', path: '/digibranders/fynix/seo/rankings' },
+  { name: 'rankings-inspector', path: '/digibranders/fynix/seo/rankings', prepare: openFirstKeyword },
+  { name: 'rankings-import-review', path: '/digibranders/fynix/seo/rankings/import', prepare: reviewImport },
+  // Costs and Runs read the month of the fixed clock, September 2026, which is where the fixture runs are
+  { name: 'costs', path: '/digibranders/costs', as: ADMIN },
+  { name: 'runs', path: '/digibranders/ops/runs?project=fynix', as: ADMIN },
 ];
 
 /** Waits until nothing on the page will still move: the content is there, the fonts are in, no request is out. */
@@ -81,10 +121,11 @@ for (const theme of THEMES) {
       });
     }
 
-    for (const { name, path, as = EDITOR } of SIGNED_IN) {
+    for (const { name, path, as = EDITOR, prepare } of SIGNED_IN) {
       test(`${name}`, async ({ page }) => {
         await signIn(page, as);
         await page.goto(path);
+        if (prepare !== undefined) await prepare(page);
         await expectPage(page, `${name}-${theme}`);
       });
     }
