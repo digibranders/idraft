@@ -1,0 +1,335 @@
+'use client';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CalendarClock, MoreHorizontal, Plus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { useRef, useState, type ReactNode } from 'react';
+
+import { ScheduleDialog } from './schedule-dialog';
+import { isEditableSchedule, type EditableSchedule } from './schedule-model';
+import {
+  DELETE_SCHEDULE,
+  PAUSE_SCHEDULE,
+  refreshSchedules,
+  RESUME_SCHEDULE,
+  schedulesQuery,
+  type ScheduleScope,
+} from './schedule-queries';
+import { useScheduleWords, useSelectorNames } from './schedule-words';
+import { Banner } from '@/components/app/status/banner';
+import { EmptyState } from '@/components/app/status/empty-state';
+import { InlineError } from '@/components/app/status/inline-error';
+import { ConfirmDialog } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
+import { Menu, type MenuItemDef } from '@/components/ui/menu';
+import { Skeleton } from '@/components/ui/skeleton';
+import { TextLink } from '@/components/ui/text-link';
+import { toast } from '@/components/ui/toast';
+import { isApiProblem } from '@/lib/api/problem';
+import type { Schedule } from '@/lib/api/types';
+import { formatTableDateTime } from '@/lib/format';
+import { useCan } from '@/lib/permissions';
+import { runsPath } from '@/lib/routes/paths';
+import { useWorkloadName } from '@/lib/workloads/use-workload-name';
+
+const SKELETON_ROWS = 3;
+
+export interface SchedulesScreenProps extends ScheduleScope {
+  workspaceSlug: string;
+  projectSlug: string;
+  /** The project's time zone: where a schedule's rule is read unless it names a zone of its own. */
+  timeZone: string;
+}
+
+/**
+ * Settings > Project settings > Schedules (20 section 5.19.8): the project's schedules with what they
+ * collect, when, and when they run next, and the dialog that makes and changes them. A member with
+ * `schedules:write` also pauses, resumes and deletes; everyone else sees the list read-only. A change is
+ * pessimistic: the screen waits for the answer and reads the list again.
+ */
+export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
+  const { workspaceId, projectId, workspaceSlug, projectSlug, timeZone } = props;
+  const scope: ScheduleScope = { workspaceId, projectId };
+  const t = useTranslations('projectSettings.schedules');
+  const common = useTranslations('common');
+  const canWrite = useCan('schedules:write');
+  const queryClient = useQueryClient();
+  const schedules = useQuery(schedulesQuery(scope));
+  const names = useSelectorNames(scope);
+  const words = useScheduleWords();
+  const workloadName = useWorkloadName();
+  const pause = useMutation(PAUSE_SCHEDULE);
+  const resume = useMutation(RESUME_SCHEDULE);
+  const remove = useMutation(DELETE_SCHEDULE);
+  const [editing, setEditing] = useState<EditableSchedule | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<Schedule | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Which schedule a pause or a resume is working on: its menu waits, and no second request starts
+  const [busy, setBusy] = useState<string | null>(null);
+  // Once a row is gone together with its menu button, a closing dialog hands focus to the section's heading
+  const [rowGone, setRowGone] = useState(false);
+  // Whether the dialog was opened from the empty state, whose button is gone by the time it closes
+  const [fromEmptyState, setFromEmptyState] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const rows = schedules.data?.data ?? [];
+  // A role without `data:read` cannot list the schedules at all, which is not a failure to retry
+  const forbidden = schedules.isError && isApiProblem(schedules.error, 'forbidden');
+  const path = (schedule: Schedule): { workspace_id: string; project_id: string; schedule_id: string } => ({
+    workspace_id: workspaceId,
+    project_id: projectId,
+    schedule_id: schedule.schedule_id,
+  });
+
+  const toggle = async (schedule: Schedule): Promise<void> => {
+    setBusy(schedule.schedule_id);
+    try {
+      if (schedule.is_active) {
+        await pause.mutateAsync({ params: { path: path(schedule) } });
+        toast({ type: 'success', title: t('pausedDone', { name: schedule.name }) });
+      } else {
+        const resumed = await resume.mutateAsync({ params: { path: path(schedule) } });
+        toast({
+          type: 'success',
+          title: t('resumedDone', { name: schedule.name }),
+          description: t('nextRun', {
+            when: formatTableDateTime(resumed.data.next_run_at, resumed.data.timezone),
+          }),
+        });
+      }
+    } catch (error) {
+      if (isApiProblem(error, 'not_found')) {
+        toast({ type: 'info', title: t('gone', { name: schedule.name }) });
+      } else {
+        toast({
+          type: 'error',
+          title: t(schedule.is_active ? 'pauseFailed' : 'resumeFailed', { name: schedule.name }),
+        });
+      }
+    } finally {
+      setBusy(null);
+      void refreshSchedules(queryClient, scope);
+    }
+  };
+
+  const confirmDelete = async (): Promise<void> => {
+    if (deleting === null) return;
+    setDeleteError(null);
+    const { name } = deleting;
+    try {
+      await remove.mutateAsync({ params: { path: path(deleting) } });
+    } catch (error) {
+      if (isApiProblem(error, 'not_found')) {
+        toast({ type: 'info', title: t('gone', { name }) });
+        setRowGone(true);
+        void refreshSchedules(queryClient, scope);
+        return;
+      }
+      setDeleteError(
+        isApiProblem(error, 'schedule_in_use')
+          ? t('deleteInUse', { count: error.number('tracked_keyword_count') ?? 0 })
+          : t('deleteFailed'),
+      );
+      throw error;
+    }
+    toast({ type: 'success', title: t('deleted', { name }), description: t('deletedHint') });
+    setRowGone(true);
+    void refreshSchedules(queryClient, scope);
+  };
+
+  const itemsFor = (schedule: Schedule): MenuItemDef[] => {
+    const items: MenuItemDef[] = [];
+    if (isEditableSchedule(schedule)) {
+      items.push({
+        id: 'edit',
+        label: t('menu.edit'),
+        onSelect: () => {
+          setFromEmptyState(false);
+          setEditing(schedule);
+        },
+      });
+    }
+    items.push({
+      id: 'toggle',
+      label: schedule.is_active ? t('menu.pause') : t('menu.resume'),
+      onSelect: () => void toggle(schedule),
+    });
+    items.push({
+      id: 'delete',
+      label: t('menu.delete'),
+      tone: 'destructive',
+      onSelect: () => {
+        setRowGone(false);
+        setDeleting(schedule);
+      },
+    });
+    return items;
+  };
+
+  const newSchedule = (
+    <Button
+      variant="primary"
+      icon={Plus}
+      onClick={() => {
+        setFromEmptyState(rows.length === 0);
+        setEditing('new');
+      }}
+    >
+      {t('newSchedule')}
+    </Button>
+  );
+
+  return (
+    <section aria-labelledby="schedules-title" className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="schedules-title" ref={heading} tabIndex={-1} className="type-section-title outline-none">
+            {t('title')}
+          </h2>
+          <p className="mt-1 type-meta">{t('description')}</p>
+        </div>
+        {canWrite && rows.length > 0 ? newSchedule : null}
+      </div>
+      {canWrite ? null : <Banner tone="info" placement="region" lead={t('readOnlyLead')} message={t('readOnly')} />}
+      {schedules.isError ? (
+        forbidden ? (
+          <Banner tone="info" placement="region" message={t('forbidden')} />
+        ) : (
+          <InlineError
+            title={t('loadFailed')}
+            reason={t('loadFailedReason')}
+            errorId={null}
+            onRetry={() => void schedules.refetch()}
+            retrying={schedules.isFetching}
+            retryLabel={common('retry')}
+          />
+        )
+      ) : !schedules.isPending && rows.length === 0 ? (
+        <EmptyState
+          icon={CalendarClock}
+          headingLevel={3}
+          title={t('emptyTitle')}
+          reason={canWrite ? t('emptyReason') : t('emptyReasonReadOnly')}
+          primaryAction={canWrite ? newSchedule : undefined}
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+          <table className="w-full" aria-label={t('tableLabel')}>
+            <thead className="bg-surface-subtle">
+              <tr>
+                <th scope="col" className="h-row-header px-4 text-left type-label">
+                  {t('columns.schedule')}
+                </th>
+                <th scope="col" className="h-row-header px-3 text-left type-label">
+                  {t('columns.collects')}
+                </th>
+                <th scope="col" className="h-row-header px-3 text-left type-label">
+                  {t('columns.when')}
+                </th>
+                <th scope="col" className="h-row-header px-3 text-left type-label">
+                  {t('columns.next')}
+                </th>
+                {canWrite ? (
+                  <th scope="col" className="h-row-header px-4">
+                    <span className="sr-only">{t('columns.actions')}</span>
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody aria-busy={schedules.isPending}>
+              {schedules.isPending
+                ? Array.from({ length: SKELETON_ROWS }, (_, index) => (
+                    <tr key={index} className="h-row border-t border-border-subtle">
+                      <td colSpan={canWrite ? 5 : 4} className="px-4">
+                        <Skeleton shape="text-14" widthPct={48} />
+                      </td>
+                    </tr>
+                  ))
+                : rows.map((schedule) => (
+                    <tr key={schedule.schedule_id} className="h-row border-t border-border-subtle">
+                      <th scope="row" className="px-4 py-2 text-left font-normal">
+                        <span className="flex flex-col">
+                          <span className="type-body text-foreground">{schedule.name}</span>
+                          <span className="type-meta">{workloadName(schedule.workload)}</span>
+                        </span>
+                      </th>
+                      <td className="px-3 py-2 type-body text-foreground-secondary">
+                        {words.collects(schedule.selector, names)}
+                      </td>
+                      <td className="px-3 py-2 type-body text-foreground-secondary">
+                        {words.when(schedule)}
+                        {schedule.timezone === timeZone ? null : (
+                          <span className="block type-meta">{schedule.timezone}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {schedule.is_active ? (
+                          <span className="block num type-body whitespace-nowrap text-foreground-secondary">
+                            {formatTableDateTime(schedule.next_run_at, schedule.timezone)}
+                          </span>
+                        ) : (
+                          <Badge tone="warning">{t('pausedBadge')}</Badge>
+                        )}
+                        {/* The API names the last run by its id only, so Runs is where its time is */}
+                        <span className="block type-meta">
+                          {schedule.last_run_id === null ? (
+                            t('neverRun')
+                          ) : (
+                            <TextLink render={<Link href={runsPath(workspaceSlug, projectSlug)} />}>
+                              {t('lastRun')}
+                            </TextLink>
+                          )}
+                        </span>
+                      </td>
+                      {canWrite ? (
+                        <td className="px-4 text-right">
+                          <Menu
+                            align="end"
+                            trigger={
+                              <IconButton
+                                icon={MoreHorizontal}
+                                size="icon-sm"
+                                variant="ghost"
+                                label={t('actionsFor', { name: schedule.name })}
+                                disabled={busy !== null}
+                              />
+                            }
+                            items={itemsFor(schedule)}
+                          />
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <ScheduleDialog
+        scope={scope}
+        schedule={editing}
+        timeZone={timeZone}
+        onClose={() => setEditing(null)}
+        // The first schedule is made from the empty state, whose button is gone once the list has a row
+        {...(fromEmptyState ? { finalFocus: heading } : {})}
+      />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleting(null);
+            setDeleteError(null);
+          }
+        }}
+        finalFocus={rowGone ? heading : undefined}
+        title={t('deleteTitle', { name: deleting?.name ?? '' })}
+        description={t('deleteDescription', { name: deleting?.name ?? '' })}
+        confirmLabel={t('deleteConfirm')}
+        cancelLabel={common('cancel')}
+        onConfirm={confirmDelete}
+        error={deleteError}
+      />
+    </section>
+  );
+}

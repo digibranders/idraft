@@ -54,6 +54,7 @@ describe('SettingsFrame', () => {
       '/digibranders/fynix/settings/entities',
       '/digibranders/fynix/settings/domains',
       '/digibranders/fynix/settings/taxonomy',
+      '/digibranders/fynix/settings/schedules',
       '/digibranders/fynix/settings/workspace',
       '/digibranders/fynix/settings/members',
       '/digibranders/costs',
@@ -63,6 +64,14 @@ describe('SettingsFrame', () => {
     // Costs and Operations are pages of their own, never the section on screen
     expect(within(nav).getByRole('link', { name: 'Costs' })).not.toHaveAttribute('aria-current');
     expect(within(nav).getByRole('link', { name: 'Operations' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('marks Schedules as the section on screen on its own page', () => {
+    location.pathname = '/digibranders/fynix/settings/schedules';
+    renderWithProviders(frame('fynix'));
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+    expect(within(nav).getByRole('link', { name: 'Schedules' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: 'Taxonomy' })).not.toHaveAttribute('aria-current');
   });
 
   it('outside a project leaves the project group out and links to the workspace settings routes', () => {
