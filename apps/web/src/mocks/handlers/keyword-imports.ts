@@ -61,6 +61,7 @@ import { invalid, mock, problem } from '../respond';
 import type { components } from '@/lib/api/schema';
 import type { ValidationItem } from '@/lib/api/types';
 import { parseCsv, toCsv } from '@/lib/csv/csv';
+import { headerKey } from '@/lib/csv/csv-head';
 
 /**
  * Keyword imports (19 section 3.5, backend plan D11 to D13): a paste, JSON rows or a CSV upload is parsed
@@ -132,7 +133,10 @@ interface StoredImport {
   records: Record<string, string>[];
   /** A paste with a TAB in some line: those lines carry tags, which need a vocabulary. */
   tabbed: boolean;
+  /** The mapping once the file is read: keyed by the file's header text, trimmed, in the file's case. */
   mapping: Record<string, ImportField>;
+  /** The keys of the mapping as the client sent them, which the import echoes until it has been read. */
+  sent_mapping: Record<string, string>;
   defaults: ImportDefaults;
   /** When the current parse ends; a new mapping or new defaults parse again. */
   parsed_at: number;
@@ -226,7 +230,8 @@ function importView(caller: KeywordProjectCaller, entry: StoredImport, at: numbe
     source: entry.source,
     original_filename: entry.original_filename,
     status,
-    column_mapping: { ...entry.mapping },
+    // Before the worker has read the file the mapping is what was sent; after it, the one resolved
+    column_mapping: status === 'uploaded' ? { ...entry.sent_mapping } : { ...entry.mapping },
     defaults: Object.fromEntries(Object.entries(entry.defaults).filter(([, value]) => value !== null)),
     counts: {
       // Rows of the import: a `device: both` row of the file counts once per part
@@ -313,13 +318,30 @@ interface Source0 {
   tabbed: boolean;
 }
 
-/** The automatic mapping: a header that names a field, without case, maps to it. */
-function autoMapping(headers: readonly string[]): Record<string, ImportField> {
+/**
+ * The mapping the backend resolves once it has read the file. A key sent is matched to a header trimmed and
+ * without case; a key that matches no header, and a field name that is not an import field, are ignored. The
+ * mapping is keyed by the header text of the file, trimmed, with the case the file wrote. A header that names
+ * a field and is not mapped otherwise maps to it by name (the automatic mapping), unless the field is taken.
+ */
+function resolveMapping(
+  headers: readonly string[],
+  sent: Readonly<Record<string, unknown>> | null,
+): Record<string, ImportField> {
   const mapping: Record<string, ImportField> = {};
   const taken = new Set<ImportField>();
+  const headerOf = new Map(headers.map((header) => [headerKey(header), header]));
+  for (const [key, value] of Object.entries(sent ?? {})) {
+    const field = IMPORT_FIELDS.find((candidate) => candidate === value);
+    const header = headerOf.get(headerKey(key));
+    if (field !== undefined && header !== undefined && !taken.has(field)) {
+      mapping[header] = field;
+      taken.add(field);
+    }
+  }
   for (const header of headers) {
-    const field = IMPORT_FIELDS.find((candidate) => candidate === header.trim().toLowerCase());
-    if (field !== undefined && !taken.has(field)) {
+    const field = IMPORT_FIELDS.find((candidate) => candidate === headerKey(header));
+    if (field !== undefined && mapping[header] === undefined && !taken.has(field)) {
       mapping[header] = field;
       taken.add(field);
     }
@@ -327,6 +349,15 @@ function autoMapping(headers: readonly string[]): Record<string, ImportField> {
   return mapping;
 }
 
+/** The keys of a mapping as they were sent, which an import still being read echoes. */
+const sentKeys = (sent: Readonly<Record<string, unknown>> | null): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(sent ?? {}).flatMap(([key, field]): [string, string][] =>
+      typeof field === 'string' ? [[key, field]] : [],
+    ),
+  );
+
+/** The headers of a CSV file as the backend reads them: trimmed. */
 function fromCsv(text: string): Source0 {
   const [header = [], ...lines] = parseCsv(text);
   const headers = header.map((name) => name.trim());
@@ -350,14 +381,15 @@ function fromPaste(text: string): Source0 {
   };
 }
 
+/** Rows keyed by column name, as a client that has read a file itself sends them: names are trimmed here. */
 function fromRows(rows: readonly Readonly<Record<string, unknown>>[]): Source0 {
-  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const headers = [...new Set(rows.flatMap((row) => Object.keys(row).map((name) => name.trim())))];
   return {
     headers,
     records: rows.map((row) =>
       Object.fromEntries(
         headers.map((name) => {
-          const cell = row[name];
+          const cell = Object.entries(row).find(([key]) => key.trim() === name)?.[1];
           return [name, typeof cell === 'string' ? cell : ''];
         }),
       ),
@@ -371,32 +403,32 @@ function fromRows(rows: readonly Readonly<Record<string, unknown>>[]): Source0 {
 /** A paste has no columns to map (backend rule 4). */
 const NO_COLUMNS_ERROR: ValidationItem = bodyError('column_mapping', 'not_applicable', 'A paste has no columns.');
 
-function mappingErrors(value: unknown, headers: readonly string[] | null): ValidationItem[] {
+/**
+ * What the backend refuses of a mapping: two keys that name the same header (trimmed, without case) and two
+ * keys mapped to one field. A key that matches no header and a field that is no import field are ignored.
+ */
+function mappingErrors(value: unknown): ValidationItem[] {
   if (value === undefined || value === null) return [];
   if (!isRecord(value)) return [bodyError('column_mapping', 'dict_type', 'Input should be an object')];
   const errors: ValidationItem[] = [];
-  const fields = new Set<string>();
-  for (const [header, field] of Object.entries(value)) {
-    const path = at('column_mapping', header);
-    errors.push(...enumError(field, path, IMPORT_FIELDS));
-    if (headers !== null && !headers.includes(header)) {
-      errors.push(bodyError(path, 'column_unknown', 'The source has no column by this name.'));
+  const keys = new Set<string>();
+  const fields = new Set<ImportField>();
+  for (const [key, mapped] of Object.entries(value)) {
+    if (keys.has(headerKey(key)) && !errors.some((error) => error.code === 'header_repeated')) {
+      errors.push(bodyError('column_mapping', 'header_repeated', 'Two keys name the same header.'));
     }
-    if (typeof field === 'string' && fields.has(field)) {
-      errors.push(bodyError(path, 'field_mapped_twice', 'Another column already maps to this field.'));
+    keys.add(headerKey(key));
+    const field = IMPORT_FIELDS.find((candidate) => candidate === mapped);
+    if (field === undefined) continue;
+    if (fields.has(field)) {
+      errors.push(
+        bodyError(at('column_mapping', key), 'field_mapped_twice', 'Another column already maps to this field.'),
+      );
     }
-    if (typeof field === 'string') fields.add(field);
+    fields.add(field);
   }
   return errors;
 }
-
-const mappingOf = (value: Readonly<Record<string, unknown>>): Record<string, ImportField> =>
-  Object.fromEntries(
-    Object.entries(value).flatMap(([header, field]) => {
-      const known = IMPORT_FIELDS.find((candidate) => candidate === field);
-      return known === undefined ? [] : [[header, known]];
-    }),
-  );
 
 const DEFAULT_FIELDS = [
   'location_id',
@@ -485,12 +517,12 @@ function created(
   source: Source,
   filename: string | null,
   read: Source0,
-  mapping: Record<string, ImportField> | null,
+  sent: Readonly<Record<string, unknown>> | null,
   defaults: ImportDefaults,
 ): StoredImport {
   lastImport += 1;
   const createdAt = Date.now();
-  const columns = mapping ?? autoMapping(read.headers);
+  const columns = resolveMapping(read.headers, sent);
   const entry: StoredImport = {
     import_id: mockId('import', lastImport),
     workspace_id: caller.access.workspace.workspace_id,
@@ -503,6 +535,7 @@ function created(
     records: read.records,
     tabbed: read.tabbed,
     mapping: columns,
+    sent_mapping: sentKeys(sent),
     defaults,
     parsed_at: createdAt + PARSE_MS,
     rows: analyzeRows(caller, read.records, columns, defaults),
@@ -760,14 +793,14 @@ export const keywordImportHandlers: HttpHandler[] = [
       body.source === 'paste' && typeof body.paste === 'string'
         ? fromPaste(body.paste)
         : fromRows(Array.isArray(rows) ? rows.filter(isRecord) : []);
-    const mapping = mappingErrors(body.column_mapping, read.headers);
+    const mapping = mappingErrors(body.column_mapping);
     if (mapping.length > 0) return invalid(request, mapping);
     const entry = created(
       caller,
       body.source === 'paste' ? 'paste' : 'api',
       null,
       read,
-      isRecord(body.column_mapping) ? mappingOf(body.column_mapping) : null,
+      isRecord(body.column_mapping) ? body.column_mapping : null,
       defaultsOf(body.defaults, NO_DEFAULTS),
     );
     return accepted(caller, entry);
@@ -810,7 +843,7 @@ export const keywordImportHandlers: HttpHandler[] = [
       const read = fromCsv(await file.text());
       const errors = [
         ...extraMembers(options, ['column_mapping', 'defaults'], 'options'),
-        ...mappingErrors(options.column_mapping, read.headers),
+        ...mappingErrors(options.column_mapping),
         ...defaultsErrors(caller, options.defaults),
       ];
       if (errors.length > 0) return invalid(request, errors);
@@ -819,7 +852,7 @@ export const keywordImportHandlers: HttpHandler[] = [
         'upload',
         file.name,
         read,
-        isRecord(options.column_mapping) ? mappingOf(options.column_mapping) : null,
+        isRecord(options.column_mapping) ? options.column_mapping : null,
         defaultsOf(options.defaults, NO_DEFAULTS),
       );
       return accepted(caller, entry);
@@ -855,7 +888,7 @@ export const keywordImportHandlers: HttpHandler[] = [
         ? body.column_mapping === undefined
           ? []
           : [NO_COLUMNS_ERROR]
-        : mappingErrors(body.column_mapping, entry.headers)),
+        : mappingErrors(body.column_mapping)),
       ...(actions !== undefined && (body.column_mapping !== undefined || body.defaults !== undefined)
         ? [bodyError('row_actions', 'not_with_mapping', 'Row actions apply to a preview; send them on their own.')]
         : []),
@@ -918,7 +951,10 @@ export const keywordImportHandlers: HttpHandler[] = [
     });
     if (service.length > 0) return invalid(request, service);
     if (reparse) {
-      entry.mapping = isRecord(body.column_mapping) ? mappingOf(body.column_mapping) : entry.mapping;
+      if (isRecord(body.column_mapping)) {
+        entry.sent_mapping = sentKeys(body.column_mapping);
+        entry.mapping = resolveMapping(entry.headers, body.column_mapping);
+      }
       entry.defaults = body.defaults === undefined ? entry.defaults : defaultsOf(body.defaults, NO_DEFAULTS);
       entry.rows = analyzeRows(caller, entry.records, entry.mapping, entry.defaults);
       entry.actions = new Map();

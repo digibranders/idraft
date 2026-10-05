@@ -31,6 +31,17 @@ export const onboardingPath = (workspace: string): Route => `/${encodeURICompone
 export const projectPath = (workspace: string, project: string, rest: '' | `/${string}` = ''): Route =>
   `/${encodeURIComponent(workspace)}/${encodeURIComponent(project)}${rest}` as Route;
 
+/** SEO > Rankings of a project. */
+export const rankingsPath = (workspace: string, project: string): Route =>
+  projectPath(workspace, project, '/seo/rankings');
+
+/** The import dialog over Rankings: its own route, so a link or the Back button opens and closes it. */
+export const rankingsImportPath = (workspace: string, project: string): Route =>
+  projectPath(workspace, project, '/seo/rankings/import');
+
+/** `path` with the query string `query` (without its `?`) kept, as when a dialog opens over a filtered page. */
+export const withQuery = (path: Route, query: string): Route => (query === '' ? path : (`${path}?${query}` as Route));
+
 /** The sections of Settings that exist outside any project: the account's and the workspace's. */
 export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 'workspace' | 'members';
 

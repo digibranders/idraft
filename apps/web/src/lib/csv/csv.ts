@@ -1,7 +1,7 @@
 /**
  * CSV as the import reads and the report writes it (RFC 4180): fields separated by commas, a field in double
- * quotes may hold commas, quotes (doubled) and line breaks, lines end in LF or CRLF, and a byte order mark
- * at the start is dropped. Blank lines are skipped.
+ * quotes may hold commas, quotes (doubled) and line breaks, lines end in LF, CRLF or a lone CR, and a byte
+ * order mark at the start is dropped. Blank lines are skipped.
  */
 
 export function parseCsv(text: string): string[][] {
@@ -29,7 +29,10 @@ export function parseCsv(text: string): string[][] {
       row.push(field);
       field = '';
     } else if (char === '\n') endRow();
-    else if (char !== '\r') field += char;
+    else if (char === '\r') {
+      // CRLF ends the line at its LF; a CR on its own is a line break of its own (an old Mac export)
+      if (input.charAt(index + 1) !== '\n') endRow();
+    } else field += char;
   }
   if (field !== '' || row.length > 0) endRow();
   return rows;

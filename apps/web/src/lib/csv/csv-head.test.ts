@@ -38,4 +38,37 @@ describe('readCsvHead', () => {
   it('refuses a file with no header line', async () => {
     expect(await readCsvHead(file(['']))).toEqual({ kind: 'empty' });
   });
+
+  it('reads a file whose lines end in a lone CR, and cuts a long one at its last CR', async () => {
+    expect(await readCsvHead(file(['Keyword,Tags\rseo,blog\rppc,x\r']))).toEqual({
+      kind: 'ok',
+      headers: ['Keyword', 'Tags'],
+      samples: [
+        ['seo', 'blog'],
+        ['ppc', 'x'],
+      ],
+    });
+    const long = `Keyword\r${'a'.repeat(70_000)}\rshort\r`;
+    expect(await readCsvHead(file([long]), 65_536)).toEqual({ kind: 'ok', headers: ['Keyword'], samples: [] });
+  });
+
+  it('says so when the header line alone is longer than the bytes it reads', async () => {
+    const wide = `${'a'.repeat(70_000)}\nrow\n`;
+    expect(await readCsvHead(file([wide]), 65_536)).toEqual({ kind: 'header_too_long' });
+  });
+
+  it('refuses two headers that read the same once trimmed and without case', async () => {
+    expect(await readCsvHead(file(['Keyword, keyword ,Tags\nseo,seo,x\n']))).toEqual({ kind: 'duplicate_headers' });
+    expect(await readCsvHead(file(['a,,\nx,y,z\n']))).toEqual({ kind: 'duplicate_headers' });
+  });
+
+  it('refuses a file that holds a header line and no rows', async () => {
+    expect(await readCsvHead(file(['Keyword,Tags\n']))).toEqual({ kind: 'no_rows' });
+    expect(await readCsvHead(file(['Keyword,Tags\n\n  \n']))).toEqual({ kind: 'no_rows' });
+  });
+
+  it('does not call a file without rows in the bytes it read a file without rows', async () => {
+    const head = await readCsvHead(file([`Keyword\n${'a'.repeat(70_000)}\n`]), 1_024);
+    expect(head).toEqual({ kind: 'ok', headers: ['Keyword'], samples: [] });
+  });
 });

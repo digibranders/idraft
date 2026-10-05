@@ -121,6 +121,28 @@ describe('keyword imports', () => {
     expect(lines[2]).toContain(created?.tracked_keyword_id ?? 'missing');
   });
 
+  it('matches the mapping keys to the headers trimmed and without case, and echoes them as the backend does', async () => {
+    const editor = mockBrowser('editor');
+    const answer = await upload(editor, 'Keyword, Tags \nseo audit,blog\n', 'keywords.csv', {
+      column_mapping: { ' keyword ': 'keyword', TAGS: 'tags', Ghost: 'group', Volume: 'not_a_field' },
+      defaults: { tags_vocabulary_id: MOCK_VOCABULARY_IDS.topics },
+    });
+    const started = dataOf(answer, KEYWORD_IMPORT);
+    // Until the file is read: exactly the keys sent
+    expect(started.status).toBe('uploaded');
+    expect(started.column_mapping).toEqual({
+      ' keyword ': 'keyword',
+      TAGS: 'tags',
+      Ghost: 'group',
+      Volume: 'not_a_field',
+    });
+    clock += SETTLE_MS;
+    const read = dataOf(await editor.call('GET', `${I}/${started.import_id}`), KEYWORD_IMPORT);
+    // After it: the headers of the file, trimmed, in the case the file wrote; a key with no header is dropped
+    expect(read.status).toBe('preview_ready');
+    expect(read.column_mapping).toEqual({ Keyword: 'keyword', Tags: 'tags' });
+  });
+
   it('asks for a mapping when no column is the keyword, and judges every outcome of the matrix', async () => {
     const editor = mockBrowser('editor');
     const csv = [
@@ -132,17 +154,21 @@ describe('keyword imports', () => {
     ].join('\r\n');
     const answer = await upload(editor, csv);
     const started = dataOf(answer, KEYWORD_IMPORT);
-    expect(started).toMatchObject({
-      source: 'upload',
-      original_filename: 'keywords.csv',
-      column_mapping: { Device: 'device', Location: 'location', Group: 'group' },
-    });
+    expect(started).toMatchObject({ source: 'upload', original_filename: 'keywords.csv' });
+    // Until the file is read, the mapping is what was sent: nothing
+    expect(started.column_mapping).toEqual({});
     const path = `${I}/${started.import_id}`;
     clock += SETTLE_MS;
-    expect(dataOf(await editor.call('GET', path), KEYWORD_IMPORT).status).toBe('needs_mapping');
+    const needing = dataOf(await editor.call('GET', path), KEYWORD_IMPORT);
+    expect(needing.status).toBe('needs_mapping');
+    // Once it is read, the mapping is keyed by the headers of the file, and holds the ones named like a field
+    expect(needing.column_mapping).toEqual({ Device: 'device', Location: 'location', Group: 'group' });
     expect(
-      fieldCodes(await editor.call('PATCH', path, { column_mapping: { Keyword: 'keyword', Device: 'keyword' } })),
-    ).toEqual(['column_mapping.Keyword:column_unknown', 'column_mapping.Device:field_mapped_twice']);
+      fieldCodes(await editor.call('PATCH', path, { column_mapping: { 'Search term': 'keyword', Device: 'keyword' } })),
+    ).toEqual(['column_mapping.Device:field_mapped_twice']);
+    expect(
+      fieldCodes(await editor.call('PATCH', path, { column_mapping: { Device: 'device', ' device ': 'location' } })),
+    ).toEqual(['column_mapping:header_repeated']);
     const mapped = await editor.call('PATCH', path, {
       column_mapping: { 'Search term': 'keyword', Device: 'device', Location: 'location', Group: 'group' },
     });
