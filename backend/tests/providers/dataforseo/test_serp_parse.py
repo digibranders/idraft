@@ -51,6 +51,7 @@ def serp(items: Any, **result: Any) -> dict[str, Any]:
         "tasks": [
             {
                 "status_code": 20000,
+                "data": {"depth": 20, "device": "desktop", "language_code": "en"},
                 "result": [
                     {
                         "keyword": "crm",
@@ -659,6 +660,55 @@ def test_a_people_also_ask_question_records_its_source_and_an_ai_answer() -> Non
         ]
     }
     assert [u.url for u in feature.source_urls] == ["https://w.example/x", "https://r.example/y"]
+
+
+# The request echo (`tasks[].data`).
+
+
+def test_the_answer_says_what_the_task_asked_for() -> None:
+    parsed = rich()
+
+    assert parsed.request == serp_parse.RequestEcho(
+        depth=20,
+        device="desktop",
+        language_code="en",
+        os="windows",
+        se_domain=None,
+        location_code=2840,
+    )
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        None,
+        "x",
+        {},
+        {"depth": 20, "device": "desktop"},
+        {"depth": "20", "device": "d", "language_code": "en"},
+        {"depth": 0, "device": "desktop", "language_code": "en"},
+    ],
+)
+def test_an_answer_that_does_not_echo_the_task_is_reported(data: Any) -> None:
+    body = serp([organic(1, "https://example.com/a")])
+    body["tasks"][0]["data"] = data
+
+    parsed = parse_serp(body)
+
+    assert parsed.request is None
+    assert "request_echo_missing" in parsed.warnings
+    assert len(parsed.organic) == 1
+
+
+def test_an_empty_result_still_carries_the_echo() -> None:
+    body = _load(SERP / "serp_no_results.json")
+    body["tasks"][0]["data"] = {"depth": 100, "device": "mobile", "language_code": "en"}
+
+    parsed = parse_serp(body)
+
+    assert parsed.warnings == ("no_results",)
+    assert parsed.request is not None
+    assert (parsed.request.depth, parsed.request.device) == (100, "mobile")
 
 
 # The answer.

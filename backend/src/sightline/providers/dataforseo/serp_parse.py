@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any, Final, Literal
 
@@ -74,6 +74,9 @@ READS_PATHS: Final = (
     "tasks[].result[].items[].links[].url",
     "tasks[].result[].items[].references[].url",
     "tasks[].result[].items[].asynchronous_ai_overview",
+    "tasks[].data.depth",
+    "tasks[].data.device",
+    "tasks[].data.language_code",
     "tasks[].result[].keyword",
     "tasks[].result[].se_results_count",
     "tasks[].result[].item_types",
@@ -142,6 +145,19 @@ class Spell:
 
 
 @dataclass(frozen=True, slots=True)
+class RequestEcho:
+    """The task as the provider says it ran it (`tasks[].data`): what a check asked for, which
+    the ledger does not keep."""
+
+    depth: int
+    device: str
+    language_code: str
+    os: str | None
+    se_domain: str | None
+    location_code: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class NormalizedSerp:
     keyword: str | None
     se_domain: str | None
@@ -154,6 +170,8 @@ class NormalizedSerp:
     features: tuple[SerpFeature, ...]
     ai_overview: AiOverview
     warnings: tuple[str, ...]  # repairs and oddities, one entry for each occurrence
+    # None when the answer does not echo the task (reported as `request_echo_missing`).
+    request: RequestEcho | None = None
 
     @property
     def depth_returned(self) -> int:
@@ -170,8 +188,9 @@ def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
     task = _first(document.get("tasks"), "tasks[]")
     status = task.get("status_code")
     results = task.get("result")
+    request = _request_echo(task.get("data"))
     if status == NO_RESULTS_STATUS and not results:
-        return _empty()
+        return replace(_empty(), request=request)
     result = _first(results, "tasks[].result[]")
     items = result.get("items")
     if items is not None and not isinstance(items, list):
@@ -184,7 +203,10 @@ def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
     # The organic list first: it adds the sitelinks and the ads to the features, and its
     # repairs to the warnings.
     organic = builder.finish_organic()
+    if request is None:
+        builder.warnings.append("request_echo_missing")
     return NormalizedSerp(
+        request=request,
         keyword=_text(result.get("keyword")),
         se_domain=_text(result.get("se_domain")),
         check_url=_text(result.get("check_url")),
@@ -196,6 +218,25 @@ def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
         features=tuple(builder.features),
         ai_overview=builder.ai_overview(),
         warnings=tuple(builder.warnings),
+    )
+
+
+def _request_echo(data: object) -> RequestEcho | None:
+    """What the task asked for, when the answer says; None when the depth, device or language
+    is missing, which the ingest writer cannot do without."""
+    if not isinstance(data, Mapping):
+        return None
+    depth = _whole(data.get("depth"))
+    device, language = _text(data.get("device")), _text(data.get("language_code"))
+    if depth is None or depth < 1 or device is None or language is None:
+        return None
+    return RequestEcho(
+        depth=depth,
+        device=device,
+        language_code=language,
+        os=_text(data.get("os")),
+        se_domain=_text(data.get("se_domain")),
+        location_code=_whole(data.get("location_code")),
     )
 
 
