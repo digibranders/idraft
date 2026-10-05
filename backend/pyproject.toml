@@ -122,6 +122,16 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "ranks is pure: no database, workers, entrypoints or I/O libraries"
+type = "forbidden"
+source_modules = ["sightline.ranks"]
+forbidden_modules = [
+  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.db",
+  "sightline.storage", "sightline.config", "sightline.domain",
+  "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
+]
+
+[[tool.importlinter.contracts]]
 name = "providers never touch the database"
 type = "forbidden"
 source_modules = ["sightline.providers"]
