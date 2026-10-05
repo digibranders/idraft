@@ -8,9 +8,12 @@ import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import { AddKeywordsResult, type AddOutcome } from './add-keywords-result';
+import { useEnsureGroups, useGroupPathCheck, type GroupChoice } from '../groups/group-choices';
+import { GroupPicker } from '../groups/group-picker';
+import { groupRefusal } from '../groups/group-refusals';
 import { PRIORITIES } from '../keyword-values';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
-import { refreshGroups, useKeywordGroups } from '../taxonomy-queries';
+import { refreshGroups } from '../taxonomy-queries';
 import { useTermChoices } from '../term-choices';
 import { FormField } from '@/components/app/forms/form-field';
 import { LocationCombobox } from '@/components/app/forms/location-combobox';
@@ -57,12 +60,13 @@ interface AddValues {
   language_code: string;
   /** `null` until the project's default arrives (or when it cannot be read): the API then applies it. */
   device: Device | null;
-  group_ids: string[];
+  /** Groups that exist, and paths typed to be created when the form is saved. */
+  groups: GroupChoice[];
   term_ids: string[];
   priority: string;
 }
 
-/** A group or a term as a choice: its id and the label the list shows. */
+/** A term as a choice: its id and the label the list shows. */
 interface Choice {
   id: string;
   label: string;
@@ -100,6 +104,7 @@ export function AddKeywordsDialog({
   const t = useTranslations('rankings.add');
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
+  const refusals = useTranslations('rankings.groups.refusals');
   const filters = useTranslations('rankings.filters');
   const tracking = useTranslations('rankings.inspector.tracking');
   const locale = useLocale();
@@ -107,7 +112,8 @@ export function AddKeywordsDialog({
   const locations = useLocationSearch();
   const projectPath = { workspace_id: scope.workspaceId, project_id: scope.projectId };
   const settings = useQuery({ ...apiQuery(SETTINGS, { params: { path: projectPath } }), enabled: open });
-  const groups = useKeywordGroups(scope);
+  const ensureGroups = useEnsureGroups(scope);
+  const checkGroupPaths = useGroupPathCheck();
   const [alert, setAlert] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<AddOutcome | null>(null);
 
@@ -143,7 +149,7 @@ export function AddKeywordsDialog({
     location: z.custom<LocationRef | null>().refine((location) => location !== null, { error: t('locationRequired') }),
     language_code: z.string(),
     device: z.enum(['desktop', 'mobile', 'both']).nullable(),
-    group_ids: z.array(z.string()),
+    groups: z.array(z.custom<GroupChoice>()),
     term_ids: z.array(z.string()),
     priority: z.string(),
   });
@@ -152,7 +158,7 @@ export function AddKeywordsDialog({
     location: defaults.location,
     language_code: defaults.languageCode ?? 'en',
     device,
-    group_ids: [],
+    groups: [],
     term_ids: [],
     priority: DEFAULT_PRIORITY,
   });
@@ -176,12 +182,7 @@ export function AddKeywordsDialog({
   const keywordCount = lines.keywords.length;
   const create = useMutation(apiMutation('post', BULK_CREATE));
 
-  const groupChoices = useMemo(
-    (): Choice[] => (groups.data?.data ?? []).map((group) => ({ id: group.group_id, label: group.path })),
-    [groups.data],
-  );
   const { choices: terms, byId: termById, keepOnePerSingleVocabulary } = useTermChoices(scope);
-  const groupById = useMemo(() => new Map(groupChoices.map((choice) => [choice.id, choice])), [groupChoices]);
 
   const close = (): void => {
     form.reset(initialValues(defaultDevice));
@@ -193,6 +194,20 @@ export function AddKeywordsDialog({
   const submit = useSubmitOnce(
     form.handleSubmit(async (values) => {
       setAlert(null);
+      // A typed path that cannot become a group is named before anything is created or sent
+      const pathError = checkGroupPaths(values.groups);
+      if (pathError !== null) {
+        form.setError('groups', { type: 'server', message: pathError }, { shouldFocus: true });
+        return;
+      }
+      // Groups typed and not yet made are made now, so cancelling the form leaves none behind
+      let groupIds: string[];
+      try {
+        groupIds = await ensureGroups(values.groups);
+      } catch (error) {
+        setAlert(groupRefusal(error, refusals).message);
+        return;
+      }
       const read = readKeywordLines(values.keywords);
       // Created counts tracked keywords: with both devices, two of each keyword
       const both = values.device === 'both' ? 'yes' : 'no';
@@ -204,7 +219,7 @@ export function AddKeywordsDialog({
         language_code: values.language_code,
         ...(values.device === null ? {} : { device: values.device }),
         priority: Number(values.priority),
-        ...(values.group_ids.length === 0 ? {} : { group_ids: values.group_ids }),
+        ...(groupIds.length === 0 ? {} : { group_ids: groupIds }),
         ...(values.term_ids.length === 0 ? {} : { term_ids: values.term_ids }),
       }));
       try {
@@ -381,24 +396,16 @@ export function AddKeywordsDialog({
             />
             <FormField
               control={form.control}
-              name="group_ids"
+              name="groups"
               label={t('groups')}
               optional
               render={(field) => (
-                <MultiSelect<Choice>
+                <GroupPicker
+                  scope={scope}
                   inputRef={field.ref}
                   onBlur={field.onBlur}
-                  value={field.value.flatMap((id) => groupById.get(id) ?? [])}
-                  onValueChange={(chosen) => field.onChange(chosen.map((choice) => choice.id))}
-                  items={groupChoices}
-                  itemToString={(choice) => choice.label}
-                  itemKey={(choice) => choice.id}
-                  placeholder={t('groupsPlaceholder')}
-                  emptyText={(query) => t('groupsEmpty', { query })}
-                  chipsLabel={t('chips', { field: t('groups') })}
-                  removeLabel={(value) => t('remove', { value })}
-                  chipsHint={(count) => t('chipsHint', { count })}
-                  chipHint={t('chipHint')}
+                  value={field.value}
+                  onValueChange={(chosen) => field.onChange([...chosen])}
                 />
               )}
             />

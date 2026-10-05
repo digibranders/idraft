@@ -15,7 +15,10 @@ import {
   type KeywordScope,
 } from './inspector-queries';
 import { EditButton, useEditFocus, type SectionEdit } from './section-edit';
-import { useKeywordGroups, useVocabularies, type VocabularyTerms } from '../taxonomy-queries';
+import { useEnsureGroups, useGroupChoices, useGroupPathCheck, type GroupChoice } from '../groups/group-choices';
+import { GroupPicker } from '../groups/group-picker';
+import { groupRefusal } from '../groups/group-refusals';
+import { useVocabularies, type VocabularyTerms } from '../taxonomy-queries';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
@@ -26,14 +29,15 @@ import { Tag } from '@/components/ui/tag';
 import { announce } from '@/lib/a11y/announcer';
 import { apiMutation } from '@/lib/api/query';
 
-/** A group or a term as a choice: its id and its place by name. */
+/** A term as a choice: its id and its place by name. */
 interface Choice {
   id: string;
   label: string;
 }
 
 interface LinkValues {
-  groups: string[];
+  /** Groups that exist, and paths typed to be created when the section is saved. */
+  groups: GroupChoice[];
   /** The chosen term ids by vocabulary id. */
   terms: Record<string, string[]>;
 }
@@ -41,8 +45,22 @@ interface LinkValues {
 /** No term of a single-valued vocabulary. */
 const NO_TERM = '';
 
-const valuesOf = (detail: KeywordDetail, vocabularies: readonly VocabularyTerms[]): LinkValues => ({
-  groups: detail.groups.map((group) => group.group_id),
+/** The keyword's groups as choices; a count the list has not loaded yet reads 0. */
+const groupChoicesOf = (detail: KeywordDetail, known: ReadonlyMap<string, { count: number }>): GroupChoice[] =>
+  detail.groups.map((group) => ({
+    kind: 'existing',
+    key: group.group_id,
+    groupId: group.group_id,
+    path: group.path,
+    count: known.get(group.group_id)?.count ?? 0,
+  }));
+
+const valuesOf = (
+  detail: KeywordDetail,
+  vocabularies: readonly VocabularyTerms[],
+  known: ReadonlyMap<string, { count: number }>,
+): LinkValues => ({
+  groups: groupChoicesOf(detail, known),
   terms: Object.fromEntries(
     vocabularies.map(({ vocabulary }) => [
       vocabulary.vocabulary_id,
@@ -68,13 +86,9 @@ export function LinksSection({
   const t = useTranslations('rankings.inspector.links');
   const focus = useEditFocus(edit.active);
   const vocabularies = useVocabularies(scope);
-  const groups = useKeywordGroups(scope);
+  const groups = useGroupChoices(scope);
   // The editor offers every group and term, so it opens once the lists are in
-  const listsReady = !vocabularies.pending && !vocabularies.error && groups.isSuccess;
-  const groupChoices = useMemo(
-    (): Choice[] => (groups.data?.data ?? []).map((group) => ({ id: group.group_id, label: group.path })),
-    [groups.data],
-  );
+  const listsReady = !vocabularies.pending && !vocabularies.error && groups.ready;
   const termNames = useMemo(
     () => new Map(vocabularies.loaded.flatMap(({ terms }) => terms.map((term) => [term.termId, term.path] as const))),
     [vocabularies.loaded],
@@ -99,14 +113,7 @@ export function LinksSection({
       }
     >
       {edit.active ? (
-        <LinksForm
-          scope={scope}
-          detail={detail}
-          edit={edit}
-          formRef={focus.form}
-          vocabularies={vocabularies.loaded}
-          groupChoices={groupChoices}
-        />
+        <LinksForm scope={scope} detail={detail} edit={edit} formRef={focus.form} vocabularies={vocabularies.loaded} />
       ) : (
         <dl className="flex flex-col gap-3">
           <LinkRow label={t('groups')} empty={t('noGroups')} labels={detail.groups.map((group) => group.path)} />
@@ -149,21 +156,27 @@ function LinksForm({
   edit,
   formRef,
   vocabularies,
-  groupChoices,
 }: {
   scope: KeywordScope;
   detail: KeywordDetail;
   edit: SectionEdit;
   formRef: RefObject<HTMLFormElement | null>;
   vocabularies: readonly VocabularyTerms[];
-  groupChoices: readonly Choice[];
 }): ReactElement {
   const t = useTranslations('rankings.inspector.links');
   const inspector = useTranslations('rankings.inspector');
+  const refusals = useTranslations('rankings.groups.refusals');
   const queryClient = useQueryClient();
+  const groups = useGroupChoices(scope);
+  const ensureGroups = useEnsureGroups(scope);
+  const checkGroupPaths = useGroupPathCheck();
   const [alert, setAlert] = useState<string | null>(null);
   // What the keyword had when the edit began: a teammate's change that arrives meanwhile is not undone
-  const [initial] = useState(() => valuesOf(detail, vocabularies));
+  const [initial] = useState(() => valuesOf(detail, vocabularies, groups.byId));
+  const initialGroupIds = useMemo(
+    () => initial.groups.flatMap((choice) => (choice.kind === 'existing' ? [choice.groupId] : [])),
+    [initial],
+  );
   const form = useForm<LinkValues>({ defaultValues: initial });
   const addMembers = useMutation(apiMutation('post', GROUP_MEMBERS));
   const removeMembers = useMutation(apiMutation('post', GROUP_MEMBERS_REMOVE));
@@ -172,31 +185,39 @@ function LinksForm({
   const { setDirty, setSaving, stop } = edit;
   useEffect(() => setDirty(isDirty), [isDirty, setDirty]);
 
-  const groupById = new Map(groupChoices.map((choice) => [choice.id, choice]));
-  // A group of the keyword's that the list has not loaded still shows by its path
-  for (const group of detail.groups) {
-    if (!groupById.has(group.group_id)) groupById.set(group.group_id, { id: group.group_id, label: group.path });
-  }
-
   const project = { workspace_id: scope.workspaceId, project_id: scope.projectId };
   const id = detail.tracked_keyword_id;
   const submit = useSubmitOnce(
     form.handleSubmit(async (values) => {
       setAlert(null);
+      // A typed path that cannot become a group is named before anything is created or sent
+      const pathError = checkGroupPaths(values.groups);
+      if (pathError !== null) {
+        form.setError('groups', { type: 'server', message: pathError }, { shouldFocus: true });
+        return;
+      }
       setSaving(true);
       // Each request is whole on its own; a retry after a partial save sends them again, which changes nothing twice
       let landed = 0;
       try {
-        const before = new Set(initial.groups);
-        const after = new Set(values.groups);
-        for (const groupId of values.groups.filter((group) => !before.has(group))) {
+        // Groups typed and not yet made are made now, so cancelling the edit leaves none behind
+        let groupIds: string[];
+        try {
+          groupIds = await ensureGroups(values.groups);
+        } catch (error) {
+          setAlert(groupRefusal(error, refusals).message);
+          return;
+        }
+        const before = new Set(initialGroupIds);
+        const after = new Set(groupIds);
+        for (const groupId of groupIds.filter((group) => !before.has(group))) {
           await addMembers.mutateAsync({
             params: { path: { ...project, group_id: groupId } },
             body: { tracked_keyword_ids: [id] },
           });
           landed += 1;
         }
-        for (const groupId of initial.groups.filter((group) => !after.has(group))) {
+        for (const groupId of initialGroupIds.filter((group) => !after.has(group))) {
           await removeMembers.mutateAsync({
             params: { path: { ...project, group_id: groupId } },
             body: { tracked_keyword_ids: [id] },
@@ -248,20 +269,12 @@ function LinksForm({
         name="groups"
         label={t('groups')}
         render={(field) => (
-          <MultiSelect<Choice>
+          <GroupPicker
+            scope={scope}
             inputRef={field.ref}
             onBlur={field.onBlur}
-            value={field.value.flatMap((groupId) => groupById.get(groupId) ?? [])}
-            onValueChange={(chosen) => field.onChange(chosen.map((choice) => choice.id))}
-            items={groupChoices}
-            itemToString={(choice) => choice.label}
-            itemKey={(choice) => choice.id}
-            placeholder={t('groupsPlaceholder')}
-            emptyText={(query) => t('groupsEmpty', { query })}
-            chipsLabel={t('chips', { field: t('groups') })}
-            removeLabel={(value) => t('remove', { value })}
-            chipsHint={(count) => t('chipsHint', { count })}
-            chipHint={t('chipHint')}
+            value={field.value}
+            onValueChange={(chosen) => field.onChange([...chosen])}
           />
         )}
       />

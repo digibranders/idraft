@@ -6,14 +6,12 @@ import { useForm } from 'react-hook-form';
 
 import { BulkDialog } from './bulk-dialog';
 import { failureText } from './bulk-failure';
+import { useEnsureGroups, useGroupChoices, type GroupChoice } from '../groups/group-choices';
+import { GroupSelect } from '../groups/group-picker';
+import { groupRefusal } from '../groups/group-refusals';
 import type { ProjectScope } from '../rankings-queries';
-import { useKeywordGroups } from '../taxonomy-queries';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
-import { Select } from '@/components/ui/select';
-
-/** "No group": group ids are UUIDs, so this never names one. */
-const NO_GROUP = 'none';
 
 export interface MoveToGroupDialogProps {
   scope: ProjectScope;
@@ -28,7 +26,10 @@ export interface MoveToGroupDialogProps {
   finalFocus: RefObject<HTMLElement | null>;
 }
 
-/** Move to group: each chosen keyword leaves its other groups and joins the one chosen, or none. */
+/**
+ * Move to group: each chosen keyword leaves its other groups and joins the one chosen, or none. A path
+ * typed for a group that does not exist is created when the form is saved, parents first.
+ */
 export function MoveToGroupDialog({
   scope,
   open,
@@ -39,14 +40,11 @@ export function MoveToGroupDialog({
 }: MoveToGroupDialogProps): ReactElement {
   const t = useTranslations('rankings.bulk.groupDialog');
   const bulk = useTranslations('rankings.bulk');
-  const groups = useKeywordGroups(scope);
-  const list = groups.data?.data ?? [];
+  const refusals = useTranslations('rankings.groups.refusals');
+  const groups = useGroupChoices(scope);
+  const ensure = useEnsureGroups(scope);
   const [alert, setAlert] = useState<string | null>(null);
-  const form = useForm<{ group: string | null }>({ defaultValues: { group: null } });
-  const options = [
-    { value: NO_GROUP, label: t('none'), description: t('noneHint') },
-    ...list.map((group) => ({ value: group.group_id, label: group.path })),
-  ];
+  const form = useForm<{ group: GroupChoice | null }>({ defaultValues: { group: null } });
   const close = (): void => {
     form.reset({ group: null });
     setAlert(null);
@@ -56,7 +54,7 @@ export function MoveToGroupDialog({
     form.handleSubmit(async ({ group }) => {
       setAlert(null);
       // A move takes the keywords out of the other groups, which it cannot name before they load
-      if (!groups.isSuccess) {
+      if (!groups.ready) {
         setAlert(t('groupsUnavailable'));
         return;
       }
@@ -64,9 +62,20 @@ export function MoveToGroupDialog({
         form.setError('group', { type: 'required', message: t('required') }, { shouldFocus: true });
         return;
       }
-      const target = group === NO_GROUP ? null : group;
-      const others = list.map((candidate) => candidate.group_id).filter((id) => id !== target);
-      const name = list.find((candidate) => candidate.group_id === target)?.path ?? null;
+      let target: string | null = null;
+      if (group.kind === 'existing') {
+        target = group.groupId;
+      } else if (group.kind === 'new') {
+        try {
+          target = (await ensure([group]))[0] ?? null;
+        } catch (error) {
+          setAlert(groupRefusal(error, refusals).message);
+          return;
+        }
+      }
+      // A group made just now has no members to leave
+      const others = groups.choices.map((candidate) => candidate.groupId).filter((id) => id !== target);
+      const name = group.kind === 'none' ? null : group.path;
       try {
         await onApply(target, others, name);
         close();
@@ -93,12 +102,13 @@ export function MoveToGroupDialog({
         name="group"
         label={t('group')}
         render={(field) => (
-          <Select<string>
-            {...field.controlProps}
+          <GroupSelect
+            scope={scope}
             value={field.value}
             onValueChange={field.onChange}
-            placeholder={t('placeholder')}
-            options={options}
+            inputRef={field.controlProps.ref}
+            onBlur={field.controlProps.onBlur}
+            aria-required={field.controlProps['aria-required']}
           />
         )}
       />

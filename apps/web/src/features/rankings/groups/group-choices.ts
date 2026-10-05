@@ -1,10 +1,11 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { useCallback, useMemo } from 'react';
 
 import { ensureGroups } from './ensure-groups';
-import { pathProblem, splitPath } from './group-paths';
+import { pathProblem, splitPath, type PathProblem } from './group-paths';
 import type { ProjectScope } from '../rankings-queries';
 import { refreshGroups, useKeywordGroups } from '../taxonomy-queries';
 import { apiMutation } from '@/lib/api/query';
@@ -30,6 +31,31 @@ export function newGroupChoice(text: string): GroupChoice {
 
 /** Whether a typed path can become a group. */
 export const canCreatePath = (text: string): boolean => pathProblem(text) === null;
+
+const PATH_PROBLEM_KEY = {
+  empty: 'pathEmpty',
+  too_long: 'pathTooLong',
+  too_deep: 'pathTooDeep',
+} as const satisfies Record<PathProblem, string>;
+
+/**
+ * Checks the paths typed in a form before anything is sent: answers the sentence for the first typed
+ * path that cannot become a group, or `null` when every one can.
+ */
+export function useGroupPathCheck(): (chosen: readonly GroupChoice[]) => string | null {
+  const t = useTranslations('rankings.groups');
+  return useCallback(
+    (chosen) => {
+      for (const choice of chosen) {
+        if (choice.kind !== 'new') continue;
+        const problem = pathProblem(choice.path);
+        if (problem !== null) return t(PATH_PROBLEM_KEY[problem]);
+      }
+      return null;
+    },
+    [t],
+  );
+}
 
 export interface GroupChoices {
   choices: readonly Extract<GroupChoice, { kind: 'existing' }>[];

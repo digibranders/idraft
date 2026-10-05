@@ -1250,9 +1250,6 @@
         "title": "Move {count}",
         "description": "Each keyword leaves its other groups and joins the one you choose.",
         "group": "Group",
-        "none": "No group",
-        "noneHint": "Takes the keywords out of every group",
-        "placeholder": "Choose a group",
         "required": "Choose a group, or no group",
         "groupsUnavailable": "The groups have not loaded yet, so the move cannot name the groups to leave. Try again in a moment.",
         "submit": "Move {count}",
@@ -1318,8 +1315,6 @@
         "both": "Both"
       },
       "groups": "Groups",
-      "groupsPlaceholder": "Choose groups",
-      "groupsEmpty": "No groups match “{query}”",
       "tags": "Tags",
       "tagsHint": "A vocabulary that takes one term keeps the last one chosen",
       "tagsPlaceholder": "Choose tags",
@@ -1380,7 +1375,17 @@
       "count": "{count, plural, one {# keyword} other {# keywords}}",
       "pathEmpty": "Each level of a group path needs a name.",
       "pathTooLong": "A group name has 100 characters at most.",
-      "pathTooDeep": "Groups go 10 levels deep at most."
+      "pathTooDeep": "Groups go 10 levels deep at most.",
+      "refusals": {
+        "duplicate": "A group next to it already has this name.",
+        "slash": "A group name can't contain \"/\".",
+        "tooDeep": "Groups go 10 levels deep at most.",
+        "pathTooLong": "This name makes the group's path too long.",
+        "gone": "This group was deleted meanwhile. The list now shows the groups as they are.",
+        "cycle": "A group can't move into itself or a group under it.",
+        "forbidden": "Changing groups needs permission to edit keywords.",
+        "failed": "The groups could not be changed. Try again."
+      }
     },
     "caption": "Tracked keywords",
     "noun": {
@@ -1596,8 +1601,6 @@
         "noGroups": "In no group",
         "tags": "Tags",
         "noTags": "No tags",
-        "groupsPlaceholder": "Choose groups",
-        "groupsEmpty": "No groups match “{query}”",
         "termsPlaceholder": "Choose terms",
         "termsEmpty": "No terms match “{query}”",
         "noTerm": "None",
