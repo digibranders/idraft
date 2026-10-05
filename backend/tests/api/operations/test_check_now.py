@@ -120,6 +120,11 @@ async def test_a_check_records_a_planned_live_run_for_the_worker(
     )
     assert entry["target_id"] == data["run_id"]
     assert json.loads(entry["after"])["keyword_count"] == 2
+    # The run says which keywords it checks, to read their results by.
+    detail = await api.get(
+        project_url(workspace, project, "runs", data["run_id"]), headers=owner.headers
+    )
+    assert detail.json()["data"]["results"] == {"tracked_keyword_ids": sorted([crm, erp])}
 
 
 async def test_without_a_depth_each_keyword_is_checked_at_its_daily_depth(
@@ -155,9 +160,22 @@ async def test_a_keyword_the_project_does_not_collect_is_refused(
         "UPDATE seo.tracked_keywords SET is_active = false WHERE id = $1",
         uuid.UUID(archived),
     )
+    # What the worker would never plan: a profile that is not offered, another search engine.
+    unplanned = await tracked_id(api, workspace, project, owner, "benefits")
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keywords SET depth_profile = 'until_own_match_100' WHERE id = $1",
+        uuid.UUID(unplanned),
+    )
+    bing = await tracked_id(api, workspace, project, owner, "recruiting")
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keywords SET search_engine = 'bing' WHERE id = $1",
+        uuid.UUID(bing),
+    )
     fine = await tracked_id(api, workspace, project, owner, "payroll")
 
-    for refused in (elsewhere, deleted, archived, str(uuid.uuid4())):
+    for refused in (elsewhere, deleted, archived, unplanned, bing, str(uuid.uuid4())):
         # One keyword the project does not collect fails the whole request.
         response = await _check(
             api, workspace, project, owner, {"tracked_keyword_ids": [fine, refused]}

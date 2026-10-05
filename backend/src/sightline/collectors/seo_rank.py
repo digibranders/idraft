@@ -60,6 +60,9 @@ NEW_KEYWORD_QUIET: Final = timedelta(hours=24)
 MANUAL_WINDOW: Final = timedelta(hours=1)
 # A keyword's check on a day is kept by every run but these.
 _NOT_CHECKED: Final = ("cancelled", "failed", "dead")
+# What check now takes (docs/19 section 3.6.4): keywords at a time, and the depths offered.
+CHECK_NOW_MAX: Final = 100
+CHECK_NOW_DEPTHS: Final = (10, 20, 50, 100)
 _log = structlog.get_logger(__name__)
 
 
@@ -132,10 +135,13 @@ def _checked_today_elsewhere(
     schedule_id: UUID | None, start: datetime, end: datetime
 ) -> ColumnElement[bool]:
     """Another schedule's run of the same project-local day has a task for the keyword (a
-    keyword is planned once a day across `seo_rank` schedules)."""
+    keyword is planned once a day across `seo_rank` schedules). A check now does not stand for
+    the day's check: it may be shallower than the schedule's, and a person asked for it, not
+    the schedule."""
     t, task, run = tracked_keywords.c, collection_tasks.c, collection_runs.c
     return exists().where(
         task.workload == WORKLOAD.value,
+        task.provider_endpoint != SERP_ORGANIC_LIVE,
         task.subject_type == SUBJECT_TYPE,
         func.split_part(task.subject_id, ":", 1) == cast(t.id, Text),
         task.workspace_id == t.workspace_id,
@@ -236,8 +242,15 @@ async def select_subjects(
         narrowed = True
         statement = statement.where(t.priority <= int(priority_lte))
     chosen = selector.get("tracked_keyword_ids")
+    asked_depth = selector.get("depth") if chosen else None
     if chosen:
-        # Check now: these keywords, whatever their schedule or what ran today.
+        # Check now: these keywords, whatever their schedule or what ran today. The API sends
+        # at most `CHECK_NOW_MAX` of them at one of the offered depths; a selector written any
+        # other way is refused, not priced and sent.
+        if len(chosen) > CHECK_NOW_MAX:
+            raise ValueError(f"check now takes at most {CHECK_NOW_MAX} keywords")
+        if asked_depth is not None and asked_depth not in CHECK_NOW_DEPTHS:
+            raise ValueError(f"check now depth {asked_depth!r} is not one of {CHECK_NOW_DEPTHS}")
         statement = statement.where(t.id.in_(_uuids(chosen)))
     if not (new or chosen or selector.get("all") or narrowed):
         return []
@@ -256,13 +269,15 @@ async def select_subjects(
 
     deep_day = is_deep_day(day, zone.deep_check_weekday)
     found: list[Subject] = []
-    asked_depth = selector.get("depth") if chosen else None
     for row in await db.execute(statement):
-        depth = (
-            int(asked_depth)
-            if asked_depth is not None
-            else depth_for(row.depth_profile, deep_day=deep_day)
-        )
+        depth: int | None
+        if asked_depth is not None:
+            depth = int(asked_depth)
+        elif chosen:
+            # Check now without a depth is the daily depth, whatever the weekday is.
+            depth = depth_for(row.depth_profile, deep_day=False)
+        else:
+            depth = depth_for(row.depth_profile, deep_day=deep_day)
         if depth is None and (new or chosen):
             # A keyword with no check today (a weekly profile) still gets its first one now.
             depth = depth_for(row.depth_profile, deep_day=True)

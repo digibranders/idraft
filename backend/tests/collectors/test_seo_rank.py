@@ -411,8 +411,38 @@ async def test_check_now_plans_a_keyword_again_that_was_checked_today(
     scheduled = await _plan(worker_db, _window(project, schedule_id=schedule))
     again = await _plan(worker_db, window)
 
-    assert list(scheduled.tasks) == []
+    # A check now may be shallower than the schedule's and a person asked for it: it does not
+    # stand for the day's check.
+    assert set(_depths(scheduled)) == {keyword}
     assert set(_depths(again)) == {keyword}
+
+
+async def test_check_now_without_a_depth_is_the_daily_depth_even_on_the_deep_weekday(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    standard = await _tracked(migrated, project, "crm standard")
+    weekly = await _tracked(migrated, project, "crm weekly", profile="weekly")
+    selector = {"tracked_keyword_ids": [str(standard), str(weekly)], "live": True}
+
+    plan = await _plan(worker_db, _window(project, selector, start=MONDAY))
+
+    assert _depths(plan) == {standard: 20, weekly: 100}
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        {"tracked_keyword_ids": [str(uuid.uuid4())] * 101, "live": True},
+        {"tracked_keyword_ids": [str(uuid.uuid4())], "live": True, "depth": 500},
+        {"tracked_keyword_ids": [str(uuid.uuid4())], "live": True, "depth": "50"},
+    ],
+)
+async def test_a_check_now_selector_the_api_would_not_write_is_refused(
+    worker_db: Ledger, world: World, selector: dict[str, Any]
+) -> None:
+    with pytest.raises(ValueError, match="check now"):
+        await _plan(worker_db, _window(world.project, selector))
 
 
 # The estimate.

@@ -18,6 +18,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Final
 from uuid import UUID
 
+import structlog
+from redis.exceptions import RedisError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -54,6 +56,7 @@ SEO_RANK: Final = "seo_rank"
 PAUSED_RETRY_SECONDS: Final = 300
 CANCELLED_BY_USER: Final = "cancelled_by_user"
 _OPEN: Final = frozenset({"planned", "running"})
+_log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +192,17 @@ class RunService:
             raise NotFoundError
         return created
 
+    async def _provider_paused(self) -> bool:
+        """Whether the provider is being left alone. Redis being out is not a reason to refuse:
+        the dispatcher looks at the pause again before it sends anything."""
+        if self._pauses is None:
+            return False
+        try:
+            return DATAFORSEO in await self._pauses.paused([DATAFORSEO])
+        except RedisError:
+            _log.warning("provider pause not read; the check goes ahead", exc_info=True)
+            return False
+
     async def check_now(
         self,
         access: WorkspaceAccess,
@@ -199,7 +213,7 @@ class RunService:
         """A manual rank run of the given tracked keywords, each asked of the provider live.
         `422 quota_exceeded` when the month's live checks would pass the workspace's limit,
         `503 provider_paused` while the provider is refusing everyone."""
-        if self._pauses is not None and DATAFORSEO in await self._pauses.paused([DATAFORSEO]):
+        if await self._provider_paused():
             raise ProviderPausedError(
                 "The data provider is not being asked just now. Try again in a few minutes.",
                 headers={"Retry-After": str(PAUSED_RETRY_SECONDS)},

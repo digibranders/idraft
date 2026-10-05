@@ -245,9 +245,18 @@ class Run(BaseModel):
     operation: Operation
 
 
+class RunResults(BaseModel):
+    """Where a manual run's results are: the tracked keywords whose rank it checks."""
+
+    tracked_keyword_ids: list[UUID] | None = None
+
+
 class RunDetail(Run):
     tasks_by_status: dict[str, int]
     config_snapshot: dict[str, object]
+    results: RunResults | None = Field(
+        default=None, description="Manual runs of tracked keywords: links to their results."
+    )
 
 
 class RunResponse(BaseModel):

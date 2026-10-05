@@ -18,7 +18,8 @@ from sightline.providers.contract import (
     ProviderCallError,
     ProviderError,
 )
-from tests.api.auth.support import fetch
+from sightline.providers.dataforseo.serp import SERP_ORGANIC_LIVE
+from tests.api.auth.support import execute, fetch
 from tests.collectors.support import FakeProvider, make_tenant, seed_run, task_rows
 from tests.collectors.test_fetching import MemoryStore
 from tests.collectors.test_submission import World
@@ -95,6 +96,37 @@ async def test_a_failed_call_puts_its_tasks_back_under_the_retry_policy(
     assert {(row["status"], row["last_error_code"]) for row in rows} == {("pending", "timeout")}
     # The provider's words may quote another workspace's keyword: they stay in the log.
     assert all("secret" not in row["last_error_message"] for row in rows)
+
+
+async def test_a_live_search_is_tried_twice_at_most_because_a_failed_call_may_be_paid_for(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    provider = FakeProvider(price="0.0012")
+    provider.live_endpoints = {SERP_ORGANIC_LIVE}
+
+    async def timeout(endpoint: str, requests: Sequence[CanonicalRequest]) -> Sequence[LiveResult]:
+        raise ProviderCallError(ProviderError(kind=K.TIMEOUT, message="read timed out"))
+
+    provider.live_answer = timeout
+    world = World(worker_db, provider)
+    run_id = await seed_run(worker_db, await make_tenant(migrated), 2, endpoint=SERP_ORGANIC_LIVE)
+    # One of the two has been tried once already.
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET attempts = 1 WHERE id = "
+        "(SELECT min(id) FROM ops.collection_tasks WHERE run_id = $1)",
+        run_id,
+    )
+    (batch,) = await world.dispatch()
+
+    await _submit(world, batch, MemoryStore())
+
+    rows = await task_rows(migrated, run_id)
+    # The second try ends it; the first is still given another.
+    assert sorted((row["attempts"], row["status"]) for row in rows) == [
+        (1, "pending"),
+        (2, "failed"),
+    ]
 
 
 async def test_an_answer_that_cannot_be_stored_is_asked_for_again(

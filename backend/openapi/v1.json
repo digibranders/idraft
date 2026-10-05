@@ -7182,6 +7182,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "results": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunResults"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Manual runs of tracked keywords: links to their results."
+          },
           "run_id": {
             "format": "uuid",
             "title": "Run Id",
@@ -7368,6 +7379,28 @@
           "data"
         ],
         "title": "RunResponse",
+        "type": "object"
+      },
+      "RunResults": {
+        "description": "Where a manual run's results are: the tracked keywords whose rank it checks.",
+        "properties": {
+          "tracked_keyword_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracked Keyword Ids"
+          }
+        },
+        "title": "RunResults",
         "type": "object"
       },
       "Schedule": {

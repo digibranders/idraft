@@ -35,6 +35,7 @@ from sightline.api.schemas.operations import (
     RunPage,
     RunPageMeta,
     RunResponse,
+    RunResults,
     RunStatus,
     Trigger,
     Workload,
@@ -233,11 +234,14 @@ async def get_run(
 ) -> RunDetailResponse:
     found = await runs.detail(access, project_id, run_id)
     view = run_view(found.run, access.workspace_id)
+    selector = found.run.config_snapshot.get("selector")
+    named = selector.get("tracked_keyword_ids") if isinstance(selector, dict) else None
     return RunDetailResponse(
         data=RunDetail(
             **view.model_dump(),
             tasks_by_status=found.tasks_by_status,
             config_snapshot=dict(found.run.config_snapshot),
+            results=RunResults(tracked_keyword_ids=named) if isinstance(named, list) else None,
         )
     )
 
