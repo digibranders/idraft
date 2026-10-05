@@ -228,7 +228,106 @@ class UrlRef(BaseModel):
     path: str
 
 
-TrackedInclude = Literal["metrics", "groups", "terms", "competitors"]
+TrackedInclude = Literal[
+    "metrics",
+    "groups",
+    "terms",
+    "competitors",
+    "sparkline",
+    "competitor_ranks",
+    "features",
+    "aio",
+]
+RankCellState = Literal["ranked", "beyond_depth", "not_checked", "failed"]
+RankChangeLabel = Literal[
+    "numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"
+]
+AioState = Literal["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"]
+
+
+class RankCell(BaseModel):
+    """One check's result for one site (docs/19 section 2, `RankCell`). A rank is known only
+    within the depth that was checked: `beyond_depth` says it is further down, not absent."""
+
+    state: RankCellState
+    rank: int | None = Field(description="The organic rank; null unless `state` is `ranked`.")
+    absolute_rank: int | None
+    depth_requested: int | None = Field(description="Null when `state` is `not_checked`.")
+    url: UrlRef | None
+    observed_at: datetime | None
+    serp_snapshot_id: str | None
+
+
+class RankChange(BaseModel):
+    """How a check compares with the one before it, within the smaller depth of the two."""
+
+    value: int | None = Field(
+        description="Previous rank minus current rank (positive = improved); null unless "
+        "`label` is `numeric`."
+    )
+    label: RankChangeLabel
+    previous_rank: int | None
+    previous_observed_at: datetime | None
+
+
+class AioStateInfo(BaseModel):
+    state: AioState
+    citation_position: int | None
+    observation_id: str | None
+
+
+class TrackedKeywordState(BaseModel):
+    """The keyword's latest rank facts (`seo.tracked_keyword_state`)."""
+
+    current: RankCell
+    change: RankChange
+    best_rank: int | None
+    best_rank_at: datetime | None
+    worst_rank: int | None
+    first_ranked_at: datetime | None
+    feature_types_present: list[str] = Field(description="On the first page of results.")
+    owned_feature_types: list[str]
+    aio: AioStateInfo
+    target_url_match: bool | None
+    url_changed_at: datetime | None
+    consecutive_failures: int
+    is_stale: bool
+    last_observed_at: datetime | None
+    ranking_url_count: int = Field(description="Own URLs that ranked at the last check.")
+
+
+class SparklinePoint(BaseModel):
+    t: datetime
+    rank: int | None
+    depth: int
+    state: Literal["ranked", "beyond_depth"]
+
+
+class Sparkline(BaseModel):
+    depth_mode: Literal["daily_depth"] = "daily_depth"
+    points: list[SparklinePoint] = Field(description="The last 30 checks, oldest first.")
+
+
+class CompetitorRank(BaseModel):
+    entity: EntityRef
+    current: RankCell
+    change: RankChange
+
+
+class FeatureOnPage(BaseModel):
+    feature_type: str
+    ordinal: int
+    rank_absolute: int | None
+    owned_by_project: bool
+    owned_position: int | None
+
+
+class AioCitations(BaseModel):
+    state: AioState
+    citation_position: int | None
+    cited_urls: list[UrlRef] = Field(description="What the AI Overview cites, in order.")
+
+
 MetricsSource = Literal["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"]
 CompetitionLevel = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -304,6 +403,17 @@ class TrackedKeywordRow(TrackedKeyword):
     competitors: list[CompetitorOverride] | None = Field(
         default=None, description="`include=competitors`: the keyword's overrides."
     )
+    state: TrackedKeywordState
+    sparkline: Sparkline | None = Field(default=None, description="`include=sparkline`.")
+    competitor_ranks: list[CompetitorRank] | None = Field(
+        default=None, description="`include=competitor_ranks`: the competitors' ranks."
+    )
+    features: list[FeatureOnPage] | None = Field(
+        default=None, description="`include=features`: the features of the last check."
+    )
+    aio: AioCitations | None = Field(
+        default=None, description="`include=aio`: what the last AI Overview cites."
+    )
 
 
 class TrackedKeywordResponse(BaseModel):
@@ -330,6 +440,7 @@ class ScheduleRef(BaseModel):
 
 
 class TrackedKeywordDetail(TrackedKeyword):
+    state: TrackedKeywordState
     metrics: KeywordMetrics | None
     groups: list[GroupRef]
     terms: list[TermRef]
@@ -393,6 +504,21 @@ class TrackedKeywordFilter(Body):
     depth_profile_in: FilterList[DepthProfile] | None = None
     search_volume_gte: Annotated[int, Field(ge=0)] | None = None
     keyword_difficulty_lte: Annotated[int, Field(ge=0, le=100)] | None = None
+    # What the latest check says (`seo.tracked_keyword_state`).
+    rank_lte: Annotated[int, Field(ge=1, le=700)] | None = None
+    rank_gte: Annotated[int, Field(ge=1, le=700)] | None = None
+    rank_is_null: bool | None = Field(
+        default=None, description="Beyond the depth at the latest check (true) or ranked (false)."
+    )
+    rank_change_label_in: FilterList[RankChangeLabel] | None = None
+    improved: bool | None = Field(default=None, description="Ranked higher than the check before.")
+    declined: bool | None = Field(default=None, description="Ranked lower than the check before.")
+    feature_present: Annotated[str, StringConstraints(min_length=1, max_length=100)] | None = None
+    feature_owned: Annotated[str, StringConstraints(min_length=1, max_length=100)] | None = None
+    aio_state: FilterList[AioState] | None = None
+    ranking_url_id: Annotated[int, Field(ge=1)] | None = None
+    target_url_match: bool | None = None
+    is_stale: bool | None = None
 
 
 class Selection(Body):

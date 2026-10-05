@@ -54,6 +54,7 @@ from sightline.db.tables import (
     taxonomy_vocabularies,
     tracked_keyword_competitors,
     tracked_keyword_config_history,
+    tracked_keyword_state,
     tracked_keyword_terms,
     tracked_keywords,
     urls,
@@ -496,17 +497,28 @@ async def tracked_by_ids(
 
 
 def _listed(workspace_id: UUID) -> Select[tuple[object, ...]]:
-    """`_tracked` with the keyword's current Labs metrics, which the list filters and sorts by."""
+    """`_tracked` with the keyword's current Labs metrics and its rank state, which the list
+    filters and sorts by."""
     t = tracked_keywords.c
-    return _tracked(workspace_id).outerjoin(
-        LABS_CURRENT,
-        and_(
-            LABS_CURRENT.c.keyword_id == t.keyword_id,
-            LABS_CURRENT.c.location_id == t.location_id,
-            LABS_CURRENT.c.language_code == t.language_code,
-            LABS_CURRENT.c.workspace_id == t.workspace_id,
-            LABS_CURRENT.c.source == LABS,
-        ),
+    return (
+        _tracked(workspace_id)
+        .outerjoin(
+            LABS_CURRENT,
+            and_(
+                LABS_CURRENT.c.keyword_id == t.keyword_id,
+                LABS_CURRENT.c.location_id == t.location_id,
+                LABS_CURRENT.c.language_code == t.language_code,
+                LABS_CURRENT.c.workspace_id == t.workspace_id,
+                LABS_CURRENT.c.source == LABS,
+            ),
+        )
+        .outerjoin(
+            tracked_keyword_state,
+            and_(
+                tracked_keyword_state.c.tracked_keyword_id == t.id,
+                tracked_keyword_state.c.workspace_id == t.workspace_id,
+            ),
+        )
     )
 
 
@@ -968,7 +980,7 @@ async def replace_overrides(
         )
 
 
-def _entity_ref(project_id: UUID) -> Select[tuple[object, ...]]:
+def entity_refs(project_id: UUID) -> Select[tuple[object, ...]]:
     """Entities with their live role in the project, if any."""
     return select(
         entities.c.id,
@@ -995,7 +1007,7 @@ async def overrides_of(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, tracked_ids: Collection[UUID]
 ) -> dict[UUID, list[OverrideRecord]]:
     statement = (
-        _entity_ref(project_id)
+        entity_refs(project_id)
         .add_columns(
             tracked_keyword_competitors.c.tracked_keyword_id, tracked_keyword_competitors.c.mode
         )
@@ -1025,7 +1037,7 @@ async def project_competitors(
 ) -> list[CompetitorRecord]:
     """The project's default competitor set: live `competitor` roles tracked in SEO."""
     statement = (
-        _entity_ref(project_id)
+        entity_refs(project_id)
         .where(
             entities.c.workspace_id == workspace_id,
             project_entities.c.role == "competitor",

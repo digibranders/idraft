@@ -71,6 +71,91 @@
         "title": "Actor",
         "type": "object"
       },
+      "AioCitations": {
+        "properties": {
+          "citation_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citation Position"
+          },
+          "cited_urls": {
+            "description": "What the AI Overview cites, in order.",
+            "items": {
+              "$ref": "#/components/schemas/UrlRef"
+            },
+            "title": "Cited Urls",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "absent",
+              "present_not_cited",
+              "present_cited",
+              "not_loaded",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "citation_position",
+          "cited_urls"
+        ],
+        "title": "AioCitations",
+        "type": "object"
+      },
+      "AioStateInfo": {
+        "properties": {
+          "citation_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citation Position"
+          },
+          "observation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Id"
+          },
+          "state": {
+            "enum": [
+              "absent",
+              "present_not_cited",
+              "present_cited",
+              "not_loaded",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "citation_position",
+          "observation_id"
+        ],
+        "title": "AioStateInfo",
+        "type": "object"
+      },
       "Alias": {
         "properties": {
           "alias": {
@@ -920,6 +1005,26 @@
           }
         },
         "title": "CompetitorOverrides",
+        "type": "object"
+      },
+      "CompetitorRank": {
+        "properties": {
+          "change": {
+            "$ref": "#/components/schemas/RankChange"
+          },
+          "current": {
+            "$ref": "#/components/schemas/RankCell"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/EntityRef"
+          }
+        },
+        "required": [
+          "entity",
+          "current",
+          "change"
+        ],
+        "title": "CompetitorRank",
         "type": "object"
       },
       "CompetitorSet": {
@@ -1974,6 +2079,68 @@
         "title": "EntityUpdate",
         "type": "object"
       },
+      "FeatureOnPage": {
+        "properties": {
+          "feature_type": {
+            "title": "Feature Type",
+            "type": "string"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "owned_by_project": {
+            "title": "Owned By Project",
+            "type": "boolean"
+          },
+          "owned_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owned Position"
+          },
+          "rank_absolute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Absolute"
+          }
+        },
+        "required": [
+          "feature_type",
+          "ordinal",
+          "rank_absolute",
+          "owned_by_project",
+          "owned_position"
+        ],
+        "title": "FeatureOnPage",
+        "type": "object"
+      },
+      "FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___": {
+        "items": {
+          "enum": [
+            "absent",
+            "present_not_cited",
+            "present_cited",
+            "not_loaded",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
       "FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___": {
         "items": {
           "enum": [
@@ -2016,6 +2183,22 @@
             "gsc_import",
             "discovery",
             "bulk_paste"
+          ],
+          "type": "string"
+        },
+        "maxItems": 100,
+        "minItems": 1,
+        "type": "array"
+      },
+      "FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___": {
+        "items": {
+          "enum": [
+            "numeric",
+            "new",
+            "lost",
+            "unchanged_beyond",
+            "consistent_beyond",
+            "first_check"
           ],
           "type": "string"
         },
@@ -5399,6 +5582,160 @@
         "title": "ProjectUpdate",
         "type": "object"
       },
+      "RankCell": {
+        "description": "One check's result for one site (docs/19 section 2, `RankCell`). A rank is known only\nwithin the depth that was checked: `beyond_depth` says it is further down, not absent.",
+        "properties": {
+          "absolute_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Rank"
+          },
+          "depth_requested": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when `state` is `not_checked`.",
+            "title": "Depth Requested"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The organic rank; null unless `state` is `ranked`.",
+            "title": "Rank"
+          },
+          "serp_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serp Snapshot Id"
+          },
+          "state": {
+            "enum": [
+              "ranked",
+              "beyond_depth",
+              "not_checked",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UrlRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "rank",
+          "absolute_rank",
+          "depth_requested",
+          "url",
+          "observed_at",
+          "serp_snapshot_id"
+        ],
+        "title": "RankCell",
+        "type": "object"
+      },
+      "RankChange": {
+        "description": "How a check compares with the one before it, within the smaller depth of the two.",
+        "properties": {
+          "label": {
+            "enum": [
+              "numeric",
+              "new",
+              "lost",
+              "unchanged_beyond",
+              "consistent_beyond",
+              "first_check"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "previous_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Observed At"
+          },
+          "previous_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Rank"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Previous rank minus current rank (positive = improved); null unless `label` is `numeric`.",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "label",
+          "previous_rank",
+          "previous_observed_at"
+        ],
+        "title": "RankChange",
+        "type": "object"
+      },
       "Readiness": {
         "properties": {
           "checks": {
@@ -6943,6 +7280,69 @@
         "title": "SignInResponse",
         "type": "object"
       },
+      "Sparkline": {
+        "properties": {
+          "depth_mode": {
+            "const": "daily_depth",
+            "default": "daily_depth",
+            "title": "Depth Mode",
+            "type": "string"
+          },
+          "points": {
+            "description": "The last 30 checks, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/SparklinePoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "Sparkline",
+        "type": "object"
+      },
+      "SparklinePoint": {
+        "properties": {
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "state": {
+            "enum": [
+              "ranked",
+              "beyond_depth"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "t": {
+            "format": "date-time",
+            "title": "T",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t",
+          "rank",
+          "depth",
+          "state"
+        ],
+        "title": "SparklinePoint",
+        "type": "object"
+      },
       "Term": {
         "properties": {
           "created_at": {
@@ -8360,6 +8760,9 @@
             "title": "Source",
             "type": "string"
           },
+          "state": {
+            "$ref": "#/components/schemas/TrackedKeywordState"
+          },
           "target_url": {
             "anyOf": [
               {
@@ -8413,6 +8816,7 @@
           "created_by",
           "created_at",
           "updated_at",
+          "state",
           "metrics",
           "groups",
           "terms",
@@ -8439,6 +8843,28 @@
         "additionalProperties": false,
         "description": "The list's filters, as a body: what bulk changes and term assignments select by.\nThe same names as the list's `filter[...]` parameters, without the brackets. A list holds\nat least one value. `is_active` left out takes archived and active keywords alike (the\nlist itself defaults it to true).",
         "properties": {
+          "aio_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "declined": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ranked lower than the check before.",
+            "title": "Declined"
+          },
           "depth_profile_in": {
             "anyOf": [
               {
@@ -8464,6 +8890,32 @@
             ],
             "title": "Device"
           },
+          "feature_owned": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Owned"
+          },
+          "feature_present": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Present"
+          },
           "funnel_stage_in": {
             "anyOf": [
               {
@@ -8486,6 +8938,18 @@
             ],
             "title": "Group"
           },
+          "improved": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ranked higher than the check before.",
+            "title": "Improved"
+          },
           "intent_in": {
             "anyOf": [
               {
@@ -8506,6 +8970,17 @@
               }
             ],
             "title": "Is Active"
+          },
+          "is_stale": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Stale"
           },
           "keyword_difficulty_lte": {
             "anyOf": [
@@ -8569,6 +9044,66 @@
             ],
             "title": "Q"
           },
+          "rank_change_label_in": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rank_gte": {
+            "anyOf": [
+              {
+                "maximum": 700.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Gte"
+          },
+          "rank_is_null": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Beyond the depth at the latest check (true) or ranked (false).",
+            "title": "Rank Is Null"
+          },
+          "rank_lte": {
+            "anyOf": [
+              {
+                "maximum": 700.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Lte"
+          },
+          "ranking_url_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ranking Url Id"
+          },
           "search_engine": {
             "anyOf": [
               {
@@ -8605,6 +9140,17 @@
                 "type": "null"
               }
             ]
+          },
+          "target_url_match": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url Match"
           },
           "term": {
             "anyOf": [
@@ -8827,6 +9373,17 @@
       "TrackedKeywordRow": {
         "description": "A list row. The blocks named in `include` are filled; the others are null.",
         "properties": {
+          "aio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AioCitations"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=aio`: what the last AI Overview cites."
+          },
           "business_value": {
             "anyOf": [
               {
@@ -8841,6 +9398,21 @@
               }
             ],
             "title": "Business Value"
+          },
+          "competitor_ranks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CompetitorRank"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=competitor_ranks`: the competitors' ranks.",
+            "title": "Competitor Ranks"
           },
           "competitors": {
             "anyOf": [
@@ -8896,6 +9468,21 @@
             ],
             "title": "Device",
             "type": "string"
+          },
+          "features": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FeatureOnPage"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=features`: the features of the last check.",
+            "title": "Features"
           },
           "frequency": {
             "enum": [
@@ -9047,6 +9634,20 @@
             "title": "Source",
             "type": "string"
           },
+          "sparkline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sparkline"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`include=sparkline`."
+          },
+          "state": {
+            "$ref": "#/components/schemas/TrackedKeywordState"
+          },
           "target_url": {
             "anyOf": [
               {
@@ -9107,9 +9708,152 @@
           "is_active",
           "created_by",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "state"
         ],
         "title": "TrackedKeywordRow",
+        "type": "object"
+      },
+      "TrackedKeywordState": {
+        "description": "The keyword's latest rank facts (`seo.tracked_keyword_state`).",
+        "properties": {
+          "aio": {
+            "$ref": "#/components/schemas/AioStateInfo"
+          },
+          "best_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Rank"
+          },
+          "best_rank_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Rank At"
+          },
+          "change": {
+            "$ref": "#/components/schemas/RankChange"
+          },
+          "consecutive_failures": {
+            "title": "Consecutive Failures",
+            "type": "integer"
+          },
+          "current": {
+            "$ref": "#/components/schemas/RankCell"
+          },
+          "feature_types_present": {
+            "description": "On the first page of results.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Feature Types Present",
+            "type": "array"
+          },
+          "first_ranked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Ranked At"
+          },
+          "is_stale": {
+            "title": "Is Stale",
+            "type": "boolean"
+          },
+          "last_observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Observed At"
+          },
+          "owned_feature_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Owned Feature Types",
+            "type": "array"
+          },
+          "ranking_url_count": {
+            "description": "Own URLs that ranked at the last check.",
+            "title": "Ranking Url Count",
+            "type": "integer"
+          },
+          "target_url_match": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url Match"
+          },
+          "url_changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Changed At"
+          },
+          "worst_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst Rank"
+          }
+        },
+        "required": [
+          "current",
+          "change",
+          "best_rank",
+          "best_rank_at",
+          "worst_rank",
+          "first_ranked_at",
+          "feature_types_present",
+          "owned_feature_types",
+          "aio",
+          "target_url_match",
+          "url_changed_at",
+          "consecutive_failures",
+          "is_stale",
+          "last_observed_at",
+          "ranking_url_count"
+        ],
+        "title": "TrackedKeywordState",
         "type": "object"
       },
       "TrackedVariant": {
@@ -15431,7 +16175,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords": {
       "get": {
-        "description": "Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority` and `created_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric sorts keywords without one last in both directions. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).",
+        "description": "Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank` and `last_observed_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).",
         "operationId": "list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get",
         "parameters": [
           {
@@ -15484,7 +16228,11 @@
                       "metrics",
                       "groups",
                       "terms",
-                      "competitors"
+                      "competitors",
+                      "sparkline",
+                      "competitor_ranks",
+                      "features",
+                      "aio"
                     ],
                     "type": "string"
                   },
@@ -15821,6 +16569,230 @@
                 }
               ],
               "title": "Filter[Keyword Difficulty Lte]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[rank_lte]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 700,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Rank Lte]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[rank_gte]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 700,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Rank Gte]"
+            }
+          },
+          {
+            "description": "True: beyond the depth at the latest check. False: ranked.",
+            "in": "query",
+            "name": "filter[rank_is_null]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "True: beyond the depth at the latest check. False: ranked.",
+              "title": "Filter[Rank Is Null]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[rank_change_label_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "numeric",
+                      "new",
+                      "lost",
+                      "unchanged_beyond",
+                      "consistent_beyond",
+                      "first_check"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Rank Change Label In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[improved]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Improved]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[declined]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Declined]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[feature_present]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Feature Present]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[feature_owned]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Feature Owned]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[aio_state]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "absent",
+                      "present_not_cited",
+                      "present_cited",
+                      "not_loaded",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Aio State]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[ranking_url_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Ranking Url Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[target_url_match]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Target Url Match]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[is_stale]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Is Stale]"
             }
           },
           {
