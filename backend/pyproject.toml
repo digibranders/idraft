@@ -79,6 +79,9 @@ follow_untyped_imports = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "gold: parser results over the recorded provider answers (docs/26-testing-quality.md section 4); `pytest -m gold` runs them alone",
+]
 filterwarnings = [
     "error",
     # taskiq-redis builds a pipeline for every read of a stream and does not close it when the
