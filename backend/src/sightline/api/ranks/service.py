@@ -7,6 +7,8 @@ already refused a project outside the caller's scope.
 
 from __future__ import annotations
 
+import asyncio
+import gzip
 from collections import defaultdict
 from collections.abc import Collection, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -21,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.api.keywords import rank_repository
 from sightline.api.keywords import repository as keyword_repository
-from sightline.api.keywords.rank_views import competitor_view, url_ref  # noqa: F401
+from sightline.api.keywords.rank_views import url_ref
 from sightline.api.keywords.repository import CompetitorRecord, UrlRecord
 from sightline.api.keywords.service import effective_set
 from sightline.api.pagination import CursorParams, decode_cursor, encode_cursor, invalid_cursor
@@ -29,6 +31,7 @@ from sightline.api.problems import (
     NotFoundError,
     RawExpiredError,
     RawUnavailableError,
+    WindowTooLargeError,
 )
 from sightline.api.ranks import history as history_shapes
 from sightline.api.ranks import repository
@@ -59,17 +62,30 @@ from sightline.api.schemas.ranks import (
 )
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.db.engine import workspace_transaction
-from sightline.storage.raw import ObjectStore, RawStorageError, decompress, read_payload
+from sightline.storage.raw import ObjectStore, RawStorageError, decompress, digest, read_payload
 
 ENTITIES_MAX = 11
-SNAPSHOT_SINCE = datetime(2000, 1, 1, tzinfo=UTC)
 AIO_HISTORY_MAX = 1000
-EVENTS_PAGE_MAX_WINDOW = timedelta(days=3660)
+# docs/19 section 2.5: a list of raw rows covers at most 90 days unless it names one keyword.
+EVENTS_MAX_WINDOW = timedelta(days=90)
 
 
-@dataclass(frozen=True, slots=True)
-class HistoryPage:
-    history: RankHistory
+def _event_bounds(
+    start: datetime | date | None, end: datetime | date | None, zone: ZoneInfo
+) -> tuple[datetime | None, datetime | None]:
+    """The instants a request's `from` and `to` mean: a timestamp is itself, and a date is a
+    day of the project, whose last day is included."""
+    since: datetime | None = None
+    until: datetime | None = None
+    if isinstance(start, datetime):
+        since = start
+    elif start is not None:
+        since = instants(start, start, zone)[0]
+    if isinstance(end, datetime):
+        until = end
+    elif end is not None:
+        until = instants(end, end, zone)[1]
+    return since, until
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,16 +105,28 @@ class RawAnswer:
     body: bytes
 
 
-def _entity(record: CompetitorRecord) -> EntityRef:
+def _entity(record: CompetitorRecord, role: str | None = None) -> EntityRef:
+    """The entity; with `role`, the role it had when a check was made rather than today's."""
     return EntityRef.model_validate(
         {
             "entity_id": record.entity_id,
             "canonical_name": record.canonical_name,
             "entity_type": record.entity_type,
-            "role": record.role,
+            "role": role or record.role,
             "color_index": record.color_index,
         }
     )
+
+
+def _unpack_inline(data: bytes, compression: str) -> bytes:
+    """The body of a payload kept in the registry row, by the compression it names."""
+    match compression:
+        case "none":
+            return data
+        case "gzip":
+            return gzip.decompress(data)
+        case _:
+            return decompress(data)
 
 
 def _query_error(name: str, code: str, message: str) -> RequestValidationError:
@@ -122,10 +150,9 @@ def window_dates(
     if first > last:
         raise _query_error("from", "range_invalid", "`from` is after `to`.")
     if (last - first).days + 1 > history_shapes.WINDOW_MAX_DAYS:
-        raise _query_error(
-            "window",
-            "window_too_large",
+        raise WindowTooLargeError(
             f"A window is at most {history_shapes.WINDOW_MAX_DAYS} days.",
+            limit_days=history_shapes.WINDOW_MAX_DAYS,
         )
     return first, last
 
@@ -219,7 +246,7 @@ class RankService:
         start: date | None,
         end: date | None,
         window: str | None,
-        entity_ids: Sequence[UUID] | None,
+        entity_ids: Sequence[str] | None,
         include: Collection[HistoryInclude],
         form: HistoryFormat,
     ) -> RankHistory:
@@ -235,11 +262,13 @@ class RankService:
             )
             since, until = instants(first, last, zone)
             workspace_id = access.workspace_id
-            wanted = (
-                list(entity_ids)
-                if entity_ids
-                else await self._default_entities(db, access, project_id, tracked_keyword_id)
-            )
+            if entity_ids:
+                own = await repository.primary_own_entity(db, workspace_id, project_id)
+                chosen = [own if token == "own" else UUID(token) for token in entity_ids]
+                given = [entity for entity in chosen if entity is not None]
+            else:
+                given = await self._default_entities(db, access, project_id, tracked_keyword_id)
+            wanted = list(dict.fromkeys(given))  # each entity once, in the order given
             if len(wanted) > ENTITIES_MAX:
                 raise _query_error(
                     "entity_ids", "too_many_entities", f"At most {ENTITIES_MAX} entities."
@@ -289,7 +318,9 @@ class RankService:
             )
             for entry in config
         ]
-        primary = series_points[wanted[0]] if wanted else []
+        # The summary is the project's own: the first own entity asked for, else none.
+        own_first = next((e for e in wanted if refs[e].role == "own"), None)
+        primary = [] if own_first is None else series_points[own_first]
         return RankHistory(
             tracked_keyword_id=str(tracked_keyword_id),
             window=HistoryWindow(from_=first, to=last, timezone=project_zone.timezone),
@@ -480,7 +511,7 @@ class RankService:
             if record is None:
                 continue
             for url_id in observation.all_url_ids:
-                found.setdefault(url_id, _entity(record))
+                found.setdefault(url_id, _entity(record, observation.role))
         return found
 
     async def snapshot_detail(
@@ -557,7 +588,15 @@ class RankService:
         if row.object_key is None:
             if row.inline_body is None:
                 raise RawExpiredError("The raw answer of this snapshot is no longer kept.")
-            return RawAnswer(decompress(bytes(row.inline_body)))
+            try:
+                body = await asyncio.to_thread(
+                    _unpack_inline, bytes(row.inline_body), str(row.compression)
+                )
+            except (RawStorageError, OSError, EOFError):
+                raise RawUnavailableError("The stored answer could not be read.") from None
+            if digest(body) != bytes(row.sha256):
+                raise RawUnavailableError("The stored answer could not be read.")
+            return RawAnswer(body)
         if self._raw_store is None:
             raise RawUnavailableError("Raw answers need object storage, which is not set up.")
         try:
@@ -734,8 +773,8 @@ class RankService:
         access: WorkspaceAccess,
         project_id: UUID,
         *,
-        start: datetime | None,
-        end: datetime | None,
+        start: datetime | date | None,
+        end: datetime | date | None,
         event_types: Sequence[str] | None,
         tracked_keyword_id: UUID | None,
         entity_id: UUID | None,
@@ -743,6 +782,22 @@ class RankService:
         term_id: UUID | None,
         page: CursorParams,
     ) -> EventPageResult:
+        """`start` and `end` are instants (timestamps with a zone) or project-local days (dates,
+        `end` included). Without a keyword filter a request covers at most 90 days; with none
+        given it covers the last 90."""
+        async with self._transaction(access) as db:
+            zone_row = await repository.project_zone(db, access.workspace_id, project_id)
+        if zone_row is None:
+            raise NotFoundError
+        since, until = _event_bounds(start, end, ZoneInfo(zone_row.timezone))
+        if tracked_keyword_id is None:
+            if since is None:
+                since = (until or datetime.now(UTC)) - EVENTS_MAX_WINDOW
+            elif (until or datetime.now(UTC)) - since > EVENTS_MAX_WINDOW:
+                raise WindowTooLargeError(
+                    "Without a keyword, a request covers at most 90 days.",
+                    limit_days=EVENTS_MAX_WINDOW.days,
+                )
         scope: dict[str, object] = {
             "project_id": str(project_id),
             "from": start,
@@ -765,8 +820,8 @@ class RankService:
                 db,
                 access.workspace_id,
                 project_id,
-                since=start,
-                until=end,
+                since=since,
+                until=until,
                 event_types=event_types,
                 tracked_keyword_id=tracked_keyword_id,
                 entity_id=entity_id,
@@ -858,7 +913,7 @@ def _detail(
         record = refs.get(observation.entity_id)
         for url_id in observation.all_url_ids:
             if record is not None:
-                owner.setdefault(url_id, _entity(record))
+                owner.setdefault(url_id, _entity(record, observation.role))
         if observation.ranking_url_id is not None:
             titled.setdefault(
                 observation.ranking_url_id,
@@ -935,7 +990,7 @@ def _aio_item(
         case _:
             state = "present_cited" if cited else "present_not_cited"
     rivals = [
-        _entity(refs[o.entity_id])
+        _entity(refs[o.entity_id], o.role)
         for o in observations
         if o.role == "competitor" and o.cited_in_ai_overview and o.entity_id in refs
     ]

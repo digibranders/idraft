@@ -322,9 +322,10 @@ async def seed_rank(
     project_id: uuid.UUID,
     tracked_id: uuid.UUID,
     entity_id: uuid.UUID,
-) -> None:
+) -> int:
     """One row in every rank table: a snapshot of the keyword's SERP with a feature, the own
-    entity's observation, the keyword's state, a current result and an event."""
+    entity's observation, the keyword's state, a current result and an event. Returns the
+    snapshot's id."""
     raw_payload_id: int = await db.fetchval(
         "INSERT INTO ops.raw_payloads (storage, object_key, sha256, bytes_raw, bytes_stored, "
         "compression, content_type, provider_code, provider_endpoint, fetched_at, "
@@ -410,6 +411,7 @@ async def seed_rank(
         entity_id,
         snapshot_id,
     )
+    return snapshot_id
 
 
 async def seed_operations(

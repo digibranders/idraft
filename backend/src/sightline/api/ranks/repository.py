@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -39,6 +39,9 @@ from sightline.db.tables import (
 from sightline.keywords.trees import descendants
 
 OBS = domain_rank_observations.c
+# The depths a check is asked for (docs/06 section 2.2 and check now): the subject of its task
+# is `<tracked keyword id>:<depth>`.
+CHECK_DEPTHS = (10, 20, 50, 100)
 SNAP = serp_snapshots.c
 
 
@@ -261,16 +264,23 @@ async def failed_checks(
     since: datetime,
     until: datetime,
 ) -> list[datetime]:
-    """When the checks that failed for good were scheduled."""
+    """When the checks that failed for good were scheduled.
+
+    The ledger is partitioned by `created_at`, which is the start of the month of a run's
+    window, so a bound on it leaves out the months outside the range; and the subject is one
+    of the few `<id>:<depth>` strings a check can have, which an index can seek."""
     t = collection_tasks.c
+    first_month = since.astimezone(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     rows = await db.execute(
         select(t.scheduled_for)
         .where(
             t.workspace_id == workspace_id,
             t.workload == "seo_rank",
             t.subject_type == "tracked_keyword",
-            func.split_part(t.subject_id, ":", 1) == str(tracked_keyword_id),
+            t.subject_id.in_([f"{tracked_keyword_id}:{depth}" for depth in CHECK_DEPTHS]),
             t.status.in_(("failed", "dead")),
+            t.created_at >= first_month,
+            t.created_at < until,
             t.scheduled_for >= since,
             t.scheduled_for < until,
         )
@@ -342,7 +352,7 @@ async def _events(
                 ),
             )
         )
-        .where(e.workspace_id == workspace_id, *conditions)
+        .where(e.workspace_id == workspace_id, tracked_keywords.c.deleted_at.is_(None), *conditions)
         .order_by(*order)
         .limit(limit)
     )
@@ -473,13 +483,38 @@ async def snapshot_by_id(
     snapshot_id: int,
     observed_at: datetime | None,
 ) -> SnapshotRow | None:
-    statement = select(*_SNAPSHOT_COLUMNS).where(
-        SNAP.workspace_id == workspace_id,
-        SNAP.project_id == project_id,
-        SNAP.id == snapshot_id,
+    """A snapshot of a live keyword of a live project. `observed_at` is a hint: the month it
+    falls in is the only partition looked at, so a hint a day off still finds the snapshot."""
+    statement = (
+        select(*_SNAPSHOT_COLUMNS)
+        .select_from(
+            serp_snapshots.join(
+                tracked_keywords,
+                and_(
+                    tracked_keywords.c.id == SNAP.tracked_keyword_id,
+                    tracked_keywords.c.workspace_id == SNAP.workspace_id,
+                ),
+            ).join(
+                projects,
+                and_(
+                    projects.c.id == SNAP.project_id, projects.c.workspace_id == SNAP.workspace_id
+                ),
+            )
+        )
+        .where(
+            SNAP.workspace_id == workspace_id,
+            SNAP.project_id == project_id,
+            SNAP.id == snapshot_id,
+            tracked_keywords.c.deleted_at.is_(None),
+            projects.c.deleted_at.is_(None),
+        )
     )
     if observed_at is not None:
-        statement = statement.where(SNAP.observed_at == observed_at)
+        month = observed_at.astimezone(UTC).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        following = (month + timedelta(days=32)).replace(day=1)
+        statement = statement.where(SNAP.observed_at >= month, SNAP.observed_at < following)
     row = (await db.execute(statement.limit(1))).one_or_none()
     return None if row is None else _snapshot(row)
 

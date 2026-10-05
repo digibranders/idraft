@@ -11,7 +11,8 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Path, Query, Response
+from pydantic import AwareDatetime, StringConstraints
 
 from sightline.api.pagination import Commas, Cursor, CursorPageInfo
 from sightline.api.permissions import Permission
@@ -41,6 +42,15 @@ event_router = APIRouter(prefix=f"{PROJECT}/seo/rank-events", tags=["ranks"])
 
 ReadData = Annotated[WorkspaceAccess, Depends(require_permission(Permission.DATA_READ))]
 ReadRaw = Annotated[WorkspaceAccess, Depends(require_permission(Permission.RAW_READ))]
+# A snapshot id is a 64-bit integer, and PostgreSQL refuses anything larger.
+SnapshotId = Annotated[int, Path(ge=1, le=2**63 - 1)]
+# An entity id, or `own` for the project's primary own entity.
+EntityToken = Annotated[
+    str,
+    StringConstraints(
+        pattern=r"^(own|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+    ),
+]
 
 
 def get_rank_service(resources: Annotated[Resources, Depends(get_resources)]) -> RankService:
@@ -70,7 +80,11 @@ async def rank_history(
     start: From = None,
     end: To = None,
     window: Annotated[str | None, Query(max_length=20)] = None,
-    entity_ids: Annotated[list[UUID] | None, Commas, Query(max_length=11)] = None,
+    entity_ids: Annotated[
+        list[EntityToken] | None,
+        Commas,
+        Query(max_length=11, description="Entity ids, or `own` for the primary own entity."),
+    ] = None,
     include: Annotated[list[HistoryInclude] | None, Commas, Query()] = None,
     format: Annotated[HistoryFormat, Query()] = "points",
 ) -> RankHistoryResponse:
@@ -201,7 +215,7 @@ async def aio_history(
 )
 async def serp_snapshot(
     project_id: UUID,
-    serp_snapshot_id: int,
+    serp_snapshot_id: SnapshotId,
     access: ReadData,
     ranks: Ranks,
     observed_at: Annotated[datetime | None, Query(description="A hint to find the month.")] = None,
@@ -224,7 +238,7 @@ async def serp_snapshot(
 )
 async def serp_snapshot_raw(
     project_id: UUID,
-    serp_snapshot_id: int,
+    serp_snapshot_id: SnapshotId,
     access: ReadRaw,
     ranks: Ranks,
     observed_at: Annotated[datetime | None, Query(description="A hint to find the month.")] = None,
@@ -253,8 +267,8 @@ async def rank_events(
     access: ReadData,
     ranks: Ranks,
     page: Cursor,
-    start: Annotated[datetime | None, Query(alias="from")] = None,
-    end: Annotated[datetime | None, Query(alias="to")] = None,
+    start: Annotated[AwareDatetime | date | None, Query(alias="from")] = None,
+    end: Annotated[AwareDatetime | date | None, Query(alias="to")] = None,
     event_type_in: Annotated[
         list[str] | None, Commas, Query(alias="filter[event_type_in]", max_length=30)
     ] = None,

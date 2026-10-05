@@ -3,6 +3,8 @@ docs/19 section 3.6.4). The data is made by the ingest itself."""
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import uuid
 from typing import Any
 
@@ -219,7 +221,21 @@ async def test_a_failed_check_is_a_point_and_a_chosen_entity_narrows_the_series(
     assert len(failed) == 1
     assert failed[0]["rank"] is None
     assert failed[0]["depth_requested"] is None
-    assert data["summary"]["failed_checks"] == 1
+    # The summary is the project\'s own: a rival alone has none, the own series has the failure.
+    assert data["summary"]["failed_checks"] == 0
+    own = (
+        await _get(
+            api,
+            workspace,
+            project,
+            owner,
+            "tracked-keywords",
+            tracked,
+            "rank-history",
+            entity_ids="own",
+        )
+    ).json()["data"]
+    assert own["summary"]["failed_checks"] == 1
 
 
 async def test_the_window_is_bounded_and_named(
@@ -238,7 +254,7 @@ async def test_the_window_is_bounded_and_named(
     week = await ask(window="last_7d")
 
     assert too_large.status_code == 422
-    assert errors(too_large) == [("window", "window_too_large")]
+    assert too_large.json()["code"] == "window_too_large"
     assert errors(inverted) == [("from", "range_invalid")]
     assert errors(unknown) == [("window", "invalid_window")]
     assert week.status_code == 200
@@ -605,3 +621,257 @@ async def test_rank_events_page_newest_first_and_filter(
     assert event["entity"]["entity_id"] == str(world.own)
     assert event["tracked_keyword_id"] == tracked
     assert DAY.days == 1
+
+
+# Cases from the review of the routes.
+
+
+async def test_the_summary_is_the_own_sites_whatever_order_the_entities_come_in(
+    api: httpx.AsyncClient, history: tuple[Workspace, uuid.UUID, Caller, World, str]
+) -> None:
+    workspace, project, owner, world, tracked = history
+
+    rival_first = (
+        await _get(
+            api,
+            workspace,
+            project,
+            owner,
+            "tracked-keywords",
+            tracked,
+            "rank-history",
+            entity_ids=f"{world.rival},{world.own},{world.own}",
+        )
+    ).json()["data"]
+    only_rival = (
+        await _get(
+            api,
+            workspace,
+            project,
+            owner,
+            "tracked-keywords",
+            tracked,
+            "rank-history",
+            entity_ids=str(world.rival),
+        )
+    ).json()["data"]
+    own_token = (
+        await _get(
+            api,
+            workspace,
+            project,
+            owner,
+            "tracked-keywords",
+            tracked,
+            "rank-history",
+            entity_ids="own",
+        )
+    ).json()["data"]
+
+    assert [s["entity"]["entity_id"] for s in rival_first["series"]] == [
+        str(world.rival),
+        str(world.own),
+    ]
+    assert rival_first["summary"]["average_rank"]["value"] == 18.0
+    assert only_rival["summary"]["average_rank"] is None
+    assert only_rival["summary"]["checks"] == 0
+    assert [s["entity"]["entity_id"] for s in own_token["series"]] == [str(world.own)]
+    assert rival_first["series"][0]["entity"]["role"] == "competitor"
+
+
+async def test_the_window_error_is_a_problem_code_of_its_own(
+    api: httpx.AsyncClient, history: tuple[Workspace, uuid.UUID, Caller, World, str]
+) -> None:
+    workspace, project, owner, _, tracked = history
+
+    response = await _get(
+        api,
+        workspace,
+        project,
+        owner,
+        "tracked-keywords",
+        tracked,
+        "rank-history",
+        **{"from": "2024-01-01", "to": "2026-10-01"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "window_too_large"
+    assert response.json()["limit_days"] == 400
+
+
+async def test_a_snapshot_of_a_deleted_keyword_or_project_is_gone(
+    api: httpx.AsyncClient,
+    migrated: PostgresServer,
+    history: tuple[Workspace, uuid.UUID, Caller, World, str],
+) -> None:
+    workspace, project, owner, _, tracked = history
+    latest = (
+        await _get(
+            api, workspace, project, owner, "tracked-keywords", tracked, "serp-snapshots", limit=1
+        )
+    ).json()["data"][0]["serp_snapshot_id"]
+    assert (await _get(api, workspace, project, owner, "serp-snapshots", latest)).status_code == 200
+    events_before = (await _get(api, workspace, project, owner, "seo", "rank-events")).json()[
+        "data"
+    ]
+    assert events_before
+
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keywords SET deleted_at = now() WHERE id = $1",
+        uuid.UUID(tracked),
+    )
+
+    assert (await _get(api, workspace, project, owner, "serp-snapshots", latest)).status_code == 404
+    assert (
+        await _get(api, workspace, project, owner, "serp-snapshots", latest, "raw")
+    ).status_code == 404
+    assert (await _get(api, workspace, project, owner, "seo", "rank-events")).json()["data"] == []
+
+
+async def test_an_id_no_sequence_can_reach_is_a_validation_error_not_a_crash(
+    api: httpx.AsyncClient, history: tuple[Workspace, uuid.UUID, Caller, World, str]
+) -> None:
+    workspace, project, owner, _, _ = history
+
+    response = await _get(api, workspace, project, owner, "serp-snapshots", "100000000000000000000")
+
+    assert response.status_code == 422
+
+
+async def test_the_observed_at_hint_only_chooses_the_month(
+    api: httpx.AsyncClient, history: tuple[Workspace, uuid.UUID, Caller, World, str]
+) -> None:
+    workspace, project, owner, _, tracked = history
+    latest = (
+        await _get(
+            api, workspace, project, owner, "tracked-keywords", tracked, "serp-snapshots", limit=1
+        )
+    ).json()["data"][0]
+    hint = latest["observed_at"][:8] + "01T00:00:00Z"
+    far = "2020-01-01T00:00:00Z"
+
+    near = await _get(
+        api,
+        workspace,
+        project,
+        owner,
+        "serp-snapshots",
+        latest["serp_snapshot_id"],
+        observed_at=hint,
+    )
+    wrong = await _get(
+        api,
+        workspace,
+        project,
+        owner,
+        "serp-snapshots",
+        latest["serp_snapshot_id"],
+        observed_at=far,
+    )
+
+    assert near.status_code == 200
+    assert wrong.status_code == 404
+
+
+async def test_an_inline_raw_answer_is_checked_and_a_damaged_one_is_unavailable(
+    api: httpx.AsyncClient,
+    migrated: PostgresServer,
+    history: tuple[Workspace, uuid.UUID, Caller, World, str],
+) -> None:
+    workspace, project, owner, _, tracked = history
+    latest = (
+        await _get(
+            api, workspace, project, owner, "tracked-keywords", tracked, "serp-snapshots", limit=1
+        )
+    ).json()["data"][0]["serp_snapshot_id"]
+    body = b'{"tasks": ["inline"]}'
+    row = await fetchrow(
+        migrated, "SELECT raw_payload_id FROM seo.serp_snapshots WHERE id = $1", int(latest)
+    )
+    stored = hashlib.sha256(body).digest()
+
+    async def keep(inline: bytes, compression: str, sha: bytes) -> httpx.Response:
+        await execute(
+            migrated,
+            "UPDATE ops.raw_payloads SET storage = 'pg_inline', object_key = NULL, "
+            "inline_body = $2, compression = $3, sha256 = $4 WHERE id = $1",
+            row["raw_payload_id"],
+            inline,
+            compression,
+            sha,
+        )
+        return await _get(api, workspace, project, owner, "serp-snapshots", latest, "raw")
+
+    plain = await keep(body, "none", stored)
+    zipped = await keep(gzip.compress(body), "gzip", stored)
+    wrong_hash = await keep(body, "none", hashlib.sha256(b"other").digest())
+    damaged = await keep(b"\x00\x01\x02", "zstd", stored)
+
+    assert plain.status_code == 200
+    assert plain.json() == {"tasks": ["inline"]}
+    assert zipped.status_code == 200
+    assert wrong_hash.status_code == 503
+    assert damaged.status_code == 503
+
+
+async def test_rank_events_take_dates_as_project_days_and_timestamps_as_instants(
+    api: httpx.AsyncClient, history: tuple[Workspace, uuid.UUID, Caller, World, str]
+) -> None:
+    workspace, project, owner, _, _ = history
+    everything = (
+        await _get(api, workspace, project, owner, "seo", "rank-events", limit=200)
+    ).json()["data"]
+    day = everything[0]["occurred_at"][:10]
+
+    that_day = (
+        await _get(
+            api,
+            workspace,
+            project,
+            owner,
+            "seo",
+            "rank-events",
+            limit=200,
+            **{"from": day, "to": day},
+        )
+    ).json()["data"]
+    after = (
+        await _get(
+            api,
+            workspace,
+            project,
+            owner,
+            "seo",
+            "rank-events",
+            **{"from": everything[0]["occurred_at"]},
+        )
+    ).json()["data"]
+    naive = await _get(
+        api, workspace, project, owner, "seo", "rank-events", **{"from": "2026-10-01T10:00:00"}
+    )
+    too_wide = await _get(
+        api, workspace, project, owner, "seo", "rank-events", **{"from": "2020-01-01"}
+    )
+
+    assert {e["rank_event_id"] for e in that_day} >= {
+        e["rank_event_id"] for e in everything if e["occurred_at"][:10] == day
+    }
+    assert all(e["occurred_at"] >= everything[0]["occurred_at"] for e in after)
+    assert naive.status_code == 422
+    assert too_wide.status_code == 422
+    assert too_wide.json()["code"] == "window_too_large"
+
+
+async def test_rank_events_of_a_project_that_is_not_there_are_not_found(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    history: tuple[Workspace, uuid.UUID, Caller, World, str],
+) -> None:
+    workspace, _, owner, _, _ = history
+
+    response = await _get(api, workspace, uuid.uuid4(), owner, "seo", "rank-events")
+
+    assert response.status_code == 404

@@ -17720,6 +17720,10 @@
                   "type": "string"
                 },
                 {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
                   "type": "null"
                 }
               ],
@@ -17734,6 +17738,10 @@
               "anyOf": [
                 {
                   "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -17911,6 +17919,8 @@
             "name": "serp_snapshot_id",
             "required": true,
             "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
               "title": "Serp Snapshot Id",
               "type": "integer"
             }
@@ -18013,6 +18023,8 @@
             "name": "serp_snapshot_id",
             "required": true,
             "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
               "title": "Serp Snapshot Id",
               "type": "integer"
             }
@@ -19771,6 +19783,7 @@
             }
           },
           {
+            "description": "Entity ids, or `own` for the primary own entity.",
             "in": "query",
             "name": "entity_ids",
             "required": false,
@@ -19778,7 +19791,7 @@
               "anyOf": [
                 {
                   "items": {
-                    "format": "uuid",
+                    "pattern": "^(own|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
                     "type": "string"
                   },
                   "type": "array"
@@ -19787,6 +19800,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Entity ids, or `own` for the primary own entity.",
               "maxLength": 11,
               "title": "Entity Ids"
             }

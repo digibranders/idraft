@@ -238,6 +238,12 @@ class StorageUnavailableError(ProblemError):
     status, code, title = 503, "storage_unavailable", "Storage unavailable"
 
 
+class WindowTooLargeError(ProblemError):
+    """Carries `limit_days`."""
+
+    status, code, title = 422, "window_too_large", "The window is too large"
+
+
 class RawExpiredError(ProblemError):
     """The provider's answer was kept for its retention period, and that has passed."""
 
