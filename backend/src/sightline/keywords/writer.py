@@ -136,6 +136,12 @@ async def lock_quota(db: AsyncSession, workspace_id: UUID) -> tuple[int, int]:
             )
         )
     )
+    return await quota_usage(db, workspace_id)
+
+
+async def quota_usage(db: AsyncSession, workspace_id: UUID) -> tuple[int, int]:
+    """The workspace's tracked keyword limit and its active tracked keywords, read without the
+    lock: for a preview, which a later write checks again under `lock_quota`."""
     stored: int | None = (
         await db.execute(
             select(workspace_quotas.c.max_tracked_keywords).where(
@@ -248,7 +254,24 @@ async def _live_schedules_of(
     return sorted({row.id for row in rows})
 
 
-async def _rows_of(
+async def keyword_texts(
+    db: AsyncSession, workspace_id: UUID, wanted: Collection[KeywordKey]
+) -> dict[KeywordKey, tuple[UUID, str]]:
+    """The workspace's keywords among `wanted`, with the text they were first entered as."""
+    if not wanted:
+        return {}
+    rows = await db.execute(
+        select(
+            keywords.c.id, keywords.c.text, keywords.c.normalized_text, keywords.c.language_code
+        ).where(
+            keywords.c.workspace_id == workspace_id,
+            tuple_(keywords.c.normalized_text, keywords.c.language_code).in_(list(wanted)),
+        )
+    )
+    return {(row.normalized_text, row.language_code): (row.id, row.text) for row in rows}
+
+
+async def rows_of(
     db: AsyncSession, workspace_id: UUID, project_id: UUID, identities: Collection[Identity]
 ) -> dict[Identity, tuple[UUID, bool, bool]]:
     """The project's rows for these identities, deleted ones included: id, active, deleted."""
@@ -323,7 +346,7 @@ async def write_tracked_keywords(
 
     # Classified before anything is written: a keyword the workspace does not have yet is a
     # new identity in this project.
-    stored = await _rows_of(
+    stored = await rows_of(
         db,
         workspace_id,
         project_id,

@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sightline.db.errors import violated_unique_constraint
 from sightline.db.tables import keyword_group_members, keyword_groups, tracked_keywords
+from sightline.keywords.groups import lock_groups as lock_groups
 from sightline.keywords.trees import among_ids
 
 _SIBLING_NAME = "keyword_groups_sibling_name"
@@ -57,18 +58,6 @@ def _raise_if_name_taken(error: IntegrityError) -> None:
 
 def _under_or_at(column: ColumnElement[str], path: ColumnElement[str]) -> ColumnElement[bool]:
     return or_(column == path, func.starts_with(column, path + "/"))
-
-
-async def lock_groups(db: AsyncSession, project_id: UUID) -> None:
-    """Group changes in one project run one at a time until the transaction ends, so a move is
-    checked for cycles against a tree no other request is changing."""
-    await db.execute(
-        select(
-            func.pg_advisory_xact_lock(
-                func.hashtextextended(literal(f"keyword_groups:{project_id}"), 0)
-            )
-        )
-    )
 
 
 async def list_groups(

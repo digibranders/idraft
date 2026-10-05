@@ -11,7 +11,6 @@ so only a member who is not limited to some may change it.
 
 from __future__ import annotations
 
-import unicodedata
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
@@ -40,15 +39,9 @@ from sightline.api.taxonomy.repository import (
     VocabularyNameTakenError,
     VocabularyRecord,
 )
-from sightline.api.taxonomy.slugs import free_slug, slugify
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.db.engine import workspace_transaction
-
-
-def fold(name: str) -> str:
-    """How term names compare: without case, and the same in composed and decomposed form
-    (`Café` typed either way)."""
-    return unicodedata.normalize("NFC", unicodedata.normalize("NFC", name).casefold())
+from sightline.keywords.terms import fold, free_slug, lock_vocabulary, slugify
 
 
 @dataclass(frozen=True, slots=True)
@@ -426,6 +419,10 @@ class TaxonomyService:
     async def _vocabulary(
         db: AsyncSession, access: WorkspaceAccess, vocabulary_id: UUID, *, lock: bool = False
     ) -> VocabularyRecord:
+        if lock:
+            # Before the row lock, as the worker's imports take it: writers of one vocabulary
+            # run one at a time, whichever side they are on.
+            await lock_vocabulary(db, vocabulary_id)
         found = await repository.get_vocabulary(
             db, access.workspace_id, vocabulary_id, visible=access.project_ids, for_update=lock
         )

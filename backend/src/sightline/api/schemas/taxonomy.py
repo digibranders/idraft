@@ -33,6 +33,9 @@ from sightline.api.schemas.common import (
     printable,
     refuse_null,
 )
+from sightline.keywords.terms import SLUG_MAX as SLUG_MAX
+from sightline.keywords.terms import TERM_DEPTH_MAX as TERM_DEPTH_MAX
+from sightline.keywords.terms import TERM_NAME_MAX as TERM_NAME_MAX
 
 VocabularyKind = Literal[
     "topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"
@@ -40,15 +43,10 @@ VocabularyKind = Literal[
 TermSource = Literal["manual", "import", "auto_cluster", "ai_suggestion"]
 
 VOCABULARY_NAME_MAX = 100
-TERM_NAME_MAX = 200
-SLUG_MAX = 100
 # Room for the deepest path of the longest names, with a space on each side of every `/`.
 TERM_PATH_MAX = 2048
 TERM_DESCRIPTION_MAX = 2000
 TERM_BATCH_MAX = 500
-# Levels from a root term down. Deep enough for a product catalogue, and it bounds the nesting
-# of the tree a list returns.
-TERM_DEPTH_MAX = 10
 SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
 
 VocabularyName = Annotated[
