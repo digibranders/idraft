@@ -10,7 +10,7 @@ import httpx
 from sightline.api.body_limit import UPLOAD_MAX_BYTES
 from sightline.api.imports.service import _filename
 from sightline.api.resources import Resources
-from tests.api.auth.support import Workspace, make_workspace
+from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.imports.support import (
     create_paste,
@@ -63,6 +63,28 @@ async def test_an_import_that_never_reached_a_preview_has_no_report(
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["data"]["operation"]["links"]["result"] is None
     assert problem(report) == (409, "invalid_state_transition")
+
+
+async def test_an_import_that_failed_while_writing_keeps_its_report(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+    data = await created_import(api, workspace, project, owner)
+    await preview(migrated, workspace, data["import_id"], ROWS, status="failed")
+    await execute(
+        migrated,
+        "UPDATE seo.keyword_imports SET error_code = 'write_failed' WHERE id = $1",
+        uuid.UUID(data["import_id"]),
+    )
+    url = imports_url(workspace, project, data["import_id"])
+
+    shown = await api.get(url, headers=owner.headers)
+    report = await api.get(url + "/report", headers=owner.headers)
+
+    operation = shown.json()["data"]["operation"]
+    assert operation["error"]["code"] == "write_failed"
+    assert operation["links"]["result"].endswith("/report")
+    assert report.status_code == 200
 
 
 async def test_a_cancelled_preview_has_its_report_link(

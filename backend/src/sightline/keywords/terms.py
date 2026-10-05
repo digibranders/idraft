@@ -92,35 +92,63 @@ async def vocabulary_ref(
     return None if row is None else VocabularyRef(row.id, row.is_hierarchical, row.is_single_valued)
 
 
+@dataclass(frozen=True, slots=True)
+class Sibling:
+    """A term as its siblings see it when a new one is named."""
+
+    id: UUID
+    name: str
+    slug: str
+    path: str
+
+
+# The terms under each parent of one vocabulary (None for the top level), read once and kept
+# up to date by `ensure_term_path`, for a caller that files many names in one transaction.
+type SiblingCache = dict[UUID | None, list[Sibling]]
+
+
 async def ensure_term_path(
-    db: AsyncSession, *, workspace_id: UUID, vocabulary: VocabularyRef, names: Sequence[str]
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    vocabulary: VocabularyRef,
+    names: Sequence[str],
+    cache: SiblingCache | None = None,
 ) -> UUID:
     """The term at this path of names, created level by level where missing, as the API's
     `add_terms` does for a `path`: names match without case (`fold`), and a new term's slug is
     the first free one among its siblings. A flat vocabulary takes one name only: the caller
-    checks. The caller holds `lock_vocabulary`."""
+    checks. The caller holds `lock_vocabulary`. With a `cache` of this vocabulary the siblings
+    of a parent are read once, however many names are filed under it; the cache must not
+    outlive the lock."""
     if not names:
         raise ValueError("a term path has at least one name")
     t = taxonomy_terms.c
     parent_id: UUID | None = None
     parent_path = ""
     for name in names:
-        siblings = (
-            await db.execute(
-                select(t.id, t.name, t.slug, t.path).where(
-                    t.workspace_id == workspace_id,
-                    t.vocabulary_id == vocabulary.id,
-                    t.parent_id.is_(None) if parent_id is None else t.parent_id == parent_id,
+        if cache is not None and parent_id in cache:
+            siblings = cache[parent_id]
+        else:
+            siblings = [
+                Sibling(row.id, row.name, str(row.slug), row.path)
+                for row in await db.execute(
+                    select(t.id, t.name, t.slug, t.path).where(
+                        t.workspace_id == workspace_id,
+                        t.vocabulary_id == vocabulary.id,
+                        t.parent_id.is_(None) if parent_id is None else t.parent_id == parent_id,
+                    )
                 )
-            )
-        ).all()
+            ]
+            if cache is not None:
+                cache[parent_id] = siblings
         match = next((row for row in siblings if fold(row.name) == fold(name)), None)
         if match is not None:
             parent_id, parent_path = match.id, match.path
             continue
-        slug = free_slug(slugify(name), {str(row.slug) for row in siblings})
+        slug = free_slug(slugify(name), {row.slug for row in siblings})
         path = slug if parent_id is None else f"{parent_path}/{slug}"
-        parent_id = (
+        made: UUID = (
             await db.execute(
                 insert(taxonomy_terms)
                 .values(
@@ -135,7 +163,8 @@ async def ensure_term_path(
                 .returning(t.id)
             )
         ).scalar_one()
-        parent_path = path
+        siblings.append(Sibling(made, name, slug, path))
+        parent_id, parent_path = made, path
     if parent_id is None:  # pragma: no cover - names is not empty
         raise ValueError("a term path has at least one name")
     return parent_id

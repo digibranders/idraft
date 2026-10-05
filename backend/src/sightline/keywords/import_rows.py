@@ -25,6 +25,9 @@ from sightline.keywords.writer import Device
 IMPORT_ROWS_MAX: Final = 10_000
 CELL_MAX: Final = 2000
 COLUMNS_MAX: Final = 100
+# Each distinct tag of a batch is looked up, and made when missing, while the workspace's quota
+# is locked: a row cannot name hundreds.
+TAGS_MAX: Final = 50
 # A cell is at most as long as the file, which the API limits to 50 MiB. The reader's own limit
 # is 128 KiB, and a cell over it would fail the whole file instead of one row. The setting is
 # the process's, which only reads imports with it.
@@ -311,7 +314,7 @@ def _tags(cell: str) -> tuple[str, ...] | None:
         if len(name) > NAME_MAX:
             return None
         seen.setdefault(fold(name), name)
-    return tuple(seen.values())
+    return tuple(seen.values()) if len(seen) <= TAGS_MAX else None
 
 
 def parse_row(
@@ -390,7 +393,10 @@ def parse_row(
 
     tags = _tags(cells.get("tags", ""))
     if tags is None:
-        return RowError("tags_invalid", f"A tag has at most {NAME_MAX} characters.")
+        return RowError(
+            "tags_invalid",
+            f"A row has at most {TAGS_MAX} tags, of at most {NAME_MAX} characters each.",
+        )
 
     topic: tuple[str, ...] = ()
     topic_cell = cells.get("topic", "").strip()

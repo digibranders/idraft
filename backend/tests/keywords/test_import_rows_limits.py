@@ -8,6 +8,7 @@ import pytest
 from sightline.keywords.import_rows import (
     CELL_MAX,
     COLUMNS_MAX,
+    TAGS_MAX,
     Defaults,
     Locations,
     RowError,
@@ -113,3 +114,21 @@ def test_one_long_cell_makes_one_row_invalid_not_the_whole_file() -> None:
     assert isinstance(first, RowError)
     assert first.code == "cell_too_long"
     assert not isinstance(second, RowError)
+
+
+def test_a_row_may_name_at_most_fifty_distinct_tags() -> None:
+    at_limit = {"keyword": "crm", "tags": "|".join(f"t{n}" for n in range(TAGS_MAX))}
+    over = {"keyword": "crm", "tags": "|".join(f"t{n}" for n in range(TAGS_MAX + 1))}
+    # The same tag in other letters is the same tag.
+    repeated = {"keyword": "crm", "tags": "|".join(["A", "a"] * 100)}
+
+    fits = parse_row(at_limit, DEFAULTS, LOCATIONS)
+    too_many = parse_row(over, DEFAULTS, LOCATIONS)
+    folded = parse_row(repeated, DEFAULTS, LOCATIONS)
+
+    assert not isinstance(fits, RowError)
+    assert len(fits.tags) == TAGS_MAX
+    assert isinstance(too_many, RowError)
+    assert too_many.code == "tags_invalid"
+    assert not isinstance(folded, RowError)
+    assert folded.tags == ("A",)

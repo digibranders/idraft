@@ -23,17 +23,23 @@ from typing import Any, Final
 from uuid import UUID
 
 import structlog
-from sqlalchemy import bindparam, func, select, tuple_, update
+from sqlalchemy import bindparam, exists, func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors.imports import BROKEN, import_defaults, locations_for
+from sightline.collectors.imports import import_defaults, is_broken, locations_for
 from sightline.db import dictionaries
 from sightline.db.tables import keyword_import_rows, keyword_imports, projects, tracked_keywords
 from sightline.extraction.urls import CanonicalUrl
 from sightline.keywords import links, writer
 from sightline.keywords.groups import ensure_group_path, lock_groups
 from sightline.keywords.import_rows import Defaults, ParsedRow, RowError, parse_row
-from sightline.keywords.terms import VocabularyRef, ensure_term_path, fold, lock_vocabulary
+from sightline.keywords.terms import (
+    SiblingCache,
+    VocabularyRef,
+    ensure_term_path,
+    fold,
+    lock_vocabulary,
+)
 from sightline.keywords.terms import vocabulary_ref as read_vocabulary
 
 _log = structlog.get_logger(__name__)
@@ -136,8 +142,8 @@ async def write_next(
                 if imp is None:
                     break
                 ended = await _batch(db, imp, size)
-        except BROKEN:
-            if imp is None:
+        except Exception as error:
+            if imp is None or not is_broken(error):
                 raise
             # The batch is rolled back, and would break the same way on every tick, ahead of
             # every other import: the import ends here, with what earlier batches wrote.
@@ -288,11 +294,17 @@ async def _write(db: AsyncSession, imp: _Import, project: Any, parts: Sequence[_
     targets = await _target_urls(db, [p.parsed.target for p in creates if p.parsed is not None])
     now: datetime = (await db.execute(select(func.now()))).scalar_one()
 
+    # The groups and terms are made before the quota is locked, so that its lock, which every
+    # writer of the workspace waits for, is not held for the time that takes.
+    prepared = await _prepare(db, imp, parts, tags_ref, topic_ref)
+    earlier = await _earlier_firsts(
+        db, imp, {i for part in parts if part.repeated and (i := _identity(part)) is not None}
+    )
     restored = await _create(
         db, imp, creates, targets, str(seo.get("default_frequency") or "daily"), now
     )
-    await _merge(db, imp, merges, now)
-    await _file(db, imp, parts, restored, tags_ref, topic_ref)
+    await _merge(db, imp, merges, now, also_lock=earlier.values())
+    await _file(db, imp, parts, restored, prepared, earlier)
 
 
 async def _read_again(
@@ -419,14 +431,23 @@ async def _create(
     return restored
 
 
-async def _merge(db: AsyncSession, imp: _Import, merges: Sequence[_Part], now: datetime) -> None:
+async def _merge(
+    db: AsyncSession,
+    imp: _Import,
+    merges: Sequence[_Part],
+    now: datetime,
+    *,
+    also_lock: Collection[UUID],
+) -> None:
     """The parts to merge into a tracked keyword the preview found: it must still exist, and
-    an archived one is brought back, within the quota, when the preview called it a conflict."""
+    an archived one is brought back, within the quota, when the preview called it a conflict.
+    The keywords of `also_lock` (those the batch will file a repeat under) are locked with
+    the merge targets, in one order."""
     if not merges:
         return
     wanted = sorted({part.existing for part in merges if part.existing is not None}, key=str)
     limit, used = await writer.lock_quota(db, imp.workspace_id)
-    await links.lock_rows(db, imp.workspace_id, wanted)
+    await links.lock_rows(db, imp.workspace_id, {*wanted, *also_lock})
     t = tracked_keywords.c
     found = await db.execute(
         select(t.id, t.is_active, t.deleted_at).where(
@@ -458,16 +479,78 @@ async def _merge(db: AsyncSession, imp: _Import, merges: Sequence[_Part], now: d
         )
 
 
+@dataclass(slots=True)
+class _Links:
+    """The groups and terms the batch files keywords under, made before the quota is locked."""
+
+    tags: VocabularyRef | None
+    topic: VocabularyRef | None
+    groups: dict[tuple[str, ...], UUID]
+    terms: dict[tuple[UUID, tuple[str, ...]], _Slot]
+
+    def wanted(self, parsed: ParsedRow) -> list[tuple[VocabularyRef, tuple[str, ...]]]:
+        """The term paths of a row: its tags (top-level terms), then its topic. A flat
+        vocabulary has no paths, so a topic of several names does not fit it."""
+        found: list[tuple[VocabularyRef, tuple[str, ...]]] = []
+        if self.tags is not None:
+            found.extend((self.tags, (tag,)) for tag in parsed.tags)
+        if (
+            self.topic is not None
+            and parsed.topic
+            and (self.topic.is_hierarchical or len(parsed.topic) == 1)
+        ):
+            found.append((self.topic, parsed.topic))
+        return found
+
+
+async def _prepare(
+    db: AsyncSession,
+    imp: _Import,
+    parts: Sequence[_Part],
+    tags_ref: VocabularyRef | None,
+    topic_ref: VocabularyRef | None,
+) -> _Links:
+    """Make the groups and terms the parts to write (and the repeats) name, so that filing
+    keywords under them needs no lookup while the workspace's quota is locked. A part that
+    fails afterwards leaves its groups and terms made, unused."""
+    prepared = _Links(tags_ref, topic_ref, {}, {})
+    caches: dict[UUID, SiblingCache] = {}
+    for part in parts:
+        parsed = part.parsed
+        if parsed is None or not (part.repeated or part.result is None):
+            continue
+        if parsed.group_path and parsed.group_path not in prepared.groups:
+            prepared.groups[parsed.group_path] = await ensure_group_path(
+                db,
+                workspace_id=imp.workspace_id,
+                project_id=imp.project_id,
+                names=parsed.group_path,
+            )
+        for vocabulary, names in prepared.wanted(parsed):
+            key = (vocabulary.id, tuple(fold(name) for name in names))
+            if key not in prepared.terms:
+                term_id = await ensure_term_path(
+                    db,
+                    workspace_id=imp.workspace_id,
+                    vocabulary=vocabulary,
+                    names=names,
+                    cache=caches.setdefault(vocabulary.id, {}),
+                )
+                prepared.terms[key] = _Slot(term_id, vocabulary.id, vocabulary.is_single_valued)
+    return prepared
+
+
 async def _file(
     db: AsyncSession,
     imp: _Import,
     parts: Sequence[_Part],
     restored: Collection[UUID],
-    tags_ref: VocabularyRef | None,
-    topic_ref: VocabularyRef | None,
+    prepared: _Links,
+    earlier: Mapping[_Identity, UUID],
 ) -> None:
     """File the written keywords under the groups and terms their rows name, and the first
-    keyword of a repeat in the file under the groups and terms of the repeat."""
+    keyword of a repeat in the file (one of this batch, or `earlier` ones) under the groups and
+    terms of the repeat."""
     filing: list[tuple[UUID, ParsedRow]] = [
         (part.tracked_id, part.parsed)
         for part in parts
@@ -475,9 +558,6 @@ async def _file(
     ]
     firsts = {_identity(part): part.tracked_id for part in parts if part.result in _WRITTEN}
     repeats = [part for part in parts if part.repeated and _identity(part) is not None]
-    earlier = await _earlier_firsts(
-        db, imp, {i for part in repeats if (i := _identity(part)) is not None and i not in firsts}
-    )
     for part in repeats:
         identity = _identity(part)
         target = firsts.get(identity) or earlier.get(identity) if identity is not None else None
@@ -500,46 +580,21 @@ async def _file(
                 await links.remove_terms(db, imp.workspace_id, [tracked_id], surplus)
         have[tracked_id] = list(stored)
 
-    groups: dict[tuple[str, ...], UUID] = {}
-    members: set[tuple[UUID, UUID]] = set()
-    for tracked_id, parsed in filing:
-        if not parsed.group_path:
-            continue
-        if parsed.group_path not in groups:
-            groups[parsed.group_path] = await ensure_group_path(
-                db,
-                workspace_id=imp.workspace_id,
-                project_id=imp.project_id,
-                names=parsed.group_path,
-            )
-        members.add((groups[parsed.group_path], tracked_id))
+    members = {
+        (prepared.groups[parsed.group_path], tracked_id)
+        for tracked_id, parsed in filing
+        if parsed.group_path
+    }
     await links.add_members(
         db, workspace_id=imp.workspace_id, project_id=imp.project_id, pairs=members
     )
 
-    slots: dict[tuple[UUID, tuple[str, ...]], _Slot] = {}
-
-    async def term(vocabulary: VocabularyRef, names: tuple[str, ...]) -> _Slot:
-        key = (vocabulary.id, tuple(fold(name) for name in names))
-        if key not in slots:
-            term_id = await ensure_term_path(
-                db, workspace_id=imp.workspace_id, vocabulary=vocabulary, names=names
-            )
-            slots[key] = _Slot(term_id, vocabulary.id, vocabulary.is_single_valued)
-        return slots[key]
-
     assigned: set[tuple[UUID, UUID]] = set()
     for tracked_id, parsed in filing:
-        wanted: list[_Slot] = []
-        if tags_ref is not None:
-            wanted.extend([await term(tags_ref, (tag,)) for tag in parsed.tags])
-        # A flat vocabulary has no paths: a topic of several names does not fit it.
-        if (
-            topic_ref is not None
-            and parsed.topic
-            and (topic_ref.is_hierarchical or len(parsed.topic) == 1)
-        ):
-            wanted.append(await term(topic_ref, parsed.topic))
+        wanted = [
+            prepared.terms[(vocabulary.id, tuple(fold(name) for name in names))]
+            for vocabulary, names in prepared.wanted(parsed)
+        ]
         for slot in links.terms_to_add(have[tracked_id], wanted):
             assigned.add((tracked_id, slot.term_id))
             have[tracked_id].append(slot)
@@ -560,10 +615,12 @@ def _identity(part: _Part) -> _Identity | None:
 async def _earlier_firsts(
     db: AsyncSession, imp: _Import, identities: Collection[_Identity]
 ) -> dict[_Identity, UUID]:
-    """The keyword written for the first row of each identity, when an earlier batch wrote it."""
+    """The keyword written for the first row of each identity, when an earlier batch wrote it
+    and it has not been deleted since."""
     if not identities:
         return {}
     r = keyword_import_rows.c
+    t = tracked_keywords.c
     rows = await db.execute(
         select(
             r.normalized_text, r.language_code, r.location_id, r.device, r.tracked_keyword_id
@@ -572,6 +629,11 @@ async def _earlier_firsts(
             r.import_id == imp.id,
             r.result.in_(_WRITTEN),
             r.tracked_keyword_id.is_not(None),
+            exists().where(
+                t.workspace_id == r.workspace_id,
+                t.id == r.tracked_keyword_id,
+                t.deleted_at.is_(None),
+            ),
             tuple_(r.normalized_text, r.language_code, r.location_id, r.device).in_(
                 sorted(identities)
             ),
@@ -657,8 +719,10 @@ async def _end(
     values: dict[str, Any] = {"status": status, "error_code": error_code, "finished_at": func.now()}
     if counts is not None:
         values["counts"] = dict(counts)
+    # Only an import still being written ends: one that another worker finished, or a person
+    # cancelled before this worker got to it, keeps its status.
     await db.execute(
         update(keyword_imports)
-        .where(i.workspace_id == imp.workspace_id, i.id == imp.id)
+        .where(i.workspace_id == imp.workspace_id, i.id == imp.id, i.status == "writing")
         .values(**values)
     )

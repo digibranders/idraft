@@ -66,8 +66,8 @@ from sightline.storage.raw import ObjectStore, RawStorageError, compress
 OPEN: Final = frozenset({"uploaded", "needs_mapping", "preview_ready"})
 # No rows to show yet.
 NO_ROWS_YET: Final = frozenset({"uploaded", "parsing", "needs_mapping"})
-# No report to give: there is nothing to report on.
-NO_REPORT: Final = frozenset({"uploaded", "parsing", "needs_mapping", "failed"})
+# No report to give while the import waits to be read: its rows are about to be replaced.
+NO_REPORT: Final = frozenset({"uploaded", "parsing", "needs_mapping"})
 CSV_TYPES: Final = frozenset(
     {"text/csv", "application/csv", "text/plain", "application/vnd.ms-excel"}
 )
@@ -121,7 +121,8 @@ class RowPage:
 
 def has_report(record: ImportRecord) -> bool:
     """Whether there are rows to report on: the import reached a preview (the worker records
-    the counts with it), and was not ended by a failure, which drops them."""
+    the counts with it). A failure while reading drops the rows and the counts; one while
+    writing keeps both, and the report says what was written before it."""
     return record.status not in NO_REPORT and "rows_total" in record.counts
 
 

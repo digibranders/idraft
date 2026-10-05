@@ -36,7 +36,7 @@ from sqlalchemy import (
     select,
     update,
 )
-from sqlalchemy.exc import DataError, IntegrityError
+from sqlalchemy.exc import DataError, DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.db.tables import keyword_import_rows, keyword_imports, locations, projects
@@ -67,6 +67,23 @@ SOURCE_GIVE_UP: Final = timedelta(hours=1)
 # What an import that cannot be read raises on every try, as opposed to the errors of the
 # database or the network, which the next tick may not meet again.
 BROKEN: Final = (DataError, IntegrityError, UnicodeError, LookupError, TypeError, ValueError)
+# The SQLSTATE classes of an error that repeats: bad data (22), a broken constraint (23), a
+# statement or a privilege the database refuses (42), a feature it lacks (0A). Deadlocks (40),
+# lost connections (08) and shutdowns (57) are not: the next tick may not meet them.
+_PERMANENT_SQLSTATES: Final = ("22", "23", "42", "0A")
+
+
+def is_broken(error: BaseException) -> bool:
+    """Whether trying the same import again would raise the same error, so that it has to end
+    instead of holding up every import behind it."""
+    if isinstance(error, DBAPIError):
+        state = getattr(error.orig, "sqlstate", None)
+        return isinstance(error, DataError | IntegrityError) or (
+            isinstance(state, str) and state.startswith(_PERMANENT_SQLSTATES)
+        )
+    return isinstance(error, BROKEN)
+
+
 # Imports that wait for the user, and expire when nobody answers.
 WAITING: Final = ("uploaded", "needs_mapping", "preview_ready")
 ROWS_PER_INSERT: Final = 1000
@@ -139,8 +156,8 @@ async def parse_next(
                     failed += 1
                 else:
                     parsed += 1
-        except BROKEN:
-            if claimed is None:
+        except Exception as error:
+            if claimed is None or not is_broken(error):
                 raise
             # The transaction is rolled back, and the import would break the same way on every
             # tick, ahead of every other import: it ends here.
@@ -588,16 +605,23 @@ async def _update(
 
 
 async def _fail(db: AsyncSession, imp: _Claimed, code: str) -> None:
-    """The import ends: its rows are dropped, and `code` says why."""
+    """The import ends: its rows and counts are dropped, and `code` says why. Only an import
+    that is still waiting to be read ends: one a person cancelled meanwhile stays cancelled."""
     _log.warning("import failed", import_id=str(imp.id), code=code)
-    await db.execute(
-        delete(keyword_import_rows).where(
-            keyword_import_rows.c.workspace_id == imp.workspace_id,
-            keyword_import_rows.c.import_id == imp.id,
-        )
-    )
-    await db.execute(
+    ended = await db.execute(
         update(keyword_imports)
-        .where(keyword_imports.c.workspace_id == imp.workspace_id, keyword_imports.c.id == imp.id)
-        .values(status="failed", error_code=code, finished_at=func.now())
+        .where(
+            keyword_imports.c.workspace_id == imp.workspace_id,
+            keyword_imports.c.id == imp.id,
+            keyword_imports.c.status == "uploaded",
+        )
+        .values(status="failed", error_code=code, counts={}, finished_at=func.now())
+        .returning(keyword_imports.c.id)
     )
+    if ended.first() is not None:
+        await db.execute(
+            delete(keyword_import_rows).where(
+                keyword_import_rows.c.workspace_id == imp.workspace_id,
+                keyword_import_rows.c.import_id == imp.id,
+            )
+        )

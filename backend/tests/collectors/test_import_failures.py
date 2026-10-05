@@ -4,16 +4,17 @@ and goes on with the others, instead of trying it again on every tick ahead of e
 from __future__ import annotations
 
 import json
-import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import import_writer, imports
 from sightline.collectors.import_writer import WriteReport, write_next
 from sightline.collectors.imports import ParseReport, parse_next
+from sightline.keywords import writer
 from tests.api.auth.support import execute
 from tests.collectors.test_fetching import MemoryStore
 from tests.collectors.test_import_writer import _confirmed, _results, _tracked
@@ -180,4 +181,49 @@ async def test_an_import_that_always_breaks_while_writing_is_ended_and_the_next_
     assert (await _results(migrated, broken))[(1, 1)][0] is None
     assert (await _row(migrated, fine))["status"] == "completed"
     assert [t["text"] for t in await _tracked(migrated, project)] == ["erp"]
-    assert isinstance(broken, uuid.UUID)
+
+
+async def test_a_statement_the_database_refuses_ends_the_import_it_came_from(
+    worker_db: Ledger, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A privilege the worker lacks fails the same way on every try: the import ends, and the
+    imports behind it are written."""
+    project = await _project(migrated)
+    store = MemoryStore()
+    refused = await _confirmed(migrated, worker_db, store, project, _csv("keyword\ncrm\n"))
+    fine = await _confirmed(migrated, worker_db, store, project, _csv("keyword\nerp\n"))
+    real = import_writer._write
+
+    async def write(db: Any, imp: Any, project: Any, parts: Any) -> None:
+        if imp.id == refused:
+            await db.execute(text("DELETE FROM auth.users"))
+        await real(db, imp, project, parts)
+
+    monkeypatch.setattr(import_writer, "_write", write)
+
+    report = await write_next(worker_db)
+
+    assert report == WriteReport(batches=2, finished=2)
+    ended = await _row(migrated, refused)
+    assert (ended["status"], ended["error_code"]) == ("failed", "write_failed")
+    assert (await _row(migrated, fine))["status"] == "completed"
+
+
+async def test_a_project_deleted_while_a_batch_is_written_ends_the_import_with_nothing_kept(
+    worker_db: Ledger, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = await _project(migrated)
+    store = MemoryStore()
+    import_id = await _confirmed(migrated, worker_db, store, project, _csv("keyword\ncrm\n"))
+
+    async def gone(*args: Any, **kwargs: Any) -> None:
+        raise writer.ProjectGoneError(project.id)
+
+    monkeypatch.setattr(writer, "write_tracked_keywords", gone)
+
+    report = await write_next(worker_db)
+
+    assert report == WriteReport(batches=1, finished=1)
+    imported = await _row(migrated, import_id)
+    assert (imported["status"], imported["error_code"]) == ("failed", "project_gone")
+    assert (await _results(migrated, import_id))[(1, 1)][0] is None
