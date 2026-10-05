@@ -49,6 +49,8 @@ export interface StepperDialogProps<TStep extends string> {
   onContinue: () => Promise<'ok' | 'invalid'>;
   /** The last step's button names the result: "Import 1,204 keywords". */
   finalLabel: string;
+  /** The last step's button cannot be pressed: the step says why, in a message the person can read. */
+  finalDisabled?: boolean | undefined;
   labels: StepperDialogLabels;
   /** The question a close past the first step asks first. */
   discard: DialogDiscardCopy;
@@ -72,6 +74,7 @@ export function StepperDialog<TStep extends string>({
   onStepChange,
   onContinue,
   finalLabel,
+  finalDisabled = false,
   labels,
   discard,
   children,
@@ -197,7 +200,7 @@ export function StepperDialog<TStep extends string>({
           </DialogClose>
         }
         primary={
-          <Button variant="primary" loading={slow} onClick={() => void proceed()}>
+          <Button variant="primary" loading={slow} disabled={last && finalDisabled} onClick={() => void proceed()}>
             {last ? finalLabel : labels.continue}
           </Button>
         }

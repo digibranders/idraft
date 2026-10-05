@@ -8,6 +8,7 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { useBulkActions } from './bulk/bulk-actions';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
+import { ImportDialog } from './import/import-dialog';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
@@ -88,6 +89,7 @@ export function RankingsScreen({
   projectId,
   timeZone,
   defaults,
+  importOpen = false,
   onImportOpenChange,
 }: RankingsScreenProps): ReactNode {
   const t = useTranslations('rankings');
@@ -98,6 +100,8 @@ export function RankingsScreen({
   const canImport = useCan('imports:write');
   const [adding, setAdding] = useState(false);
   const [managing, setManaging] = useState(false);
+  // The import whose write the header follows, from the moment Confirm started it
+  const [, setActiveImport] = useState<string | null>(null);
   // Where focus returns to when Manage groups closes
   const moreButton = useRef<HTMLButtonElement>(null);
   const scope = useMemo((): ProjectScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
@@ -472,6 +476,15 @@ export function RankingsScreen({
           open={adding}
           onOpenChange={setAdding}
           onShowKeyword={showKeyword}
+        />
+      ) : null}
+      {canImport ? (
+        <ImportDialog
+          scope={scope}
+          open={importOpen}
+          onOpenChange={(open) => onImportOpenChange?.(open)}
+          onConfirmed={setActiveImport}
+          defaults={defaults}
         />
       ) : null}
       <DiscardChangesDialog

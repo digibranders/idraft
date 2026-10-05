@@ -29,7 +29,13 @@ const DISCARD = {
 
 const finish = vi.fn();
 
-function Harness({ invalidOn = null }: { invalidOn?: Step | null }): ReactElement {
+function Harness({
+  invalidOn = null,
+  finalDisabled = false,
+}: {
+  invalidOn?: Step | null;
+  finalDisabled?: boolean;
+}): ReactElement {
   const [open, setOpen] = useState(true);
   const [current, setCurrent] = useState<Step>('upload');
   const [completed, setCompleted] = useState<ReadonlySet<Step>>(new Set());
@@ -55,6 +61,7 @@ function Harness({ invalidOn = null }: { invalidOn?: Step | null }): ReactElemen
         return 'ok';
       }}
       finalLabel="Import 1,204 keywords"
+      finalDisabled={finalDisabled}
       labels={LABELS}
       discard={DISCARD}
     >
@@ -88,6 +95,16 @@ describe('StepperDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: 'Import 1,204 keywords' }));
     expect(finish).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables only the last step button when told to, and leaves Continue alone', async () => {
+    const { user } = renderWithProviders(<Harness finalDisabled />);
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    const last = screen.getByRole('button', { name: 'Import 1,204 keywords' });
+    expect(last).toBeDisabled();
+    await user.click(last);
+    expect(finish).not.toHaveBeenCalled();
   });
 
   it('goes back to a completed step from the list or with Back', async () => {

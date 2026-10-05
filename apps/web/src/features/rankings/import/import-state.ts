@@ -76,6 +76,8 @@ export interface ImportState {
   /** A message of the server that belongs to no field, shown at the top of the step. */
   alert: string | null;
   ended: Ended | null;
+  /** Continue is at work on the API (an upload, a new reading, the write): the steps hold still. */
+  working: boolean;
 }
 
 export function initialValues(location: LocationRef | null, languageCode: string | null): UploadValues {
@@ -106,6 +108,7 @@ export function initialState(values: UploadValues): ImportState {
     uploadErrors: NO_UPLOAD_ERRORS,
     alert: null,
     ended: null,
+    working: false,
   };
 }
 
@@ -119,8 +122,10 @@ export type ImportAction =
   | { type: 'choices'; patch: Partial<ReviewChoices> }
   | { type: 'step'; step: StepId }
   | { type: 'passed'; step: StepId }
-  | { type: 'imported'; importId: string; submitted: Submitted; mapping: Readonly<Record<string, ImportField>> }
-  | { type: 'mapping-sent'; mapping: Readonly<Record<string, ImportField>> }
+  | { type: 'imported'; importId: string; submitted: Submitted }
+  /** The mapping the Map step starts from, or the one the API now has. */
+  | { type: 'mapping-set'; mapping: Readonly<Record<string, ImportField>> }
+  | { type: 'working'; on: boolean }
   | { type: 'progress'; percent: number | null }
   | { type: 'alert'; message: string | null }
   | { type: 'ended'; reason: Ended }
@@ -179,15 +184,18 @@ export function importReducer(state: ImportState, action: ImportAction): ImportS
         ...state,
         importId: action.importId,
         submitted: action.submitted,
-        mapping: action.mapping,
+        mapping: {},
         mapProblems: { checked: false, server: {} },
         choices: DEFAULT_CHOICES,
+        completed: new Set(),
         uploadProgress: null,
         alert: null,
         ended: null,
       };
-    case 'mapping-sent':
+    case 'mapping-set':
       return { ...state, mapping: action.mapping, mapProblems: { checked: false, server: {} }, alert: null };
+    case 'working':
+      return { ...state, working: action.on, alert: action.on ? null : state.alert };
     case 'progress':
       return { ...state, uploadProgress: action.percent };
     case 'alert':
