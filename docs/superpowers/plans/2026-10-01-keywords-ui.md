@@ -202,6 +202,11 @@
 - [ ] **Step 2:** Runs (`ops:read`, or own runs with `runs:trigger`): workload, trigger, status, window, tasks by status, estimate and actual cost, times; a run opens in the inspector (summary); Cancel for planned and running runs.
 - [ ] **Step 3:** The workspace menu (Costs, Operations) and Settings > Workspace settings > Costs and Operations link to them.
 - [ ] **Step 4:** Tests, gates, Opus review, commit "Workspace costs and runs".
+- **As built.** Step by step in `2026-10-05-costs-runs-ui.md`.
+  - Costs: month scope (UTC, this month and the 11 before), filters Project, Workload and Provider, a strip (month to date, the workspace budget with its meter, blocked runs), spend by day stacked by workload with fixed workload colors, by workload, and tabs By provider, By project, Unit costs (the price book, labelled estimates) and Budgets (read-only). No projection, unit costs per check or reconciliation: their routes are not built.
+  - Runs: per project on `{P}/runs` with a project picker (the backend builds no `{W}/runs` in part 1; its mock is gone), month scope, filters Workload, Status and Trigger, the newest 2,000 of a month, a run inspector with tasks by status, and Cancel for `schedules:write`, or `runs:trigger` on one's own manual runs. A run that is open is read again every 10 seconds.
+  - Linked from the project switcher's Workspace group and Settings' workspace group: Costs needs `costs:read`, Runs and Operations need `data:read` (a billing member reads costs but not data).
+  - Shared: the workload names live in the `workloads` message namespace and `src/lib/workloads`; `DataTable` takes `rowActions` as a function of the row and `col.status` shows a collection status; the inspector's `KeyValues` moved to `components/app/inspector`.
 
 ### Task 13: Contract switch, end to end, documents, review
 
