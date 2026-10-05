@@ -489,12 +489,34 @@ def test_aio_01_the_state_follows_the_asynchronous_flag_and_the_item() -> None:
 
 
 def test_aio_02_references_come_first_then_inline_links_and_no_url_twice() -> None:
-    urls = [url.url for url in rich().ai_overview.citations]
+    citations = [(c.url.url, c.kind) for c in rich().ai_overview.citations]
 
-    assert urls == [
-        "https://www.example-crm.com/startups",
-        "https://reviews.example.org/crm",
-        "https://blog.example.net/crm-guide",
+    assert citations == [
+        ("https://www.example-crm.com/startups", "reference_card"),
+        ("https://reviews.example.org/crm", "reference_card"),
+        ("https://blog.example.net/crm-guide", "inline"),
+    ]
+
+
+def test_a_url_that_is_a_link_in_one_element_and_a_reference_in_another_is_a_reference_card() -> (
+    None
+):
+    parsed = parse_serp(
+        serp(
+            [
+                {
+                    "type": "ai_overview",
+                    "items": [
+                        {"links": [{"url": "https://x.example/a"}]},
+                        {"references": [{"url": "https://x.example/a"}]},
+                    ],
+                }
+            ]
+        )
+    )
+
+    assert [(c.url.url, c.kind) for c in parsed.ai_overview.citations] == [
+        ("https://x.example/a", "reference_card")
     ]
 
 
@@ -513,6 +535,130 @@ def test_aio_07_the_feature_exists_exactly_when_the_overview_is_present() -> Non
         "has_table": True,
         "has_video": False,
     }
+
+
+# Review findings of Task 2.
+
+
+def test_a_payload_is_measured_as_the_database_writes_it() -> None:
+    questions = [{"title": "q" * 99, "expanded_element": []} for _ in range(40)]
+    parsed = parse_serp(serp([{"type": "people_also_ask", "items": questions}]))
+
+    (feature,) = parsed.features
+    assert feature.payload is not None
+    assert len(json.dumps(feature.payload, ensure_ascii=False).encode()) <= 4096
+
+
+def test_text_the_database_cannot_keep_is_cleaned_not_fatal() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                organic(1, "https://example.com/a") | {"title": "x\ud83d", "description": "a\x00b"},
+                {"type": "people_also_ask", "items": [{"title": "abc\ud83d"}]},
+            ]
+        )
+    )
+
+    assert parsed.organic[0].title == "x?"
+    assert parsed.organic[0].snippet == "ab"
+    (feature,) = parsed.features
+    assert feature.payload == {"questions": [{"title": "abc?", "domain": None, "ai": False}]}
+
+
+def test_a_dropped_organic_result_that_moves_a_later_one_is_reported() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                organic(1, "https://a.example/p"),
+                organic(2, "https://a.example/p#frag"),
+                organic(3, "https://b.example/"),
+            ]
+        )
+    )
+
+    assert [r.organic_rank for r in parsed.organic] == [1, 2]
+    assert parsed.warnings.count("duplicate_url") == 1
+    assert "rank_recomputed" in parsed.warnings
+
+
+def test_a_dropped_last_result_moves_nothing_and_is_not_a_recompute() -> None:
+    parsed = parse_serp(
+        serp([organic(1, "https://a.example/p"), organic(2, "https://a.example/p#frag")])
+    )
+
+    assert [r.organic_rank for r in parsed.organic] == [1]
+    assert "rank_recomputed" not in parsed.warnings
+
+
+def test_the_businesses_of_a_local_pack_listed_one_by_one_are_one_feature() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                {
+                    "type": "local_pack",
+                    "rank_absolute": 4,
+                    "title": "A",
+                    "url": "https://a.example/",
+                },
+                {
+                    "type": "local_pack",
+                    "rank_absolute": 5,
+                    "title": "B",
+                    "url": "https://b.example/",
+                },
+                organic(1, "https://example.com/a"),
+                {"type": "local_pack", "rank_absolute": 9, "title": "C"},
+            ]
+        )
+    )
+
+    packs = [f for f in parsed.features if f.feature_type == "local_pack"]
+    assert [(p.ordinal, p.absolute_rank, p.payload) for p in packs] == [
+        (1, 4, {"titles": ["A", "B"]}),
+        (2, 9, {"titles": ["C"]}),
+    ]
+    assert [u.url for u in packs[0].source_urls] == ["https://a.example/", "https://b.example/"]
+
+
+def test_a_people_also_ask_question_records_its_source_and_an_ai_answer() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                {
+                    "type": "people_also_ask",
+                    "items": [
+                        {
+                            "title": "What is it?",
+                            "expanded_element": [
+                                {
+                                    "type": "people_also_ask_expanded_element",
+                                    "url": "https://w.example/x",
+                                }
+                            ],
+                        },
+                        {
+                            "title": "Which one?",
+                            "expanded_element": [
+                                {
+                                    "type": "people_also_ask_ai_overview_expanded_element",
+                                    "references": [{"url": "https://r.example/y"}],
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ]
+        )
+    )
+
+    (feature,) = parsed.features
+    assert feature.payload == {
+        "questions": [
+            {"title": "What is it?", "domain": "w.example", "ai": False},
+            {"title": "Which one?", "domain": None, "ai": True},
+        ]
+    }
+    assert [u.url for u in feature.source_urls] == ["https://w.example/x", "https://r.example/y"]
 
 
 # The answer.
@@ -545,8 +691,12 @@ def test_a_serp_with_items_null_is_empty_and_the_bytes_read_like_the_object() ->
         (serp(["not an object"]), "tasks[].result[].items[0]"),
         (serp([{"rank_group": 1}]), "tasks[].result[].items[].type"),
         (serp([organic(1, "https://example.com/a") | {"rank_group": "1"}]), "items[].rank_group"),
-        (serp([], se_results_count="many"), "tasks[].result[].se_results_count"),
-        (serp([], keyword=5), "tasks[].result[].keyword"),
+        (serp([organic(1, "https://example.com/a") | {"url": 5}]), "items[].url"),
+        (
+            serp([organic(1, "https://example.com/a") | {"rank_absolute": "3"}]),
+            "items[].rank_absolute",
+        ),
+        (b"[" * 200000, "$"),
     ],
 )
 def test_an_answer_not_shaped_as_read_is_a_schema_mismatch(body: Any, path: str) -> None:
@@ -554,6 +704,30 @@ def test_an_answer_not_shaped_as_read_is_a_schema_mismatch(body: Any, path: str)
         parse_serp(body)
 
     assert raised.value.path == path
+
+
+def test_what_a_rank_does_not_depend_on_is_left_out_when_it_cannot_be_read() -> None:
+    parsed = parse_serp(
+        serp(
+            [
+                organic(1, "https://example.com/a")
+                | {"breadcrumb": 5, "related_result": {"a": 1}, "links": "x"},
+                {"type": "new_box", "items": {"a": 1}, "rank_absolute": "four", "domain": ["a"]},
+                {"type": "video", "items": [{"domain": ["a"]}, {"domain": "v.example"}]},
+                {"type": "ai_overview", "references": {"a": 1}, "items": "x"},
+            ],
+            se_results_count="many",
+            keyword=5,
+        )
+    )
+
+    assert (parsed.keyword, parsed.se_results_count) == (None, None)
+    assert parsed.organic[0].breadcrumb is None
+    assert parsed.organic[0].grouped_urls == ()
+    by_type = {f.feature_type: f for f in parsed.features}
+    assert by_type["other:new_box"].absolute_rank is None
+    assert by_type["video"].payload == {"domains": ["v.example"]}
+    assert parsed.ai_overview.citations == ()
 
 
 def test_a_spell_without_its_parts_is_not_read() -> None:

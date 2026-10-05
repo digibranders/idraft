@@ -7,9 +7,14 @@ the organic list in rank order, the SERP features, the AI Overview slot and a fe
 query. It is pure: no I/O, no database. Resolving ranks for entities, state and events are other
 modules' work (`sightline.ranks`).
 
-A field the parser depends on that is missing or of another type raises
-`SerpSchemaMismatchError`; the task then fails with its raw payload kept. Data that is merely odd
-(a duplicate URL, a rank gap, an unreadable URL) is repaired and reported in `warnings`.
+What a rank depends on is read strictly: the shape of the answer, and the type, rank, position,
+URL and text of an organic item. A field there that is missing or of another type raises
+`SerpSchemaMismatchError`, and the task fails with its raw payload kept. Everything else is read
+as far as it can be and left out when it cannot (a feature of a type the parser does not know, a
+count, a link list): a new kind of block must not stop ingest. Data that is merely odd (a
+duplicate URL, a rank gap, an unreadable URL) is repaired and reported in `warnings`.
+
+Text the database cannot keep (NUL, a lone surrogate) is cleaned from the whole answer first.
 """
 
 from __future__ import annotations
@@ -24,10 +29,13 @@ from sightline.extraction.urls import CanonicalUrl, UrlRejectedError, canonicali
 
 PARSER_VERSION: Final = 1
 # A feature's payload is kept small: it is a row of a table read for every SERP of a keyword.
+# The limit is bytes of the text PostgreSQL gives the jsonb value, which is what the table's check
+# measures: `json.dumps` with its default separators writes the same text.
 PAYLOAD_MAX_BYTES: Final = 4096
 NO_RESULTS_STATUS: Final = 40102
 
 AiOverviewState = Literal["absent", "present", "present_async_loaded", "present_not_loaded"]
+CitationKind = Literal["reference_card", "inline"]
 
 # DataForSEO `type` to our `feature_type` (doc 06 section 5.4). Several provider types share one.
 FEATURE_TYPES: Final[Mapping[str, str]] = {
@@ -58,9 +66,16 @@ READS_PATHS: Final = (
     "tasks[].result[].items[].type",
     "tasks[].result[].items[].rank_group",
     "tasks[].result[].items[].rank_absolute",
+    "tasks[].result[].items[].position",
     "tasks[].result[].items[].url",
     "tasks[].result[].items[].title",
     "tasks[].result[].items[].description",
+    "tasks[].result[].items[].related_result[].url",
+    "tasks[].result[].items[].links[].url",
+    "tasks[].result[].items[].references[].url",
+    "tasks[].result[].items[].asynchronous_ai_overview",
+    "tasks[].result[].keyword",
+    "tasks[].result[].se_results_count",
     "tasks[].result[].item_types",
     "tasks[].result[].datetime",
 )
@@ -91,7 +106,7 @@ class OrganicResult:
     breadcrumb: str | None
     grouped_urls: tuple[CanonicalUrl, ...]  # `related_result` children, at the same rank
     has_sitelinks: bool
-    checks: tuple[str, ...]  # 'is_image', 'is_video', 'amp', 'highlighted'
+    checks: tuple[str, ...]  # 'is_image', 'is_video', 'amp', 'is_featured_snippet'
     rating: Rating | None
 
 
@@ -101,15 +116,23 @@ class SerpFeature:
     ordinal: int  # nth occurrence of the type on the page, from 1
     absolute_rank: int | None
     source_urls: tuple[CanonicalUrl, ...]  # display order, no URL twice
-    payload: dict[str, Any] | None  # at most `PAYLOAD_MAX_BYTES` serialized
+    payload: dict[str, Any] | None  # at most `PAYLOAD_MAX_BYTES` as the database writes it
+
+
+@dataclass(frozen=True, slots=True)
+class Citation:
+    url: CanonicalUrl
+    # A reference card (a source the block lists) or an inline link inside its text that is not
+    # also listed as a reference.
+    kind: CitationKind
 
 
 @dataclass(frozen=True, slots=True)
 class AiOverview:
     state: AiOverviewState
-    # The URLs it cites, in order of first appearance: the references of the block, then the
-    # links inside its elements. Empty unless a present state.
-    citations: tuple[CanonicalUrl, ...]
+    # What it cites, in order of first appearance: the references of the block, then the links
+    # inside its elements. Empty unless a present state.
+    citations: tuple[Citation, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +163,10 @@ class NormalizedSerp:
 def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
     """The normalized SERP of a `task_get/advanced` answer, given as the bytes the provider sent
     or as its parsed JSON."""
-    document = _document(body)
+    try:
+        document = _document(body)
+    except RecursionError:
+        raise SerpSchemaMismatchError("$", "a document that is not nested without end") from None
     task = _first(document.get("tasks"), "tasks[]")
     status = task.get("status_code")
     results = task.get("result")
@@ -159,13 +185,11 @@ def parse_serp(body: bytes | Mapping[str, Any]) -> NormalizedSerp:
     # repairs to the warnings.
     organic = builder.finish_organic()
     return NormalizedSerp(
-        keyword=_optional_str(result.get("keyword"), "tasks[].result[].keyword"),
-        se_domain=_optional_str(result.get("se_domain"), "tasks[].result[].se_domain"),
-        check_url=_optional_str(result.get("check_url"), "tasks[].result[].check_url"),
+        keyword=_text(result.get("keyword")),
+        se_domain=_text(result.get("se_domain")),
+        check_url=_text(result.get("check_url")),
         observed_at=_observed_at(result.get("datetime"), builder.warnings),
-        se_results_count=_optional_int(
-            result.get("se_results_count"), "tasks[].result[].se_results_count"
-        ),
+        se_results_count=_whole(result.get("se_results_count")),
         spell=_spell(result.get("spell"), builder.warnings),
         item_types=_item_types(result.get("item_types"), builder.seen_types),
         organic=organic,
@@ -191,6 +215,20 @@ def _empty() -> NormalizedSerp:
     )
 
 
+def _scrub(value: Any) -> Any:
+    """The document with the text the database cannot keep cleaned out: NUL is dropped and a lone
+    surrogate becomes `?`, as a replacing UTF-8 encoder writes it."""
+    if isinstance(value, str):
+        if value.isascii() and "\x00" not in value:
+            return value
+        return value.replace("\x00", "").encode("utf-8", "replace").decode("utf-8")
+    if isinstance(value, list):
+        return [_scrub(element) for element in value]
+    if isinstance(value, Mapping):
+        return {_scrub(name): _scrub(element) for name, element in value.items()}
+    return value
+
+
 def _document(body: bytes | Mapping[str, Any]) -> Mapping[str, Any]:
     if isinstance(body, bytes):
         try:
@@ -199,7 +237,8 @@ def _document(body: bytes | Mapping[str, Any]) -> Mapping[str, Any]:
             raise SerpSchemaMismatchError("$", "JSON") from None
     if not isinstance(body, Mapping):
         raise SerpSchemaMismatchError("$", "an object")
-    return body
+    cleaned: Mapping[str, Any] = _scrub(body)
+    return cleaned
 
 
 def _first(value: object, path: str) -> Mapping[str, Any]:
@@ -209,7 +248,7 @@ def _first(value: object, path: str) -> Mapping[str, Any]:
     return first
 
 
-def _optional_str(value: object, path: str) -> str | None:
+def _strict_str(value: object, path: str) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
@@ -217,7 +256,7 @@ def _optional_str(value: object, path: str) -> str | None:
     return value
 
 
-def _optional_int(value: object, path: str) -> int | None:
+def _strict_int(value: object, path: str) -> int | None:
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, int):
@@ -225,12 +264,19 @@ def _optional_int(value: object, path: str) -> int | None:
     return value
 
 
-def _list_of_mappings(value: object, path: str) -> list[Mapping[str, Any]]:
-    """A list the provider may leave null; its elements that are not objects are not read."""
-    if value is None:
-        return []
+def _text(value: object) -> str | None:
+    """A string, or None: what a rank does not depend on is left out when it cannot be read."""
+    return value if isinstance(value, str) else None
+
+
+def _whole(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _mappings(value: object) -> list[Mapping[str, Any]]:
+    """The objects of a list; anything else (a missing list, another type) is no objects."""
     if not isinstance(value, list):
-        raise SerpSchemaMismatchError(path, "a list or null")
+        return []
     return [element for element in value if isinstance(element, Mapping)]
 
 
@@ -296,9 +342,7 @@ def _distinct(urls: Sequence[CanonicalUrl | None]) -> tuple[CanonicalUrl, ...]:
 
 
 def _fits(payload: dict[str, Any]) -> bool:
-    return len(json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()) <= (
-        PAYLOAD_MAX_BYTES
-    )
+    return len(json.dumps(payload, ensure_ascii=False).encode()) <= PAYLOAD_MAX_BYTES
 
 
 def _bounded(payload: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -333,7 +377,9 @@ class _Builder:
         self._ads: list[Mapping[str, Any]] = []
         self._ads_at: int | None = None
         self._ai: Mapping[str, Any] | None = None
-        self._ai_citations: tuple[CanonicalUrl, ...] = ()
+        self._ai_citations: tuple[Citation, ...] = ()
+        self._pack: list[Mapping[str, Any]] = []
+        self._pack_at: int | None = None
 
     def add(self, item: Mapping[str, Any]) -> None:
         kind = item.get("type")
@@ -343,18 +389,50 @@ class _Builder:
             self.seen_types.append(kind)
         if kind == "organic":
             self._organic.append(item)
+            self._pack_at = None
             return
         if kind == "paid":
             # One feature for all the ads of the page, placed where the first one is.
+            self._pack_at = None
             if not self._ads:
                 self._ads_at = len(self.features)
                 self.features.append(_placeholder())
             self._ads.append(item)
             return
-        sources = self._sources(kind, item)
+        if kind == "local_pack" and not _mappings(item.get("items")):
+            self._add_business(item)
+            return
+        self._pack_at = None
         if kind == "ai_overview" and self._ai is None:
-            self._ai, self._ai_citations = item, _distinct(sources)
+            self._ai = item
+            self._ai_citations = self._citations(item)
+        sources = (
+            [citation.url for citation in self._ai_citations]
+            if item is self._ai
+            else self._sources(kind, item)
+        )
         self._append(_canonical_name(kind), item, sources, self._payload(kind, item))
+
+    def _add_business(self, item: Mapping[str, Any]) -> None:
+        """A local pack the provider lists one business at a time is one block, as long as the
+        businesses follow each other."""
+        if self._pack_at is None or self._pack_at != len(self.features) - 1:
+            self._pack = []
+            self._pack_at = len(self.features)
+            self.features.append(_placeholder())
+            ordinal = self._ordinals.get("local_pack", 0) + 1
+            self._ordinals["local_pack"] = ordinal
+        else:
+            ordinal = self.features[self._pack_at].ordinal
+        self._pack.append(item)
+        absolutes = [rank for entry in self._pack if (rank := _absolute(entry)) is not None]
+        self.features[self._pack_at] = SerpFeature(
+            feature_type="local_pack",
+            ordinal=ordinal,
+            absolute_rank=min(absolutes) if absolutes else None,
+            source_urls=_distinct(self._urls(*(entry.get("url") for entry in self._pack))),
+            payload=_bounded({"titles": [_text(entry.get("title")) for entry in self._pack]}),
+        )
 
     def _append(
         self,
@@ -378,24 +456,59 @@ class _Builder:
     def _urls(self, *raw: object) -> list[CanonicalUrl | None]:
         return [_url(value, self.warnings) for value in raw]
 
+    def _citations(self, item: Mapping[str, Any]) -> tuple[Citation, ...]:
+        """What an AI Overview cites, in order of first appearance: its references, then for each
+        element its links and its references. A URL listed as a reference anywhere in the block
+        is a reference card; the others are inline links."""
+        references = [ref.get("url") for ref in _mappings(item.get("references"))]
+        ordered: list[object] = list(references)
+        for element in _mappings(item.get("items")):
+            ordered.extend(link.get("url") for link in _mappings(element.get("links")))
+            element_references = [ref.get("url") for ref in _mappings(element.get("references"))]
+            ordered.extend(element_references)
+            references.extend(element_references)
+        reference_hashes = {found.url_hash for found in self._urls(*references) if found}
+        citations: dict[bytes, Citation] = {}
+        for found in self._urls(*ordered):
+            if found is None or found.url_hash in citations:
+                continue
+            kind: CitationKind = (
+                "reference_card" if found.url_hash in reference_hashes else "inline"
+            )
+            citations[found.url_hash] = Citation(found, kind)
+        return tuple(citations.values())
+
     def _sources(self, kind: str, item: Mapping[str, Any]) -> list[CanonicalUrl | None]:
         if kind == "ai_overview":
-            return self._urls(*_ai_urls(item))
+            return [citation.url for citation in self._citations(item)]
         if kind == "people_also_ask":
-            return self._urls(
-                *(
-                    expanded.get("url")
-                    for element in _list_of_mappings(item.get("items"), "items")
-                    for expanded in _list_of_mappings(element.get("expanded_element"), "expanded")
-                )
-            )
+            raw: list[object] = []
+            for element in _mappings(item.get("items")):
+                for expanded in _mappings(element.get("expanded_element")):
+                    raw.append(expanded.get("url"))
+                    # An answer that is an AI Overview lists its sources as references.
+                    raw.extend(ref.get("url") for ref in _mappings(expanded.get("references")))
+            return self._urls(*raw)
         if kind in ("related_searches", "people_also_search"):
             return []
-        elements = _list_of_mappings(item.get("items"), "items")
+        elements = _mappings(item.get("items"))
         return self._urls(item.get("url"), *(element.get("url") for element in elements))
 
+    @staticmethod
+    def _question(element: Mapping[str, Any]) -> dict[str, Any]:
+        """A People also ask question, the domain its answer comes from and whether that answer
+        is an AI Overview."""
+        expanded = _mappings(element.get("expanded_element"))
+        first = expanded[0] if expanded else {}
+        domain = _text(first.get("domain")) or _host_of(first.get("url"))
+        return {
+            "title": _text(element.get("title")),
+            "domain": domain,
+            "ai": "ai_overview" in str(first.get("type", "")),
+        }
+
     def _payload(self, kind: str, item: Mapping[str, Any]) -> dict[str, Any] | None:
-        elements = _list_of_mappings(item.get("items"), "items")
+        elements = _mappings(item.get("items"))
         if kind == "ai_overview":
             kinds = " ".join(str(element.get("type", "")) for element in elements)
             return {
@@ -406,36 +519,44 @@ class _Builder:
             }
         if kind == "featured_snippet":
             return {
-                "title": item.get("featured_title"),
+                "title": _text(item.get("featured_title")),
                 "kind": "table" if item.get("table") else "paragraph",
             }
         if kind == "people_also_ask":
-            return {"questions": [element.get("title") for element in elements]}
+            return {"questions": [self._question(element) for element in elements]}
         if kind == "local_pack":
-            return {"titles": [element.get("title") for element in elements]}
+            return {"titles": [_text(element.get("title")) for element in elements]}
         if kind == "knowledge_graph":
-            return {"title": item.get("title"), "subtitle": item.get("sub_title")}
+            return {"title": _text(item.get("title")), "subtitle": _text(item.get("sub_title"))}
         if kind in ("related_searches", "people_also_search"):
             return {
-                "queries": [element.get("title") or element.get("keyword") for element in elements]
+                "queries": [
+                    _text(element.get("title")) or _text(element.get("keyword"))
+                    for element in elements
+                ]
             }
         if kind in ("video", "short_videos", "discussions_and_forums"):
-            domains = {element.get("domain") for element in elements if element.get("domain")}
-            return {"domains": sorted(str(domain) for domain in domains)}
+            domains = {
+                domain for element in elements if isinstance(domain := element.get("domain"), str)
+            }
+            return {"domains": sorted(domains)}
         if elements:
             return {"count": len(elements)}
         return None
 
     def finish_organic(self) -> tuple[OrganicResult, ...]:
         """The organic list (doc 06 section 5.2): ranks checked, URLs canonical, duplicates
-        dropped, ranks dense from 1."""
-        given = [_rank_group(item) for item in self._organic]
-        if given != list(range(1, len(given) + 1)):
-            self.warnings.append("rank_recomputed")
+        dropped, ranks dense from 1. Dense ranks are the invariant of doc 12; when a gap in the
+        provider's ranks, or a result dropped before a later one, moves a result off the rank the
+        provider gave it, that is reported as `rank_recomputed`."""
+        given = [
+            _strict_int(item.get("rank_group"), "items[].rank_group") for item in self._organic
+        ]
+        recomputed = given != list(range(1, len(given) + 1))
         results: list[OrganicResult] = []
         seen: set[bytes] = set()
-        for item in self._organic:
-            url = _url(item.get("url"), self.warnings)
+        for item, provider_rank in zip(self._organic, given, strict=True):
+            url = _url(_strict_str(item.get("url"), "items[].url"), self.warnings)
             if url is None:
                 self.warnings.append("organic_without_url")
                 continue
@@ -446,21 +567,23 @@ class _Builder:
             grouped = _distinct(
                 [
                     _url(child.get("url"), self.warnings)
-                    for child in _list_of_mappings(item.get("related_result"), "related_result")
+                    for child in _mappings(item.get("related_result"))
                 ]
             )
-            links = _list_of_mappings(item.get("links"), "links")
+            links = _mappings(item.get("links"))
             organic_rank = len(results) + 1
+            if provider_rank != organic_rank:
+                recomputed = True
             if links:
                 self._sitelinks(item, url, len(links), organic_rank)
             results.append(
                 OrganicResult(
                     organic_rank=organic_rank,
-                    absolute_rank=_absolute(item),
+                    absolute_rank=_organic_absolute(item),
                     url=url,
-                    title=_optional_str(item.get("title"), "items[].title"),
-                    snippet=_optional_str(item.get("description"), "items[].description"),
-                    breadcrumb=_optional_str(item.get("breadcrumb"), "items[].breadcrumb"),
+                    title=_strict_str(item.get("title"), "items[].title"),
+                    snippet=_strict_str(item.get("description"), "items[].description"),
+                    breadcrumb=_text(item.get("breadcrumb")),
                     grouped_urls=tuple(
                         child for child in grouped if child.url_hash != url.url_hash
                     ),
@@ -469,6 +592,8 @@ class _Builder:
                     rating=_rating(item.get("rating")),
                 )
             )
+        if recomputed:
+            self.warnings.append("rank_recomputed")
         self._finish_ads(results)
         return tuple(results)
 
@@ -513,7 +638,7 @@ class _Builder:
         if item is None:
             return AiOverview("absent", ())
         citations = self._ai_citations
-        elements = _list_of_mappings(item.get("items"), "items")
+        elements = _mappings(item.get("items"))
         asynchronous = item.get("asynchronous_ai_overview") is True
         state: AiOverviewState
         if asynchronous and not elements and not citations:
@@ -527,26 +652,29 @@ def _placeholder() -> SerpFeature:
     return SerpFeature("ads", 1, None, (), None)
 
 
-def _absolute(item: Mapping[str, Any]) -> int | None:
-    """The position among all items of the page; None for the right column, which the provider
-    numbers apart and which is not compared with the left."""
+def _organic_absolute(item: Mapping[str, Any]) -> int | None:
+    """The position of an organic item among all items of the page, read strictly; None for the
+    right column, which the provider numbers apart and which is not compared with the left."""
     if item.get("position") == "right":
         return None
-    return _optional_int(item.get("rank_absolute"), "items[].rank_absolute")
+    return _strict_int(item.get("rank_absolute"), "items[].rank_absolute")
 
 
-def _rank_group(item: Mapping[str, Any]) -> int | None:
-    return _optional_int(item.get("rank_group"), "items[].rank_group")
+def _absolute(item: Mapping[str, Any]) -> int | None:
+    """The same for a feature, read leniently: a block of a type not known yet must not stop
+    ingest."""
+    if item.get("position") == "right":
+        return None
+    return _whole(item.get("rank_absolute"))
 
 
-def _ai_urls(item: Mapping[str, Any]) -> list[object]:
-    """The URLs an AI Overview cites, in order: its references, then for each element its links
-    and its references."""
-    urls: list[object] = [ref.get("url") for ref in _list_of_mappings(item.get("references"), "r")]
-    for element in _list_of_mappings(item.get("items"), "items"):
-        urls.extend(link.get("url") for link in _list_of_mappings(element.get("links"), "l"))
-        urls.extend(ref.get("url") for ref in _list_of_mappings(element.get("references"), "r"))
-    return urls
+def _host_of(url: object) -> str | None:
+    if not isinstance(url, str):
+        return None
+    try:
+        return canonicalize(url).host.name
+    except UrlRejectedError:
+        return None
 
 
 def _checks(item: Mapping[str, Any]) -> tuple[str, ...]:
