@@ -66,6 +66,7 @@ Every metric has one registry key (`metric`). Keys for A1 to A14 and C1, C3 are 
 | V4 mention volatility, V5 citation volatility, V6 within-run instability | `ai.flip_rate`, `ai.citation_jaccard_distance`, `ai.within_run_disagreement` |
 | F1, F2, F3, F5 fan-out metrics (F4 is a ranked list, not a value) | `ai.fanout_presence_rate`, `ai.fanout_mean_queries`, `ai.fanout_keyword_coverage`, `ai.fanout_own_top10_share` |
 | SEO metrics of section 11 | `seo.keywords_tracked`, `seo.keywords_checked`, `seo.top3_count`, `seo.top10_count`, `seo.top20_count`, `seo.top100_count`, `seo.average_rank`, `seo.median_rank`, `seo.capped_average_rank`, `seo.visibility_volume`, `seo.visibility_equal`, `seo.est_clicks`, `seo.est_clicks_aio_adjusted` (Phase 14), `seo.share_of_voice`, `seo.improved_count`, `seo.declined_count`, `seo.new_ranking_count`, `seo.lost_ranking_count`, `seo.featured_snippet_ownership`, `seo.aio_presence_rate`, `seo.aio_citation_rate`, `seo.cannibalization_count` |
+| Keyword research metrics (section 11.1) | `seo.search_volume`, `seo.keyword_difficulty`, `seo.cpc_usd`, `seo.search_volume_trend` |
 | First-party metrics (section 10) | the `fp.*` keys of [18-first-party-integrations.md](18-first-party-integrations.md) section 11.4 |
 
 ## 3. Scope and notation (AI)
@@ -210,6 +211,21 @@ All SEO metrics are defined in [09-rank-tracking-methodology.md](09-rank-trackin
 | Landing-page visibility | [08-seo-keyword-system.md](08-seo-keyword-system.md) section 10 |
 | Competitor visibility and averages | 5 and 7 |
 
+### 11.1 Keyword research metrics
+
+Four metrics describe a keyword's demand rather than a rank. They come from the DataForSEO Labs keyword overview ([06-dataforseo-seo-integration.md](06-dataforseo-seo-integration.md) section 7), are stored on `seo.keyword_metric_snapshots` (the latest per key in `seo.keyword_metrics_current`), and are all provider estimates (`is_estimate: true`). Their grain is **keyword x location x language** (and `source`, which is `dataforseo_labs` today): `filters` carries `location_id` and `language_code`, `n_keywords` is 1, and they do not depend on a project, so a keyword tracked by two projects has one value.
+
+| Key | Meaning | Source column | Unit | Method |
+|---|---|---|---|---|
+| `seo.search_volume` | Average monthly searches reported by the provider | `search_volume` (integer, 0 or more) | `count` | `window` is the twelve calendar months ending with the latest month the snapshot has a volume for. No numerator or denominator. |
+| `seo.keyword_difficulty` | How hard the keyword is to rank for, as the provider defines it (doc 09 section 8) | `keyword_difficulty` (smallint, 0 to 100) | `score` | Provider value, not recomputed. |
+| `seo.cpc_usd` | Average cost per click advertisers pay, in US dollars | `cpc_usd` (numeric(10,4), 0 or more) | `usd` | Provider value, not recomputed. |
+| `seo.search_volume_trend` | Direction of search volume over the last year | derived from `monthly_searches` | `ratio` | Least-squares slope of the monthly volumes in the twelve calendar months ending with the latest month that has one, divided by their mean: a fraction a month, so 0.018 is 1.8% a month. A month without a volume is left out, not counted as zero. Null with fewer than 3 months or a mean of zero. `n_observations` is the number of months used. |
+
+- A keyword Labs knows nothing of has a snapshot with every value null; the metrics are then null with no denominator, not zero.
+- Seasonality is not a registry key. It is the index of each calendar month over the same twelve months, shown with the trend; a keyword is seasonal when the highest index is above 1.5 and the lowest below 0.67, and only when all twelve months have a volume ([08-seo-keyword-system.md](08-seo-keyword-system.md) section 6).
+- **As built (step 5, keywords).** The API returns `seo.search_volume` as a `MetricValue` in the `metrics` of a tracked keyword and `seo.search_volume_trend` in the metrics history (`GET {W}/keywords/{keyword_id}/metrics-history`), both with `method_version` 1. Difficulty and CPC are returned as plain fields (`keyword_difficulty` as an integer, `cpc_usd` as a decimal string with four places) next to the search volume. The trend field of a keyword row, `trend_pct_per_month`, is the same slope times 100.
+
 ## 12. Combined SEO and AI metrics (index)
 
 Defined in [15-seo-ai-correlation.md](15-seo-ai-correlation.md). No opaque master score. Summary:
@@ -343,5 +359,6 @@ Window-level distinct counts (prompts, URLs per domain) and topic-filtered sourc
 | Structured rank metrics (A9, A10) | 1 | Tied to extractor ranked-list rules v1 |
 | Prominence (A11) | 1 | Character-offset formula |
 | Source metrics (C1 to C9) | 1 | Citation unit = distinct canonical URL per observation |
+| Keyword research metrics (`seo.search_volume`, `seo.keyword_difficulty`, `seo.cpc_usd`, `seo.search_volume_trend`) | 1 | Provider values; the trend is the 12 month regression of section 11.1 |
 | SEO visibility | 1 | `ctr_v1` curve |
 | SEO SOV | 1 | Top-20 denominator |

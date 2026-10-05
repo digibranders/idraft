@@ -111,7 +111,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ## Phase 2: Entities and taxonomy
 
-- [x] Tables per Phase 2 list; seeds for domain categories and PSL snapshot pinned. `core.urls` and `core.url_remap` wait for SERP ingest (step 5), publishers and domain classification rules for source intelligence (step 11)
+- [x] Tables per Phase 2 list; seeds for domain categories and PSL snapshot pinned. `core.urls` arrived with the keywords (step 5, target URLs), `core.url_remap` waits for SERP ingest, publishers and domain classification rules for source intelligence (step 11)
 - [x] URL canonicalizer v1 with test vectors ([14](14-citation-intelligence.md) section 3)
 - [x] Domain resolver with specificity rules; `core.project_domain_roles` view
 - [x] Alias automaton compiler (Aho-Corasick, negatives, possessives, domain-shaped aliases, RE2 for regex mode)
@@ -121,11 +121,12 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ## Phase 3: SEO keyword system
 
-- [ ] Keyword and tracked keyword APIs; config history on measurement-affecting changes
-- [ ] Import pipeline (R2 upload, parse, validate, preview, confirm, report); duplicate matrix tests ([08](08-seo-keyword-system.md) section 3.3)
-- [ ] Labs `keyword_overview` adapter; `keyword_metrics` workload through the task ledger; `is_material_change`
-- [ ] Depth profiles, schedules API, quotas
-- [ ] Rank Tracker table shell with metrics; exports
+- [x] Keyword and tracked keyword APIs; config history on measurement-affecting changes (branch `backend/keywords`, not merged to `main` yet)
+- [x] Import pipeline (R2 upload, parse, validate, preview, confirm, report); duplicate matrix tests ([08](08-seo-keyword-system.md) section 3.3). The source goes to R2 by multipart upload, paste or JSON rows; the presigned `upload-url` route, XLSX files and the `Idempotency-Key` check wait for step 10
+- [x] Labs `keyword_overview` adapter; `keyword_metrics` workload through the task ledger; `is_material_change`
+- [x] Depth profiles, schedules API, quotas. Also built with it: groups and term assignments, runs and project settings, the hourly cost rollup with `GET {W}/costs`, `GET {W}/budgets/status` and `GET {W}/price-book`
+- [x] Acceptance through the API and the worker: 5,000 keywords from a CSV, preview, confirm, write, metrics without being asked, cost in the cost report (`backend/tests/worker/test_import_acceptance.py`)
+- [ ] Rank Tracker table shell with metrics (the screens are the web session's); exports moved to step 7
 
 ## Phase 4: SEO rank collection
 

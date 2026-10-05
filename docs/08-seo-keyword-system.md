@@ -40,6 +40,15 @@ Identity of a tracked keyword is `(project, keyword, engine, location, language,
 
 `core.workspace_quotas.max_tracked_keywords` counts active tracked keywords (each device/location variant counts once). Imports that would exceed the quota are rejected with a per-row reason before any row is written.
 
+**As built (step 5, keywords).**
+- **Quota.** Every way of adding or unarchiving takes a per-workspace lock, counts, and refuses the whole request when it would go over: `422 quota_exceeded` with `limit`, `used` and `requested`, nothing written. `device: 'both'` counts two. The keywords of a deleted project do not count; those of an archived project still do. An import checks again when it is confirmed.
+- **Text.** `sightline.keywords.text` decides what a keyword is.
+  - *Stored text* is the entry with invisible format characters (zero-width spaces, a byte order mark, direction marks) removed and whitespace trimmed and collapsed. Casing is kept, and the provider receives this text. It is 1 to 700 characters; a control character is refused (`keyword_invalid`).
+  - *Normalized text* is NFKC, format characters removed, lower case, whitespace collapsed. It is lower case, not case folded, so "Straße" and "Strasse" stay two keywords. Two entries with the same normalized text and language are one keyword.
+  - *Operators* are refused with `search_operator_not_allowed`. They are read on the normalized text, so full-width look-alikes count. An operator is one of `after`, `before`, `cache`, `daterange`, `define`, `ext`, `filetype`, `inanchor`, `info`, `intext`, `intitle`, `inurl`, `link`, `related`, `site` or `source`, then a colon and a value straight after it (`site:acme.com`), or one of the `allinanchor`, `allintext`, `allintitle` and `allinurl` family; "contact info: phone" is ordinary text. A word excluded with a minus after another word ("crm -free") and a pair of quotation marks (an exact phrase) are refused too. A leading minus ("-40 fahrenheit"), a hyphen inside a word ("k-pop") and a single quote mark (an inch sign) pass.
+- **Groups.** A group name is 1 to 100 characters with no `/`, and names are unique among siblings without case, roots included. A tree is at most 10 levels deep, and a group's `path` (the names from the root joined by `/`) is at most 2,048 bytes. A group and its members stay in one project. Changes to one project's groups take turns (an advisory lock), so a move is checked against a tree nobody else is changing.
+- **Terms.** A tracked keyword holds at most one term of a single-valued vocabulary. The API and the import worker share this rule.
+
 ## 2. Taxonomy
 
 The same taxonomy serves keywords and prompts ([04-data-model.md](04-data-model.md) section 5.3):
@@ -118,7 +127,34 @@ Duplicate handling (all decided in the preview, per row):
 
 Import jobs are recorded in `seo.keyword_imports` (id, project, source, file object key, row counts by outcome, created_by, status, report object key) so every keyword's origin is auditable.
 
+**As built (step 5, imports).** The API is in [19-api-specification.md](19-api-specification.md) section 3.6.3; the code is `api/imports/`, `collectors/imports.py` (reading), `collectors/import_writer.py` (writing) and `keywords/import_rows.py` (the row rules). Differences from the design above:
+- **Sources.**
+  - Pasted text: one keyword per line, with the tags after a TAB.
+  - JSON rows: up to 10,000.
+  - A CSV upload as `multipart/form-data`, up to 50 MB, UTF-8 (a byte order mark is dropped), delimiter comma, semicolon or tab.
+  - A source has at most 10,000 rows and 100 columns. The presigned `upload-url` route and XLSX files are not built, and the `competitors` column is not offered.
+  - The API stores the source in R2 at `imports/v1/{workspace_id}/{import_id}/source` before it records the import, then returns `202`.
+- **Reading.** The worker (tick `keyword_imports`, every 5 seconds) claims the next `uploaded` import with `FOR UPDATE SKIP LOCKED` and reads it in one transaction into `seo.keyword_import_rows`. A file with no keyword column, or tags without a vocabulary to put them in, is `needs_mapping`; the user sends a mapping and the worker reads it again. An unreadable file is `failed` with a code. A source that raises the same error on every try ends as `parse_failed` instead of holding up the queue, and a NUL character in a cell is `cell_invalid`.
+- **Preview outcomes.**
+  - `new`: the identity is not in the project.
+  - `duplicate`: the identity is live in the project (reason `tracked`; action `skip` or `merge`), or repeats an earlier row of the file (`repeated_in_file`; `skip`, its groups and terms are added to the first row).
+  - `variant`: the workspace has the keyword typed differently (reason `casing_differs`). The row creates a tracked keyword on the existing keyword, so the provider keeps receiving the first casing; the user may skip it. A casing variant of a keyword the project already tracks is a `duplicate`, not a variant.
+  - `conflict`: the identity is archived in the project (reason `archived`; `skip` or `merge`, and merge unarchives it).
+  - `invalid`: with a reason code, listed in doc 19 section 3.6.3. Operators, over-long keywords and control characters are among them.
+  - `force_separate` (a separate case-sensitive keyword, in the duplicate table above) is refused with `force_separate_not_available`; it waits for Phase 5.
+  - A row with `device = both` is two parts of one file row: part 1 desktop, part 2 mobile. Counts and the quota count parts.
+- **Confirm.** Confirming checks the quota under the workspace lock: it counts the parts to create and the archived keywords to bring back, and answers `422 quota_exceeded` with `limit`, `used` and `requested` with nothing changed. `duplicate_action: 'merge_terms'` turns tracked duplicates from `skip` to `merge`.
+- **Writing.** The worker (tick `keyword_import_writes`, every 5 seconds) writes at most 1,000 parts per transaction, in row order, and records a `result` on each part (`created`, `skipped`, `merged` or `failed` with a `write_error_code`). A restart goes on with the parts that have no result.
+  - *Groups and terms.* Each row's group is made along its path, its tags become top-level terms of the tags vocabulary and its topic a path in the topic vocabulary, all with `assigned_by = 'import'`. A row names at most 50 tags. Groups and terms of a batch are made before the quota lock is taken, with a per-batch cache of the siblings read. Terms of a vocabulary deleted since the preview are left out, and a term of a single-valued vocabulary is not added when the keyword holds another.
+  - *What a created keyword gets.* The row's priority, depth profile, intent (with `intent_source = 'manual'` unless the intent is `unknown`), funnel stage and target URL, and the project's default frequency. Its `source` is `csv_import`, `bulk_paste` or `api`.
+  - *Errors.* An error the database refuses by SQLSTATE class 22, 23, 42 or 0A would come again, so it ends the import as `write_failed`; other errors are tried again.
+- **Metrics.** The writer does not queue a metrics fetch. The planner's new-keyword step (doc 21 section 3.1) finds the new tracked keywords within a minute or two and gives them a run of their own.
+- **Expiry.** A preview expires 7 days after the import is created. The reading tick ends imports in `uploaded`, `needs_mapping` or `preview_ready` past that time as `expired`.
+- **Report.** `GET .../report` answers a CSV built from the rows, not a signed link: `row_no`, `part`, `keyword`, `location_id`, `language_code`, `device`, `outcome`, `reason_code`, `reason`, `action`, `result`, `tracked_keyword_id`, `write_error_code`. A cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading `'`. It is available once the import has rows, also after a failed write.
+
 ### 3.4 Export
+
+**As built (step 5, keywords).** Export is not built; it moved to step 7 (SEO analytics), with the rank history worth exporting.
 
 CSV and XLSX exports of: keyword list with attributes; rank history (one row per check, depth-aware null rendered as empty rank plus `depth_requested`); SERP feature history; competitor ranks. Exports over 50,000 rows run async and are delivered as a signed R2 link valid 24 hours.
 
@@ -278,7 +314,7 @@ A nightly rollup `seo.daily_page_metrics (project_id, url_id, metric_date, keywo
 
 ## 11. Search volume refresh and new keyword flow
 
-1. Keyword created: `keyword_metrics` task queued (batched per minute).
+1. Keyword created: `keyword_metrics` task queued (batched per minute). As built: the planner's new-keyword step runs every 60 seconds and records one run per project for keywords with no metrics; one run is one Labs call per location and language (doc 21 section 3.1, doc 06 section 7.2).
 2. Tracked keyword created: if its schedule is due today and the window has passed, a one-off check is queued in the standard queue so the user sees a first rank within the day (not in live mode, to control cost; "check now" is explicit).
 3. First check arrives: state table populated; `first_check` rank change label.
 

@@ -70,6 +70,11 @@ for schedule in SELECT ... FROM ops.schedules
 - The planner uses the database's clock, not the worker's. A `next_run_at` that is not a window of the schedule's rule (set by hand, or left from before the rule changed) is not planned as one: the first window is the rule's next one at or after it.
 - A schedule that fails does not count against the tick's 50; a tick gives up after 50 failed schedules. A workload plans with the database read-only (a savepoint with `transaction_read_only`), because the planner's session bypasses row-level security, and a plan that names the same task twice is refused.
 
+**As built (step 5, keywords).** One planner tick runs three steps, in this order, and each runs even when another fails (the tick then reports the first failure):
+1. **New keywords.** For each collecting project that has active tracked keywords with no metrics at their location and language, the tick records one `planned` run: workload `keyword_metrics`, trigger `manual`, created by `system`, selector `{"new": true}`. System runs do not count toward the manual-run limit. A project gets none while one of its keyword metrics runs is still `planned`, nor for 24 hours after one was `budget_blocked`; keywords that had a keyword metrics task in the last 24 hours, finished or not, are skipped. So a new keyword is asked about within a minute or two, and a failing one is not paid for every minute.
+2. **Planned manual runs.** A manual run (a user's refresh, or the system run above) is planned like a schedule's window, through the same workload code, budget check and ledger. Its window opens when it is planned and lasts one hour, every task is due at once (a project's keywords at one location and language go out in one Labs call), and its `config_snapshot` is the plan's (adapter, provider mode, source) with the selector it was asked with. A run whose project no longer collects is `cancelled` with `project_not_collecting`; one over a used-up budget is `budget_blocked`; one that no worker can plan (no DataForSEO credentials) is `cancelled` with `workload_unavailable` after 10 minutes.
+3. **Due schedules.** As above.
+
 ### 3.2 Selector resolution
 
 | Workload | Selector JSON | Resolves to |
@@ -77,7 +82,7 @@ for schedule in SELECT ... FROM ops.schedules
 | `seo_rank` | `{"all": true}` or `{"groups": [...], "terms": [...], "priority_lte": 2}` | active tracked keywords of the project matching filters and whose depth profile has a check today |
 | `ai_prompt` | `{"panels": ["core"], "engines": [...], "priority_subset": "panel:priority"}` | current prompt version of each active prompt that is a member of the panels now |
 | `ai_mode_keyword` | `{"groups": [...]}` | tracked keywords in groups |
-| `keyword_metrics` | `{"stale_days": 25}` | keywords whose latest metrics snapshot is older than 25 days |
+| `keyword_metrics` | `{"stale_days": 25}`; also `all`, `groups`, `terms` (subtrees included; given both, a keyword needs both), and for runs `keyword_ids` and `new` | keywords whose latest metrics snapshot is older than 25 days, or all, or those in the groups and terms, or the ones named, or those with no metrics yet. A keyword over 80 characters is never planned (Labs refuses it) |
 
 ### 3.3 Staggering
 
@@ -129,6 +134,22 @@ FOR UPDATE OF t SKIP LOCKED;
 - **Fairness across projects:** each project with due work gets an equal share of the tick's 2,000, and what is left over goes to the projects that have more, up to 500 per project. A large project whose tasks are the oldest cannot take the whole tick from a small one. Taskiq has no group fairness; this SQL-side sharing gives us the property.
 - Each batch becomes one `submit_batch` Taskiq message with dedupe key `submit:` + sha256(sorted task ids) (section 5.2). The budget check against `ops.budgets` runs before the message is sent.
 - Tasks stay in `status = 'pending'` with `dispatched_at` set, so they are not selected again until a handler takes them, the dispatcher releases a batch it could not send, or the reconciler clears a stale `dispatched_at`.
+
+**As built (step 5, keywords).** The worker runs six ticks (`worker/assembly.py`). Each runs in one process per interval, under the Redis lock `lock:<name>`, which expires just before the next run is due:
+
+| Tick | Every | Lock TTL | Work |
+|---|---|---|---|
+| `planner` | 60 s | 55 s | three steps in this order: new keywords, planned manual runs, due schedules (section 3.1) |
+| `dispatcher` | 15 s | 14 s | section 4 |
+| `ready_poll` | 60 s | 55 s | section 8.1 |
+| `keyword_metrics_ingest` | 30 s | 28 s | reads fetched `keyword_metrics` tasks into snapshots; needs the raw bucket |
+| `keyword_imports` | 5 s | 4 s | ends imports past `expires_at`, then reads the next import waiting to be previewed; needs the raw bucket |
+| `keyword_import_writes` | 5 s | 4 s | writes the next confirmed import in batches; needs no bucket, and runs apart from the reading tick so a long write never holds up a preview |
+
+- **Claiming imports.** Reading and writing each claim an import with `FOR UPDATE SKIP LOCKED`, so two workers never take the same one. The write tick does not use an advisory lock for this.
+- **Live batches.** A live endpoint's batch (DataForSEO Labs) is sent by the same `submit_batch` job as a queued one. Its tasks go from `submit_unknown` straight to `fetched` in that call, so the catalog's separate `live_call` job is not used for it. Keyword metrics are read by the `keyword_metrics_ingest` tick, not by a `process` job `ingest_keyword_metrics`.
+- **Registration.** The `keyword_metrics` workload is registered only when DataForSEO credentials are set. Without them the new-keyword step does nothing, a manual keyword metrics run is cancelled after 10 minutes with `workload_unavailable`, and the worker spends nothing.
+- **Cost jobs.** `cost_rollup` and `cost_rebuild` (section 10) take no payload.
 
 Why a dispatcher rather than 10,000 delayed queue messages: delayed messages work, but they put the schedule in Redis. With the dispatcher, the schedule stays in PostgreSQL where it is queryable ("what will run in the next hour"), survives Redis loss, and can be rescheduled with one UPDATE.
 
@@ -304,6 +325,8 @@ All jobs below run on the `process` queue, scheduled by Taskiq's scheduler insid
 | `balance_check` | every 15 min | `appendix/user_data`; alert when balance < 14 days of trailing spend |
 | `price_book_drift` | monthly, 1st 02:00 | actual vs price book deviation check |
 | `location_sync` | monthly, 2nd 03:00 | provider location lists |
+| `cost_rollup` | hourly, at minute 7 | rebuilds `ops.cost_daily` for today and yesterday from `ops.provider_cost_events` (doc 27 section 10.1) |
+| `cost_rebuild` | daily 01:37 | the same rebuild for the last 35 days, so a day the hourly job missed while the worker was down is counted |
 | `analyze_hot_partitions` | daily 04:00 | `ANALYZE` current month partitions of hot tables |
 | `ops_health` | every 5 min | disk, queue depths (lengths of `collect` and `process`), stale ratios, collection window overruns; emits alerts ([25-observability.md](25-observability.md)) |
 | `ops_health_hourly` | hourly | spend anomaly, provider error rates, reconciliation drift, cost vs budget ([25-observability.md](25-observability.md)) |
