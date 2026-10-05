@@ -144,6 +144,10 @@
 - [ ] **Step 1:** `GroupPicker` (Combobox of group paths, creatable) shared by the filter, the add dialog, bulk move and the inspector.
 - [ ] **Step 2:** "Manage groups" from Rankings' More menu: the tree (`TreeView`) with add, rename, "Move to" and delete (subgroups go, members are unlinked, D2), member counts.
 - [ ] **Step 3:** Tests, gates, Opus review, commit "Rankings: keyword groups".
+- **As built.** Step by step in `2026-10-05-keyword-groups-ui.md`.
+  - The filter keeps the filter bar's own group editor (paths with counts); a filter never creates a group.
+  - `GroupPicker` (several, on `MultiSelect` with `creatable`) serves Add keywords and the inspector; `GroupSelect` (one or "No group", on `Combobox` filtered by the caller) serves bulk Move to group. A typed path such as `Blog/Guides` creates its missing levels when the form is saved, parents first; Cancel creates nothing.
+  - Manage groups is a 560 px dialog from Rankings' More actions menu (`keywords:write` only) with inline forms for add, rename and move, and a confirmation for delete that counts the subgroups.
 
 ### Task 9: Import
 

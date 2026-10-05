@@ -79,6 +79,38 @@ test.describe('rankings', () => {
     await expect(bar).toBeHidden();
   });
 
+  test('a group is created while moving keywords, then renamed in Manage groups', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.getByRole('checkbox', { name: 'Select seo agency', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker', exact: true }).click();
+    const bar = page.getByRole('group', { name: /Bulk actions/ });
+    await bar.getByRole('button', { name: 'Move to group' }).click();
+    const move = page.getByRole('dialog', { name: 'Move 2 keywords' });
+    await move.getByRole('combobox', { name: 'Group' }).fill('E2E/Group');
+    await page.getByRole('option', { name: 'Create group "E2E/Group"' }).click();
+    await expectAccessible(page);
+    await move.getByRole('button', { name: 'Move 2 keywords' }).click();
+    await expect(page.getByText('2 keywords moved to E2E/Group')).toBeVisible();
+
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitem', { name: 'Manage groups' }).click();
+    const manage = page.getByRole('dialog', { name: 'Manage groups' });
+    const tree = manage.getByRole('tree', { name: 'Keyword groups' });
+    await tree.getByRole('treeitem', { name: 'E2E' }).click();
+    await page.keyboard.press('ArrowRight');
+    await tree.getByRole('treeitem', { name: 'Group', exact: true }).click();
+    await manage.getByRole('button', { name: 'Rename' }).click();
+    await manage.getByRole('textbox', { name: 'Name' }).fill('Renamed');
+    await expectAccessible(page);
+    await manage.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByText('Group renamed to Renamed')).toBeVisible();
+    await expect(tree.getByRole('treeitem', { name: 'Renamed' })).toHaveAttribute('aria-selected', 'true');
+    await manage.getByRole('button', { name: 'Close' }).last().click();
+    await expect(manage).toBeHidden();
+  });
+
   test('keywords are added from the header, and appear pending until their metrics arrive', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
