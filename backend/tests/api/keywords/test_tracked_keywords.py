@@ -268,6 +268,22 @@ async def test_a_keyword_that_cannot_be_tracked_is_refused(
     assert errors(response) == [("keyword", code)]
 
 
+async def test_a_depth_profile_that_is_not_offered_yet_is_refused_by_name(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await track(
+        api, workspace, project, owner, "crm", depth_profile="until_own_match_100"
+    )
+
+    assert response.status_code == 422
+    assert errors(response) == [("depth_profile", "depth_profile_not_available")]
+    # The others are accepted.
+    ok = await track(api, workspace, project, owner, "crm", depth_profile="weekly_light")
+    assert ok.status_code == 201
+
+
 async def test_references_are_checked(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

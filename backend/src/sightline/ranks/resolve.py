@@ -279,11 +279,14 @@ def _ownership(
 
 def _page_one_limit(serp: NormalizedSerp) -> int | None:
     """The absolute rank of the tenth organic result: features numbered after it are not on the
-    first page. None when the page has no tenth result, and then all of it is page one."""
-    for result in serp.organic:
-        if result.organic_rank == PAGE_ONE:
-            return result.absolute_rank
-    return None
+    first page. None when the page has no tenth result, and then all of it is page one. A tenth
+    result with no absolute rank (the right column) gives way to the last of the first ten that
+    has one."""
+    first_page = [result for result in serp.organic if result.organic_rank <= PAGE_ONE]
+    if len(first_page) < PAGE_ONE:
+        return None
+    numbered = [r.absolute_rank for r in first_page if r.absolute_rank is not None]
+    return max(numbered) if numbered else None
 
 
 def _aio_state(serp: NormalizedSerp, resolved: list[EntityRank]) -> AioState:

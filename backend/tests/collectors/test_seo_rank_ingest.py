@@ -4,8 +4,8 @@ current top 20 and rank events, once. As `app_worker`."""
 
 from __future__ import annotations
 
+import json
 import uuid
-from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -21,12 +21,13 @@ from tests.collectors.rank_support import (
     RIVAL_HOST,
     Ledger,
     World,
+    add_competitor,
     answer,
     fetched_task,
     make_world,
     track,
 )
-from tests.collectors.support import NOW, make_tenant
+from tests.collectors.support import NOW, another_project, make_tenant
 from tests.collectors.test_fetching import MemoryStore
 from tests.conftest import PostgresServer
 
@@ -347,7 +348,7 @@ async def test_a_write_that_fails_rolls_back_all_of_it_and_waits(
     task_id = await fetched_task(worker_db, migrated, world, keyword, answer(results(3)), store)
 
     async def fails(*_: Any, **__: Any) -> None:
-        raise ValueError("a value the state cannot hold")
+        raise ConnectionError("the database went away")
 
     monkeypatch.setattr(seo_rank_ingest, "_replace_current", fails)
 
@@ -497,6 +498,230 @@ async def test_an_owned_feature_gained_and_a_url_change_are_events_of_the_primar
     assert (await _state(migrated, keyword))["url_changed_at"] == NOW
 
 
+# Cases from the review of the ingest.
+
+
+async def test_a_result_with_grouped_sub_results_is_ingested(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    urls = results(own_at=2)
+    body = answer(urls)
+    grouped = json.loads(body)
+    grouped["tasks"][0]["result"][0]["items"][1]["related_result"] = [
+        {"url": own("pricing/sub")},
+        {"url": other(99)},
+    ]
+    store = MemoryStore()
+    await fetched_task(worker_db, migrated, world, keyword, json.dumps(grouped).encode(), store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+    observation = next(
+        row
+        for row in await _rows(migrated, "seo.domain_rank_observations", keyword, "role")
+        if row["entity_id"] == world.own
+    )
+    assert observation["all_organic_ranks"] == [2, 2]
+    assert len(observation["all_url_ids"]) == 2
+    assert observation["result_count"] == 1
+
+
+async def test_a_late_answers_features_and_observations_are_kept_as_history(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    video = {
+        "type": "video",
+        "rank_absolute": 2,
+        "position": "left",
+        "items": [{"url": own("video")}],
+    }
+    await fetched_task(worker_db, migrated, world, keyword, answer(results(5)), store)
+    await ingest(worker_db, store)
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(results(1), extra=[video], when=NOW - DAY),
+        store,
+        fetched_at=NOW - DAY,
+    )
+
+    await ingest(worker_db, store)
+
+    assert len(await _rows(migrated, "seo.serp_features", keyword, "id")) == 1
+    assert len(await _rows(migrated, "seo.domain_rank_observations", keyword, "role")) == 4
+
+
+async def test_a_keyword_of_another_project_gets_nothing(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    sibling = await another_project(migrated, world.project)
+    foreign = await track(migrated, sibling)
+    store = MemoryStore()
+    task_id = await fetched_task(worker_db, migrated, world, foreign, answer(results(1)), store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+    assert await _task_status(migrated, task_id) == "ingested"
+    assert await _rows(migrated, "seo.serp_snapshots", foreign, "id") == []
+
+
+async def test_a_rival_that_passes_the_own_site_is_an_overtake_and_two_rivals_are_kept(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    second = await add_competitor(migrated, world, "second-rival.example")
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+
+    def page(own_at: int, rival_at: int) -> list[str]:
+        urls = results(own_at, rival_at)
+        urls[10] = "https://second-rival.example/x"
+        return urls
+
+    await fetched_task(
+        worker_db,
+        migrated,
+        world,
+        keyword,
+        answer(page(4, 8), when=NOW - DAY),
+        store,
+        fetched_at=NOW - DAY,
+    )
+    await fetched_task(worker_db, migrated, world, keyword, answer(page(6, 2), when=NOW), store)
+
+    await ingest(worker_db, store)
+
+    observed = await _rows(migrated, "seo.domain_rank_observations", keyword, "role")
+    assert {row["entity_id"] for row in observed} == {world.own, world.rival, second}
+    events = await fetch(
+        migrated,
+        "SELECT event_type, other_entity_id FROM seo.rank_events "
+        "WHERE tracked_keyword_id = $1 AND event_type LIKE 'overtaken%' ORDER BY id",
+        keyword,
+    )
+    assert [(row["event_type"], row["other_entity_id"]) for row in events] == [
+        ("overtaken_by", world.rival)
+    ]
+
+
+async def test_an_empty_serp_is_a_snapshot_of_nothing_and_a_state_beyond_the_depth(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    empty = {
+        "status_code": 20000,
+        "tasks": [
+            {
+                "status_code": 40102,
+                "result": None,
+                "data": {"depth": 20, "device": "desktop", "language_code": "en"},
+            }
+        ],
+    }
+    await fetched_task(worker_db, migrated, world, keyword, json.dumps(empty).encode(), store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+    (snapshot,) = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert (snapshot["depth_requested"], snapshot["depth_returned"]) == (20, 0)
+    assert snapshot["organic_url_ids"] == []
+    state = await _state(migrated, keyword)
+    assert (state["current_rank"], state["current_depth_requested"]) == (None, 20)
+    assert await _rows(migrated, "seo.serp_current_results", keyword, "organic_rank") == []
+
+
+async def test_a_depth_below_the_results_returned_limits_what_is_read(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    await fetched_task(
+        worker_db, migrated, world, keyword, answer(results(own_at=15, total=30), depth=10), store
+    )
+
+    await ingest(worker_db, store)
+
+    state = await _state(migrated, keyword)
+    assert (state["current_rank"], state["current_depth_requested"]) == (None, 10)
+    current = await _rows(migrated, "seo.serp_current_results", keyword, "organic_rank")
+    assert len(current) == 10
+
+
+async def test_a_return_after_two_beyond_checks_is_a_new_ranking(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    for day, own_at in ((2, None), (1, None), (0, 5)):
+        await fetched_task(
+            worker_db,
+            migrated,
+            world,
+            keyword,
+            answer(results(own_at), when=NOW - day * DAY),
+            store,
+            fetched_at=NOW - day * DAY,
+        )
+
+    await ingest(worker_db, store)
+
+    assert await _events(migrated, keyword) == ["entered_top_10", "entered_top_20", "new_ranking"]
+
+
+async def test_tasks_sharing_one_stored_answer_are_each_ingested(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    first = await track(migrated, world.project, "best crm")
+    second = await track(migrated, world.project, "best crm software")
+    store = MemoryStore()
+    body = answer(results(3))
+    await fetched_task(worker_db, migrated, world, first, body, store)
+    await fetched_task(worker_db, migrated, world, second, body, store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=2)
+    assert (await _state(migrated, first))["current_rank"] == 3
+    assert (await _state(migrated, second))["current_rank"] == 3
+
+
+async def test_an_answer_that_can_never_be_stored_fails_instead_of_waiting(
+    worker_db: Ledger, migrated: PostgresServer, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    task_id = await fetched_task(worker_db, migrated, world, keyword, answer(results(3)), store)
+
+    async def fails(*_: Any, **__: Any) -> None:
+        raise ValueError("a value no column can hold")
+
+    monkeypatch.setattr(seo_rank_ingest, "_replace_current", fails)
+
+    assert await ingest(worker_db, store) == IngestReport(failed=1)
+    row = await fetchrow(
+        migrated, "SELECT status, last_error_code FROM ops.collection_tasks WHERE id = $1", task_id
+    )
+    assert (row["status"], row["last_error_code"]) == ("failed", seo_rank_ingest.NOT_STORABLE)
+
+
+async def test_a_right_column_result_has_no_absolute_position_and_warnings_are_counted(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    keyword = await track(migrated, world.project)
+    document = json.loads(answer(results(3)))
+    items = document["tasks"][0]["result"][0]["items"]
+    items[1]["position"] = "right"
+    items[4]["url"] = items[3]["url"]
+    items[5]["url"] = items[3]["url"]
+    store = MemoryStore()
+    await fetched_task(worker_db, migrated, world, keyword, json.dumps(document).encode(), store)
+
+    assert await ingest(worker_db, store) == IngestReport(ingested=1)
+    (snapshot,) = await _rows(migrated, "seo.serp_snapshots", keyword, "id")
+    assert snapshot["organic_abs_positions"][1] is None
+    assert json.loads(snapshot["extras"])["warnings"]["duplicate_url"] == 2
+
+
 async def test_the_providers_time_is_used_only_when_it_is_believable(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
@@ -531,4 +756,3 @@ async def test_a_tenant_never_sees_another_tenants_task_for_a_keyword_it_does_no
     assert report == IngestReport(ingested=1)
     assert await _task_status(migrated, task_id) == "ingested"
     assert await _rows(migrated, "seo.serp_snapshots", foreign, "id") == []
-    assert timedelta(0) < DAY

@@ -36,10 +36,27 @@ from sightline.api.schemas.common import (
 )
 from sightline.api.schemas.entities import EntityRef
 from sightline.api.schemas.metrics import MetricValue, Usd
+from sightline.ranks.depth import UNAVAILABLE
 
 DepthProfile = Literal[
     "light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"
 ]
+
+
+def _offered(profile: DepthProfile) -> DepthProfile:
+    """`until_own_match_100` needs `stop_crawl_on_match`, which the adapter does not send yet
+    (docs/06 section 2.3): no rank check would be planned for it, so it is refused when set."""
+    if profile in UNAVAILABLE:
+        raise PydanticCustomError(
+            "depth_profile_not_available",
+            "The depth profile `{profile}` is not offered yet.",
+            {"profile": profile},
+        )
+    return profile
+
+
+# The profiles a request may set; what is stored and returned may be any.
+OfferedDepthProfile = Annotated[DepthProfile, AfterValidator(_offered)]
 Intent = Literal["informational", "navigational", "commercial", "transactional", "local", "unknown"]
 FunnelStage = Literal["tofu", "mofu", "bofu", "retention", "unknown"]
 Os = Literal["windows", "macos", "android", "ios"]
@@ -113,7 +130,7 @@ class TrackedKeywordCreate(Body):
         default="google", description="Bing arrives with its collection."
     )
     os: Os | None = None
-    depth_profile: DepthProfile | None = None
+    depth_profile: OfferedDepthProfile | None = None
     target_url: TargetUrl | None = None
     intent: Intent | None = Field(default=None, description="Given: `intent_source` is `manual`.")
     funnel_stage: FunnelStage = "unknown"
@@ -139,7 +156,7 @@ class TrackedKeywordPatch(Patch):
     """At least one member. `depth_profile` or `target_url` makes a new configuration version
     (`config_version`) with a history row; identity fields cannot change."""
 
-    depth_profile: DepthProfile | None = None
+    depth_profile: OfferedDepthProfile | None = None
     target_url: TargetUrl | None = None
     intent: Intent | None = None
     funnel_stage: FunnelStage | None = None

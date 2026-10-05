@@ -228,7 +228,7 @@ async def test_the_first_tracked_keyword_creates_the_projects_metrics_schedule(
         migrated,
         "SELECT workload, cadence, month_day, timezone, window_start_local, window_hours, "
         "provider_mode, selector, next_run_at, is_active FROM ops.schedules "
-        "WHERE project_id = $1",
+        "WHERE project_id = $1 AND workload = 'keyword_metrics'",
         project,
     )
     (schedule,) = schedules
@@ -255,6 +255,63 @@ async def test_the_first_tracked_keyword_creates_the_projects_metrics_schedule(
     )
     # 03:00 in Kolkata on 20 October is 21:30 UTC on the 19th.
     assert schedule["next_run_at"] == datetime(2026, 10, 19, 21, 30, tzinfo=UTC)
+
+
+async def test_the_first_tracked_keyword_also_starts_daily_rank_collection(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    await execute(
+        migrated, "UPDATE core.projects SET timezone = 'Asia/Kolkata' WHERE id = $1", project
+    )
+
+    await _write(sessions, workspace, project, [_item("a")])
+    await _write(sessions, workspace, project, [_item("b")])
+
+    (schedule,) = await fetch(
+        migrated,
+        "SELECT workload, cadence, timezone, window_start_local, window_hours, provider_mode, "
+        "selector, next_run_at, is_active FROM ops.schedules "
+        "WHERE project_id = $1 AND workload = 'seo_rank'",
+        project,
+    )
+    assert (
+        schedule["cadence"],
+        schedule["timezone"],
+        schedule["window_start_local"].isoformat(),
+        schedule["window_hours"],
+        schedule["provider_mode"],
+        schedule["selector"],
+        schedule["is_active"],
+    ) == ("daily", "Asia/Kolkata", "02:00:00", 6, "standard_queue", '{"all": true}', True)
+    # 02:00 in Kolkata on 20 October is 20:30 UTC on the 19th (the writes happen on 19 October).
+    assert schedule["next_run_at"].utcoffset() is not None
+    assert schedule["next_run_at"].astimezone(UTC).time().isoformat() == "20:30:00"
+
+
+async def test_a_rank_schedule_a_person_deleted_is_not_made_again(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    await _write(sessions, workspace, project, [_item("a")])
+    await execute(
+        migrated,
+        "UPDATE ops.schedules SET deleted_at = now(), is_active = false "
+        "WHERE project_id = $1 AND workload = 'seo_rank'",
+        project,
+    )
+
+    await _write(sessions, workspace, project, [_item("b")])
+
+    rows = await fetch(
+        migrated,
+        "SELECT deleted_at FROM ops.schedules WHERE project_id = $1 AND workload = 'seo_rank'",
+        project,
+    )
+    assert len(rows) == 1
+    assert rows[0]["deleted_at"] is not None
 
 
 @pytest.mark.usefixtures("location")
@@ -378,13 +435,19 @@ async def test_a_deleted_metrics_schedule_is_not_made_again(
     project = await make_project(migrated, workspace.id)
     await _write(sessions, workspace, project, [_item("a")])
     await execute(
-        migrated, "UPDATE ops.schedules SET deleted_at = now() WHERE project_id = $1", project
+        migrated,
+        "UPDATE ops.schedules SET deleted_at = now() "
+        "WHERE project_id = $1 AND workload = 'keyword_metrics'",
+        project,
     )
 
     await _write(sessions, workspace, project, [_item("b")])
 
     rows = await fetch(
-        migrated, "SELECT deleted_at FROM ops.schedules WHERE project_id = $1", project
+        migrated,
+        "SELECT deleted_at FROM ops.schedules "
+        "WHERE project_id = $1 AND workload = 'keyword_metrics'",
+        project,
     )
     assert len(rows) == 1
     assert rows[0]["deleted_at"] is not None
@@ -407,12 +470,18 @@ async def test_a_paused_metrics_schedule_is_left_alone(
     project = await make_project(migrated, workspace.id)
     await _write(sessions, workspace, project, [_item("a")])
     await execute(
-        migrated, "UPDATE ops.schedules SET is_active = false WHERE project_id = $1", project
+        migrated,
+        "UPDATE ops.schedules SET is_active = false "
+        "WHERE project_id = $1 AND workload = 'keyword_metrics'",
+        project,
     )
 
     await _write(sessions, workspace, project, [_item("b")])
 
     rows = await fetch(
-        migrated, "SELECT is_active FROM ops.schedules WHERE project_id = $1", project
+        migrated,
+        "SELECT is_active FROM ops.schedules "
+        "WHERE project_id = $1 AND workload = 'keyword_metrics'",
+        project,
     )
     assert [row["is_active"] for row in rows] == [False]

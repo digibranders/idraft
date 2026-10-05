@@ -414,6 +414,7 @@ async def write_tracked_keywords(
             )
         )
         await ensure_metrics_schedule(db, workspace_id=workspace_id, project_id=project_id, now=now)
+        await ensure_rank_schedule(db, workspace_id=workspace_id, project_id=project_id, now=now)
 
     restored = {index for index, _ in to_restore}
     created = [
@@ -566,6 +567,62 @@ async def ensure_metrics_schedule(
             window_hours=METRICS_SCHEDULE.window_hours,
             provider_mode="live",
             selector={"stale_days": METRICS_SCHEDULE.stale_days},
+            next_run_at=next_occurrence(rule, now),
+        )
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class RankSchedule:
+    """The project's daily rank checks (plan decision R1; docs/21 section 3): at 02:00 project
+    time, spread over six hours, on the standard queue, for every tracked keyword."""
+
+    name: str = "Daily rank checks"
+    window_start_local: time = time(2, 0)
+    window_hours: int = 6
+
+
+RANK_SCHEDULE: Final = RankSchedule()
+
+
+async def ensure_rank_schedule(
+    db: AsyncSession, *, workspace_id: UUID, project_id: UUID, now: datetime
+) -> None:
+    """The project's daily rank schedule, made with its first tracked keyword so collection
+    starts by itself. One a person paused, changed or deleted is left as it is."""
+    found = await db.execute(
+        select(schedules.c.id).where(
+            schedules.c.workspace_id == workspace_id,
+            schedules.c.project_id == project_id,
+            schedules.c.workload == "seo_rank",
+        )
+    )
+    if found.first() is not None:
+        return
+    timezone: str = (
+        await db.execute(
+            select(projects.c.timezone).where(
+                projects.c.workspace_id == workspace_id, projects.c.id == project_id
+            )
+        )
+    ).scalar_one()
+    rule = ScheduleRule(
+        cadence=Cadence.DAILY,
+        timezone=timezone,
+        window_start_local=RANK_SCHEDULE.window_start_local,
+    )
+    await db.execute(
+        insert(schedules).values(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            workload="seo_rank",
+            name=RANK_SCHEDULE.name,
+            cadence=rule.cadence.value,
+            timezone=timezone,
+            window_start_local=RANK_SCHEDULE.window_start_local,
+            window_hours=RANK_SCHEDULE.window_hours,
+            provider_mode="standard_queue",
+            selector={"all": True},
             next_run_at=next_occurrence(rule, now),
         )
     )

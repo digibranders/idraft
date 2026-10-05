@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from itertools import groupby
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as upsert
@@ -47,51 +48,43 @@ async def domain_id_for(db: AsyncSession, host: Host) -> int:
 
 
 async def urls_for(db: AsyncSession, given: Iterable[CanonicalUrl]) -> dict[bytes, UrlRow]:
-    """The rows of many URLs by their hash, in four statements. New hosts and URLs are added in
-    (host, hash) order, the order every writer uses, so two writers adding the same new ones
-    cannot wait on each other."""
+    """The rows of many URLs by their hash. The ones that exist are read in one statement; the
+    new ones are added host by host, each host and then its URLs, in (host, hash) order: the
+    order of `url_for` called for each URL in that order (the API and the import writer do), so
+    two writers adding the same new rows cannot wait on each other."""
     distinct = {url.url_hash: url for url in given}
     if not distinct:
         return {}
-    ordered = sorted(distinct.values(), key=lambda url: (url.host.name, url.url_hash))
-    hosts = sorted({url.host.name: url.host for url in ordered}.values(), key=lambda h: h.name)
-    await db.execute(
-        upsert(domains)
-        .values(
-            [
-                {
-                    "host": host.name,
-                    "registrable_domain": host.registrable_domain,
-                    "public_suffix": host.public_suffix,
-                    "is_ip": host.is_ip,
-                }
-                for host in hosts
-            ]
-        )
-        .on_conflict_do_nothing(index_elements=[domains.c.host])
+    found = await _read_urls(db, list(distinct))
+    missing = sorted(
+        (url for url in distinct.values() if url.url_hash not in found),
+        key=lambda url: (url.host.name, url.url_hash),
     )
-    domain_ids = {
-        row.host: row.id
-        for row in await db.execute(
-            select(domains.c.id, domains.c.host).where(domains.c.host.in_([h.name for h in hosts]))
+    for _, group in groupby(missing, key=lambda url: url.host.name):
+        new = list(group)
+        domain_id = await domain_id_for(db, new[0].host)
+        await db.execute(
+            upsert(urls)
+            .values(
+                [
+                    {
+                        "url_hash": url.url_hash,
+                        "canonical_url": url.url,
+                        "domain_id": domain_id,
+                        "path": url.path,
+                        "canonicalizer_version": CANONICALIZER_VERSION,
+                    }
+                    for url in new
+                ]
+            )
+            .on_conflict_do_nothing(index_elements=[urls.c.url_hash])
         )
-    }
-    await db.execute(
-        upsert(urls)
-        .values(
-            [
-                {
-                    "url_hash": url.url_hash,
-                    "canonical_url": url.url,
-                    "domain_id": domain_ids[url.host.name],
-                    "path": url.path,
-                    "canonicalizer_version": CANONICALIZER_VERSION,
-                }
-                for url in ordered
-            ]
-        )
-        .on_conflict_do_nothing(index_elements=[urls.c.url_hash])
-    )
+    if missing:
+        found = await _read_urls(db, list(distinct))
+    return found
+
+
+async def _read_urls(db: AsyncSession, hashes: list[bytes]) -> dict[bytes, UrlRow]:
     rows = await db.execute(
         select(
             urls.c.id,
@@ -103,7 +96,7 @@ async def urls_for(db: AsyncSession, given: Iterable[CanonicalUrl]) -> dict[byte
             domains.c.registrable_domain,
         )
         .join(domains, domains.c.id == urls.c.domain_id)
-        .where(urls.c.url_hash.in_(list(distinct)))
+        .where(urls.c.url_hash.in_(hashes))
     )
     return {
         row.url_hash: UrlRow(

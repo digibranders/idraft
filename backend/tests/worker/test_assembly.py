@@ -220,6 +220,37 @@ async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(
     assert schedules["cost_rebuild"].cron == "37 1 * * *"
 
 
+async def test_rank_checks_are_registered_only_where_their_answers_can_be_kept(
+    context: WorkerContext,
+) -> None:
+    settings = context.settings.model_copy(
+        update={
+            "dataforseo_login": SecretStr("owner@example.com"),
+            "dataforseo_password": SecretStr("password"),
+            "installation_id": "test",
+        }
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(500))
+    ) as http:
+        without_storage = replace(context, settings=settings, http=http, raw_store=None)
+        with_storage = replace(context, settings=settings, http=http, raw_store=MemoryStore())
+
+        assert production_registry(without_storage).workloads == frozenset(
+            {TaskWorkload.KEYWORD_METRICS}
+        )
+        registry = production_registry(with_storage)
+        assert registry.workloads == frozenset(
+            {TaskWorkload.KEYWORD_METRICS, TaskWorkload.SEO_RANK}
+        )
+        ticks = ticks_of(with_storage, registry)
+
+    assert (ticks["rank_ingest"].interval, ticks["rank_ingest"].lock_ttl) == (
+        ticks["keyword_metrics_ingest"].interval,
+        ticks["keyword_metrics_ingest"].lock_ttl,
+    )
+
+
 def test_without_credentials_nothing_is_registered_so_the_worker_spends_nothing(
     context: WorkerContext,
 ) -> None:

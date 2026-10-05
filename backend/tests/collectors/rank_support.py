@@ -85,6 +85,11 @@ async def make_world(pg: PostgresServer) -> World:
     return World(project, own, rival)
 
 
+async def add_competitor(pg: PostgresServer, world: World, host: str) -> uuid.UUID:
+    """Another competitor of the world's project."""
+    return await _entity(pg, world.project, host, host, "competitor")
+
+
 async def track(
     pg: PostgresServer,
     project: Project,
@@ -184,7 +189,7 @@ async def fetched_task(
     async with sessions() as db, db.begin():
         run_id = await ledger.create_run(db, run, now=NOW)
         assert run_id is not None
-        subject = str(tracked_id)
+        subject = f"{tracked_id}:20" if isinstance(tracked_id, uuid.UUID) else str(tracked_id)
         await ledger.insert_tasks(
             db,
             run_id,

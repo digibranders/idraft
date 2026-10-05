@@ -18,12 +18,14 @@ from typing import Any, Final
 import structlog
 from sqlalchemy import delete, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as upsert
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
 from sightline.collectors.ingest_waits import IngestReport, not_now
 from sightline.collectors.ledger import FetchedTask
 from sightline.collectors.raw_payloads import load_raw_payload
+from sightline.collectors.seo_rank import parse_subject
 from sightline.collectors.seo_rank_context import RankContext, load_context
 from sightline.collectors.seo_rank_rows import (
     KeywordRef,
@@ -60,7 +62,6 @@ from sightline.ranks.state import KeywordState, apply_check
 from sightline.storage.raw import ObjectStore, RawStorageError
 
 WORKLOAD: Final = TaskWorkload.SEO_RANK
-SUBJECT_TYPE: Final = "tracked_keyword"
 # Fetched tasks one pass reads.
 INGEST_LIMIT: Final = 2000
 # An answer that could not be ingested is tried again after `INGEST_RETRY`; its task fails once it
@@ -70,6 +71,9 @@ INGEST_GIVE_UP: Final = timedelta(days=1)
 UNREADABLE: Final = "unreadable_answer"
 NOT_READ: Final = "answer_not_read"
 NOT_WRITTEN: Final = "answer_not_written"
+NOT_STORABLE: Final = "answer_not_storable"
+# A fault of the data rather than of the moment: it repeats on every try.
+_PERMANENT: Final = (IntegrityError, DataError, KeyError, ValueError, TypeError)
 _log = structlog.get_logger(__name__)
 _STATE_FIELDS: Final = tuple(field.name for field in fields(KeywordState))
 
@@ -85,29 +89,34 @@ async def ingest(
         now = await ledger.transaction_time(db)
         fetched = await ledger.fetched_tasks(db, workload=WORKLOAD, limit=limit, now=now)
     ingested = failed = waiting = 0
-    bodies: dict[int, bytes | None] = {}
+    # The tasks come ordered by payload, so tasks sharing one are next to each other and only the
+    # last body needs to be held.
+    last_id: int | None = None
+    last_body: bytes | None = None
     for task in fetched:
-        if task.raw_payload_id not in bodies:
+        if task.raw_payload_id != last_id:
+            last_id = task.raw_payload_id
             try:
-                bodies[task.raw_payload_id] = await load_raw_payload(
-                    sessions, store, task.raw_payload_id
-                )
+                last_body = await load_raw_payload(sessions, store, last_id)
             except RawStorageError as error:
-                _log.warning(
-                    "stored answer not read", payload=task.raw_payload_id, error=str(error)
-                )
-                bodies[task.raw_payload_id] = None
-        body = bodies[task.raw_payload_id]
-        if body is None:
+                _log.warning("stored answer not read", payload=last_id, error=str(error))
+                last_body = None
+        if last_body is None:
             later, gave_up = await _wait(
                 sessions, task, NOT_READ, "The stored answer could not be read."
             )
             waiting, failed = waiting + later, failed + gave_up
             continue
         try:
-            serp = parse_serp(body)
+            serp = parse_serp(last_body)
         except SerpSchemaMismatchError as error:
-            failed += await _fail(sessions, task, str(error))
+            failed += await _fail(sessions, task, UNREADABLE, str(error))
+            continue
+        except Exception as error:
+            # A parser fault is the same on every try, so the task fails with its payload kept
+            # instead of holding up the pass.
+            _log.exception("stored answer not parsed", task=task.ref.id)
+            failed += await _fail(sessions, task, UNREADABLE, f"{type(error).__name__}")
             continue
         try:
             async with sessions() as db, db.begin():
@@ -115,7 +124,11 @@ async def ingest(
                 await _keep(db, task, serp)
                 ingested += await ledger.mark_ingested(db, task.ref, now=now)
         except UnusableCheckError as error:
-            failed += await _fail(sessions, task, str(error))
+            failed += await _fail(sessions, task, UNREADABLE, str(error))
+        except _PERMANENT as error:
+            # The answer cannot be stored as it is, and will not be on the next try.
+            _log.exception("stored answer cannot be stored", task=task.ref.id)
+            failed += await _fail(sessions, task, NOT_STORABLE, type(error).__name__)
         except Exception:
             # Rolled back as a whole: nothing of this answer is kept, and the next answers are
             # still ingested.
@@ -135,21 +148,21 @@ async def _wait(
     )
 
 
-async def _fail(sessions: async_sessionmaker[AsyncSession], task: FetchedTask, message: str) -> int:
-    _log.error("stored answer not readable", task=task.ref.id, error=message)
+async def _fail(
+    sessions: async_sessionmaker[AsyncSession], task: FetchedTask, code: str, message: str
+) -> int:
+    _log.error("stored answer not ingested for good", task=task.ref.id, code=code, error=message)
     async with sessions() as db, db.begin():
         now = await ledger.transaction_time(db)
-        return int(
-            await ledger.ingest_failed(db, task.ref, code=UNREADABLE, message=message, now=now)
-        )
+        return int(await ledger.ingest_failed(db, task.ref, code=code, message=message, now=now))
 
 
 async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> None:
     """One task's rows. A keyword deleted since, or a task that names none, gets nothing."""
-    try:
-        tracked_keyword_id = uuid.UUID(task.subject_id)
-    except ValueError:
+    parsed = parse_subject(task.subject_id)
+    if parsed is None:
         return
+    tracked_keyword_id = parsed[0]
     keyword = await _keyword(db, task, tracked_keyword_id)
     if keyword is None:
         return
@@ -162,7 +175,7 @@ async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> No
     )
     observed_at = snapshot_time(serp.observed_at, task.fetched_at)
     resolved = resolve_serp(serp, context.resolver, context.entities, depth_requested=echo.depth)
-    url_rows = await dictionaries.urls_for(db, urls_of(serp))
+    url_rows = await dictionaries.urls_for(db, urls_of(serp, resolved))
     rows = build_rows(
         serp,
         resolved,

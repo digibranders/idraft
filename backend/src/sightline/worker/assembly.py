@@ -33,6 +33,10 @@ from sightline.collectors.locations import LocationSyncReport, sync_locations
 from sightline.collectors.planner import plan_due, plan_manual_runs
 from sightline.collectors.reconciler import ensure_partitions, reconcile
 from sightline.collectors.registry import Registry
+from sightline.collectors.seo_rank import WORKLOAD as SEO_RANK
+from sightline.collectors.seo_rank import SeoRankWorkload
+from sightline.collectors.seo_rank import queue_new_keywords as queue_new_rank_keywords
+from sightline.collectors.seo_rank_ingest import ingest as ingest_ranks
 from sightline.collectors.submission import submit_batch
 from sightline.config.settings import Settings
 from sightline.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
@@ -88,12 +92,15 @@ def dataforseo_client(
 def production_registry(context: WorkerContext) -> Registry:
     """The workloads and providers of this worker. DataForSEO is registered when its
     credentials are set, and keyword metrics with it; without them the worker plans and
-    spends nothing (rank collection arrives later in step 5)."""
+    spends nothing. Rank checks are registered only where their answers can be kept and read
+    (raw storage), so a worker never pays for a check it could not ingest."""
     registry = Registry()
     client = dataforseo_client(context.settings, context.http, context.redis)
     if client is not None:
         registry.add_provider(DataForSeo(client, installation=context.settings.installation_id))
         registry.add_workload(KeywordMetricsWorkload())
+        if context.raw_store is not None:
+            registry.add_workload(SeoRankWorkload())
     return registry
 
 
@@ -206,6 +213,13 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         if queued:
             _log.info("new keywords queued", runs=queued)
 
+    async def queue_new_ranks(now: datetime) -> None:
+        if SEO_RANK not in parts.workloads:
+            return
+        queued = await queue_new_rank_keywords(context.sessions, now=now)
+        if queued:
+            _log.info("new keywords queued for a first rank check", runs=queued)
+
     async def plan_manual(now: datetime) -> None:
         manual = await plan_manual_runs(context.sessions, parts, now=now)
         if not manual.quiet:
@@ -222,7 +236,7 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         with the first error."""
         now = await database_time(context.sessions)
         first: Exception | None = None
-        for step in (queue_new, plan_manual, plan_schedules):
+        for step in (queue_new, queue_new_ranks, plan_manual, plan_schedules):
             try:
                 await step(now)
             except Exception as error:
@@ -237,6 +251,13 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         report = await ingest(context.sessions, context.raw_store)
         if not report.quiet:
             _log.info("keyword metrics ingested", **asdict(report))
+
+    async def ingest_rank_checks() -> None:
+        if context.raw_store is None:
+            return
+        report = await ingest_ranks(context.sessions, context.raw_store)
+        if not report.quiet:
+            _log.info("rank checks ingested", **asdict(report))
 
     async def keyword_imports() -> None:
         """Previews of uploaded imports, and the end of those nobody confirmed."""
@@ -277,6 +298,12 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             name="keyword_metrics_ingest",
             interval=INGEST_EVERY,
             action=ingest_metrics,
+            lock_ttl=INGEST_LOCK,
+        ),
+        Tick(
+            name="rank_ingest",
+            interval=INGEST_EVERY,
+            action=ingest_rank_checks,
             lock_ttl=INGEST_LOCK,
         ),
         Tick(

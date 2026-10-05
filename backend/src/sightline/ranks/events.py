@@ -63,10 +63,16 @@ def overtake_events(
     without a previous rank row has nothing to be compared with."""
     own_prev = _within(own_before, depth)
     own_cur = _within(own_now, depth)
+    if own_prev is None and own_cur is None:
+        # A rival cannot pass or be passed by a site that ranks in neither check: it would
+        # flap with every rival rank at the edge of the depth.
+        return ()
     drafts: list[EventDraft] = []
     for competitor in sorted(competitors_before.keys() & competitors_now.keys()):
         rival_prev = _within(competitors_before[competitor], depth)
         rival_cur = _within(competitors_now[competitor], depth)
+        if rival_prev is None and rival_cur is None:
+            continue  # nothing to pass or be passed by
         if _ahead(rival_cur, own_cur) and not _ahead(rival_prev, own_prev):
             drafts.append(
                 EventDraft("overtaken_by", own_before, own_now, other_entity_id=competitor)

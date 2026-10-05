@@ -293,9 +293,9 @@ def test_a_competitor_already_ahead_does_not_overtake_again() -> None:
     )
 
 
-def test_a_competitor_that_ranks_when_we_do_not_overtakes() -> None:
+def test_a_competitor_that_starts_ranking_above_a_site_that_just_stopped_overtakes() -> None:
     (event,) = overtake_events(
-        own_before=None,
+        own_before=15,
         own_now=None,
         competitors_before={A: None},
         competitors_now={A: 12},
@@ -303,6 +303,32 @@ def test_a_competitor_that_ranks_when_we_do_not_overtakes() -> None:
     )
 
     assert event.event_type == "overtaken_by"
+
+
+def test_nothing_is_passed_when_the_own_site_ranks_in_neither_check() -> None:
+    assert (
+        overtake_events(
+            own_before=None,
+            own_now=None,
+            competitors_before={A: 21},
+            competitors_now={A: 19},
+            depth=20,
+        )
+        == ()
+    )
+
+
+def test_we_do_not_pass_a_competitor_that_ranks_in_neither_check() -> None:
+    assert (
+        overtake_events(
+            own_before=None,
+            own_now=5,
+            competitors_before={A: None},
+            competitors_now={A: None},
+            depth=20,
+        )
+        == ()
+    )
 
 
 def test_ranks_beyond_the_compared_depth_count_as_beyond() -> None:

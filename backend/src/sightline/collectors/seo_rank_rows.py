@@ -5,6 +5,7 @@ writer in `seo_rank_ingest` inserts them."""
 from __future__ import annotations
 
 import uuid
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -24,6 +25,7 @@ CURRENT_RESULTS: Final = 20
 FEATURE_CODE_MAX: Final = 100
 DEVICES: Final = frozenset({"desktop", "mobile"})
 DEPTH_MAX: Final = 700
+SMALLINT_MAX: Final = 32767
 
 
 class UnusableCheckError(ValueError):
@@ -100,12 +102,21 @@ def feature_code(feature_type: str) -> str:
     return feature_type if len(feature_type) <= FEATURE_CODE_MAX else "other:unknown"
 
 
-def urls_of(serp: NormalizedSerp) -> list[CanonicalUrl]:
-    """Every URL the rows name: the organic results and the sources of the features."""
+def urls_of(serp: NormalizedSerp, resolved: ResolvedSerp) -> list[CanonicalUrl]:
+    """Every URL the rows name: the organic results, the sources of the features and the URLs
+    the entities hold (a grouped sub-result is one of them)."""
     found = [result.url for result in serp.organic]
     for feature in serp.features:
         found.extend(feature.source_urls)
+    for entity in resolved.entities:
+        found.extend(entity.all_urls)
     return found
+
+
+def smallint(value: int | None) -> int | None:
+    """A value a `smallint` column holds; one it cannot (a position the provider should not
+    send) is left out rather than failing the check."""
+    return value if value is not None and 0 <= value <= SMALLINT_MAX else None
 
 
 def echo_of(serp: NormalizedSerp) -> RequestEcho:
@@ -154,14 +165,16 @@ def build_rows(
         "item_types": list(serp.item_types),
         "organic_url_ids": [urls[r.url.url_hash].id for r in organic],
         "organic_domain_ids": [urls[r.url.url_hash].domain_id for r in organic],
-        "organic_abs_positions": [r.absolute_rank for r in organic],
+        "organic_abs_positions": [smallint(r.absolute_rank) for r in organic],
         "has_ai_overview": resolved.has_ai_overview,
         "ai_overview_state": serp.ai_overview.state,
         "raw_payload_id": task.raw_payload_id,
         "parser_version": PARSER_VERSION,
         "canonicalizer_version": CANONICALIZER_VERSION,
         "cost_usd": task.cost_usd,
-        "extras": {"warnings": list(serp.warnings)} if serp.warnings else None,
+        # What the parser repaired, by kind and how often: a count, not a list, which a page of
+        # odd URLs could make longer than the column allows.
+        "extras": {"warnings": dict(Counter(serp.warnings))} if serp.warnings else None,
     }
 
     features: list[dict[str, Any]] = []
@@ -173,7 +186,7 @@ def build_rows(
             {
                 "feature_type": code,
                 "ordinal": feature.ordinal,
-                "rank_absolute": feature.absolute_rank,
+                "rank_absolute": smallint(feature.absolute_rank),
                 "source_url_ids": [urls[u.url_hash].id for u in feature.source_urls],
                 "source_domain_ids": [urls[u.url_hash].domain_id for u in feature.source_urls],
                 "owned_by_project": ownership.owned_by_project,
@@ -189,7 +202,7 @@ def build_rows(
             "entity_id": entity.entity_id,
             "role": entity.role,
             "organic_rank": entity.organic_rank,
-            "absolute_rank": entity.absolute_rank,
+            "absolute_rank": smallint(entity.absolute_rank),
             "ranking_url_id": None
             if entity.ranking_url is None
             else urls[entity.ranking_url.url_hash].id,
@@ -209,7 +222,7 @@ def build_rows(
     current = [
         {
             "organic_rank": result.organic_rank,
-            "absolute_rank": result.absolute_rank,
+            "absolute_rank": smallint(result.absolute_rank),
             "url_id": urls[result.url.url_hash].id,
             "domain_id": urls[result.url.url_hash].domain_id,
             "title": result.title,
@@ -237,7 +250,7 @@ def own_check(
         observed_at=observed_at,
         depth_requested=echo.depth,
         rank=side.organic_rank,
-        absolute_rank=side.absolute_rank,
+        absolute_rank=smallint(side.absolute_rank),
         url_id=None if side.ranking_url is None else urls[side.ranking_url.url_hash].id,
         feature_types=tuple(feature_code(t) for t in side.feature_types_present),
         owned_feature_types=tuple(feature_code(t) for t in side.owned_feature_types),
