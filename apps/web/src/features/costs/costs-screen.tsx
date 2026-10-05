@@ -8,11 +8,10 @@ import { useMemo, useState, type ReactElement } from 'react';
 
 import { BudgetMeter } from './budget-meter';
 import { COST_TABS, CostBreakdown, type CostsProject } from './cost-breakdown';
-import { dayWorkloadSeries, isCostWorkload, money, shareOf, workspaceBudget } from './cost-model';
+import { dayWorkloadSeries, money, shareOf, workspaceBudget } from './cost-model';
 import { CostTable, type CostColumn } from './cost-table';
 import { CostsError } from './costs-error';
 import { useBudgetStatus, useCosts, type CostScope } from './costs-queries';
-import { useWorkloadName } from './use-workload-name';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import type { FilterField } from '@/components/app/filters/types';
@@ -29,6 +28,8 @@ import { EMPTY_VALUE, formatChartDate, formatCurrency, formatDateRange, formatPe
 import { currentMonth, monthDays, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
 import { useCan } from '@/lib/permissions';
 import { workspacePath } from '@/lib/routes/paths';
+import { useWorkloadName } from '@/lib/workloads/use-workload-name';
+import { isCostWorkload } from '@/lib/workloads/workloads';
 
 export interface CostsScreenProps {
   workspaceId: string;

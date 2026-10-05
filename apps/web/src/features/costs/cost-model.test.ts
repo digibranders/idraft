@@ -3,17 +3,15 @@ import { describe, expect, it } from 'vitest';
 import {
   budgetRows,
   dayWorkloadSeries,
-  isCostWorkload,
   money,
   projectBudget,
   shareOf,
   STATE_KEYS,
-  WORKLOAD_KEYS,
   workloadRole,
   workspaceBudget,
 } from './cost-model';
 import messages from '../../../messages/en.json';
-import { budgetStatusStateValues, costWorkloadValues } from '@/lib/api/schema';
+import { budgetStatusStateValues } from '@/lib/api/schema';
 import type { Budget, BudgetStatus, CostRow } from '@/lib/api/types';
 
 const costRow = (keys: Record<string, string>, cost: string): CostRow => ({
@@ -42,18 +40,10 @@ const budgetStatus = (projectId: string | null, workload: Budget['workload']): B
 });
 
 describe('cost model', () => {
-  it('names a message for every workload and every budget state, in camelCase as the catalog keys are', () => {
-    const { workloads, states } = messages.costs;
-    expect(Object.keys(WORKLOAD_KEYS).sort()).toEqual([...costWorkloadValues].sort());
-    expect(Object.values(WORKLOAD_KEYS).sort()).toEqual(Object.keys(workloads).sort());
+  it('names a message for every budget state, in camelCase as the catalog keys are', () => {
+    const { states } = messages.costs;
     expect(Object.keys(STATE_KEYS).sort()).toEqual([...budgetStatusStateValues].sort());
     expect(Object.values(STATE_KEYS).sort()).toEqual(Object.keys(states).sort());
-  });
-
-  it('knows which workload codes it has names for', () => {
-    expect(isCostWorkload('seo_rank')).toBe(true);
-    expect(isCostWorkload('toString')).toBe(false);
-    expect(isCostWorkload('something_new')).toBe(false);
   });
 
   it('reads money strings', () => {

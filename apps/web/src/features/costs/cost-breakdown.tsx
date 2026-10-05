@@ -10,12 +10,12 @@ import { budgetRows, money, projectBudget, shareOf } from './cost-model';
 import { CostTable, type CostColumn } from './cost-table';
 import { CostsError } from './costs-error';
 import { useCosts, usePriceBook, type CostScope } from './costs-queries';
-import { useWorkloadName } from './use-workload-name';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import type { BudgetStatus, BudgetStatusList, CostRow, Price } from '@/lib/api/types';
 import { formatBusinessDate, formatCurrency, formatInteger, formatPercent, formatUnitPrice } from '@/lib/format';
 import type { MonthKey } from '@/lib/format/month';
+import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 
 export const COST_TABS = ['provider', 'project', 'units', 'budgets'] as const;
 export type CostTab = (typeof COST_TABS)[number];

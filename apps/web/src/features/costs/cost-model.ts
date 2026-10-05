@@ -1,26 +1,5 @@
 import type { CategorySeries, SeriesRole } from '@/lib/charts/category-chart';
-import type { BudgetStatus, CostRow, CostWorkload } from '@/lib/api/types';
-
-/**
- * The catalog key of a workload under `costs.workloads`: keys are camelCase, the API's codes are not.
- * `t(`workloads.${WORKLOAD_KEYS[workload]}`)`.
- */
-export const WORKLOAD_KEYS = {
-  seo_rank: 'seoRank',
-  ai_prompt: 'aiPrompt',
-  ai_mode_keyword: 'aiModeKeyword',
-  keyword_metrics: 'keywordMetrics',
-  discovery: 'discovery',
-  ai_benchmark: 'aiBenchmark',
-  gsc_sync: 'gscSync',
-  bing_sync: 'bingSync',
-  ga4_sync: 'ga4Sync',
-  cloudflare_sync: 'cloudflareSync',
-  ai_overview: 'aiOverview',
-  extraction_llm: 'extractionLlm',
-  keyword_research: 'keywordResearch',
-  first_party: 'firstParty',
-} as const satisfies Record<CostWorkload, string>;
+import type { BudgetStatus, CostRow } from '@/lib/api/types';
 
 /** The catalog key of a budget state under `costs.states`. */
 export const STATE_KEYS = {
@@ -28,9 +7,6 @@ export const STATE_KEYS = {
   soft_exceeded: 'softExceeded',
   hard_exceeded: 'hardExceeded',
 } as const satisfies Record<BudgetStatus['state'], string>;
-
-/** Whether an API workload code is one this client has a name for. */
-export const isCostWorkload = (value: string): value is CostWorkload => Object.hasOwn(WORKLOAD_KEYS, value);
 
 /** A money string of the API as a number, or `null` when it is not one. */
 export function money(value: string): number | null {
