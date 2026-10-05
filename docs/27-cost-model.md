@@ -183,6 +183,15 @@ Every provider call writes `ops.provider_cost_events` ([04-data-model.md](04-dat
 
 Hourly `cost_rollup` aggregates into `ops.cost_daily`.
 
+**As built (step 5, keywords).**
+- **Price book.** Migration 0011 seeds two rows in `ops.provider_price_book` for DataForSEO, endpoint `dataforseo_labs/google/keyword_overview`: `price_unit = 'request'` at $0.012 and `price_unit = 'item'` at $0.00012, valid from 2026-07-01 (the prices of section 1), with `source_url` and `verified_at` 2026-09-29. A keyword metrics run is estimated from them: one request for each 700 keywords at one location and language, plus one item per keyword. The SERP prices arrive with rank collection. The price book is used for estimates only; actual cost is the provider's reported cost.
+- **Cost of a call.** One Labs call answers many tasks. Its reported cost is split evenly over them to the millionth of a dollar, the remainder on the first, and each task gets one `provider_reported` event with `units = 1` and `price_unit = 'item'`. A reported cost above $1.00 for one call is not believed, and the run's estimate is charged instead (doc 06 section 7.2).
+- **Budget group.** The `keyword_metrics` and `discovery` task workloads and the `keyword_research` cost workload all count against the `keyword_research` budget group, whose events have channel `research`. A used-up budget turns a keyword metrics run into `budget_blocked` like any other, and the new-keyword step makes no other run for that project for 24 hours.
+- **Rollup.** `cost_rollup` runs at minute 7 of every hour and rebuilds `ops.cost_daily` for today and yesterday (UTC) from `ops.provider_cost_events`. `cost_rebuild` runs daily at 01:37 UTC and rebuilds the last 35 days, so a day the hourly job missed is counted. Each run computes whole days and writes them over what is there, so running it twice changes nothing. Rollups take turns (an advisory lock) and write rows in key order. `subjects` is the number of distinct `subject_type:subject_id` of the day. `roll_up_costs(days=N)` is the backfill. Doc 21 section 10 lists the jobs.
+- **Workspace-level costs.** Events with no project are not rolled up yet. Doc 04 section 11.4 puts them under the all-zero project; that waits for the first workspace-level writers (`keyword_research` and `first_party` events).
+- **Reading.** `GET {W}/costs` groups `ops.cost_daily`, and `meta.cost_sources` is summed from the events of the period. `GET {W}/budgets/status` uses the planner's own spend and committed-estimate queries, so the screen and the planner agree, and it reads spend up to the end of the month. Money in these routes has six decimal places (doc 19 section 3.11.2).
+- **Refresh cadence.** Keyword metrics are fetched monthly (the 20th) and once when a keyword is created. The first two rows of section 5 give the monthly cost of both.
+
 ### 10.2 Questions it must answer (queries)
 
 ```sql

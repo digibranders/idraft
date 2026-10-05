@@ -188,6 +188,39 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules/{schedule_id}/resume",
     ): "schedules:write",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings"): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports",
+    ): "imports:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/upload",
+    ): "imports:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows",
+    ): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}",
+    ): "imports:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/cancel",
+    ): "imports:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/confirm",
+    ): "imports:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/report",
+    ): "data:read",
     # Workspace routes; the service limits a member scoped to some projects to theirs.
     ("GET", "/api/v1/workspaces/{workspace_id}/costs"): "costs:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/budgets/status"): "costs:read",
@@ -307,6 +340,7 @@ PATH_PARAMETERS = {
     "group_id",
     "schedule_id",
     "run_id",
+    "import_id",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

@@ -157,6 +157,12 @@ The product owner's rule: build what makes the product show data first, and move
 | Acceptance criteria | Import 5,000 keywords from CSV in under 2 minutes with a correct preview; metrics appear within 5 minutes; cost events recorded and visible in a basic costs table |
 | Risks | Labs type traps (competition string vs float); Google Ads batch failure mode (not used as primary) |
 
+**As built (step 5, part 1, keywords).** The backend of this phase is built on the branch `backend/keywords` (plan `docs/superpowers/plans/2026-10-01-keywords.md`, tasks 1 to 10, each reviewed before its commit); it is not merged to `main` yet. It has the tables above (and `core.urls`), keyword and tracked keyword routes with bulk changes, groups and term assignments, the Labs `keyword_overview` adapter and the `keyword_metrics` workload through the ledger, schedules, runs and project settings, the cost rollup with `GET {W}/costs`, `GET {W}/budgets/status` and `GET {W}/price-book`, and keyword imports from pasted text, JSON rows and a CSV upload. Differences from the table:
+- **Export** moved to step 7 (SEO analytics), with the rank history worth exporting.
+- **Not built:** XLSX imports, the presigned `upload-url` route, the `competitors` import column, the `Idempotency-Key` check on the import routes, schedule previews and the `cron` cadence. They go to step 10 unless asked sooner. Doc 19 section 3.6.3 has the detail.
+- **Rank columns** (current position, change against yesterday, ranking URL) on tracked keyword rows wait for rank collection, the second part of step 5.
+- **Acceptance.** `backend/tests/worker/test_import_acceptance.py` runs the criteria through the API and the worker against fakes, with shortened tick intervals: a CSV of 5,000 keywords reaches a correct preview in under 2 minutes; confirming writes all 5,000 with their groups; their metrics arrive without anyone asking (the planner's new-keyword step, live Labs calls, ingest), each keyword asked for once; and the cost events show in `GET {W}/costs` after the rollup. The test does not time the 5 minute limit for metrics against the real provider.
+
 ### Phase 4: SEO rank collection
 
 **Objective:** Reliable daily rank collection with SERP features and AI Overview, stored immutably.

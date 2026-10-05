@@ -20,7 +20,7 @@ from sightline.worker.app import WorkerContext
 from sightline.worker.assembly import assemble, fetch_handler, production_registry
 from sightline.worker.queues import Queues
 from sightline.worker.ticks import Tick
-from tests.api.auth.support import fetch
+from tests.api.auth.support import execute, fetch
 from tests.collectors.support import (
     FakeProvider,
     FakeWorkload,
@@ -28,6 +28,8 @@ from tests.collectors.support import (
     make_schedule,
     make_tenant,
 )
+from tests.collectors.test_fetching import MemoryStore
+from tests.collectors.test_imports import _csv, _import, _project, _row
 from tests.conftest import PostgresServer
 from tests.worker.conftest import eventually
 
@@ -141,9 +143,63 @@ async def test_the_ticks_run_on_their_intervals_one_worker_at_a_time(
         timedelta(seconds=15),
         timedelta(seconds=14),
     )
+    assert (ticks["keyword_imports"].interval, ticks["keyword_imports"].lock_ttl) == (
+        timedelta(seconds=5),
+        timedelta(seconds=4),
+    )
+    assert (
+        ticks["keyword_import_writes"].interval,
+        ticks["keyword_import_writes"].lock_ttl,
+    ) == (timedelta(seconds=5), timedelta(seconds=4))
     # With nothing registered both run and do nothing.
     await ticks["planner"].action()
     await ticks["dispatcher"].action()
+    # And without a bucket there is nothing to read an import from.
+    await ticks["keyword_imports"].action()
+
+
+async def test_the_import_tick_parses_uploaded_imports_and_expires_old_ones(
+    context: WorkerContext, migrated: PostgresServer
+) -> None:
+    await execute(migrated, "TRUNCATE seo.keyword_imports CASCADE")
+    store = MemoryStore()
+    project = await _project(migrated)
+    fresh = await _import(migrated, store, project, _csv("keyword\ncrm\n"))
+    old = await _import(migrated, store, project, _csv("keyword\nerp\n"))
+    await execute(
+        migrated,
+        "UPDATE seo.keyword_imports SET expires_at = now() - interval '1 minute' WHERE id = $1",
+        old,
+    )
+    ticks = ticks_of(replace(context, raw_store=store), Registry())
+
+    await ticks["keyword_imports"].action()
+
+    assert (await _row(migrated, fresh))["status"] == "preview_ready"
+    assert (await _row(migrated, old))["status"] == "expired"
+
+
+async def test_the_write_tick_writes_a_confirmed_import(
+    context: WorkerContext, migrated: PostgresServer
+) -> None:
+    await execute(migrated, "TRUNCATE seo.keyword_imports CASCADE")
+    store = MemoryStore()
+    project = await _project(migrated)
+    imported = await _import(migrated, store, project, _csv("keyword\ncrm\nerp\n"))
+    ticks = ticks_of(replace(context, raw_store=store), Registry())
+    await ticks["keyword_imports"].action()
+    # What confirming does.
+    await execute(
+        migrated, "UPDATE seo.keyword_imports SET status = 'writing' WHERE id = $1", imported
+    )
+
+    await ticks["keyword_import_writes"].action()
+
+    assert (await _row(migrated, imported))["status"] == "completed"
+    keywords = await fetch(
+        migrated, "SELECT id FROM seo.tracked_keywords WHERE project_id = $1", project.id
+    )
+    assert len(keywords) == 2
 
 
 async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(

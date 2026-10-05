@@ -66,6 +66,10 @@ AuditAction = Literal[
     "schedule.paused",
     "schedule.resumed",
     "project.settings_updated",
+    "keyword_import.created",
+    "keyword_import.updated",
+    "keyword_import.confirmed",
+    "keyword_import.cancelled",
 ]
 
 

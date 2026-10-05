@@ -147,7 +147,11 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     ),
     "seo.keyword_groups": (CRUD, access("SELECT, INSERT")),
     "seo.keyword_group_members": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT")),
-    "seo.tracked_keyword_terms": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT")),
+    # The worker takes a term from a keyword an import brings back (migration 0012).
+    "seo.tracked_keyword_terms": (
+        access("SELECT, INSERT, DELETE"),
+        access("SELECT, INSERT, DELETE"),
+    ),
     "seo.tracked_keyword_competitors": (access("SELECT, INSERT, DELETE"), NONE),
     "seo.keyword_metric_snapshots": (READ, access("SELECT, INSERT")),
     "seo.keyword_metrics_current": (READ, access("SELECT, INSERT, UPDATE")),

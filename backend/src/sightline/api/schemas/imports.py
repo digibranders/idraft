@@ -70,7 +70,10 @@ class ImportDefaults(Body):
     device: DeviceChoice | None = None
     depth_profile: DepthProfile | None = None
     priority: Annotated[int, Field(ge=1, le=5)] | None = None
-    group_path: Annotated[str, StringConstraints(min_length=1, max_length=1000)] | None = None
+    group_path: (
+        Annotated[str, StringConstraints(min_length=1, max_length=1000), AfterValidator(printable)]
+        | None
+    ) = None
     tags_vocabulary_id: UUID | None = Field(
         default=None, description="The vocabulary the `tags` column names terms of."
     )

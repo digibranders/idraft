@@ -18,6 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sightline.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
 from sightline.collectors.dispatcher import SubmitBatch, dispatch
 from sightline.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
+from sightline.collectors.import_writer import write_next
+from sightline.collectors.imports import expire_imports, parse_next
 from sightline.collectors.keyword_metrics import (
     WORKLOAD as KEYWORD_METRICS,
 )
@@ -56,6 +58,9 @@ SUBMIT_JOB = "submit_batch"
 # Fetched keyword metrics read into snapshots (plan decision D7), every 30 seconds.
 INGEST_EVERY = timedelta(seconds=30)
 INGEST_LOCK = timedelta(seconds=28)
+# Keyword imports (plan decision D11): previews of uploaded imports, every 5 seconds.
+IMPORTS_EVERY = timedelta(seconds=5)
+IMPORTS_LOCK = timedelta(seconds=4)
 # docs/21-scheduler-workers.md section 10.
 RECONCILE_EVERY = timedelta(minutes=5)
 PARTITIONS_AT = "10 0 * * *"
@@ -233,6 +238,25 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         if not report.quiet:
             _log.info("keyword metrics ingested", **asdict(report))
 
+    async def keyword_imports() -> None:
+        """Previews of uploaded imports, and the end of those nobody confirmed."""
+        if context.raw_store is None:
+            return
+        now = await database_time(context.sessions)
+        expired = await expire_imports(context.sessions, now=now)
+        if expired:
+            _log.info("keyword imports expired", imports=expired)
+        parsed = await parse_next(context.sessions, context.raw_store)
+        if not parsed.quiet:
+            _log.info("keyword imports parsed", **asdict(parsed))
+
+    async def keyword_import_writes() -> None:
+        """Confirmed imports, written in batches. Apart from the reading tick, so a long write
+        never holds up a preview; it needs no bucket."""
+        written = await write_next(context.sessions)
+        if not written.quiet:
+            _log.info("keyword imports written", **asdict(written))
+
     async def send() -> None:
         now = await database_time(context.sessions)
         report = await dispatch(context.sessions, parts, sender, pauses, now=now)
@@ -254,5 +278,17 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             interval=INGEST_EVERY,
             action=ingest_metrics,
             lock_ttl=INGEST_LOCK,
+        ),
+        Tick(
+            name="keyword_imports",
+            interval=IMPORTS_EVERY,
+            action=keyword_imports,
+            lock_ttl=IMPORTS_LOCK,
+        ),
+        Tick(
+            name="keyword_import_writes",
+            interval=IMPORTS_EVERY,
+            action=keyword_import_writes,
+            lock_ttl=IMPORTS_LOCK,
         ),
     )

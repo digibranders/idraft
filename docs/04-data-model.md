@@ -636,6 +636,26 @@ Taxonomy terms attach to `tracked_keywords` rather than `keywords` because a wor
   - Names are unique among siblings without case, roots included (`NULLS NOT DISTINCT`).
 - **Identity.** The identity key includes deleted rows: adding a deleted identity again brings its row back, so its history stays on one id.
 
+**As built (step 5, keywords).** Migrations 0011 and 0012 differ from the design text above in these ways:
+- **Group paths.** A group's `path` is at most 2,048 bytes (under the 2,704 a btree entry holds), and the API and the import worker also stop a tree at 10 levels. `keyword_groups_project_path` indexes `(project_id, path text_pattern_ops)` for subtree reads.
+- **Indexes on the keyword tables.**
+  - `seo.keywords`: a trigram index on `normalized_text`.
+  - `seo.tracked_keywords`: partial indexes on `project_id` and on `workspace_id` for live, active rows; plus `schedule_id` (rows that name one) and `keyword_id`.
+  - Link tables: `term_id`, `entity_id` and `tracked_keyword_id` on the term, competitor and group member tables.
+  - `seo.keyword_imports`: `(project_id, created_at DESC)`.
+  - `backend/tests/db/test_keyword_catalog.py` pins every one.
+- **Indexes on the `ops` tables** (section 11).
+  - `ops.collection_runs (project_id, created_at DESC, id)`: a project's runs, newest first, and the manual runs of a day.
+  - `ops.collection_tasks (workload, subject_id, created_at)`: the new-keyword tick skips keywords that had a task of the workload in the last day.
+  - `ops.provider_cost_events` gets a BRIN index on `occurred_at`, since the cost rollup reads the last days of every workspace and the table is append-only in time order.
+  - `ops.cost_daily (workspace_id, cost_date)`: a workspace's costs over a period.
+- **Schedules.** `ops.schedules` gains `deleted_at`. `REVOKE DELETE ON ops.schedules FROM app_api` makes that the only way to delete one.
+- **Worker grants.**
+  - Migration 0011 lets the worker insert keywords, tracked keywords, groups, group members, term links, config history, domains, URLs and terms (an import creates what its rows name), and insert an `ops.schedules` row (a project's first tracked keyword creates its metrics schedule).
+  - It lets the worker update `is_active`, `updated_at`, `deleted_at` and `schedule_id` on tracked keywords (an import that brings back a deleted keyword drops a schedule deleted since), and `window_start`, `window_end` and `config_snapshot` on `ops.collection_runs` (the planner opens a manual run's window when it plans it).
+  - Migration 0012 gives the worker `DELETE` on `seo.tracked_keyword_terms`: a deleted keyword brought back under a vocabulary that became single-valued keeps its first term in path order and loses the others, as in the API. It also adds two partial indexes on `seo.keyword_imports` for the worker's claims: `keyword_imports_to_work` (`created_at, id` where the status is `uploaded` or `writing`) and `keyword_imports_to_expire` (`expires_at` where it is `uploaded`, `needs_mapping` or `preview_ready`).
+- **Cost rollup.** `ops.cost_daily` rows for events without a project are not written yet. Section 11.4 rolls them up under the all-zero project; that waits for the first workspace-level writers (`keyword_research` and `first_party`). Events with a project are rolled up hourly and rebuilt nightly (doc 27 section 10).
+
 ### 7.2 Keyword metrics (append-only snapshots)
 
 ```sql
@@ -1998,7 +2018,8 @@ CREATE TABLE ops.maintenance_windows (
   - has no `report_object_key`, since the report is made from the rows on request.
 - **`seo.keyword_import_rows`**:
   - is keyed by `(import_id, row_no, part)`: a row with `device = both` becomes parts 1 (desktop) and 2 (mobile) of one file row;
-  - gains `keyword_text`, `language_code` and a readable `reason` next to `reason_code`.
+  - gains `keyword_text`, `language_code` and a readable `reason` next to `reason_code`;
+  - gains `result` (`created`, `skipped`, `merged` or `failed`), `tracked_keyword_id` and `write_error_code`, which the worker fills in as it writes, so the report says what each row became.
 - **`ops.exports`** and **`ops.jobs`** wait for their first writers (exports with step 7).
 
 ## 12. Partitioning, retention and maintenance
@@ -2208,10 +2229,11 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `core.entities`, `core.entity_aliases` | SELECT, INSERT, UPDATE, DELETE | none until ingest and extraction read them |
 | `core.taxonomy_vocabularies`, `core.taxonomy_terms` | SELECT, INSERT, UPDATE, DELETE | SELECT; INSERT on terms (an import creates the terms its rows name) |
 | `seo.keywords` | SELECT; INSERT (`workspace_id`, `text`, `normalized_text`, `language_code`) | the same (imports) |
-| `seo.tracked_keywords` | SELECT, INSERT; UPDATE of the mutable columns (identity columns never change; deleting sets `deleted_at`) | SELECT, INSERT; UPDATE (`is_active`, `updated_at`, `deleted_at`: an import brings back or unarchives a row) |
+| `seo.tracked_keywords` | SELECT, INSERT; UPDATE of the mutable columns (identity columns never change; deleting sets `deleted_at`) | SELECT, INSERT; UPDATE (`is_active`, `updated_at`, `deleted_at`, `schedule_id`: an import brings back or unarchives a row, and drops a schedule deleted since) |
 | `seo.tracked_keyword_config_history` | SELECT, INSERT; UPDATE (`valid_to`) | SELECT, INSERT |
 | `seo.keyword_groups` | SELECT, INSERT, UPDATE, DELETE | SELECT, INSERT |
-| `seo.keyword_group_members`, `seo.tracked_keyword_terms` | SELECT, INSERT, DELETE | SELECT, INSERT |
+| `seo.keyword_group_members` | SELECT, INSERT, DELETE | SELECT, INSERT |
+| `seo.tracked_keyword_terms` | SELECT, INSERT, DELETE | SELECT, INSERT, DELETE (migration 0012: a keyword an import brings back loses its surplus terms under a single-valued vocabulary) |
 | `seo.tracked_keyword_competitors` | SELECT, INSERT, DELETE | none |
 | `seo.keyword_metric_snapshots` | SELECT | SELECT, INSERT |
 | `seo.keyword_metrics_current` | SELECT | SELECT, INSERT, UPDATE |
@@ -2222,7 +2244,7 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `core.project_domain_roles` (view, `security_invoker`; `tests/db/test_grants.py` refuses any view a runtime role reads that is not, and any readable materialized view) | SELECT | none |
 | `ops.budgets` | SELECT, INSERT, UPDATE, DELETE | SELECT |
 | `ops.schedules` | SELECT, INSERT, UPDATE (deleting sets `deleted_at`, so runs keep naming the schedule) | SELECT, INSERT (a project's keyword metrics schedule, made with its first tracked keyword); UPDATE (`next_run_at`, `last_run_id`) |
-| `ops.collection_runs` | SELECT; INSERT (what a manual run asks for: scope, workload, window, trigger, status, creator, request id, estimated cost, config snapshot); UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns) |
+| `ops.collection_runs` | SELECT; INSERT (what a manual run asks for: scope, workload, window, trigger, status, creator, request id, estimated cost, config snapshot); UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns; `window_start`, `window_end` and `config_snapshot`, which the planner sets when it plans a manual run) |
 | `ops.collection_tasks` | SELECT | SELECT, INSERT; UPDATE (lifecycle, attempt, result and error columns) |
 | `ops.raw_payloads` | none | SELECT, INSERT; UPDATE (`expires_at`) |
 | `ops.provider_cost_events` | SELECT | SELECT, INSERT |

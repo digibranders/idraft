@@ -323,6 +323,23 @@ Google Ads endpoints fail a whole batch if one keyword is policy-restricted (ver
 - A new snapshot row is always appended (history is kept), and `is_material_change` is set when volume changes by more than 20% and more than 10 searches, or KD changes by more than 5 points, or intent changes. Materiality drives alerts and "what changed" views, not storage.
 - Labs traffic estimates (ETV) change methodology on 1 November 2026 (verified). We do not use Labs ETV in V1; our traffic estimates come from our own CTR model ([09-rank-tracking-methodology.md](09-rank-tracking-methodology.md) section 6).
 
+**As built (step 5, keywords).** The Labs `keyword_overview` live call is in `backend/src/sightline/providers/dataforseo/labs.py`, and the ledger runs it through the `submit_batch` job (doc 21 section 4).
+- **Tasks and batches.** A task is one keyword at one location and language. The dispatcher cuts a batch by location and language (the workload's batch key), up to 700 keywords, so one batch is one call. Each call sends `include_serp_info` and `include_clickstream_data` as false, because they cost more and nothing reads them.
+- **What is refused before sending.** A request of another endpoint, a task id given twice in a call, and a keyword over 80 characters fail on their own with `invalid_request`, so they cannot fail the 699 others. The workload leaves keywords over 80 characters out of its plans, so they are not asked for again.
+- **Escaping.** `%` is sent as `%25` and `+` as `%2B`, as for SERP keywords, because DataForSEO would decode them. Two spellings that Labs reads as one keyword (compared after NFKC, case folding and collapsing spaces) are sent once, and both tasks get the answer.
+- **Answers.**
+  - Status 40102 ("no results") is read as Labs knowing none of the keywords, not as a failure.
+  - A keyword missing from the answer, or named with no value, gets an empty snapshot that is no material change and does not replace the current metrics.
+  - A value that is not what Labs documents (a negative volume, a competition above 1, difficulty above 100, an unknown level or intent) is read as missing. Months outside 2000 to 2100 are dropped from `monthly_searches`.
+  - `competition` is Labs' float and `competition_level` its string.
+- **Cost.** The call's reported cost is split evenly over its tasks in millionths of a dollar, with the remainder on the first, so the shares add up exactly. Each task gets one cost event with `cost_source = 'provider_reported'`, `units = 1` and `price_unit = 'item'`. A cost over $1.00 for one call is not believed, and the run's estimate is charged instead.
+- **Failures.** A failed call follows the retry policy for each of its tasks; a timeout counts as an attempt and is sent again, since a live call leaves nothing to fetch. A live task left in `submit_unknown` is sent again after the resolver's grace period whatever `resolve_unknown_submissions` says. An answer that could not be stored is lost, and its tasks are paid for again when sent again.
+- **Cadence.**
+  - New keywords: the planner's new-keyword step (every 60 seconds) gives a project's keywords with no metrics a run of their own, so their metrics arrive within a minute or two of the keyword being added, not within the 5 minutes above.
+  - Monthly: a project's first tracked keyword creates its `keyword_metrics` schedule: monthly on the 20th, 03:00 in the project's time zone, a 2 hour window, provider mode `live`, selector `{"stale_days": 25}`.
+  - The `google_ads/status` check before the refresh is not built; the refresh does not wait for `actual_data`.
+- **Materiality.** `is_material_change` is true for a keyword's first snapshot and otherwise follows the thresholds above. A reading is judged against the latest non-empty snapshot fetched before it, so an answer ingested late is judged against what came before it.
+
 ### 7.3 Freshness caveat for Labs competitor data
 
 Labs SERP-derived datasets (`ranked_keywords`, `domain_intersection`, `competitors_domain`) are refreshed on a 30 to 90 day cycle per query, weekly for some endpoints (verified). They are **discovery inputs only**, never rank tracking. The Discovery inbox shows "data as of" for each suggestion.

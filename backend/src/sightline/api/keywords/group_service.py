@@ -11,7 +11,6 @@ from __future__ import annotations
 from collections.abc import Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from typing import Final
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -24,11 +23,7 @@ from sightline.api.problems import CycleDetectedError, DuplicateError, NotFoundE
 from sightline.api.request_info import RequestInfo
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.db.engine import workspace_transaction
-
-# As deep as taxonomy terms go (docs/19 section 3.5).
-GROUP_DEPTH_MAX: Final = 10
-# The check on `seo.keyword_groups.path` in migration 0011.
-PATH_BYTES_MAX: Final = 2048
+from sightline.keywords.groups import GROUP_DEPTH_MAX, PATH_BYTES_MAX
 
 
 @dataclass(frozen=True, slots=True)

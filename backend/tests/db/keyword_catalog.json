@@ -94,6 +94,8 @@
     "keyword_imports_original_filename_check": "CHECK (((length(original_filename) >= 1) AND (length(original_filename) <= 255)))",
     "keyword_imports_pkey": "CREATE UNIQUE INDEX keyword_imports_pkey ON seo.keyword_imports USING btree (id)",
     "keyword_imports_project_created": "CREATE INDEX keyword_imports_project_created ON seo.keyword_imports USING btree (project_id, created_at DESC)",
+    "keyword_imports_to_expire": "CREATE INDEX keyword_imports_to_expire ON seo.keyword_imports USING btree (expires_at) WHERE (status = ANY (ARRAY['uploaded'::text, 'needs_mapping'::text, 'preview_ready'::text]))",
+    "keyword_imports_to_work": "CREATE INDEX keyword_imports_to_work ON seo.keyword_imports USING btree (created_at, id) WHERE (status = ANY (ARRAY['uploaded'::text, 'writing'::text]))",
     "keyword_imports_project_id_not_null": "NOT NULL project_id",
     "keyword_imports_project_id_workspace_id_fkey": "FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE",
     "keyword_imports_source_check": "CHECK ((source = ANY (ARRAY['upload'::text, 'paste'::text, 'api'::text, 'gsc'::text])))",
