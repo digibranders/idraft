@@ -3,15 +3,19 @@ import { describe, expect, it } from 'vitest';
 import {
   autoMapping,
   confirmPlan,
+  FIELD_KEYS,
   IMPORT_FIELDS,
   importPhase,
   isReasonCode,
   mappingProblems,
   outcomeSummary,
+  REASON_CODES,
+  REASON_KEYS,
   stepsOf,
   type Counts,
 } from './import-model';
 import { importFieldValues } from '@/lib/api/schema';
+import messages from '../../../../messages/en.json';
 
 const counts = (over: Partial<Counts> = {}): Counts => ({
   rows_total: 0,
@@ -88,6 +92,14 @@ describe('import model', () => {
     expect(
       confirmPlan(counts({ new: 1, duplicate: 1, conflict: 1 }), { duplicates: 'skip', conflicts: 'skip' }),
     ).toEqual({ create: 1, merge: 0, unarchive: 0, skip: 2, duplicateAction: 'skip', conflictAction: 'skip' });
+  });
+
+  it('names a message for every field and every reason code, in camelCase as the catalog keys are', () => {
+    const { fields, reasons } = messages.rankings.import;
+    expect(Object.keys(FIELD_KEYS).sort()).toEqual([...importFieldValues].sort());
+    expect(Object.values(FIELD_KEYS).sort()).toEqual(Object.keys(fields).sort());
+    expect(Object.keys(REASON_KEYS).sort()).toEqual([...REASON_CODES].sort());
+    expect(Object.values(REASON_KEYS).sort()).toEqual(Object.keys(reasons).sort());
   });
 
   it('knows the reason codes it has words for', () => {

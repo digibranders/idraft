@@ -141,7 +141,27 @@ export function confirmPlan(counts: Counts, choices: ReviewChoices): ConfirmPlan
   };
 }
 
-/** The message key of a row's reason; the API's own `reason` text is the fallback for a code not listed. */
+/**
+ * The catalog key of a field under `rankings.import.fields`: keys are camelCase, the API's codes are not.
+ * `t(`fields.${FIELD_KEYS[field]}`)`.
+ */
+export const FIELD_KEYS = {
+  keyword: 'keyword',
+  country: 'country',
+  location: 'location',
+  language: 'language',
+  device: 'device',
+  tags: 'tags',
+  topic: 'topic',
+  group: 'group',
+  intent: 'intent',
+  funnel_stage: 'funnelStage',
+  priority: 'priority',
+  target_url: 'targetUrl',
+  depth_profile: 'depthProfile',
+} as const satisfies Record<ImportField, string>;
+
+/** The reason codes of a row the dialog has words for; the API's own `reason` text is the fallback for others. */
 export const REASON_CODES = [
   'keyword_missing',
   'keyword_invalid',
@@ -160,5 +180,24 @@ export const REASON_CODES = [
   'conflict',
 ] as const;
 export type ReasonCode = (typeof REASON_CODES)[number];
+
+/** The catalog key of a reason under `rankings.import.reasons`: `t(`reasons.${REASON_KEYS[code]}`)`. */
+export const REASON_KEYS = {
+  keyword_missing: 'keywordMissing',
+  keyword_invalid: 'keywordInvalid',
+  keyword_too_long: 'keywordTooLong',
+  search_operator_not_allowed: 'searchOperatorNotAllowed',
+  location_unknown: 'locationUnknown',
+  language_invalid: 'languageInvalid',
+  device_invalid: 'deviceInvalid',
+  priority_invalid: 'priorityInvalid',
+  depth_profile_invalid: 'depthProfileInvalid',
+  target_url_invalid: 'targetUrlInvalid',
+  group_path_invalid: 'groupPathInvalid',
+  repeated_row: 'repeatedRow',
+  already_tracked: 'alreadyTracked',
+  variant: 'variant',
+  conflict: 'conflict',
+} as const satisfies Record<ReasonCode, string>;
 export const isReasonCode = (code: string | null): code is ReasonCode =>
   code !== null && (REASON_CODES as readonly string[]).includes(code);
