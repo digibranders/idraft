@@ -4,7 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import type { ReactElement } from 'react';
+import { useId, type ReactElement } from 'react';
 
 import { ProjectMonogram } from './project-monogram';
 import { Combobox } from '@/components/ui/combobox';
@@ -36,6 +36,13 @@ export interface ProjectSwitcherProps {
   allProjects: { href: Route; label: string };
   /** "Create project", for a member who may create one; absent otherwise (11-navigation.md section 8). */
   createProject?: { href: Route; label: string } | undefined;
+  /**
+   * The workspace's own pages (Costs, Runs), for the ones the member may open: a labelled group of links
+   * above the links to all projects. With none, no group.
+   */
+  workspaceLinks?: readonly { href: Route; label: string }[] | undefined;
+  /** "Workspace": the group's name. */
+  workspaceLabel?: string | undefined;
 }
 
 /**
@@ -51,8 +58,11 @@ export function ProjectSwitcher({
   rail = false,
   allProjects,
   createProject,
+  workspaceLinks = [],
+  workspaceLabel,
 }: ProjectSwitcherProps): ReactElement {
   const t = useTranslations('shell.projectSwitcher');
+  const workspaceLabelId = useId();
   const trigger =
     presentation === 'sidebar' ? (
       <button
@@ -92,6 +102,18 @@ export function ProjectSwitcher({
       footer={
         <div className="flex flex-col gap-1 px-2 py-1.5">
           <p className="type-meta">{t('timeZone', { timeZone: current.timeZone })}</p>
+          {workspaceLinks.length === 0 || workspaceLabel === undefined ? null : (
+            <div role="group" aria-labelledby={workspaceLabelId} className="flex flex-col gap-1 pt-1">
+              <p id={workspaceLabelId} className="type-label">
+                {workspaceLabel}
+              </p>
+              {workspaceLinks.map((link) => (
+                <TextLink key={link.href} render={<Link href={link.href} />} className="type-body">
+                  {link.label}
+                </TextLink>
+              ))}
+            </div>
+          )}
           <TextLink render={<Link href={allProjects.href} />} className="type-body">
             {allProjects.label}
           </TextLink>

@@ -135,6 +135,27 @@ describe('ProjectShell', () => {
     expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/settings');
   });
 
+  it('links the workspace pages the role can open from the project switcher: Costs needs costs:read, Runs data:read', async () => {
+    const asked: Record<string, string[]> = {};
+    for (const role of ['editor', 'viewer', 'billing'] as const) {
+      const { user, unmount } = renderWithProviders(shell(role));
+      await screen.findByRole('heading', { name: 'Profile' });
+      const [sidebarSwitcher] = screen.getAllByRole('combobox', { name: 'Project: Fynix' });
+      if (!sidebarSwitcher) throw new Error('no project switcher');
+      await user.click(sidebarSwitcher);
+      const group = await screen.findByRole('group', { name: 'Workspace' });
+      asked[role] = within(group)
+        .getAllByRole('link')
+        .map((link) => `${link.textContent ?? ''} ${link.getAttribute('href') ?? ''}`);
+      unmount();
+    }
+    expect(asked).toEqual({
+      editor: ['Costs /digibranders/costs', 'Runs /digibranders/ops/runs'],
+      viewer: ['Runs /digibranders/ops/runs'],
+      billing: ['Costs /digibranders/costs'],
+    });
+  });
+
   it('signs out from the account menu', async () => {
     const { user } = renderWithProviders(shell());
     await screen.findByRole('heading', { name: 'Profile' });

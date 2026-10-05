@@ -278,7 +278,12 @@
       "seo": "SEO",
       "ai": "AI Visibility"
     },
-    "inGroup": "{group}: {item}"
+    "inGroup": "{group}: {item}",
+    "workspaceLinks": {
+      "label": "Workspace",
+      "costs": "Costs",
+      "runs": "Runs"
+    }
   },
   "status": {
     "error": {
@@ -337,7 +342,9 @@
       "domains": "Domains",
       "taxonomy": "Taxonomy",
       "workspace": "General",
-      "members": "Members and roles"
+      "members": "Members and roles",
+      "costs": "Costs",
+      "operations": "Operations"
     }
   },
   "projectSettings": {

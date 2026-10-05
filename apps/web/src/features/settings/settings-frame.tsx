@@ -5,14 +5,22 @@ import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
-import { SettingsNav, type SettingsNavGroup } from '@/components/app/shell/settings-nav';
+import { SettingsNav, type SettingsNavGroup, type SettingsNavItem } from '@/components/app/shell/settings-nav';
 import { useGuardedPush } from '@/lib/navigation/use-leave-guard';
-import { projectPath, workspaceSettingsPath, type WorkspaceSettingsSection } from '@/lib/routes/paths';
+import { useCan } from '@/lib/permissions';
+import {
+  costsPath,
+  projectPath,
+  runsPath,
+  workspaceSettingsPath,
+  type WorkspaceSettingsSection,
+} from '@/lib/routes/paths';
 
 /**
  * The sections of Settings, by group, in the order of 11-navigation.md section 5. Only the sections that
  * are built are listed: the others arrive with their plans. Every member sees every section; one they may
- * not change is read-only.
+ * not change is read-only. The workspace group ends with links to Costs and Operations, the pages of the
+ * workspace that Settings leads to, for the members who may open them.
  */
 const ACCOUNT = ['profile', 'security', 'preferences'] as const satisfies readonly WorkspaceSettingsSection[];
 const PROJECT = ['general', 'entities', 'domains', 'taxonomy'] as const;
@@ -36,27 +44,40 @@ export function SettingsFrame({
   const t = useTranslations('settings');
   const pathname = usePathname();
   const push = useGuardedPush();
+  const canReadCosts = useCan('costs:read');
+  const canReadRuns = useCan('data:read');
   const group = <Section extends SettingsSection>(
     name: 'account' | 'project' | 'workspace',
     sections: readonly Section[],
     href: (section: Section) => Route,
+    /** Links to pages outside Settings, after the sections. */
+    pages: readonly SettingsNavItem[] = [],
   ): SettingsNavGroup => ({
     label: t(`groups.${name}`),
-    items: sections.map((section) => {
-      const id: SettingsSection = section;
-      return { id, label: t(`items.${id}`), href: href(section) };
-    }),
+    items: [
+      ...sections.map((section) => {
+        const id: SettingsSection = section;
+        return { id, label: t(`items.${id}`), href: href(section) };
+      }),
+      ...pages,
+    ],
   });
+  // Costs and Operations are workspace pages of their own, listed here as 11-navigation.md section 5 has
+  // them, after Members and roles: neither is ever the section on screen
+  const workspacePages: SettingsNavItem[] = [
+    ...(canReadCosts ? [{ id: 'costs', label: t('items.costs'), href: costsPath(workspace) }] : []),
+    ...(canReadRuns ? [{ id: 'operations', label: t('items.operations'), href: runsPath(workspace) }] : []),
+  ];
   let groups: SettingsNavGroup[];
   if (project === null) {
     const outside = (section: WorkspaceSettingsSection): Route => workspaceSettingsPath(workspace, section);
-    groups = [group('account', ACCOUNT, outside), group('workspace', WORKSPACE, outside)];
+    groups = [group('account', ACCOUNT, outside), group('workspace', WORKSPACE, outside, workspacePages)];
   } else {
     const inside = (section: SettingsSection): Route => projectPath(workspace, project, `/settings/${section}`);
     groups = [
       group('account', ACCOUNT, inside),
       group('project', PROJECT, inside),
-      group('workspace', WORKSPACE, inside),
+      group('workspace', WORKSPACE, inside, workspacePages),
     ];
   }
   // A section's own pages (an entity's editor) keep the section current
