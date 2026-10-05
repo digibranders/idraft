@@ -130,6 +130,40 @@ test.describe('rankings', () => {
     await expect(grid.getByText('Pending').first()).toBeVisible();
   });
 
+  test('metrics are refreshed from More actions, and the run is followed in the header', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    await expect(page.getByText('59 keywords', { exact: true })).toBeVisible();
+
+    // The menu says how many manual refreshes the project has left today
+    await page.getByRole('button', { name: 'More actions' }).click();
+    const item = page.getByRole('menuitem', { name: /Refresh metrics/ });
+    await expect(item).toContainText('20 of 20 left today');
+    await expect(page.getByRole('menuitem', { name: 'Manage groups' })).toBeVisible();
+    await item.click();
+
+    const dialog = page.getByRole('dialog', { name: 'Refresh metrics' });
+    await expect(dialog.getByRole('radio', { name: 'All keywords with stale metrics' })).toBeChecked();
+    await expect(dialog.getByText('20 of 20 manual refreshes left today.')).toBeVisible();
+    await expectAccessible(page);
+    await dialog.getByRole('button', { name: 'Refresh metrics' }).click();
+    await expect(dialog).toBeHidden();
+
+    // Queued at once, then running; the run ends with one toast
+    // (the live region says it aloud too, so the header is named)
+    const header = page.locator('#main-content');
+    await expect(header.getByText('Metrics refresh queued')).toBeVisible();
+    await expect(header.getByText('Refreshing metrics')).toBeVisible({ timeout: 15_000 });
+    await expectAccessible(page);
+    await expect(page.getByText(/^Metrics refreshed for \d+ keywords?$/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('progressbar')).toBeHidden();
+
+    // The day's count moved on with the run
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await expect(page.getByRole('menuitem', { name: /Refresh metrics/ })).toContainText('19 of 20 left today');
+  });
+
   test('keywords are imported from a CSV file, and the write is followed in the header', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
