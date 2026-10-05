@@ -1003,7 +1003,10 @@ export interface paths {
         /** The project's imports, newest first */
         get: operations["list_imports_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_get"];
         put?: never;
-        /** Import keywords from paste text or rows */
+        /**
+         * Import keywords from paste text or rows
+         * @description `source: 'paste'` takes `paste` (one keyword per line, tags after a TAB); `source: 'api'` takes `rows`. The worker reads the source into a preview within seconds: poll the import until it is `preview_ready` (or `needs_mapping`). A vocabulary named for tags or topics needs `taxonomy:write`.
+         */
         post: operations["create_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_post"];
         delete?: never;
         options?: never;
@@ -1020,7 +1023,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Import keywords from a CSV file (multipart, up to 50 MB) */
+        /**
+         * Import keywords from a CSV file (multipart, up to 50 MB)
+         * @description Parts: `file` (CSV, UTF-8; a byte order mark is fine) and `options` (the JSON of `ImportOptions`). `415 unsupported_media_type` for another kind of file, `413` over 50 MB. The delimiter is the comma, semicolon or tab the header line uses most.
+         */
         post: operations["upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post"];
         delete?: never;
         options?: never;
@@ -1042,7 +1048,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Change the mapping, defaults or row actions */
+        /**
+         * Change the mapping, defaults or row actions
+         * @description `column_mapping` (file header to field) and `defaults` make the worker read the source again: the import is `uploaded` until its new preview is ready. `row_actions` choose what happens to rows of the ready preview, and cannot be sent together with the others. Allowed actions: `create` or `skip` for a new row or a casing variant; `skip` or `merge` for a tracked duplicate or an archived keyword; `skip` for the rest. `409 invalid_state_transition` once the import is writing or has ended.
+         */
         patch: operations["update_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__patch"];
         trace?: never;
     };
@@ -1055,7 +1064,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel an import before it writes */
+        /**
+         * Cancel an import before it writes
+         * @description `409 invalid_state_transition` once it is writing or has ended.
+         */
         post: operations["cancel_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__cancel_post"];
         delete?: never;
         options?: never;
@@ -1072,7 +1084,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Write the import */
+        /**
+         * Confirm a ready preview and have it written
+         * @description The worker writes the rows in batches of 1,000 (`status: 'writing'`); poll the import until it is `completed` or `completed_with_errors`, then read the report. `duplicate_action: 'merge_terms'` merges the groups and terms of rows left at `skip` into the keywords they duplicate. `409 invalid_state_transition` unless the preview is ready and has not expired; `422 quota_exceeded` (with `limit`, `used`, `requested`) when the rows to create and the archived keywords to bring back do not fit, and nothing changes.
+         */
         post: operations["confirm_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__confirm_post"];
         delete?: never;
         options?: never;
@@ -1087,7 +1102,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The import report as CSV */
+        /**
+         * The import report as CSV
+         * @description One line per row (`row_no`, `part`, `keyword`, `location_id`, `language_code`, `device`, `outcome`, `reason_code`, `reason`, `action`, `result`, `tracked_keyword_id`, `write_error_code`). A cell a spreadsheet could run as a formula starts with `'`. `409 invalid_state_transition` while there is nothing to report on.
+         */
         get: operations["import_report_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__report_get"];
         put?: never;
         post?: never;
@@ -1104,7 +1122,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The preview rows, in file order */
+        /**
+         * The preview rows, in file order
+         * @description `409 invalid_state_transition` until the worker has read the source. A row with `device: 'both'` is two rows (`part` 1 and 2). `keyword` is the cleaned text, or what was typed for an invalid row.
+         */
         get: operations["import_rows_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__rows_get"];
         put?: never;
         post?: never;
@@ -1482,23 +1503,6 @@ export interface paths {
         };
         /** Configuration versions */
         get: operations["get_config_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__config_history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workspaces/{workspace_id}/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Runs of the projects the caller can see */
-        get: operations["list_workspace_runs_api_v1_workspaces__workspace_id__runs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5988,6 +5992,7 @@ export interface operations {
     budget_status_api_v1_workspaces__workspace_id__budgets_status_get: {
         parameters: {
             query?: {
+                /** @description `YYYY-MM`, 2000 to 2100. */
                 month?: string | null;
             };
             header?: never;
@@ -7631,14 +7636,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The report. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "text/csv": unknown;
-                    "text/plain": string;
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -8598,47 +8602,6 @@ export interface operations {
             };
         };
     };
-    list_workspace_runs_api_v1_workspaces__workspace_id__runs_get: {
-        parameters: {
-            query?: {
-                "filter[project_id]"?: string | null;
-                "filter[workload_in]"?: ("seo_rank" | "ai_prompt" | "ai_mode_keyword" | "keyword_metrics" | "discovery" | "ai_benchmark" | "gsc_sync" | "bing_sync" | "ga4_sync" | "cloudflare_sync")[] | null;
-                "filter[status_in]"?: ("planned" | "running" | "completed" | "completed_with_errors" | "failed" | "cancelled" | "budget_blocked")[] | null;
-                "filter[trigger_in]"?: ("schedule" | "manual" | "backfill" | "retry")[] | null;
-                from?: string | null;
-                to?: string | null;
-                /** @description `page.next_cursor` of the previous page. */
-                cursor?: string | null;
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                workspace_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunPage"];
-                };
-            };
-            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
     delete_term_api_v1_workspaces__workspace_id__terms__term_id__delete: {
         parameters: {
             query?: {
@@ -8949,9 +8912,6 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGe
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterFunnel_stage_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[funnel_stage_in]"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSource_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[source_in]"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDepth_profile_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[depth_profile_in]"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
-export const pathsApiV1WorkspacesWorkspace_idRunsGetParametersQueryFilterWorkload_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/runs"]["get"]["parameters"]["query"]["filter[workload_in]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
-export const pathsApiV1WorkspacesWorkspace_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
-export const pathsApiV1WorkspacesWorkspace_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesGetParametersQueryFilterKindAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies"]["get"]["parameters"]["query"]["filter[kind]"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesVocabulary_idTermsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const actorActor_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Actor"]["actor_type"]> = ["user", "api_key", "system"];
