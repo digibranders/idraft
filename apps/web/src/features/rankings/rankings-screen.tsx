@@ -9,6 +9,8 @@ import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keyw
 import { useBulkActions } from './bulk/bulk-actions';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
 import { ImportDialog } from './import/import-dialog';
+import { ImportProgress } from './import/import-progress';
+import { useWritingImport } from './import/import-queries';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
@@ -100,8 +102,10 @@ export function RankingsScreen({
   const canImport = useCan('imports:write');
   const [adding, setAdding] = useState(false);
   const [managing, setManaging] = useState(false);
-  // The import whose write the header follows, from the moment Confirm started it
-  const [, setActiveImport] = useState<string | null>(null);
+  // The import whose write the header follows: the one Confirm just started, or one a reload found under way.
+  // An import that ended is remembered, so the answer of the first read does not bring it back.
+  const [startedImport, setStartedImport] = useState<string | null>(null);
+  const [endedImport, setEndedImport] = useState<string | null>(null);
   // Where focus returns to when Manage groups closes
   const moreButton = useRef<HTMLButtonElement>(null);
   const scope = useMemo((): ProjectScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
@@ -135,6 +139,12 @@ export function RankingsScreen({
 
   const list = useKeywordList({ scope, filters, sort, search });
   const tracked = useTrackedCount(scope);
+  const writingNow = useWritingImport(scope, canImport).data?.import_id ?? null;
+  const followedImport = startedImport ?? (writingNow === endedImport ? null : writingNow);
+  const onImportSettled = useCallback((): void => {
+    setEndedImport(followedImport);
+    setStartedImport(null);
+  }, [followedImport]);
 
   // The chosen keywords, kept through sorting and a search in memory, and dropped when the list asked
   // for changes: other filters, the other view, or a search the API runs. Only the API's search goes with
@@ -348,6 +358,15 @@ export function RankingsScreen({
           meta={meta === '' ? undefined : meta}
           actions={canWrite || canImport ? headerActions : undefined}
         />
+        {followedImport === null ? null : (
+          <ImportProgress
+            key={followedImport}
+            scope={scope}
+            importId={followedImport}
+            timeZone={timeZone}
+            onSettled={onImportSettled}
+          />
+        )}
         <FilterBar
           fields={fields}
           values={values}
@@ -483,7 +502,7 @@ export function RankingsScreen({
           scope={scope}
           open={importOpen}
           onOpenChange={(open) => onImportOpenChange?.(open)}
-          onConfirmed={setActiveImport}
+          onConfirmed={setStartedImport}
           defaults={defaults}
         />
       ) : null}

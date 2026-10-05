@@ -12,6 +12,7 @@ import {
   formatDetailDateTime,
   formatInteger,
   formatInterval,
+  formatIsoDate,
   formatList,
   formatMetricDelta,
   formatMonth,
@@ -153,6 +154,11 @@ describe('dates', () => {
   it('formats table timestamps in the project timezone', () => {
     expect(formatTableDateTime('2026-09-29T13:02:00Z', 'Asia/Kolkata', now)).toBe('Sep 29, 18:32');
     expect(formatTableDateTime('2025-09-29T13:02:00Z', 'Asia/Kolkata', now)).toBe('Sep 29, 2025, 18:32');
+  });
+  it('names the date of an instant in the project timezone for a file', () => {
+    expect(formatIsoDate('2026-09-29T22:30:00Z', 'UTC')).toBe('2026-09-29');
+    expect(formatIsoDate('2026-09-29T22:30:00Z', 'Europe/Berlin')).toBe('2026-09-30');
+    expect(formatIsoDate(new Date('2026-01-01T03:00:00Z'), 'America/New_York')).toBe('2025-12-31');
   });
   it('formats detail timestamps with a timezone name', () => {
     expect(formatDetailDateTime('2026-09-29T22:32:00Z', 'America/New_York')).toBe('Sep 29, 2026 · 18:32 EDT');

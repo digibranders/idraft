@@ -374,10 +374,12 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
       }
       if (signal.aborted) return 'invalid';
       confirming.current = true;
-      await confirmImport.mutateAsync({
+      const started = await confirmImport.mutateAsync({
         params: { path: { ...path, import_id: importId } },
         body: { duplicate_action: chosen.duplicateAction },
       });
+      // The answer is the import writing: what the header reads first, instead of the preview it still holds
+      queryClient.setQueryData(importKey(scope, importId), started.data);
       // The write has started: the header follows it, and closing the dialog now stops nothing
       onConfirmed(importId);
       abandon();

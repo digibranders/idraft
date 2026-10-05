@@ -124,9 +124,10 @@ export function settledImport(queryClient: QueryClient, key: QueryKey, signal: A
 }
 
 /** The import the project is writing now, if any: Rankings asks once on mount to resume its header progress. */
-export function useWritingImport(scope: ProjectScope): UseQueryResult<KeywordImport | null> {
+export function useWritingImport(scope: ProjectScope, enabled = true): UseQueryResult<KeywordImport | null> {
   return useQuery({
     queryKey: [...importsKey(scope), 'writing'],
+    enabled,
     queryFn: async ({ signal }) => {
       const page = await unwrap(
         api.GET(IMPORTS, {

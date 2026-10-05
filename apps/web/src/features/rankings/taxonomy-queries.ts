@@ -4,7 +4,7 @@ import { useQueries, useQuery, type QueryClient, type UseQueryResult } from '@ta
 import { useMemo } from 'react';
 
 import type { ProjectScope } from './rankings-queries';
-import { projectKey } from '@/lib/api/keys';
+import { projectKey, workspaceKey } from '@/lib/api/keys';
 import { apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
 import type { TermNode } from '@/lib/api/types';
 
@@ -29,6 +29,11 @@ export function refreshGroups(queryClient: QueryClient, scope: ProjectScope): Pr
   return queryClient.invalidateQueries({
     queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'keyword-groups'],
   });
+}
+
+/** After terms were made by an import: the vocabularies and every term list of the workspace read again. */
+export function refreshVocabularies(queryClient: QueryClient, workspaceId: string): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey: [...workspaceKey(workspaceId), 'vocabularies'] });
 }
 
 /** The read of the project's groups as a flat list, for `useKeywordGroups` and for a form that reads it on save. */

@@ -1424,6 +1424,7 @@
       "finished": "Import finished: {created} added, {skipped} skipped",
       "finishedMerged": "Import finished: {created} added, {merged} updated, {skipped} skipped",
       "finishedFailed": "Import failed: {reason}",
+      "progressLost": "The import could not be followed. Reload the page to see how it went.",
       "downloadReport": "Download report",
       "reportName": "keyword-import-{date}.csv"
     },

@@ -5,15 +5,23 @@ import { useState, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { CANCEL_PATH, CONFIRM_PATH, IMPORT } from './import-queries';
+import { CANCEL_PATH, CONFIRM_PATH, IMPORT, IMPORTS } from './import-queries';
 import type { Role } from '@/lib/api/types';
 import { MOCK_VOCABULARY_IDS } from '@/mocks/entity-fixtures';
 import { handlers } from '@/mocks/handlers';
+import { forgetImports } from '@/mocks/handlers/keyword-imports';
 import { mswPath, problem } from '@/mocks/respond';
 import { KEYWORD_IMPORT } from '@/test/api-shapes';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
-import { fynix, loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
+import {
+  fynix,
+  keywordsIn,
+  loadedGrid,
+  rankingsAs as as,
+  restoreWideScreen,
+  stubWideScreen,
+} from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
@@ -29,7 +37,11 @@ vi.mock('@/lib/api/upload', async () => {
 });
 
 beforeEach(stubWideScreen);
-afterEach(restoreWideScreen);
+afterEach(() => {
+  restoreWideScreen();
+  // The mocks keep imports in memory: one test's write must not be the next test's "write under way"
+  forgetImports();
+});
 
 /** A parse of the mocks takes 1.5 seconds and the dialog asks again every second. */
 const PARSED = { timeout: 8_000 };
@@ -422,4 +434,161 @@ describe('Import dialog', () => {
     await loadedGrid();
     expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
   });
+});
+
+/** The header asks about a write every 5 seconds, and the mock writes three rows in 3. */
+const WRITTEN = { timeout: 15_000 };
+const WRITE_TEST = 40_000;
+
+type KeywordImport = z.infer<typeof KEYWORD_IMPORT>;
+
+/** An import that is being written, 12 rows of 40 done: what a reload finds. */
+const WRITING: KeywordImport = {
+  import_id: '0192d1a8-e007-7a10-8e07-0000000009aa',
+  source: 'upload',
+  original_filename: 'keywords.csv',
+  status: 'writing',
+  column_mapping: { keyword: 'keyword' },
+  defaults: {},
+  counts: {
+    rows_total: 40,
+    new: 40,
+    duplicate: 0,
+    variant: 0,
+    conflict: 0,
+    invalid: 0,
+    created: 0,
+    skipped: 0,
+    merged: 0,
+  },
+  quota: null,
+  error_code: null,
+  created_by: { user_id: '0192d1a8-0000-7000-8000-000000000001', name: 'Mira Okafor', email: 'mira@fynix.io' },
+  created_at: '2026-10-05T09:00:00Z',
+  expires_at: '2026-10-12T09:00:00Z',
+  finished_at: null,
+  operation: {
+    kind: 'keyword_import',
+    status: 'running',
+    progress: { done: 12, total: 40, unit: 'rows' },
+    started_at: '2026-10-05T09:00:00Z',
+    finished_at: null,
+    error: null,
+    links: { self: '/api/v1/import' },
+  },
+};
+
+/** Pastes `text`, goes through Review and Confirm, and presses the last button. */
+async function importPaste(user: ProvidedRender['user'], text: string, button: string): Promise<void> {
+  const { dialog } = await openImport(user);
+  await user.click(within(dialog).getByRole('radio', { name: 'Paste' }));
+  await user.click(within(dialog).getByRole('textbox', { name: 'Keywords' }));
+  await user.paste(text);
+  await press(dialog, 'Continue');
+  await within(dialog).findByRole('heading', { name: 'New' }, PARSED);
+  await press(dialog, 'Continue');
+  await press(dialog, button);
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Import keywords' })).toBeNull());
+}
+
+describe('Import progress', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it(
+    'follows the write in the header, then offers the report and shows the new keywords',
+    async () => {
+      const clicked: { href: string | null; download: string }[] = [];
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        clicked.push({ href: this.getAttribute('href'), download: this.download });
+      });
+      const { user } = renderWithProviders(<Controlled changes={[]} />);
+      await loadedGrid();
+      await importPaste(user, 'rank tracker api\nbacklink watcher\nsite:example.com seo', 'Import 2 keywords');
+      const bar = await screen.findByRole('progressbar', { name: 'Importing keywords' });
+      expect(within(bar.parentElement ?? bar).getByText(/^\d+ of 3 rows$/)).toBeInTheDocument();
+      expect(await axe(bar.parentElement ?? bar)).toHaveNoViolations();
+
+      expect(await screen.findByText('Import finished: 2 added, 1 skipped', undefined, WRITTEN)).toBeInTheDocument();
+      expect(screen.queryByRole('progressbar', { name: 'Importing keywords' })).toBeNull();
+      // The list was read again: the new keywords are in the table
+      const grid = await loadedGrid();
+      await waitFor(() =>
+        expect(keywordsIn(grid)).toEqual(expect.arrayContaining(['rank tracker api', 'backlink watcher'])),
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Download report' }));
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date());
+      expect(clicked).toHaveLength(1);
+      expect(clicked[0]?.href).toMatch(
+        new RegExp(`^/api/v1/workspaces/[^/]+/projects/${fynix.project_id}/keyword-imports/[^/]+/report$`),
+      );
+      expect(clicked[0]?.download).toBe(`keyword-import-${today}.csv`);
+    },
+    WRITE_TEST,
+  );
+
+  it('picks up a write that is under way when the page opens', async () => {
+    server.use(
+      http.get(mswPath(IMPORTS), () =>
+        HttpResponse.json({ data: [WRITING], page: { limit: 1, next_cursor: null, has_more: false } }),
+      ),
+      http.get(mswPath(IMPORT), () => HttpResponse.json({ data: WRITING })),
+    );
+    renderWithProviders(<Controlled changes={[]} />);
+    await loadedGrid();
+    const bar = await screen.findByRole('progressbar', { name: 'Importing keywords' });
+    expect(bar).toHaveAttribute('aria-valuenow', '12');
+    expect(bar).toHaveAttribute('aria-valuemax', '40');
+    expect(within(bar.parentElement ?? bar).getByText('12 of 40 rows')).toBeInTheDocument();
+  });
+
+  it('says so, once, when a write it picked up cannot be read', async () => {
+    server.use(
+      http.get(mswPath(IMPORTS), () =>
+        HttpResponse.json({ data: [WRITING], page: { limit: 1, next_cursor: null, has_more: false } }),
+      ),
+      http.get(mswPath(IMPORT), ({ request }) => problem(request, 'not_found')),
+    );
+    renderWithProviders(<Controlled changes={[]} />);
+    await loadedGrid();
+    expect(
+      await screen.findAllByText('The import could not be followed. Reload the page to see how it went.'),
+    ).not.toHaveLength(0);
+    expect(screen.queryByRole('progressbar', { name: 'Importing keywords' })).toBeNull();
+  });
+
+  it('shows nothing for the write of a project that has none', async () => {
+    renderWithProviders(<Controlled changes={[]} />);
+    await loadedGrid();
+    expect(screen.queryByRole('progressbar', { name: 'Importing keywords' })).toBeNull();
+  });
+
+  it(
+    'says why a write failed',
+    async () => {
+      // By the time the header asks again, the mock has written the rows: it is the write that "failed"
+      answerImportAs((view) =>
+        view.status === 'writing' || view.status === 'completed'
+          ? {
+              ...view,
+              status: 'failed',
+              operation: {
+                ...view.operation,
+                status: 'failed',
+                error: { code: 'provider_down', detail: 'The disk is full' },
+              },
+            }
+          : view,
+      );
+      const { user } = renderWithProviders(<Controlled changes={[]} />);
+      await loadedGrid();
+      await importPaste(user, 'rank tracker api\nbacklink watcher', 'Import 2 keywords');
+      // An error toast is announced as well as shown, so the text is found twice
+      expect(await screen.findAllByText('Import failed: The disk is full', undefined, WRITTEN)).not.toHaveLength(0);
+      await waitFor(() => expect(screen.queryByRole('progressbar', { name: 'Importing keywords' })).toBeNull());
+    },
+    WRITE_TEST,
+  );
 });

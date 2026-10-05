@@ -33,6 +33,11 @@ export function formatTableDateTime(instant: Date | string, timeZone: string, no
   return sameYear(z, n) ? format(z, 'MMM d, HH:mm') : format(z, 'MMM d, yyyy, HH:mm');
 }
 
+/** The calendar date of an instant in the project timezone as "2026-09-29", for a name of a file. */
+export function formatIsoDate(instant: Date | string, timeZone: string): string {
+  return format(toZoned(instant, timeZone), 'yyyy-MM-dd');
+}
+
 /** Detail timestamp: "Sep 29, 2026 · 18:32 EDT". Used in inspectors, detail pages and exports headers. */
 export function formatDetailDateTime(instant: Date | string, timeZone: string, locale = DEFAULT_LOCALE): string {
   const z = toZoned(instant, timeZone);
