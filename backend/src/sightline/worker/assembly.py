@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sightline.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
 from sightline.collectors.dispatcher import SubmitBatch, dispatch
 from sightline.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
+from sightline.collectors.import_writer import write_next
 from sightline.collectors.imports import expire_imports, parse_next
 from sightline.collectors.keyword_metrics import (
     WORKLOAD as KEYWORD_METRICS,
@@ -249,6 +250,13 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         if not parsed.quiet:
             _log.info("keyword imports parsed", **asdict(parsed))
 
+    async def keyword_import_writes() -> None:
+        """Confirmed imports, written in batches. Apart from the reading tick, so a long write
+        never holds up a preview; it needs no bucket."""
+        written = await write_next(context.sessions)
+        if not written.quiet:
+            _log.info("keyword imports written", **asdict(written))
+
     async def send() -> None:
         now = await database_time(context.sessions)
         report = await dispatch(context.sessions, parts, sender, pauses, now=now)
@@ -275,6 +283,12 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             name="keyword_imports",
             interval=IMPORTS_EVERY,
             action=keyword_imports,
+            lock_ttl=IMPORTS_LOCK,
+        ),
+        Tick(
+            name="keyword_import_writes",
+            interval=IMPORTS_EVERY,
+            action=keyword_import_writes,
             lock_ttl=IMPORTS_LOCK,
         ),
     )

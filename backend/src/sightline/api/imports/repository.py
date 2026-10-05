@@ -276,6 +276,26 @@ async def set_actions(
             )
 
 
+async def merge_tracked_duplicates(db: AsyncSession, workspace_id: UUID, import_id: UUID) -> int:
+    """Turn the tracked duplicates still at `skip` into `merge` (confirming with
+    `merge_terms`). A repeat in the file stays skipped: its extras reach the keyword through the
+    first row. How many were changed."""
+    r = keyword_import_rows.c
+    changed = await db.execute(
+        update(keyword_import_rows)
+        .where(
+            r.workspace_id == workspace_id,
+            r.import_id == import_id,
+            r.outcome == "duplicate",
+            r.reason_code == "tracked",
+            r.action == "skip",
+        )
+        .values(action="merge")
+        .returning(r.row_no)
+    )
+    return len(changed.all())
+
+
 async def planned_writes(db: AsyncSession, workspace_id: UUID, import_id: UUID) -> int:
     """Tracked keywords the import would add to the quota: parts to create, and archived ones
     to bring back by merging."""

@@ -162,6 +162,9 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "row_actions": [{"row_no": 1, "action": "skip"}],
     },
     ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/cancel"): {},
+    ("POST", _W + "/projects/{project_id}/keyword-imports/{import_id}/confirm"): {
+        "duplicate_action": "merge_terms",
+    },
 }
 # Routes that take a file instead of JSON.
 UPLOADS = {("POST", _W + "/projects/{project_id}/keyword-imports/upload")}

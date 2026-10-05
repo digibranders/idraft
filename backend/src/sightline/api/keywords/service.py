@@ -60,6 +60,7 @@ from sightline.db import dictionaries
 from sightline.db.engine import workspace_transaction
 from sightline.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize
 from sightline.keywords import writer
+from sightline.keywords.links import one_per_single_valued_vocabulary, terms_to_add
 from sightline.keywords.text import KeywordRefusedError, check_keyword, normalize
 
 # Fields a change compares with the stored row; `target_url` is compared by its URL id.
@@ -325,37 +326,8 @@ def _check(
 def _terms_to_add(
     have: Sequence[TermRecord], wanted: Sequence[UUID], refs: _References
 ) -> list[TermRecord]:
-    """The wanted terms a keyword holding `have` can take, in order: not held already, and not
-    of a single-valued vocabulary in which it holds another term."""
-    held = {term.term_id for term in have}
-    taken = {term.vocabulary_id for term in have if term.is_single_valued}
-    found: list[TermRecord] = []
-    for term_id in wanted:
-        term = refs.terms[term_id]
-        if term_id in held or (term.is_single_valued and term.vocabulary_id in taken):
-            continue
-        found.append(term)
-        held.add(term_id)
-        if term.is_single_valued:
-            taken.add(term.vocabulary_id)
-    return found
-
-
-def _one_per_single_valued_vocabulary(
-    terms: Sequence[TermRecord],
-) -> tuple[list[TermRecord], list[UUID]]:
-    """The terms to keep (the first of each single-valued vocabulary, in the order given, and
-    every other term) and the ids of the rest."""
-    kept: list[TermRecord] = []
-    surplus: list[UUID] = []
-    seen: set[UUID] = set()
-    for term in terms:
-        if term.is_single_valued and term.vocabulary_id in seen:
-            surplus.append(term.term_id)
-            continue
-        seen.add(term.vocabulary_id)
-        kept.append(term)
-    return kept, surplus
+    """The wanted terms a keyword holding `have` can take (the rule is shared with imports)."""
+    return terms_to_add(have, [refs.terms[term_id] for term_id in wanted])
 
 
 def _two_in_a_single_valued_vocabulary(
@@ -1291,7 +1263,7 @@ class KeywordService:
         restored = [entry.tracked_keyword_id for entry, _ in written if entry.restored]
         stored = await repository.terms_of(db, access.workspace_id, restored) if restored else {}
         for tracked_id, terms in stored.items():
-            kept, surplus = _one_per_single_valued_vocabulary(terms)
+            kept, surplus = one_per_single_valued_vocabulary(terms)
             if surplus:
                 await repository.remove_terms(db, access.workspace_id, [tracked_id], surplus)
                 stored[tracked_id] = kept

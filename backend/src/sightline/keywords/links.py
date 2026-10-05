@@ -5,9 +5,9 @@ the worker bypasses row-level security, and the API's second line is this one.
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Protocol
 from uuid import UUID
 
 from sqlalchemy import Row, Select, and_, delete, func, select
@@ -48,6 +48,50 @@ class TermRecord:
     name: str
     path: str
     is_single_valued: bool
+
+
+class TermSlot(Protocol):
+    """What the one-term-per-single-valued-vocabulary rule needs to know of a term."""
+
+    @property
+    def term_id(self) -> UUID: ...
+
+    @property
+    def vocabulary_id(self) -> UUID: ...
+
+    @property
+    def is_single_valued(self) -> bool: ...
+
+
+def terms_to_add[T: TermSlot](have: Sequence[TermSlot], wanted: Sequence[T]) -> list[T]:
+    """The wanted terms a keyword holding `have` can take, in order: not held already, and not
+    of a single-valued vocabulary in which it holds another term."""
+    held = {term.term_id for term in have}
+    taken = {term.vocabulary_id for term in have if term.is_single_valued}
+    found: list[T] = []
+    for term in wanted:
+        if term.term_id in held or (term.is_single_valued and term.vocabulary_id in taken):
+            continue
+        found.append(term)
+        held.add(term.term_id)
+        if term.is_single_valued:
+            taken.add(term.vocabulary_id)
+    return found
+
+
+def one_per_single_valued_vocabulary[T: TermSlot](terms: Sequence[T]) -> tuple[list[T], list[UUID]]:
+    """The terms to keep (the first of each single-valued vocabulary, in the order given, and
+    every other term) and the ids of the rest."""
+    kept: list[T] = []
+    surplus: list[UUID] = []
+    seen: set[UUID] = set()
+    for term in terms:
+        if term.is_single_valued and term.vocabulary_id in seen:
+            surplus.append(term.term_id)
+            continue
+        seen.add(term.vocabulary_id)
+        kept.append(term)
+    return kept, surplus
 
 
 def terms_query() -> Select[tuple[object, ...]]:

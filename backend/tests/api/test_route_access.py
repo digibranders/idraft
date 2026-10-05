@@ -214,6 +214,10 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/cancel",
     ): "imports:write",
     (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/confirm",
+    ): "imports:write",
+    (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/report",
     ): "data:read",

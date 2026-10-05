@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from sightline.api.body_limit import (
     JSON_BODY_MAX_BYTES,
+    UPLOAD_FRAMING_BYTES,
     UPLOAD_MAX_BYTES,
     UPLOAD_PATH,
     BodyLimitMiddleware,
@@ -145,11 +146,19 @@ async def test_the_application_allows_an_upload_of_2_mb_and_refuses_one_over_50_
     path = "/api/v1/workspaces/w/projects/p/keyword-imports/upload"
 
     big = await api.post(path, content=b"x" * (2 * 1024 * 1024))
-    huge = await api.post(path, content=b"x" * (UPLOAD_MAX_BYTES + 1))
+    # A 50 MB file and the multipart framing around it fit; more than that does not.
+    huge = await api.post(path, content=b"x" * (UPLOAD_MAX_BYTES + UPLOAD_FRAMING_BYTES + 1))
+    # Another method on the path is a JSON request, whatever the path.
+    patch = await api.patch(
+        path,
+        content=_body(JSON_BODY_MAX_BYTES + 1),
+        headers={"content-type": "application/json"},
+    )
 
     # Not refused for its size (the sign-in comes first, then the missing parts).
     assert big.status_code != 413
     assert (huge.status_code, huge.json()["detail"]) == (413, "An upload is at most 50 MB.")
+    assert (patch.status_code, patch.json()["detail"]) == (413, "A request body is at most 1 MB.")
 
 
 async def test_paths_outside_the_api_are_not_limited(client: httpx.AsyncClient) -> None:

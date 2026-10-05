@@ -24,6 +24,11 @@ from sightline.keywords.writer import Device
 
 IMPORT_ROWS_MAX: Final = 10_000
 CELL_MAX: Final = 2000
+COLUMNS_MAX: Final = 100
+# A cell is at most as long as the file, which the API limits to 50 MiB. The reader's own limit
+# is 128 KiB, and a cell over it would fail the whole file instead of one row. The setting is
+# the process's, which only reads imports with it.
+csv.field_size_limit(64 * 1024 * 1024)
 FIELDS: Final = frozenset(
     {
         "keyword",
@@ -82,6 +87,28 @@ def _cut(cell: str) -> str:
     return cell[: CELL_MAX + 1]
 
 
+def storable(text: str) -> str:
+    """The text as the database can keep it: without NUL, and with a lone surrogate (which
+    UTF-8 cannot encode) turned into `?`. Rows keep what was typed otherwise."""
+    return text.replace("\x00", "").encode("utf-8", "replace").decode("utf-8")
+
+
+def _unstorable(cell: str) -> bool:
+    return "\x00" in cell or any(0xD800 <= ord(char) <= 0xDFFF for char in cell)
+
+
+def _headers_of(names: Sequence[str]) -> list[str]:
+    """The headers, stored; at most `COLUMNS_MAX`, so a row's cells cannot multiply the memory
+    a file takes."""
+    if len(names) > COLUMNS_MAX:
+        raise _too_wide()
+    return [storable(name) for name in names]
+
+
+def _too_wide() -> SourceError:
+    return SourceError("too_many_columns", f"An import has at most {COLUMNS_MAX} columns.")
+
+
 def _too_many() -> SourceError:
     return SourceError("too_many_rows", f"An import has at most {IMPORT_ROWS_MAX} rows.")
 
@@ -110,7 +137,7 @@ def read_csv(data: bytes) -> tuple[list[str], list[SourceRow]]:
         first = next(reader, None)
         if first is None or _blank(first):
             raise SourceError("no_header", "The file has no header row.")
-        headers = [header.strip() for header in first]
+        headers = _headers_of([header.strip() for header in first])
         named = [header for header in headers if header]
         if len({header.lower() for header in named}) != len(named):
             raise SourceError(
@@ -164,11 +191,20 @@ def read_api_rows(rows: Sequence[Mapping[str, str]]) -> tuple[list[str], list[So
     headers: dict[str, None] = {}
     read: list[SourceRow] = []
     for row_no, given in enumerate(rows, start=1):
-        headers.update(dict.fromkeys(given))
+        headers.update(dict.fromkeys(storable(header) for header in given))
+        if len(headers) > COLUMNS_MAX:
+            raise _too_wide()
         if _blank(list(given.values())):
             continue
-        read.append(SourceRow(row_no, {header: _cut(cell) for header, cell in given.items()}))
-    return list(headers), read
+        read.append(
+            SourceRow(row_no, {storable(header): _cut(cell) for header, cell in given.items()})
+        )
+    named = list(headers)
+    if len({header.strip().lower() for header in named}) != len(named):
+        raise SourceError(
+            "duplicate_headers", "Two columns have the same header, without regard to case."
+        )
+    return named, read
 
 
 def resolve_mapping(headers: Sequence[str], given: Mapping[str, str]) -> dict[str, str]:
@@ -287,14 +323,19 @@ def parse_row(
 ) -> ParsedRow | RowError:
     """One row, its cells keyed by field. A blank or missing cell takes its default. The first
     field that fails names the row's reason, in the order: a cell over `CELL_MAX` (in `raw`,
-    the whole source row, when given), keyword, location, language, device, priority, depth
-    profile, intent, funnel stage, target URL, group, tags, topic."""
-    if any(len(cell) > CELL_MAX for cell in (raw if raw is not None else cells).values()):
+    the whole source row, when given), keyword, a cell the database cannot keep, location,
+    language, device, priority, depth profile, intent, funnel stage, target URL, group, tags,
+    topic."""
+    seen = (raw if raw is not None else cells).values()
+    if any(len(cell) > CELL_MAX for cell in seen):
         return RowError("cell_too_long", f"A cell has at most {CELL_MAX} characters.")
     try:
         text = check_keyword(cells.get("keyword", ""))
     except KeywordRefusedError as refused:
         return RowError(refused.code, str(refused))
+    # The keyword's own refusal comes first; this is for a cell the database could not keep.
+    if any(_unstorable(cell) for cell in seen):
+        return RowError("cell_invalid", "A cell has a character that cannot be kept.")
 
     location = _location(cells, defaults, locations)
     if isinstance(location, RowError):

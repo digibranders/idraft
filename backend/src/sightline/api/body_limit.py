@@ -40,11 +40,18 @@ class LargerLimit:
 
     path: re.Pattern[str]
     limit: Limit
+    # The method that takes the file: another method on the same path is a JSON request, and
+    # has the JSON limit.
+    method: str = "POST"
 
 
-# Only the keyword import upload takes a file (docs/19 section 3.6.3).
+# Only the keyword import upload takes a file (docs/19 section 3.6.3). The body of the request
+# holds the file and the multipart framing around it and the options part.
 UPLOAD_PATH: Final = re.compile(r"/api/v1/workspaces/[^/]+/projects/[^/]+/keyword-imports/upload")
-UPLOADS: Final = (LargerLimit(UPLOAD_PATH, Limit(UPLOAD_MAX_BYTES, _UPLOAD_DETAIL)),)
+UPLOAD_FRAMING_BYTES: Final = 1024 * 1024
+UPLOADS: Final = (
+    LargerLimit(UPLOAD_PATH, Limit(UPLOAD_MAX_BYTES + UPLOAD_FRAMING_BYTES, _UPLOAD_DETAIL)),
+)
 
 
 class BodyLimitMiddleware:
@@ -63,9 +70,9 @@ class BodyLimitMiddleware:
         self.limit = Limit(max_bytes, _DETAIL)
         self.larger = tuple(larger)
 
-    def _limit_for(self, path: str) -> Limit:
+    def _limit_for(self, method: str, path: str) -> Limit:
         for route in self.larger:
-            if route.path.fullmatch(path):
+            if method == route.method and route.path.fullmatch(path):
                 return route.limit
         return self.limit
 
@@ -73,7 +80,7 @@ class BodyLimitMiddleware:
         if scope["type"] != "http" or not scope["path"].startswith(API_PREFIX):
             await self.app(scope, receive, send)
             return
-        limit = self._limit_for(scope["path"])
+        limit = self._limit_for(scope["method"], scope["path"])
         announced = Headers(scope=scope).get("content-length")
         if announced is not None and announced.isdigit() and int(announced) > limit.max_bytes:
             response = problem_response(

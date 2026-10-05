@@ -28,6 +28,7 @@ from sqlalchemy import (
     and_,
     any_,
     delete,
+    exists,
     func,
     insert,
     literal,
@@ -35,6 +36,7 @@ from sqlalchemy import (
     select,
     update,
 )
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.db.tables import keyword_import_rows, keyword_imports, locations, projects
@@ -51,6 +53,7 @@ from sightline.keywords.import_rows import (
     read_csv,
     read_paste,
     resolve_mapping,
+    storable,
 )
 from sightline.keywords.writer import WRITE_MAX, Device, Identity, keyword_texts, rows_of
 from sightline.storage.raw import ObjectStore, RawStorageError, decompress
@@ -61,6 +64,9 @@ _log = structlog.get_logger(__name__)
 _KIND: Final = {"upload": "csv", "paste": "paste", "api": "api"}
 # A source the bucket will not give back for this long is not the bucket's hiccup any more.
 SOURCE_GIVE_UP: Final = timedelta(hours=1)
+# What an import that cannot be read raises on every try, as opposed to the errors of the
+# database or the network, which the next tick may not meet again.
+BROKEN: Final = (DataError, IntegrityError, UnicodeError, LookupError, TypeError, ValueError)
 # Imports that wait for the user, and expire when nobody answers.
 WAITING: Final = ("uploaded", "needs_mapping", "preview_ready")
 ROWS_PER_INSERT: Final = 1000
@@ -89,6 +95,8 @@ class _Claimed:
     mapping: dict[str, str]
     defaults: dict[str, Any]
     age: timedelta
+    # It has been read into a preview before: a person changed it since.
+    had_rows: bool
 
 
 def _chunks[T](items: Sequence[T], size: int) -> Iterator[Sequence[T]]:
@@ -103,29 +111,43 @@ async def parse_next(
     parsed = failed = waiting = 0
     skip: set[UUID] = set()
     for _ in range(limit):
-        async with sessions() as db, db.begin():
-            claimed = await _claim(db, skip)
-            if claimed is None:
-                break
-            try:
-                payload = await _read_source(store, claimed)
-                await _preview(db, claimed, payload)
-            except RawStorageError as error:
-                _log.warning("import source not read", import_id=str(claimed.id), error=str(error))
-                if claimed.age > SOURCE_GIVE_UP:
-                    await _fail(db, claimed, "source_unreadable")
+        claimed: _Claimed | None = None
+        try:
+            async with sessions() as db, db.begin():
+                claimed = await _claim(db, skip)
+                if claimed is None:
+                    break
+                try:
+                    payload = await _read_source(store, claimed)
+                    await _preview(db, claimed, payload)
+                except RawStorageError as error:
+                    _log.warning(
+                        "import source not read", import_id=str(claimed.id), error=str(error)
+                    )
+                    # One that was read before is not given up on: the bucket is what failed.
+                    if claimed.age > SOURCE_GIVE_UP and not claimed.had_rows:
+                        await _fail(db, claimed, "source_unreadable")
+                        failed += 1
+                    else:
+                        skip.add(claimed.id)
+                        waiting += 1
+                except SourceError as error:
+                    await _fail(db, claimed, error.code)
+                    failed += 1
+                except _ProjectGoneError:
+                    await _fail(db, claimed, "project_gone")
                     failed += 1
                 else:
-                    skip.add(claimed.id)
-                    waiting += 1
-            except SourceError as error:
-                await _fail(db, claimed, error.code)
-                failed += 1
-            except _ProjectGoneError:
-                await _fail(db, claimed, "project_gone")
-                failed += 1
-            else:
-                parsed += 1
+                    parsed += 1
+        except BROKEN:
+            if claimed is None:
+                raise
+            # The transaction is rolled back, and the import would break the same way on every
+            # tick, ahead of every other import: it ends here.
+            _log.exception("import could not be parsed", import_id=str(claimed.id))
+            async with sessions() as db, db.begin():
+                await _fail(db, claimed, "parse_failed")
+            failed += 1
     return ParseReport(parsed=parsed, failed=failed, waiting=waiting)
 
 
@@ -159,6 +181,12 @@ async def _claim(db: AsyncSession, skip: set[UUID]) -> _Claimed | None:
             i.column_mapping,
             i.defaults,
             (func.now() - i.created_at).label("age"),
+            exists()
+            .where(
+                keyword_import_rows.c.workspace_id == i.workspace_id,
+                keyword_import_rows.c.import_id == i.id,
+            )
+            .label("had_rows"),
         )
         .where(i.status == "uploaded")
         .order_by(i.created_at, i.id)
@@ -179,6 +207,7 @@ async def _claim(db: AsyncSession, skip: set[UUID]) -> _Claimed | None:
         mapping={str(header): str(field) for header, field in (row.column_mapping or {}).items()},
         defaults=dict(row.defaults or {}),
         age=row.age,
+        had_rows=row.had_rows,
     )
 
 
@@ -214,8 +243,8 @@ def _names(path: object) -> tuple[str, ...]:
     return tuple(name.strip() for name in str(path).split("/")) if path else ()
 
 
-def _defaults(given: Mapping[str, Any], project: Any) -> Defaults:
-    """The import's defaults over the project's own."""
+def import_defaults(given: Mapping[str, Any], project: Any) -> Defaults:
+    """The import's defaults over the project's own (the parse and the write read rows alike)."""
     seo = (project.settings or {}).get("seo") or {}
 
     def vocabulary(name: str) -> UUID | None:
@@ -245,7 +274,7 @@ def _missing(fields: set[str], defaults: Defaults) -> str | None:
     return None
 
 
-async def _locations(
+async def locations_for(
     db: AsyncSession, cells: Sequence[Mapping[str, str]], default_location: int | None
 ) -> Locations:
     """The active locations the rows (and the default) name, and no others."""
@@ -334,7 +363,7 @@ async def _preview(db: AsyncSession, imp: _Claimed, payload: Mapping[str, Any]) 
     ).one_or_none()
     if project is None:
         raise _ProjectGoneError
-    defaults = _defaults(imp.defaults, project)
+    defaults = import_defaults(imp.defaults, project)
     await db.execute(
         delete(keyword_import_rows).where(
             keyword_import_rows.c.workspace_id == imp.workspace_id,
@@ -350,7 +379,7 @@ async def _preview(db: AsyncSession, imp: _Claimed, payload: Mapping[str, Any]) 
         {field: row.cells[header] for header, field in mapping.items() if header in row.cells}
         for row in source_rows
     ]
-    place = await _locations(db, fields, defaults.location_id)
+    place = await locations_for(db, fields, defaults.location_id)
     entries: list[_Valid | _Invalid] = []
     for source_row, cells in zip(source_rows, fields, strict=True):
         parsed = parse_row(cells, defaults, place, raw=source_row.cells)
@@ -523,8 +552,8 @@ def _row(
         "workspace_id": imp.workspace_id,
         "row_no": row_no,
         "part": part,
-        "raw": dict(raw),
-        "keyword_text": keyword_text,
+        "raw": {storable(header): storable(cell) for header, cell in raw.items()},
+        "keyword_text": None if keyword_text is None else storable(keyword_text),
         "normalized_text": normalized_text,
         "language_code": language_code,
         "device": device,

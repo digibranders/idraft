@@ -820,7 +820,9 @@ async def test_a_new_mapping_or_new_defaults_send_the_import_back_to_the_worker(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace, project, owner = await _owner(resources, migrated)
-    data = await created_import(api, workspace, project, owner)
+    # A file has columns to map; pasted lines have none.
+    made = await _upload(api, workspace, project, owner)
+    data = made.json()["data"]
     await preview(migrated, workspace, data["import_id"], _both_parts())
     url = imports_url(workspace, project, data["import_id"])
 

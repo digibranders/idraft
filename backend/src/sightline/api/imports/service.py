@@ -28,6 +28,7 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.api import audit
+from sightline.api.body_limit import UPLOAD_MAX_BYTES
 from sightline.api.imports import repository
 from sightline.api.imports.repository import ImportRecord, RowRecord
 from sightline.api.keywords import repository as keywords
@@ -38,6 +39,8 @@ from sightline.api.problems import (
     ForbiddenError,
     InvalidStateTransitionError,
     NotFoundError,
+    PayloadTooLargeError,
+    QuotaExceededError,
     StorageUnavailableError,
     UnsupportedMediaTypeError,
     invalid_field,
@@ -47,6 +50,7 @@ from sightline.api.request_info import RequestInfo
 from sightline.api.schemas.imports import (
     ImportDefaults,
     ImportOptions,
+    KeywordImportConfirm,
     KeywordImportCreate,
     KeywordImportUpdate,
     RowActionInput,
@@ -115,6 +119,12 @@ class RowPage:
     next_cursor: str | None
 
 
+def has_report(record: ImportRecord) -> bool:
+    """Whether there are rows to report on: the import reached a preview (the worker records
+    the counts with it), and was not ended by a failure, which drops them."""
+    return record.status not in NO_REPORT and "rows_total" in record.counts
+
+
 def allowed_actions(outcome: str, reason_code: str | None) -> frozenset[str]:
     """What a person may choose for a row (rule I6): create what is new, merge into what is
     tracked or archived, and skip anything. A repeat in the file and an invalid row can only
@@ -167,7 +177,9 @@ def _filename(given: str | None) -> str | None:
     """The file's name without any path it came with, at most `FILENAME_MAX` characters."""
     if not given:
         return None
-    name = _PATH_SEPARATORS.split(given)[-1].strip()[:FILENAME_MAX]
+    # No control characters: the name is shown, and a NUL cannot be stored.
+    shown = "".join(char for char in given if char.isprintable())
+    name = _PATH_SEPARATORS.split(shown)[-1].strip()[:FILENAME_MAX]
     return name or None
 
 
@@ -263,6 +275,17 @@ class ImportService:
                 message="A group is a path of names (Product/Pricing), at most 10 levels of "
                 "100 characters.",
             )
+        await self._check_vocabularies(db, access, project_id, defaults)
+
+    async def _check_vocabularies(
+        self,
+        db: AsyncSession,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        defaults: ImportDefaults,
+    ) -> None:
+        """The vocabularies the defaults name are ones this member may file terms under. Also
+        checked when a member other than the one who named them confirms the import."""
         for field, vocabulary_id in (
             ("tags_vocabulary_id", defaults.tags_vocabulary_id),
             ("topic_vocabulary_id", defaults.topic_vocabulary_id),
@@ -305,18 +328,21 @@ class ImportService:
         does not take the source."""
         if self._store is None:
             raise StorageUnavailableError("Imports need object storage, which is not set up.")
+        # The checks first, in a transaction of their own: the source goes to the bucket (up to
+        # 50 MB, and slow) while no database connection is held.
         async with self._transaction(access) as db:
             await self._project(db, access, project_id)
             await self._check_defaults(db, access, project_id, defaults)
-            import_id = uuid.uuid4()
-            key = f"imports/v1/{access.workspace_id}/{import_id}/source"
-            blob = await asyncio.to_thread(_pack, payload)
-            try:
-                await self._store.put(key, blob)
-            except RawStorageError:
-                raise StorageUnavailableError(
-                    "The source could not be stored. Try again."
-                ) from None
+        import_id = uuid.uuid4()
+        key = f"imports/v1/{access.workspace_id}/{import_id}/source"
+        blob = await asyncio.to_thread(_pack, payload)
+        try:
+            await self._store.put(key, blob)
+        except RawStorageError:
+            raise StorageUnavailableError("The source could not be stored. Try again.") from None
+        del blob
+        async with self._transaction(access) as db:
+            await self._project(db, access, project_id)
             stored_defaults = defaults.model_dump(mode="json", exclude_none=True)
             await repository.insert_import(
                 db,
@@ -398,6 +424,8 @@ class ImportService:
         """A CSV file, with options that map its columns and give defaults."""
         if not _is_csv(content_type, filename):
             raise UnsupportedMediaTypeError("An import file is CSV (text/csv).")
+        if len(data) > UPLOAD_MAX_BYTES:
+            raise PayloadTooLargeError("An upload is at most 50 MB.", limit_bytes=UPLOAD_MAX_BYTES)
         mapping = {header: field.value for header, field in (options.column_mapping or {}).items()}
         if errors := _mapping_errors(mapping):
             raise invalid_fields(errors)
@@ -517,7 +545,18 @@ class ImportService:
                 self._open(current)
                 values: dict[str, Any] = {"status": "uploaded"}
                 if mapping is not None:
+                    if current.source == "paste":
+                        raise invalid_field(
+                            "column_mapping",
+                            code="not_applicable",
+                            message="Pasted lines have a keyword and tags, and nothing to map.",
+                        )
                     values["column_mapping"] = mapping
+                    if body.defaults is None:
+                        # A mapping can point a column at the vocabularies the defaults name.
+                        await self._check_vocabularies(
+                            db, access, project_id, ImportDefaults.model_validate(current.defaults)
+                        )
                 if body.defaults is not None:
                     await self._check_defaults(db, access, project_id, body.defaults)
                     values["defaults"] = body.defaults.model_dump(mode="json", exclude_none=True)
@@ -534,6 +573,64 @@ class ImportService:
                 after={
                     "changed": changed,
                     "row_actions": len(body.row_actions or ()),
+                },
+            )
+            record = await self._import(db, access, project_id, import_id)
+            return await self._detail(db, access, record)
+
+    async def confirm(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        import_id: UUID,
+        body: KeywordImportConfirm,
+        info: RequestInfo,
+    ) -> ImportDetail:
+        """Hand a ready preview to the worker, which writes it (rule I7). Whether the import
+        fits the workspace's limit is judged under the quota lock, so it agrees with writers
+        that run at the same time; the worker judges each batch again."""
+        async with self._transaction(access) as db:
+            current = await self._import(db, access, project_id, import_id, lock=True)
+            if current.status != "preview_ready" or current.past_expiry:
+                raise InvalidStateTransitionError(
+                    f"The import is {current.status}; only a ready preview can be confirmed."
+                )
+            # The terms are made under the member's name: the vocabularies must be theirs to use.
+            await self._check_vocabularies(
+                db, access, project_id, ImportDefaults.model_validate(current.defaults)
+            )
+            if body.duplicate_action == "merge_terms":
+                await repository.merge_tracked_duplicates(db, access.workspace_id, import_id)
+            limit, used = await writer.lock_quota(db, access.workspace_id)
+            planned = await repository.planned_writes(db, access.workspace_id, import_id)
+            try:
+                writer.check_quota(limit, used, planned)
+            except writer.QuotaExceededError:
+                raise QuotaExceededError(
+                    f"The workspace tracks {used} of {limit} keywords; {planned} more do not fit.",
+                    limit=limit,
+                    used=used,
+                    requested=planned,
+                ) from None
+            await repository.update_import(
+                db,
+                access.workspace_id,
+                import_id,
+                {"status": "writing", "duplicate_action": body.duplicate_action},
+            )
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="keyword_import.confirmed",
+                target_type="keyword_import",
+                target_id=import_id,
+                info=info,
+                before={"status": current.status},
+                after={
+                    "status": "writing",
+                    "duplicate_action": body.duplicate_action,
+                    "planned_writes": planned,
                 },
             )
             record = await self._import(db, access, project_id, import_id)
@@ -626,7 +723,7 @@ class ImportService:
         """One CSV line per row: what it was, what was chosen, what became of it."""
         async with self._transaction(access) as db:
             record = await self._import(db, access, project_id, import_id)
-            if record.status in NO_REPORT:
+            if not has_report(record):
                 raise InvalidStateTransitionError("There is nothing to report on yet.")
             rows = await repository.list_rows(
                 db,

@@ -3086,6 +3086,23 @@
         "title": "KeywordImport",
         "type": "object"
       },
+      "KeywordImportConfirm": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate_action": {
+            "default": "skip",
+            "description": "For rows left at the default action: `merge_terms` merges groups and terms into the duplicate.",
+            "enum": [
+              "skip",
+              "merge_terms"
+            ],
+            "title": "Duplicate Action",
+            "type": "string"
+          }
+        },
+        "title": "KeywordImportConfirm",
+        "type": "object"
+      },
       "KeywordImportCreate": {
         "additionalProperties": false,
         "description": "`paste`: one keyword per line, tags after a TAB. `api`: `rows`, each a field to value\nmap.",
@@ -13996,6 +14013,80 @@
           }
         },
         "summary": "Cancel an import before it writes",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/confirm": {
+      "post": {
+        "description": "The worker writes the rows in batches of 1,000 (`status: 'writing'`); poll the import until it is `completed` or `completed_with_errors`, then read the report. `duplicate_action: 'merge_terms'` merges the groups and terms of rows left at `skip` into the keywords they duplicate. `409 invalid_state_transition` unless the preview is ready and has not expired; `422 quota_exceeded` (with `limit`, `used`, `requested`) when the rows to create and the archived keywords to bring back do not fit, and nothing changes.",
+        "operationId": "confirm_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports__import_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordImportConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Confirm a ready preview and have it written",
         "tags": [
           "imports"
         ]

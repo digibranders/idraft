@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
-from sightline.api.imports.service import ImportDetail, ImportService
+from sightline.api.imports.service import ImportDetail, ImportService, has_report
 from sightline.api.pagination import Commas, Cursor, CursorPageInfo
 from sightline.api.permissions import Permission
 from sightline.api.problems import invalid_field
@@ -29,6 +29,7 @@ from sightline.api.schemas.imports import (
     ImportRowPage,
     ImportStatus,
     KeywordImport,
+    KeywordImportConfirm,
     KeywordImportCreate,
     KeywordImportPage,
     KeywordImportResponse,
@@ -73,6 +74,9 @@ _FAILURES: Final[Mapping[str, str]] = {
     "no_header": "The file has no header row.",
     "duplicate_headers": "Two columns have the same header, without regard to case.",
     "too_many_rows": "An import has at most 10,000 rows.",
+    "too_many_columns": "An import has at most 100 columns.",
+    "parse_failed": "The source could not be read. Upload it again.",
+    "write_failed": "The write stopped on an error. The report shows what was written.",
     "source_corrupt": "The stored source could not be read. Upload the file again.",
     "source_unreadable": "The stored source could not be fetched. Upload the file again.",
     "project_gone": "The project was deleted.",
@@ -80,10 +84,6 @@ _FAILURES: Final[Mapping[str, str]] = {
 }
 _COUNTS: Final = ("rows_total", "new", "duplicate", "variant", "conflict", "invalid")
 _RESULTS: Final = ("created", "skipped", "merged")
-# Statuses of a preview that was made, whatever became of it.
-_HAS_ROWS: Final = frozenset(
-    {"preview_ready", "writing", "completed", "completed_with_errors", "cancelled", "expired"}
-)
 _OPEN: Final = frozenset({"uploaded", "needs_mapping", "preview_ready"})
 _WAITING_FOR_ROWS: Final = frozenset({"uploaded", "parsing", "needs_mapping"})
 
@@ -150,7 +150,7 @@ def import_view(detail: ImportDetail, workspace_id: UUID) -> KeywordImport:
                 error=error,
                 links=OperationLinks(
                     self=base,
-                    result=f"{base}/report" if record.status in _HAS_ROWS else None,
+                    result=f"{base}/report" if has_report(record) else None,
                     cancel=f"{base}/cancel" if record.status in _OPEN else None,
                 ),
             ),
@@ -329,6 +329,29 @@ async def update_import(
     info: Info,
 ) -> KeywordImportResponse:
     detail = await imports.update(access, project_id, import_id, body, info)
+    return KeywordImportResponse(data=import_view(detail, access.workspace_id))
+
+
+@router.post(
+    "/{import_id}/confirm",
+    status_code=202,
+    summary="Confirm a ready preview and have it written",
+    description="The worker writes the rows in batches of 1,000 (`status: 'writing'`); poll the "
+    "import until it is `completed` or `completed_with_errors`, then read the report. "
+    "`duplicate_action: 'merge_terms'` merges the groups and terms of rows left at `skip` into "
+    "the keywords they duplicate. `409 invalid_state_transition` unless the preview is ready "
+    "and has not expired; `422 quota_exceeded` (with `limit`, `used`, `requested`) when the "
+    "rows to create and the archived keywords to bring back do not fit, and nothing changes.",
+)
+async def confirm_import(
+    project_id: UUID,
+    import_id: UUID,
+    body: KeywordImportConfirm,
+    access: WriteImports,
+    imports: Imports,
+    info: Info,
+) -> KeywordImportResponse:
+    detail = await imports.confirm(access, project_id, import_id, body, info)
     return KeywordImportResponse(data=import_view(detail, access.workspace_id))
 
 
