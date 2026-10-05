@@ -23,9 +23,17 @@ from sqlalchemy import (
     tuple_,
     update,
 )
+from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.db.tables import collection_runs, collection_tasks, tracked_keywords, users
+from sightline.db.tables import (
+    collection_runs,
+    collection_tasks,
+    tracked_keywords,
+    users,
+    workspace_quotas,
+)
+from sightline.providers.dataforseo.serp import SERP_ORGANIC_LIVE
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +242,72 @@ async def tracked_keyword_ids(
         )
     )
     return {row.keyword_id for row in rows}
+
+
+async def active_tracked_ids(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, tracked_ids: Collection[UUID]
+) -> set[UUID]:
+    """The tracked keywords among these that the project collects: not archived, not deleted."""
+    t = tracked_keywords.c
+    rows = await db.execute(
+        select(t.id).where(
+            t.workspace_id == workspace_id,
+            t.project_id == project_id,
+            t.deleted_at.is_(None),
+            t.is_active,
+            t.id.in_(list(tracked_ids)),
+        )
+    )
+    return {row.id for row in rows}
+
+
+async def lock_serp_check_limit(db: AsyncSession, workspace_id: UUID) -> int:
+    """The workspace's monthly limit of live SERP checks, its quota row locked until the
+    transaction ends, so two requests count one after the other. A workspace without a row
+    gets the defaults."""
+    await db.execute(
+        upsert(workspace_quotas).values(workspace_id=workspace_id).on_conflict_do_nothing()
+    )
+    limit: int = (
+        await db.execute(
+            select(workspace_quotas.c.max_serp_checks_per_month)
+            .where(workspace_quotas.c.workspace_id == workspace_id)
+            .with_for_update(key_share=True)
+        )
+    ).scalar_one()
+    return limit
+
+
+async def live_serp_checks_since(db: AsyncSession, workspace_id: UUID, since: datetime) -> int:
+    """Live SERP checks the workspace has asked for since `since`: the tasks that were made
+    (one that was cancelled never reached the provider), and the keywords of runs not yet
+    planned into tasks."""
+    t, r = collection_tasks.c, collection_runs.c
+    made: int = (
+        await db.execute(
+            select(func.count()).where(
+                t.workspace_id == workspace_id,
+                t.provider_endpoint == SERP_ORGANIC_LIVE,
+                t.created_at >= since,
+                t.status.not_in(("cancelled", "skipped_cached")),
+            )
+        )
+    ).scalar_one()
+    selector = r.config_snapshot["selector"]
+    waiting: int = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(func.jsonb_array_length(selector["tracked_keyword_ids"])), 0)
+            ).where(
+                r.workspace_id == workspace_id,
+                r.status == "planned",
+                r.workload == "seo_rank",
+                selector["live"].as_boolean().is_(True),
+                r.created_at >= since,
+            )
+        )
+    ).scalar_one()
+    return made + waiting
 
 
 async def insert_manual_run(

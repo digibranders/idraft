@@ -43,9 +43,9 @@ from sightline.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, Data
 from sightline.providers.dataforseo.locations import fetch_locations
 from sightline.providers.dataforseo.provider import CODE as DATAFORSEO
 from sightline.providers.dataforseo.provider import DataForSeo
+from sightline.providers.pauses import RedisPauses
 from sightline.worker.app import WorkerContext
 from sightline.worker.limiter import RedisCallGate
-from sightline.worker.pauses import RedisPauses
 from sightline.worker.queues import Queues
 from sightline.worker.ticks import Tick
 

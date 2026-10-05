@@ -65,6 +65,7 @@ from sightline.config.settings import Settings, load_settings
 from sightline.db.engine import create_engine, create_session_factory
 from sightline.db.migrate import migration_state
 from sightline.providers.email import EmailSender, build_email_sender
+from sightline.providers.pauses import RedisPauses
 from sightline.storage.raw import ObjectStore, RawStore, open_raw_store
 
 REDIS_TIMEOUT_SECONDS = 1.0
@@ -176,7 +177,7 @@ def create_app(
                 taxonomy=TaxonomyService(sessions=sessions),
                 keywords=KeywordService(sessions=sessions),
                 keyword_groups=GroupService(sessions=sessions),
-                runs=RunService(sessions=sessions),
+                runs=RunService(sessions=sessions, pauses=RedisPauses(redis)),
                 schedules=ScheduleService(sessions=sessions),
                 project_settings=SettingsService(sessions=sessions),
                 costs=CostService(sessions=sessions),

@@ -16,7 +16,7 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any, Final
+from typing import Any, Final, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -46,7 +46,7 @@ from sightline.domain.workloads import TaskWorkload
 from sightline.keywords.trees import descendants
 from sightline.providers.contract import CanonicalRequest
 from sightline.providers.dataforseo.provider import CODE as DATAFORSEO
-from sightline.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
+from sightline.providers.dataforseo.serp import SERP_ORGANIC, SERP_ORGANIC_LIVE, SerpOrganicParams
 from sightline.ranks.depth import UNAVAILABLE, depth_for, pages
 
 WORKLOAD: Final = TaskWorkload.SEO_RANK
@@ -235,9 +235,15 @@ async def select_subjects(
     if priority_lte is not None:
         narrowed = True
         statement = statement.where(t.priority <= int(priority_lte))
-    if not (new or selector.get("all") or narrowed):
+    chosen = selector.get("tracked_keyword_ids")
+    if chosen:
+        # Check now: these keywords, whatever their schedule or what ran today.
+        statement = statement.where(t.id.in_(_uuids(chosen)))
+    if not (new or chosen or selector.get("all") or narrowed):
         return []
-    if new:
+    if chosen:
+        pass
+    elif new:
         statement = statement.where(~_has_snapshot(), ~_recent_task(window.window_start))
     else:
         if window.schedule_id is not None:
@@ -250,9 +256,14 @@ async def select_subjects(
 
     deep_day = is_deep_day(day, zone.deep_check_weekday)
     found: list[Subject] = []
+    asked_depth = selector.get("depth") if chosen else None
     for row in await db.execute(statement):
-        depth = depth_for(row.depth_profile, deep_day=deep_day)
-        if depth is None and new:
+        depth = (
+            int(asked_depth)
+            if asked_depth is not None
+            else depth_for(row.depth_profile, deep_day=deep_day)
+        )
+        if depth is None and (new or chosen):
             # A keyword with no check today (a weekly profile) still gets its first one now.
             depth = depth_for(row.depth_profile, deep_day=True)
         if depth is not None:
@@ -260,9 +271,12 @@ async def select_subjects(
     return sorted(found, key=lambda s: (s.location_id, str(s.tracked_keyword_id)))
 
 
-def queue_of(provider_mode: str) -> str:
-    """The DataForSEO queue a window's tasks go to: the priority queue only when the schedule
-    chose it. A manual run, whatever its mode, is a standard task."""
+def queue_of(provider_mode: str, selector: Mapping[str, Any] | None = None) -> str:
+    """The DataForSEO queue a window's tasks go to: the live call when the run was asked for
+    it (check now), the priority queue only when the schedule chose it. A manual run, whatever
+    its mode, is otherwise a standard task."""
+    if selector is not None and selector.get("live"):
+        return "live"
     return "priority" if provider_mode == "priority_queue" else "standard"
 
 
@@ -300,12 +314,15 @@ async def estimate(
         _log.error("no price for SERP pages", queue=queue, on=on.isoformat())
         return None
     total = sum((pages(s.depth) for s in subjects), 0) * page
+    if queue == "live":
+        return total  # a live answer carries the AI Overview with it
     return total + len(subjects) * (page if surcharge is None else surcharge)
 
 
 def _due(window: ScheduleWindow, subject: Subject) -> datetime:
     """When a task is due. A schedule's tasks are spread over its window; a manual run (the
-    first check of a new keyword) has someone waiting, so its tasks are due at once."""
+    first check of a new keyword, or check now) has someone waiting, so its tasks are due at
+    once."""
     if window.schedule_id is None:
         return window.window_start
     return scheduled_for(
@@ -319,7 +336,8 @@ def _due(window: ScheduleWindow, subject: Subject) -> datetime:
 def new_tasks(subjects: Sequence[Subject], window: ScheduleWindow) -> list[NewTask]:
     """One task per subject, each at its own place in the window: the same place every run, so
     a keyword is checked at about the same local time every day."""
-    queue = queue_of(window.provider_mode)
+    queue = queue_of(window.provider_mode, window.selector)
+    endpoint = SERP_ORGANIC_LIVE if queue == "live" else SERP_ORGANIC
     return [
         NewTask(
             subject_type=SUBJECT_TYPE,
@@ -332,7 +350,7 @@ def new_tasks(subjects: Sequence[Subject], window: ScheduleWindow) -> list[NewTa
                 f"{subject.tracked_keyword_id}:{subject.depth}:{subject.location_id}:{queue}".encode()
             ).digest(),
             provider_code=DATAFORSEO,
-            provider_endpoint=SERP_ORGANIC,
+            provider_endpoint=endpoint,
             scheduled_for=_due(window, subject),
         )
         for subject in subjects
@@ -347,7 +365,7 @@ class SeoRankWorkload:
 
     async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
         subjects = await select_subjects(db, window)
-        queue = queue_of(window.provider_mode)
+        queue = queue_of(window.provider_mode, window.selector)
         cost = await estimate(db, subjects, queue=queue, on=window.window_start.date())
         snapshot: dict[str, Any] = {
             "adapter": ADAPTER,
@@ -394,7 +412,7 @@ class SeoRankWorkload:
                     device=row.device,
                     os=row.os,
                     depth=depth,
-                    queue="priority" if queues.get(task.run_id) == "priority" else "standard",
+                    queue=_queue_literal(queues.get(task.run_id)),
                 )
             except ValidationError as error:
                 # One keyword the provider would refuse (an operating system of the other
@@ -409,6 +427,15 @@ class SeoRankWorkload:
                 params=params,
             )
         return requests
+
+
+def _queue_literal(queue: str | None) -> Literal["standard", "priority", "live"]:
+    """A run's recorded queue as the request's: anything but priority or live is standard."""
+    if queue == "priority":
+        return "priority"
+    if queue == "live":
+        return "live"
+    return "standard"
 
 
 @dataclass(frozen=True, slots=True)

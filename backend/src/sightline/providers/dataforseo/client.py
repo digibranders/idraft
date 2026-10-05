@@ -54,6 +54,8 @@ FAMILY_LIMITS: Final = {
     # Labs live calls: DataForSEO takes 30 at once per account; a call of 700 keywords takes
     # seconds, so this keeps well under that (docs/01 section 2.2).
     "labs_live": Limit(per_minute=60, burst=10),
+    # Live SERP calls (check now): one search a call, so a hundred keywords are a hundred calls.
+    "serp_live": Limit(per_minute=120, burst=20),
 }
 # How long a call waits for its turn before it is given up without being made.
 TURN_WAIT: Final = timedelta(seconds=30)

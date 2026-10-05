@@ -4,11 +4,13 @@ example 4.2; plan Task 8)."""
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from sightline.api.pagination import CursorPageInfo
+from sightline.api.schemas.common import Body
 from sightline.api.schemas.entities import EntityRef
 from sightline.api.schemas.keywords import AioState, RankCell, UrlRef
 from sightline.api.schemas.metrics import MetricValue, Usd
@@ -280,3 +282,15 @@ class RankEventOut(BaseModel):
 class RankEventPage(BaseModel):
     data: list[RankEventOut]
     page: CursorPageInfo
+
+
+CHECK_NOW_MAX = 100
+
+
+class CheckNow(Body):
+    """Keywords to check at once, each a live search of its own."""
+
+    tracked_keyword_ids: Annotated[list[UUID], Field(min_length=1, max_length=CHECK_NOW_MAX)]
+    depth: Literal[10, 20, 50, 100] | None = Field(
+        default=None, description="Results to look at; default: each keyword's daily depth."
+    )

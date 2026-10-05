@@ -12,6 +12,8 @@ shortened so a test takes seconds.
 from __future__ import annotations
 
 import asyncio
+import json
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -27,6 +29,7 @@ from sightline.collectors.seo_rank import SeoRankWorkload, is_deep_day
 from sightline.config.settings import Settings
 from sightline.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
 from sightline.providers.dataforseo.provider import DataForSeo
+from sightline.providers.dataforseo.serp import LIVE_PATH
 from sightline.worker import assembly
 from sightline.worker.app import WorkerContext, run_worker
 from sightline.worker.limiter import RedisCallGate
@@ -71,8 +74,12 @@ class FakeSerp(FakeDataForSeo):
         super().__init__()
         self.relist = False
         self.gets: list[str] = []
+        # The bodies of the live calls made.
+        self.live: list[dict[str, Any]] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path == LIVE_PATH:
+            return self._live(request)
         if self.relist and request.url.path == f"{BASE}/tasks_ready":
             ready = [
                 {"id": task_id, "tag": posted.task["tag"], "se": "google"}
@@ -85,6 +92,16 @@ class FakeSerp(FakeDataForSeo):
         self.gets.append(task_id)
         posted = self.tasks[task_id]
         posted.fetched = True
+        return self._answer(task_id, posted.task, cost=0.0006)
+
+    def _live(self, request: httpx.Request) -> httpx.Response:
+        """A live call: the search is posted and answered in one, and nothing is left to
+        fetch."""
+        (task,) = json.loads(request.content)
+        self.live.append(task)
+        return self._answer(str(uuid.uuid4()), task, cost=0.01)
+
+    def _answer(self, task_id: str, task: dict[str, Any], *, cost: float) -> httpx.Response:
         items = [
             {
                 "type": "organic",
@@ -101,7 +118,7 @@ class FakeSerp(FakeDataForSeo):
         ]
         result = [
             {
-                "keyword": posted.task["keyword"],
+                "keyword": task["keyword"],
                 "type": "organic",
                 "se_domain": "google.com",
                 "datetime": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S +00:00"),
@@ -110,7 +127,7 @@ class FakeSerp(FakeDataForSeo):
                 "items": items,
             }
         ]
-        answer = task_answer(task_id=task_id, result=result, data=posted.task, cost=0.0006)
+        answer = task_answer(task_id=task_id, result=result, data=task, cost=cost)
         return httpx.Response(200, json=envelope([answer]))
 
     def depths(self) -> list[int]:
@@ -271,3 +288,69 @@ async def test_a_submission_whose_answer_was_lost_is_found_and_ingested_once(
     )
     assert snapshots[0]["n"] == 2
     assert api.depths() == ([100, 100] if _expected_deep_day() else [20, 20])
+
+
+async def test_check_now_asks_the_provider_live_and_ingests_the_answer_once(
+    settings: Settings,
+    redis: Redis,
+    migrated: PostgresServer,
+    object_server: ObjectServer,
+    bucket: str,
+) -> None:
+    await empty_ledger(migrated)
+    world = await make_world(migrated)
+    keyword = await track(migrated, world.project, "Best CRM")
+    # What `POST .../seo/check-now` records: the worker plans and sends it.
+    selector = {"tracked_keyword_ids": [str(keyword)], "live": True, "depth": 50}
+    await fetch(
+        migrated,
+        "INSERT INTO ops.collection_runs (workspace_id, project_id, workload, window_start, "
+        "window_end, trigger, status, created_by_type, created_by_id, config_snapshot) VALUES "
+        "($1, $2, 'seo_rank', now(), now() + interval '1 hour', 'manual', 'planned', 'user', "
+        "'00000000-0000-0000-0000-000000000001', $3::jsonb) RETURNING id",
+        world.project.workspace_id,
+        world.project.id,
+        json.dumps({"selector": selector}),
+    )
+    api = FakeSerp()
+
+    async def ingested() -> bool:
+        return len(await _states(migrated, world)) == 1
+
+    await _run_until(settings, api, done=ingested)
+
+    # One live call, with the search and nothing only `task_post` takes, and nothing to fetch.
+    # The system does not also make the first check of the keyword: this one is it.
+    assert (api.posts, api.gets) == ([], [])
+    (called,) = api.live
+    assert called["keyword"] == "Best CRM"
+    assert called["depth"] == 50
+    assert not {"tag", "priority"} & called.keys()
+    tasks = await fetch(
+        migrated,
+        "SELECT provider_endpoint, ready_source, status, cost_usd FROM ops.collection_tasks "
+        "WHERE project_id = $1 ORDER BY provider_endpoint",
+        world.project.id,
+    )
+    assert [(t["provider_endpoint"], t["ready_source"], t["status"]) for t in tasks] == [
+        ("serp/google/organic/live", "live", "ingested")
+    ]
+    assert tasks[0]["cost_usd"] == Decimal("0.010000")
+    (run,) = await fetch(
+        migrated,
+        "SELECT status, tasks_succeeded, tasks_total FROM ops.collection_runs "
+        "WHERE project_id = $1 AND created_by_type = 'user'",
+        world.project.id,
+    )
+    assert (run["status"], run["tasks_succeeded"], run["tasks_total"]) == ("completed", 1, 1)
+    snapshot = await fetch(
+        migrated,
+        "SELECT s.depth_requested, s.cost_usd FROM seo.serp_snapshots s "
+        "JOIN ops.collection_tasks t ON t.id = s.collection_task_id "
+        "WHERE t.provider_endpoint = 'serp/google/organic/live'",
+    )
+    assert [(row["depth_requested"], row["cost_usd"]) for row in snapshot] == [
+        (50, Decimal("0.010000"))
+    ]
+    (state,) = await _states(migrated, world)
+    assert state["current_rank"] == 3

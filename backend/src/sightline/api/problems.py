@@ -304,6 +304,12 @@ class ServiceUnavailableError(ProblemError):
     status, code, title = 503, "service_unavailable", "Service unavailable"
 
 
+class ProviderPausedError(ProblemError):
+    """A data provider that is refusing everyone is not asked for now; the pause ends by itself."""
+
+    status, code, title = 503, "provider_paused", "The data provider is paused"
+
+
 class QueryTimeoutError(ProblemError):
     status, code, title = 503, "query_timeout", "The request took too long"
 

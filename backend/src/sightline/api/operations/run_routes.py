@@ -39,6 +39,7 @@ from sightline.api.schemas.operations import (
     Trigger,
     Workload,
 )
+from sightline.api.schemas.ranks import CheckNow
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.api.workspaces.dependencies import require_permission
 
@@ -148,6 +149,27 @@ async def refresh_keyword_metrics(
     project_id: UUID, body: MetricsRefresh, access: TriggerRuns, runs: Runs, info: Info
 ) -> RunResponse:
     record = await runs.refresh_metrics(access, project_id, body, info)
+    return RunResponse(data=run_view(record, access.workspace_id))
+
+
+@router.post(
+    "/seo/check-now",
+    status_code=202,
+    summary="Check keywords now (a manual run, asked of the provider live)",
+    description="The given tracked keywords (at most 100, which the project collects; "
+    "`422 validation_failed` with `keyword_unknown` otherwise), each asked of the provider "
+    "live, at `depth` or else its daily depth. The run is `planned` and the worker plans it "
+    "within a minute; a result is normally there within seconds after that. Read the run for "
+    "its progress and the keywords' rank for the answer. A budget used up blocks it "
+    "(`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with "
+    "`limit`; `422 quota_exceeded` when the month's live checks would pass the workspace's "
+    "`max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every "
+    "request.",
+)
+async def check_now(
+    project_id: UUID, body: CheckNow, access: TriggerRuns, runs: Runs, info: Info
+) -> RunResponse:
+    record = await runs.check_now(access, project_id, body, info)
     return RunResponse(data=run_view(record, access.workspace_id))
 
 

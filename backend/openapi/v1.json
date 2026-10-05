@@ -1070,6 +1070,45 @@
         "title": "BulkUpdateResult",
         "type": "object"
       },
+      "CheckNow": {
+        "additionalProperties": false,
+        "description": "Keywords to check at once, each a live search of its own.",
+        "properties": {
+          "depth": {
+            "anyOf": [
+              {
+                "enum": [
+                  10,
+                  20,
+                  50,
+                  100
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Results to look at; default: each keyword's daily depth.",
+            "title": "Depth"
+          },
+          "tracked_keyword_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Tracked Keyword Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tracked_keyword_ids"
+        ],
+        "title": "CheckNow",
+        "type": "object"
+      },
       "CompetitorOverride": {
         "properties": {
           "entity": {
@@ -17679,6 +17718,70 @@
           }
         },
         "summary": "Resume a schedule",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/check-now": {
+      "post": {
+        "description": "The given tracked keywords (at most 100, which the project collects; `422 validation_failed` with `keyword_unknown` otherwise), each asked of the provider live, at `depth` or else its daily depth. The run is `planned` and the worker plans it within a minute; a result is normally there within seconds after that. Read the run for its progress and the keywords' rank for the answer. A budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; `422 quota_exceeded` when the month's live checks would pass the workspace's `max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every request.",
+        "operationId": "check_now_api_v1_workspaces__workspace_id__projects__project_id__seo_check_now_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckNow"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Check keywords now (a manual run, asked of the provider live)",
         "tags": [
           "operations"
         ]

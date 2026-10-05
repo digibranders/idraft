@@ -25,7 +25,7 @@ from sightline.collectors.seo_rank import (
 )
 from sightline.collectors.seo_rank_ingest import ingest
 from sightline.domain.workloads import TaskWorkload
-from sightline.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
+from sightline.providers.dataforseo.serp import SERP_ORGANIC, SERP_ORGANIC_LIVE, SerpOrganicParams
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.api.keywords.support import OTHER_LOCATION
 from tests.collectors.rank_support import Ledger, World, answer, fetched_task, make_world, track
@@ -143,6 +143,12 @@ def test_the_local_day_follows_the_zone_across_a_clock_change() -> None:
 def test_only_a_schedule_that_chose_the_priority_queue_uses_it() -> None:
     assert queue_of("priority_queue") == "priority"
     assert {queue_of(mode) for mode in ("standard_queue", "live")} == {"standard"}
+
+
+def test_a_run_that_asked_for_a_live_check_uses_the_live_call_whatever_its_mode() -> None:
+    assert {queue_of(mode, {"live": True}) for mode in ("standard_queue", "live")} == {"live"}
+    assert queue_of("priority_queue", {"live": False}) == "priority"
+    assert queue_of("standard_queue", {"all": True}) == "standard"
 
 
 # Planning.
@@ -322,6 +328,93 @@ async def test_new_keywords_are_those_never_checked_and_not_asked_about_lately(
     assert set(_depths(plan)) == {fresh}
 
 
+# Check now.
+
+
+async def test_check_now_plans_the_named_keywords_live_and_due_at_once(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    schedule = await make_schedule(migrated, project, selector={"all": True})
+    named = await _tracked(migrated, project, "crm named")
+    # What a schedule or an earlier check today would leave alone is checked when it is named.
+    pinned = await _tracked(migrated, project, "crm pinned", schedule_id=schedule)
+    weekly = await _tracked(migrated, project, "crm weekly", profile="weekly")
+    left_out = await _tracked(migrated, project, "crm left out")
+    archived = await _tracked(migrated, project, "crm archived", active=False)
+    foreign = await track(migrated, await make_tenant(migrated), "crm foreign")
+    selector = {
+        "tracked_keyword_ids": [str(i) for i in (named, pinned, weekly, archived, foreign)],
+        "live": True,
+    }
+
+    plan = await _plan(worker_db, _window(project, selector))
+
+    assert set(_depths(plan)) == {named, pinned, weekly}
+    assert left_out not in _depths(plan)
+    # The daily depth of each profile; a weekly one has none today and gets its deep check.
+    assert _depths(plan) == {named: 20, pinned: 20, weekly: 100}
+    assert {task.provider_endpoint for task in plan.tasks} == {SERP_ORGANIC_LIVE}
+    assert {task.scheduled_for for task in plan.tasks} == {TUESDAY}
+    assert plan.config_snapshot["queue"] == "live"
+    assert plan.config_snapshot["selector"] == selector
+    # (2 + 2 + 10) pages at the live price of $0.002, and no asynchronous AI Overview to add.
+    assert plan.estimated_cost_usd == Decimal("0.028")
+
+
+async def test_check_now_checks_at_the_depth_asked_for(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    first = await _tracked(migrated, project, "crm first", profile="full")
+    second = await _tracked(migrated, project, "crm second", profile="light")
+    selector = {"tracked_keyword_ids": [str(first), str(second)], "live": True, "depth": 10}
+
+    plan = await _plan(worker_db, _window(project, selector))
+
+    assert _depths(plan) == {first: 10, second: 10}
+    assert plan.estimated_cost_usd == Decimal("0.004")
+
+
+async def test_check_now_plans_a_keyword_again_that_was_checked_today(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    keyword = await _tracked(migrated, project, "crm again")
+    selector = {"tracked_keyword_ids": [str(keyword)], "live": True}
+    window = _window(project, selector)
+    async with worker_db() as db, db.begin():
+        planned = await WORKLOAD.plan(db, window)
+        run_id = await ledger.create_run(
+            db,
+            NewRun(
+                workspace_id=project.workspace_id,
+                project_id=project.id,
+                schedule_id=None,
+                workload=TaskWorkload.SEO_RANK,
+                window_start=window.window_start,
+                window_end=window.window_end,
+                trigger="manual",
+                config_snapshot=planned.config_snapshot,
+            ),
+            now=NOW,
+        )
+        assert run_id is not None
+        await ledger.insert_tasks(db, run_id, planned.tasks)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_tasks SET status = 'ingested' WHERE run_id = $1",
+        run_id,
+    )
+    schedule = await make_schedule(migrated, project, selector={"all": True})
+
+    scheduled = await _plan(worker_db, _window(project, schedule_id=schedule))
+    again = await _plan(worker_db, window)
+
+    assert list(scheduled.tasks) == []
+    assert set(_depths(again)) == {keyword}
+
+
 # The estimate.
 
 
@@ -451,6 +544,22 @@ async def test_a_request_asks_for_the_keyword_as_entered_at_the_depth_and_queue_
     assert isinstance(second, SerpOrganicParams)
     assert (second.depth, second.queue) == (100, "standard")
     assert WORKLOAD.batch_key(tasks[0]) == ""
+
+
+async def test_a_task_of_a_live_run_is_asked_for_live(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    keyword = await _tracked(migrated, project, "crm live")
+    live_run = await _run(worker_db, project, {"queue": "live"})
+    task = _ledger_task(project, live_run, keyword, 20, 2840, 11)
+
+    async with worker_db() as db:
+        requests = await WORKLOAD.build_requests(db, [task])
+
+    params = requests[task.ref].params
+    assert isinstance(params, SerpOrganicParams)
+    assert (params.depth, params.queue) == (20, "live")
 
 
 # The new-keyword tick.
