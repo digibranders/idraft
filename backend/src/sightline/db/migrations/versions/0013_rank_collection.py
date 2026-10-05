@@ -219,6 +219,12 @@ CREATE INDEX domain_rank_observations_url
     ON seo.domain_rank_observations (ranking_url_id, observed_at DESC)
     WHERE ranking_url_id IS NOT NULL;
 
+-- The sparkline of a keyword: its own side over time, without reading the competitors' rows.
+CREATE INDEX domain_rank_observations_own_series
+    ON seo.domain_rank_observations (tracked_keyword_id, observed_at DESC)
+    INCLUDE (serp_snapshot_id, organic_rank, depth_requested)
+    WHERE role = 'own';
+
 CREATE TABLE seo.tracked_keyword_state (
     tracked_keyword_id       uuid PRIMARY KEY,
     workspace_id             uuid NOT NULL,

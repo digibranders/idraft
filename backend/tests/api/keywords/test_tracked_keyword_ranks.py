@@ -241,6 +241,86 @@ async def test_the_rank_filters(
     assert await texts(**{"filter[target_url_match]": "true"}) == []
 
 
+async def test_a_keyword_without_a_numeric_change_is_neither_improved_nor_declined(
+    api: httpx.AsyncClient, ranked: tuple[Workspace, uuid.UUID, Caller, World]
+) -> None:
+    workspace, project, owner, _ = ranked
+
+    async def texts(**params: Any) -> list[str]:
+        return _texts(await _list(api, workspace, project, owner, **params))
+
+    assert await texts(**{"filter[improved]": "false"}) == ["b", "c", "d", "e"]
+    assert await texts(**{"filter[declined]": "false"}) == ["a", "c", "d", "e"]
+    # What a row shows as unknown or not stale is what the filters match.
+    assert await texts(**{"filter[aio_state]": "unknown"}) == ["e"]
+    assert await texts(**{"filter[is_stale]": "false"}) == ["a", "b", "c", "d", "e"]
+    ranking_url = (await _list(api, workspace, project, owner))[0]["state"]["current"]["url"]
+    assert await texts(**{"filter[ranking_url_id]": ranking_url["url_id"]}) == ["a", "b", "d"]
+
+
+async def test_features_and_failures_are_filterable_and_shown(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    with_video = await tracked_id(api, workspace, project, owner, "with video")
+    plain = await tracked_id(api, workspace, project, owner, "plain")
+    failing = await tracked_id(api, workspace, project, owner, "failing")
+    video = {
+        "type": "video",
+        "rank_absolute": 2,
+        "position": "left",
+        "items": [{"url": f"https://www.{OWN_HOST}/video"}, {"url": f"https://{RIVAL_HOST}/v"}],
+    }
+    await _check(worker_db, migrated, world, with_video, _results(4), extra=[video])
+    await _check(worker_db, migrated, world, plain, _results(4))
+    await execute(
+        migrated,
+        "INSERT INTO seo.tracked_keyword_state (tracked_keyword_id, workspace_id, project_id, "
+        "consecutive_failures, is_stale) SELECT id, workspace_id, project_id, 3, true "
+        "FROM seo.tracked_keywords WHERE id = $1",
+        uuid.UUID(failing),
+    )
+
+    async def texts(**params: Any) -> list[str]:
+        return _texts(await _list(api, workspace, project, owner, **params))
+
+    assert await texts(**{"filter[feature_present]": "video"}) == ["with video"]
+    assert await texts(**{"filter[feature_owned]": "video"}) == ["with video"]
+    assert await texts(**{"filter[feature_owned]": "local_pack"}) == []
+    assert await texts(**{"filter[is_stale]": "true"}) == ["failing"]
+    (row,) = [
+        r for r in await _list(api, workspace, project, owner) if r["keyword"]["text"] == "failing"
+    ]
+    assert row["state"]["current"]["state"] == "failed"
+    assert row["state"]["change"]["label"] == "first_check"
+    assert row["state"]["consecutive_failures"] == 3
+
+
+async def test_a_competitor_removed_from_the_project_is_not_shown_on_the_row(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    worker_db: Ledger,
+) -> None:
+    workspace, project, owner, world = await _world(resources, migrated)
+    tracked = await tracked_id(api, workspace, project, owner, "crm")
+    await _check(worker_db, migrated, world, tracked, _results(4, 6))
+    shown = await _list(api, workspace, project, owner, include="competitor_ranks")
+    assert len(shown[0]["competitor_ranks"]) == 1
+
+    await execute(
+        migrated,
+        "UPDATE core.project_entities SET removed_at = now() WHERE entity_id = $1",
+        world.rival,
+    )
+
+    (row,) = await _list(api, workspace, project, owner, include="competitor_ranks")
+    assert row["competitor_ranks"] == []
+
+
 async def test_the_change_label_filter_agrees_with_the_label_a_row_shows(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

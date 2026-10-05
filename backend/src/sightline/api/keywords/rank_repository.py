@@ -21,6 +21,7 @@ from sightline.db.tables import (
     domain_rank_observations,
     domains,
     entities,
+    project_entities,
     serp_features,
     tracked_keyword_state,
     urls,
@@ -233,9 +234,11 @@ async def sparklines_of(
     )
     found: dict[UUID, list[SparkPoint]] = {}
     for row in rows:
-        found.setdefault(row.tracked_keyword_id, []).append(
-            SparkPoint(row.observed_at, row.rank, row.depth)
-        )
+        points = found.setdefault(row.tracked_keyword_id, [])
+        # Two snapshots of one second are one point.
+        if points and points[-1].observed_at == row.observed_at:
+            continue
+        points.append(SparkPoint(row.observed_at, row.rank, row.depth))
     return found
 
 
@@ -286,12 +289,20 @@ async def competitor_ranks_of(
         .where(
             c.workspace_id == workspace_id,
             c.role == "competitor",
+            # Only entities that still have a role in the project: a removed competitor's
+            # history stays in the tables, not in the row.
+            project_entities.c.role.is_not(None),
             among_ids(c.tracked_keyword_id, tracked_ids),
         )
         .order_by(c.tracked_keyword_id, func.lower(entities.c.canonical_name), c.entity_id)
     )
     found: dict[UUID, list[CompetitorRank]] = {}
+    seen: set[tuple[UUID, UUID]] = set()
     for row in rows:
+        # Two earlier snapshots of one second would repeat the competitor: it is shown once.
+        if (row.tracked_keyword_id, row.id) in seen:
+            continue
+        seen.add((row.tracked_keyword_id, row.id))
         found.setdefault(row.tracked_keyword_id, []).append(
             CompetitorRank(
                 entity=CompetitorRecord(

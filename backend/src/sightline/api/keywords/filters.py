@@ -232,7 +232,11 @@ def change_label() -> ColumnElement[str]:
     now = and_(STATE.current_rank.is_not(None), STATE.current_rank <= compared)
     return case(
         (
-            or_(STATE.last_observed_at.is_(None), STATE.previous_depth_requested.is_(None)),
+            or_(
+                STATE.last_observed_at.is_(None),
+                STATE.previous_depth_requested.is_(None),
+                STATE.current_depth_requested.is_(None),
+            ),
             "first_check",
         ),
         (and_(before, now), "numeric"),
@@ -264,21 +268,26 @@ def _rank_conditions(given: TrackedKeywordFilter) -> list[ColumnElement[bool]]:
     if given.rank_change_label_in is not None:
         found.append(change_label().in_(list(given.rank_change_label_in)))
     if given.improved is not None:
-        found.append(STATE.rank_change > 0 if given.improved else ~(STATE.rank_change > 0))
+        # `false` is everything else: a keyword with no numeric change did not improve either.
+        change = func.coalesce(STATE.rank_change, 0)
+        found.append(change > 0 if given.improved else change <= 0)
     if given.declined is not None:
-        found.append(STATE.rank_change < 0 if given.declined else ~(STATE.rank_change < 0))
+        change = func.coalesce(STATE.rank_change, 0)
+        found.append(change < 0 if given.declined else change >= 0)
     if given.feature_present is not None:
         found.append(STATE.feature_types_present.contains([given.feature_present]))
     if given.feature_owned is not None:
         found.append(STATE.owned_feature_types.contains([given.feature_owned]))
     if given.aio_state is not None:
-        found.append(STATE.aio_state.in_(list(given.aio_state)))
+        # A keyword with no state, or none checked, shows `unknown`.
+        found.append(func.coalesce(STATE.aio_state, "unknown").in_(list(given.aio_state)))
     if given.ranking_url_id is not None:
         found.append(STATE.current_url_id == given.ranking_url_id)
     if given.target_url_match is not None:
         found.append(STATE.target_url_match.is_(given.target_url_match))
     if given.is_stale is not None:
-        found.append(STATE.is_stale.is_(given.is_stale))
+        # A keyword with no state row is not stale, as its row shows.
+        found.append(func.coalesce(STATE.is_stale, false()).is_(given.is_stale))
     return found
 
 
