@@ -90,9 +90,13 @@ export type ManualRuns = Schemas['ManualRuns'];
 export type MetricsRefresh = Schemas['MetricsRefresh'];
 export type Actor = Schemas['Actor'];
 export type CostRow = Schemas['CostRow'];
+export type CostList = Schemas['CostList'];
 export type CostMeta = Schemas['CostMeta'];
+export type CostSources = Schemas['CostSources'];
+export type CostWorkload = Schemas['CostWorkload'];
 export type Budget = Schemas['Budget'];
 export type BudgetStatus = Schemas['BudgetStatus'];
+export type BudgetStatusList = Schemas['BudgetStatusList'];
 export type Price = Schemas['Price'];
 
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
