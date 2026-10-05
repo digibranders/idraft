@@ -210,6 +210,45 @@ describe('Import dialog', () => {
   );
 
   it(
+    'takes back unarchiving when a refused Confirm is followed by leaving the keywords archived',
+    async () => {
+      const patches = spy('patch', IMPORT);
+      let refused = false;
+      server.use(
+        http.post(mswPath(CONFIRM_PATH), ({ request }) => {
+          if (refused) return undefined;
+          refused = true;
+          return problem(request, 'quota_exceeded', { limit: 5000, used: 4999, requested: 2 });
+        }),
+      );
+      const changes: boolean[] = [];
+      const { user } = renderWithProviders(<Controlled changes={changes} />);
+      const { dialog } = await openImport(user);
+      await uploadAndContinue(user, dialog, csv('keyword\nseo meme\nbacklink watcher'));
+      await within(dialog).findByText(/^Choose what each column of the file holds/, undefined, PARSED);
+      await press(dialog, 'Continue');
+      await within(dialog).findByRole('heading', { name: 'Archived' }, PARSED);
+      await user.click(within(dialog).getByRole('radio', { name: "Unarchive them with the file's settings" }));
+      await press(dialog, 'Continue');
+      await press(dialog, 'Import 2 keywords');
+      await within(dialog).findByText(/^The import is over your plan's limit/);
+      expect(patches.bodies).toEqual([{ row_actions: [{ row_no: 1, part: 1, action: 'merge' }] }]);
+
+      await press(dialog, 'Back');
+      await user.click(within(dialog).getByRole('radio', { name: 'Leave them archived' }));
+      await press(dialog, 'Continue');
+      await press(dialog, 'Import 1 keyword');
+      await waitFor(() => expect(changes.at(-1)).toBe(false));
+      // The archived row was told to unarchive, then told to stay: it is not unarchived behind the choice
+      expect(patches.bodies).toEqual([
+        { row_actions: [{ row_no: 1, part: 1, action: 'merge' }] },
+        { row_actions: [{ row_no: 1, part: 1, action: 'skip' }] },
+      ]);
+    },
+    SLOW_TEST,
+  );
+
+  it(
     'goes back with every choice kept, and sends nothing for an unchanged mapping',
     async () => {
       const patches = spy('patch', IMPORT);

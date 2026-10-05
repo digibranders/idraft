@@ -113,6 +113,8 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
   const session = useRef({ controller: new AbortController() });
   // A confirm on its way started the write; closing then must not cancel it
   const confirming = useRef(false);
+  // The import whose archived rows were last told to unarchive, which a later Confirm may have to take back
+  const unarchiveSent = useRef<string | null>(null);
 
   const vocabularies = useVocabularyList(scope, open);
   const current = useImport(scope, state.importId, DIALOG_POLL_MS);
@@ -197,6 +199,23 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     latest.current = initialState(startValues.current);
     dispatch({ type: 'reset', values: startValues.current });
   }, [stopImport]);
+
+  // A screen that goes away with the dialog open ends its requests and waits and stops the import, as a close
+  // does. A new controller on mount keeps Strict Mode's mount, unmount and mount from leaving an aborted one.
+  const stopLatest = useRef(stopImport);
+  useEffect(() => {
+    stopLatest.current = stopImport;
+  });
+  useEffect(() => {
+    // The holder is one object for the life of the dialog; only its controller is replaced
+    const holder = session.current;
+    holder.controller = new AbortController();
+    return () => {
+      holder.controller.abort();
+      const held = latest.current;
+      if (held.importId !== null && !confirming.current) stopLatest.current(held.importId);
+    };
+  }, []);
 
   // A dialog the route closes (the Back button of the browser) is abandoned as one the person closed
   const wasOpen = useRef(open);
@@ -361,9 +380,11 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     const { signal } = session.current.controller;
     dispatch({ type: 'working', on: true });
     try {
-      if (chosen.unarchive > 0) {
-        // Every archived row of the file, page by page, goes back to the keyword's own place
-        const actions = await conflictRowActions(scope, importId);
+      // Archived keywords to unarchive: every archived row of the file, page by page. A Confirm that did not go
+      // through may have sent them already, so a person who then chose to leave them archived sends the skip.
+      const unarchiving = chosen.unarchive > 0;
+      if (unarchiving || (known.counts.conflict > 0 && unarchiveSent.current === importId)) {
+        const actions = await conflictRowActions(scope, importId, unarchiving ? 'merge' : 'skip');
         for (let at = 0; at < actions.length; at += ROW_ACTIONS_PER_REQUEST) {
           if (signal.aborted) return 'invalid';
           await changeImport.mutateAsync({
@@ -371,6 +392,7 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
             body: { row_actions: actions.slice(at, at + ROW_ACTIONS_PER_REQUEST) },
           });
         }
+        unarchiveSent.current = unarchiving ? importId : null;
       }
       if (signal.aborted) return 'invalid';
       confirming.current = true;

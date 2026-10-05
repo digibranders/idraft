@@ -179,15 +179,20 @@ export async function readRows(
 const ROWS_PAGE = 200;
 
 /**
- * A `merge` row action for every conflict row of the import, read page by page: what unarchiving the
- * archived keywords sends just before Confirm.
+ * A row action for every conflict row of the import, read page by page: `merge` is what unarchiving the
+ * archived keywords sends just before Confirm, and `skip` takes it back when the person changed their mind
+ * after a Confirm that did not go through.
  */
-export async function conflictRowActions(scope: ProjectScope, importId: string): Promise<RowActionInput[]> {
+export async function conflictRowActions(
+  scope: ProjectScope,
+  importId: string,
+  action: 'merge' | 'skip' = 'merge',
+): Promise<RowActionInput[]> {
   const actions: RowActionInput[] = [];
   let cursor: string | null = null;
   do {
     const { rows, next } = await readRowsPage(scope, importId, 'conflict', ROWS_PAGE, cursor);
-    for (const row of rows) actions.push({ row_no: row.row_no, part: row.part, action: 'merge' });
+    for (const row of rows) actions.push({ row_no: row.row_no, part: row.part, action });
     cursor = next;
   } while (cursor !== null);
   return actions;

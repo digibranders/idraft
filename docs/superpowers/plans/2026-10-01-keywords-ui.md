@@ -160,6 +160,14 @@
 - [ ] **Step 3:** Review: counts per outcome (new, duplicate, variant, conflict, invalid, over quota) with the default action and its alternative (duplicate: skip or merge; conflict: skip or merge to unarchive; variant: create with its warning), the first 20 rows per outcome in a simple list with `row_no` and part, invalid rows with their `reason_code` in words.
 - [ ] **Step 4:** Confirm ("Import 1,204 keywords"), then the dialog closes and the header shows `CollectionProgress` for the write job; on completion a toast with "Download report" (the streamed CSV); cancel before confirm; an expired preview says so.
 - [ ] **Step 5:** Tests for each step and outcome, gates, Opus review, commit "Rankings: import keywords".
+- **As built.** Step by step in `2026-10-05-keyword-import-ui.md`.
+  - CSV only (the backend reads CSV). The browser reads the file's first 64 KiB for every header and three sample rows, and refuses a file that is not UTF-8 before uploading; `column_mapping` names only mapped headers.
+  - Map is a step for files only. Vocabularies for tags and topics are chosen on the Map row that needs them (and on Upload for a paste with tabs); `needs_mapping` with `keyword_column_missing`, `tags_vocabulary_missing` or `topic_vocabulary_missing` shows on that row.
+  - Review offers one choice per outcome: duplicates skip or merge (`duplicate_action`), archived keywords stay or are unarchived (row actions `merge` for every conflict row, sent before confirm). Over quota blocks Confirm: the last button is disabled (`finalDisabled` of `StepperDialog`) and the step says why.
+  - `seo/rankings/layout.tsx` keeps Rankings mounted; `/seo/rankings/import` opens the dialog. The upload goes through `XMLHttpRequest` (`src/lib/api/upload.ts`) for its progress.
+  - After Confirm the header shows the write's progress, resumed after a reload from `filter[status]=writing`, and the finished toast offers "Download report".
+  - The mocks follow the backend's rules of 2026-10-05: `uploaded` instead of `parsing`, the `needs_mapping` codes, `not_applicable`, `not_with_mapping`, and skip only for repeated rows.
+  - The component tests cannot upload through `XMLHttpRequest` or a multipart `fetch` under jsdom, so they replace `uploadForm` with `src/test/fetch-upload.ts`, which sends the file's rows to the JSON route; the real upload is covered by `upload.test.ts`, the mocks' own tests and the Playwright flow.
 
 ### Task 10: Keyword metrics
 

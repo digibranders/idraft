@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+
 import { expect, test } from '@playwright/test';
 
 import { expectAccessible, signIn } from '../support';
@@ -126,5 +128,60 @@ test.describe('rankings', () => {
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(grid.getByRole('rowheader', { name: /seo reporting tool/ })).toBeVisible();
     await expect(grid.getByText('Pending').first()).toBeVisible();
+  });
+
+  test('keywords are imported from a CSV file, and the write is followed in the header', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await expect(page.getByText('59 keywords', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    await expect(page).toHaveURL(/\/seo\/rankings\/import$/);
+    const dialog = page.getByRole('dialog', { name: 'Import keywords' });
+    await expect(dialog).toBeVisible();
+    await expectAccessible(page);
+
+    // Three new keywords and one that Fynix tracks already
+    const file = testInfo.outputPath('keywords.csv');
+    writeFileSync(
+      file,
+      'keyword,tags\nimport test one,e2e\nimport test two,e2e\nseo audit,e2e\nimport test three,e2e\n',
+    );
+    await dialog.locator('input[type="file"]').setInputFiles(file);
+    await expect(dialog.getByText(/^keywords\.csv, /)).toBeVisible();
+    await dialog.getByRole('button', { name: 'Continue' }).click();
+
+    // The file's columns, read in the browser; the tags need the vocabulary they belong to
+    await expect(dialog.getByText(/^Choose what each column of the file holds/)).toBeVisible();
+    await expect(dialog.getByRole('combobox', { name: 'keyword' })).toContainText('Keyword');
+    await expect(dialog.getByText('Choose the vocabulary these terms belong to.')).toBeVisible();
+    await dialog.getByRole('combobox', { name: 'Vocabulary for tags' }).click();
+    await page.getByRole('option', { name: 'Topics' }).click();
+    await expectAccessible(page);
+    await dialog.getByRole('button', { name: 'Continue' }).click();
+
+    const summary = dialog.getByRole('group', { name: 'Rows by outcome' });
+    await expect(summary).toContainText('New3');
+    await expect(summary).toContainText('Duplicate1');
+    await expectAccessible(page);
+    await dialog.getByRole('button', { name: 'Continue' }).click();
+    await expect(dialog.getByText('3 keywords are tracked')).toBeVisible();
+    await expectAccessible(page);
+    await dialog.getByRole('button', { name: 'Import 3 keywords' }).click();
+
+    // The dialog is gone, the table stays, and the header follows the write until the report is ready
+    await expect(page).toHaveURL(/\/seo\/rankings$/);
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Import', exact: true })).toBeFocused();
+    await expect(page.getByRole('progressbar', { name: 'Importing keywords' })).toBeVisible();
+    await expect(page.getByText('Import finished: 3 added, 1 skipped')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('progressbar', { name: 'Importing keywords' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Download report' })).toBeVisible();
+
+    await page.getByRole('searchbox', { name: /Search/ }).fill('import test');
+    await expect(grid.getByRole('rowheader', { name: /import test one/ })).toBeVisible();
+    await expect(grid.getByRole('rowheader', { name: /import test three/ })).toBeVisible();
   });
 });
