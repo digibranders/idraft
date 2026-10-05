@@ -7,7 +7,6 @@ import {
   MANUAL_RUN_LIMIT,
   manualRunsToday,
   operationsProjectCaller,
-  operationsWorkspaceCaller,
   savedOperations,
   type OperationsProjectCaller,
 } from './operations-rules';
@@ -30,8 +29,8 @@ import { invalid, mock, problem } from '../respond';
 import type { ValidationItem } from '@/lib/api/types';
 
 /**
- * Collection runs (19 section 3.11.4, backend plan D9): a project's runs and the workspace's, newest first in
- * cursor pages, a run's detail with its tasks by status, cancelling a run that has not ended, and the manual
+ * Collection runs (19 section 3.11.4, backend plan D9): a project's runs, newest first in cursor pages (the
+ * workspace-wide list is not built in step 5 part 1, so it has no mock), a run's detail with its tasks by status, cancelling a run that has not ended, and the manual
  * keyword metrics refresh, at most 20 a day per project, planned by the worker and judged against the
  * budgets first.
  */
@@ -217,56 +216,6 @@ export const runHandlers: HttpHandler[] = [
           used: manualRunsToday(caller.operations, caller.project.project_id, now),
         },
       },
-    });
-  }),
-
-  mock('get', `${W}/runs`, ({ request, cookies, params }) => {
-    const caller = operationsWorkspaceCaller(request, cookies, params.workspace_id, {
-      permission: 'data:read',
-      query: [
-        'filter[project_id]',
-        'filter[workload_in]',
-        'filter[status_in]',
-        'filter[trigger_in]',
-        'from',
-        'to',
-        'cursor',
-        'limit',
-      ],
-    });
-    if (caller instanceof Response) return caller;
-    const projectId = caller.url.searchParams.get('filter[project_id]');
-    const from = caller.url.searchParams.get('from');
-    const to = caller.url.searchParams.get('to');
-    const filter = runFilter(caller.url);
-    const paging = pageRequest(caller.url);
-    const errors = [
-      ...queryUuidError(projectId, 'filter[project_id]'),
-      ...instantError(from, 'from'),
-      ...instantError(to, 'to'),
-      ...(Array.isArray(filter) ? filter : []),
-      ...(Array.isArray(paging) ? paging : []),
-    ];
-    if (errors.length > 0 || Array.isArray(filter) || Array.isArray(paging)) return invalid(request, errors);
-    const now = Date.now();
-    // A member limited to some projects sees those projects' runs
-    const visible = new Set(caller.projects.map((project) => project.project_id));
-    const rows = caller.operations.runs
-      .filter(
-        (run) =>
-          visible.has(run.project_id) &&
-          (projectId === null || run.project_id === projectId) &&
-          createdBetween(run, from, to) &&
-          keeps(filter, run, now),
-      )
-      .sort(newestFirst);
-    const page = cursorPage(rows, paging, scopeOf(caller.url));
-    if (page === null) return problem(request, 'invalid_cursor');
-    const workspaceId = caller.access.workspace.workspace_id;
-    return HttpResponse.json({
-      data: page.data.map((run) => runView(workspaceId, caller.operations.schedules, run, now)),
-      page: page.page,
-      meta: { manual_runs_today: null },
     });
   }),
 

@@ -162,26 +162,6 @@ describe('runs', () => {
     expect((await analyst.as('admin').call('POST', `${P}/runs/${editors.run_id}/cancel`)).status).toBe(200);
   });
 
-  it('lists the workspace runs of the projects the member sees, by project and by time', async () => {
-    const analyst = mockBrowser('analyst');
-    // `from` and `to` are instants: created at or after `from`, and before `to`
-    const september = dataOf(
-      await analyst.call(
-        'GET',
-        `${W}/runs?filter[project_id]=${fynix.project_id}&from=2026-09-20T00:00:00Z&to=2026-09-25T00:00:00Z&limit=50`,
-      ),
-      RUNS,
-    );
-    expect(september.every((run) => run.created_at >= '2026-09-20' && run.created_at < '2026-09-25')).toBe(true);
-    expect(september.map((run) => run.trigger)).toContain('schedule');
-    const eventus = MOCK_PROJECTS.find((project) => project.slug === 'eventus-security');
-    const other = dataOf(await analyst.call('GET', `${W}/runs?filter[project_id]=${eventus?.project_id ?? ''}`), RUNS);
-    expect(other).toEqual([]);
-    expect(fieldCodes(await analyst.call('GET', `${W}/runs?from=yesterday`))).toEqual([
-      'from:datetime_from_date_parsing',
-    ]);
-  });
-
   it('lists a project’s runs by the time they were created, given with its zone', async () => {
     const analyst = mockBrowser('analyst');
     const all = dataOf(await analyst.call('GET', `${P}/runs?limit=50`), RUNS);
