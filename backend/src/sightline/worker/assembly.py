@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import structlog
@@ -31,6 +31,7 @@ from sightline.collectors.keyword_metrics import (
 from sightline.collectors.ledger import database_time
 from sightline.collectors.locations import LocationSyncReport, sync_locations
 from sightline.collectors.planner import plan_due, plan_manual_runs
+from sightline.collectors.provider_accounts import AccountSource, check_balance, reconcile_costs
 from sightline.collectors.reconciler import ensure_partitions, reconcile
 from sightline.collectors.registry import Registry
 from sightline.collectors.seo_rank import WORKLOAD as SEO_RANK
@@ -74,6 +75,10 @@ LOCATIONS_AT = "0 3 2 * *"
 # so a day missed while the worker was down is counted.
 COSTS_AT = "7 * * * *"
 COSTS_REBUILT_AT = "37 1 * * *"
+# docs/21-scheduler-workers.md section 10: the provider's balance every 15 minutes, and its
+# spend for the day before against our cost events at 00:45 UTC.
+BALANCE_CHECK_AT = "*/15 * * * *"
+COST_RECONCILE_AT = "45 0 * * *"
 _log = structlog.get_logger(__name__)
 
 
@@ -154,6 +159,41 @@ def fetch_handler(
     return fetch
 
 
+def account_source(parts: Registry) -> AccountSource | None:
+    """The provider's account, where one is registered that can say what it holds."""
+    try:
+        provider = parts.provider(DATAFORSEO)
+    except KeyError:
+        return None
+    return provider if isinstance(provider, DataForSeo) else None
+
+
+async def run_balance_check(context: WorkerContext, parts: Registry) -> None:
+    """The `balance_check` job: read the account and keep what it says."""
+    source = account_source(parts)
+    if source is None:
+        return
+    now = await database_time(context.sessions)
+    report = await check_balance(
+        context.sessions, context.redis, source, provider_code=DATAFORSEO, now=now
+    )
+    _log.info(
+        "provider balance read",
+        balance_usd=str(report.balance_usd),
+        days_remaining=None if report.days_remaining is None else str(report.days_remaining),
+        severity=report.severity,
+    )
+
+
+async def run_cost_reconcile(context: WorkerContext, parts: Registry) -> None:
+    """The `cost_reconcile` job: yesterday's spend by the provider against our cost events."""
+    if account_source(parts) is None:
+        return
+    now = await database_time(context.sessions)
+    yesterday = now.astimezone(UTC).date() - timedelta(days=1)
+    await reconcile_costs(context.sessions, context.redis, provider_code=DATAFORSEO, day=yesterday)
+
+
 def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequence[Tick]:
     """Register the jobs on `context.queues` and return the ticks."""
     parts = production_registry(context) if registry is None else registry
@@ -205,6 +245,15 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
 
     context.queues.register_scheduled("cost_rollup", cost_rollup, cron=COSTS_AT)
     context.queues.register_scheduled("cost_rebuild", cost_rebuild, cron=COSTS_REBUILT_AT)
+
+    async def balance_check() -> None:
+        await run_balance_check(context, parts)
+
+    async def cost_reconcile() -> None:
+        await run_cost_reconcile(context, parts)
+
+    context.queues.register_scheduled("balance_check", balance_check, cron=BALANCE_CHECK_AT)
+    context.queues.register_scheduled("cost_reconcile", cost_reconcile, cron=COST_RECONCILE_AT)
 
     async def queue_new(now: datetime) -> None:
         if KEYWORD_METRICS not in parts.workloads:

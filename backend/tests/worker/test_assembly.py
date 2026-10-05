@@ -1,9 +1,11 @@
 """The parts the worker is assembled from (docs/21-scheduler-workers.md sections 3 and 4)."""
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -11,13 +13,26 @@ from pydantic import SecretStr
 from redis.asyncio import Redis
 
 from sightline.collectors.fetching import FETCH_JOB, FetchTask
+from sightline.collectors.provider_accounts import (
+    balance_key,
+    reconciliation_key,
+    spend_key,
+)
 from sightline.collectors.registry import Registry
 from sightline.config.settings import Settings
 from sightline.db.engine import create_engine, create_session_factory
 from sightline.domain.workloads import TaskWorkload
+from sightline.providers.dataforseo.client import DataForSeoClient
+from sightline.providers.dataforseo.provider import DataForSeo
 from sightline.worker import assembly
 from sightline.worker.app import WorkerContext
-from sightline.worker.assembly import assemble, fetch_handler, production_registry
+from sightline.worker.assembly import (
+    assemble,
+    fetch_handler,
+    production_registry,
+    run_balance_check,
+    run_cost_reconcile,
+)
 from sightline.worker.queues import Queues
 from sightline.worker.ticks import Tick
 from tests.api.auth.support import execute, fetch
@@ -31,6 +46,7 @@ from tests.collectors.support import (
 from tests.collectors.test_fetching import MemoryStore
 from tests.collectors.test_imports import _csv, _import, _project, _row
 from tests.conftest import PostgresServer
+from tests.providers.dataforseo.support import LOGIN, ORIGIN, PASSWORD, Api, FakeGate, fixture
 from tests.worker.conftest import eventually
 
 
@@ -218,6 +234,9 @@ async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(
     # Hourly, the costs of today and yesterday, and daily the last 35 days (plan decision D14).
     assert schedules["cost_rollup"].cron == "7 * * * *"
     assert schedules["cost_rebuild"].cron == "37 1 * * *"
+    # The provider's balance every 15 minutes, and its spend against ours at 00:45 UTC (R11).
+    assert schedules["balance_check"].cron == "*/15 * * * *"
+    assert schedules["cost_reconcile"].cron == "45 0 * * *"
 
 
 async def test_rank_checks_are_registered_only_where_their_answers_can_be_kept(
@@ -338,3 +357,36 @@ async def test_a_fetch_goes_on_the_collect_queue(context: WorkerContext) -> None
 
     assert await context.queues.enqueue(FETCH_JOB, order, dedupe_key=order.dedupe_key)
     assert not await context.queues.enqueue(FETCH_JOB, order, dedupe_key=order.dedupe_key)
+
+
+async def test_the_account_jobs_read_the_provider_and_do_nothing_without_one(
+    context: WorkerContext,
+) -> None:
+    api = Api([])
+    api.answer("GET", "/v3/appendix/user_data", fixture("user_data"))
+    today = datetime.now(UTC).date()
+    yesterday = today - timedelta(days=1)
+
+    await run_balance_check(context, Registry())
+    await run_cost_reconcile(context, Registry())
+    assert await context.redis.keys("provider:*") == []
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as http:
+        client = DataForSeoClient(http, FakeGate([]), login=LOGIN, password=PASSWORD, origin=ORIGIN)
+        registry = Registry()
+        registry.add_provider(DataForSeo(client, installation="test"))
+        await run_balance_check(context, registry)
+        await context.redis.set(
+            spend_key("dataforseo", yesterday),
+            json.dumps({"spent_usd": "2.00", "read_at": datetime.now(UTC).isoformat()}),
+        )
+        await run_cost_reconcile(context, registry)
+
+    balance = json.loads(await context.redis.get(balance_key("dataforseo")) or "{}")
+    assert Decimal(balance["balance_usd"]) == Decimal("87.4521")
+    reading = json.loads(await context.redis.get(spend_key("dataforseo", today)) or "{}")
+    assert Decimal(reading["spent_usd"]) == Decimal("1.2345")
+    report = json.loads(
+        await context.redis.get(reconciliation_key("dataforseo", yesterday)) or "{}"
+    )
+    assert Decimal(report["provider_spend_usd"]) == Decimal("2.00")
