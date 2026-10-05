@@ -2,7 +2,9 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MOCK_GROUP_IDS } from '@/mocks/keyword-fixtures';
 import { mswPath, problem } from '@/mocks/respond';
+import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import { loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
@@ -169,4 +171,162 @@ describe('Choosing groups in the forms', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('A group next to it already has this name.');
     expect(screen.getByRole('dialog', { name: 'Move 1 keyword' })).toBeInTheDocument();
   }, 15_000);
+});
+
+/** Opens Manage groups from the More actions menu, and answers the dialog. */
+async function openManage(user: User): Promise<HTMLElement> {
+  await loadedGrid();
+  await user.click(screen.getByRole('button', { name: 'More actions' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'Manage groups' }));
+  return screen.findByRole('dialog', { name: 'Manage groups' });
+}
+
+const groupItem = (name: string): HTMLElement => screen.getByRole('treeitem', { name });
+
+describe('Manage groups', () => {
+  it('shows the groups as a tree with the keywords in each', async () => {
+    const { user, container } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    const tree = await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(within(dialog).getByRole('button', { name: 'Add group' }));
+    expect(await axe(container)).toHaveNoViolations();
+    await user.keyboard('{Escape}');
+    expect(
+      within(tree)
+        .getAllByRole('treeitem')
+        .map((item) => item.getAttribute('aria-level')),
+    ).toEqual(['1', '1', '1']);
+    expect(groupItem('Services')).toHaveAttribute('aria-expanded', 'false');
+    // A count follows each name: the keywords in the group or under it
+    expect(within(groupItem('Brand')).getByText(/^\d+ keywords?$|^No keywords$/)).toBeInTheDocument();
+    expect(within(groupItem('Services')).getByText(/^\d+ keywords?$/)).toBeInTheDocument();
+  }, 15_000);
+
+  it('adds a group at the top level and selects it', async () => {
+    const seen = recorder();
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(within(dialog).getByRole('button', { name: 'Add group' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Pillar');
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(await screen.findByText('Group Pillar added')).toBeInTheDocument();
+    expect(groupCreates(seen.writes).map((write) => write.body)).toEqual([{ name: 'Pillar', parent_id: null }]);
+    expect(await screen.findByRole('treeitem', { name: 'Pillar' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).queryByRole('textbox', { name: 'Name' })).toBeNull();
+  }, 15_000);
+
+  it('adds a subgroup under the selected group and opens the group to show it', async () => {
+    const seen = recorder();
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(groupItem('Local'));
+    await user.click(within(dialog).getByRole('button', { name: 'Add subgroup to Local' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Maps');
+    await user.keyboard('{Enter}');
+    expect(await screen.findByRole('treeitem', { name: 'Maps' })).toHaveAttribute('aria-selected', 'true');
+    expect(groupCreates(seen.writes).map((write) => write.body)).toEqual([
+      { name: 'Maps', parent_id: MOCK_GROUP_IDS.local },
+    ]);
+    expect(groupItem('Local')).toHaveAttribute('aria-expanded', 'true');
+  }, 15_000);
+
+  it('says when a rename takes the name of a group next to it, in any case', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(groupItem('Local'));
+    await user.click(within(dialog).getByRole('button', { name: 'Rename' }));
+    const name = within(dialog).getByRole('textbox', { name: 'Name' });
+    expect(name).toHaveValue('Local');
+    await user.clear(name);
+    await user.type(name, 'brand');
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(await within(dialog).findByText('A group next to it already has this name.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: 'Name' })).toBeInTheDocument();
+  }, 15_000);
+
+  it('checks a name before it sends anything', async () => {
+    const seen = recorder();
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(within(dialog).getByRole('button', { name: 'Add group' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(await within(dialog).findByText('Enter a name.')).toBeInTheDocument();
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Blog/Guides');
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(await within(dialog).findByText('A group name can\'t contain "/".')).toBeInTheDocument();
+    expect(seen.writes).toEqual([]);
+  }, 15_000);
+
+  it('offers every group but the moved one and its subgroups, and Top level', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(groupItem('Services'));
+    await user.click(within(dialog).getByRole('button', { name: 'Move to' }));
+    await user.click(within(dialog).getByRole('combobox', { name: 'Move under' }));
+    const options = (await screen.findAllByRole('option')).map((option) => option.textContent);
+    expect(options).toEqual(['Top level', 'Brand', 'Local']);
+  }, 15_000);
+
+  it('moves a group under another, and shows it there', async () => {
+    const seen = recorder();
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(groupItem('Brand'));
+    await user.click(within(dialog).getByRole('button', { name: 'Move to' }));
+    await user.click(within(dialog).getByRole('combobox', { name: 'Move under' }));
+    await user.click(await screen.findByRole('option', { name: 'Local' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(await screen.findByText('Brand moved')).toBeInTheDocument();
+    expect(seen.writes.at(-1)).toMatchObject({
+      method: 'PATCH',
+      route: `keyword-groups/${MOCK_GROUP_IDS.brand}`,
+      body: { parent_id: MOCK_GROUP_IDS.local },
+    });
+    await waitFor(() => expect(groupItem('Brand')).toHaveAttribute('aria-level', '2'));
+  }, 15_000);
+
+  it('deletes a group with its subgroups after saying how many go', async () => {
+    const seen = recorder();
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(groupItem('Services'));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Delete Services?' });
+    expect(
+      within(confirm).getByText(
+        'Its 2 subgroups are deleted too. Keywords in them stay tracked and leave these groups.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(confirm).getByRole('button', { name: 'Delete group and subgroups' }));
+    expect(await screen.findByText('Services deleted')).toBeInTheDocument();
+    expect(seen.writes.at(-1)).toMatchObject({ method: 'DELETE', route: `keyword-groups/${MOCK_GROUP_IDS.services}` });
+    await waitFor(() => expect(screen.queryByRole('treeitem', { name: 'Services' })).toBeNull());
+  }, 15_000);
+
+  it('closes an open form on Escape and leaves the dialog open', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(within(dialog).getByRole('button', { name: 'Add group' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Pil');
+    await user.keyboard('{Escape}');
+    expect(within(dialog).queryByRole('textbox', { name: 'Name' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Manage groups' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Add group' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Manage groups' })).toBeNull());
+  }, 15_000);
+
+  it('offers no More actions to a viewer', async () => {
+    renderWithProviders(as('viewer'));
+    await loadedGrid();
+    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+  });
 });

@@ -1,12 +1,13 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { FolderTree, MoreHorizontal, Plus } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { useBulkActions } from './bulk/bulk-actions';
+import { ManageGroupsDialog } from './groups/manage-groups-dialog';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
@@ -31,6 +32,8 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
+import { Menu } from '@/components/ui/menu';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
@@ -53,6 +56,8 @@ import {
 
 /** The server-mode search waits this long after the last keystroke (13-filters-search.md section 6). */
 const SEARCH_DELAY_MS = 250;
+/** The id of the More actions item that opens Manage groups. */
+const MANAGE_GROUPS = 'manage-groups';
 const VIEW_STATE = {
   archived: parseAsBoolean.withDefault(false),
   q: parseAsString.withDefault(''),
@@ -81,6 +86,9 @@ export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: R
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const [adding, setAdding] = useState(false);
+  const [managing, setManaging] = useState(false);
+  // Where focus returns to when Manage groups closes
+  const moreButton = useRef<HTMLButtonElement>(null);
   const scope = useMemo((): ProjectScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
 
   const fields = useKeywordFilterFields(scope);
@@ -211,6 +219,23 @@ export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: R
       {t('add.open')}
     </Button>
   );
+  const headerActions = (
+    <>
+      <Menu
+        align="end"
+        trigger={<IconButton ref={moreButton} icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
+        items={[
+          {
+            id: MANAGE_GROUPS,
+            label: t('groups.manage.open'),
+            icon: FolderTree,
+            onSelect: () => setManaging(true),
+          },
+        ]}
+      />
+      {addButton}
+    </>
+  );
   const emptyState = (
     <EmptyState
       title={t('empty.title')}
@@ -299,7 +324,7 @@ export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: R
         <PageHeader
           title={t('title')}
           meta={meta === '' ? undefined : meta}
-          actions={canWrite ? addButton : undefined}
+          actions={canWrite ? headerActions : undefined}
         />
         <FilterBar
           fields={fields}
@@ -419,6 +444,9 @@ export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: R
         </div>
       </div>
       {canWrite ? bulk.dialogs : null}
+      {canWrite ? (
+        <ManageGroupsDialog scope={scope} open={managing} onOpenChange={setManaging} finalFocus={moreButton} />
+      ) : null}
       {canWrite ? (
         <AddKeywordsDialog
           scope={scope}
