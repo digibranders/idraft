@@ -247,6 +247,25 @@ describe('Rankings', () => {
   });
 });
 
+describe('Rankings import button', () => {
+  it('opens the import for a member who may import, before Add keywords', async () => {
+    const onImportOpenChange = vi.fn<(open: boolean) => void>();
+    const { user } = renderWithProviders(as('editor', undefined, { onImportOpenChange }));
+    await loadedGrid();
+    const importButton = screen.getByRole('button', { name: 'Import' });
+    const addButton = screen.getByRole('button', { name: 'Add keywords' });
+    expect(importButton.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(importButton);
+    expect(onImportOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
+  it('shows no import to a viewer', async () => {
+    renderWithProviders(as('viewer'));
+    await loadedGrid();
+    expect(screen.queryByRole('button', { name: 'Import' })).toBeNull();
+  });
+});
+
 /** While true, pages after the first answer after 300 ms. */
 let slowPages = false;
 

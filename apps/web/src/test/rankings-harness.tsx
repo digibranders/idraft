@@ -4,7 +4,7 @@ import { Suspense, type ReactElement } from 'react';
 import { expect, vi } from 'vitest';
 import { z } from 'zod';
 
-import { RankingsScreen } from '@/features/rankings/rankings-screen';
+import { RankingsScreen, type RankingsScreenProps } from '@/features/rankings/rankings-screen';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_LOCATIONS } from '@/mocks/entity-fixtures';
@@ -29,8 +29,15 @@ function fixtureProject(index: number): (typeof MOCK_PROJECTS)[number] {
 export const fynix = fixtureProject(0);
 export const cleanstart = fixtureProject(1);
 
+/** What the route tells the screen about the import dialog. */
+type ImportProps = Pick<RankingsScreenProps, 'importOpen' | 'onImportOpenChange'>;
+
 /** Rankings of `projectId` for a member of `role`, signed in through the mock session cookie. */
-export function rankingsAs(role: Role, projectId: string = fynix.project_id): ReactElement {
+export function rankingsAs(
+  role: Role,
+  projectId: string = fynix.project_id,
+  importProps: ImportProps = {},
+): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   const locationId = MOCK_PROJECTS.find((candidate) => candidate.project_id === projectId)?.location_id ?? null;
   const location = MOCK_LOCATIONS.find((candidate) => candidate.location_id === locationId) ?? null;
@@ -53,6 +60,7 @@ export function rankingsAs(role: Role, projectId: string = fynix.project_id): Re
                   },
             languageCode: 'en',
           }}
+          {...importProps}
         />
       </Suspense>
     </PermissionProvider>

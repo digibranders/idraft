@@ -1288,6 +1288,10 @@
       },
       "deleted": "{count} deleted"
     },
+    "import": {
+      "pageTitle": "Import keywords",
+      "open": "Import"
+    },
     "add": {
       "open": "Add keywords",
       "title": "Add keywords",

@@ -1,6 +1,6 @@
 'use client';
 
-import { FolderTree, MoreHorizontal, Plus } from 'lucide-react';
+import { FolderTree, MoreHorizontal, Plus, Upload } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -71,6 +71,10 @@ export interface RankingsScreenProps extends ProjectScope {
   timeZone: string;
   /** The project's location and language, which new keywords start with. */
   defaults: ProjectDefaults;
+  /** Whether the import dialog is open over the screen; the route says so (`/seo/rankings/import`). Default `false`. */
+  importOpen?: boolean;
+  /** Asks the route to open or close the import dialog. */
+  onImportOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -79,12 +83,19 @@ export interface RankingsScreenProps extends ProjectScope {
  * sorted, and switched between active and archived keywords, with the keyword inspector and Add keywords.
  * Every choice lives in the URL. Rank columns and the metric strip arrive with rank collection.
  */
-export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: RankingsScreenProps): ReactNode {
+export function RankingsScreen({
+  workspaceId,
+  projectId,
+  timeZone,
+  defaults,
+  onImportOpenChange,
+}: RankingsScreenProps): ReactNode {
   const t = useTranslations('rankings');
   const common = useTranslations('common');
   const errors = useTranslations('status.error');
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
+  const canImport = useCan('imports:write');
   const [adding, setAdding] = useState(false);
   const [managing, setManaging] = useState(false);
   // Where focus returns to when Manage groups closes
@@ -221,19 +232,26 @@ export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: R
   );
   const headerActions = (
     <>
-      <Menu
-        align="end"
-        trigger={<IconButton ref={moreButton} icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
-        items={[
-          {
-            id: MANAGE_GROUPS,
-            label: t('groups.manage.open'),
-            icon: FolderTree,
-            onSelect: () => setManaging(true),
-          },
-        ]}
-      />
-      {addButton}
+      {canWrite ? (
+        <Menu
+          align="end"
+          trigger={<IconButton ref={moreButton} icon={MoreHorizontal} variant="secondary" label={t('moreActions')} />}
+          items={[
+            {
+              id: MANAGE_GROUPS,
+              label: t('groups.manage.open'),
+              icon: FolderTree,
+              onSelect: () => setManaging(true),
+            },
+          ]}
+        />
+      ) : null}
+      {canImport ? (
+        <Button variant="secondary" icon={Upload} onClick={() => onImportOpenChange?.(true)}>
+          {t('import.open')}
+        </Button>
+      ) : null}
+      {canWrite ? addButton : null}
     </>
   );
   const emptyState = (
@@ -324,7 +342,7 @@ export function RankingsScreen({ workspaceId, projectId, timeZone, defaults }: R
         <PageHeader
           title={t('title')}
           meta={meta === '' ? undefined : meta}
-          actions={canWrite ? headerActions : undefined}
+          actions={canWrite || canImport ? headerActions : undefined}
         />
         <FilterBar
           fields={fields}
