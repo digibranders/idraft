@@ -11,8 +11,7 @@ tick. Every statement names the workspace, because the worker bypasses row-level
 
 from __future__ import annotations
 
-import base64
-import binascii
+import asyncio
 import json
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -60,10 +59,12 @@ from sightline.storage.raw import ObjectStore, RawStorageError, decompress
 
 _log = structlog.get_logger(__name__)
 
-# What the API writes under `kind` in a stored source, by the import's source.
-_KIND: Final = {"upload": "csv", "paste": "paste", "api": "api"}
+# What the API writes under `kind` in a stored paste or rows source, by the import's source. A
+# file is stored as itself, compressed, with no `kind`.
+_KIND: Final = {"paste": "paste", "api": "api"}
 # A source the bucket will not give back for this long is not the bucket's hiccup any more.
 SOURCE_GIVE_UP: Final = timedelta(hours=1)
+WAITING_PASSED_OVER: Final = 8
 # What an import that cannot be read raises on every try, as opposed to the errors of the
 # database or the network, which the next tick may not meet again.
 BROKEN: Final = (DataError, IntegrityError, UnicodeError, LookupError, TypeError, ValueError)
@@ -124,10 +125,15 @@ def _chunks[T](items: Sequence[T], size: int) -> Iterator[Sequence[T]]:
 async def parse_next(
     sessions: async_sessionmaker[AsyncSession], store: ObjectStore, *, limit: int = 2
 ) -> ParseReport:
-    """Parse up to `limit` uploaded imports, oldest first, each in one transaction."""
+    """Parse up to `limit` uploaded imports, oldest first, each in one transaction. An import
+    whose source the bucket will not give back is passed over for this call without using up
+    one of the `limit`, so a few of them cannot hold up the imports behind them (at most
+    `WAITING_PASSED_OVER` are tried)."""
     parsed = failed = waiting = 0
     skip: set[UUID] = set()
-    for _ in range(limit):
+    for _ in range(limit + WAITING_PASSED_OVER):
+        if parsed + failed >= limit:
+            break
         claimed: _Claimed | None = None
         try:
             async with sessions() as db, db.begin():
@@ -228,14 +234,19 @@ async def _claim(db: AsyncSession, skip: set[UUID]) -> _Claimed | None:
     )
 
 
-async def _read_source(store: ObjectStore, imp: _Claimed) -> dict[str, Any]:
-    """The stored source: `RawStorageError` when the bucket does not give it back (tried again
-    later), `SourceError` when what it gives back is not a source of this import."""
+async def _read_source(store: ObjectStore, imp: _Claimed) -> Mapping[str, Any] | bytes:
+    """The stored source: the bytes of the file for an upload, else the JSON of the paste or
+    the rows. `RawStorageError` when the bucket does not give it back (tried again later),
+    `SourceError` when what it gives back is not a source of this import. The work on a large
+    source runs in a thread, so the worker's other ticks go on."""
     if imp.key is None:
         raise SourceError("source_corrupt", "The import has no stored source.")
     blob = await store.get(imp.key)
     try:
-        payload = json.loads(decompress(blob))
+        body = await asyncio.to_thread(decompress, blob)
+        if imp.source == "upload":
+            return body
+        payload = await asyncio.to_thread(json.loads, body)
     except (RawStorageError, ValueError):
         raise SourceError("source_corrupt", "The stored source cannot be read.") from None
     if not isinstance(payload, dict) or payload.get("kind") != _KIND.get(imp.source):
@@ -243,14 +254,16 @@ async def _read_source(store: ObjectStore, imp: _Claimed) -> dict[str, Any]:
     return payload
 
 
-def _read_rows(imp: _Claimed, payload: Mapping[str, Any]) -> tuple[list[str], list[SourceRow]]:
+def _read_rows(
+    imp: _Claimed, payload: Mapping[str, Any] | bytes
+) -> tuple[list[str], list[SourceRow]]:
     try:
-        if imp.source == "upload":
-            return read_csv(base64.b64decode(str(payload["data"]), validate=True))
+        if isinstance(payload, bytes):
+            return read_csv(payload)
         if imp.source == "api":
             return read_api_rows(payload["rows"])
         rows = read_paste(str(payload["text"]))
-    except (KeyError, TypeError, AttributeError, binascii.Error):
+    except (KeyError, TypeError, AttributeError):
         raise SourceError("source_corrupt", "The stored source is damaged.") from None
     # A paste has the headers its lines use: the keyword, and tags when a line has them.
     return ["keyword", "tags"] if any("tags" in row.cells for row in rows) else ["keyword"], rows
@@ -357,9 +370,9 @@ class _Invalid:
     error: RowError
 
 
-async def _preview(db: AsyncSession, imp: _Claimed, payload: Mapping[str, Any]) -> None:
+async def _preview(db: AsyncSession, imp: _Claimed, payload: Mapping[str, Any] | bytes) -> None:
     """Replace the import's rows with the preview of its source, or ask for a mapping."""
-    headers, source_rows = _read_rows(imp, payload)
+    headers, source_rows = await asyncio.to_thread(_read_rows, imp, payload)
     mapping = (
         {header: header for header in headers}
         if imp.source == "paste"

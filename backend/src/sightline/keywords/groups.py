@@ -60,7 +60,9 @@ async def ensure_group_path(
                 select(g.id, g.path).where(
                     g.workspace_id == workspace_id,
                     g.project_id == project_id,
-                    func.lower(g.name) == name.lower(),
+                    # By the database's own lower(), as the unique index on sibling names is:
+                    # Python's differs for some letters (a final sigma).
+                    func.lower(g.name) == func.lower(name),
                     g.parent_id.is_(None) if parent_id is None else g.parent_id == parent_id,
                 )
             )

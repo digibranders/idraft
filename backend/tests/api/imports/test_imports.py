@@ -4,7 +4,6 @@ the preview."""
 
 from __future__ import annotations
 
-import base64
 import json
 import uuid
 from typing import Any
@@ -201,9 +200,8 @@ async def test_a_csv_file_is_stored_whole_with_the_options_that_came_with_it(
     assert data["column_mapping"] == {"Term": "keyword"}
     assert data["defaults"] == {"device": "mobile"}
     (blob,) = import_store.objects.values()
-    stored = json.loads(decompress(blob))
-    assert stored["kind"] == "csv"
-    assert base64.b64decode(stored["data"]) == CSV
+    # The file as it came, compressed: not copied through base64 and JSON.
+    assert decompress(blob) == CSV
 
 
 async def test_a_csv_without_a_content_type_is_known_by_its_name(

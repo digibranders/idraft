@@ -11,7 +11,6 @@ under way (the import row is locked) and then sees what the parse made.
 from __future__ import annotations
 
 import asyncio
-import base64
 import csv
 import io
 import json
@@ -170,7 +169,12 @@ def report_csv(rows: Sequence[RowRecord]) -> str:
     return out.getvalue()
 
 
-def _pack(payload: Mapping[str, object]) -> bytes:
+def _pack(payload: Mapping[str, object] | bytes) -> bytes:
+    """What goes to the bucket. A CSV file goes as it is, compressed: a 50 MB file is not
+    copied through base64 and JSON, which would hold several times its size at once. Paste
+    text and rows are JSON with a `kind`."""
+    if isinstance(payload, bytes):
+        return compress(payload)
     return compress(json.dumps(payload).encode())
 
 
@@ -320,7 +324,7 @@ class ImportService:
         *,
         source: Literal["upload", "paste", "api"],
         filename: str | None,
-        payload: Mapping[str, object],
+        payload: Mapping[str, object] | bytes,
         mapping: Mapping[str, str],
         defaults: ImportDefaults,
         info: RequestInfo,
@@ -430,13 +434,12 @@ class ImportService:
         mapping = {header: field.value for header, field in (options.column_mapping or {}).items()}
         if errors := _mapping_errors(mapping):
             raise invalid_fields(errors)
-        payload = {"kind": "csv", "data": base64.b64encode(data).decode("ascii")}
         return await self._record(
             access,
             project_id,
             source="upload",
             filename=_filename(filename),
-            payload=payload,
+            payload=data,
             mapping=mapping,
             defaults=options.defaults,
             info=info,
@@ -734,6 +737,7 @@ class ImportService:
                 action=None,
                 after=None,
                 limit=None,
+                with_raw=False,
             )
         return await asyncio.to_thread(report_csv, rows)
 

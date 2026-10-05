@@ -83,6 +83,29 @@ async def test_a_group_path_is_found_or_made_level_by_level(
     ]
 
 
+async def test_a_group_is_matched_by_the_databases_own_lower_case(
+    sessions: Sessions, migrated: PostgresServer
+) -> None:
+    """Python lower-cases a final capital sigma to a final sigma, the database to a plain one:
+    a name matched in Python would miss the group the sibling index knows and fail on insert."""
+    workspace = await make_workspace(migrated)
+    project = await make_project(migrated, workspace.id)
+    made = await fetchrow(
+        migrated,
+        "INSERT INTO seo.keyword_groups (workspace_id, project_id, name, path) "
+        "VALUES ($1, $2, 'ΟΔΟΣ', 'ΟΔΟΣ') RETURNING id",
+        workspace.id,
+        project,
+    )
+
+    async with workspace_transaction(sessions, workspace.id) as db:
+        found = await ensure_group_path(
+            db, workspace_id=workspace.id, project_id=project, names=["ΟΔΟΣ"]
+        )
+
+    assert found == made["id"]
+
+
 async def test_groups_of_two_projects_do_not_meet(
     sessions: Sessions, migrated: PostgresServer
 ) -> None:

@@ -18,7 +18,7 @@ from tests.collectors.test_import_writer import (
     _vocabulary,
     clean,  # noqa: F401  (an autouse fixture of that module)
 )
-from tests.collectors.test_imports import _project, _row
+from tests.collectors.test_imports import _csv, _project, _row
 from tests.collectors.test_keyword_metrics import _track
 from tests.conftest import PostgresServer
 
@@ -58,7 +58,7 @@ async def test_a_deleted_keyword_with_two_terms_of_a_vocabulary_made_single_valu
         "UPDATE core.taxonomy_vocabularies SET is_single_valued = true WHERE id = $1",
         topics,
     )
-    import_id = await _confirmed(migrated, worker_db, store, project, _csv_of("keyword\ncrm\n"))
+    import_id = await _confirmed(migrated, worker_db, store, project, _csv("keyword\ncrm\n"))
 
     await write_next(worker_db)
 
@@ -170,7 +170,7 @@ async def test_an_import_another_worker_finished_is_not_ended_again(
 ) -> None:
     project = await _project(migrated)
     store = MemoryStore()
-    import_id = await _confirmed(migrated, worker_db, store, project, _csv_of("keyword\ncrm\n"))
+    import_id = await _confirmed(migrated, worker_db, store, project, _csv("keyword\ncrm\n"))
     async with worker_db() as db, db.begin():
         claimed = await import_writer._claim(db)
     assert claimed is not None
@@ -185,9 +185,3 @@ async def test_an_import_another_worker_finished_is_not_ended_again(
     assert (imported["status"], imported["error_code"]) == ("completed", None)
     assert WriteReport() == await write_next(worker_db)
     assert isinstance(import_id, uuid.UUID)
-
-
-def _csv_of(text: str) -> dict[str, object]:
-    import base64
-
-    return {"kind": "csv", "data": base64.b64encode(text.encode()).decode()}

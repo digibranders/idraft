@@ -5,7 +5,6 @@ As `app_worker`, with a memory store standing in for the bucket."""
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import time
 import uuid
@@ -54,8 +53,12 @@ async def _project(pg: PostgresServer) -> Project:
     return project
 
 
-def _csv(text: str) -> dict[str, object]:
-    return {"kind": "csv", "data": base64.b64encode(text.encode()).decode()}
+class File(bytes):
+    """The bytes of an uploaded CSV file: stored compressed, as the API stores them."""
+
+
+def _csv(text: str) -> File:
+    return File(text.encode())
 
 
 async def _import(
@@ -71,7 +74,12 @@ async def _import(
     """An import as the API records it: the source in the store, the import `uploaded`."""
     import_id = uuid.uuid4()
     key = f"imports/v1/{project.workspace_id}/{import_id}/source"
-    body = source if isinstance(source, bytes) else compress(json.dumps(source).encode())
+    if isinstance(source, File):
+        body = compress(source)
+    elif isinstance(source, bytes):
+        body = source
+    else:
+        body = compress(json.dumps(source).encode())
     await store.put(key, body)
     user = await make_user(pg, name="Importer")
     await execute(
@@ -353,11 +361,10 @@ async def test_an_unreadable_source_fails_the_import(
 ) -> None:
     project = await _project(migrated)
     store = MemoryStore()
-    not_utf8 = await _import(
-        migrated, store, project, {"kind": "csv", "data": base64.b64encode(b"\xff\xfe").decode()}
-    )
+    not_utf8 = await _import(migrated, store, project, File(b"\xff\xfe"))
     corrupt = await _import(migrated, store, project, b"not a compressed object")
-    wrong_kind = await _import(migrated, store, project, {"kind": "paste", "text": "crm"})
+    # A paste import whose stored source is the rows of another kind of import.
+    wrong_kind = await _import(migrated, store, project, {"kind": "api", "rows": []}, kind="paste")
 
     report = await parse_next(worker_db, store, limit=3)
 

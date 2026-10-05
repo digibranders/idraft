@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -641,11 +641,14 @@ async def test_a_keyword_still_without_metrics_a_day_after_its_run_is_asked_for_
     sets to the start of the month: this holds on every day of the month."""
     project = await make_tenant(migrated)
     await _track(migrated, project, "new crm")
-    await queue_new_keywords(worker_db, now=NOW)
-    await plan_manual_runs(worker_db, _registry(), now=NOW + timedelta(minutes=5))
+    # The clock of this test, not the one the module read when it was imported: the run's time
+    # is the database's, and a slow suite would put them hours apart.
+    now = datetime.now(UTC)
+    await queue_new_keywords(worker_db, now=now)
+    await plan_manual_runs(worker_db, _registry(), now=now + timedelta(minutes=5))
 
-    within_the_day = await queue_new_keywords(worker_db, now=NOW + timedelta(hours=23))
-    after_the_day = await queue_new_keywords(worker_db, now=NOW + timedelta(hours=25))
+    within_the_day = await queue_new_keywords(worker_db, now=now + timedelta(hours=23))
+    after_the_day = await queue_new_keywords(worker_db, now=now + timedelta(hours=25))
 
     assert (within_the_day, after_the_day) == (0, 1)
 

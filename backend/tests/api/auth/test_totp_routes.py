@@ -279,7 +279,9 @@ async def test_a_pending_session_expires_after_ten_minutes(
         "WHERE user_id = $1 AND state = 'pending_totp'",
         user.id,
     )
-    assert 595 <= row["life"].total_seconds() <= 600
+    # Ten minutes. The expiry is the application's clock and the creation time the database's,
+    # which are a few milliseconds apart in either direction.
+    assert 595 <= row["life"].total_seconds() <= 601
     await execute(
         migrated,
         "UPDATE auth.sessions SET idle_expires_at = now() - interval '1 second' WHERE id = $1",

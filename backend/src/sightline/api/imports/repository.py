@@ -192,7 +192,7 @@ def _row(row: Row[Any]) -> RowRecord:
     return RowRecord(
         row_no=row.row_no,
         part=row.part,
-        raw={str(k): str(v) for k, v in (row.raw or {}).items()},
+        raw={str(k): str(v) for k, v in (row._mapping.get("raw") or {}).items()},
         keyword_text=row.keyword_text,
         normalized_text=row.normalized_text,
         language_code=row.language_code,
@@ -218,11 +218,14 @@ async def list_rows(
     action: str | None,
     after: tuple[int, int] | None,
     limit: int | None,
+    with_raw: bool = True,
 ) -> list[RowRecord]:
     """The import's rows in (row_no, part) order, after the key of the last row of the page
-    before; at most `limit`, or all of them when None."""
+    before; at most `limit`, or all of them when None. Without `with_raw` the source cells of
+    the rows are not read (the report has no use for them, and they can be most of the
+    import's bytes)."""
     r = keyword_import_rows.c
-    statement = select(keyword_import_rows).where(
+    statement = select(*(column for column in r if with_raw or column.name != "raw")).where(
         r.workspace_id == workspace_id, r.import_id == import_id
     )
     if outcomes:

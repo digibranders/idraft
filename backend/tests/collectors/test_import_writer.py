@@ -63,7 +63,7 @@ async def _confirmed(
     worker_db: Ledger,
     store: MemoryStore,
     project: Project,
-    source: dict[str, object],
+    source: dict[str, object] | bytes,
     *,
     kind: str = "upload",
     defaults: dict[str, object] | None = None,

@@ -15,6 +15,7 @@ from sightline.collectors import import_writer, imports
 from sightline.collectors.import_writer import WriteReport, write_next
 from sightline.collectors.imports import ParseReport, parse_next
 from sightline.keywords import writer
+from sightline.storage.raw import RawStorageError
 from tests.api.auth.support import execute
 from tests.collectors.test_fetching import MemoryStore
 from tests.collectors.test_import_writer import _confirmed, _results, _tracked
@@ -141,6 +142,37 @@ async def test_an_import_never_read_is_given_up_on_after_an_hour_of_a_failing_bu
     assert report == ParseReport(failed=1)
     imported = await _row(migrated, import_id)
     assert (imported["status"], imported["error_code"]) == ("failed", "source_unreadable")
+
+
+class _SomeDown(MemoryStore):
+    """A bucket that cannot give back some keys."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.down: set[str] = set()
+
+    async def get(self, key: str) -> bytes:
+        if key in self.down:
+            raise RawStorageError("reading a payload failed: InternalError")
+        return await super().get(key)
+
+
+async def test_imports_the_bucket_cannot_give_back_do_not_use_up_the_places_of_others(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await _project(migrated)
+    store = _SomeDown()
+    stuck = [await _import(migrated, store, project, _csv("keyword\ncrm\n")) for _ in range(3)]
+    fine = await _import(migrated, store, project, _csv("keyword\nerp\n"))
+    store.down = {f"imports/v1/{project.workspace_id}/{import_id}/source" for import_id in stuck}
+
+    report = await parse_next(worker_db, store, limit=1)
+
+    # Three older imports wait for the bucket; the one behind them is still read.
+    assert report == ParseReport(parsed=1, waiting=3)
+    assert (await _row(migrated, fine))["status"] == "preview_ready"
+    for import_id in stuck:
+        assert (await _row(migrated, import_id))["status"] == "uploaded"
 
 
 async def test_a_file_with_too_many_columns_fails_with_its_reason(
