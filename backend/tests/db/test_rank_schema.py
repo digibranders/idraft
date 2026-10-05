@@ -214,6 +214,65 @@ async def test_features_and_observations_name_a_snapshot_of_their_own_workspace(
             )
 
 
+async def test_features_and_observations_name_the_project_and_keyword_of_their_snapshot(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    alpha, _ = tenants
+    async with scoped(migrated, "superuser") as db:
+        own = await _seeded(db, alpha)
+        other_project = await db.fetchval(
+            "INSERT INTO core.projects (workspace_id, name, slug) VALUES ($1, 'second', 'second') "
+            "RETURNING id",
+            alpha.workspace_id,
+        )
+
+        for project, keyword in ((other_project, own.tracked_id), (alpha.project_id, uuid.uuid4())):
+            async with refused(db, asyncpg.ForeignKeyViolationError):
+                await db.execute(
+                    "INSERT INTO seo.serp_features (observed_at, serp_snapshot_id, workspace_id, "
+                    "project_id, tracked_keyword_id, feature_type, ordinal, owned_by_project, "
+                    "parser_version) VALUES ($1, $2, $3, $4, $5, 'images', 1, false, 1)",
+                    own.observed_at,
+                    own.snapshot_id,
+                    alpha.workspace_id,
+                    project,
+                    keyword,
+                )
+            async with refused(db, asyncpg.ForeignKeyViolationError):
+                await db.execute(
+                    "INSERT INTO seo.domain_rank_observations (serp_snapshot_id, observed_at, "
+                    "observed_date, workspace_id, project_id, tracked_keyword_id, entity_id, "
+                    "role, depth_requested) VALUES ($1, $2, current_date, $3, $4, $5, $6, "
+                    "'competitor', 20)",
+                    own.snapshot_id,
+                    own.observed_at,
+                    alpha.workspace_id,
+                    project,
+                    keyword,
+                    uuid.uuid4(),
+                )
+
+
+async def test_the_state_of_a_keyword_cannot_name_another_workspace(
+    migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    alpha, beta = tenants
+    async with scoped(migrated, "superuser") as db:
+        own = await _seeded(db, alpha)
+        await db.execute(
+            "DELETE FROM seo.tracked_keyword_state WHERE tracked_keyword_id = $1", own.tracked_id
+        )
+
+        async with refused(db, asyncpg.ForeignKeyViolationError):
+            await db.execute(
+                "INSERT INTO seo.tracked_keyword_state (tracked_keyword_id, workspace_id, "
+                "project_id) VALUES ($1, $2, $3)",
+                own.tracked_id,
+                beta.workspace_id,
+                beta.project_id,
+            )
+
+
 async def test_a_ranked_entity_has_a_url_and_an_unranked_one_has_none(
     migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
 ) -> None:

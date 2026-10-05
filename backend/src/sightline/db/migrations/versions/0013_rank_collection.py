@@ -130,10 +130,11 @@ CREATE TABLE seo.serp_snapshots (
     canonicalizer_version  smallint NOT NULL,
     cost_usd               numeric(14,6),
     served_from_cache      boolean NOT NULL DEFAULT false,
-    extras                 jsonb CHECK (extras IS NULL OR length(extras::text) <= 8192),
+    extras                 jsonb CHECK (extras IS NULL OR octet_length(extras::text) <= 8192),
     superseded_by          bigint,
     PRIMARY KEY (id, observed_at),
-    UNIQUE (id, observed_at, workspace_id),
+    CONSTRAINT serp_snapshots_identity_key
+        UNIQUE (id, observed_at, workspace_id, project_id, tracked_keyword_id),
     UNIQUE (collection_task_id, observed_at),
     CHECK (cardinality(organic_url_ids) = cardinality(organic_domain_ids)
            AND cardinality(organic_url_ids) = cardinality(organic_abs_positions)),
@@ -164,12 +165,13 @@ CREATE TABLE seo.serp_features (
     owned_by_project       boolean NOT NULL,
     owned_position         smallint,
     competitor_entity_ids  uuid[] NOT NULL DEFAULT '{{}}',
-    payload                jsonb CHECK (payload IS NULL OR length(payload::text) <= 4096),
+    payload                jsonb CHECK (payload IS NULL OR octet_length(payload::text) <= 4096),
     parser_version         smallint NOT NULL,
     PRIMARY KEY (id, observed_at),
     CHECK (cardinality(source_url_ids) = cardinality(source_domain_ids)),
-    FOREIGN KEY (serp_snapshot_id, observed_at, workspace_id)
-        REFERENCES seo.serp_snapshots(id, observed_at, workspace_id) ON DELETE CASCADE
+    FOREIGN KEY (serp_snapshot_id, observed_at, workspace_id, project_id, tracked_keyword_id)
+        REFERENCES seo.serp_snapshots(id, observed_at, workspace_id, project_id, tracked_keyword_id)
+        ON DELETE CASCADE
 ) PARTITION BY RANGE (observed_at);
 
 CREATE INDEX serp_features_keyword_type
@@ -202,9 +204,13 @@ CREATE TABLE seo.domain_rank_observations (
     PRIMARY KEY (tracked_keyword_id, entity_id, observed_at, serp_snapshot_id),
     CHECK ((organic_rank IS NULL) = (ranking_url_id IS NULL)),
     CHECK (cardinality(all_organic_ranks) = cardinality(all_url_ids)),
-    FOREIGN KEY (serp_snapshot_id, observed_at, workspace_id)
-        REFERENCES seo.serp_snapshots(id, observed_at, workspace_id) ON DELETE CASCADE
+    FOREIGN KEY (serp_snapshot_id, observed_at, workspace_id, project_id, tracked_keyword_id)
+        REFERENCES seo.serp_snapshots(id, observed_at, workspace_id, project_id, tracked_keyword_id)
+        ON DELETE CASCADE
 ) PARTITION BY RANGE (observed_at);
+
+CREATE INDEX domain_rank_observations_snapshot
+    ON seo.domain_rank_observations (serp_snapshot_id, observed_at);
 
 CREATE INDEX domain_rank_observations_project_date
     ON seo.domain_rank_observations (project_id, observed_date, role);
@@ -281,8 +287,10 @@ CREATE TABLE seo.rank_events (
     from_url_id         bigint,
     to_url_id           bigint,
     other_entity_id     uuid,
+    feature_type        text,
     serp_snapshot_id    bigint NOT NULL,
     PRIMARY KEY (id, occurred_at),
+    CHECK ((event_type IN ('feature_gained','feature_lost')) = (feature_type IS NOT NULL)),
     FOREIGN KEY (tracked_keyword_id, project_id, workspace_id)
         REFERENCES seo.tracked_keywords(id, project_id, workspace_id) ON DELETE CASCADE
 ) PARTITION BY RANGE (occurred_at);

@@ -34,6 +34,11 @@ Engineering choices (from the digest, recommended there):
 - **R13. Rank history `summary`** is computed inline from the window's rows (at most about 100 per entity).
 - **R14. Deferred:** competitor backfill and `ops.derivation_log` (step 7), the shared fetch cache `ops.fetch_cache`, the data quality tables and the 1% schema-hash sampling (keep `is_valid`, default true), `ops.task_attempts`, the load test with 10,000 recorded payloads, and the real 14-day run (needs the droplet, step 6). The acceptance is an accelerated test against fakes.
 
+Decisions taken while writing the rank rules (Task 3):
+
+- **R15. The own side is one.** A keyword's state and events describe the project's own entities together: its rank is the best organic rank among all entities with role `own`, and its events are attributed to the primary own entity (a project without one writes no rank events). Each own and competitor entity still has its own `domain_rank_observations` row.
+- **R16. A change is computed within the smaller depth of the two checks** (doc 09 section 4: "deep and daily checks are compared within the smaller depth"): both ranks beyond that depth count as beyond it. The previous check is the last successful check, held in the state (`previous_rank`, `previous_observed_at`, `previous_depth_requested`); this is R4 as the state can hold it. `rank_gain` and `rank_drop` events are written for every numeric change, with from and to ranks; thresholds belong to the alert rules. The ranking URL changes only between two ranked checks in a row (the state keeps only the current URL). The depth of a check is the depth requested: a SERP that returns fewer results because Google has no more is not told apart yet.
+
 Rulings on the contradictions the digest found (docs are corrected in Task 11):
 
 1. Check now is Phase 4 (R2); doc 06 section 1 is wrong.
@@ -91,13 +96,13 @@ Every task: tests first, `backend/check.sh` green, commit, then an independent r
 
 ### Task 4: The ingest writer
 
-- [ ] `collectors/seo_rank_ingest.py` and its tick: claim `fetched` tasks, read the payload from R2, normalize, resolve, then one transaction: upsert `core.domains` and `core.urls`; insert the snapshot (`ON CONFLICT (collection_task_id, observed_at) DO NOTHING`; when nothing is inserted only mark the task ingested); features, rank observations and events computed against the state row locked `FOR UPDATE`; update the state only when `observed_at` is newer; replace `serp_current_results` only when newer; `ledger.mark_ingested`. A storage failure waits (`ingest_later`, 5 minutes, give up after 1 day); a deleted keyword gets nothing and its task is ingested; `schema_mismatch` fails the task with the raw kept.
+- [ ] `collectors/seo_rank_ingest.py` and its tick: claim `fetched` tasks, read the payload from R2, normalize, resolve, then one transaction: upsert `core.domains` and `core.urls`; insert the snapshot (`ON CONFLICT (collection_task_id, observed_at) DO NOTHING`; when nothing is inserted only mark the task ingested); features, rank observations and events computed against the state row locked `FOR UPDATE`; update the state only when `observed_at` is newer; replace `serp_current_results` only when newer; `ledger.mark_ingested`. A storage failure waits (`ingest_later`, 5 minutes, give up after 1 day); a deleted keyword gets nothing and its task is ingested; `schema_mismatch` fails the task with the raw kept. The snapshot's `observed_at` is the provider's `datetime` when it is readable and inside the partitions, else the raw payload's `fetched_at`: the same value on every ingest of a task, or the one-snapshot-per-task key does not hold (schema review).
 - [ ] Tests (database): ingest twice gives one snapshot; an older payload does not move the state; a deleted keyword; a storage failure waits; `schema_mismatch`; two workspaces never mix.
 - [ ] Gates, Opus review, fixes, commit.
 
 ### Task 5: The `seo_rank` workload and registration
 
-- [ ] `collectors/seo_rank.py`: subjects, selection (selectors `all`, `groups`, `terms` with subtrees, `priority_lte`; active keywords of a collecting project; R9), depth per profile and weekday in the project's zone (`light` 10, `standard` 20, `deep` 50, `full` 100; the deep weekday replaces the daily check; `weekly` 100 and `weekly_light` 20 on that weekday only), the estimate from the price book, `config_snapshot`, staggering through `domain.tasks.scheduled_for`, `build_requests` with the provider location map. The default schedule with the first keyword (R1) in `keywords/writer.py`, and the new-keyword step (R1). `worker/assembly.py` registers the workload only with the ingest tick present (F62). `depth_profile_not_available` for `until_own_match_100` (R10).
+- [ ] `collectors/seo_rank.py`: subjects, selection (selectors `all`, `groups`, `terms` with subtrees, `priority_lte`; active keywords of a collecting project; R9), depth per profile and weekday in the project's zone (`light` 10, `standard` 20, `deep` 50, `full` 100; the deep weekday replaces the daily check; `weekly` 100 and `weekly_light` 20 on that weekday only), the estimate from the price book, `config_snapshot`, staggering through `domain.tasks.scheduled_for`, `build_requests` with the provider location map. The default schedule with the first keyword (R1) in `keywords/writer.py`, and the new-keyword step (R1). `worker/assembly.py` registers the workload only with the ingest tick present (F62). `depth_profile_not_available` for `until_own_match_100` (R10). The estimate reads the SERP price rows by `conditions->>'queue'` (three `page` rows share one endpoint; the Labs estimate keys prices by unit alone and must not be copied).
 - [ ] Tests: the depth plan per profile and weekday across a DST change; selectors; double planning inserts nothing; estimates; overlapping schedules; a budget-blocked run; the new-keyword step's quiet rules.
 - [ ] Gates, Opus review (this starts spend), fixes, commit.
 
@@ -114,7 +119,7 @@ Every task: tests first, `backend/check.sh` green, commit, then an independent r
 
 ### Task 8: API part 2, history and SERP routes
 
-- [ ] `api/ranks/`: rank-history (both formats, bands, failed points, inline summary per R13), snapshots list and detail, `serp-current`, `serp-features`, `aio-history`, `rank-events`, the raw route (`raw:read`, `410 raw_expired`).
+- [ ] `api/ranks/`: rank-history (both formats, bands, failed points, inline summary per R13), snapshots list and detail, `serp-current`, `serp-features`, `aio-history`, `rank-events`, the raw route (`raw:read`, `410 raw_expired`; the definer function checks the workspace only, so the route checks the member's access to the snapshot's project itself).
 - [ ] Tests: depth-aware encoding as a golden response (doc 19 section 4.2), `410` after expiry, permissions, cross-tenant, route-access registry.
 - [ ] Gates, Opus review, fixes, commit.
 

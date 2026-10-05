@@ -1065,7 +1065,12 @@ serp_snapshots = Table(
     Column("extras", JSONB),
     Column("superseded_by", BigInteger),
     UniqueConstraint(
-        "id", "observed_at", "workspace_id", name="serp_snapshots_id_observed_at_workspace_id_key"
+        "id",
+        "observed_at",
+        "workspace_id",
+        "project_id",
+        "tracked_keyword_id",
+        name="serp_snapshots_identity_key",
     ),
     UniqueConstraint(
         "collection_task_id",
@@ -1100,8 +1105,14 @@ serp_features = Table(
     Column("payload", JSONB),
     Column("parser_version", SmallInteger, nullable=False),
     ForeignKeyConstraint(
-        ["serp_snapshot_id", "observed_at", "workspace_id"],
-        [serp_snapshots.c.id, serp_snapshots.c.observed_at, serp_snapshots.c.workspace_id],
+        ["serp_snapshot_id", "observed_at", "workspace_id", "project_id", "tracked_keyword_id"],
+        [
+            serp_snapshots.c.id,
+            serp_snapshots.c.observed_at,
+            serp_snapshots.c.workspace_id,
+            serp_snapshots.c.project_id,
+            serp_snapshots.c.tracked_keyword_id,
+        ],
         ondelete="CASCADE",
     ),
     schema="seo",
@@ -1133,8 +1144,14 @@ domain_rank_observations = Table(
     Column("is_valid", Boolean, nullable=False, server_default=FetchedValue()),
     PrimaryKeyConstraint("tracked_keyword_id", "entity_id", "observed_at", "serp_snapshot_id"),
     ForeignKeyConstraint(
-        ["serp_snapshot_id", "observed_at", "workspace_id"],
-        [serp_snapshots.c.id, serp_snapshots.c.observed_at, serp_snapshots.c.workspace_id],
+        ["serp_snapshot_id", "observed_at", "workspace_id", "project_id", "tracked_keyword_id"],
+        [
+            serp_snapshots.c.id,
+            serp_snapshots.c.observed_at,
+            serp_snapshots.c.workspace_id,
+            serp_snapshots.c.project_id,
+            serp_snapshots.c.tracked_keyword_id,
+        ],
         ondelete="CASCADE",
     ),
     schema="seo",
@@ -1217,6 +1234,8 @@ rank_events = Table(
     Column("from_url_id", BigInteger),
     Column("to_url_id", BigInteger),
     Column("other_entity_id", Uuid),
+    # The feature type of a `feature_gained` or `feature_lost` event, else null.
+    Column("feature_type", Text),
     Column("serp_snapshot_id", BigInteger, nullable=False),
     ForeignKeyConstraint(
         ["tracked_keyword_id", "project_id", "workspace_id"],
