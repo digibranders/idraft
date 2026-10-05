@@ -11,8 +11,8 @@ collection.md`, decisions R6 and R7):
   twice. `(id, observed_at, workspace_id)` is unique so that features and observations refer to
   their snapshot with the workspace.
 - The state gains `consecutive_beyond` (the two-check debounce of `new_ranking` and
-  `lost_ranking`) and `previous_depth_requested` (the previous check is compared only with a
-  check of the same or greater depth).
+  `lost_ranking`), `last_ranked_rank` (how deep a check must look to say the keyword is gone)
+  and `previous_depth_requested` (the depth the previous check looked at).
 - Observation tables are append-only for the worker: SELECT and INSERT. The state is changed in
   named columns only, and the current results are replaced (INSERT and DELETE).
 - Rows of entities (`entity_id`, `other_entity_id`) and URLs are historical facts and carry no
@@ -249,6 +249,7 @@ CREATE TABLE seo.tracked_keyword_state (
     url_changed_at           timestamptz,
     consecutive_failures     smallint NOT NULL DEFAULT 0,
     consecutive_beyond       smallint NOT NULL DEFAULT 0,
+    last_ranked_rank         smallint,
     is_stale                 boolean NOT NULL DEFAULT false,
     updated_at               timestamptz NOT NULL DEFAULT now(),
     FOREIGN KEY (tracked_keyword_id, project_id, workspace_id)
@@ -362,6 +363,7 @@ _STATE_WORKER_UPDATE = (
     "url_changed_at",
     "consecutive_failures",
     "consecutive_beyond",
+    "last_ranked_rank",
     "is_stale",
     "updated_at",
 )

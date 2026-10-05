@@ -15,12 +15,20 @@ depths = st.sampled_from([20, 100])
 @st.composite
 def checks(draw: st.DrawFn) -> list[Check]:
     """Checks on consecutive days; each ranks within its depth or does not rank."""
-    steps = draw(st.lists(st.tuples(depths, st.booleans(), st.integers(1, 100)), max_size=25))
     built: list[Check] = []
-    for day, (depth, ranked, value) in enumerate(steps):
-        rank = min(value, depth) if ranked else None
-        built.append(check(day=day, rank=rank, depth=depth, url_id=1 + value % 3))
+    for day in range(draw(st.integers(0, 25))):
+        depth = draw(depths)
+        ranked = draw(st.booleans())
+        rank = draw(st.integers(1, depth)) if ranked else None
+        built.append(check(day=day, rank=rank, depth=depth, url_id=draw(st.integers(1, 3))))
     return built
+
+
+@st.composite
+def shallow_checks(draw: st.DrawFn) -> list[Check]:
+    """Checks that all look at depth 20."""
+    ranks = draw(st.lists(st.none() | st.integers(1, 20), max_size=25))
+    return [check(day=day, rank=rank, depth=20) for day, rank in enumerate(ranks)]
 
 
 def replay(sequence: list[Check]) -> tuple[KeywordState | None, list[tuple[EventDraft, ...]]]:
@@ -43,7 +51,7 @@ def test_the_state_stays_consistent_through_any_sequence(sequence: list[Check]) 
         assert (state.current_rank is None) == (state.current_url_id is None)
         assert state.consecutive_beyond >= 0
         if state.current_rank is not None:
-            assert state.consecutive_beyond == 0
+            assert state.last_ranked_rank == state.current_rank
             assert state.best_rank is not None
             assert state.worst_rank is not None
             assert state.best_rank <= state.current_rank <= state.worst_rank
@@ -73,10 +81,26 @@ def test_events_only_name_buckets_both_checks_cover(sequence: list[Check]) -> No
         state = transition.state
 
 
-@given(checks())
-def test_a_loss_or_a_new_ranking_is_written_once_per_run_of_beyond_checks(
+@given(shallow_checks())
+def test_at_one_depth_every_run_of_two_unranked_checks_after_a_rank_is_one_loss(
     sequence: list[Check],
 ) -> None:
+    _, emitted = replay(sequence)
+    ranked_before = False
+    run = 0
+    for item, events in zip(sequence, emitted, strict=True):
+        lost = [event for event in events if event.event_type == "lost_ranking"]
+        if item.rank is not None:
+            ranked_before, run = True, 0
+        else:
+            run += 1
+        # The second unranked check in a row, after the keyword ranked once, writes it; no other
+        # check does.
+        assert len(lost) == int(item.rank is None and run == 2 and ranked_before)
+
+
+@given(checks())
+def test_a_loss_is_written_once_per_run_at_any_depth(sequence: list[Check]) -> None:
     _, emitted = replay(sequence)
     lost_since_ranked = 0
     for item, events in zip(sequence, emitted, strict=True):
@@ -85,7 +109,22 @@ def test_a_loss_or_a_new_ranking_is_written_once_per_run_of_beyond_checks(
             lost_since_ranked = 0
         lost_since_ranked += names.count("lost_ranking")
         assert lost_since_ranked <= 1
-        assert names.count("new_ranking") <= 1
+
+
+@given(shallow_checks())
+def test_at_one_depth_a_new_ranking_follows_two_or_more_unranked_checks(
+    sequence: list[Check],
+) -> None:
+    _, emitted = replay(sequence)
+    run = 0
+    for item, events in zip(sequence, emitted, strict=True):
+        wrote = "new_ranking" in [event.event_type for event in events]
+        if item.rank is None:
+            run += 1
+            assert not wrote
+        else:
+            assert wrote == (run >= 2)
+            run = 0
 
 
 @given(checks(), st.data())

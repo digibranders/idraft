@@ -115,17 +115,15 @@ def _ranking_events(
         if change.kind == "new" and previous.consecutive_beyond >= DEBOUNCE_CHECKS:
             return [EventDraft("new_ranking", None, check.rank)]
         return []
-    # Written once, by the check that makes the run exactly long enough.
+    # Written once, by the check that makes the run exactly long enough, for a keyword that has
+    # ranked before; the run only grows on checks that looked deep enough to see it.
     if (
         run != DEBOUNCE_CHECKS
         or previous.consecutive_beyond != DEBOUNCE_CHECKS - 1
-        or previous.first_ranked_at is None
+        or previous.last_ranked_rank is None
     ):
         return []
-    # A deeper check saw the keyword lower than this one can look: this depth cannot confirm a loss.
-    if previous.worst_rank is not None and previous.worst_rank > check.depth_requested:
-        return []
-    return [EventDraft("lost_ranking", None, None)]
+    return [EventDraft("lost_ranking", previous.last_ranked_rank, None)]
 
 
 def _movement_events(

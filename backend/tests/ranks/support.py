@@ -34,9 +34,16 @@ def organic(rank: int, url: str, **more: Any) -> dict[str, Any]:
     }
 
 
-def serp_of(*urls: str, extra: list[dict[str, Any]] | None = None) -> NormalizedSerp:
-    """A SERP with these URLs at ranks 1, 2, 3, and any other items after them."""
-    items: list[dict[str, Any]] = [organic(i, url) for i, url in enumerate(urls, start=1)]
+def serp_of(
+    *urls: str,
+    extra: list[dict[str, Any]] | None = None,
+    more: dict[int, dict[str, Any]] | None = None,
+) -> NormalizedSerp:
+    """A SERP with these URLs at ranks 1, 2, 3, and any other items after them; `more` adds
+    fields to the organic item at a rank."""
+    items: list[dict[str, Any]] = [
+        organic(i, url, **(more or {}).get(i, {})) for i, url in enumerate(urls, start=1)
+    ]
     items.extend(extra or [])
     return parse_serp(
         {

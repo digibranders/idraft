@@ -172,6 +172,48 @@ def test_a_deep_check_that_finds_what_the_daily_depth_cannot_see_is_not_new() ->
     assert steps[-1] == ()
 
 
+def test_a_keyword_seen_deep_once_is_still_lost_when_it_later_ranks_shallow_and_leaves() -> None:
+    steps = history(
+        check(day=0, rank=45, depth=100),
+        *(check(day=d, rank=5, depth=20) for d in range(1, 30)),
+        check(day=30, rank=None, depth=20),
+        check(day=31, rank=None, depth=20),
+        check(day=32, rank=None, depth=20),
+    )[1]
+
+    assert [types(step) for step in steps[-3:]] == [
+        ["lost_top_10", "lost_top_20"],
+        ["lost_ranking"],
+        [],
+    ]
+    assert steps[-2][0].from_rank == 5
+
+
+def test_a_loss_deep_in_the_results_is_confirmed_by_deep_checks_only() -> None:
+    steps = history(
+        check(day=0, rank=98, depth=100),
+        *(check(day=d, rank=None, depth=20) for d in range(1, 7)),
+        check(day=7, rank=None, depth=100),
+        *(check(day=d, rank=None, depth=20) for d in range(8, 14)),
+        check(day=14, rank=None, depth=100),
+    )[1]
+
+    written = [(i, types(step)) for i, step in enumerate(steps) if "lost_ranking" in types(step)]
+    assert written == [(14, ["lost_ranking"])]
+    assert steps[14][0].from_rank == 98
+
+
+def test_a_deep_rank_between_unranked_daily_checks_does_not_hide_a_return_to_the_top() -> None:
+    steps = history(
+        *(check(day=d, rank=None, depth=20) for d in range(4)),
+        check(day=4, rank=45, depth=100),
+        check(day=5, rank=15, depth=20),
+    )[1]
+
+    assert types(steps[4]) == []
+    assert types(steps[5]) == ["entered_top_20", "new_ranking"]
+
+
 # Features and the AI Overview.
 
 

@@ -133,8 +133,8 @@ def test_rank_08_a_ranking_url_that_is_not_the_target_does_not_match() -> None:
     )
 
     assert side.ranking_url is not None
-    assert target_url_match(side, canonicalize("https://acme.com/pricing")) is False
-    assert target_url_match(side, canonicalize("https://acme.com/blog/")) is True
+    assert target_url_match(side, canonicalize("https://acme.com/pricing").url_hash) is False
+    assert target_url_match(side, canonicalize("https://acme.com/blog/").url_hash) is True
     assert target_url_match(side, None) is None
     assert resolved.entities[0].organic_rank == 1
 
@@ -177,31 +177,17 @@ def test_a_watched_entity_counts_for_nobody() -> None:
     assert {e.entity_id for e in resolved.entities} == {OWN, RIVAL}
 
 
-def test_a_grouped_sub_result_is_another_url_not_another_rank() -> None:
-    serp = serp_of("https://acme.com/a")
-    grouped = serp.organic[0]
-    assert grouped.grouped_urls == ()
-    from dataclasses import replace
-
-    serp = replace(
-        serp,
-        organic=(
-            replace(
-                grouped,
-                grouped_urls=(
-                    canonicalize("https://acme.com/a/sub"),
-                    canonicalize("https://x.example/"),
-                ),
-            ),
-        ),
+def test_every_rank_of_an_entity_has_its_url_in_the_same_order() -> None:
+    serp = serp_of(
+        "https://acme.com/a", "https://x.example/", "https://acme.com/b", "https://acme.com/c"
     )
     resolved = resolve_serp(
         serp, resolver(rule(OWN, "own", "acme.com")), ENTITIES, depth_requested=20
     )
 
     own = entity(resolved, OWN)
-    assert own.all_organic_ranks == (1,)
-    assert [u.path for u in own.all_urls] == ["/a", "/a/sub"]
+    assert own.all_organic_ranks == (1, 3, 4)
+    assert [u.path for u in own.all_urls] == ["/a", "/b", "/c"]
 
 
 def test_the_own_side_is_the_best_rank_among_own_entities() -> None:
@@ -317,3 +303,70 @@ def test_entities_come_own_first_then_by_id() -> None:
 def test_a_depth_below_one_is_refused() -> None:
     with pytest.raises(ValueError, match="depth_requested"):
         resolve_serp(serp_of(), resolver(), ENTITIES, depth_requested=0)
+
+
+# Review findings of Task 3.
+
+
+def test_a_grouped_sub_result_is_another_url_at_its_parents_rank() -> None:
+    serp = serp_of(
+        "https://other.example/",
+        "https://acme.com/a",
+        more={
+            2: {
+                "related_result": [{"url": "https://acme.com/a/sub"}, {"url": "https://x.example/"}]
+            }
+        },
+    )
+    resolved = resolve_serp(
+        serp, resolver(rule(OWN, "own", "acme.com")), ENTITIES, depth_requested=20
+    )
+
+    own = entity(resolved, OWN)
+    assert own.all_organic_ranks == (2, 2)
+    assert [u.path for u in own.all_urls] == ["/a", "/a/sub"]
+    assert own.result_count == 1
+    assert (own.organic_rank, own.ranking_url.path if own.ranking_url else None) == (2, "/a")
+
+
+def test_features_past_the_first_page_do_not_count_for_the_state() -> None:
+    urls = [f"https://other-{i}.example/" for i in range(1, 13)]
+    urls[11] = "https://acme.com/deep"
+    serp = serp_of(*urls, more={12: {"links": [{"url": "https://acme.com/deep/a"}]}})
+    resolved = resolve_serp(
+        serp, resolver(rule(OWN, "own", "acme.com")), ENTITIES, depth_requested=100
+    )
+    side = own_side(resolved, serp)
+
+    (ownership,) = resolved.features
+    assert ownership.owned_by_project is True
+    assert ownership.on_page_one is False
+    assert entity(resolved, OWN).owned_feature_types == ("sitelinks",)
+    assert side.owned_feature_types == ()
+    assert side.feature_types_present == ()
+
+
+def test_features_on_the_first_page_count_and_a_short_page_is_all_first_page() -> None:
+    serp = serp_of("https://acme.com/a", more={1: {"links": [{"url": "https://acme.com/a/x"}]}})
+    resolved = resolve_serp(
+        serp, resolver(rule(OWN, "own", "acme.com")), ENTITIES, depth_requested=20
+    )
+    side = own_side(resolved, serp)
+
+    assert side.owned_feature_types == ("sitelinks",)
+    assert side.feature_types_present == ("sitelinks",)
+
+
+def test_the_ai_overview_is_cited_not_owned() -> None:
+    serp = serp_of("https://acme.com/", extra=[_aio(["https://acme.com/a"])])
+    resolved = resolve_serp(
+        serp, resolver(rule(OWN, "own", "acme.com")), ENTITIES, depth_requested=20
+    )
+    side = own_side(resolved, serp)
+
+    assert entity(resolved, OWN).owned_feature_types == ()
+    assert side.owned_feature_types == ()
+    assert side.cited_in_ai_overview is True
+    # The feature row still says whose sources it lists.
+    (ownership,) = resolved.features
+    assert ownership.owned_by_project is True

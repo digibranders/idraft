@@ -209,6 +209,7 @@ MATRIX: dict[str, tuple[Access, Access]] = {
                 "url_changed_at",
                 "consecutive_failures",
                 "consecutive_beyond",
+                "last_ranked_rank",
                 "is_stale",
                 "updated_at",
             ),

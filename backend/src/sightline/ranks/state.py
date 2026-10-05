@@ -82,7 +82,12 @@ class KeywordState:
     target_url_match: bool | None = None
     url_changed_at: datetime | None = None
     consecutive_failures: int = 0
+    # Checks in a row that did not rank although they looked deep enough to have found the
+    # keyword where it last was: the debounce of `new_ranking` and `lost_ranking`.
     consecutive_beyond: int = 0
+    # The rank of the last check that ranked, at any depth: how deep a check must look to say
+    # the keyword is gone.
+    last_ranked_rank: int | None = None
     is_stale: bool = False
 
 
@@ -182,7 +187,8 @@ def apply_check(state: KeywordState | None, check: Check) -> Transition:
         target_url_match=check.target_url_match,
         url_changed_at=check.observed_at if url_changed else before.url_changed_at,
         consecutive_failures=0,
-        consecutive_beyond=_consecutive_beyond(before.consecutive_beyond, check, change),
+        consecutive_beyond=_consecutive_beyond(before, check, change),
+        last_ranked_rank=check.rank if ranked else before.last_ranked_rank,
         is_stale=False,
     )
     return Transition(after, change, applied=True)
@@ -200,12 +206,18 @@ def _best_at(before: KeywordState, check: Check) -> datetime | None:
     return before.best_rank_at
 
 
-def _consecutive_beyond(prior: int, check: Check, change: RankChange) -> int:
-    """Checks in a row that did not rank. A ranked check ends the run; a check that only shows
-    the keyword is deeper than this check looks (`consistent_beyond`) neither extends nor ends
-    it."""
+def _consecutive_beyond(before: KeywordState, check: Check, change: RankChange) -> int:
+    """The run of checks that did not rank.
+
+    A check that ranks ends the run, unless it ranks deeper than the depth the earlier checks
+    looked at (`consistent_beyond`), which says nothing about them. A check that does not rank
+    extends the run only when it looked as deep as the keyword last ranked: a daily check at
+    depth 20 cannot say a keyword seen at 45 last week is gone."""
     if check.rank is not None:
-        return 0
-    if change.kind == "consistent_beyond":
-        return prior
-    return min(prior + 1, MAX_CONSECUTIVE_BEYOND)
+        return before.consecutive_beyond if change.kind == "consistent_beyond" else 0
+    looked_deep_enough = (
+        before.last_ranked_rank is None or before.last_ranked_rank <= check.depth_requested
+    )
+    if not looked_deep_enough:
+        return before.consecutive_beyond
+    return min(before.consecutive_beyond + 1, MAX_CONSECUTIVE_BEYOND)

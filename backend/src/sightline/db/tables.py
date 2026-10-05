@@ -1188,6 +1188,7 @@ tracked_keyword_state = Table(
     Column("url_changed_at", DateTime(timezone=True)),
     Column("consecutive_failures", SmallInteger, nullable=False, server_default=FetchedValue()),
     Column("consecutive_beyond", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("last_ranked_rank", SmallInteger),
     Column("is_stale", Boolean, nullable=False, server_default=FetchedValue()),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
     ForeignKeyConstraint(

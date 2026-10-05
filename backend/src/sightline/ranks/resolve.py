@@ -22,6 +22,9 @@ EntityRole = Literal["own", "competitor"]
 AioState = Literal["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"]
 
 _PRESENT: Final = frozenset({"present", "present_async_loaded"})
+# Features are followed on the first page of results, which every depth profile sees (the
+# lightest looks at ten results).
+PAGE_ONE: Final = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,15 +44,21 @@ class EntityRank:
     ranking_url: CanonicalUrl | None  # the URL at that rank
     ranking_title: str | None
     ranking_snippet: str | None
-    all_organic_ranks: tuple[int, ...]  # every rank an organic result of the entity holds
-    all_urls: tuple[CanonicalUrl, ...]  # their URLs, grouped sub-results included, no URL twice
-    owned_feature_types: tuple[str, ...]  # sorted
+    # Every rank an organic result of the entity holds, once for each of its URLs there: a
+    # grouped sub-result shares its parent's rank and is another URL at that rank.
+    all_organic_ranks: tuple[int, ...]
+    all_urls: tuple[CanonicalUrl, ...]  # the URL for each of those ranks, in the same order
+    owned_feature_types: tuple[str, ...]  # sorted; not the AI Overview, which is cited, not owned
+    # The same, for the features on the first page of results only: the part of the page every
+    # depth profile sees, which keeps the state from changing with the depth of the check.
+    page_one_feature_types: tuple[str, ...]
     cited_in_ai_overview: bool | None  # None when there is no loaded AI Overview to cite from
     ai_overview_citation_position: int | None  # 1-based, in the order the block lists them
 
     @property
     def result_count(self) -> int:
-        return len(self.all_organic_ranks)
+        """How many results the entity has: a rank with grouped URLs is still one."""
+        return len(set(self.all_organic_ranks))
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +69,7 @@ class FeatureOwnership:
     owned_by_project: bool
     owned_position: int | None  # 1-based position of the first own source URL
     competitor_entity_ids: tuple[uuid.UUID, ...]  # sorted
+    on_page_one: bool  # within the first page of results, or in the right column
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +120,8 @@ def resolve_serp(
     ranks: dict[uuid.UUID, list[tuple[int, int | None, CanonicalUrl, str | None, str | None]]] = {
         entity_id: [] for entity_id in kept
     }
-    urls: dict[uuid.UUID, dict[bytes, CanonicalUrl]] = {entity_id: {} for entity_id in kept}
+    # A grouped sub-result shares its parent's rank and is not another rank; the observation
+    # keeps one URL for each rank (docs/04, `all_url_ids`).
     for result in serp.organic:
         if result.organic_rank > depth_requested:
             continue  # beyond the depth requested: not looked for, never read
@@ -120,20 +131,24 @@ def resolve_serp(
         ranks[owner].append(
             (result.organic_rank, result.absolute_rank, result.url, result.title, result.snippet)
         )
-        urls[owner].setdefault(result.url.url_hash, result.url)
-        # A grouped sub-result shares its parent's rank; it is another URL of the same entity
-        # only when it resolves to that entity.
         for child in result.grouped_urls:
             if resolver.resolve_url(child).entity_id == owner:
-                urls[owner].setdefault(child.url_hash, child)
+                ranks[owner].append((result.organic_rank, result.absolute_rank, child, None, None))
 
+    horizon = _page_one_limit(serp)
     features = tuple(
-        _ownership(index, feature, resolver, kept) for index, feature in enumerate(serp.features)
+        _ownership(index, feature, resolver, kept, horizon)
+        for index, feature in enumerate(serp.features)
     )
     owned_types: dict[uuid.UUID, set[str]] = {entity_id: set() for entity_id in kept}
-    for feature in serp.features:
+    page_one_types: dict[uuid.UUID, set[str]] = {entity_id: set() for entity_id in kept}
+    for feature, ownership in zip(serp.features, features, strict=True):
+        if feature.feature_type == "ai_overview":
+            continue  # its citations are followed as citations
         for owner in _owners(feature, resolver, kept):
             owned_types[owner].add(feature.feature_type)
+            if ownership.on_page_one:
+                page_one_types[owner].add(feature.feature_type)
 
     aio_loaded = serp.ai_overview.state in _PRESENT
     cited_at: dict[uuid.UUID, int] = {}
@@ -157,8 +172,9 @@ def resolve_serp(
                 ranking_title=best[3] if best else None,
                 ranking_snippet=best[4] if best else None,
                 all_organic_ranks=tuple(row[0] for row in held),
-                all_urls=tuple(urls[entity_id].values()),
+                all_urls=tuple(row[2] for row in held),
                 owned_feature_types=tuple(sorted(owned_types[entity_id])),
+                page_one_feature_types=tuple(sorted(page_one_types[entity_id])),
                 cited_in_ai_overview=(entity_id in cited_at) if aio_loaded else None,
                 ai_overview_citation_position=cited_at.get(entity_id),
             )
@@ -194,9 +210,17 @@ def own_side(resolved: ResolvedSerp, serp: NormalizedSerp) -> OwnSide:
         organic_rank=best.organic_rank if best else None,
         absolute_rank=best.absolute_rank if best else None,
         ranking_url=best.ranking_url if best else None,
-        feature_types_present=tuple(sorted({feature.feature_type for feature in serp.features})),
+        feature_types_present=tuple(
+            sorted(
+                {
+                    feature.feature_type
+                    for feature, ownership in zip(serp.features, resolved.features, strict=True)
+                    if ownership.on_page_one
+                }
+            )
+        ),
         owned_feature_types=tuple(
-            sorted({t for entity in own for t in entity.owned_feature_types})
+            sorted({t for entity in own for t in entity.page_one_feature_types})
         ),
         has_ai_overview=resolved.has_ai_overview,
         aio_state=resolved.aio_state,
@@ -205,12 +229,12 @@ def own_side(resolved: ResolvedSerp, serp: NormalizedSerp) -> OwnSide:
     )
 
 
-def target_url_match(side: OwnSide, target: CanonicalUrl | None) -> bool | None:
-    """Whether the ranking URL is the keyword's target URL; unknown without a target or a
-    ranking URL."""
-    if target is None or side.ranking_url is None:
+def target_url_match(side: OwnSide, target_hash: bytes | None) -> bool | None:
+    """Whether the ranking URL is the keyword's target URL (given by its hash); unknown without a
+    target or a ranking URL."""
+    if target_hash is None or side.ranking_url is None:
         return None
-    return side.ranking_url.url_hash == target.url_hash
+    return side.ranking_url.url_hash == target_hash
 
 
 def _owners(
@@ -229,6 +253,7 @@ def _ownership(
     feature: SerpFeature,
     resolver: DomainResolver,
     kept: Mapping[uuid.UUID, RankedEntity],
+    horizon: int | None,
 ) -> FeatureOwnership:
     owned_position: int | None = None
     competitors: set[uuid.UUID] = set()
@@ -246,7 +271,19 @@ def _ownership(
         owned_by_project=owned_position is not None,
         owned_position=owned_position,
         competitor_entity_ids=tuple(sorted(competitors)),
+        on_page_one=horizon is None
+        or feature.absolute_rank is None
+        or feature.absolute_rank <= horizon,
     )
+
+
+def _page_one_limit(serp: NormalizedSerp) -> int | None:
+    """The absolute rank of the tenth organic result: features numbered after it are not on the
+    first page. None when the page has no tenth result, and then all of it is page one."""
+    for result in serp.organic:
+        if result.organic_rank == PAGE_ONE:
+            return result.absolute_rank
+    return None
 
 
 def _aio_state(serp: NormalizedSerp, resolved: list[EntityRank]) -> AioState:

@@ -393,6 +393,8 @@ async def test_the_feature_types_and_the_serp_prices_are_seeded(migrated: Postgr
             "ORDER BY unit_price_usd, price_unit"
         )
 
+    # The seed; a type the provider added later (`other:<type>`) may be there from other tests.
+    types = {code: ownable for code, ownable in types.items() if not code.startswith("other:")}
     assert len(types) == 16
     assert types["ai_overview"] is True
     assert types["related_searches"] is False
