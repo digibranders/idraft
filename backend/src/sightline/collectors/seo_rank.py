@@ -21,6 +21,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import structlog
+from pydantic import ValidationError
 from sqlalchemy import ColumnElement, Text, and_, cast, exists, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -58,7 +59,7 @@ NEW_KEYWORD_QUIET: Final = timedelta(hours=24)
 # How long a run the tick starts has to send its tasks.
 MANUAL_WINDOW: Final = timedelta(hours=1)
 # A keyword's check on a day is kept by every run but these.
-_UNSPENT: Final = ("cancelled", "budget_blocked", "failed")
+_NOT_CHECKED: Final = ("cancelled", "failed", "dead")
 _log = structlog.get_logger(__name__)
 
 
@@ -114,7 +115,7 @@ def _recent_task(now: datetime) -> ColumnElement[bool]:
     return exists().where(
         task.workload == WORKLOAD.value,
         task.subject_type == SUBJECT_TYPE,
-        task.subject_id.like(func.concat(cast(t.id, Text), ":%")),
+        func.split_part(task.subject_id, ":", 1) == cast(t.id, Text),
         task.workspace_id == t.workspace_id,
         run.id == task.run_id,
         run.workspace_id == task.workspace_id,
@@ -136,13 +137,14 @@ def _checked_today_elsewhere(
     return exists().where(
         task.workload == WORKLOAD.value,
         task.subject_type == SUBJECT_TYPE,
-        task.subject_id.like(func.concat(cast(t.id, Text), ":%")),
+        func.split_part(task.subject_id, ":", 1) == cast(t.id, Text),
         task.workspace_id == t.workspace_id,
+        # By the task, not the run: a cancelled run still pays for the tasks it had sent.
+        task.status.not_in(_NOT_CHECKED),
         run.id == task.run_id,
         run.workspace_id == task.workspace_id,
         run.window_start >= start,
         run.window_start < end,
-        run.status.not_in(_UNSPENT),
         run.schedule_id.is_distinct_from(schedule_id),
     )
 
@@ -250,6 +252,9 @@ async def select_subjects(
     found: list[Subject] = []
     for row in await db.execute(statement):
         depth = depth_for(row.depth_profile, deep_day=deep_day)
+        if depth is None and new:
+            # A keyword with no check today (a weekly profile) still gets its first one now.
+            depth = depth_for(row.depth_profile, deep_day=True)
         if depth is not None:
             found.append(Subject(row.id, row.location_id, depth))
     return sorted(found, key=lambda s: (s.location_id, str(s.tracked_keyword_id)))
@@ -263,20 +268,24 @@ def queue_of(provider_mode: str) -> str:
 
 async def estimate(
     db: AsyncSession, subjects: Sequence[Subject], *, queue: str, on: date
-) -> Decimal:
+) -> Decimal | None:
     """What the subjects cost by the price book: the pages of each depth at the queue's price,
-    and on the standard queue the asynchronous AI Overview each task adds. Zero, and a warning,
-    without prices."""
+    and the asynchronous AI Overview each task adds (its own price row, else the queue's price of
+    a page: the additive reading of doc 06 section 6.2). None, and an error in the log, when the
+    book has no page price: a run is never planned on a guess of zero."""
     if not subjects:
         return Decimal(0)
     p = provider_price_book.c
     rows = await db.execute(
-        select(p.price_unit, p.unit_price_usd, p.conditions).where(
+        select(p.price_unit, p.unit_price_usd, p.conditions)
+        .where(
             p.provider_code == DATAFORSEO,
             p.endpoint == SERP_ORGANIC,
             p.valid_from <= on,
             (p.valid_to.is_(None)) | (p.valid_to > on),
         )
+        # The newest row for a price wins, whatever order the database returns them in.
+        .order_by(p.valid_from, p.unit_price_usd)
     )
     page = surcharge = None
     for row in rows:
@@ -288,10 +297,23 @@ async def estimate(
         elif row.price_unit == "task" and conditions.get("async_ai_overview"):
             surcharge = Decimal(row.unit_price_usd)
     if page is None:
-        _log.warning("no price for SERP pages", queue=queue, on=on.isoformat())
-        return Decimal(0)
+        _log.error("no price for SERP pages", queue=queue, on=on.isoformat())
+        return None
     total = sum((pages(s.depth) for s in subjects), 0) * page
-    return total + len(subjects) * (surcharge or Decimal(0))
+    return total + len(subjects) * (page if surcharge is None else surcharge)
+
+
+def _due(window: ScheduleWindow, subject: Subject) -> datetime:
+    """When a task is due. A schedule's tasks are spread over its window; a manual run (the
+    first check of a new keyword) has someone waiting, so its tasks are due at once."""
+    if window.schedule_id is None:
+        return window.window_start
+    return scheduled_for(
+        window_start=window.window_start,
+        subject_id=str(subject.tracked_keyword_id),
+        workload=WORKLOAD.value,
+        window_hours=window.window_hours,
+    )
 
 
 def new_tasks(subjects: Sequence[Subject], window: ScheduleWindow) -> list[NewTask]:
@@ -311,12 +333,7 @@ def new_tasks(subjects: Sequence[Subject], window: ScheduleWindow) -> list[NewTa
             ).digest(),
             provider_code=DATAFORSEO,
             provider_endpoint=SERP_ORGANIC,
-            scheduled_for=scheduled_for(
-                window_start=window.window_start,
-                subject_id=str(subject.tracked_keyword_id),
-                workload=WORKLOAD.value,
-                window_hours=window.window_hours,
-            ),
+            scheduled_for=_due(window, subject),
         )
         for subject in subjects
     ]
@@ -331,17 +348,18 @@ class SeoRankWorkload:
     async def plan(self, db: AsyncSession, window: ScheduleWindow) -> Plan:
         subjects = await select_subjects(db, window)
         queue = queue_of(window.provider_mode)
+        cost = await estimate(db, subjects, queue=queue, on=window.window_start.date())
+        snapshot: dict[str, Any] = {
+            "adapter": ADAPTER,
+            "provider_mode": window.provider_mode,
+            "queue": queue,
+            "selector": dict(window.selector),
+        }
+        if cost is None:
+            # Nothing is planned without a price to check the budget against.
+            return Plan(tasks=[], estimated_cost_usd=Decimal(0), config_snapshot=snapshot)
         return Plan(
-            tasks=new_tasks(subjects, window),
-            estimated_cost_usd=await estimate(
-                db, subjects, queue=queue, on=window.window_start.date()
-            ),
-            config_snapshot={
-                "adapter": ADAPTER,
-                "provider_mode": window.provider_mode,
-                "queue": queue,
-                "selector": dict(window.selector),
-            },
+            tasks=new_tasks(subjects, window), estimated_cost_usd=cost, config_snapshot=snapshot
         )
 
     def batch_key(self, task: LedgerTask) -> str:
@@ -368,11 +386,8 @@ class SeoRankWorkload:
             row = rows.get((tracked_id, task.workspace_id))
             if row is None or task.location_id is None:
                 continue
-            requests[ref] = CanonicalRequest(
-                task_id=str(task.ref.id),
-                run_id=task.run_id,
-                priority="high" if task.priority == "high" else "standard",
-                params=SerpOrganicParams(
+            try:
+                params = SerpOrganicParams(
                     keyword=row.text,
                     location_code=codes.get(task.location_id, task.location_id),
                     language_code=row.language_code,
@@ -380,7 +395,18 @@ class SeoRankWorkload:
                     os=row.os,
                     depth=depth,
                     queue="priority" if queues.get(task.run_id) == "priority" else "standard",
-                ),
+                )
+            except ValidationError as error:
+                # One keyword the provider would refuse (an operating system of the other
+                # device) must not take the tasks it is batched with down: it is left out and
+                # its outcome recorded as a request that could not be built.
+                _log.warning("rank request not built", task=task.ref.id, error=str(error)[:200])
+                continue
+            requests[ref] = CanonicalRequest(
+                task_id=str(task.ref.id),
+                run_id=task.run_id,
+                priority="high" if task.priority == "high" else "standard",
+                params=params,
             )
         return requests
 
@@ -410,6 +436,8 @@ async def _keywords(
         .where(
             tuple_(t.id, t.workspace_id).in_(list(keys)),
             t.deleted_at.is_(None),
+            # Archived since it was planned: not sent, not paid for.
+            t.is_active,
         )
     )
     return {
@@ -467,6 +495,8 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
         or_(
             r.status == "planned",
             and_(r.status == "budget_blocked", r.created_at >= now - NEW_KEYWORD_QUIET),
+            # A run that found nothing to check (no price, say) would be made again every minute.
+            and_(r.tasks_total == 0, r.created_at >= now - NEW_KEYWORD_QUIET),
         ),
     )
     async with sessions() as db, db.begin():

@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 import pytest
+from sqlalchemy.exc import DBAPIError
 
 from sightline.collectors import seo_rank_ingest
 from sightline.collectors.ingest_waits import IngestReport
@@ -693,7 +694,7 @@ async def test_an_answer_that_can_never_be_stored_fails_instead_of_waiting(
     task_id = await fetched_task(worker_db, migrated, world, keyword, answer(results(3)), store)
 
     async def fails(*_: Any, **__: Any) -> None:
-        raise ValueError("a value no column can hold")
+        raise _database_error("22003")
 
     monkeypatch.setattr(seo_rank_ingest, "_replace_current", fails)
 
@@ -702,6 +703,53 @@ async def test_an_answer_that_can_never_be_stored_fails_instead_of_waiting(
         migrated, "SELECT status, last_error_code FROM ops.collection_tasks WHERE id = $1", task_id
     )
     assert (row["status"], row["last_error_code"]) == ("failed", seo_rank_ingest.NOT_STORABLE)
+
+
+async def test_a_fault_of_our_own_code_waits_like_a_lost_connection(
+    worker_db: Ledger, migrated: PostgresServer, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    keyword = await track(migrated, world.project)
+    store = MemoryStore()
+    task_id = await fetched_task(worker_db, migrated, world, keyword, answer(results(3)), store)
+
+    async def fails(*_: Any, **__: Any) -> None:
+        raise KeyError("a bug a deploy fixes")
+
+    monkeypatch.setattr(seo_rank_ingest, "_replace_current", fails)
+
+    assert await ingest(worker_db, store) == IngestReport(waiting=1)
+    assert await _task_status(migrated, task_id) == "fetched"
+
+
+class _OrigError(Exception):
+    def __init__(self, sqlstate: str, message: str = "") -> None:
+        super().__init__(message)
+        self.sqlstate = sqlstate
+
+
+def _database_error(sqlstate: str, message: str = "") -> DBAPIError:
+    return DBAPIError("insert", {}, _OrigError(sqlstate, message))
+
+
+@pytest.mark.parametrize(
+    ("error", "repeats"),
+    [
+        (_database_error("22003"), True),  # numeric value out of range
+        (_database_error("23505"), True),  # unique violation
+        (_database_error("23514", "check violation"), True),
+        (_database_error("42703"), True),  # undefined column
+        (_database_error("23514", "no partition of relation found for row"), False),
+        (_database_error("40P01"), False),  # deadlock
+        (_database_error("08006"), False),  # connection failure
+        (KeyError("bug"), False),
+        (ValueError("bug"), False),
+        (ConnectionError("gone"), False),
+    ],
+)
+def test_only_the_databases_verdict_on_the_data_counts_as_repeating(
+    error: BaseException, repeats: bool
+) -> None:
+    assert seo_rank_ingest.repeats(error) is repeats
 
 
 async def test_a_right_column_result_has_no_absolute_position_and_warnings_are_counted(

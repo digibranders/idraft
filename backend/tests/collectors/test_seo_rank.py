@@ -236,7 +236,7 @@ async def test_the_selector_narrows_what_is_planned_and_none_selects_nothing(
     assert set(everything) == {top, low, grouped}
     assert set(important) == {top}
     assert set(in_group) == {grouped}
-    assert nothing.tasks == [] or len(nothing.tasks) == 0
+    assert list(nothing.tasks) == []
     assert nothing.estimated_cost_usd == Decimal(0)
 
 
@@ -337,8 +337,9 @@ async def test_the_estimate_is_pages_at_the_queues_price_and_the_async_ai_overvi
 
     # Standard: (2 + 5) pages at $0.0006 and two tasks at $0.0006 for the AI Overview.
     assert standard.estimated_cost_usd == Decimal("0.0054")
-    # Priority: 7 pages at $0.0012; the surcharge is a standard-queue price only.
-    assert priority.estimated_cost_usd == Decimal("0.0084")
+    # Priority: 7 pages at $0.0012 and, with no price row of its own, the surcharge at the
+    # queue's page price (the additive reading of doc 06 section 6.2).
+    assert priority.estimated_cost_usd == Decimal("0.0108")
     assert standard.config_snapshot["queue"] == "standard"
     assert priority.config_snapshot["queue"] == "priority"
     assert standard.config_snapshot["selector"] == {"all": True}
@@ -510,6 +511,113 @@ async def test_paused_and_archived_projects_get_no_run(
     await execute(migrated, "UPDATE core.projects SET status = 'paused' WHERE id = $1", project.id)
 
     assert await queue_new_keywords(worker_db, now=NOW) == 0
+
+
+# Cases from the review of the workload.
+
+
+async def test_a_weekly_keyword_gets_its_first_check_whatever_the_weekday(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    weekly = await _tracked(migrated, project, "crm weekly", profile="weekly")
+    light = await _tracked(migrated, project, "crm weekly light", profile="weekly_light")
+
+    on_a_normal_day = _depths(await _plan(worker_db, _window(project, start=TUESDAY)))
+    first = _depths(await _plan(worker_db, _window(project, {"new": True}, start=TUESDAY)))
+
+    assert on_a_normal_day == {}
+    assert first == {weekly: 100, light: 20}
+
+
+async def test_nothing_is_planned_without_a_price_to_check_the_budget_against(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    await _tracked(migrated, project, "crm one")
+    before_the_prices = datetime(2026, 6, 1, 2, 0, tzinfo=UTC)
+
+    plan = await _plan(worker_db, _window(project, start=before_the_prices))
+
+    assert list(plan.tasks) == []
+    assert plan.estimated_cost_usd == Decimal(0)
+
+
+async def test_one_keyword_the_provider_would_refuse_does_not_take_the_others_down(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    bad = await _tracked(migrated, project, "crm bad", device="desktop")
+    good = await _tracked(migrated, project, "crm good", device="desktop")
+    await execute(migrated, "UPDATE seo.tracked_keywords SET os = 'ios' WHERE id = $1", bad)
+    run_id = await _run(worker_db, project, {})
+    tasks = [
+        _ledger_task(project, run_id, bad, 20, 2840, 1),
+        _ledger_task(project, run_id, good, 20, 2840, 2),
+    ]
+
+    async with worker_db() as db:
+        requests = await WORKLOAD.build_requests(db, tasks)
+
+    assert set(requests) == {tasks[1].ref}
+
+
+async def test_an_archived_keyword_is_not_sent_after_it_was_planned(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    keyword = await _tracked(migrated, project, "crm archived later")
+    run_id = await _run(worker_db, project, {})
+    task = _ledger_task(project, run_id, keyword, 20, 2840, 1)
+    await execute(
+        migrated, "UPDATE seo.tracked_keywords SET is_active = false WHERE id = $1", keyword
+    )
+
+    async with worker_db() as db:
+        assert await WORKLOAD.build_requests(db, [task]) == {}
+
+
+async def test_a_task_that_was_sent_counts_as_checked_even_when_its_run_was_cancelled(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    project = world.project
+    first = await make_schedule(migrated, project, selector={"all": True})
+    second = await make_schedule(migrated, project, selector={"all": True})
+    keyword = await _tracked(migrated, project, "crm paid already")
+    window = _window(project, schedule_id=first)
+    plan = await _plan(worker_db, window)
+    async with worker_db() as db, db.begin():
+        run_id = await ledger.create_run(
+            db,
+            NewRun(
+                workspace_id=project.workspace_id,
+                project_id=project.id,
+                schedule_id=first,
+                workload=TaskWorkload.SEO_RANK,
+                window_start=window.window_start,
+                window_end=window.window_end,
+                trigger="schedule",
+                config_snapshot={},
+            ),
+            now=NOW,
+        )
+        assert run_id is not None
+        await ledger.insert_tasks(db, run_id, plan.tasks)
+    other = _window(project, schedule_id=second, start=window.window_start + timedelta(hours=8))
+    await execute(
+        migrated, "UPDATE ops.collection_runs SET status = 'cancelled' WHERE id = $1", run_id
+    )
+
+    # Cancelled before it was sent: the keyword was not checked, and the other schedule may.
+    await execute(
+        migrated, "UPDATE ops.collection_tasks SET status = 'cancelled' WHERE run_id = $1", run_id
+    )
+    assert _depths(await _plan(worker_db, other)) == {keyword: 20}
+    # Sent before the cancel: the provider has it, and it is paid for.
+    await execute(
+        migrated, "UPDATE ops.collection_tasks SET status = 'submitted' WHERE run_id = $1", run_id
+    )
+    assert _depths(await _plan(worker_db, other)) == {}
 
 
 async def fetch_one(pg: PostgresServer, statement: str, *arguments: Any) -> Any:

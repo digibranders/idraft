@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -17,6 +17,7 @@ from pydantic import (
     BaseModel,
     Field,
     StringConstraints,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -38,6 +39,7 @@ from sightline.api.schemas.entities import EntityRef
 from sightline.api.schemas.metrics import MetricValue, Usd
 from sightline.ranks.depth import UNAVAILABLE
 
+_SYSTEMS: Final = {"desktop": ("windows", "macos"), "mobile": ("android", "ios")}
 DepthProfile = Literal[
     "light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"
 ]
@@ -141,6 +143,21 @@ class TrackedKeywordCreate(Body):
     group_ids: Links = Field(default_factory=list)
     term_ids: Links = Field(default_factory=list)
     competitor_overrides: CompetitorOverrides | None = None
+
+    @field_validator("os")
+    @classmethod
+    def _os_of_the_device(cls, os: str | None, info: ValidationInfo) -> str | None:
+        """An operating system belongs to one device: DataForSEO refuses the other pairings,
+        and a task it refuses must not be stored to fail every day."""
+        if os is None:
+            return None
+        device = info.data.get("device")
+        if device not in ("desktop", "mobile") or os not in _SYSTEMS[device]:
+            raise PydanticCustomError(
+                "os_device_mismatch",
+                "An operating system needs a device it runs on: desktop or mobile, not `both`.",
+            )
+        return os
 
 
 class TrackedKeywordBulkCreate(Body):

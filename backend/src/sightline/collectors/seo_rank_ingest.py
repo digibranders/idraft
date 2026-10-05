@@ -18,7 +18,7 @@ from typing import Any, Final
 import structlog
 from sqlalchemy import delete, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as upsert
-from sqlalchemy.exc import DataError, IntegrityError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
@@ -72,8 +72,24 @@ UNREADABLE: Final = "unreadable_answer"
 NOT_READ: Final = "answer_not_read"
 NOT_WRITTEN: Final = "answer_not_written"
 NOT_STORABLE: Final = "answer_not_storable"
-# A fault of the data rather than of the moment: it repeats on every try.
-_PERMANENT: Final = (IntegrityError, DataError, KeyError, ValueError, TypeError)
+# The SQLSTATE classes of an error that repeats: bad data (22), a broken constraint (23), a
+# statement the database refuses (42). Deadlocks (40) and lost connections (08) do not.
+_PERMANENT_SQLSTATES: Final = ("22", "23", "42")
+_NO_PARTITION: Final = "no partition"
+
+
+def repeats(error: BaseException) -> bool:
+    """Whether the same write would fail the same way on the next try. Only the database's own
+    verdict on the data counts: an exception of our code (a bug a deploy can fix) waits like a
+    lost connection, and so does a month with no partition yet, which an operator can add."""
+    if not isinstance(error, DBAPIError):
+        return False
+    state = getattr(error.orig, "sqlstate", None)
+    if not isinstance(state, str) or not state.startswith(_PERMANENT_SQLSTATES):
+        return False
+    return _NO_PARTITION not in str(error.orig)
+
+
 _log = structlog.get_logger(__name__)
 _STATE_FIELDS: Final = tuple(field.name for field in fields(KeywordState))
 
@@ -125,11 +141,12 @@ async def ingest(
                 ingested += await ledger.mark_ingested(db, task.ref, now=now)
         except UnusableCheckError as error:
             failed += await _fail(sessions, task, UNREADABLE, str(error))
-        except _PERMANENT as error:
-            # The answer cannot be stored as it is, and will not be on the next try.
-            _log.exception("stored answer cannot be stored", task=task.ref.id)
-            failed += await _fail(sessions, task, NOT_STORABLE, type(error).__name__)
-        except Exception:
+        except Exception as error:
+            if repeats(error):
+                # The answer cannot be stored as it is, and will not be on the next try.
+                _log.exception("stored answer cannot be stored", task=task.ref.id)
+                failed += await _fail(sessions, task, NOT_STORABLE, type(error).__name__)
+                continue
             # Rolled back as a whole: nothing of this answer is kept, and the next answers are
             # still ingested.
             _log.exception("stored answer not ingested", task=task.ref.id)

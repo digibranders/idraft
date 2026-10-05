@@ -9,7 +9,6 @@ import pytest
 
 from sightline.api.schemas.keywords import DepthProfile, FunnelStage, Intent
 from sightline.keywords import import_rows
-from sightline.ranks.depth import UNAVAILABLE
 from sightline.keywords.import_rows import (
     CELL_MAX,
     IMPORT_ROWS_MAX,
@@ -24,6 +23,7 @@ from sightline.keywords.import_rows import (
     read_paste,
     resolve_mapping,
 )
+from sightline.ranks.depth import UNAVAILABLE
 
 LOCATIONS = Locations(
     active_ids=frozenset({2840, 2826, 1023191}),
