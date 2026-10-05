@@ -121,7 +121,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ## Phase 3: SEO keyword system
 
-- [x] Keyword and tracked keyword APIs; config history on measurement-affecting changes (branch `backend/keywords`, not merged to `main` yet)
+- [x] Keyword and tracked keyword APIs; config history on measurement-affecting changes (branch `backend/keywords`, merged to `main` on 2026-10-05)
 - [x] Import pipeline (R2 upload, parse, validate, preview, confirm, report); duplicate matrix tests ([08](08-seo-keyword-system.md) section 3.3). The source goes to R2 by multipart upload, paste or JSON rows; the presigned `upload-url` route, XLSX files and the `Idempotency-Key` check wait for step 10
 - [x] Labs `keyword_overview` adapter; `keyword_metrics` workload through the task ledger; `is_material_change`
 - [x] Depth profiles, schedules API, quotas. Also built with it: groups and term assignments, runs and project settings, the hourly cost rollup with `GET {W}/costs`, `GET {W}/budgets/status` and `GET {W}/price-book`
