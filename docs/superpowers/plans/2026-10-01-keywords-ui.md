@@ -139,6 +139,8 @@
 
 **Files:** `src/features/rankings/groups/{manage-groups-dialog,group-picker}.tsx`, tests.
 
+**Sub-plan:** `2026-10-05-keyword-groups-ui.md` (step by step; follow it rather than the steps below).
+
 - [ ] **Step 1:** `GroupPicker` (Combobox of group paths, creatable) shared by the filter, the add dialog, bulk move and the inspector.
 - [ ] **Step 2:** "Manage groups" from Rankings' More menu: the tree (`TreeView`) with add, rename, "Move to" and delete (subgroups go, members are unlinked, D2), member counts.
 - [ ] **Step 3:** Tests, gates, Opus review, commit "Rankings: keyword groups".
@@ -146,6 +148,8 @@
 ### Task 9: Import
 
 **Files:** `src/features/rankings/import/{import-dialog,upload-step,mapping-step,review-step,confirm-step,import-queries}.tsx`, the `rankings/import` route rendering Rankings with the dialog open, tests.
+
+**Sub-plan:** `2026-10-05-keyword-import-ui.md` (step by step, with the backend's import rules of 2026-10-05; follow it rather than the steps below).
 
 - [ ] **Step 1:** Upload: paste or a CSV file (50 MB, multipart, a progress bar while it uploads); options: default location, language, device, the tags and topic vocabularies (D13); the API parses (`parse_import`), the dialog polls the import until its preview is ready.
 - [ ] **Step 2:** Map columns: file header, "Maps to", a sample; auto-mapped by header, one required column (keyword), `competitors` not offered.
@@ -179,6 +183,8 @@
 ### Task 12: Costs and runs
 
 **Files:** `src/app/[workspace]/costs/page.tsx`, `src/app/[workspace]/ops/runs/page.tsx`, `src/features/costs/*`, `src/features/operations/*`, the workspace menu and Settings > Workspace links, tests.
+
+**Sub-plan:** `2026-10-05-costs-runs-ui.md` (step by step; Runs is per project on `{P}/runs`, since the backend builds no `{W}/runs` in part 1; follow it rather than the steps below).
 
 - [ ] **Step 1:** Costs (`costs:read`) to template 9.14 for what part 1 has: month scope; strip with month to date, budget (`budgets/status`, a meter, read-only), blocked runs; spend by day stacked by workload (`ChartFrame`) with the by-workload table; breakdown tabs By provider, By project and Unit costs (the price book, labeled estimates); the cost sources line from `meta.cost_sources`. No projection until the forecast route exists.
 - [ ] **Step 2:** Runs (`ops:read`, or own runs with `runs:trigger`): workload, trigger, status, window, tasks by status, estimate and actual cost, times; a run opens in the inspector (summary); Cancel for planned and running runs.
