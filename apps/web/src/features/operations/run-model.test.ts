@@ -9,7 +9,6 @@ import {
   RUN_TRIGGERS,
   RUN_WORKLOADS,
   taskStatusRows,
-  taskSummary,
   TASK_STATUS_KEYS,
   TRIGGER_KEYS,
   type RunFacts,
@@ -65,11 +64,6 @@ describe('run model', () => {
     expect(canCancel(asked('system'), { userId: 'u1', permissions: ['runs:trigger'] })).toBe(false);
     expect(canCancel(asked('api_key'), { userId: 'u1', permissions: ['runs:trigger'] })).toBe(false);
     expect(canCancel(run({ created_by: null }), { userId: 'u1', permissions: ['runs:trigger'] })).toBe(false);
-  });
-
-  it('sums the tasks', () => {
-    expect(taskSummary(run())).toEqual({ done: 7, succeeded: 6, failed: 1, pending: 3, total: 10 });
-    expect(taskSummary(run({ tasks_total: 2, tasks_succeeded: 2, tasks_failed: 1 })).pending).toBe(0);
   });
 
   it('lists the tasks by status in reading order, with the statuses it has no name for last as sent', () => {

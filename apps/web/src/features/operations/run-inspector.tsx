@@ -4,7 +4,7 @@ import { ClipboardList, ListChecks } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
-import { RUN_STATUS_KEYS, taskStatusRows, taskSummary, TRIGGER_KEYS } from './run-model';
+import { RUN_STATUS_KEYS, taskStatusRows, TRIGGER_KEYS } from './run-model';
 import { useRunDetail, type RunsScope } from './runs-queries';
 import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorBody } from '@/components/app/inspector/inspector-tabs';
@@ -19,6 +19,7 @@ import type { Run, RunDetail } from '@/lib/api/types';
 import { EMPTY_VALUE, formatCurrency, formatDetailDateTime, formatInteger } from '@/lib/format';
 import { money } from '@/lib/format/money';
 import { collectionStatusOf } from '@/lib/runs/run-status';
+import { taskSummary } from '@/lib/runs/task-summary';
 import { useRunReason } from '@/lib/runs/use-run-reason';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 

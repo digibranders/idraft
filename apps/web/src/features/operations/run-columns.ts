@@ -10,6 +10,7 @@ import type { Run } from '@/lib/api/types';
 import { formatInteger, formatTableDateTime } from '@/lib/format';
 import { money } from '@/lib/format/money';
 import { collectionStatusOf } from '@/lib/runs/run-status';
+import { taskSummary } from '@/lib/runs/task-summary';
 import type { SortKey } from '@/lib/tables/table-state';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 
@@ -63,14 +64,12 @@ export function useRunColumns(timeZone: string): RunColumns {
       }),
       col.text<Run>(
         'tasks',
-        (row) =>
-          row.tasks_total === 0
+        (row) => {
+          const { done, total, failed } = taskSummary(row);
+          return total === 0
             ? null
-            : t('tasks', {
-                done: formatInteger(row.tasks_succeeded + row.tasks_failed),
-                total: formatInteger(row.tasks_total),
-                failed: formatInteger(row.tasks_failed),
-              }),
+            : t('tasks', { done: formatInteger(done), total: formatInteger(total), failed: formatInteger(failed) });
+        },
         { header: t('columns.tasks'), priority: 2, width: 200, sortable: false },
       ),
       col.currency<Run>('actual', (row) => cost(row.actual_cost_usd), { header: t('columns.actual'), priority: 2 }),

@@ -120,27 +120,6 @@ export function canCancel(
   );
 }
 
-export interface TaskSummary {
-  /** Tasks with an outcome: succeeded or failed. */
-  done: number;
-  succeeded: number;
-  failed: number;
-  /** Tasks without one yet. */
-  pending: number;
-  total: number;
-}
-
-export function taskSummary(run: Pick<Run, 'tasks_total' | 'tasks_succeeded' | 'tasks_failed'>): TaskSummary {
-  const done = run.tasks_succeeded + run.tasks_failed;
-  return {
-    done,
-    succeeded: run.tasks_succeeded,
-    failed: run.tasks_failed,
-    pending: Math.max(0, run.tasks_total - done),
-    total: run.tasks_total,
-  };
-}
-
 export interface TaskStatusRow {
   /** The status as the API sent it. */
   code: string;

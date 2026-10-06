@@ -1108,6 +1108,13 @@ describe('A refresh in the header', () => {
     });
   });
 
+  it('counts the keywords read as the ones that succeeded, with the failed ones apart, as the finished toast does', async () => {
+    serveRuns({ used: 3, open: [running(5, 10, { tasks_failed: 3 })] });
+    serveRun(() => running(5, 10, { tasks_failed: 3 }));
+    renderWithProviders(as('editor'));
+    expect(await screen.findByRole('progressbar')).toHaveAttribute('aria-valuetext', '5 of 10 read, 3 failed');
+  });
+
   it('says when a queued run has waited longer than usual, and keeps following it', async () => {
     serveRuns({ used: 0, open: [run()] });
     const reads = serveRun(() => run());

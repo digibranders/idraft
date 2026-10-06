@@ -12,6 +12,7 @@ import { toast, type ToastOptions } from '@/components/ui/toast';
 import type { Run } from '@/lib/api/types';
 import { formatInteger } from '@/lib/format';
 import { collectionStatusOf, isFinished, isOpenRun } from '@/lib/runs/run-status';
+import { taskSummary } from '@/lib/runs/task-summary';
 import { useRunReason } from '@/lib/runs/use-run-reason';
 
 export interface RefreshProgressProps {
@@ -71,18 +72,20 @@ export function RefreshProgress({ scope, runId, onSettled }: RefreshProgressProp
   }, [queued]);
 
   if (run === undefined || !isOpenRun(run)) return null;
-  const done = run.tasks_succeeded + run.tasks_failed;
-  const counts = run.tasks_total > 0 ? { done, failed: run.tasks_failed, total: run.tasks_total } : undefined;
+  // The bar moves with every task that has an outcome; "read" counts the ones that succeeded, as the toast at
+  // the end does, with the failed ones apart
+  const { done, succeeded, failed, total } = taskSummary(run);
+  const counts = total > 0 ? { done, failed, total } : undefined;
   const text =
     counts === undefined
       ? undefined
-      : counts.failed > 0
+      : failed > 0
         ? t('progress.countsFailed', {
-            done: formatInteger(done),
-            total: formatInteger(counts.total),
-            failed: formatInteger(counts.failed),
+            done: formatInteger(succeeded),
+            total: formatInteger(total),
+            failed: formatInteger(failed),
           })
-        : t('progress.counts', { done: formatInteger(done), total: formatInteger(counts.total) });
+        : t('progress.counts', { done: formatInteger(succeeded), total: formatInteger(total) });
   const title = queued ? (slow ? t('progress.slow') : t('progress.queued')) : t('progress.running');
   return (
     <CollectionProgress
@@ -107,25 +110,26 @@ function finishedToast(
   const reasonWords = reasonText(run.status_reason);
   const reason = reasonWords === null ? {} : { description: reasonWords };
   switch (run.status) {
-    case 'completed':
-      return run.tasks_total === 0
+    case 'completed': {
+      const { succeeded, total } = taskSummary(run);
+      return total === 0
         ? { type: 'info', title: t('finished.nothing') }
         : {
             type: 'success',
-            title: t('finished.completed', {
-              done: formatInteger(run.tasks_succeeded),
-              total: formatInteger(run.tasks_total),
-            }),
+            title: t('finished.completed', { done: formatInteger(succeeded), total: formatInteger(total) }),
           };
-    case 'completed_with_errors':
+    }
+    case 'completed_with_errors': {
+      const { succeeded, failed, total } = taskSummary(run);
       return {
         type: 'info',
         title: t('finished.completedWithErrors', {
-          done: formatInteger(run.tasks_succeeded),
-          total: formatInteger(run.tasks_total),
-          failed: formatInteger(run.tasks_failed),
+          done: formatInteger(succeeded),
+          total: formatInteger(total),
+          failed: formatInteger(failed),
         }),
       };
+    }
     case 'failed':
       return { type: 'error', title: t(`finished.${FINISH_KEYS.failed}`), ...reason };
     case 'cancelled':
