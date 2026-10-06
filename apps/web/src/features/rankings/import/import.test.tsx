@@ -247,6 +247,17 @@ describe('Import dialog', () => {
     SLOW_TEST,
   );
 
+  it('does not send a file with a header line and no rows: the API would read it into a preview of nothing', async () => {
+    const created = spy('post', UPLOAD);
+    const { user } = renderWithProviders(<Controlled changes={[]} />);
+    const { dialog } = await openImport(user);
+    await user.upload(fileInput(), csv('keyword\n'));
+    expect(
+      await within(dialog).findByText('This file has a header line and no rows. Add the keywords below it.'),
+    ).toBeInTheDocument();
+    expect(created.bodies).toEqual([]);
+  });
+
   it('refuses a file that is not a CSV, too large or not UTF-8, before any upload', async () => {
     const uploads = spy('post', UPLOAD);
     const permissive = userEvent.setup({ applyAccept: false });
