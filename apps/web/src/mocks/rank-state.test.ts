@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MOCK_TRACKED_KEYWORDS, PENDING_TRACKED_IDS } from './keyword-fixtures';
 import { checksOf, FIRST_CHECK_DELAY_MS, type MockCheck } from './rank-history';
-import { changeOf, FAILED_IDS, FAILING_IDS, rankStateOf, STALE_IDS } from './rank-state';
+import { changeOf, FAILED_IDS, FAILING_IDS, rankStateOf, STALE_IDS, stoppedAtOf } from './rank-state';
 import { TRACKED_KEYWORD_STATE } from '@/test/api-shapes';
 
 const NOW = Date.parse('2026-10-06T12:00:00Z');
@@ -315,6 +315,59 @@ describe('mock rank state', () => {
       const state = rankStateOf(idOf(n), CREATED, NOW, null);
       expect(state.current).toMatchObject({ state: 'beyond_depth', rank: null, url: null });
       expect(state).toMatchObject({ best_rank: null, ranking_url_count: 0 });
+    }
+  });
+});
+
+describe('mock rank state of an archived keyword', () => {
+  const DAY_MS = 24 * HOUR_MS;
+
+  it('is checked no more once it was archived: the history stops there, and it is not stale for it', () => {
+    const archivedAt = new Date(NOW - 10 * DAY_MS).toISOString();
+    for (let n = 1; n <= 12; n += 1) {
+      const state = rankStateOf(idOf(n), CREATED, NOW, DOMAIN, null, archivedAt);
+      expect(Date.parse(state.last_observed_at ?? '')).toBeLessThanOrEqual(Date.parse(archivedAt));
+      // The backend clears the stale flag of a keyword that is no longer collected
+      expect(state.is_stale).toBe(false);
+      // Days later nothing has moved: no check happens, so no change either
+      expect(rankStateOf(idOf(n), CREATED, NOW + 5 * DAY_MS, DOMAIN, null, archivedAt)).toEqual(state);
+    }
+  });
+
+  it('is not stale even when its last check is older than 36 hours, and an active one with the same history is', () => {
+    const archivedAt = new Date(NOW - 10 * DAY_MS).toISOString();
+    const frozen = rankStateOf(idOf(3), CREATED, NOW, DOMAIN, null, archivedAt);
+    expect(NOW - Date.parse(frozen.last_observed_at ?? '')).toBeGreaterThan(36 * HOUR_MS);
+    expect(frozen.is_stale).toBe(false);
+  });
+
+  it('has no check at all when it was archived before its first one, and is not checked then', () => {
+    const state = rankStateOf(idOf(3), CREATED, NOW, DOMAIN, null, CREATED);
+    expect(state.current.state).toBe('not_checked');
+    expect(state.is_stale).toBe(false);
+  });
+
+  it('knows when checks stopped: never for an active keyword, at the archive time, or a few days after creation for a fixture', () => {
+    const created = '2026-07-01T08:00:00.000Z';
+    expect(stoppedAtOf({ is_active: true, created_at: created, updated_at: '2026-09-01T00:00:00.000Z' })).toBeNull();
+    // Archived through the API: its `updated_at` is when
+    expect(stoppedAtOf({ is_active: false, created_at: created, updated_at: '2026-09-01T00:00:00.000Z' })).toBe(
+      '2026-09-01T00:00:00.000Z',
+    );
+    // An archived fixture was never updated, so no archive time is stored: it was collected for 5 days
+    expect(stoppedAtOf({ is_active: false, created_at: created, updated_at: created })).toBe(
+      new Date(Date.parse(created) + 5 * DAY_MS).toISOString(),
+    );
+  });
+
+  it('gives the archived fixture keywords a history that ends days after they were added, not at the mock clock', () => {
+    const archived = MOCK_TRACKED_KEYWORDS.filter((row) => !row.is_active);
+    expect(archived.length).toBeGreaterThan(0);
+    for (const row of archived) {
+      const state = rankStateOf(row.tracked_keyword_id, row.created_at, NOW, DOMAIN, null, stoppedAtOf(row));
+      if (state.last_observed_at === null) continue;
+      expect(Date.parse(state.last_observed_at)).toBeLessThanOrEqual(Date.parse(row.created_at) + 5 * DAY_MS);
+      expect(state.is_stale).toBe(false);
     }
   });
 });

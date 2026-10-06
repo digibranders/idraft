@@ -18,7 +18,7 @@ import { KEYWORD_TABLE } from '../keyword-table';
 import { KEYWORDS_COOKIE, keywordWorld, readKeywordChanges } from '../keywords-state';
 import { mockId } from '../mock-ids';
 import { MOCK_SCHEDULE_IDS } from '../operations-fixtures';
-import { FAILED_IDS, rankStateOf, type TrackedKeywordState } from '../rank-state';
+import { FAILED_IDS, rankStateOf, stoppedAtOf, type TrackedKeywordState } from '../rank-state';
 import { SESSION_COOKIE } from '../session';
 import { TEST_API_ORIGIN } from '@/test/api-server';
 import {
@@ -591,7 +591,7 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
       id: row.tracked_keyword_id,
       text: KEYWORD_TABLE[index]?.text ?? '',
       active: row.is_active,
-      state: rankStateOf(row.tracked_keyword_id, row.created_at, NOW, HOST),
+      state: rankStateOf(row.tracked_keyword_id, row.created_at, NOW, HOST, null, stoppedAtOf(row)),
     }));
   const live = (): Truth[] => fixtures().filter((entry) => entry.active);
   const ids = (entries: readonly { id: string }[]): string[] => entries.map((entry) => entry.id).sort();
@@ -884,8 +884,12 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     const editor = mockBrowser('editor');
     // A body filter without `is_active` takes archived and active keywords alike
     const everyone = fixtures();
+    // Unarchiving makes the archived keywords collected again, so each call starts from the fixtures' own state
     const matched = async (filter: Record<string, unknown>): Promise<number> =>
-      dataOf(await editor.call('POST', `${TK}/bulk-archive`, { filter, archive: false }), BULK_ARCHIVE_RESULT).matched;
+      dataOf(
+        await mockBrowser('editor').call('POST', `${TK}/bulk-archive`, { filter, archive: false }),
+        BULK_ARCHIVE_RESULT,
+      ).matched;
     expect(await matched({ rank_lte: 3 })).toBe(everyone.filter((entry) => (rank(entry) ?? 1000) <= 3).length);
     expect(await matched({ rank_gte: 4, rank_lte: 10 })).toBe(
       everyone.filter((entry) => (rank(entry) ?? 0) >= 4 && (rank(entry) ?? 1000) <= 10).length,

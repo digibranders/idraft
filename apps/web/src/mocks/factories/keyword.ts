@@ -4,7 +4,7 @@ import type { EntityWorld } from '../entities-state';
 import { MOCK_INVITED_USER, MOCK_USERS } from '../fixtures';
 import { fixtureReading, fixtureReadingsOf, METRICS_FETCHED_AT, type FixtureReading } from '../keyword-fixtures';
 import { keywordMetrics, metricsHistory } from '../keyword-metrics';
-import { rankStateOf } from '../rank-state';
+import { rankStateOf, stoppedAtOf } from '../rank-state';
 import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   currentVersion,
@@ -245,6 +245,7 @@ export function stateOf(row: StoredTracked, rank: RankContext): TrackedKeywordRo
     rank.now,
     rank.domain,
     urlRef(currentVersion(row).target_url)?.canonical_url ?? null,
+    stoppedAtOf(row),
   );
 }
 

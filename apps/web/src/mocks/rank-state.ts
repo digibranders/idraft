@@ -41,6 +41,21 @@ export const FAILED_IDS: ReadonlySet<string> = new Set(CHECKED_FIXTURES.filter((
 
 const FEATURES = ['featured_snippet', 'people_also_ask', 'video', 'image_pack', 'local_pack', 'top_stories'] as const;
 
+/** An archived fixture keyword is collected this long after it was added; the mock stores no archive time for it. */
+const ARCHIVED_FIXTURE_COLLECTED_MS = 5 * 24 * HOUR_MS;
+
+/**
+ * When a tracked keyword stopped being checked: never while it is active; when it was archived through the
+ * API, which sets its `updated_at`; and for an archived fixture, which was never updated (its `updated_at` is
+ * its creation, no archive time is stored), a few days after it was added.
+ */
+export function stoppedAtOf(row: { is_active: boolean; created_at: string; updated_at: string }): string | null {
+  if (row.is_active) return null;
+  return row.updated_at === row.created_at
+    ? new Date(Date.parse(row.created_at) + ARCHIVED_FIXTURE_COLLECTED_MS).toISOString()
+    : row.updated_at;
+}
+
 /** The side of a check that the change compares. */
 export type ChangeSide = Pick<MockCheck, 'rank' | 'depth' | 'observedAt'>;
 
@@ -142,6 +157,8 @@ function aioOf(trackedId: string): AioStateInfo {
  *   own URL, so its keywords are always beyond the depth.
  * - `targetUrl` is the keyword's target URL in canonical form: the match is known only for a keyword that ranks.
  * - A fixture keyword still waiting for Labs has no check, and the failed fixture keyword never had a good one.
+ * - `stoppedAt` is when the keyword stopped being collected (`stoppedAtOf`), `null` while it is. Its history ends
+ *   there, and it is never stale: the backend clears the flag of a keyword nobody expects a check of.
  */
 export function rankStateOf(
   trackedId: string,
@@ -149,11 +166,15 @@ export function rankStateOf(
   now: number,
   domain: string | null,
   targetUrl: string | null = null,
+  stoppedAt: string | null = null,
 ): TrackedKeywordState {
+  const collected = stoppedAt === null;
   if (PENDING_TRACKED_IDS.has(trackedId)) return notChecked(0, false);
-  if (FAILED_IDS.has(trackedId)) return notChecked(FAILED_RUN, now - Date.parse(createdAt) > STALE_AFTER_MS);
+  if (FAILED_IDS.has(trackedId))
+    return notChecked(FAILED_RUN, collected && now - Date.parse(createdAt) > STALE_AFTER_MS);
   // A stale fixture keyword shows the history of 40 hours ago: its checks since then did not happen
-  const asOf = STALE_IDS.has(trackedId) ? now - STALE_FIXTURE_AGE_MS : now;
+  const staleAsOf = STALE_IDS.has(trackedId) ? now - STALE_FIXTURE_AGE_MS : now;
+  const asOf = collected ? staleAsOf : Math.min(staleAsOf, Date.parse(stoppedAt));
   const checks = checksOf(trackedId, createdAt, asOf).map((check) =>
     domain === null ? { ...check, rank: null, path: null, urlCount: 0 } : check,
   );
@@ -193,7 +214,7 @@ export function rankStateOf(
     target_url_match: url === null || targetUrl === null ? null : url.canonical_url === targetUrl,
     url_changed_at: null,
     consecutive_failures: FAILING_IDS.has(trackedId) ? FAILING_RUN : 0,
-    is_stale: now - Date.parse(latest.observedAt) > STALE_AFTER_MS,
+    is_stale: collected && now - Date.parse(latest.observedAt) > STALE_AFTER_MS,
     last_observed_at: latest.observedAt,
     ranking_url_count: latest.urlCount,
   };
