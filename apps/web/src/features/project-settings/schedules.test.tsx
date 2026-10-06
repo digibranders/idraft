@@ -290,6 +290,8 @@ describe('Project settings > Schedules', () => {
     renderWithProviders(screenAs('editor'));
     expect(await screen.findByText('The schedules could not be loaded.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    // The request id is there for support to look the failure up by
+    expect(screen.getByText(/^Error ID /)).toBeInTheDocument();
   });
 });
 

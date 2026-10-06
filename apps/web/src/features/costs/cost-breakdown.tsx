@@ -122,7 +122,7 @@ function ProviderPanel({
       rows={query.data?.data ?? []}
       rowKey={rowKeyOf}
       status={statusOf(query)}
-      errorState={<CostsError onRetry={() => void query.refetch()} retrying={query.isFetching} />}
+      errorState={<CostsError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />}
       emptyText={emptyText}
     />
   );
@@ -186,7 +186,7 @@ function ProjectPanel({
       rows={rows}
       rowKey={rowKeyOf}
       status={statusOf(query)}
-      errorState={<CostsError onRetry={() => void query.refetch()} retrying={query.isFetching} />}
+      errorState={<CostsError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />}
       emptyText={emptyText}
     />
   );
@@ -249,7 +249,7 @@ function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'm
         rows={query.data?.data ?? []}
         rowKey={(row) => row.price_id}
         status={statusOf(query)}
-        errorState={<CostsError onRetry={() => void query.refetch()} retrying={query.isFetching} />}
+        errorState={<CostsError error={query.error} onRetry={() => void query.refetch()} retrying={query.isFetching} />}
         emptyText={t('noPrices')}
       />
     </div>
@@ -290,7 +290,9 @@ function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects'
       rows={budgetRows(budgets.data?.data ?? [])}
       rowKey={(row) => row.budget.budget_id}
       status={statusOf(budgets)}
-      errorState={<CostsError onRetry={() => void budgets.refetch()} retrying={budgets.isFetching} />}
+      errorState={
+        <CostsError error={budgets.error} onRetry={() => void budgets.refetch()} retrying={budgets.isFetching} />
+      }
       emptyText={t('noBudget')}
     />
   );

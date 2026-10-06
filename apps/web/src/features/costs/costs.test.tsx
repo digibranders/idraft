@@ -14,7 +14,7 @@ import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { MOCK_RUNS } from '@/mocks/operations-fixtures';
-import { mswPath } from '@/mocks/respond';
+import { mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
@@ -560,6 +560,17 @@ describe('Costs', () => {
     renderWithProviders(costsAs('admin'), { searchParams: '?month=2025-11' });
     await waitFor(() => expect(screen.getAllByText('No costs recorded in November 2025.')).toHaveLength(3));
     expect(screen.queryByTestId('echart-canvas')).toBeNull();
+  });
+
+  it('names the request of a table that failed and announces the failure', async () => {
+    server.use(http.get(mswPath(COSTS), ({ request }) => problem(request, 'rate_limited')));
+    renderWithProviders(costsAs('admin'));
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole('alert').some((alert) => /The costs could not be loaded/.test(alert.textContent ?? '')),
+      ).toBe(true),
+    );
+    expect((await screen.findAllByText(/^Error ID /)).length).toBeGreaterThan(0);
   });
 
   it('keeps the page when a table fails, and tries again', async () => {

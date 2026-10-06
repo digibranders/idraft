@@ -30,6 +30,7 @@ import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
+import { useErrorId } from '@/lib/api/use-error-id';
 import type { Run } from '@/lib/api/types';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
 import type { FilterValue } from '@/lib/filters/filter-values';
@@ -130,7 +131,6 @@ export function RunsScreen(props: RunsScreenProps): ReactNode {
 function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first: RunsProject }): ReactNode {
   const t = useTranslations('runs');
   const common = useTranslations('common');
-  const errors = useTranslations('status.error');
   const locale = useLocale();
   const workloadName = useWorkloadName();
   const queryClient = useQueryClient();
@@ -279,7 +279,7 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
     if (list.rows.length === 0) return filtered ? 'filtered-empty' : 'empty';
     return list.fetching ? 'refetching' : 'ready';
   })();
-  const errorId = isApiProblem(list.error) ? list.error.requestId : null;
+  const errorId = useErrorId(list.error);
   // The search is of the loaded runs, so it is what the box holds
   const searched = view.q.trim();
   const clearFilters = useCallback(() => setValues({}), [setValues]);
@@ -397,16 +397,7 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
               <InlineError
                 title={t('loadFailed')}
                 reason={t('loadFailedReason')}
-                errorId={
-                  errorId === null
-                    ? null
-                    : {
-                        id: errorId,
-                        label: errors('errorId', { id: errorId }),
-                        copyLabel: errors('copyErrorId'),
-                        copiedLabel: errors('copied'),
-                      }
-                }
+                errorId={errorId}
                 onRetry={list.refetch}
                 retrying={list.fetching}
                 retryLabel={common('retry')}

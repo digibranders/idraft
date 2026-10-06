@@ -43,7 +43,7 @@ import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
-import { isApiProblem } from '@/lib/api/problem';
+import { useErrorId } from '@/lib/api/use-error-id';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
 import { formatInteger, formatList, formatRelative } from '@/lib/format';
@@ -106,7 +106,6 @@ export function RankingsScreen({
 }: RankingsScreenProps): ReactNode {
   const t = useTranslations('rankings');
   const common = useTranslations('common');
-  const errors = useTranslations('status.error');
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
@@ -262,7 +261,7 @@ export function RankingsScreen({
     updatedText !== null && countText !== null
       ? t('meta', { updated: updatedText, tracked: countText })
       : (updatedText ?? countText ?? '');
-  const errorId = isApiProblem(list.error) ? list.error.requestId : null;
+  const errorId = useErrorId(list.error);
 
   // The keyword inspector: opened from a row, stepping in the table's order, asking before it leaves a
   // keyword with unsaved changes (16-drawers-dialogs-popovers.md section 2.5)
@@ -521,16 +520,7 @@ export function RankingsScreen({
               <InlineError
                 title={t('error.title')}
                 reason={t('error.reason')}
-                errorId={
-                  errorId === null
-                    ? null
-                    : {
-                        id: errorId,
-                        label: errors('errorId', { id: errorId }),
-                        copyLabel: errors('copyErrorId'),
-                        copiedLabel: errors('copied'),
-                      }
-                }
+                errorId={errorId}
                 onRetry={list.refetch}
                 retrying={list.fetching}
                 retryLabel={common('retry')}

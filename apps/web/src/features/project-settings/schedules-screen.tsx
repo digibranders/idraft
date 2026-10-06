@@ -29,6 +29,7 @@ import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
+import { useErrorId } from '@/lib/api/use-error-id';
 import type { Schedule } from '@/lib/api/types';
 import { formatTableDateTime } from '@/lib/format';
 import { useCan } from '@/lib/permissions';
@@ -58,6 +59,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
   const canWrite = useCan('schedules:write');
   const queryClient = useQueryClient();
   const schedules = useQuery(schedulesQuery(scope));
+  const errorId = useErrorId(schedules.error);
   const names = useSelectorNames(scope);
   const words = useScheduleWords();
   const workloadName = useWorkloadName();
@@ -312,7 +314,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
           <InlineError
             title={t('loadFailed')}
             reason={t('loadFailedReason')}
-            errorId={null}
+            errorId={errorId}
             onRetry={() => void schedules.refetch()}
             retrying={schedules.isFetching}
             retryLabel={common('retry')}

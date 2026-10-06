@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { CollectionStatusIcon } from '@/components/app/status/collection-progress';
 import { isApiProblem } from '@/lib/api/problem';
+import { useErrorId } from '@/lib/api/use-error-id';
 import type { Run, RunDetail } from '@/lib/api/types';
 import { EMPTY_VALUE, formatCurrency, formatDetailDateTime, formatInteger } from '@/lib/format';
 import { money } from '@/lib/format/money';
@@ -54,14 +55,13 @@ export function RunInspector({
 }: RunInspectorProps): ReactElement {
   const t = useTranslations('runs');
   const common = useTranslations('common');
-  const errors = useTranslations('status.error');
   const inspector = useTranslations('inspector');
   const workloadName = useWorkloadName();
   const reasonText = useRunReason();
   const detail = useRunDetail(scope, runId);
   const run: Run | RunDetail | null = detail.data?.data ?? row;
   const notFound = isApiProblem(detail.error, 'not_found');
-  const errorId = isApiProblem(detail.error) ? detail.error.requestId : null;
+  const errorId = useErrorId(detail.error);
 
   const when = (instant: string | null): string =>
     instant === null ? EMPTY_VALUE : formatDetailDateTime(instant, timeZone);
@@ -97,16 +97,7 @@ export function RunInspector({
     <InlineError
       title={failedTitle}
       reason={t('inspector.loadFailedReason')}
-      errorId={
-        errorId === null
-          ? null
-          : {
-              id: errorId,
-              label: errors('errorId', { id: errorId }),
-              copyLabel: errors('copyErrorId'),
-              copiedLabel: errors('copied'),
-            }
-      }
+      errorId={errorId}
       onRetry={() => void detail.refetch()}
       retrying={detail.isFetching}
       retryLabel={common('retry')}

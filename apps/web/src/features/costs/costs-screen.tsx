@@ -263,7 +263,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
       ) : null}
       {total.isError ? (
         <div className="rounded-lg border border-border bg-surface">
-          <CostsError onRetry={() => void total.refetch()} retrying={total.isFetching} />
+          <CostsError error={total.error} onRetry={() => void total.refetch()} retrying={total.isFetching} />
         </div>
       ) : (
         <MetricStrip
@@ -278,7 +278,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
           {byDay.isError ? (
             <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
               <h2 className="type-section-title">{t('chartTitle')}</h2>
-              <CostsError onRetry={() => void byDay.refetch()} retrying={byDay.isFetching} />
+              <CostsError error={byDay.error} onRetry={() => void byDay.refetch()} retrying={byDay.isFetching} />
             </section>
           ) : !byDay.isPending && chart.series.length === 0 ? (
             <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
@@ -325,7 +325,13 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
               '',
             ]}
             status={byWorkload.isError ? 'error' : byWorkload.isPending ? 'loading' : 'ready'}
-            errorState={<CostsError onRetry={() => void byWorkload.refetch()} retrying={byWorkload.isFetching} />}
+            errorState={
+              <CostsError
+                error={byWorkload.error}
+                onRetry={() => void byWorkload.refetch()}
+                retrying={byWorkload.isFetching}
+              />
+            }
             emptyText={emptyText}
           />
         </section>

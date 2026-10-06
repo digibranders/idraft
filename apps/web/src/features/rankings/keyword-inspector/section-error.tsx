@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { InlineError } from '@/components/app/status/inline-error';
-import { isApiProblem } from '@/lib/api/problem';
+import { useErrorId } from '@/lib/api/use-error-id';
 
 export interface SectionErrorProps {
   /** What did not load: "The monthly volumes did not load". */
@@ -18,24 +18,14 @@ export interface SectionErrorProps {
 
 /** A section of the inspector that failed: its own error and Retry, so the other sections stay (16 section 2.4). */
 export function SectionError({ title, error, onRetry, retrying, reason }: SectionErrorProps): ReactElement {
-  const errors = useTranslations('status.error');
   const common = useTranslations('common');
   const t = useTranslations('rankings.inspector');
-  const errorId = isApiProblem(error) ? error.requestId : null;
+  const errorId = useErrorId(error);
   return (
     <InlineError
       title={title}
       reason={reason ?? t('sectionErrorReason')}
-      errorId={
-        errorId === null
-          ? null
-          : {
-              id: errorId,
-              label: errors('errorId', { id: errorId }),
-              copyLabel: errors('copyErrorId'),
-              copiedLabel: errors('copied'),
-            }
-      }
+      errorId={errorId}
       onRetry={onRetry}
       retrying={retrying}
       retryLabel={common('retry')}
