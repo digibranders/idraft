@@ -25,15 +25,31 @@ describe('rank, change and URL column types (12-tables.md section 5)', () => {
     });
   });
 
-  it('gives a rank change 56 px (up to 88, which a header with its sort arrow needs), right aligned, the biggest improvement first', () => {
+  it('gives a rank change 84 to 88 px, which the header "Change" with its sort arrow needs, right aligned, the biggest improvement first', () => {
     expect(COLUMN_TYPES.rankDelta).toEqual({
-      width: 56,
-      min: 48,
+      width: 88,
+      min: 84,
       max: 88,
       align: 'right',
       defaultDesc: true,
       flex: false,
     });
+  });
+
+  it('keeps the Change column at 84 px or more however tight the table is, so its header is never cut', () => {
+    const rankColumns = [
+      sized('keyword', 'keyword'),
+      sized('rank', 'rank'),
+      sized('change', 'rankDelta'),
+      sized('url', 'url'),
+      sized('volume', 'volume'),
+      sized('kd', 'count'),
+      sized('cpc', 'currency'),
+      sized('updated', 'date'),
+    ];
+    for (const available of [600, 900, 1100, 1300]) {
+      expect(resolveWidths(rankColumns, available).get('change')).toBeGreaterThanOrEqual(84);
+    }
   });
 
   it('gives a URL 260 px, left aligned, A to Z, without taking the identity column place', () => {

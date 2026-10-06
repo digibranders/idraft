@@ -63,8 +63,6 @@ export function useRankColumns(timeZone: string): RankColumns {
           header: t('change'),
           headerTooltip: t('changeTooltip'),
           priority: 1,
-          // The header "Change" with its sort arrow needs 84 px: the type's 72 px cut it to "Cha"
-          width: 88,
           cell: (row) => <RankChangeView display={rowChangeDisplay(row.state.current, row.state.change)} />,
           cellTip: (row) => tips.change(row.state.change, row.state.current),
         },
