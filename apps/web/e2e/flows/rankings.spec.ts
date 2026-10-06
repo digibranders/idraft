@@ -215,6 +215,80 @@ test.describe('rankings', () => {
     }
   });
 
+  test('a keyword and its ranking URL copy from the row, and the URL opens in a new tab while the inspector stays shut', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await expect(grid.getByRole('rowheader').first()).toBeVisible();
+    // The first keyword that ranks with a URL; its row header is named by the keyword alone
+    const opens = /^Open \/.* in a new tab$/;
+    const row = grid
+      .getByRole('row')
+      .filter({ has: page.getByRole('link', { name: opens }) })
+      .first();
+    const keyword = await row.getByRole('rowheader').getAttribute('aria-label');
+    if (keyword === null || keyword === '') throw new Error('The keyword row header has no name');
+    const clipboard = (): Promise<string> => page.evaluate(() => navigator.clipboard.readText());
+    const copyKeyword = row.getByRole('button', { name: `Copy keyword ${keyword}` });
+    const link = row.getByRole('link', { name: opens });
+    const copyUrl = row.getByRole('button', { name: 'Copy ranking URL' });
+
+    // Drawn on hover only (by opacity: the button is in the page the whole time)
+    await expect(copyKeyword.locator('..')).toHaveCSS('opacity', '0');
+    await row.hover();
+    await expect(copyKeyword.locator('..')).toHaveCSS('opacity', '1');
+    await expect(copyUrl.locator('..')).toHaveCSS('opacity', '1');
+    await expectAccessible(page);
+
+    // The keyword, then a check for a moment, then the glyph again
+    await copyKeyword.click();
+    await expect.poll(clipboard).toBe(keyword);
+    await expect(row.getByRole('button', { name: 'Copied' })).toHaveCount(1);
+    await expect(copyKeyword).toBeVisible();
+
+    // The whole address as the API sent it, which is what the link opens
+    const href = await link.getAttribute('href');
+    if (href === null) throw new Error('The ranking URL link has no href');
+    expect(href).toMatch(/^https:\/\//);
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await copyUrl.click();
+    await expect.poll(clipboard).toBe(href);
+
+    // Clicking a control never opens the keyword
+    await expect(page.getByRole('complementary', { name: keyword })).toHaveCount(0);
+    await expect(page).not.toHaveURL(/[?&]inspect=/);
+
+    // The link opens a tab of its own. The fixture addresses are made up: the request is answered here
+    await context.route(href, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>ok</p>' }));
+    const [popup] = await Promise.all([page.waitForEvent('popup'), link.click()]);
+    await popup.waitForLoadState();
+    expect(popup.url()).toBe(new URL(href).href);
+    await popup.close();
+    await expect(page.getByRole('complementary', { name: keyword })).toHaveCount(0);
+    await expect(page).not.toHaveURL(/[?&]inspect=/);
+
+    // From the keyboard: F2 into the cell, Tab between its controls, Enter copies, Escape comes back
+    await page.evaluate(() => navigator.clipboard.writeText(''));
+    const urlCell = await cellOf(grid, row, 'Ranking URL');
+    await urlCell.focus();
+    await page.keyboard.press('F2');
+    await expect(link).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(copyUrl).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect.poll(clipboard).toBe(href);
+    await page.keyboard.press('Escape');
+    await expect(urlCell).toBeFocused();
+    await expect(page.getByRole('complementary', { name: keyword })).toHaveCount(0);
+    await expectAccessible(page);
+  });
+
   test('a keyword opens in the inspector, steps with J, and saves a setting in place', async ({ page }) => {
     await page.setViewportSize({ width: 1680, height: 1000 });
     await signIn(page, EDITOR);

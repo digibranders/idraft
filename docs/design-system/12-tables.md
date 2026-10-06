@@ -163,7 +163,7 @@ Rules:
 - Cells never fetch data. They receive values from the row.
 - Cells never format numbers themselves; they call `@/lib/format`. Screen reader text is the formatter's `label` field; components never compose it.
 - The API contract type `MetricCell` (from `packages/contracts`) is imported as `MetricCellValue`, because `MetricCell` is also the name of this cell component ([25-component-inventory.md](25-component-inventory.md) section 1.5).
-- Hover actions inside cells (copy, open) are also reachable by keyboard when the cell has focus (Enter on the cell opens a small action menu).
+- Hover actions inside cells (copy, open) are also reachable by keyboard when the cell has focus: F2 moves into the cell's controls (section 9, "Controls in a cell"). Enter keeps opening the row.
 
 ## 7. States
 
@@ -218,6 +218,22 @@ These are the `BeyondDepth`, `InsufficientData`, `NotApplicable` and `NotCollect
 | `/` | On table pages, focus table search (when focus is not in an input). On pages without a table search, `/` opens the command palette in search mode ([13-filters-search.md](13-filters-search.md) section 7) |
 
 The full grid keyboard map, including widget mode, Ctrl+A and Shift+F10, is in [20-accessibility.md](20-accessibility.md) section 6.3, which is binding where the two differ.
+
+**Controls in a cell (as built).** A cell may hold small controls that are not the cell's value: a copy button (`app/cells/copy-button.tsx`), a link that opens in a new tab. Rankings has three: the Keyword cell's copy button (copies the keyword text), and the Ranking URL cell's link (the whole canonical address, `target="_blank"`, `rel="noopener noreferrer"`, http and https only, never another scheme) and copy button (copies the address exactly as the API sent it, fragment and tracking parameters included).
+
+| Aspect | Rule |
+|---|---|
+| Tab order | The grid keeps its one tab stop. A control carries `CELL_CONTROL` (`lib/tables/grid-focus.ts`: `tabindex="-1"` and `data-cell-control`), as the row checkbox and the actions menu trigger have `tabindex="-1"`. A click, and a screen reader's own commands, still reach it |
+| F2 on a focused cell | Moves focus to the cell's first control and puts the cell in widget mode. Nothing happens on a cell without controls. Enter is not used for this, because Enter opens the row on every data cell ([20-accessibility.md](20-accessibility.md) section 6.3 gives Enter or F2) |
+| Tab, Shift+Tab in widget mode | Step between the cell's controls, round the ends (one control: it stays). A control focused by a click is not in widget mode, so Tab leaves it as it would any button |
+| Enter, Space on a control | Activate it (copy, open the link). They do not open the row and do not select it |
+| Escape | Back to the cell at once, also while the control's tooltip is open (the table takes the key before the tooltip, which would use the first press). Never clears the selection |
+| Arrows | Go back to the grid and move on from the cell, as for the other controls in cells |
+| Click | A click, a Ctrl or Cmd click and a middle click on a control are the control's own: the table's row handler ignores `a` and `button` targets, and the controls stop the click and the middle click on their own as well. A click anywhere else in the cell opens the row |
+| Drawn | A copy button is hidden by opacity alone (never `display: none` or `visibility: hidden`, which would take it from the keyboard and from screen readers). It shows on row hover (`group-hover`), when the cell or anything in it has focus (`group-focus-within/cell`, the cell is `group/cell`), always on a touch screen (`pointer-coarse`) and while it shows the check |
+| Place | In the Keyword cell the button lies over the end of the cell (`placement="overlay"`, `bg-inherit` takes the cell's hover and selected background), so the keyword gives up no width; in a cell that has a marker to keep in view (Ranking URL's `+1`) it is a place of its own beside the content (`inline`, 24 px, `icon-xs`) |
+| Name | The Keyword row header is named by the keyword alone (`DataTableColumn.cellLabel`), since the button's name would otherwise be read with every other cell of the row. A cell that holds a link and a button is named by its content: "Open /pricing in a new tab, and 1 more of your URLs ranks, Copy ranking URL" |
+| Confirmation | After a successful copy the Copy glyph is a check in `text-positive-text` for 2 seconds (a repeated click starts the 2 seconds again, the timer goes with the button), the name is "Copied", and "Keyword copied" or "Ranking URL copied" is announced politely. If the Clipboard API is missing or rejects, a temporary read-only field is selected and copied, and when that fails too an error toast says "Could not copy. Select the text and copy it yourself." Focus stays on the button |
 
 ARIA for virtualization: `aria-rowcount` on the table is the total row count including the header row (or `-1` when unknown in server mode); each rendered row has `aria-rowindex` starting at 1 for the header. Columns hidden by priority are removed from the DOM and columns are not virtualized, so `aria-colcount` and `aria-colindex` are omitted ([20-accessibility.md](20-accessibility.md) section 6.2). Selection uses `aria-selected` on rows and `aria-multiselectable="true"` on the grid.
 

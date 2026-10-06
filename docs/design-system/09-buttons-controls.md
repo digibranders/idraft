@@ -430,6 +430,8 @@ Base UI `Slider` (`Root`, `Control`, `Track`, `Indicator`, `Thumb`). Used rarely
 | Failure | Clipboard API rejects: toast "Could not copy. Select the text and copy it manually." and the value is selected in its field |
 | Keyboard | Standard button; focus stays on the button after copying |
 
+As built for table cells (the first use, Rankings): `app/cells/copy-button.tsx`, because `ui/` may not import the announcer or the clipboard helper (26 section 2, rule 1). It takes `text`, `label` and `announcement` and shows the check for 2 seconds. When the Clipboard API is missing or rejects it selects and copies a temporary read-only field (`lib/dom/clipboard.ts`), and only when that fails too does it show the error toast "Could not copy. Select the text and copy it yourself." It is `icon-xs` (24 px), out of the tab order and marked for the grid ([12-tables.md](12-tables.md) section 9, "Controls in a cell").
+
 ### 9.2 ExternalLinkButton
 
 Renders `ExternalLink` ([20-frontend-specification.md](../20-frontend-specification.md) section 7.2) with `buttonVariants`: `target="_blank"`, `rel="noopener noreferrer nofollow"`, scheme check, trailing `ExternalLink` icon (14 px at `sm`, 16 px at `md`) in `text-foreground-muted`, and visually hidden text "(opens in a new tab)" appended to the accessible name. Variants: `secondary` or `link`. Label names the destination: "Open in GSC", "View SERP".

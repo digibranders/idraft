@@ -208,7 +208,7 @@ Base UI implements the APG keyboard models listed below. Our responsibility is t
 | `Toaster` / `toast()` | Status message | Toasts are not focusable except their buttons; the viewport is a named region reachable with F6 | Swipe to dismiss has a Close button |
 | Sidebar navigation | Navigation list of links | Tab through links; `[` toggles collapse when single-key shortcuts are on | Collapsed rail links keep their accessible name (the label) and show it as a tooltip |
 | Breadcrumb | Breadcrumb | Tab through links | Last item `aria-current="page"` |
-| `DataTable` | Grid (section 6) | See section 6.3 | Roving focus |
+| `DataTable` | Grid (section 6) | See section 6.3. F2 enters widget mode for the controls of a cell | Roving focus. Controls in cells (copy buttons, a link) have `tabindex="-1"` and are reached with F2, as the grid has one tab stop |
 | `SimpleTable` | Table | Tab through links and buttons inside | No roving focus |
 
 ## 6. Tables
@@ -286,7 +286,7 @@ Navigation mode (default):
 | Ctrl+Home, Ctrl+End | First header cell, or the last cell of the last row (scrolls and renders it) |
 | Page Down, Page Up | Moves by the number of fully visible rows minus one, same column |
 | Enter on a body cell without widgets | Opens the row in the inspector; focus moves to the inspector title |
-| Enter or F2 on a cell with widgets (URL cell, row actions, inline editor) | Enters widget mode on that cell |
+| Enter or F2 on a cell with widgets (URL cell, row actions, inline editor) | Enters widget mode on that cell. As built, F2 does this for the controls marked `CELL_CONTROL` (the copy buttons and the ranking URL link of Rankings), and Enter keeps opening the row on every data cell ([12-tables.md](12-tables.md) section 9, "Controls in a cell") |
 | Space | Toggles selection of the focused row (when selection is enabled) |
 | Shift+Space | Selects the range from the selection anchor to the focused row |
 | Ctrl+A (Cmd+A on Mac) | Selects every row loaded in the current filter scope; the bulk bar offers "Select all N matching" when more exist |
@@ -300,9 +300,10 @@ Widget mode:
 
 | Key | Action |
 |---|---|
-| Tab, Shift+Tab | Moves between widgets inside the cell, wrapping |
+| Tab, Shift+Tab | Moves between widgets inside the cell, wrapping. Only after F2: a control that was clicked is not in widget mode, and Tab leaves it as it leaves any button |
 | Enter, Space | Activates the focused widget |
-| Escape | Returns to navigation mode on the same cell |
+| Escape | Returns to navigation mode on the same cell, at once, also while the widget's tooltip is open |
+| Arrow keys | Hand focus back to the grid and move on from the cell |
 
 Printable characters have no grid meaning (no type-ahead), so the single-key shortcuts in section 14 (including `j`, `k` and the triage keys on a focused row) behave the same in the grid as elsewhere and turn off with the same switch.
 
