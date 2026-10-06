@@ -51,7 +51,8 @@ describe('Rankings', () => {
     const grid = await loadedGrid();
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(ACTIVE.length));
     expect(keywordsIn(grid).slice(0, 2)).toEqual(['seo agency', 'backlink checker']);
-    expect(keywordsIn(grid).slice(-3)).toEqual(['chatgpt seo agency', 'generative engine optimization', 'llm seo']);
+    // The three without metrics tie on volume, so they follow in the order of their ids, as the API orders ties
+    expect(keywordsIn(grid).slice(-3)).toEqual(['generative engine optimization', 'llm seo', 'chatgpt seo agency']);
     expect(within(grid).getAllByText('Pending').length).toBeGreaterThanOrEqual(3);
     expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveAttribute('aria-sort', 'descending');
     expect(await screen.findByText(/59 tracked keywords/)).toBeInTheDocument();
