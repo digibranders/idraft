@@ -54,7 +54,7 @@ All commands run in `apps/web`. Before any markup, invoke `design-taste-frontend
 3. **Workload colors are fixed**, never by position: `seo_rank` palette 2, `keyword_metrics` palette 3, `ai_prompt` palette 4, `ai_mode_keyword` palette 5, `discovery` palette 6, every other workload the `other` role, grouped as one "Other" series. `chart-1` stays for the own brand (15 section 5.2).
 4. **Tables are plain.** The cost tables are short and fixed (a dozen rows at most), so they are semantic `<table>` elements in one small `CostTable` component styled like the members table, not `DataTable`. Runs is a record list, so it is a `DataTable` in client mode.
 5. **Runs per project.** A project `Select` (the member's projects, URL key `project` holding the slug, default the first) above the table. Filters Workload, Status and Trigger (URL keys `workload`, `status`, `trigger`). Rows of the month load page by page up to 2,000; past that, a notice says the newest 2,000 are shown.
-6. **No-permission states**: without `costs:read` the Costs page shows the no-access state (17 line 88) with "Back to Overview". Runs needs `data:read`, which every role has.
+6. **No-permission states**: without `costs:read` the Costs page shows the no-access state (17 line 88) with "Back to Overview". Runs needs `data:read`, which every role but billing has (a billing member gets the no-access state).
 7. **Navigation**: the project switcher's popup gains a "Workspace" group with Costs (only with `costs:read`) and Runs; Settings' workspace group gains Costs and Operations items linking to the two pages (11-navigation section 5 order: after Members and roles).
 
 ## File structure
