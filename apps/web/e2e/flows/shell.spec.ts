@@ -72,7 +72,8 @@ test.describe('the application shell', () => {
     await expect(page.getByRole('button', { name: /create/i })).toHaveCount(0);
     await page.goto(PROFILE);
     const links = page.getByRole('navigation', { name: 'Primary' }).getByRole('link');
-    await expect(links).toHaveText(['Rankings', 'Settings']);
+    // A viewer reads the data, so Runs is there; Costs needs costs:read, which the role does not hold
+    await expect(links).toHaveText(['Rankings', 'Runs', 'Settings']);
   });
 
   test('every page carries the policy, and none reports a violation', async ({ page }) => {
@@ -111,8 +112,8 @@ test.describe('the application shell', () => {
       '/digibranders/fynix/settings/entities',
       '/digibranders/fynix/settings/taxonomy',
       '/digibranders/fynix/seo/rankings',
-      '/digibranders/costs',
-      '/digibranders/ops/runs?project=fynix',
+      '/digibranders/fynix/costs',
+      '/digibranders/fynix/ops/runs',
       '/digibranders/fynix/settings/schedules',
       '/digibranders/onboarding',
     ]) {
@@ -129,8 +130,8 @@ test.describe('the application shell', () => {
     await signIn(page, 'tomas@digibranders.test');
     for (const path of [
       '/digibranders/fynix/seo/rankings',
-      '/digibranders/costs',
-      '/digibranders/ops/runs?project=fynix',
+      '/digibranders/fynix/costs',
+      '/digibranders/fynix/ops/runs',
       '/digibranders/fynix/settings/schedules',
     ]) {
       await page.goto(path);

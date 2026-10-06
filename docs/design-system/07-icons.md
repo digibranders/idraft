@@ -65,6 +65,8 @@ Using the same glyph for the same concept everywhere matters more than the speci
 | Discover | `Compass` |
 | Reports | `FileChartColumn` |
 | Integrations | `Plug` |
+| Runs (sidebar) | `Activity` |
+| Costs (sidebar) | `Receipt`, as for cost below |
 | Settings | `Settings` |
 | Alerts, notifications | `Bell` |
 | Filter | `ListFilter` |

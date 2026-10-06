@@ -22,15 +22,61 @@ test.describe('costs and runs', () => {
     await page.clock.setFixedTime(TODAY);
   });
 
-  test('Costs opens from the project switcher, and a month with costs fills the summary and the tables', async ({
+  test('Runs and Costs open from the sidebar, which stays on screen, and Rankings is one click back', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, ADMIN);
     await page.goto('/digibranders/fynix/seo/rankings');
-    await page.getByRole('combobox', { name: 'Project: Fynix' }).first().click();
-    await page.getByRole('group', { name: 'Workspace' }).getByRole('link', { name: 'Costs' }).click();
-    await expect(page).toHaveURL(/\/digibranders\/costs$/);
+    const sidebar = page.getByRole('navigation', { name: 'Primary' });
+    await expect(sidebar.getByRole('link', { name: 'Rankings' })).toHaveAttribute('aria-current', 'page');
+
+    await sidebar.getByRole('link', { name: 'Runs' }).click();
+    await expect(page).toHaveURL(/\/digibranders\/fynix\/ops\/runs$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible();
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Runs' })).toHaveAttribute('aria-current', 'page');
+    const crumbs = page.getByRole('banner').getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(crumbs.getByText('Runs')).toHaveAttribute('aria-current', 'page');
+    // The project is the route: the page has a month and filters, and no project to choose
+    await expect(page.getByRole('combobox', { name: 'Project', exact: true })).toHaveCount(0);
+
+    await sidebar.getByRole('link', { name: 'Costs' }).click();
+    await expect(page).toHaveURL(/\/digibranders\/fynix\/costs$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Costs' })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Costs' })).toHaveAttribute('aria-current', 'page');
+
+    await sidebar.getByRole('link', { name: 'Rankings' }).click();
+    await expect(page).toHaveURL(/\/digibranders\/fynix\/seo\/rankings$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Rankings' })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Rankings' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('the old routes of Costs and Runs end at the project version, with the sidebar and what the link held', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, ADMIN);
+    // Costs has no project of its own: it opens in the first project by name, with its query kept
+    await page.goto('/digibranders/costs?month=2026-09&tab=budgets');
+    await expect(page).toHaveURL(/\/digibranders\/cleanstart\/costs\?month=2026-09&tab=budgets$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Costs' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
+    // A link of Runs that named its project by the `project` key keeps that project, and drops the key
+    await page.goto('/digibranders/ops/runs?project=fynix&month=2026-09');
+    await expect(page).toHaveURL(/\/digibranders\/fynix\/ops\/runs\?month=2026-09$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Runs' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  test('a month with costs fills the summary and the tables', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, ADMIN);
+    await page.goto('/digibranders/fynix/costs');
     await expect(page.getByRole('heading', { level: 1, name: 'Costs' })).toBeVisible();
 
     // The fixture runs are those of September: the month before this one has the costs
@@ -51,7 +97,10 @@ test.describe('costs and runs', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, VIEWER);
     await page.goto('/digibranders/costs');
+    // The old route goes to the first project, where the page says so inside the shell; the sidebar has no Costs
+    await expect(page).toHaveURL(/\/digibranders\/cleanstart\/costs$/);
     await expect(page.getByRole('heading', { name: 'You do not have access to Costs' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Costs' })).toHaveCount(0);
     await expectAccessible(page);
     await page.getByRole('link', { name: 'Back to Overview' }).click();
     await expect(page).toHaveURL(/\/digibranders$/);
@@ -62,13 +111,10 @@ test.describe('costs and runs', () => {
     await signIn(page, ADMIN);
     await page.goto('/digibranders/fynix/settings/members');
     await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('link', { name: 'Operations' }).click();
-    await expect(page).toHaveURL(/\/digibranders\/ops\/runs$/);
+    // Settings is in Fynix, so Operations opens in Fynix, whose runs the fixture has, in September
+    await expect(page).toHaveURL(/\/digibranders\/fynix\/ops\/runs$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible();
-
-    // The page opens on the first project by name; the fixture runs are Fynix's, in September
-    await page.getByRole('combobox', { name: 'Project' }).click();
-    await page.getByRole('option', { name: 'Fynix' }).click();
-    await expect(page).toHaveURL(/[?&]project=fynix/);
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
     await page.getByRole('combobox', { name: 'Month' }).click();
     await page.getByRole('option', { name: 'September 2026' }).click();
     await page.getByRole('button', { name: 'Add a filter' }).click();
@@ -88,7 +134,7 @@ test.describe('costs and runs', () => {
   test('a run that is open is followed, opened and cancelled after asking', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, ADMIN);
-    await page.goto('/digibranders/ops/runs?project=fynix');
+    await page.goto('/digibranders/fynix/ops/runs');
     await waitForContent(page);
     // Start a refresh of keyword metrics, as the Rankings page will: the mock answers 202 with a planned run
     const started = await page.evaluate(

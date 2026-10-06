@@ -19,8 +19,8 @@ import {
 /**
  * The sections of Settings, by group, in the order of 11-navigation.md section 5. Only the sections that
  * are built are listed: the others arrive with their plans. Every member sees every section; one they may
- * not change is read-only. The workspace group ends with links to Costs and Operations, the pages of the
- * workspace that Settings leads to, for the members who may open them.
+ * not change is read-only. The workspace group ends with links to Costs and Operations, which Settings
+ * leads to, for the members who may open them.
  */
 const ACCOUNT = ['profile', 'security', 'preferences'] as const satisfies readonly WorkspaceSettingsSection[];
 const PROJECT = ['general', 'entities', 'domains', 'taxonomy', 'schedules'] as const;
@@ -62,11 +62,14 @@ export function SettingsFrame({
       ...pages,
     ],
   });
-  // Costs and Operations are workspace pages of their own, listed here as 11-navigation.md section 5 has
-  // them, after Members and roles: neither is ever the section on screen
+  // Costs and Operations are pages of their own, listed here as 11-navigation.md section 5 has them, after
+  // Members and roles: neither is ever the section on screen. Inside a project they open in that project's
+  // shell; outside any project they are the workspace's own routes, which send a member who can open a
+  // project to it and keep the rest where they are.
+  const inProject = project ?? undefined;
   const workspacePages: SettingsNavItem[] = [
-    ...(canReadCosts ? [{ id: 'costs', label: t('items.costs'), href: costsPath(workspace) }] : []),
-    ...(canReadRuns ? [{ id: 'operations', label: t('items.operations'), href: runsPath(workspace) }] : []),
+    ...(canReadCosts ? [{ id: 'costs', label: t('items.costs'), href: costsPath(workspace, inProject) }] : []),
+    ...(canReadRuns ? [{ id: 'operations', label: t('items.operations'), href: runsPath(workspace, inProject) }] : []),
   ];
   let groups: SettingsNavGroup[];
   if (project === null) {
