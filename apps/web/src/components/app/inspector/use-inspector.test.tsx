@@ -1,6 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { parseAsString, useQueryStates } from 'nuqs';
+import { NuqsAdapter } from 'nuqs/adapters/react';
 import { withNuqsTestingAdapter, type UrlUpdateEvent } from 'nuqs/adapters/testing';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useInspector } from './use-inspector';
 
@@ -76,6 +79,63 @@ describe('useInspector', () => {
     expect(back).toHaveBeenCalledTimes(1);
     expect(update.queryString).toBe('');
     expect(update.options.history).toBe('replace');
+  });
+
+  describe('with the browser’s own history', () => {
+    // The real adapter writes to window.location and the history, so what a close does to the URL is seen
+    const wrapper = ({ children }: { children: ReactNode }): ReactNode => <NuqsAdapter>{children}</NuqsAdapter>;
+    const hooks = () =>
+      renderHook(() => ({ inspector: useInspector(), filters: useQueryStates({ prio: parseAsString }) }), { wrapper });
+    const settled = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 150));
+
+    beforeEach(() => {
+      window.history.replaceState(null, '', '/?intent=commercial');
+    });
+    afterEach(() => {
+      window.history.replaceState(null, '', '/');
+    });
+
+    it('goes back to the entry it was opened from when the page did not change the query', async () => {
+      const { result } = hooks();
+      act(() => result.current.inspector.open({ type: 'keyword', id: 'k1' }));
+      await waitFor(() => expect(window.location.search).toBe('?intent=commercial&inspect=keyword:k1'));
+      act(() => result.current.inspector.close());
+      await waitFor(() => expect(window.location.search).toBe('?intent=commercial'));
+      await settled();
+      expect(window.location.search).toBe('?intent=commercial');
+    });
+
+    it('keeps a filter changed while it was open: closing does not go back to the old query string', async () => {
+      const { result } = hooks();
+      act(() => result.current.inspector.open({ type: 'keyword', id: 'k1' }));
+      await waitFor(() => expect(window.location.search).toContain('inspect='));
+      // A filter chip, the sort or the archived view rewrite the entry the inspector sits on
+      act(() => void result.current.filters[1]({ prio: '..3' }, { history: 'replace' }));
+      await waitFor(() => expect(window.location.search).toContain('prio='));
+      act(() => result.current.inspector.close());
+      await waitFor(() => expect(window.location.search).not.toContain('inspect='));
+      await settled();
+      expect(new URLSearchParams(window.location.search).get('prio')).toBe('..3');
+      expect(new URLSearchParams(window.location.search).get('intent')).toBe('commercial');
+      expect(result.current.inspector.target).toBeNull();
+    });
+
+    it('closes an inspector opened after an earlier one was closed the same way', async () => {
+      const { result } = hooks();
+      act(() => result.current.inspector.open({ type: 'keyword', id: 'k1' }));
+      await waitFor(() => expect(window.location.search).toContain('inspect='));
+      act(() => void result.current.filters[1]({ prio: '..3' }, { history: 'replace' }));
+      await waitFor(() => expect(window.location.search).toContain('prio='));
+      act(() => result.current.inspector.close());
+      await waitFor(() => expect(window.location.search).not.toContain('inspect='));
+      // Opened again with the filter in place, then closed with nothing else changed: back to that entry
+      act(() => result.current.inspector.open({ type: 'keyword', id: 'k2' }));
+      await waitFor(() => expect(window.location.search).toContain('inspect='));
+      act(() => result.current.inspector.close());
+      await waitFor(() => expect(window.location.search).not.toContain('inspect='));
+      await settled();
+      expect(new URLSearchParams(window.location.search).get('prio')).toBe('..3');
+    });
   });
 
   it('places the record in the list, and stops at its ends', () => {

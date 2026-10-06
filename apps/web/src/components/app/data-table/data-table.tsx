@@ -198,6 +198,16 @@ export function DataTable<TRow extends RowData>({
   // Geometry
   const [regionSize, setRegionSize] = useState({ width: 1200, height: 600 });
   const [scrollTop, setScrollTop] = useState(0);
+  // A server list's next or previous page starts at its first row, not at the place the last page was left
+  const pageOffset = server?.offset;
+  const [shownOffset, setShownOffset] = useState(pageOffset);
+  if (shownOffset !== pageOffset) {
+    setShownOffset(pageOffset);
+    setScrollTop(0);
+  }
+  useEffect(() => {
+    if (region.current !== null) region.current.scrollTop = 0;
+  }, [pageOffset]);
   useEffect(() => {
     const element = region.current;
     if (element === null || typeof ResizeObserver === 'undefined') return undefined;

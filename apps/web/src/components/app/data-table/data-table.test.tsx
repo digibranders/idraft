@@ -290,6 +290,21 @@ describe('DataTable', () => {
     expect(firstRow).toHaveAttribute('aria-rowindex', '202');
   });
 
+  it('scrolls back to the top when the page of a server list changes, and not when the same page reloads', () => {
+    const view = renderWithProviders(<Harness rows={rowsOf(100)} server={SERVER_PAGE} />);
+    const region = grid().parentElement;
+    if (region === null) throw new Error('no scroll region');
+    fireEvent.scroll(region, { target: { scrollTop: 1_500 } });
+    expect(region.scrollTop).toBe(1_500);
+    // The same page read again keeps the place
+    view.rerender(<Harness rows={rowsOf(100)} server={{ ...SERVER_PAGE, rangeText: 'Showing 201 to 300' }} />);
+    expect(region.scrollTop).toBe(1_500);
+    // The next page starts at its first row
+    view.rerender(<Harness rows={rowsOf(100)} server={{ ...SERVER_PAGE, offset: 300 }} />);
+    expect(region.scrollTop).toBe(0);
+    expect(within(grid()).getAllByRole('row')[1]).toHaveAttribute('aria-rowindex', '302');
+  });
+
   it('keeps the focused row when scrolled far away, without the rows between', () => {
     renderWithProviders(<Harness rows={rowsOf(500)} />);
     const first = within(grid()).getAllByRole('rowheader')[0];

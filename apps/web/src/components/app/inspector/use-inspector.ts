@@ -11,11 +11,21 @@ export const DEFAULT_INSPECTOR_TAB = 'overview';
 const KEYS = { inspect: parseAsString, itab: parseAsString };
 
 /**
- * Whether this page pushed the history entry the open inspector sits on. Closing then goes back, so Back
- * and Forward stay clean; an inspector that came with the URL (a shared link) closes by replacing instead
- * (16-drawers-dialogs-popovers.md section 2.7). History is one per window, so the flag is too.
+ * Set when this page pushed the history entry the open inspector sits on: the query string of the entry
+ * before it, without the inspector's own keys. Closing then goes back, so Back and Forward stay clean, but
+ * only while the page still has that query string: the filters, the sort, the search and the view replace
+ * the entry the inspector sits on, and going back would land on the old one and undo them. Then, like an
+ * inspector that came with the URL (a shared link), it closes by replacing (16-drawers-dialogs-popovers.md
+ * section 2.7). History is one per window, so this is too.
  */
-let pushedByPage = false;
+let pushedFrom: string | null = null;
+
+/** The URL's query string without the inspector's keys. */
+function pageQuery(): string {
+  const params = new URLSearchParams(window.location.search);
+  for (const key of Object.keys(KEYS)) params.delete(key);
+  return params.toString();
+}
 
 export interface UseInspectorResult {
   target: InspectorTarget | null;
@@ -40,14 +50,14 @@ export function useInspector(): UseInspectorResult {
   // inspector that arrives with the URL must close by replacing, not by going back
   const closed = target === null;
   useEffect(() => {
-    if (closed) pushedByPage = false;
+    if (closed) pushedFrom = null;
   }, [closed]);
   const tabParam = (next: string | undefined): string | null =>
     next === undefined || next === DEFAULT_INSPECTOR_TAB ? null : next;
 
   const open: UseInspectorResult['open'] = (next, options) => {
     const opening = target === null;
-    if (opening) pushedByPage = true;
+    if (opening) pushedFrom = pageQuery();
     void setState(
       { inspect: formatInspectTarget(next), itab: tabParam(options?.tab ?? (opening ? undefined : tab)) },
       { history: opening ? 'push' : 'replace' },
@@ -55,8 +65,9 @@ export function useInspector(): UseInspectorResult {
   };
   const close = (): void => {
     if (target === null) return;
-    if (pushedByPage) {
-      pushedByPage = false;
+    const from = pushedFrom;
+    pushedFrom = null;
+    if (from !== null && from === pageQuery()) {
       window.history.back();
       return;
     }
