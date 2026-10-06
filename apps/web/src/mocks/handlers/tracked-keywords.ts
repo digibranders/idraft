@@ -17,6 +17,7 @@ import {
   queryFilter,
   quotaProblem,
   rankContext,
+  rankReader,
   savedKeywords,
   selectedRows,
   selectionErrors,
@@ -93,7 +94,10 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     ) {
       return invalid(request, errors);
     }
-    const rows = sortRows(caller.keywords, filteredRows(caller, filter), sort);
+    // The clock is read once: the filter, the sort and the rows see the same moment
+    const rank = rankContext(caller);
+    const ranks = rankReader(rank);
+    const rows = sortRows(caller.keywords, filteredRows(caller, filter, ranks), sort, ranks);
     // The cursor holds what it was made for: the project, the filters and the sort, not `include` or `limit`
     const scope = new URLSearchParams(
       [...caller.url.searchParams.entries()].filter(
@@ -103,7 +107,6 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     scope.sort();
     const page = cursorPage(rows, paging, `${caller.project.project_id}?${scope.toString()}`);
     if (page === null) return problem(request, 'invalid_cursor');
-    const rank = rankContext(caller);
     return HttpResponse.json({
       data: page.data.map((row) => trackedKeywordRowView(caller.keywords, caller.world, row, include, rank)),
       page: { ...page.page, total: rows.length },

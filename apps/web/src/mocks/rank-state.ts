@@ -76,7 +76,7 @@ function notChecked(failures: number): TrackedKeywordState {
       observed_at: null,
       serp_snapshot_id: null,
     },
-    change: changeOf(null, { rank: null, depth: 0, observedAt: '' }),
+    change: { label: 'first_check', value: null, previous_rank: null, previous_observed_at: null },
     best_rank: null,
     best_rank_at: null,
     worst_rank: null,

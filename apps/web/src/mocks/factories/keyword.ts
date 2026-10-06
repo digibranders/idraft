@@ -38,7 +38,8 @@ type CompetitorOverride = Schemas['CompetitorOverride'];
 type ConfigVersion = Schemas['ConfigVersion'];
 type LocationRef = Schemas['LocationRef'];
 
-export type Include = 'metrics' | 'groups' | 'terms' | 'competitors';
+export type Include =
+  'metrics' | 'groups' | 'terms' | 'competitors' | 'sparkline' | 'competitor_ranks' | 'features' | 'aio';
 
 /** A keyword added in a browser gets Labs metrics this long after it was added (backend plan D8). */
 export const METRICS_DELAY_MS = 2 * 60 * 1000;
@@ -348,6 +349,12 @@ export function trackedKeywordRowView(
     groups: include.has('groups') ? groupsOf(world, row.tracked_keyword_id) : null,
     terms: include.has('terms') ? termsOf(world, entities, row.tracked_keyword_id) : null,
     competitors: include.has('competitors') ? overridesOf(world, entities, row) : null,
+    // The real API fills these blocks when asked (`include=sparkline,competitor_ranks,features,aio`); this UI
+    // does not ask for them yet, so the mocks accept the values and answer null
+    sparkline: null,
+    competitor_ranks: null,
+    features: null,
+    aio: null,
     state: stateOf(row, rank),
   };
 }

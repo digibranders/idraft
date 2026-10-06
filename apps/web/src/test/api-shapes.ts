@@ -443,6 +443,11 @@ export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   groups: z.array(GROUP_REF).nullable().exactOptional(),
   terms: z.array(TERM_REF).nullable().exactOptional(),
   competitors: z.array(COMPETITOR_OVERRIDE).nullable().exactOptional(),
+  // The blocks of `include=sparkline,competitor_ranks,features,aio`: the mocks answer null for each
+  sparkline: z.null().exactOptional(),
+  competitor_ranks: z.null().exactOptional(),
+  features: z.null().exactOptional(),
+  aio: z.null().exactOptional(),
   state: TRACKED_KEYWORD_STATE,
 });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import {
@@ -13,11 +13,12 @@ import {
 import { MOCK_ENTITY_IDS, MOCK_TERMS, MOCK_TERM_IDS } from '../entity-fixtures';
 import { readingOf } from '../factories/keyword';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
-import { MOCK_GROUP_IDS, MOCK_TRACKED_KEYWORDS } from '../keyword-fixtures';
+import { MOCK_GROUP_IDS, MOCK_TRACKED_KEYWORDS, PENDING_TRACKED_IDS } from '../keyword-fixtures';
 import { KEYWORD_TABLE } from '../keyword-table';
 import { KEYWORDS_COOKIE, keywordWorld, readKeywordChanges } from '../keywords-state';
 import { mockId } from '../mock-ids';
 import { MOCK_SCHEDULE_IDS } from '../operations-fixtures';
+import { FAILED_IDS, rankStateOf, type TrackedKeywordState } from '../rank-state';
 import { SESSION_COOKIE } from '../session';
 import { TEST_API_ORIGIN } from '@/test/api-server';
 import {
@@ -561,5 +562,367 @@ describe('tracked keywords: in bulk', () => {
         await editor.call('POST', `${TK}/bulk-archive`, { ...brand, ids: [trackedId('fynix')], archive: true }),
       ),
     ).toEqual([':value_error']);
+  });
+});
+
+describe('tracked keywords: rank filters, sorts and includes', () => {
+  /** A day on which the fixtures hold ranked, beyond-depth, new and numeric changes. */
+  const NOW = Date.parse('2026-10-07T12:00:00Z');
+  const HOST = fynix.host;
+
+  // The handlers read the mock clock; pin it (the date alone, so that timers still run)
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  interface Truth {
+    id: string;
+    text: string;
+    active: boolean;
+    state: TrackedKeywordState;
+  }
+  /** What the fixtures' rank state is at the pinned time, from the same function the handlers use. */
+  const fixtures = (): Truth[] =>
+    MOCK_TRACKED_KEYWORDS.map((row, index) => ({
+      id: row.tracked_keyword_id,
+      text: KEYWORD_TABLE[index]?.text ?? '',
+      active: row.is_active,
+      state: rankStateOf(row.tracked_keyword_id, row.created_at, NOW, HOST),
+    }));
+  const live = (): Truth[] => fixtures().filter((entry) => entry.active);
+  const ids = (entries: readonly { id: string }[]): string[] => entries.map((entry) => entry.id).sort();
+  const idsOfList = async (browser: MockBrowser, query: string): Promise<string[]> =>
+    (await listOf(browser, query)).map((row) => row.tracked_keyword_id).sort();
+  const rank = (entry: Truth): number | null => entry.state.current.rank;
+  const neverChecked = (entry: Truth): boolean => entry.state.last_observed_at === null;
+
+  it('keeps the ranked keywords in range with filter[rank_lte] and filter[rank_gte], never a keyword not checked', async () => {
+    const viewer = mockBrowser('viewer');
+    const top = live().filter((entry) => (rank(entry) ?? 1000) <= 3);
+    const middle = live().filter((entry) => (rank(entry) ?? 0) >= 4 && (rank(entry) ?? 1000) <= 10);
+    const deep = live().filter((entry) => (rank(entry) ?? 0) >= 4);
+    expect(top.length).toBeGreaterThan(0);
+    expect(middle.length).toBeGreaterThan(0);
+    expect(await idsOfList(viewer, 'filter[rank_lte]=3')).toEqual(ids(top));
+    expect(await idsOfList(viewer, 'filter[rank_gte]=4&filter[rank_lte]=10')).toEqual(ids(middle));
+    expect(await idsOfList(viewer, 'filter[rank_gte]=4')).toEqual(ids(deep));
+    // A keyword beyond the depth, one not checked yet and one whose check failed match neither bound
+    const rows = await listOf(viewer, 'filter[rank_gte]=1');
+    expect(rows.every((row) => row.state.current.state === 'ranked')).toBe(true);
+    expect(rows.some((row) => PENDING_TRACKED_IDS.has(row.tracked_keyword_id))).toBe(false);
+    expect(await idsOfList(viewer, 'filter[rank_lte]=700')).toEqual(
+      ids(live().filter((entry) => rank(entry) !== null)),
+    );
+  });
+
+  it('filters by being beyond the depth: filter[rank_is_null]=true is checked and not ranked, false is ranked', async () => {
+    const viewer = mockBrowser('viewer');
+    const beyond = live().filter((entry) => entry.state.current.state === 'beyond_depth');
+    const ranked = live().filter((entry) => entry.state.current.state === 'ranked');
+    expect(beyond.length).toBeGreaterThan(0);
+    expect(await idsOfList(viewer, 'filter[rank_is_null]=true')).toEqual(ids(beyond));
+    expect(await idsOfList(viewer, 'filter[rank_is_null]=false')).toEqual(ids(ranked));
+    // A keyword never checked is neither beyond the depth nor ranked
+    const both = new Set([
+      ...(await idsOfList(viewer, 'filter[rank_is_null]=true')),
+      ...(await idsOfList(viewer, 'filter[rank_is_null]=false')),
+    ]);
+    for (const entry of live().filter(neverChecked)) expect(both.has(entry.id)).toBe(false);
+    expect(live().filter(neverChecked).length).toBe(PENDING_TRACKED_IDS.size + FAILED_IDS.size);
+  });
+
+  it('filters by the change: labels, improved and declined, where false means everything else', async () => {
+    const viewer = mockBrowser('viewer');
+    const value = (entry: Truth): number => entry.state.change.value ?? 0;
+    const labelled = (...labels: string[]): Truth[] =>
+      live().filter((entry) => labels.includes(entry.state.change.label));
+    expect(labelled('new', 'lost').length).toBeGreaterThan(0);
+    expect(await idsOfList(viewer, 'filter[rank_change_label_in]=new,lost')).toEqual(ids(labelled('new', 'lost')));
+    expect(await idsOfList(viewer, 'filter[rank_change_label_in]=numeric&filter[rank_change_label_in]=lost')).toEqual(
+      ids(labelled('numeric', 'lost')),
+    );
+    // A keyword not checked yet has the label first_check
+    const first = await idsOfList(viewer, 'filter[rank_change_label_in]=first_check');
+    expect(first).toEqual(ids(labelled('first_check')));
+    for (const entry of live().filter(neverChecked)) expect(first).toContain(entry.id);
+    expect(await idsOfList(viewer, 'filter[improved]=true')).toEqual(ids(live().filter((entry) => value(entry) > 0)));
+    expect(await idsOfList(viewer, 'filter[declined]=true')).toEqual(ids(live().filter((entry) => value(entry) < 0)));
+    // False is "not improved": no change, a worse one, no number at all, and a keyword not checked
+    const notImproved = await idsOfList(viewer, 'filter[improved]=false');
+    expect(notImproved).toEqual(ids(live().filter((entry) => value(entry) <= 0)));
+    for (const entry of live().filter(neverChecked)) expect(notImproved).toContain(entry.id);
+    const notDeclined = await idsOfList(viewer, 'filter[declined]=false');
+    expect(notDeclined).toEqual(ids(live().filter((entry) => value(entry) >= 0)));
+    for (const entry of live().filter(neverChecked)) expect(notDeclined).toContain(entry.id);
+    // A move of zero places is neither improved nor declined
+    const flat = live().filter((entry) => entry.state.change.label === 'numeric' && value(entry) === 0);
+    for (const entry of flat) {
+      expect(notImproved).toContain(entry.id);
+      expect(notDeclined).toContain(entry.id);
+    }
+    expect(await idsOfList(viewer, 'filter[improved]=true&filter[declined]=true')).toEqual([]);
+  });
+
+  it('filters by stale: false takes keywords that were never checked as well', async () => {
+    const viewer = mockBrowser('viewer');
+    const stale = await idsOfList(viewer, 'filter[is_stale]=true');
+    expect(stale).toEqual(ids(live().filter((entry) => entry.state.is_stale)));
+    expect(stale.length).toBeGreaterThan(0);
+    const fresh = await idsOfList(viewer, 'filter[is_stale]=false');
+    expect(fresh).toEqual(ids(live().filter((entry) => !entry.state.is_stale)));
+    for (const entry of live().filter(neverChecked)) {
+      expect(fresh).toContain(entry.id);
+      expect(stale).not.toContain(entry.id);
+    }
+  });
+
+  it('filters by feature, owned feature, AI Overview, ranking URL and target URL match', async () => {
+    const viewer = mockBrowser('viewer');
+    const present = live().flatMap((entry) => entry.state.feature_types_present)[0];
+    const owned = live().flatMap((entry) => entry.state.owned_feature_types)[0];
+    if (present === undefined || owned === undefined) throw new Error('No fixture keyword has a feature');
+    expect(await idsOfList(viewer, `filter[feature_present]=${present}`)).toEqual(
+      ids(live().filter((entry) => entry.state.feature_types_present.includes(present))),
+    );
+    expect(await idsOfList(viewer, `filter[feature_owned]=${owned}`)).toEqual(
+      ids(live().filter((entry) => entry.state.owned_feature_types.includes(owned))),
+    );
+    expect(await idsOfList(viewer, 'filter[feature_present]=no_such_feature')).toEqual([]);
+    const aio = await idsOfList(viewer, 'filter[aio_state]=present_cited,absent');
+    expect(aio).toEqual(ids(live().filter((entry) => ['present_cited', 'absent'].includes(entry.state.aio.state))));
+    // A keyword never checked shows `unknown`
+    const unknown = await idsOfList(viewer, 'filter[aio_state]=unknown');
+    for (const entry of live().filter(neverChecked)) expect(unknown).toContain(entry.id);
+    expect(unknown).toEqual(ids(live().filter((entry) => entry.state.aio.state === 'unknown')));
+    const urlId = live().find((entry) => entry.state.current.url !== null)?.state.current.url?.url_id;
+    if (urlId === undefined) throw new Error('No fixture keyword ranks');
+    expect(await idsOfList(viewer, `filter[ranking_url_id]=${urlId}`)).toEqual(
+      ids(live().filter((entry) => entry.state.current.url?.url_id === urlId)),
+    );
+    // Nothing has a target URL yet, so the match is unknown for every keyword and neither value takes one
+    expect(await idsOfList(viewer, 'filter[target_url_match]=true')).toEqual([]);
+    expect(await idsOfList(viewer, 'filter[target_url_match]=false')).toEqual([]);
+  });
+
+  it('matches a target URL to the ranking URL once a keyword has one', async () => {
+    const editor = mockBrowser('editor');
+    const [first, second] = live().filter((entry) => entry.state.current.url !== null);
+    const same = first?.state.current.url;
+    if (first === undefined || second === undefined || same === undefined || same === null) {
+      throw new Error('Fewer than two fixture keywords rank');
+    }
+    await editor.call('PATCH', `${TK}/${first.id}`, { target_url: same.canonical_url });
+    await editor.call('PATCH', `${TK}/${second.id}`, { target_url: `https://${HOST}/not-the-ranking-page` });
+    expect(await idsOfList(editor, 'filter[target_url_match]=true')).toEqual([first.id]);
+    expect(await idsOfList(editor, 'filter[target_url_match]=false')).toEqual([second.id]);
+    const detail = dataOf(await editor.call('GET', `${TK}/${first.id}`), TRACKED_KEYWORD_DETAIL);
+    expect(detail.state.target_url_match).toBe(true);
+  });
+
+  it('refuses out of range values with 422 as the contract declares', async () => {
+    const viewer = mockBrowser('viewer');
+    const codes = async (query: string): Promise<string[]> => fieldCodes(await viewer.call('GET', `${TK}?${query}`));
+    expect(await codes('filter[rank_lte]=0')).toEqual(['filter[rank_lte]:greater_than_equal']);
+    expect(await codes('filter[rank_lte]=701')).toEqual(['filter[rank_lte]:less_than_equal']);
+    expect(await codes('filter[rank_gte]=0')).toEqual(['filter[rank_gte]:greater_than_equal']);
+    expect(await codes('filter[rank_gte]=701')).toEqual(['filter[rank_gte]:less_than_equal']);
+    expect(await codes('filter[rank_gte]=ten')).toEqual(['filter[rank_gte]:int_parsing']);
+    expect((await viewer.call('GET', `${TK}?filter[rank_lte]=700&filter[rank_gte]=1`)).status).toBe(200);
+    expect(await codes('filter[ranking_url_id]=0')).toEqual(['filter[ranking_url_id]:greater_than_equal']);
+    expect(await codes('filter[feature_present]=')).toEqual(['filter[feature_present]:string_too_short']);
+    expect(await codes(`filter[feature_owned]=${'x'.repeat(101)}`)).toEqual(['filter[feature_owned]:string_too_long']);
+    expect((await viewer.call('GET', `${TK}?filter[feature_present]=${'x'.repeat(100)}`)).status).toBe(200);
+    expect(await codes('filter[aio_state]=cited')).toEqual(['filter[aio_state]:enum']);
+    expect(await codes('filter[rank_change_label_in]=new,sideways')).toEqual(['filter[rank_change_label_in]:enum']);
+    expect(await codes('filter[improved]=maybe')).toEqual(['filter[improved]:bool_parsing']);
+    expect(await codes('filter[is_stale]=1')).toEqual(['filter[is_stale]:bool_parsing']);
+    // `not_loaded` is a state of the AI Overview too
+    expect((await viewer.call('GET', `${TK}?filter[aio_state]=not_loaded`)).status).toBe(200);
+  });
+
+  /** The expected order of `entries` for `keys`: a missing value last whichever way, the row id ending ties. */
+  const ordered = (
+    entries: readonly Truth[],
+    keys: readonly { value: (entry: Truth) => number | string | null; desc: boolean }[],
+  ): string[] =>
+    [...entries]
+      .sort((a, b) => {
+        for (const { value, desc } of keys) {
+          const left = value(a);
+          const right = value(b);
+          if (left === right) continue;
+          if (left === null || right === null) return left === null ? 1 : -1;
+          const order = left < right ? -1 : 1;
+          return desc ? -order : order;
+        }
+        return a.id.localeCompare(b.id);
+      })
+      .map((entry) => entry.id);
+  const orderOfList = async (browser: MockBrowser, sort: string): Promise<string[]> =>
+    (await listOf(browser, `sort=${sort}`)).map((row) => row.tracked_keyword_id);
+  const time = (entry: Truth): number | null =>
+    entry.state.last_observed_at === null ? null : Date.parse(entry.state.last_observed_at);
+
+  it('sorts by current rank with a keyword beyond the depth or not checked last in both directions', async () => {
+    const viewer = mockBrowser('viewer');
+    expect(await orderOfList(viewer, 'current_rank')).toEqual(ordered(live(), [{ value: rank, desc: false }]));
+    expect(await orderOfList(viewer, '-current_rank')).toEqual(ordered(live(), [{ value: rank, desc: true }]));
+    const rows = await listOf(viewer, 'sort=-current_rank');
+    const firstWithout = rows.findIndex((row) => row.state.current.rank === null);
+    expect(firstWithout).toBeGreaterThan(0);
+    expect(rows.slice(firstWithout).every((row) => row.state.current.rank === null)).toBe(true);
+    // The keywords beyond the depth, not checked and failed all sort last, apart from each other by row id
+    expect(rows.slice(firstWithout).map((row) => row.tracked_keyword_id)).toEqual(
+      [...rows.slice(firstWithout).map((row) => row.tracked_keyword_id)].sort((a, b) => a.localeCompare(b)),
+    );
+  });
+
+  it('sorts by the change, the best rank and the last check, with ties broken by the next key and then the row id', async () => {
+    const viewer = mockBrowser('viewer');
+    const change = (entry: Truth): number | null => entry.state.change.value;
+    const best = (entry: Truth): number | null => entry.state.best_rank;
+    // A change that is `new`, `lost`, beyond or a first check has no number and sorts last both ways
+    expect(await orderOfList(viewer, 'rank_change')).toEqual(ordered(live(), [{ value: change, desc: false }]));
+    expect(await orderOfList(viewer, '-rank_change')).toEqual(ordered(live(), [{ value: change, desc: true }]));
+    const bigGain = await listOf(viewer, 'sort=-rank_change');
+    const lastNumeric = bigGain.map((row) => row.state.change.value).findLastIndex((value) => value !== null);
+    expect(bigGain.slice(lastNumeric + 1).every((row) => row.state.change.value === null)).toBe(true);
+    expect(await orderOfList(viewer, 'best_rank')).toEqual(ordered(live(), [{ value: best, desc: false }]));
+    expect(await orderOfList(viewer, '-best_rank')).toEqual(ordered(live(), [{ value: best, desc: true }]));
+    expect(await orderOfList(viewer, '-last_observed_at')).toEqual(ordered(live(), [{ value: time, desc: true }]));
+    expect(await orderOfList(viewer, 'last_observed_at')).toEqual(ordered(live(), [{ value: time, desc: false }]));
+    // Ties on the first key fall to the second
+    expect(await orderOfList(viewer, 'rank_change,-current_rank')).toEqual(
+      ordered(live(), [
+        { value: change, desc: false },
+        { value: rank, desc: true },
+      ]),
+    );
+    expect(await orderOfList(viewer, 'current_rank,keyword')).toEqual(
+      ordered(live(), [
+        { value: rank, desc: false },
+        { value: (entry: Truth) => entry.text, desc: false },
+      ]),
+    );
+  });
+
+  it('reads the clock once for a request: the sort and the rows show the same moment', async () => {
+    const viewer = mockBrowser('viewer');
+    const rows = await listOf(viewer, 'sort=-last_observed_at');
+    const times = rows.map((row) => row.state.last_observed_at);
+    expect(times.every((value) => value === null || Date.parse(value) <= NOW)).toBe(true);
+    // The pinned clock is the one the rows were made at
+    expect(rows.map((row) => row.state)).toEqual(
+      rows.map((row) => live().find((entry) => entry.id === row.tracked_keyword_id)?.state),
+    );
+  });
+
+  it('still refuses a sort that is not one of the fields, or that names a field twice', async () => {
+    const viewer = mockBrowser('viewer');
+    expect(fieldCodes(await viewer.call('GET', `${TK}?sort=rank`))).toEqual(['sort:invalid_sort']);
+    expect(fieldCodes(await viewer.call('GET', `${TK}?sort=current_rank,-current_rank`))).toEqual([
+      'sort:invalid_sort',
+    ]);
+    expect(fieldCodes(await viewer.call('GET', `${TK}?sort=-state`))).toEqual(['sort:invalid_sort']);
+  });
+
+  it('accepts include=sparkline,competitor_ranks,features,aio and answers null for each block', async () => {
+    const viewer = mockBrowser('viewer');
+    for (const query of [
+      'include=sparkline,competitor_ranks,features,aio',
+      'include=sparkline&include=aio&include=metrics',
+    ]) {
+      const rows = await listOf(viewer, query);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row.sparkline).toBeNull();
+        expect(row.competitor_ranks).toBeNull();
+        expect(row.features).toBeNull();
+        expect(row.aio).toBeNull();
+      }
+    }
+    expect(fieldCodes(await viewer.call('GET', `${TK}?include=sparkline,ranks`))).toEqual(['include:enum']);
+  });
+
+  it('gives a keyword added in the browser its first check three minutes later, by the mock clock', async () => {
+    const editor = mockBrowser('editor');
+    const added = dataOf(await editor.call('POST', TK, { keyword: 'seo for dentists' }), CREATED)[0];
+    if (added === undefined) throw new Error('Nothing was created');
+    const stateNow = async (): Promise<z.infer<typeof TRACKED_KEYWORD_ROW>['state'] | undefined> =>
+      (await listOf(editor, 'filter[q]=seo for dentists'))[0]?.state;
+    const created = Date.parse(added.created_at);
+    expect((await stateNow())?.current.state).toBe('not_checked');
+    expect(await idsOfList(editor, 'filter[rank_change_label_in]=first_check&filter[q]=seo for dentists')).toEqual([
+      added.tracked_keyword_id,
+    ]);
+    vi.setSystemTime(created + 3 * 60_000 - 1000);
+    expect((await stateNow())?.current.state).toBe('not_checked');
+    vi.setSystemTime(created + 3 * 60_000);
+    const checked = await stateNow();
+    expect(['ranked', 'beyond_depth']).toContain(checked?.current.state);
+    expect(checked?.last_observed_at).toBe(new Date(created + 3 * 60_000).toISOString());
+    // The detail agrees with the list
+    const detail = dataOf(await editor.call('GET', `${TK}/${added.tracked_keyword_id}`), TRACKED_KEYWORD_DETAIL);
+    expect(detail.state).toEqual(checked);
+    // The fixture keywords that wait for Labs wait for their first check too
+    vi.setSystemTime(created + 9 * 60_000);
+    const waiting = await listOf(editor, 'filter[rank_change_label_in]=first_check');
+    for (const id of PENDING_TRACKED_IDS) {
+      expect(waiting.find((row) => row.tracked_keyword_id === id)?.state.current.state).toBe('not_checked');
+    }
+  });
+
+  it('takes the same rank members in the filter of a bulk change', async () => {
+    const editor = mockBrowser('editor');
+    // A body filter without `is_active` takes archived and active keywords alike
+    const everyone = fixtures();
+    const matched = async (filter: Record<string, unknown>): Promise<number> =>
+      dataOf(await editor.call('POST', `${TK}/bulk-archive`, { filter, archive: false }), BULK_ARCHIVE_RESULT).matched;
+    expect(await matched({ rank_lte: 3 })).toBe(everyone.filter((entry) => (rank(entry) ?? 1000) <= 3).length);
+    expect(await matched({ rank_gte: 4, rank_lte: 10 })).toBe(
+      everyone.filter((entry) => (rank(entry) ?? 0) >= 4 && (rank(entry) ?? 1000) <= 10).length,
+    );
+    expect(await matched({ rank_is_null: true })).toBe(
+      everyone.filter((entry) => entry.state.current.state === 'beyond_depth').length,
+    );
+    expect(await matched({ rank_is_null: false })).toBe(
+      everyone.filter((entry) => entry.state.current.state === 'ranked').length,
+    );
+    expect(await matched({ rank_change_label_in: ['new', 'lost'] })).toBe(
+      everyone.filter((entry) => ['new', 'lost'].includes(entry.state.change.label)).length,
+    );
+    expect(await matched({ improved: true })).toBe(
+      everyone.filter((entry) => (entry.state.change.value ?? 0) > 0).length,
+    );
+    expect(await matched({ declined: true })).toBe(
+      everyone.filter((entry) => (entry.state.change.value ?? 0) < 0).length,
+    );
+    expect(await matched({ improved: false })).toBe(
+      everyone.filter((entry) => (entry.state.change.value ?? 0) <= 0).length,
+    );
+    expect(await matched({ is_stale: true })).toBe(everyone.filter((entry) => entry.state.is_stale).length);
+    expect(await matched({ is_stale: false })).toBe(everyone.filter((entry) => !entry.state.is_stale).length);
+    expect(await matched({ aio_state: ['present_cited'] })).toBe(
+      everyone.filter((entry) => entry.state.aio.state === 'present_cited').length,
+    );
+    expect(await matched({ feature_present: 'featured_snippet' })).toBe(
+      everyone.filter((entry) => entry.state.feature_types_present.includes('featured_snippet')).length,
+    );
+    expect(await matched({ target_url_match: true })).toBe(0);
+    // The body's own limits
+    const refused = async (filter: Record<string, unknown>): Promise<string[]> =>
+      fieldCodes(await editor.call('POST', `${TK}/bulk-archive`, { filter, archive: false }));
+    expect(await refused({ rank_lte: 0 })).toEqual(['filter.rank_lte:greater_than_equal']);
+    expect(await refused({ rank_gte: 701 })).toEqual(['filter.rank_gte:less_than_equal']);
+    expect(await refused({ rank_change_label_in: [] })).toEqual(['filter.rank_change_label_in:too_short']);
+    expect(await refused({ rank_change_label_in: ['sideways'] })).toEqual(['filter.rank_change_label_in:enum']);
+    expect(await refused({ aio_state: ['cited'] })).toEqual(['filter.aio_state:enum']);
+    expect(await refused({ improved: 'maybe' })).toEqual(['filter.improved:bool_parsing']);
+    expect(await refused({ feature_owned: '' })).toEqual(['filter.feature_owned:string_too_short']);
+    expect(await refused({ ranking_url_id: 0 })).toEqual(['filter.ranking_url_id:greater_than_equal']);
   });
 });
