@@ -29,7 +29,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 /** Signed in as `role`: `/me` and the project list come from the mocks for that session. */
-function as(role: 'editor' | 'analyst' | 'billing'): void {
+function as(role: 'editor' | 'analyst' | 'viewer' | 'billing'): void {
   state.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.0`;
 }
 const render = (project: string, workspace = 'digibranders'): Promise<unknown> =>
@@ -75,5 +75,12 @@ describe('firstDestination', () => {
     await expect(firstDestination('another-tenant', 'fynix')).resolves.toBeNull();
     state.cookie = '';
     await expect(firstDestination('digibranders', 'fynix')).resolves.toBeNull();
+  });
+
+  it('opens a billing member on Costs, the one data destination the role can use, and a viewer on Rankings', async () => {
+    as('billing');
+    await expect(firstDestination('digibranders', 'fynix')).resolves.toBe('/digibranders/fynix/costs');
+    as('viewer');
+    await expect(firstDestination('digibranders', 'fynix')).resolves.toBe('/digibranders/fynix/seo/rankings');
   });
 });

@@ -59,6 +59,7 @@ function shell(role: Role = 'editor'): ReactElement {
 describe('ProjectShell', () => {
   beforeEach(() => {
     document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('editor').user_id}.0; Path=/; Secure`;
+    navigation.pathname = '/digibranders/fynix/settings/profile';
     navigation.push.mockReset();
     navigation.hardNavigate.mockReset();
     viewport(1680);
@@ -66,6 +67,7 @@ describe('ProjectShell', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     document.documentElement.removeAttribute('data-sidebar');
+    window.history.replaceState(null, '', '/');
   });
 
   it('has the landmarks of 11 section 7: Primary navigation, the Breadcrumb in the header, and main', async () => {
@@ -172,7 +174,6 @@ describe('ProjectShell', () => {
     expect(primary.queryByRole('link', { current: 'page', name: 'Settings' })).toBeNull();
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(crumbs).getByText('Runs')).toHaveAttribute('aria-current', 'page');
-    navigation.pathname = '/digibranders/fynix/settings/profile';
   });
 
   it('marks Costs for the page of the project, and offers no Workspace group in the project switcher', async () => {
@@ -187,19 +188,55 @@ describe('ProjectShell', () => {
     await user.click(sidebarSwitcher);
     await screen.findByRole('link', { name: 'All projects in Digibranders' });
     expect(screen.queryByRole('group', { name: 'Workspace' })).toBeNull();
-    navigation.pathname = '/digibranders/fynix/settings/profile';
   });
+
+  /** Chooses Cleanstart in the sidebar's project switcher. */
+  async function chooseCleanstart(user: ReturnType<typeof renderWithProviders>['user']): Promise<void> {
+    const [sidebarSwitcher] = screen.getAllByRole('combobox', { name: 'Project: Fynix' });
+    if (!sidebarSwitcher) throw new Error('no project switcher');
+    await user.click(sidebarSwitcher);
+    await user.click(await screen.findByRole('option', { name: 'Cleanstart' }));
+  }
 
   it('opens another project on the same destination: Runs stays Runs', async () => {
     navigation.pathname = '/digibranders/fynix/ops/runs';
     const { user } = renderWithProviders(shell());
     await screen.findByRole('heading', { name: 'Profile' });
-    const [sidebarSwitcher] = screen.getAllByRole('combobox', { name: 'Project: Fynix' });
-    if (!sidebarSwitcher) throw new Error('no project switcher');
-    await user.click(sidebarSwitcher);
-    await user.click(await screen.findByRole('option', { name: 'Cleanstart' }));
+    await chooseCleanstart(user);
     expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/ops/runs');
-    navigation.pathname = '/digibranders/fynix/settings/profile';
+  });
+
+  it('keeps the month and the filters of Runs for the other project, and leaves the open run behind', async () => {
+    navigation.pathname = '/digibranders/fynix/ops/runs';
+    window.history.replaceState(
+      null,
+      '',
+      '/digibranders/fynix/ops/runs?month=2026-08&status=failed&inspect=run%3A1&itab=tasks',
+    );
+    const { user } = renderWithProviders(shell());
+    await screen.findByRole('heading', { name: 'Profile' });
+    await chooseCleanstart(user);
+    expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/ops/runs?month=2026-08&status=failed');
+  });
+
+  it('keeps the month, the tab and the filters of Costs for the other project', async () => {
+    navigation.pathname = '/digibranders/fynix/costs';
+    window.history.replaceState(null, '', '/digibranders/fynix/costs?month=2026-08&tab=budgets&workload=seo_rank');
+    const { user } = renderWithProviders(shell());
+    await screen.findByRole('heading', { name: 'Profile' });
+    await chooseCleanstart(user);
+    expect(navigation.push).toHaveBeenCalledWith(
+      '/digibranders/cleanstart/costs?month=2026-08&tab=budgets&workload=seo_rank',
+    );
+  });
+
+  it('opens Rankings of the other project without a query, since its filters belong to one project', async () => {
+    navigation.pathname = '/digibranders/fynix/seo/rankings';
+    window.history.replaceState(null, '', '/digibranders/fynix/seo/rankings?intent=commercial');
+    const { user } = renderWithProviders(shell());
+    await screen.findByRole('heading', { name: 'Profile' });
+    await chooseCleanstart(user);
+    expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/seo/rankings');
   });
 
   it('signs out from the account menu', async () => {
@@ -257,7 +294,6 @@ describe('ProjectShell', () => {
     await screen.findByRole('heading', { name: 'Profile' });
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(crumbs).queryByText('Keywords')).toBeNull();
-    navigation.pathname = '/digibranders/fynix/settings/profile';
   });
 
   it('opens the keyboard shortcuts with ?', async () => {

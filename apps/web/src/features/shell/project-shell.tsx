@@ -14,7 +14,14 @@ import { SkipLink } from '@/components/app/shell/skip-link';
 import { TopBar } from '@/components/app/shell/top-bar';
 import { Drawer } from '@/components/ui/drawer';
 import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
-import { destinationOf, LIVE_NAVIGATION, NAVIGATION, navHref, visibleNavigation } from '@/lib/navigation/registry';
+import {
+  destinationOf,
+  LIVE_NAVIGATION,
+  NAVIGATION,
+  navHref,
+  switchHref,
+  visibleNavigation,
+} from '@/lib/navigation/registry';
 import type { SidebarPreference } from '@/lib/navigation/sidebar-state';
 import { canCreateProjects, useMembership } from '@/lib/permissions';
 import { onboardingPath, projectPath, workspacePath } from '@/lib/routes/paths';
@@ -91,11 +98,16 @@ export function ProjectShell({
     [permissions, nav, workspace.slug, project.slug, current?.key],
   );
 
-  // Another project opens on the same destination, or on its root when this page has none
+  // Another project opens on the same destination, or on its root when this page has none. The query is read
+  // from the address when the choice is made, not subscribed to: the shell would render on every filter change
   const switchTo = (next: SwitcherProject): void => {
     const target = projects.find((candidate) => candidate.id === next.id);
     if (!target) return;
-    push(current === null ? projectPath(workspace.slug, target.slug) : navHref(current, workspace.slug, target.slug));
+    push(
+      current === null
+        ? projectPath(workspace.slug, target.slug)
+        : switchHref(current, workspace.slug, target.slug, window.location.search),
+    );
   };
   const allProjects = {
     href: workspacePath(workspace.slug),

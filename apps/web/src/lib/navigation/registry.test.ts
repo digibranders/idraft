@@ -5,6 +5,7 @@ import {
   LIVE_NAVIGATION,
   NAVIGATION,
   navHref,
+  switchHref,
   visibleNavigation,
   type NavDestination,
 } from './registry';
@@ -92,6 +93,43 @@ describe('the navigation registry', () => {
     expect(navHref(overview, 'digibranders', 'fynix')).toBe('/digibranders/fynix');
     expect(navHref(runs, 'digibranders', 'fynix')).toBe('/digibranders/fynix/ops/runs');
     expect(navHref(costs, 'digibranders', 'fynix')).toBe('/digibranders/fynix/costs');
+  });
+
+  it('lets Runs and Costs carry the query of the page to another project, and no other destination', () => {
+    expect(NAVIGATION.filter((item) => item.carriesQuery === true).map((item) => item.key)).toEqual(['runs', 'costs']);
+  });
+
+  describe('switchHref', () => {
+    const find = (key: NavDestination['key']): NavDestination => {
+      const item = ALL_LIVE.find((candidate) => candidate.key === key);
+      if (!item) throw new Error(`missing destination ${key}`);
+      return item;
+    };
+
+    it('keeps the month, the tab and the filters of Runs and Costs for the other project', () => {
+      expect(switchHref(find('runs'), 'digibranders', 'cleanstart', '?month=2026-08&status=failed')).toBe(
+        '/digibranders/cleanstart/ops/runs?month=2026-08&status=failed',
+      );
+      expect(switchHref(find('costs'), 'digibranders', 'cleanstart', 'month=2026-08&tab=budgets')).toBe(
+        '/digibranders/cleanstart/costs?month=2026-08&tab=budgets',
+      );
+    });
+
+    it('leaves out the open inspector, which belongs to one project', () => {
+      expect(
+        switchHref(find('runs'), 'digibranders', 'cleanstart', '?inspect=run%3A1&itab=tasks&month=2026-08&sort=cost'),
+      ).toBe('/digibranders/cleanstart/ops/runs?month=2026-08&sort=cost');
+      expect(switchHref(find('runs'), 'digibranders', 'cleanstart', '?inspect=run%3A1&itab=tasks')).toBe(
+        '/digibranders/cleanstart/ops/runs',
+      );
+    });
+
+    it('opens a destination that does not carry its query without one, and a page without a query as it is', () => {
+      expect(switchHref(find('rankings'), 'digibranders', 'cleanstart', '?intent=commercial')).toBe(
+        '/digibranders/cleanstart/seo/rankings',
+      );
+      expect(switchHref(find('runs'), 'digibranders', 'cleanstart', '')).toBe('/digibranders/cleanstart/ops/runs');
+    });
   });
 
   it('finds the destination of a path, the deepest one, and none outside the project', () => {
