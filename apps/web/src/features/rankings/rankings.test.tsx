@@ -454,6 +454,125 @@ describe('Rankings rank columns', () => {
   });
 });
 
+describe('Rankings rank filters', () => {
+  afterEach(() => server.events.removeAllListeners());
+
+  /** The queries of the list's own reads, newest last (not its count, not the poll for first metrics). */
+  function listQueries(): URLSearchParams[] {
+    const asked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (request.method !== 'GET' || !url.pathname.endsWith('/tracked-keywords')) return;
+      if (url.searchParams.get('limit') === '1' || url.searchParams.get('sort') === '-created_at') return;
+      asked.push(url.searchParams);
+    });
+    return asked;
+  }
+
+  type User = ReturnType<typeof renderWithProviders>['user'];
+
+  /** Adds a single choice chip through the field picker, which applies the choice at once. */
+  async function choose(user: User, grid: HTMLElement, field: string, option: string): Promise<void> {
+    await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    // The grid's own header buttons carry the same names as some fields
+    const picker = (await screen.findAllByRole('button', { name: field })).find((button) => !grid.contains(button));
+    if (picker === undefined) throw new Error(`The field picker has no ${field}`);
+    await user.click(picker);
+    await user.click(await screen.findByRole('radio', { name: option }));
+  }
+
+  it('sends the places of a bucket to the API, writes it to the URL and keeps the keywords in range', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await choose(user, grid, 'Rank', '4 to 10');
+    await waitFor(() => expect(url.latest().get('rank')).toBe('top10'));
+    await waitFor(() =>
+      expect(
+        asked.some((query) => query.get('filter[rank_gte]') === '4' && query.get('filter[rank_lte]') === '10'),
+      ).toBe(true),
+    );
+    const within4to10 = fixtureStates().filter(
+      ({ state }) => state.current.rank !== null && state.current.rank >= 4 && state.current.rank <= 10,
+    );
+    expect(within4to10.length).toBeGreaterThan(0);
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(within4to10.length));
+    const places = columnTexts(grid, /^Rank$/).map(Number);
+    expect(places.every((place) => place >= 4 && place <= 10)).toBe(true);
+    expect(screen.getByRole('button', { name: 'Rank: 4 to 10. Edit filter' })).toBeInTheDocument();
+  });
+
+  it('sends Top 3 as places 1 to 3', async () => {
+    const asked = listQueries();
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await choose(user, grid, 'Rank', 'Top 3');
+    await waitFor(() =>
+      expect(
+        asked.some((query) => query.get('filter[rank_gte]') === '1' && query.get('filter[rank_lte]') === '3'),
+      ).toBe(true),
+    );
+  });
+
+  it('sends Improved, and keeps the keywords that moved up', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await choose(user, grid, 'Change', 'Improved');
+    await waitFor(() => expect(url.latest().get('chg')).toBe('improved'));
+    await waitFor(() => expect(asked.some((query) => query.get('filter[improved]') === 'true')).toBe(true));
+    const improved = fixtureStates().filter(({ state }) => (state.change.value ?? 0) > 0);
+    expect(improved.length).toBeGreaterThan(0);
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(improved.length));
+  });
+
+  it('sends Entered as the new label and Lost as the lost label', async () => {
+    const asked = listQueries();
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await choose(user, grid, 'Change', 'Entered');
+    await waitFor(() => expect(asked.some((query) => query.get('filter[rank_change_label_in]') === 'new')).toBe(true));
+    await user.click(screen.getByRole('button', { name: 'Change: Entered. Edit filter' }));
+    await user.click(await screen.findByRole('radio', { name: 'Lost' }));
+    await waitFor(() => expect(asked.some((query) => query.get('filter[rank_change_label_in]') === 'lost')).toBe(true));
+  });
+
+  it('sends Stale, and keeps the keywords the API flags as stale', async () => {
+    const asked = listQueries();
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await choose(user, grid, 'Stale', 'Stale');
+    await waitFor(() => expect(asked.some((query) => query.get('filter[is_stale]') === 'true')).toBe(true));
+    const stale = fixtureStates().filter(({ state }) => state.is_stale);
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(stale.length));
+  });
+
+  it('applies a rank filter from a link, and sends no filter it does not have', async () => {
+    const asked = listQueries();
+    renderWithProviders(as('viewer'), { searchParams: '?rank=beyond' });
+    const grid = await loadedGrid();
+    expect(screen.getByRole('button', { name: 'Rank: Beyond depth. Edit filter' })).toBeInTheDocument();
+    const beyond = fixtureStates().filter(({ state }) => state.current.state === 'beyond_depth');
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(beyond.length));
+    expect(asked.every((query) => query.get('filter[rank_is_null]') === 'true')).toBe(true);
+    for (const name of ['rank_gte', 'rank_lte', 'improved', 'declined', 'rank_change_label_in', 'is_stale']) {
+      expect(asked.some((query) => query.has(`filter[${name}]`))).toBe(false);
+    }
+  });
+
+  it('drops an invalid value of a link with the notice the other chips give, and sends nothing for it', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    renderWithProviders(as('viewer'), { searchParams: '?rank=top7&chg=sideways', onUrlUpdate: url.onUrlUpdate });
+    expect(await screen.findByText('2 filters from the link were left out')).toBeInTheDocument();
+    await waitFor(() => expect(url.latest().has('rank') || url.latest().has('chg')).toBe(false));
+    await loadedGrid();
+    expect(asked.some((query) => [...query.keys()].some((key) => /rank_|improved|declined/.test(key)))).toBe(false);
+  });
+});
+
 describe('Rankings import button', () => {
   it('opens the import for a member who may import, before Add keywords', async () => {
     const onImportOpenChange = vi.fn<(open: boolean) => void>();

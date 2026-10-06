@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { FUNNEL_STAGES, INTENTS, OFFERED_DEPTH_PROFILES, SOURCE_KEY, SOURCES } from './keyword-values';
+import { CHANGE_CHOICES, RANK_CHOICES, STALE_CHOICES } from './rank-filters';
 import type { ProjectScope } from './rankings-queries';
 import { useKeywordGroups, useVocabularies } from './taxonomy-queries';
 import type { FilterField, FilterOption } from '@/components/app/filters/types';
@@ -15,9 +16,9 @@ import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 
 /**
  * The filters of Rankings as chips (backend plan D15, 13-filters-search.md section 4), each under its URL
- * key of section 5: group, tag (a term of any vocabulary the project sees), device, location, language,
- * intent, funnel stage, priority at most, source, depth profile, volume at least and KD at most. Groups,
- * terms and locations come from the API; the rest are the API's own values.
+ * key of section 5: group, tag (a term of any vocabulary the project sees), rank bucket, change, device,
+ * location, language, intent, funnel stage, priority at most, source, depth profile, volume at least, KD at
+ * most and stale. Groups, terms and locations come from the API; the rest are the API's own values.
  */
 
 /** The countries a keyword is tracked in; regions and cities wait for a location search in the editor. */
@@ -99,6 +100,21 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
         optionsLoading: groupsLoading,
       },
       { id: 'tag', kind: 'enum', label: t('tag'), multi: true, options: termOptions, optionsLoading: termsLoading },
+      // One range of places and one change at a time: the API joins its rank filters with AND (rank-filters.ts)
+      {
+        id: 'rank',
+        kind: 'enum',
+        label: t('rank'),
+        multi: false,
+        options: options(RANK_CHOICES, (value) => t(`rankBuckets.${value}`)),
+      },
+      {
+        id: 'chg',
+        kind: 'enum',
+        label: t('chg'),
+        multi: false,
+        options: options(CHANGE_CHOICES, (value) => t(`changes.${value}`)),
+      },
       {
         id: 'dev',
         kind: 'enum',
@@ -152,6 +168,13 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
       },
       { id: 'vol', kind: 'range', label: t('volume'), ends: 'min', bounds: { min: 0, max: 100_000_000 } },
       { id: 'kd', kind: 'range', label: t('difficulty'), ends: 'max', bounds: { min: 0, max: 100 } },
+      {
+        id: 'stale',
+        kind: 'enum',
+        label: t('stale'),
+        multi: false,
+        options: options(STALE_CHOICES, (value) => t(`staleStates.${value}`)),
+      },
     ];
   }, [
     t,

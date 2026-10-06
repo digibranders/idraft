@@ -2245,7 +2245,27 @@
       },
       "depth": "Depth profile",
       "volume": "Volume",
-      "difficulty": "KD"
+      "difficulty": "KD",
+      "rank": "Rank",
+      "rankBuckets": {
+        "top3": "Top 3",
+        "top10": "4 to 10",
+        "top20": "11 to 20",
+        "top50": "21 to 50",
+        "top100": "51 to 100",
+        "beyond": "Beyond depth"
+      },
+      "chg": "Change",
+      "changes": {
+        "improved": "Improved",
+        "declined": "Declined",
+        "entered": "Entered",
+        "lost": "Lost"
+      },
+      "stale": "Stale",
+      "staleStates": {
+        "stale": "Stale"
+      }
     },
     "inspector": {
       "type": "Keyword",

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { batchSizeFor, bodyFilterOf, bulkTarget, groupsHeldBy, targetBatches } from './bulk-target';
+import { keywordFilters } from '../rankings-queries';
+import type { FilterValues } from '@/components/app/filters/types';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 
 describe('bulk targets', () => {
@@ -12,6 +14,35 @@ describe('bulk targets', () => {
       ),
     ).toEqual({ is_active: false, intent_in: ['commercial'], priority_lte: 2, q: 'crm' });
     expect(bodyFilterOf({}, '')).toEqual({ is_active: true });
+  });
+
+  it('sends every rank filter of the list in the body, with the list’s own values, and no other', () => {
+    const chosen = (values: FilterValues): ReturnType<typeof bodyFilterOf> =>
+      bodyFilterOf(keywordFilters(values, false), '');
+    expect(chosen({ rank: { kind: 'enum', values: ['top10'] } })).toEqual({
+      is_active: true,
+      rank_gte: 4,
+      rank_lte: 10,
+    });
+    expect(chosen({ rank: { kind: 'enum', values: ['beyond'] } })).toEqual({ is_active: true, rank_is_null: true });
+    expect(chosen({ chg: { kind: 'enum', values: ['improved'] } })).toEqual({ is_active: true, improved: true });
+    expect(chosen({ chg: { kind: 'enum', values: ['declined'] } })).toEqual({ is_active: true, declined: true });
+    expect(chosen({ chg: { kind: 'enum', values: ['entered'] } })).toEqual({
+      is_active: true,
+      rank_change_label_in: ['new'],
+    });
+    expect(chosen({ chg: { kind: 'enum', values: ['lost'] } })).toEqual({
+      is_active: true,
+      rank_change_label_in: ['lost'],
+    });
+    expect(chosen({ stale: { kind: 'enum', values: ['stale'] } })).toEqual({ is_active: true, is_stale: true });
+    expect(
+      chosen({
+        rank: { kind: 'enum', values: ['top3'] },
+        chg: { kind: 'enum', values: ['declined'] },
+        stale: { kind: 'enum', values: ['stale'] },
+      }),
+    ).toEqual({ is_active: true, rank_gte: 1, rank_lte: 3, declined: true, is_stale: true });
   });
 
   it('sends the search as the API takes it: printable and at most 200 characters, and none when nothing is left', () => {

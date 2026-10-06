@@ -38,6 +38,13 @@ export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilte
     ...given('priority_lte', filters['filter[priority_lte]']),
     ...given('search_volume_gte', filters['filter[search_volume_gte]']),
     ...given('keyword_difficulty_lte', filters['filter[keyword_difficulty_lte]']),
+    ...given('rank_gte', filters['filter[rank_gte]']),
+    ...given('rank_lte', filters['filter[rank_lte]']),
+    ...given('rank_is_null', filters['filter[rank_is_null]']),
+    ...given('rank_change_label_in', filters['filter[rank_change_label_in]']),
+    ...given('improved', filters['filter[improved]']),
+    ...given('declined', filters['filter[declined]']),
+    ...given('is_stale', filters['filter[is_stale]']),
     ...(q === '' ? {} : { q }),
   };
 }

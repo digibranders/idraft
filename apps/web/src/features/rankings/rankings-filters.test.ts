@@ -11,6 +11,20 @@ describe('the filters sent to the API', () => {
     expect(sent).toEqual(terms.slice(0, 100));
   });
 
+  it('sends a rank filter only when its chip is chosen, and never an empty one', () => {
+    expect(Object.keys(keywordFilters({}, false))).toEqual(['filter[is_active]']);
+    const sent = keywordFilters(
+      { rank: { kind: 'enum', values: ['top3'] }, intent: { kind: 'enum', values: ['commercial'] } },
+      true,
+    );
+    expect(sent).toEqual({
+      'filter[is_active]': false,
+      'filter[intent_in]': ['commercial'],
+      'filter[rank_gte]': 1,
+      'filter[rank_lte]': 3,
+    });
+  });
+
   it('sends the values of a hand-edited link that are ids, and leaves the rest out', () => {
     const [first] = [mockId('term', 1)];
     expect(keywordFilters({ tag: { kind: 'enum', values: ['nonsense', first ?? ''] } }, false)['filter[term]']).toEqual(
