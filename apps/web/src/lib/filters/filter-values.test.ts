@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  enumValuesOf,
   formatEnumList,
   formatRange,
   formatText,
@@ -56,6 +57,20 @@ describe('text', () => {
     expect(parseText('matches:crm')).toBeNull();
     expect(parseText('contains:  ')).toBeNull();
     expect(parseText('crm')).toBeNull();
+  });
+});
+
+describe('enumValuesOf', () => {
+  it('reads the ids of an enum filter, and nothing from a filter of another kind or none', () => {
+    expect(enumValuesOf({ kind: 'enum', values: ['a', 'b'] })).toEqual(['a', 'b']);
+    expect(enumValuesOf({ kind: 'range', min: 1, max: null })).toEqual([]);
+    expect(enumValuesOf({ kind: 'text', operator: 'contains', text: 'x' })).toEqual([]);
+    expect(enumValuesOf(undefined)).toEqual([]);
+  });
+
+  it('gives a copy, so the caller may change it', () => {
+    const value = { kind: 'enum' as const, values: ['a'] };
+    expect(enumValuesOf(value)).not.toBe(value.values);
   });
 });
 

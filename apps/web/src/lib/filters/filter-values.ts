@@ -14,6 +14,10 @@ export type FilterValue =
   | { kind: 'range'; min: number | null; max: number | null }
   | { kind: 'text'; operator: TextOperator; text: string };
 
+/** The ids an enum filter holds, or none for a filter of another kind or no filter. */
+export const enumValuesOf = (value: FilterValue | undefined): string[] =>
+  value?.kind === 'enum' ? [...value.values] : [];
+
 /** `a,b` as the ids `allowed` knows, each once, in the order given; `null` when none is left. */
 export function parseEnumList(value: string | null | undefined, allowed: ReadonlySet<string>): string[] | null {
   if (value === null || value === undefined) return null;

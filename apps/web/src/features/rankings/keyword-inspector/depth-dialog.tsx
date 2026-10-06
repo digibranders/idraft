@@ -52,6 +52,7 @@ export function DepthDialog({
   const t = useTranslations('rankings.inspector.depthDialog');
   const inspector = useTranslations('rankings.inspector');
   const depthLabel = useDepthLabel();
+  const discard = useTranslations('account.discard');
   const common = useTranslations('common');
   const queryClient = useQueryClient();
   const [alert, setAlert] = useState<string | null>(null);
@@ -133,10 +134,10 @@ export function DepthDialog({
       finalFocus={finalFocus}
       dirty={form.formState.isDirty}
       discard={{
-        title: inspector('discard.title'),
+        title: discard('title'),
         description: inspector('discard.description'),
-        keepEditingLabel: inspector('discard.keepEditing'),
-        discardLabel: inspector('discard.discard'),
+        keepEditingLabel: discard('keepEditing'),
+        discardLabel: discard('discard'),
       }}
     >
       <form noValidate className="contents" onSubmit={submit}>

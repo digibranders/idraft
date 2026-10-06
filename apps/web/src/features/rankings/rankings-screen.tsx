@@ -106,6 +106,7 @@ export function RankingsScreen({
 }: RankingsScreenProps): ReactNode {
   const t = useTranslations('rankings');
   const common = useTranslations('common');
+  const discard = useTranslations('account.discard');
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
@@ -573,10 +574,10 @@ export function RankingsScreen({
       ) : null}
       <DiscardChangesDialog
         open={pendingLeave !== null || leaveGuard.pending !== null}
-        title={t('inspector.discard.title')}
+        title={discard('title')}
         description={t('inspector.discard.description')}
-        keepEditingLabel={t('inspector.discard.keepEditing')}
-        discardLabel={t('inspector.discard.discard')}
+        keepEditingLabel={discard('keepEditing')}
+        discardLabel={discard('discard')}
         onKeepEditing={() => {
           setPendingLeave(null);
           leaveGuard.stay();

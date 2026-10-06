@@ -15,12 +15,13 @@ import { DataTable } from '@/components/app/data-table/data-table';
 import { gridFocus } from '@/components/app/data-table/grid-focus';
 import type { RecordAction, RowActions, TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
+import { MonthSelect } from '@/components/app/filters/month-select';
 import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
 import type { FilterField } from '@/components/app/filters/types';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
-import { PageHeader } from '@/components/app/shell/page-header';
+import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -33,7 +34,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { useErrorId } from '@/lib/api/use-error-id';
 import type { Run } from '@/lib/api/types';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
-import type { FilterValue } from '@/lib/filters/filter-values';
+import { enumValuesOf } from '@/lib/filters/filter-values';
 import { formatInteger } from '@/lib/format';
 import { currentMonth, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
 import { formatInspectTarget } from '@/lib/inspector/placement';
@@ -67,8 +68,6 @@ export interface RunsScreenProps {
   projects: readonly RunsProject[];
 }
 
-const PAGE = 'flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
-
 /** The URL's keys besides the filters': the project, the month, and the table's state. */
 const VIEW_STATE = {
   project: parseAsString,
@@ -80,8 +79,6 @@ const VIEW_STATE = {
   inspect: parseAsString,
   itab: parseAsString,
 };
-
-const enumValues = (value: FilterValue | undefined): string[] => (value?.kind === 'enum' ? [...value.values] : []);
 
 /**
  * Operations > Runs of one project (20-frontend-specification.md section 5.18): the project's collection
@@ -95,7 +92,7 @@ export function RunsScreen(props: RunsScreenProps): ReactNode {
   const [first] = props.projects;
   if (!canRead) {
     return (
-      <div className={PAGE}>
+      <div className={PAGE_CLASS}>
         <PageHeader title={t('title')} />
         <EmptyState
           icon={Ban}
@@ -111,7 +108,7 @@ export function RunsScreen(props: RunsScreenProps): ReactNode {
   }
   if (first === undefined) {
     return (
-      <div className={PAGE}>
+      <div className={PAGE_CLASS}>
         <PageHeader title={t('title')} />
         <EmptyState
           icon={FolderOpen}
@@ -175,9 +172,9 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
   );
   const [values, setValues] = useUrlFilters(fields);
   const filters = useMemo((): RunFilters => {
-    const workloads = enumValues(values.workload);
-    const statuses = enumValues(values.status);
-    const triggers = enumValues(values.trigger);
+    const workloads = enumValuesOf(values.workload);
+    const statuses = enumValuesOf(values.status);
+    const triggers = enumValuesOf(values.trigger);
     return {
       workloads: RUN_WORKLOADS.filter((value) => workloads.includes(value)),
       statuses: RUN_STATUSES.filter((value) => statuses.includes(value)),
@@ -340,13 +337,11 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
             />
           </div>
           <div className="w-48">
-            <Select<MonthKey>
-              size="sm"
-              aria-label={t('month')}
-              placeholder={t('month')}
+            <MonthSelect
+              months={months}
               value={month}
+              label={t('month')}
               onValueChange={(next) => choose({ month: next === thisMonth ? null : next })}
-              options={months.map((value) => ({ value, label: monthLabel(value, locale) }))}
             />
           </div>
           <div className="min-w-0 flex-1">

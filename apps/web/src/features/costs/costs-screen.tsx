@@ -14,22 +14,22 @@ import { useBudgetStatus, useCosts, type CostScope } from './costs-queries';
 import { useSpendChart } from './use-spend-chart';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { FilterBar } from '@/components/app/filters/filter-bar';
+import { MonthSelect } from '@/components/app/filters/month-select';
 import type { FilterField } from '@/components/app/filters/types';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { MetricStrip, type MetricStripItem } from '@/components/app/metric/metric-strip';
-import { PageHeader } from '@/components/app/shell/page-header';
+import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { costWorkloadValues } from '@/lib/api/schema';
 import type { CostRow } from '@/lib/api/types';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
-import type { FilterValue } from '@/lib/filters/filter-values';
+import { enumValuesOf } from '@/lib/filters/filter-values';
 import { EMPTY_VALUE, formatCurrency, formatDateRange, formatInteger, formatList, formatPercent } from '@/lib/format';
-import { currentMonth, monthDays, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
+import { currentMonth, monthDays, monthLabel, recentMonths } from '@/lib/format/month';
 import { useCan } from '@/lib/permissions';
 import { workspacePath } from '@/lib/routes/paths';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
@@ -45,14 +45,10 @@ export interface CostsScreenProps {
   projects: readonly CostsProject[];
 }
 
-const PAGE = 'flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
-
 /** The axis and tooltip format of the spend chart. */
 const axisCurrency = (value: number): string => formatCurrency(value, { context: 'axis' });
 
 const usd = (value: string): string => formatCurrency(money(value), { context: 'summary' });
-
-const enumValues = (value: FilterValue | undefined): string[] => (value?.kind === 'enum' ? [...value.values] : []);
 
 /**
  * Workspace Costs (T1 with tables, 24-page-templates.md section 9.14): what the month's data collection
@@ -64,7 +60,7 @@ export function CostsScreen(props: CostsScreenProps): ReactElement {
   const canRead = useCan('costs:read');
   if (canRead) return <CostsContent {...props} />;
   return (
-    <div className={PAGE}>
+    <div className={PAGE_CLASS}>
       <PageHeader title={t('title')} />
       <EmptyState
         icon={Ban}
@@ -144,13 +140,13 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
         }),
       }),
   });
-  const [projectId] = enumValues(values.project);
-  const [provider] = enumValues(values.provider);
+  const [projectId] = enumValuesOf(values.project);
+  const [provider] = enumValuesOf(values.provider);
   const scope: CostScope = {
     workspaceId,
     month,
     projectId,
-    workloads: enumValues(values.workload).filter(isCostWorkload),
+    workloads: enumValuesOf(values.workload).filter(isCostWorkload),
     provider,
   };
   const filtered = Object.keys(values).length > 0;
@@ -231,17 +227,15 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
   const sources = total.data?.meta.cost_sources;
 
   return (
-    <div className={PAGE}>
+    <div className={PAGE_CLASS}>
       <PageHeader title={t('title')} meta={t('meta', { month: label })} />
       <div className="flex flex-wrap items-start gap-3">
         <div className="w-48">
-          <Select<MonthKey>
-            size="sm"
-            aria-label={t('month')}
-            placeholder={t('month')}
+          <MonthSelect
+            months={months}
             value={month}
+            label={t('month')}
             onValueChange={(next) => void setMonthParam(next === thisMonth ? null : next)}
-            options={months.map((value) => ({ value, label: monthLabel(value, locale) }))}
           />
         </div>
         <div className="min-w-0 flex-1">
