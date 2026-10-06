@@ -112,7 +112,7 @@ Every column declares its type through column meta. Types fix width, alignment, 
 | `domain` | 220 / 160 / 360 | left | A to Z | `DomainCell` |
 | `url` | 260 / 180 / 480 | left | A to Z | `URLCell` |
 | `rank` | 64 / 56 / 80 | right | best first (ascending) | `RankCell` |
-| `rankDelta` | 56 / 48 / 72 | right | biggest improvement first | `RankDeltaCell` |
+| `rankDelta` | 88 / 84 / 88 (the header "Change" with its sort arrow needs 84 px; the first draft was 56 / 48 / 72) | right | biggest improvement first | `RankDeltaCell` |
 | `count` | 88 / 72 / 120 | right | high to low | `NumberCell` |
 | `volume` | 88 / 72 / 120 | right | high to low | `NumberCell` |
 | `rate` | 80 / 72 / 120 | right | high to low | `MetricCell` |

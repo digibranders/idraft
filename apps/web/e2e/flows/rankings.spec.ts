@@ -26,16 +26,30 @@ async function cellOf(grid: Locator, row: Locator, name: string): Promise<Locato
   return row.locator('th, td').nth(await indexOf(grid, name));
 }
 
-/** The text of every body cell under the column `name`, row by row in the order shown. */
-async function columnOf(grid: Locator, name: string): Promise<string[]> {
+/**
+ * The text of every body cell under the column `name`, row by row in the order shown. With `visible` the words
+ * that are only for a screen reader are left out: a rank cell reads "12" though it also says "stale".
+ */
+async function columnOf(
+  grid: Locator,
+  name: string,
+  { visible = false }: { visible?: boolean } = {},
+): Promise<string[]> {
   const index = await indexOf(grid, name);
   return grid.locator('tbody tr[role="row"]').evaluateAll(
-    (rows, at) =>
-      rows.flatMap((tr) => {
-        const cell = tr instanceof HTMLTableRowElement ? tr.cells[at] : undefined;
-        return cell === undefined ? [] : [cell.textContent ?? ''];
-      }),
-    index,
+    (rows, [at, shown]) => {
+      const read = (node: Node): string =>
+        node instanceof Element && node.classList.contains('sr-only')
+          ? ''
+          : node.nodeType === Node.TEXT_NODE
+            ? (node.textContent ?? '')
+            : [...node.childNodes].map(read).join('');
+      return rows.flatMap((tr) => {
+        const cell = tr instanceof HTMLTableRowElement ? tr.cells[Number(at)] : undefined;
+        return cell === undefined ? [] : [shown === true ? read(cell) : (cell.textContent ?? '')];
+      });
+    },
+    [index, visible] as const,
   );
 }
 
@@ -92,7 +106,7 @@ test.describe('rankings', () => {
     await grid.getByRole('button', { name: 'Rank', exact: true }).click();
     await expect(headerOf(grid, 'Rank')).toHaveAttribute('aria-sort', 'ascending');
     await expect(page).toHaveURL(/[?&]sort=current_rank/);
-    const places = await columnOf(grid, 'Rank');
+    const places = await columnOf(grid, 'Rank', { visible: true });
     const ranked = places.filter((text) => /^\d+$/.test(text)).map(Number);
     expect(ranked.length).toBeGreaterThan(5);
     expect(ranked).toEqual([...ranked].sort((a, b) => a - b));
@@ -106,16 +120,21 @@ test.describe('rankings', () => {
     await expect(page).toHaveURL(/[?&]rank=top10/);
     await expect(page.getByRole('button', { name: 'Rank: 4 to 10. Edit filter' })).toBeVisible();
     await expect.poll(async () => (await columnOf(grid, 'Rank')).length).toBeGreaterThan(0);
-    const inRange = (await columnOf(grid, 'Rank')).map(Number);
+    const inRange = (await columnOf(grid, 'Rank', { visible: true })).map(Number);
     expect(inRange.every((place) => place >= 4 && place <= 10)).toBe(true);
     await expectAccessible(page);
   });
 
-  test('the Keyword column keeps its room at 1440 and 1280 px, with the rank columns in view', async ({ page }) => {
+  test('the Keyword column keeps its room at 1280, 1440 and 1680 px, with the rank columns in view', async ({
+    page,
+  }) => {
     await signIn(page, EDITOR);
-    for (const [width, columns, room] of [
-      [1440, ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)', 'Intent', 'Priority', 'Group'], 280],
-      [1280, ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)'], 320],
+    const RANK = ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)'];
+    for (const [width, columns, room, updated] of [
+      [1280, RANK, 320, false],
+      [1440, [...RANK, 'Intent', 'Priority', 'Group'], 280, false],
+      // Every column of the set shows: the Keyword column is at its 200 px minimum, and the others give up width
+      [1680, [...RANK, 'Intent', 'Priority', 'Group', 'Tags', 'Updated', 'Added'], 200, true],
     ] as const) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/digibranders/fynix/seo/rankings');
@@ -125,16 +144,74 @@ test.describe('rankings', () => {
         await expect(headerOf(grid, name)).toBeVisible();
       }
       // The tiers: Updated waits for 1680 px, Best rank for the chooser
-      await expect(headerOf(grid, 'Updated')).toHaveCount(0);
+      await expect(headerOf(grid, 'Updated')).toHaveCount(updated ? 1 : 0);
       await expect(headerOf(grid, 'Best rank')).toHaveCount(0);
       const keyword = await headerOf(grid, 'Keyword').boundingBox();
       if (keyword === null) throw new Error('The Keyword header has no box');
       expect(keyword.width).toBeGreaterThanOrEqual(room);
-      // The header of each rank column shows its whole name, not cut short
+      // The header of each rank column shows its whole name, not cut short, and Change keeps 84 px at any width
       for (const name of ['Rank', 'Change', 'Ranking URL']) {
         const label = headerOf(grid, name).locator('.truncate').first();
         expect(await label.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
       }
+      const change = await headerOf(grid, 'Change').boundingBox();
+      expect(change?.width ?? 0).toBeGreaterThanOrEqual(84);
+    }
+  });
+
+  test('a stale rank is marked in the Rank cell at every width, and a long ranking URL keeps its end in view', async ({
+    page,
+  }) => {
+    await signIn(page, EDITOR);
+    for (const width of [1280, 1680]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/digibranders/fynix/seo/rankings');
+      const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+      await expect(grid.getByRole('rowheader').first()).toBeVisible();
+
+      // The API flags four fixture keywords stale: one has a rank, one a rank and failed checks since, one never
+      // had a good check. Each says so in its Rank cell, however narrow the table; Updated shows it from 1680 px
+      const ranks = await columnOf(grid, 'Rank');
+      expect(ranks.filter((text) => text.includes('stale'))).toHaveLength(4);
+      expect(ranks.filter((text) => text.includes('last check failed'))).toHaveLength(1);
+      await expect(headerOf(grid, 'Updated')).toHaveCount(width >= 1680 ? 1 : 0);
+      if (width >= 1680) {
+        const updated = await columnOf(grid, 'Updated');
+        expect(updated.filter((text) => text.includes('Stale'))).toHaveLength(4);
+        // The keyword whose every check failed says so and carries the marker too
+        expect(updated.filter((text) => text.includes('Check failed') && text.includes('Stale'))).toHaveLength(1);
+      }
+      // No Updated cell or Ranking URL cell spills out of its column over the next one
+      const spill = await grid.locator('tbody tr[role="row"]').evaluateAll((rows) => {
+        const names = [...document.querySelectorAll('thead th')].map((th) => th.textContent ?? '');
+        const found: string[] = [];
+        for (const tr of rows) {
+          if (!(tr instanceof HTMLTableRowElement)) continue;
+          [...tr.cells].forEach((cell, at) => {
+            const name = names[at] ?? '';
+            if (!/^(Updated|Ranking URL)/.test(name)) return;
+            const room = cell.getBoundingClientRect();
+            for (const child of cell.querySelectorAll('*')) {
+              if (child.closest('.sr-only')) continue;
+              const box = child.getBoundingClientRect();
+              if (box.width > 0 && (box.right > room.right + 0.5 || box.left < room.left - 0.5)) found.push(name);
+            }
+          });
+        }
+        return found;
+      });
+      expect(spill).toEqual([]);
+
+      // A path of 28 or more characters: its last characters are in view, inside its cell, never cut by an ellipsis
+      const long = grid.getByRole('gridcell').filter({ hasText: '/blog/how-to-choose-an-seo-agency' }).first();
+      await expect(long).toBeVisible();
+      const tail = long.locator('.shrink-0').first();
+      await expect(tail).toHaveText(/seo-agency$/);
+      const cellBox = await long.boundingBox();
+      const tailBox = await tail.boundingBox();
+      if (cellBox === null || tailBox === null) throw new Error('The ranking URL cell has no box');
+      expect(tailBox.x + tailBox.width).toBeLessThanOrEqual(cellBox.x + cellBox.width + 0.5);
+      expect(await tail.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
     }
   });
 
