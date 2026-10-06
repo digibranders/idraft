@@ -73,6 +73,17 @@ describe('mock rank history', () => {
     expect(after.at(-1)?.observedAt).toBe('2026-10-07T02:00:00.000Z');
   });
 
+  it('gives some keywords a path of 28 characters or more, longer than a mono cell of the URL column holds', () => {
+    const paths = new Set(
+      Array.from({ length: 60 }, (_, index) =>
+        checksOf(`0192d1a8-e007-7a10-8e07-${String(index + 1).padStart(12, '0')}`, CREATED, NOW)
+          .map((check) => check.path)
+          .find((path) => path !== null),
+      ),
+    );
+    expect([...paths].some((path) => path !== undefined && path.length >= 28)).toBe(true);
+  });
+
   it('gives different keywords different walks', () => {
     const a = checksOf('0192d1a8-e007-7a10-8e07-000000000007', CREATED, NOW).map((check) => check.rank);
     const b = checksOf('0192d1a8-e007-7a10-8e07-000000000008', CREATED, NOW).map((check) => check.rank);

@@ -2,7 +2,15 @@ import { screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { BestRankView, RankChangeView, RankCellView, RankingUrlView, StaleMarker, useRankTips } from './rank-cells';
+import {
+  BestRankView,
+  PATH_END_CHARS,
+  RankChangeView,
+  RankCellView,
+  RankingUrlView,
+  StaleMarker,
+  useRankTips,
+} from './rank-cells';
 import type { CellTip } from '@/components/app/data-table/types';
 import type { RankCell, RankChange, UrlRef } from '@/lib/api/types';
 import { changeDisplay, rankDisplay, urlDisplay } from '@/lib/format';
@@ -213,18 +221,40 @@ const urlView = (current: RankCell, count: number): ReactElement => (
 );
 
 describe('RankingUrlView', () => {
-  it('shows the path in the mono style, shortened in the middle, with the whole path for a screen reader', () => {
+  it('shows the path in the mono style, its start giving way to an ellipsis and its end always in view', () => {
     renderWithProviders(urlView(cell({ url: URL_REF }), 1));
-    const shown = screen.getByText('/blog/…/choose-an-agency');
-    expect(shown).toHaveAttribute('aria-hidden', 'true');
-    expect(shown.closest('.type-mono')).not.toBeNull();
+    // The end tells URLs apart, so it never shrinks; the start is clipped with an ellipsis by CSS, not cut by code
+    const end = URL_REF.path.slice(-PATH_END_CHARS);
+    const start = URL_REF.path.slice(0, -PATH_END_CHARS);
+    const tail = screen.getByText(end);
+    expect(tail).toHaveClass('shrink-0');
+    expect(tail).not.toHaveClass('truncate');
+    const head = screen.getByText(start);
+    expect(head).toHaveClass('truncate');
+    expect(head.closest('.type-mono')).not.toBeNull();
+    // Nothing of the path is dropped from the text, so no part of it is cut twice
+    expect(head.textContent + (tail.textContent ?? '')).toBe(URL_REF.path);
+    expect(head.parentElement).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByText(URL_REF.path)).toHaveClass('sr-only');
     expect(screen.queryByText('fynix.digital')).not.toBeInTheDocument();
   });
 
-  it('shows a short path as it is', () => {
+  it('keeps the end of a path of 28 characters or more, which no mono cell of 180 px holds', () => {
+    const long = '/blog/how-to-choose-an-seo-agency';
+    expect(long.length).toBeGreaterThanOrEqual(28);
+    renderWithProviders(
+      urlView(cell({ url: { ...URL_REF, path: long, canonical_url: `https://fynix.digital${long}` } }), 1),
+    );
+    const tail = screen.getByText(long.slice(-PATH_END_CHARS));
+    expect(tail).toHaveClass('shrink-0');
+    expect(tail.textContent).toMatch(/seo-agency$/);
+  });
+
+  it('shows a path no longer than its end as one piece', () => {
     renderWithProviders(urlView(cell({ url: { ...URL_REF, path: '/pricing' } }), 1));
-    expect(screen.getByText('/pricing')).toBeInTheDocument();
+    const shown = screen.getByText('/pricing');
+    expect(shown).toHaveClass('truncate');
+    expect(shown).not.toHaveAttribute('aria-hidden');
   });
 
   it('adds +1 for a second ranking URL and says it in words, and nothing for one', () => {

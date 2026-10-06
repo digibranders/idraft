@@ -16,7 +16,16 @@ const CHECKS_KEPT = 30;
 const CHECK_HOUR_UTC = 2;
 /** The depth a check looked at: mostly the standard 20, now and then a deeper weekly check. */
 const DEPTHS = [20, 20, 20, 50, 100] as const;
-const PATHS = ['/', '/services', '/pricing', '/blog/seo-audit', '/blog/local-seo', '/contact'] as const;
+const PATHS = [
+  '/',
+  '/services',
+  '/pricing',
+  '/blog/seo-audit',
+  '/blog/local-seo',
+  '/contact',
+  // Longer than a mono cell of the URL column holds (about 20 characters), as real article URLs are
+  '/blog/how-to-choose-an-seo-agency',
+] as const;
 /** The deepest rank the walk reaches; a rank that far down is beyond every depth anyway. */
 const DEEPEST_RANK = 150;
 

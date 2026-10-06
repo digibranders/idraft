@@ -12,7 +12,6 @@ import {
   formatDetailDateTime,
   formatInteger,
   formatRankCell,
-  truncatePath,
   type ChangeDisplay,
   type RankDisplay,
   type UrlDisplay,
@@ -38,8 +37,8 @@ const EMPTY_SPEECH = {
   stillBeyond: 'speech.stillBeyond',
   withinDepth: 'speech.withinDepth',
 } as const satisfies Record<Extract<ChangeDisplay, { kind: 'empty' }>['reason'], string>;
-/** About what a mono path fits in the URL column's usual width; the cell clips what is left with an ellipsis. */
-const PATH_CHARS = 30;
+/** The last characters of a path that always stay in view: the last segment of a usual path, or most of it. */
+export const PATH_END_CHARS = 12;
 
 /** The cell's content, right aligned: marks, if any, then the value. A mark that does not fit grows to the left. */
 const ROW = cn('flex items-center justify-end gap-1');
@@ -160,23 +159,42 @@ export function RankChangeView({ display }: { display: ChangeDisplay }): ReactEl
   }
 }
 
-/** The own URL that ranks: its path in mono, shortened in the middle, and `+1` when more of the project's URLs rank. */
+/**
+ * A path in the cell's width without ever cutting its end: the end tells one URL from another, so it keeps
+ * its room (`shrink-0`) and the start gives way to an ellipsis. The width is the browser's to know, so the
+ * shortening is CSS and nothing here counts characters of the column. A screen reader gets the whole path.
+ */
+function PathText({ path }: { path: string }): ReactElement {
+  const letters = [...path];
+  if (letters.length <= PATH_END_CHARS) {
+    return (
+      <span data-truncate="" className="block min-w-0 truncate">
+        {path}
+      </span>
+    );
+  }
+  return (
+    <>
+      <span aria-hidden="true" className="flex min-w-0">
+        <span data-truncate="" className="min-w-0 truncate">
+          {letters.slice(0, -PATH_END_CHARS).join('')}
+        </span>
+        <span className="shrink-0">{letters.slice(-PATH_END_CHARS).join('')}</span>
+      </span>
+      <span className="sr-only">{path}</span>
+    </>
+  );
+}
+
+/** The own URL that ranks: its path in mono with its end in view, and `+1` when more of the project's URLs rank. */
 export function RankingUrlView({ display }: { display: UrlDisplay }): ReactElement {
   const t = useTranslations('rankings.rank');
   switch (display.kind) {
     case 'url': {
-      const shortened = truncatePath(display.path, PATH_CHARS);
       return (
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="block min-w-0 truncate type-mono text-foreground">
-            {shortened === display.path ? (
-              display.path
-            ) : (
-              <>
-                <span aria-hidden="true">{shortened}</span>
-                <span className="sr-only">{display.path}</span>
-              </>
-            )}
+          <span className="block min-w-0 type-mono text-foreground">
+            <PathText path={display.path} />
           </span>
           {display.extra > 0 ? (
             <>
