@@ -1301,6 +1301,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/check-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check keywords now (a manual run, asked of the provider live)
+         * @description The given tracked keywords (at most 100, which the project collects; `422 validation_failed` with `keyword_unknown` otherwise), each asked of the provider live, at `depth` or else its daily depth. The run is `planned` and the worker plans it within a minute; a result is normally there within seconds after that. Read the run for its progress and the keywords' rank for the answer. A budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; `422 quota_exceeded` when the month's live checks would pass the workspace's `max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every request.
+         */
+        post: operations["check_now_api_v1_workspaces__workspace_id__projects__project_id__seo_check_now_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The project's rank events
+         * @description Newest first. `from` and `to` take dates or timestamps. A cursor is bound to its filters (`400 invalid_cursor` otherwise).
+         */
+        get: operations["rank_events_api_v1_workspaces__workspace_id__projects__project_id__seo_rank_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/serp-snapshots/{serp_snapshot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A SERP snapshot
+         * @description The organic results with the entity each belongs to (as the rules stood when it was checked), the features and the provenance. `include=titles` adds titles and snippets where the tables keep them (the own and competitor entities' ranking pages, and the current top 20); `titles_source` says where they came from.
+         */
+        get: operations["serp_snapshot_api_v1_workspaces__workspace_id__projects__project_id__serp_snapshots__serp_snapshot_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/serp-snapshots/{serp_snapshot_id}/raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The provider's answer for a SERP snapshot, as received
+         * @description `raw:read`. `410 raw_expired` once the answer is past its retention; `503 raw_unavailable` when it could not be read now.
+         */
+        get: operations["serp_snapshot_raw_api_v1_workspaces__workspace_id__projects__project_id__serp_snapshots__serp_snapshot_id__raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/settings": {
         parameters: {
             query?: never;
@@ -1351,7 +1431,7 @@ export interface paths {
         };
         /**
          * The project's tracked keywords
-         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority` and `created_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric sorts keywords without one last in both directions. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
+         * @description Sorted by `sort`, a comma list of `keyword`, `search_volume`, `keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, `best_rank` and `last_observed_at`, each at most once and with `-` for descending; `keyword` when left out, and the id always last. A metric or a rank sorts keywords without one (beyond the depth, or never checked) last in both directions. Every row carries its rank `state`; `include` adds `sparkline`, `competitor_ranks`, `features` and `aio`. `page.total` counts every match. A cursor is bound to its filters and sort (`400 invalid_cursor` otherwise).
          */
         get: operations["list_tracked_keywords_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords_get"];
         put?: never;
@@ -1474,6 +1554,26 @@ export interface paths {
         patch: operations["update_tracked_keyword_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/aio-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI Overview history of a keyword's checks
+         * @description Per check: whether an AI Overview showed, whether the project and which competitors were cited, and how many sources it listed. At most 1,000 checks.
+         */
+        get: operations["aio_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__aio_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/competitors": {
         parameters: {
             query?: never;
@@ -1503,6 +1603,86 @@ export interface paths {
         };
         /** Configuration versions */
         get: operations["get_config_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__config_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A keyword's rank over time
+         * @description One point per successful check on the project-local date it happened, for the project's primary own entity and the keyword's effective competitors (at most 11, or `entity_ids`). `from` and `to`, or `window` (`last_7d` to `last_365d`, default `last_90d`); at most 400 days. A rank is known within the depth checked: `beyond_depth` has no rank and is never drawn through; a check that failed for good is a `failed` point. `bands` shade the runs of beyond-depth checks. `format=columns` gives parallel arrays.
+         */
+        get: operations["rank_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__rank_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/serp-current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A keyword's current top results
+         * @description The top 20 of the last check, with the own or competitor entity each result belongs to. Empty before the first check.
+         */
+        get: operations["serp_current_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/serp-features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The SERP features of a keyword's recent checks
+         * @description The last `limit_checks` checks in the window (default 30, newest first) with their features, and how often each feature was present and owned by the project.
+         */
+        get: operations["serp_features_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_features_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/serp-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A keyword's SERP snapshots
+         * @description Newest first. Each carries the own site's rank cell. A cursor is bound to its filters (`400 invalid_cursor` otherwise).
+         */
+        get: operations["serp_snapshots_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_snapshots_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1635,6 +1815,68 @@ export interface components {
             actor_type: "user" | "api_key" | "system";
             /** Label */
             label: string;
+        };
+        /** AioCitations */
+        AioCitations: {
+            /** Citation Position */
+            citation_position: number | null;
+            /**
+             * Cited Urls
+             * @description What the AI Overview cites, in order.
+             */
+            cited_urls: components["schemas"]["UrlRef"][];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown";
+        };
+        /** AioHistoryItem */
+        AioHistoryItem: {
+            /**
+             * Ai Overview State
+             * @enum {string}
+             */
+            ai_overview_state: "absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown";
+            /** Competitors Cited */
+            competitors_cited: components["schemas"]["EntityRef"][];
+            /** Device */
+            device: string;
+            /** Location Id */
+            location_id: number;
+            /** Observation Id */
+            observation_id: string | null;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            organic_rank: components["schemas"]["RankCell"];
+            /** Own Citation Position */
+            own_citation_position: number | null;
+            /** Own Cited */
+            own_cited: boolean | null;
+            /** Serp Snapshot Id */
+            serp_snapshot_id: string;
+            /** Source Count */
+            source_count: number;
+        };
+        /** AioHistoryResponse */
+        AioHistoryResponse: {
+            /** Data */
+            data: components["schemas"]["AioHistoryItem"][];
+        };
+        /** AioStateInfo */
+        AioStateInfo: {
+            /** Citation Position */
+            citation_position: number | null;
+            /** Observation Id */
+            observation_id: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown";
         };
         /** Alias */
         Alias: {
@@ -1971,6 +2213,19 @@ export interface components {
             /** Updated */
             updated: number;
         };
+        /**
+         * CheckNow
+         * @description Keywords to check at once, each a live search of its own.
+         */
+        CheckNow: {
+            /**
+             * Depth
+             * @description Results to look at; default: each keyword's daily depth.
+             */
+            depth?: (10 | 20 | 50 | 100) | null;
+            /** Tracked Keyword Ids */
+            tracked_keyword_ids: string[];
+        };
         /** CompetitorOverride */
         CompetitorOverride: {
             entity: components["schemas"]["EntityRef"];
@@ -1990,6 +2245,12 @@ export interface components {
             exclude?: string[];
             /** Include */
             include?: string[];
+        };
+        /** CompetitorRank */
+        CompetitorRank: {
+            change: components["schemas"]["RankChange"];
+            current: components["schemas"]["RankCell"];
+            entity: components["schemas"]["EntityRef"];
         };
         /** CompetitorSet */
         CompetitorSet: {
@@ -2377,9 +2638,45 @@ export interface components {
             /** Parent Entity Id */
             parent_entity_id?: string | null;
         };
+        /** FeatureCheck */
+        FeatureCheck: {
+            /** Depth Requested */
+            depth_requested: number;
+            /** Features */
+            features: components["schemas"]["SerpFeatureOut"][];
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Serp Snapshot Id */
+            serp_snapshot_id: string;
+        };
+        /** FeatureOnPage */
+        FeatureOnPage: {
+            /** Feature Type */
+            feature_type: string;
+            /** Ordinal */
+            ordinal: number;
+            /** Owned By Project */
+            owned_by_project: boolean;
+            /** Owned Position */
+            owned_position: number | null;
+            /** Rank Absolute */
+            rank_absolute: number | null;
+        };
+        /** FeaturePresence */
+        FeaturePresence: {
+            /** Feature Type */
+            feature_type: string;
+            own_ownership_rate: components["schemas"]["MetricValue"];
+            presence_rate: components["schemas"]["MetricValue"];
+        };
+        FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___: ("absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown")[];
         FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___: ("informational" | "navigational" | "commercial" | "transactional" | "local" | "unknown")[];
         FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[];
         FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___: ("manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste")[];
+        FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___: ("numeric" | "new" | "lost" | "unchanged_beyond" | "consistent_beyond" | "first_check")[];
         FilterList_Literal__tofu____mofu____bofu____retention____unknown___: ("tofu" | "mofu" | "bofu" | "retention" | "unknown")[];
         FilterList_UUID_: string[];
         /** GroupMembers */
@@ -2406,6 +2703,153 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** HistoryBand */
+        HistoryBand: {
+            /** Depth Requested */
+            depth_requested: number;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "beyond_depth";
+            /** Label */
+            label: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+        };
+        /**
+         * HistoryColumns
+         * @description `format=columns`: the points of one entity as parallel arrays.
+         */
+        HistoryColumns: {
+            /** Absolute Rank */
+            absolute_rank: (number | null)[];
+            /** Depth Requested */
+            depth_requested: (number | null)[];
+            entity: components["schemas"]["EntityRef"];
+            /** Rank */
+            rank: (number | null)[];
+            /** Serp Snapshot Id */
+            serp_snapshot_id: (string | null)[];
+            /** State */
+            state: ("ranked" | "beyond_depth" | "failed")[];
+            /** T */
+            t: (string | null)[];
+            /** Url Id */
+            url_id: (string | null)[];
+        };
+        /** HistoryConfig */
+        HistoryConfig: {
+            /** Config Version */
+            config_version: number;
+            /** Depth Profile */
+            depth_profile: string;
+            /**
+             * Valid From
+             * Format: date-time
+             */
+            valid_from: string;
+            /** Valid To */
+            valid_to: string | null;
+        };
+        /** HistoryEvent */
+        HistoryEvent: {
+            /** Entity Id */
+            entity_id: string;
+            /** Event Type */
+            event_type: string;
+            /** From Rank */
+            from_rank: number | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Rank Event Id */
+            rank_event_id: string;
+            /** To Rank */
+            to_rank: number | null;
+        };
+        /** HistoryPoint */
+        HistoryPoint: {
+            /**
+             * Absolute Rank
+             * @description `include=absolute`.
+             */
+            absolute_rank: number | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Depth Requested
+             * @description Null for a failed check.
+             */
+            depth_requested: number | null;
+            /** Observed At */
+            observed_at: string | null;
+            /**
+             * Rank
+             * @description Null unless `state` is `ranked`.
+             */
+            rank: number | null;
+            /** Serp Snapshot Id */
+            serp_snapshot_id: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ranked" | "beyond_depth" | "failed";
+            /**
+             * Url Id
+             * @description `include=url`; a key of `urls`.
+             */
+            url_id: string | null;
+        };
+        /** HistorySeries */
+        HistorySeries: {
+            entity: components["schemas"]["EntityRef"];
+            /** Points */
+            points: components["schemas"]["HistoryPoint"][];
+        };
+        /** HistorySummary */
+        HistorySummary: {
+            average_rank: components["schemas"]["MetricValue"] | null;
+            /** Beyond Depth Checks */
+            beyond_depth_checks: number;
+            /** Checks */
+            checks: number;
+            /** Failed Checks */
+            failed_checks: number;
+            /** Ranked Checks */
+            ranked_checks: number;
+        };
+        /** HistoryWindow */
+        HistoryWindow: {
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /** Timezone */
+            timezone: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
         };
         /** ImportCounts */
         ImportCounts: {
@@ -3613,6 +4057,127 @@ export interface components {
             /** Timezone */
             timezone?: string;
         };
+        /**
+         * RankCell
+         * @description One check's result for one site (docs/19 section 2, `RankCell`). A rank is known only
+         *     within the depth that was checked: `beyond_depth` says it is further down, not absent.
+         */
+        RankCell: {
+            /** Absolute Rank */
+            absolute_rank: number | null;
+            /**
+             * Depth Requested
+             * @description Null when `state` is `not_checked`.
+             */
+            depth_requested: number | null;
+            /** Observed At */
+            observed_at: string | null;
+            /**
+             * Rank
+             * @description The organic rank; null unless `state` is `ranked`.
+             */
+            rank: number | null;
+            /** Serp Snapshot Id */
+            serp_snapshot_id: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ranked" | "beyond_depth" | "not_checked" | "failed";
+            url: components["schemas"]["UrlRef"] | null;
+        };
+        /**
+         * RankChange
+         * @description How a check compares with the one before it, within the smaller depth of the two.
+         */
+        RankChange: {
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "numeric" | "new" | "lost" | "unchanged_beyond" | "consistent_beyond" | "first_check";
+            /** Previous Observed At */
+            previous_observed_at: string | null;
+            /** Previous Rank */
+            previous_rank: number | null;
+            /**
+             * Value
+             * @description Previous rank minus current rank (positive = improved); null unless `label` is `numeric`.
+             */
+            value: number | null;
+        };
+        /** RankEventOut */
+        RankEventOut: {
+            entity: components["schemas"]["EntityRef"];
+            /** Event Type */
+            event_type: string;
+            /** Feature Type */
+            feature_type: string | null;
+            /** From Rank */
+            from_rank: number | null;
+            from_url: components["schemas"]["UrlRef"] | null;
+            /** Keyword */
+            keyword: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            other_entity: components["schemas"]["EntityRef"] | null;
+            /** Rank Event Id */
+            rank_event_id: string;
+            /** Serp Snapshot Id */
+            serp_snapshot_id: string;
+            /** To Rank */
+            to_rank: number | null;
+            to_url: components["schemas"]["UrlRef"] | null;
+            /** Tracked Keyword Id */
+            tracked_keyword_id: string;
+        };
+        /** RankEventPage */
+        RankEventPage: {
+            /** Data */
+            data: components["schemas"]["RankEventOut"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** RankHistory */
+        RankHistory: {
+            /** Bands */
+            bands: components["schemas"]["HistoryBand"][];
+            /**
+             * Columns
+             * @description `format=columns`.
+             */
+            columns: components["schemas"]["HistoryColumns"][] | null;
+            /** Config History */
+            config_history: components["schemas"]["HistoryConfig"][];
+            /** Deep Check Weekday */
+            deep_check_weekday: number;
+            /**
+             * Events
+             * @description `include=events`.
+             */
+            events: components["schemas"]["HistoryEvent"][] | null;
+            /**
+             * Series
+             * @description `format=points`.
+             */
+            series: components["schemas"]["HistorySeries"][] | null;
+            summary: components["schemas"]["HistorySummary"];
+            /** Tracked Keyword Id */
+            tracked_keyword_id: string;
+            /** Urls */
+            urls: {
+                [key: string]: components["schemas"]["UrlRef"];
+            };
+            /** Version Boundaries */
+            version_boundaries: components["schemas"]["VersionBoundary"][];
+            window: components["schemas"]["HistoryWindow"];
+        };
+        /** RankHistoryResponse */
+        RankHistoryResponse: {
+            data: components["schemas"]["RankHistory"];
+        };
         /** Readiness */
         Readiness: {
             checks: components["schemas"]["ReadinessChecks"];
@@ -3805,6 +4370,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** @description Manual runs of tracked keywords: links to their results. */
+            results?: components["schemas"]["RunResults"] | null;
             /**
              * Run Id
              * Format: uuid
@@ -3869,6 +4436,14 @@ export interface components {
         /** RunResponse */
         RunResponse: {
             data: components["schemas"]["Run"];
+        };
+        /**
+         * RunResults
+         * @description Where a manual run's results are: the tracked keywords whose rank it checks.
+         */
+        RunResults: {
+            /** Tracked Keyword Ids */
+            tracked_keyword_ids?: string[] | null;
         };
         /** Schedule */
         Schedule: {
@@ -4147,6 +4722,233 @@ export interface components {
              */
             visibility_weight_scheme?: "uniform" | "priority" | "business_value";
         };
+        /** SerpCurrent */
+        SerpCurrent: {
+            /** Observed At */
+            observed_at: string | null;
+            /** Results */
+            results: components["schemas"]["SerpResult"][];
+            /** Serp Snapshot Id */
+            serp_snapshot_id: string | null;
+        };
+        /** SerpCurrentResponse */
+        SerpCurrentResponse: {
+            data: components["schemas"]["SerpCurrent"];
+        };
+        /** SerpDomain */
+        SerpDomain: {
+            /** Domain Id */
+            domain_id: number;
+            /** Host */
+            host: string;
+            /** Registrable Domain */
+            registrable_domain: string;
+        };
+        /** SerpFeatureHistory */
+        SerpFeatureHistory: {
+            /** Checks */
+            checks: components["schemas"]["FeatureCheck"][];
+            /** Presence */
+            presence: components["schemas"]["FeaturePresence"][];
+        };
+        /** SerpFeatureHistoryResponse */
+        SerpFeatureHistoryResponse: {
+            data: components["schemas"]["SerpFeatureHistory"];
+        };
+        /** SerpFeatureOut */
+        SerpFeatureOut: {
+            /** Competitor Entity Ids */
+            competitor_entity_ids: string[];
+            /** Feature Type */
+            feature_type: string;
+            /** Ordinal */
+            ordinal: number;
+            /** Owned By Project */
+            owned_by_project: boolean;
+            /** Owned Position */
+            owned_position: number | null;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            } | null;
+            /** Rank Absolute */
+            rank_absolute: number | null;
+            /** Source Urls */
+            source_urls: components["schemas"]["UrlRef"][];
+        };
+        /** SerpOrganicItem */
+        SerpOrganicItem: {
+            /** Absolute Rank */
+            absolute_rank: number | null;
+            domain: components["schemas"]["SerpDomain"];
+            entity: components["schemas"]["EntityRef"] | null;
+            /** Organic Rank */
+            organic_rank: number;
+            /** Snippet */
+            snippet: string | null;
+            /** Title */
+            title: string | null;
+            url: components["schemas"]["UrlRef"];
+        };
+        /** SerpProvenance */
+        SerpProvenance: {
+            /** Canonicalizer Version */
+            canonicalizer_version: number;
+            /** Collection Task Id */
+            collection_task_id: string | null;
+            /** Parser Version */
+            parser_version: number;
+            /** Provider Task Id */
+            provider_task_id: string | null;
+            /** Raw Payload Id */
+            raw_payload_id: string;
+        };
+        /** SerpResult */
+        SerpResult: {
+            /** Absolute Rank */
+            absolute_rank: number | null;
+            domain: components["schemas"]["SerpDomain"];
+            /** @description The own or competitor entity the result belongs to at the last check. */
+            entity: components["schemas"]["EntityRef"] | null;
+            /** Organic Rank */
+            organic_rank: number;
+            /** Snippet */
+            snippet: string | null;
+            /** Title */
+            title: string | null;
+            url: components["schemas"]["UrlRef"];
+        };
+        /** SerpSnapshotDetail */
+        SerpSnapshotDetail: {
+            /** Ai Overview Observation Id */
+            ai_overview_observation_id: string | null;
+            /** Ai Overview State */
+            ai_overview_state: ("absent" | "present" | "present_async_loaded" | "present_not_loaded") | null;
+            /** Config Version */
+            config_version: number;
+            /** Cost Usd */
+            cost_usd: string | null;
+            /** Depth Requested */
+            depth_requested: number;
+            /** Depth Returned */
+            depth_returned: number;
+            /** Device */
+            device: string;
+            /** Features */
+            features: components["schemas"]["SerpFeatureOut"][];
+            /** Has Ai Mode Link */
+            has_ai_mode_link: boolean | null;
+            /** Has Ai Overview */
+            has_ai_overview: boolean;
+            /** Item Types */
+            item_types: string[];
+            /** Language Code */
+            language_code: string;
+            /** Location Id */
+            location_id: number;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Observed Date
+             * Format: date
+             */
+            observed_date: string;
+            /** Organic */
+            organic: components["schemas"]["SerpOrganicItem"][];
+            /** Os */
+            os: string | null;
+            own: components["schemas"]["RankCell"];
+            provenance: components["schemas"]["SerpProvenance"];
+            /** Provider Code */
+            provider_code: string;
+            /** Provider Endpoint */
+            provider_endpoint: string;
+            /** Se Domain */
+            se_domain: string | null;
+            /** Se Results Count */
+            se_results_count: number | null;
+            /** Serp Snapshot Id */
+            serp_snapshot_id: string;
+            /** Served From Cache */
+            served_from_cache: boolean;
+            /**
+             * Titles Source
+             * @enum {string}
+             */
+            titles_source: "domain_rank_observations" | "serp_current_results" | "unavailable";
+        };
+        /** SerpSnapshotDetailResponse */
+        SerpSnapshotDetailResponse: {
+            data: components["schemas"]["SerpSnapshotDetail"];
+        };
+        /** SerpSnapshotPage */
+        SerpSnapshotPage: {
+            /** Data */
+            data: components["schemas"]["SerpSnapshotSummary"][];
+            page: components["schemas"]["SerpSnapshotPageInfo"];
+        };
+        /** SerpSnapshotPageInfo */
+        SerpSnapshotPageInfo: {
+            /** Has More */
+            has_more: boolean;
+            /** Limit */
+            limit: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** SerpSnapshotSummary */
+        SerpSnapshotSummary: {
+            /** Ai Overview State */
+            ai_overview_state: ("absent" | "present" | "present_async_loaded" | "present_not_loaded") | null;
+            /** Config Version */
+            config_version: number;
+            /** Cost Usd */
+            cost_usd: string | null;
+            /** Depth Requested */
+            depth_requested: number;
+            /** Depth Returned */
+            depth_returned: number;
+            /** Device */
+            device: string;
+            /** Has Ai Mode Link */
+            has_ai_mode_link: boolean | null;
+            /** Has Ai Overview */
+            has_ai_overview: boolean;
+            /** Item Types */
+            item_types: string[];
+            /** Language Code */
+            language_code: string;
+            /** Location Id */
+            location_id: number;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Observed Date
+             * Format: date
+             */
+            observed_date: string;
+            /** Os */
+            os: string | null;
+            own: components["schemas"]["RankCell"];
+            /** Provider Code */
+            provider_code: string;
+            /** Provider Endpoint */
+            provider_endpoint: string;
+            /** Se Domain */
+            se_domain: string | null;
+            /** Se Results Count */
+            se_results_count: number | null;
+            /** Serp Snapshot Id */
+            serp_snapshot_id: string;
+            /** Served From Cache */
+            served_from_cache: boolean;
+        };
         /** SessionItem */
         SessionItem: {
             /**
@@ -4190,6 +4992,37 @@ export interface components {
              * @enum {string}
              */
             status: "signed_in" | "totp_required";
+        };
+        /** Sparkline */
+        Sparkline: {
+            /**
+             * Depth Mode
+             * @default daily_depth
+             * @constant
+             */
+            depth_mode: "daily_depth";
+            /**
+             * Points
+             * @description The last 30 checks, oldest first.
+             */
+            points: components["schemas"]["SparklinePoint"][];
+        };
+        /** SparklinePoint */
+        SparklinePoint: {
+            /** Depth */
+            depth: number;
+            /** Rank */
+            rank: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ranked" | "beyond_depth";
+            /**
+             * T
+             * Format: date-time
+             */
+            t: string;
         };
         /** Term */
         Term: {
@@ -4675,6 +5508,7 @@ export interface components {
              * @enum {string}
              */
             source: "manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste";
+            state: components["schemas"]["TrackedKeywordState"];
             target_url: components["schemas"]["UrlRef"] | null;
             /** Terms */
             terms: components["schemas"]["TermRef"][];
@@ -4701,15 +5535,32 @@ export interface components {
          *     list itself defaults it to true).
          */
         TrackedKeywordFilter: {
+            aio_state?: components["schemas"]["FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___"] | null;
+            /**
+             * Declined
+             * @description Ranked lower than the check before.
+             */
+            declined?: boolean | null;
             depth_profile_in?: components["schemas"]["FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"] | null;
             /** Device */
             device?: ("desktop" | "mobile") | null;
+            /** Feature Owned */
+            feature_owned?: string | null;
+            /** Feature Present */
+            feature_present?: string | null;
             funnel_stage_in?: components["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"] | null;
             /** Group */
             group?: string | null;
+            /**
+             * Improved
+             * @description Ranked higher than the check before.
+             */
+            improved?: boolean | null;
             intent_in?: components["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"] | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Is Stale */
+            is_stale?: boolean | null;
             /** Keyword Difficulty Lte */
             keyword_difficulty_lte?: number | null;
             /** Language Code */
@@ -4720,11 +5571,25 @@ export interface components {
             priority_lte?: number | null;
             /** Q */
             q?: string | null;
+            rank_change_label_in?: components["schemas"]["FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___"] | null;
+            /** Rank Gte */
+            rank_gte?: number | null;
+            /**
+             * Rank Is Null
+             * @description Beyond the depth at the latest check (true) or ranked (false).
+             */
+            rank_is_null?: boolean | null;
+            /** Rank Lte */
+            rank_lte?: number | null;
+            /** Ranking Url Id */
+            ranking_url_id?: number | null;
             /** Search Engine */
             search_engine?: ("google" | "bing") | null;
             /** Search Volume Gte */
             search_volume_gte?: number | null;
             source_in?: components["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"] | null;
+            /** Target Url Match */
+            target_url_match?: boolean | null;
             /** @description Each term or one under it; terms of one vocabulary: either, of two: both. */
             term?: components["schemas"]["FilterList_UUID_"] | null;
             /** @description Any of these terms or one under them. */
@@ -4800,8 +5665,15 @@ export interface components {
          * @description A list row. The blocks named in `include` are filled; the others are null.
          */
         TrackedKeywordRow: {
+            /** @description `include=aio`: what the last AI Overview cites. */
+            aio?: components["schemas"]["AioCitations"] | null;
             /** Business Value */
             business_value: string | null;
+            /**
+             * Competitor Ranks
+             * @description `include=competitor_ranks`: the competitors' ranks.
+             */
+            competitor_ranks?: components["schemas"]["CompetitorRank"][] | null;
             /**
              * Competitors
              * @description `include=competitors`: the keyword's overrides.
@@ -4825,6 +5697,11 @@ export interface components {
              * @enum {string}
              */
             device: "desktop" | "mobile";
+            /**
+             * Features
+             * @description `include=features`: the features of the last check.
+             */
+            features?: components["schemas"]["FeatureOnPage"][] | null;
             /**
              * Frequency
              * @enum {string}
@@ -4878,6 +5755,9 @@ export interface components {
              * @enum {string}
              */
             source: "manual" | "csv_import" | "api" | "gsc_import" | "discovery" | "bulk_paste";
+            /** @description `include=sparkline`. */
+            sparkline?: components["schemas"]["Sparkline"] | null;
+            state: components["schemas"]["TrackedKeywordState"];
             target_url: components["schemas"]["UrlRef"] | null;
             /**
              * Terms
@@ -4894,6 +5774,45 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * TrackedKeywordState
+         * @description The keyword's latest rank facts (`seo.tracked_keyword_state`).
+         */
+        TrackedKeywordState: {
+            aio: components["schemas"]["AioStateInfo"];
+            /** Best Rank */
+            best_rank: number | null;
+            /** Best Rank At */
+            best_rank_at: string | null;
+            change: components["schemas"]["RankChange"];
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            current: components["schemas"]["RankCell"];
+            /**
+             * Feature Types Present
+             * @description On the first page of results.
+             */
+            feature_types_present: string[];
+            /** First Ranked At */
+            first_ranked_at: string | null;
+            /** Is Stale */
+            is_stale: boolean;
+            /** Last Observed At */
+            last_observed_at: string | null;
+            /** Owned Feature Types */
+            owned_feature_types: string[];
+            /**
+             * Ranking Url Count
+             * @description Own URLs that ranked at the last check.
+             */
+            ranking_url_count: number;
+            /** Target Url Match */
+            target_url_match: boolean | null;
+            /** Url Changed At */
+            url_changed_at: string | null;
+            /** Worst Rank */
+            worst_rank: number | null;
         };
         /** TrackedVariant */
         TrackedVariant: {
@@ -4959,6 +5878,23 @@ export interface components {
         VerifyEmailRequest: {
             /** Token */
             token: string;
+        };
+        /** VersionBoundary */
+        VersionBoundary: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Component
+             * @constant
+             */
+            component: "tracked_keyword_config";
+            /** From */
+            from: number;
+            /** To */
+            to: number;
         };
         /** Vocabulary */
         Vocabulary: {
@@ -8089,6 +9025,158 @@ export interface operations {
             };
         };
     };
+    check_now_api_v1_workspaces__workspace_id__projects__project_id__seo_check_now_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckNow"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    rank_events_api_v1_workspaces__workspace_id__projects__project_id__seo_rank_events_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                "filter[event_type_in]"?: string[] | null;
+                "filter[tracked_keyword_id]"?: string | null;
+                "filter[entity_id]"?: string | null;
+                "filter[group]"?: string | null;
+                "filter[term]"?: string | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankEventPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    serp_snapshot_api_v1_workspaces__workspace_id__projects__project_id__serp_snapshots__serp_snapshot_id__get: {
+        parameters: {
+            query?: {
+                /** @description A hint to find the month. */
+                observed_at?: string | null;
+                include?: "titles"[] | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                serp_snapshot_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SerpSnapshotDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    serp_snapshot_raw_api_v1_workspaces__workspace_id__projects__project_id__serp_snapshots__serp_snapshot_id__raw_get: {
+        parameters: {
+            query?: {
+                /** @description A hint to find the month. */
+                observed_at?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                serp_snapshot_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_get: {
         parameters: {
             query?: never;
@@ -8198,7 +9286,7 @@ export interface operations {
             query?: {
                 sort?: string | null;
                 /** @description Blocks to fill: a comma list, or the parameter repeated. */
-                include?: ("metrics" | "groups" | "terms" | "competitors")[] | null;
+                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "features" | "aio")[] | null;
                 "filter[q]"?: string | null;
                 /** @description The group or one under it. */
                 "filter[group]"?: string | null;
@@ -8218,6 +9306,19 @@ export interface operations {
                 "filter[depth_profile_in]"?: ("light" | "standard" | "deep" | "full" | "weekly" | "weekly_light" | "until_own_match_100")[] | null;
                 "filter[search_volume_gte]"?: number | null;
                 "filter[keyword_difficulty_lte]"?: number | null;
+                "filter[rank_lte]"?: number | null;
+                "filter[rank_gte]"?: number | null;
+                /** @description True: beyond the depth at the latest check. False: ranked. */
+                "filter[rank_is_null]"?: boolean | null;
+                "filter[rank_change_label_in]"?: ("numeric" | "new" | "lost" | "unchanged_beyond" | "consistent_beyond" | "first_check")[] | null;
+                "filter[improved]"?: boolean | null;
+                "filter[declined]"?: boolean | null;
+                "filter[feature_present]"?: string | null;
+                "filter[feature_owned]"?: string | null;
+                "filter[aio_state]"?: ("absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown")[] | null;
+                "filter[ranking_url_id]"?: number | null;
+                "filter[target_url_match]"?: boolean | null;
+                "filter[is_stale]"?: boolean | null;
                 /** @description `page.next_cursor` of the previous page. */
                 cursor?: string | null;
                 limit?: number;
@@ -8532,6 +9633,44 @@ export interface operations {
             };
         };
     };
+    aio_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__aio_history_get: {
+        parameters: {
+            query?: {
+                /** @description First local day, included. */
+                from?: string | null;
+                /** @description Last local day, included. */
+                to?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AioHistoryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     set_competitors_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__competitors_put: {
         parameters: {
             query?: never;
@@ -8589,6 +9728,165 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigHistory"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    rank_history_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__rank_history_get: {
+        parameters: {
+            query?: {
+                /** @description First local day, included. */
+                from?: string | null;
+                /** @description Last local day, included. */
+                to?: string | null;
+                window?: string | null;
+                /** @description Entity ids, or `own` for the primary own entity. */
+                entity_ids?: string[] | null;
+                include?: ("absolute" | "url" | "events")[] | null;
+                format?: "points" | "columns";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankHistoryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    serp_current_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SerpCurrentResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    serp_features_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_features_get: {
+        parameters: {
+            query?: {
+                /** @description First local day, included. */
+                from?: string | null;
+                /** @description Last local day, included. */
+                to?: string | null;
+                "filter[feature_type_in]"?: string[] | null;
+                limit_checks?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SerpFeatureHistoryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    serp_snapshots_api_v1_workspaces__workspace_id__projects__project_id__tracked_keywords__tracked_keyword_id__serp_snapshots_get: {
+        parameters: {
+            query?: {
+                /** @description First local day, included. */
+                from?: string | null;
+                /** @description Last local day, included. */
+                to?: string | null;
+                "filter[depth_requested]"?: number | null;
+                "filter[has_ai_overview]"?: boolean | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SerpSnapshotPage"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -8905,16 +10203,23 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParameters
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idSchedulesGetParametersQueryFilterWorkloadAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules"]["get"]["parameters"]["query"]["filter[workload]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "features", "aio"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[device]"]> = ["desktop", "mobile"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSearch_engineAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[search_engine]"]> = ["google", "bing"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterFunnel_stage_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[funnel_stage_in]"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSource_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[source_in]"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDepth_profile_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[depth_profile_in]"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterRank_change_label_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[rank_change_label_in]"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterAio_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[aio_state]"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsTracked_keyword_idRankHistoryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history"]["get"]["parameters"]["query"]["include"]> = ["absolute", "url", "events"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsTracked_keyword_idRankHistoryGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history"]["get"]["parameters"]["query"]["format"]> = ["points", "columns"];
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesGetParametersQueryFilterKindAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies"]["get"]["parameters"]["query"]["filter[kind]"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
 export const pathsApiV1WorkspacesWorkspace_idVocabulariesVocabulary_idTermsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/vocabularies/{vocabulary_id}/terms"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const actorActor_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Actor"]["actor_type"]> = ["user", "api_key", "system"];
+export const aioCitationsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioCitations"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
+export const aioHistoryItemAi_overview_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioHistoryItem"]["ai_overview_state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
+export const aioStateInfoStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioStateInfo"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aliasMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Alias"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const aliasInputMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasInput"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const aliasTestMentionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestMention"]["status"]> = ["accepted", "uncertain", "discarded"];
@@ -8924,6 +10229,7 @@ export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<co
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
+export const checkNowDepthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CheckNow"]["depth"]> = [10, 20, 50, 100];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
 export const configVersionDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ConfigVersion"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party"];
@@ -8937,10 +10243,14 @@ export const entityProjectRoleRoleValues: ReadonlyArray<FlattenedDeepRequired<co
 export const entityRefEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityRefRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["role"]> = ["own", "competitor", "watch"];
 export const entityUpdateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityUpdate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const filterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const filterList_Literal__informational____navigational____commercial____transactional____local____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
 export const filterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__light____standard____deep____full____weekly____weekly_light____until_own_match_100___"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const filterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__manual____csv_import____api____gsc_import____discovery____bulk_paste___"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const filterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__numeric____new____lost____unchanged_beyond____consistent_beyond____first_check___"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
 export const filterList_Literal__tofu____mofu____bofu____retention____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
+export const historyColumnsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryColumns"]["state"]> = ["ranked", "beyond_depth", "failed"];
+export const historyPointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryPoint"]["state"]> = ["ranked", "beyond_depth", "failed"];
 export const importDefaultsDepth_profileAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const importDefaultsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["device"]> = ["desktop", "mobile", "both"];
 export const importFieldValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportField"]> = ["keyword", "country", "location", "language", "device", "tags", "topic", "group", "intent", "funnel_stage", "priority", "target_url", "depth_profile"];
@@ -8964,6 +10274,8 @@ export const projectEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const projectEntityCreateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityCreate"]["role"]> = ["own", "competitor", "watch"];
 export const projectEntityUpdateRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectEntityUpdate"]["role"]> = ["own", "competitor", "watch"];
 export const projectUpdateStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProjectUpdate"]["status"]> = ["active", "paused", "archived"];
+export const rankCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankCell"]["state"]> = ["ranked", "beyond_depth", "not_checked", "failed"];
+export const rankChangeLabelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankChange"]["label"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];
 export const reservedProjectSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedProjectSlug"]> = ["billing", "costs", "members", "new", "onboarding", "ops", "projects", "settings"];
 export const reservedWorkspaceSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedWorkspaceSlug"]> = ["account", "admin", "api", "assets", "design-system", "docs", "favicon", "forgot-password", "health", "healthz", "help", "icon", "invite", "login", "logout", "new", "null", "onboarding", "public", "reset-password", "robots", "settings", "sign-in", "sign-up", "signup", "sitemap", "static", "two-factor", "undefined", "verify-email", "www"];
@@ -8996,7 +10308,11 @@ export const seoSettingsPatchDefault_deviceValues: ReadonlyArray<FlattenedDeepRe
 export const seoSettingsPatchDefault_frequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettingsPatch"]["default_frequency"]> = ["daily", "weekly"];
 export const seoSettingsPatchVisibility_volume_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettingsPatch"]["visibility_volume_mode"]> = ["annual_average", "seasonal"];
 export const seoSettingsPatchVisibility_weight_schemeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeoSettingsPatch"]["visibility_weight_scheme"]> = ["uniform", "priority", "business_value"];
+export const serpSnapshotDetailAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
+export const serpSnapshotDetailTitles_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["titles_source"]> = ["domain_rank_observations", "serp_current_results", "unavailable"];
+export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotSummary"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
+export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
 export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
 export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];
 export const termAssignmentSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["subject_type"]> = ["tracked_keyword", "prompt"];

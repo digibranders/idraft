@@ -33,6 +33,19 @@ const LOOKS_AT = {
   'filter[depth_profile_in]': (row) => row.depth_profile,
   'filter[search_volume_gte]': (row) => row.metrics?.search_volume ?? null,
   'filter[keyword_difficulty_lte]': (row) => row.metrics?.keyword_difficulty ?? null,
+  // The rank filters look at the rank state; a save of the keyword's settings leaves it as it is.
+  'filter[rank_lte]': (row) => row.state.current.rank,
+  'filter[rank_gte]': (row) => row.state.current.rank,
+  'filter[rank_is_null]': (row) => row.state.current.rank,
+  'filter[rank_change_label_in]': (row) => row.state.change.label,
+  'filter[improved]': (row) => row.state.change.value,
+  'filter[declined]': (row) => row.state.change.value,
+  'filter[feature_present]': (row) => row.state.feature_types_present,
+  'filter[feature_owned]': (row) => row.state.owned_feature_types,
+  'filter[aio_state]': (row) => row.state.aio.state,
+  'filter[ranking_url_id]': (row) => row.state.current.url?.url_id ?? null,
+  'filter[target_url_match]': (row) => row.state.target_url_match,
+  'filter[is_stale]': (row) => row.state.is_stale,
 } satisfies Record<keyof KeywordFilters, (row: TrackedKeywordRow) => unknown>;
 
 /** The filters whose answer for the row differs between `before` and `after`. */

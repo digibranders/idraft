@@ -368,6 +368,46 @@ const COMPETITOR_OVERRIDE: z.ZodType<CompetitorOverride> = z.object({
   mode: z.enum(['include', 'exclude']),
 });
 
+const RANK_CELL = z.object({
+  state: z.enum(['ranked', 'beyond_depth', 'not_checked', 'failed']),
+  rank: z.number().nullable(),
+  absolute_rank: z.number().nullable(),
+  depth_requested: z.number().nullable(),
+  url: URL_REF.nullable(),
+  observed_at: z.string().nullable(),
+  serp_snapshot_id: z.string().nullable(),
+});
+
+const RANK_CHANGE = z.object({
+  label: z.enum(['numeric', 'new', 'lost', 'unchanged_beyond', 'consistent_beyond', 'first_check']),
+  value: z.number().nullable(),
+  previous_rank: z.number().nullable(),
+  previous_observed_at: z.string().nullable(),
+});
+
+/** The rank state every tracked keyword carries (doc 19 section 3.6.4). */
+const TRACKED_KEYWORD_STATE = z.object({
+  current: RANK_CELL,
+  change: RANK_CHANGE,
+  best_rank: z.number().nullable(),
+  best_rank_at: z.string().nullable(),
+  worst_rank: z.number().nullable(),
+  first_ranked_at: z.string().nullable(),
+  feature_types_present: z.array(z.string()),
+  owned_feature_types: z.array(z.string()),
+  aio: z.object({
+    state: z.enum(['absent', 'present_not_cited', 'present_cited', 'not_loaded', 'unknown']),
+    citation_position: z.number().nullable(),
+    observation_id: z.string().nullable(),
+  }),
+  target_url_match: z.boolean().nullable(),
+  url_changed_at: z.string().nullable(),
+  consecutive_failures: z.number(),
+  is_stale: z.boolean(),
+  last_observed_at: z.string().nullable(),
+  ranking_url_count: z.number(),
+});
+
 const TRACKED_KEYWORD_FIELDS = {
   tracked_keyword_id: z.string(),
   project_id: z.string(),
@@ -403,6 +443,7 @@ export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   groups: z.array(GROUP_REF).nullable().exactOptional(),
   terms: z.array(TERM_REF).nullable().exactOptional(),
   competitors: z.array(COMPETITOR_OVERRIDE).nullable().exactOptional(),
+  state: TRACKED_KEYWORD_STATE,
 });
 
 export const TRACKED_KEYWORD_DETAIL: z.ZodType<TrackedKeywordDetail> = z.object({
@@ -413,6 +454,7 @@ export const TRACKED_KEYWORD_DETAIL: z.ZodType<TrackedKeywordDetail> = z.object(
   competitor_overrides: z.array(COMPETITOR_OVERRIDE),
   schedule: z.object({ schedule_id: z.string(), name: z.string(), next_run_at: z.string() }).nullable(),
   config_history_count: z.number(),
+  state: TRACKED_KEYWORD_STATE,
 });
 
 /** `page` of the tracked keyword list: a cursor page with the filtered total. */

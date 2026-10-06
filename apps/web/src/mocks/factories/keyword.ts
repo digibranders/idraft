@@ -221,6 +221,36 @@ export function trackedKeywordView(world: KeywordWorld, row: StoredTracked): Tra
   };
 }
 
+/**
+ * The rank state of a keyword that has no check yet, as the API answers for it. The rank columns are
+ * not built, so the mocks have no ranks to show; a keyword is `not_checked` until they are.
+ */
+const NOT_CHECKED_STATE: TrackedKeywordRow['state'] = {
+  current: {
+    state: 'not_checked',
+    rank: null,
+    absolute_rank: null,
+    depth_requested: null,
+    url: null,
+    observed_at: null,
+    serp_snapshot_id: null,
+  },
+  change: { label: 'first_check', value: null, previous_rank: null, previous_observed_at: null },
+  best_rank: null,
+  best_rank_at: null,
+  worst_rank: null,
+  first_ranked_at: null,
+  feature_types_present: [],
+  owned_feature_types: [],
+  aio: { state: 'unknown', citation_position: null, observation_id: null },
+  target_url_match: null,
+  url_changed_at: null,
+  consecutive_failures: 0,
+  is_stale: false,
+  last_observed_at: null,
+  ranking_url_count: 0,
+};
+
 /** The group's names from the root down, joined by `/`. */
 export function groupPath(world: KeywordWorld, row: StoredGroup): string {
   const names = [row.name];
@@ -321,6 +351,7 @@ export function trackedKeywordRowView(
     groups: include.has('groups') ? groupsOf(world, row.tracked_keyword_id) : null,
     terms: include.has('terms') ? termsOf(world, entities, row.tracked_keyword_id) : null,
     competitors: include.has('competitors') ? overridesOf(world, entities, row) : null,
+    state: NOT_CHECKED_STATE,
   };
 }
 
@@ -338,6 +369,7 @@ export function trackedKeywordDetailView(
     competitor_overrides: overridesOf(world, entities, row),
     config_history_count: row.versions.length,
     schedule,
+    state: NOT_CHECKED_STATE,
   };
 }
 
