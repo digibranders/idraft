@@ -14,6 +14,12 @@ describe('bulk targets', () => {
     expect(bodyFilterOf({}, '')).toEqual({ is_active: true });
   });
 
+  it('sends the search as the API takes it: printable and at most 200 characters, and none when nothing is left', () => {
+    expect(bodyFilterOf({}, 'seo\tagency')).toEqual({ is_active: true, q: 'seo agency' });
+    expect(bodyFilterOf({}, 'x'.repeat(300)).q).toHaveLength(200);
+    expect(bodyFilterOf({}, '​ ')).toEqual({ is_active: true });
+  });
+
   it('chooses ids, or the filters for every match', () => {
     expect(bulkTarget({ ids: new Set(['a', 'b']), allMatching: false }, {}, '')).toEqual({ ids: ['a', 'b'] });
     expect(bulkTarget({ ids: new Set(['a']), allMatching: true }, { 'filter[is_active]': true }, '')).toEqual({

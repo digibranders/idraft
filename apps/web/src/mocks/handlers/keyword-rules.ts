@@ -38,6 +38,7 @@ import {
   normalizeKeyword,
   type KeywordTextProblem,
 } from '@/lib/keywords/keyword-text';
+import { isPrintable } from '@/lib/keywords/query-text';
 
 /** What the API says for each problem of a keyword's text. */
 export const KEYWORD_TEXT_MESSAGES: Readonly<Record<KeywordTextProblem, string>> = {
@@ -601,21 +602,26 @@ function readFilter(source: FilterSource, defaultActive: boolean | null): Tracke
     }
     return values;
   };
-  const text = (name: string, { min = 1, max = 200 } = {}): string | null => {
+  const text = (name: string, { min = 1, max = 200, printable = false } = {}): string | null => {
     const value = source.text(name);
     if (value === undefined || value === null) return null;
     if (typeof value !== 'string') {
       errors.push(source.error(name, 'string_type', 'Input should be a valid string'));
       return null;
     }
-    if (value.length < min || value.length > max) {
+    // The API counts characters, not UTF-16 units
+    const length = [...value].length;
+    if (length < min || length > max) {
       errors.push(
         source.error(
           name,
-          value.length < min ? 'string_too_short' : 'string_too_long',
+          length < min ? 'string_too_short' : 'string_too_long',
           `From ${String(min)} to ${String(max)} characters.`,
         ),
       );
+    } else if (printable && !isPrintable(value)) {
+      // A control character or a lone surrogate would reach the database as a 500 (backend `printable`)
+      errors.push(source.error(name, 'value_error', 'must not contain control characters'));
     }
     return value;
   };
@@ -671,7 +677,8 @@ function readFilter(source: FilterSource, defaultActive: boolean | null): Tracke
     else errors.push(source.error('is_active', 'bool_parsing', 'Input should be a valid boolean'));
   }
   const filter: TrackedFilter = {
-    q: text('q'),
+    // `QueryText`: 1 to 200 printable characters
+    q: text('q', { printable: true }),
     group,
     term: ids('term'),
     termIn: ids('term_in'),

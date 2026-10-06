@@ -228,6 +228,25 @@ describe('Rankings', () => {
     ]);
   });
 
+  it('sends only what the API takes of a search: printable, at most 200 characters, and nothing when nothing is left', async () => {
+    const asked = answerAsMany({ total: 12_000 });
+    const { user } = renderWithProviders(as('viewer'));
+    expect(await screen.findByText(/^Showing 1 to 59 of 12,000 keywords/)).toBeInTheDocument();
+    const box = screen.getByRole('searchbox', { name: /Search/ });
+    // The box takes no more than the API does
+    expect(box).toHaveAttribute('maxlength', '200');
+    // A tab and a zero-width space come in with a paste; the API refuses both
+    await user.click(box);
+    await user.paste('seo\tagency​');
+    await waitFor(() => expect(asked.at(-1)?.get('filter[q]')).toBe('seo agency'));
+    // Only such characters: no search at all, not a refused one
+    await user.clear(box);
+    await user.paste('​\t');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(asked.map((params) => params.get('filter[q]')).filter((value) => value !== null)).toEqual(['seo agency']);
+    expect(await screen.findByText(/^Showing 1 to 59 of 12,000 keywords/)).toBeInTheDocument();
+  });
+
   it('loads every page in client mode, and says when a later page failed until it loads', async () => {
     let failSecond = true;
     answerAsMany({ total: 118, pages: 2, failSecond: () => failSecond });

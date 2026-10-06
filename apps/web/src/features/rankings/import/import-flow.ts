@@ -50,12 +50,28 @@ export function importDefaults(values: UploadValues): ImportDefaults {
   };
 }
 
+/** The most characters the API takes in a paste (`PASTE_MAX`, 19 section 3.6.3). */
+export const PASTE_MAX_CHARACTERS = 1_000_000;
+/** The most bytes the API takes in a JSON request body (`JSON_BODY_MAX_BYTES`, 1 MiB): the paste goes in one. */
+export const JSON_BODY_MAX_BYTES = 1024 * 1024;
+
+/**
+ * Whether the paste is more than the API takes: over a million characters, or a request body over 1 MiB, which
+ * a paste under a million characters can still be (a line break is two bytes in JSON, an accent two in UTF-8).
+ */
+export function pasteTooLarge(values: UploadValues): boolean {
+  if ([...values.paste].length > PASTE_MAX_CHARACTERS) return true;
+  const body = JSON.stringify({ source: 'paste', paste: values.paste, defaults: importDefaults(values) });
+  return new TextEncoder().encode(body).length > JSON_BODY_MAX_BYTES;
+}
+
 /** What stops the Upload step from sending anything, or `null` when it can go on. */
 export function uploadErrorsOf(values: UploadValues): UploadErrors | null {
   if (values.source === 'upload') {
     return values.file === null || values.head === null ? { ...NO_UPLOAD_ERRORS, file: 'required' } : null;
   }
   if (values.paste.trim() === '') return { ...NO_UPLOAD_ERRORS, paste: 'required' };
+  if (pasteTooLarge(values)) return { ...NO_UPLOAD_ERRORS, paste: 'too_long' };
   if (values.paste.includes('\t') && values.tagsVocabulary === null) {
     return { ...NO_UPLOAD_ERRORS, tagsVocabulary: true };
   }

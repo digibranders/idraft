@@ -263,6 +263,30 @@ describe('tracked keywords: the workspace quota', () => {
   });
 });
 
+describe('tracked keywords: the text of a search', () => {
+  it('takes 1 to 200 printable characters, and refuses a control character, a format character or an empty text', async () => {
+    const viewer = mockBrowser('viewer');
+    const list = (q: string): ReturnType<MockBrowser['call']> =>
+      viewer.call('GET', `${TK}?limit=5&filter[q]=${encodeURIComponent(q)}`);
+    expect((await list('seo agency')).status).toBe(200);
+    expect(fieldCodes(await list('seo\tagency'))).toEqual(['filter[q]:value_error']);
+    expect(fieldCodes(await list('seo​agency'))).toEqual(['filter[q]:value_error']);
+    expect(fieldCodes(await list('seo agency'))).toEqual(['filter[q]:value_error']);
+    expect(fieldCodes(await list(''))).toEqual(['filter[q]:string_too_short']);
+    expect((await list('x'.repeat(200))).status).toBe(200);
+    expect(fieldCodes(await list('x'.repeat(201)))).toEqual(['filter[q]:string_too_long']);
+    // Characters, not UTF-16 units: 200 emoji are fine
+    expect((await list('😀'.repeat(200))).status).toBe(200);
+  });
+
+  it('takes the same text in the filter of a bulk change', async () => {
+    const editor = mockBrowser('editor');
+    expect(
+      fieldCodes(await editor.call('POST', `${TK}/bulk-delete`, { filter: { is_active: true, q: 'seo\tagency' } })),
+    ).toEqual(['filter.q:value_error']);
+  });
+});
+
 describe('tracked keywords: how many keywords one bulk change may touch', () => {
   /** A caller whose project tracks `count` live keywords. */
   function callerTracking(count: number): KeywordProjectCaller {

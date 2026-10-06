@@ -1,6 +1,7 @@
 import type { KeywordFilters } from '../rankings-queries';
 import type { ApiInit } from '@/lib/api/query';
 import type { TrackedKeywordRow } from '@/lib/api/types';
+import { queryTextOf } from '@/lib/keywords/query-text';
 
 export const BULK_UPDATE = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-update';
 export const BULK_ARCHIVE = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-archive';
@@ -22,7 +23,7 @@ const given = <K extends string, V>(name: K, value: V | undefined): { [P in K]?:
  * the archived keywords the list does not show (a body filter without it takes both).
  */
 export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilter {
-  const q = search.trim();
+  const q = queryTextOf(search);
   return {
     is_active: filters['filter[is_active]'] ?? true,
     ...given('group', filters['filter[group]']),

@@ -18,6 +18,7 @@ import { projectKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import type { FilterValue } from '@/lib/filters/filter-values';
+import { queryTextOf } from '@/lib/keywords/query-text';
 import { isUuid } from '@/lib/routes/paths';
 import { formatSort, type SortKey } from '@/lib/tables/table-state';
 
@@ -42,6 +43,8 @@ export interface ProjectScope {
 
 /** Up to this many matches, the table holds them all (12-tables.md section 12). */
 export const CLIENT_MODE_LIMIT = 10_000;
+/** The most values the API takes in a list filter (`FilterList`, 19 section 2.4). */
+export const MAX_FILTER_VALUES = 100;
 /** The largest page the API answers. */
 const PAGE = 200;
 const INCLUDE: NonNullable<ListQuery['include']> = ['metrics', 'groups', 'terms'];
@@ -118,7 +121,8 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
   const locationId = location === undefined || !/^\d+$/.test(location) ? Number.NaN : Number(location);
   // A value from a link is sent only in the API's shape, so a hand-edited URL never reads as a server error
   const groupId = group !== undefined && isUuid(group) ? group : undefined;
-  const termIds = terms.filter(isUuid);
+  // A list filter takes at most 100 values, and a link can name more
+  const termIds = terms.filter(isUuid).slice(0, MAX_FILTER_VALUES);
   return {
     // Always sent: a body filter left without it would take archived keywords too (bulk actions, Task 7)
     'filter[is_active]': !archived,
@@ -293,8 +297,10 @@ function useServerPage(
   request: ListQuery;
 } {
   const [pageSize, setPageSize] = useState<PageSize>(PAGE);
+  // What the API takes of the typed text: printable, at most 200 characters, and no search when nothing is left
+  const sent = queryTextOf(search);
   // The cursors of the pages visited, from the first (`null`); any change of what is asked starts over
-  const asked = JSON.stringify([filters, formatSort(sort), search, pageSize]);
+  const asked = JSON.stringify([filters, formatSort(sort), sent, pageSize]);
   const [visited, setVisited] = useState<{ asked: string; cursors: (string | null)[] }>({ asked, cursors: [null] });
   const cursors = visited.asked === asked ? visited.cursors : [null];
   const cursor = cursors.at(-1) ?? null;
@@ -303,7 +309,7 @@ function useServerPage(
     include: INCLUDE,
     limit: pageSize,
     ...(sort.length === 0 ? {} : { sort: formatSort(sort) }),
-    ...(search.trim() === '' ? {} : { 'filter[q]': search.trim() }),
+    ...(sent === '' ? {} : { 'filter[q]': sent }),
     ...(cursor === null ? {} : { cursor }),
   };
   const offset = (cursors.length - 1) * pageSize;

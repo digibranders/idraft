@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -362,6 +362,45 @@ describe('Import dialog: the session ends during an upload', () => {
     const { dialog } = await openImport(user);
     await uploadAndContinue(user, dialog, csv('keyword\nbacklink watcher'));
     await waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('Import dialog: a paste larger than the API takes', () => {
+  /** Opens the dialog on Paste with `text` in the box (set at once: typing a million characters takes minutes). */
+  async function pasteInto(
+    text: string,
+  ): Promise<{ user: ReturnType<typeof renderWithProviders>['user']; dialog: HTMLElement }> {
+    const { user } = renderWithProviders(<Controlled changes={[]} />);
+    const { dialog } = await openImport(user);
+    await user.click(within(dialog).getByRole('radio', { name: 'Paste' }));
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Keywords' }), { target: { value: text } });
+    return { user, dialog };
+  }
+
+  const TOO_LARGE = 'This paste is more than the API takes at once. Split it into smaller lists, or upload a CSV file.';
+
+  it('says so before sending anything: over a million characters, or a body over 1 MB', async () => {
+    const created = spy('post', IMPORTS);
+    const first = await pasteInto('x'.repeat(1_000_001));
+    await press(first.dialog, 'Continue');
+    expect(await within(first.dialog).findByText(TOO_LARGE)).toBeInTheDocument();
+    // Under a million characters, but 1.5 MB as the request body: every line break is two bytes
+    fireEvent.change(within(first.dialog).getByRole('textbox', { name: 'Keywords' }), {
+      target: { value: 'a\n'.repeat(500_000) },
+    });
+    await press(first.dialog, 'Continue');
+    expect(await within(first.dialog).findByText(TOO_LARGE)).toBeInTheDocument();
+    expect(created.bodies).toEqual([]);
+  }, 30_000);
+
+  it('gives the 413 of a paste its own words, not the 50 MB of a file', async () => {
+    server.use(
+      http.post(mswPath(IMPORTS), ({ request }) => problem(request, 'payload_too_large', { limit_bytes: 1_048_576 })),
+    );
+    const { dialog } = await pasteInto('seo audit\nbacklink watcher');
+    await press(dialog, 'Continue');
+    expect(await within(dialog).findByText(TOO_LARGE)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/50 MB/)).toBeNull();
   });
 });
 

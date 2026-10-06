@@ -182,7 +182,7 @@ export function UploadStep({
             {errors.paste === null ? (
               <FieldDescription>{t('pasteHint')}</FieldDescription>
             ) : (
-              <FieldError message={t('pasteRequired')} />
+              <FieldError message={errors.paste === 'too_long' ? t('pasteTooLarge') : t('pasteRequired')} />
             )}
           </Field>
           {hasTabs ? (

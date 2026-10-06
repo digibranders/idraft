@@ -1748,6 +1748,7 @@
       "pasteLabel": "Keywords",
       "pasteHint": "One keyword per line. To add tags, put a tab after the keyword and separate tags with |.",
       "pasteRequired": "Paste at least one keyword.",
+      "pasteTooLarge": "This paste is more than the API takes at once. Split it into smaller lists, or upload a CSV file.",
       "options": "Defaults for rows that leave them out",
       "location": "Location",
       "language": "Language",

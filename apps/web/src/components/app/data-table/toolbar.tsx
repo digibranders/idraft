@@ -12,6 +12,9 @@ import { Spinner } from '@/components/ui/spinner';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
 import { DENSITIES, type Density } from '@/lib/tables/table-state';
 
+/** The longest search the box takes: the API's text filters take 200 characters (`QueryText`). */
+const SEARCH_MAX_LENGTH = 200;
+
 export interface DataTableToolbarProps {
   caption: string;
   search: string;
@@ -66,6 +69,7 @@ export function DataTableToolbar({
           value={search}
           onValueChange={onSearchChange}
           placeholder={searchPlaceholder}
+          maxLength={SEARCH_MAX_LENGTH}
           aria-label={t('search')}
           aria-keyshortcuts="/"
         />

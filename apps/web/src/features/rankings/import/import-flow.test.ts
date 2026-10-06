@@ -53,6 +53,21 @@ describe('import flow', () => {
     expect(uploadErrorsOf(values({ source: 'paste', paste: 'seo' }))).toBeNull();
   });
 
+  it('refuses a paste the API would refuse: over 1,000,000 characters, or a request body over 1 MB', () => {
+    const paste = (text: string) => uploadErrorsOf(values({ source: 'paste', paste: text }));
+    // The most characters, in lines short enough that the body stays under 1 MB
+    expect(paste('x'.repeat(1_000_000 - 1_000))).toBeNull();
+    expect(paste('x'.repeat(1_000_001))).toMatchObject({ paste: 'too_long' });
+    // Under a million characters, but each newline is two bytes in JSON and each accent two in UTF-8
+    expect(paste('a\n'.repeat(500_000))).toMatchObject({ paste: 'too_long' });
+    expect(paste('é'.repeat(600_000))).toMatchObject({ paste: 'too_long' });
+    expect(paste('é'.repeat(500_000))).toBeNull();
+    // A paste with only blanks is still the required kind
+    expect(paste('  \n')).toMatchObject({ paste: 'required' });
+    // A file has no such limit here: the API reads it from disk up to 50 MB
+    expect(uploadErrorsOf(values({ file: file(), head: HEAD }))).toBeNull();
+  });
+
   it('tells a changed upload from an unchanged one, and leaves a file import its vocabularies', () => {
     const chosen = file();
     const first = submissionOf(values({ file: chosen, head: HEAD }));

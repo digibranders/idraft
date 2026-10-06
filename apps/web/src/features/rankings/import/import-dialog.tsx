@@ -55,6 +55,7 @@ import {
   outcomeSummary,
   selectableVocabularies,
   stepsOf,
+  type ImportSource,
   type KeywordImport,
   type Outcome,
   type StepId,
@@ -213,9 +214,10 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
   });
 
   /** The words for what the API refused or did not answer; `null` for a wait that was cut short on purpose. */
-  const problemText = (error: unknown): string | null => {
+  const problemText = (error: unknown, source: ImportSource = 'upload'): string | null => {
     if (isAbort(error)) return null;
-    if (isApiProblem(error, 'payload_too_large')) return t('uploadTooLarge');
+    // A paste goes in a JSON body of at most 1 MB, a file in an upload of at most 50 MB: each has its words
+    if (isApiProblem(error, 'payload_too_large')) return source === 'paste' ? t('pasteTooLarge') : t('uploadTooLarge');
     if (isApiProblem(error, 'unsupported_media_type')) return t('uploadType');
     if (isApiProblem(error, 'storage_unavailable')) return t('storageUnavailable');
     if (isApiProblem(error, 'forbidden')) return t('forbidden');
@@ -228,8 +230,8 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     }
     return t('requestFailed');
   };
-  const fail = (error: unknown): Verdict => {
-    const message = problemText(error);
+  const fail = (error: unknown, source: ImportSource = 'upload'): Verdict => {
+    const message = problemText(error, source);
     if (message !== null) dispatch({ type: 'alert', message });
     return 'invalid';
   };
@@ -439,7 +441,7 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
       // A dialog closed meanwhile has nothing to show an error on
       if (signal.aborted) return 'invalid';
       if (error instanceof ReadTimeoutError) return end('slow');
-      return refuseVocabulary(error, held) ?? fail(error);
+      return refuseVocabulary(error, held) ?? fail(error, held.values.source);
     } finally {
       if (!signal.aborted) dispatch({ type: 'working', on: false });
       if (!signal.aborted) dispatch({ type: 'progress', percent: null });

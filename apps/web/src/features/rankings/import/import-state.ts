@@ -49,7 +49,8 @@ export const NO_VOCABULARY_PROBLEMS: VocabularyProblems = { tags: null, topic: n
 
 export interface UploadErrors {
   file: FileProblem | null;
-  paste: 'required' | null;
+  /** `too_long`: more than the API takes in one request (a million characters, and a body of 1 MB). */
+  paste: 'required' | 'too_long' | null;
   /** A paste with tabs holds tags, which need a vocabulary. */
   tagsVocabulary: boolean;
   /** The API refused the vocabulary chosen for a paste's tags. */
