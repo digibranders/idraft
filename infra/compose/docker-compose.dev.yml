@@ -41,6 +41,22 @@ services:
       timeout: 3s
       retries: 10
 
+  # An S3 API that checks signatures, standing in for R2 (raw answers, import sources). The same
+  # gateway the test suite uses. Development keys only; the bucket is made by `make-bucket`.
+  objects:
+    image: versity/versitygw:v1.8.0
+    environment:
+      ROOT_ACCESS_KEY: dev-access-key
+      ROOT_SECRET_KEY: dev-secret-key-for-raw-storage
+      VGW_REGION: auto
+      VGW_BACKEND: posix
+      VGW_BACKEND_ARG: /data
+    ports:
+      - "127.0.0.1:17070:7070"
+    volumes:
+      - object-data:/data
+
 volumes:
   postgres-data:
   redis-data:
+  object-data:

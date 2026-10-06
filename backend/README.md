@@ -36,6 +36,25 @@ uv run --env-file .env uvicorn sightline.api.main:create_app --factory --reload 
 
 `http://127.0.0.1:8000/api/readyz` returns `200` when PostgreSQL, Redis and the schema are in place.
 
+### Collecting real data locally
+
+The dev stack also starts `objects`, an S3 API that stands in for R2 (port 17070, development keys). With it and your DataForSEO credentials the worker collects real keyword metrics and rankings:
+
+1. Make the bucket once (`seo-raw`, any S3 client; the keys are in `docker-compose.dev.yml`).
+2. Put these in the worker's and the API's env files, next to `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` (the worker needs them; the API needs the `R2_RAW_*` ones to read raw answers):
+
+   ```
+   R2_RAW_ENDPOINT=http://127.0.0.1:17070
+   R2_RAW_BUCKET=seo-raw
+   R2_RAW_ACCESS_KEY_ID=dev-access-key
+   R2_RAW_SECRET_ACCESS_KEY=dev-secret-key-for-raw-storage
+   ```
+
+3. Load DataForSEO's location list once (free): `uv run --env-file .env.worker python -m sightline.worker.sync_locations`.
+4. Start the worker: `uv run --env-file .env.worker python -m sightline.worker`.
+
+A new tracked keyword is then checked within a minute or two: its metrics (about $0.0005 a keyword) and its first rank check (about $0.0018 a keyword at depth 20). `APP_ORIGIN` must be the origin the web app is served from, or every `POST` is `403 origin_not_allowed`.
+
 ### Signing in locally
 
 Registration is by invitation (`REGISTRATION=invited`, the default), so the first account is made by hand. The command connects as `migrator` and asks for a password of at least 12 characters:
