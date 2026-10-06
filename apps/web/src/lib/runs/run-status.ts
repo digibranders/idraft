@@ -23,6 +23,8 @@ export const collectionStatusOf = (status: RunStatus): QueuedOrStatus => (status
 
 /** The catalog key of a run's `status_reason` code, under `runReasons`: keys are camelCase, the API's codes are not. */
 export const REASON_KEYS = {
+  missed_window: 'missedWindow',
+  not_planned: 'notPlanned',
   cancelled_by_user: 'cancelledByUser',
   budget_exceeded: 'budgetExceeded',
   project_not_collecting: 'projectNotCollecting',

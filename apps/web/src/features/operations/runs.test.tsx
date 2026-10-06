@@ -590,6 +590,33 @@ describe('Runs', () => {
     expect(within(panel).getByText('Sightline')).toBeInTheDocument();
   });
 
+  it.each([
+    ['missed_window', 'The scheduled window passed before the run could be planned, so nothing was collected for it'],
+    ['not_planned', 'The run could not be planned, so nothing was collected for it'],
+    ['budget_exceeded', 'A budget is used up'],
+  ])('puts the reason %s of a run in words, never as the raw code', async (code, words) => {
+    const run = store({ run_id: uuid(1), created_at: '2026-09-20T01:00:00.000Z' });
+    const ended = (): Record<string, unknown> => ({
+      ...runDetailView(MOCK_WORKSPACE.workspace_id, [], run, Date.now()),
+      status: 'cancelled',
+      status_reason: code,
+    });
+    server.use(
+      http.get(mswPath(RUNS), () =>
+        HttpResponse.json({
+          data: [ended()],
+          page: { has_more: false, next_cursor: null, limit: 200 },
+          meta: { manual_runs_today: { used: 0, limit: 20 } },
+        }),
+      ),
+      http.get(mswPath(RUN), () => HttpResponse.json({ data: ended() })),
+    );
+    renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(1)}&month=2026-09` });
+    const panel = await screen.findByRole('complementary');
+    expect(await within(panel).findByText(words)).toBeInTheDocument();
+    expect(within(panel).queryByText(code)).toBeNull();
+  });
+
   it('says a run does not exist for a link to one the project has not got', async () => {
     renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(999)}` });
     expect(await screen.findByText('This run does not exist or you do not have access to it.')).toBeInTheDocument();

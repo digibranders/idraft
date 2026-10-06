@@ -28,8 +28,25 @@ describe('Run reasons', () => {
     expect(Object.values(REASON_KEYS).sort()).toEqual(Object.keys(messages.runReasons).sort());
   });
 
+  it('has words for every status_reason code the backend writes', () => {
+    // collectors/planner.py (missed_window, not_planned, workload_unavailable), collectors/ledger.py
+    // (budget_exceeded, project_not_collecting) and api/operations/runs.py (cancelled_by_user)
+    const codes = [
+      'missed_window',
+      'not_planned',
+      'budget_exceeded',
+      'cancelled_by_user',
+      'project_not_collecting',
+      'workload_unavailable',
+    ];
+    expect(Object.keys(REASON_KEYS).sort()).toEqual([...codes].sort());
+    for (const code of codes) expect(reasonKeyOf(code)).not.toBeNull();
+  });
+
   it('puts a reason in words only when it is one of the codes the API documents', () => {
     expect(reasonKeyOf('cancelled_by_user')).toBe('cancelledByUser');
+    expect(reasonKeyOf('missed_window')).toBe('missedWindow');
+    expect(reasonKeyOf('not_planned')).toBe('notPlanned');
     expect(reasonKeyOf('workload_unavailable')).toBe('workloadUnavailable');
     expect(reasonKeyOf('toString')).toBeNull();
     expect(reasonKeyOf('DataForSEO Labs did not answer in time.')).toBeNull();

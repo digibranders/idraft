@@ -1457,6 +1457,8 @@
     "firstParty": "First-party data"
   },
   "runReasons": {
+    "missedWindow": "The scheduled window passed before the run could be planned, so nothing was collected for it",
+    "notPlanned": "The run could not be planned, so nothing was collected for it",
     "cancelledByUser": "Cancelled by a member",
     "budgetExceeded": "A budget is used up",
     "projectNotCollecting": "The project no longer collects data",

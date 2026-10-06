@@ -307,14 +307,10 @@ export const runHandlers: HttpHandler[] = [
     const now = Date.now();
     const used = manualRunsToday(caller.operations, caller.project.project_id, now);
     if (used >= MANUAL_RUN_LIMIT) {
-      const midnight = Date.parse(`${new Date(now).toISOString().slice(0, 10)}T00:00:00Z`) + 24 * 60 * 60 * 1000;
-      const seconds = Math.ceil((midnight - now) / 1000);
+      // The API carries only `limit` (api/problems.py `ManualRunLimitError`): no `used`, no wait, no Retry-After
       return problem(request, 'manual_run_limit', {
         detail: `This project has started ${String(MANUAL_RUN_LIMIT)} manual runs today. The count starts again at midnight UTC.`,
         limit: MANUAL_RUN_LIMIT,
-        used,
-        retry_after_seconds: seconds,
-        headers: { 'retry-after': String(seconds) },
       });
     }
     const staleDays = typeof body.stale_days === 'number' ? body.stale_days : STALE_DAYS;
@@ -355,7 +351,7 @@ export const runHandlers: HttpHandler[] = [
             ...draft,
             ending: 'budget_blocked',
             blocked_by_budget_id: blocking.budget_id,
-            status_reason: 'A budget for keyword research is used up for this month.',
+            status_reason: 'budget_exceeded',
           };
     const changes = minter.commit(withRun(caller.operationChanges, run));
     const cookie = savedOperations(request, changes);

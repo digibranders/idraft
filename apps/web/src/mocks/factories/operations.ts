@@ -171,8 +171,15 @@ const NOTHING_YET = { startedAt: null, completedAt: null, done: 0, failed: 0, ca
 
 /** Where a run is at `now`. */
 export function runState(run: StoredRun, now: number): RunState {
-  if (run.ending === 'budget_blocked') return { status: 'budget_blocked', ...NOTHING_YET };
   const started = Date.parse(run.created_at) + RUN_PLANNED_MS;
+  if (run.ending === 'budget_blocked') {
+    // The API answers a refresh `planned` and the worker blocks the run when it plans it, a moment later
+    const cancelled = run.cancelled_at === null ? null : Date.parse(run.cancelled_at);
+    if (cancelled !== null && cancelled < started) {
+      return { status: 'cancelled', ...NOTHING_YET, completedAt: run.cancelled_at };
+    }
+    return { status: now < started ? 'planned' : 'budget_blocked', ...NOTHING_YET };
+  }
   const finished = started + RUN_WORKING_MS;
   const startedAt = new Date(started).toISOString();
   /** Tasks the calls had answered by `at`, and the calls that took. */
@@ -235,6 +242,20 @@ function actorOf(userId: string | null): Schemas['Actor'] | null {
 export const runPath = (workspaceId: string, run: StoredRun): string =>
   `/api/v1/workspaces/${workspaceId}/projects/${run.project_id}/runs/${run.run_id}`;
 
+/** A run's `status_reason` code at `status`: the API's own code, never prose. */
+function reasonOf(run: StoredRun, status: RunStatus): string | null {
+  if (status === 'cancelled') return 'cancelled_by_user';
+  if (status === 'budget_blocked') return 'budget_exceeded';
+  return run.status_reason;
+}
+
+/** The operation's error as the API gives it: the reason of a failed or cancelled run, named by its code. */
+function errorOf(run: StoredRun, status: RunStatus): Operation['error'] {
+  if (status === 'budget_blocked') return { code: 'budget_blocked', detail: "A budget's hard limit holds it back." };
+  const reason = reasonOf(run, status);
+  return (status === 'failed' || status === 'cancelled') && reason !== null ? { code: reason, detail: reason } : null;
+}
+
 export function runView(workspaceId: string, schedules: readonly StoredSchedule[], run: StoredRun, now: number): Run {
   const state = runState(run, now);
   const schedule = schedules.find((candidate) => candidate.schedule_id === run.schedule_id);
@@ -249,8 +270,9 @@ export function runView(workspaceId: string, schedules: readonly StoredSchedule[
     workload: run.workload,
     trigger: run.trigger,
     status: state.status,
-    // The API names a cancel by its code; any free text a member gave is kept for the audit, not sent here
-    status_reason: state.status === 'cancelled' ? 'cancelled_by_user' : run.status_reason,
+    // The API names a cancel by its code; any free text a member gave is kept for the audit, not sent here.
+    // A run the worker blocked says `budget_exceeded`, and only once it has.
+    status_reason: reasonOf(run, state.status),
     window_start: run.created_at,
     window_end: new Date(windowStart + windowHours * HOUR_MS).toISOString(),
     tasks_total: run.tasks_total,
@@ -258,7 +280,7 @@ export function runView(workspaceId: string, schedules: readonly StoredSchedule[
     tasks_failed: state.failed,
     estimated_cost_usd: usdOfMicros(labsMicros(run.calls, run.tasks_total)),
     actual_cost_usd: state.costMicros === null ? null : usdOfMicros(state.costMicros),
-    blocked_by_budget_id: run.blocked_by_budget_id,
+    blocked_by_budget_id: state.status === 'budget_blocked' ? run.blocked_by_budget_id : null,
     created_by: actorOf(run.created_by),
     created_at: run.created_at,
     completed_at: state.completedAt,
@@ -268,8 +290,7 @@ export function runView(workspaceId: string, schedules: readonly StoredSchedule[
       progress: { done: state.done + state.failed, total: run.tasks_total, unit: 'tasks' },
       started_at: state.startedAt,
       finished_at: state.completedAt,
-      error:
-        state.status === 'failed' ? { code: 'provider_timeout', detail: run.status_reason ?? 'The run failed.' } : null,
+      error: errorOf(run, state.status),
       links: { self, ...(open ? { cancel: `${self}/cancel` } : {}) },
     },
   };

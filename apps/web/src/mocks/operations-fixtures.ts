@@ -151,7 +151,8 @@ seeds.push({
   readings: pending,
   staleDays: null,
   ending: 'failed',
-  reason: 'DataForSEO Labs did not answer in time after 3 attempts. These keywords are tried again in 24 hours.',
+  // A run's `status_reason` is a code, and the backend gives a failed run none: its tasks tell what failed
+  reason: null,
 });
 // The monthly schedule: 03:00 in Berlin (01:00 UTC in summer) on the 20th, keywords not fetched for 25 days
 for (const month of ['06', '07', '08', '09']) {
