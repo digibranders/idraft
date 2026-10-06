@@ -2185,23 +2185,32 @@
       "stale": "Stale",
       "staleTooltip": "No recent successful check. The rank shown is from the last one that worked.",
       "notRanking": "Not ranking",
+      "unavailable": "n/a",
       "rankTip": "Rank {rank}, {date}, depth {depth}",
       "beyondTip": "Not in the top {depth}, {date}",
-      "lastGood": "Last successful check: {date}",
-      "checked": "Checked {date}",
+      "previousRank": "Previous rank {rank}.",
+      "lastGood": "Last successful check: {date}.",
+      "checked": "Checked {date}.",
       "fromTo": "From {from} to {to}",
       "new": "New",
       "lost": "Lost",
       "moreUrls": "{count, plural, one {and 1 more of your URLs ranks} other {and # more of your URLs rank}}",
+      "changeTip": {
+        "improved": "{count, plural, one {Improved # position} other {Improved # positions}}",
+        "declined": "{count, plural, one {Declined # position} other {Declined # positions}}"
+      },
       "speech": {
         "beyond": "not in top {depth}",
+        "stale": "stale",
+        "lastCheckFailed": "last check failed",
         "improved": "{count, plural, one {improved # position} other {improved # positions}}",
         "declined": "{count, plural, one {declined # position} other {declined # positions}}",
         "noChange": "no change",
         "entered": "entered the tracked depth",
         "dropped": "dropped out of the tracked depth",
         "firstCheck": "first check",
-        "stillBeyond": "still beyond tracked depth"
+        "stillBeyond": "still beyond tracked depth",
+        "withinDepth": "no change within the depth checked"
       }
     },
     "filters": {
@@ -2261,7 +2270,7 @@
         "entered": "Entered",
         "lost": "Lost"
       },
-      "stale": "Stale",
+      "stale": "Freshness",
       "staleStates": {
         "stale": "Stale"
       }

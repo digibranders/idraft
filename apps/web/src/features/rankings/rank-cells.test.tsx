@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { RankChangeView, RankCellView, RankingUrlView, StaleMarker, useRankTips } from './rank-cells';
+import { BestRankView, RankChangeView, RankCellView, RankingUrlView, StaleMarker, useRankTips } from './rank-cells';
 import type { CellTip } from '@/components/app/data-table/types';
 import type { RankCell, RankChange, UrlRef } from '@/lib/api/types';
 import { changeDisplay, rankDisplay, urlDisplay } from '@/lib/format';
@@ -37,9 +37,12 @@ const URL_REF: UrlRef = {
   registrable_domain: 'fynix.digital',
 };
 
-const rank = (over: Partial<RankCell> = {}, stale = false): ReactElement => (
-  <RankCellView display={rankDisplay(cell(over), stale)} />
+const rank = (over: Partial<RankCell> = {}, stale = false, failures = 0): ReactElement => (
+  <RankCellView display={rankDisplay(cell(over), stale, failures)} />
 );
+
+/** The marker glyphs of a cell: they are decoration, the words for them are hidden text. */
+const glyphsIn = (container: HTMLElement): Element[] => [...container.querySelectorAll('svg[data-slot="icon"]')];
 
 describe('RankCellView', () => {
   it('shows a ranked keyword by its number, in the numeric style and the foreground color', () => {
@@ -66,12 +69,61 @@ describe('RankCellView', () => {
     expect(screen.queryByText('3')).not.toBeInTheDocument();
   });
 
+  it('shows no marker for a rank that is neither stale nor failing', () => {
+    const { container } = renderWithProviders(rank());
+    expect(glyphsIn(container)).toHaveLength(0);
+    expect(screen.queryByText('stale')).not.toBeInTheDocument();
+    expect(screen.queryByText('last check failed')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['ranked', {}, '3'],
+    ['beyond the depth', { state: 'beyond_depth', rank: null }, '>20'],
+  ] as const)('marks a stale rank that is %s with a clock, for every width, and says so in words', (_, over, shown) => {
+    const { container } = renderWithProviders(rank(over, true));
+    expect(screen.getByText(shown)).toBeInTheDocument();
+    const [glyph, ...rest] = glyphsIn(container);
+    expect(rest).toHaveLength(0);
+    expect(glyph).toHaveAttribute('aria-hidden', 'true');
+    expect(glyph).toHaveClass('text-warning-text');
+    expect(screen.getByText('stale')).toHaveClass('sr-only');
+  });
+
+  it('marks a stale keyword whose checks all failed with the clock beside the warning', () => {
+    const { container } = renderWithProviders(rank({ state: 'failed', rank: null }, true));
+    expect(screen.getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
+    expect(glyphsIn(container)).toHaveLength(2);
+    expect(screen.getByText('stale')).toHaveClass('sr-only');
+  });
+
+  it('keeps the rank of the last good check and warns that the checks since then failed', () => {
+    const { container } = renderWithProviders(rank({}, false, 2));
+    expect(screen.getByText('3')).toHaveClass('num', 'text-foreground');
+    const [glyph, ...rest] = glyphsIn(container);
+    expect(rest).toHaveLength(0);
+    expect(glyph).toHaveAttribute('aria-hidden', 'true');
+    expect(glyph).toHaveClass('text-warning-text');
+    expect(screen.getByText('last check failed')).toHaveClass('sr-only');
+    expect(screen.queryByText('stale')).not.toBeInTheDocument();
+  });
+
+  it('warns for a failing check beyond the depth too, and shows both marks for a stale failing one', () => {
+    const { container } = renderWithProviders(rank({ state: 'beyond_depth', rank: null }, true, 4));
+    expect(screen.getByText('>20')).toBeInTheDocument();
+    expect(glyphsIn(container)).toHaveLength(2);
+    expect(screen.getByText('stale')).toBeInTheDocument();
+    expect(screen.getByText('last check failed')).toBeInTheDocument();
+  });
+
   it('has no accessibility violations in any state', async () => {
     const { container } = renderWithProviders(
       <>
         {rank()}
         {rank({ state: 'beyond_depth', rank: null })}
         {rank({ state: 'failed', rank: null })}
+        {rank({}, true, 2)}
+        {rank({ state: 'beyond_depth', rank: null }, true)}
+        {rank({ state: 'failed', rank: null }, true)}
       </>,
     );
     expect(await axe(container)).toHaveNoViolations();
@@ -124,13 +176,24 @@ describe('RankChangeView', () => {
   it.each([
     ['first_check', 'first check'],
     ['unchanged_beyond', 'still beyond tracked depth'],
-    ['consistent_beyond', 'still beyond tracked depth'],
+    // One side of the pair may have a rank (35 against a depth of 20), so this one does not say "still beyond"
+    ['consistent_beyond', 'no change within the depth checked'],
   ] as const)('shows nothing visible for %s, only its words for a screen reader', (label, words) => {
     const { container } = renderWithProviders(changeView(change(label)));
     const speech = screen.getByText(words);
     expect(speech).toHaveClass('sr-only');
     expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
     expect(container).toHaveTextContent(words);
+  });
+
+  it('says nothing at all before the first check has produced a rank', () => {
+    renderWithProviders(
+      <span data-testid="cell">
+        <RankChangeView display={{ kind: 'blank' }} />
+      </span>,
+    );
+    const cell = screen.getByTestId('cell');
+    expect(cell).toBeEmptyDOMElement();
   });
 
   it('has no accessibility violations', async () => {
@@ -186,9 +249,33 @@ describe('RankingUrlView', () => {
     expect(screen.getByText('Pending')).toHaveClass('text-foreground-tertiary');
   });
 
+  it('shows n/a in tertiary text after a failed check: not Pending, and not Not ranking', () => {
+    renderWithProviders(urlView(cell({ state: 'failed', rank: null }), 0));
+    expect(screen.getByText('n/a')).toHaveClass('text-foreground-tertiary');
+    expect(screen.queryByText('Pending')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not ranking')).not.toBeInTheDocument();
+  });
+
   it('has no accessibility violations', async () => {
     const { container } = renderWithProviders(urlView(cell({ url: URL_REF }), 2));
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('BestRankView', () => {
+  it('shows the best rank as a number, and the same word as the other columns for what is not one', () => {
+    renderWithProviders(
+      <>
+        <BestRankView best={4} state="ranked" />
+        <BestRankView best={null} state="beyond_depth" />
+        <BestRankView best={null} state="not_checked" />
+        <BestRankView best={null} state="failed" />
+      </>,
+    );
+    expect(screen.getByText('4')).toHaveClass('num', 'text-foreground');
+    expect(screen.getByText('Not ranking')).toHaveClass('text-foreground-tertiary');
+    expect(screen.getByText('Pending')).toHaveClass('text-foreground-tertiary');
+    expect(screen.getByText('n/a')).toHaveClass('text-foreground-tertiary');
   });
 });
 
@@ -242,12 +329,39 @@ describe('rank tips', () => {
     expect(renderTip((tips) => tips.rank(beyond)).content).toBe(`Not in the top 50, ${DATE}`);
   });
 
+  it('does not say "not in the top" twice to a screen reader: the cell says it, the description is the rest', () => {
+    const beyond = rankDisplay(cell({ state: 'beyond_depth', rank: null, depth_requested: 20 }), false);
+    const tip = renderTip((tips) => tips.rank(beyond, 35));
+    expect(tip.content).toBe(`Not in the top 20, ${DATE}`);
+    expect(tip.description).toBe(`Checked ${DATE}. Previous rank 35.`);
+    expect(tip.detail).toBe('Previous rank 35.');
+    expect(tip.description).not.toMatch(/not in the top/i);
+  });
+
+  it('adds the previous rank to the tip of a rank, and nothing when there is none', () => {
+    expect(renderTip((tips) => tips.rank(rankDisplay(cell(), false), 8))).toMatchObject({
+      content: `Rank 3, ${DATE}, depth 20`,
+      detail: 'Previous rank 8.',
+    });
+    expect(renderTip((tips) => tips.rank(rankDisplay(cell(), false), null)).detail).toBe('none');
+  });
+
   it('adds the last good check of a stale keyword as its detail, and the screen reader hears both lines', () => {
     expect(renderTip((tips) => tips.rank(rankDisplay(cell(), true)))).toMatchObject({
       content: `Rank 3, ${DATE}, depth 20`,
-      detail: `Last successful check: ${DATE}`,
+      detail: `Last successful check: ${DATE}.`,
       description: 'none',
     });
+  });
+
+  it('says that the last check failed beside a rank that is from an earlier check', () => {
+    expect(renderTip((tips) => tips.rank(rankDisplay(cell(), false, 2), 8))).toMatchObject({
+      content: `Rank 3, ${DATE}, depth 20`,
+      detail: 'Previous rank 8. The last check failed. It will be tried again.',
+    });
+    expect(renderTip((tips) => tips.rank(rankDisplay(cell(), true, 2))).detail).toBe(
+      `Last successful check: ${DATE}. The last check failed. It will be tried again.`,
+    );
   });
 
   it('explains Pending and a failed check', () => {
@@ -257,7 +371,7 @@ describe('rank tips', () => {
       detail: 'none',
     });
     expect(renderTip((tips) => tips.rank({ kind: 'failed', observedAt: NOW, stale: true })).detail).toBe(
-      `Last successful check: ${DATE}`,
+      `Last successful check: ${DATE}.`,
     );
   });
 });
@@ -266,22 +380,22 @@ describe('stale tip', () => {
   it('says the rank shown is from the last check that worked, and when that was', () => {
     expect(renderTip((tips) => tips.stale(NOW))).toMatchObject({
       content: 'No recent successful check. The rank shown is from the last one that worked.',
-      detail: `Last successful check: ${DATE}`,
+      detail: `Last successful check: ${DATE}.`,
     });
     expect(renderTip((tips) => tips.stale(null)).detail).toBe('none');
   });
 });
 
 describe('change and URL tips', () => {
-  it('says where a rank moved from and to, and what a screen reader hears after the words', () => {
+  it('says where a rank moved from and to, in a sentence of its own, and what a screen reader hears after the words', () => {
     const moved: RankChange = { label: 'numeric', value: 5, previous_rank: 8, previous_observed_at: NOW };
     expect(renderTip((tips) => tips.change(moved, cell()))).toEqual({
-      content: 'improved 5 positions',
+      content: 'Improved 5 positions',
       detail: 'From 8 to 3',
       description: 'From 8 to 3',
     });
     const fell: RankChange = { label: 'numeric', value: -1, previous_rank: 2, previous_observed_at: NOW };
-    expect(renderTip((tips) => tips.change(fell, cell({ rank: 3 }))).content).toBe('declined 1 position');
+    expect(renderTip((tips) => tips.change(fell, cell({ rank: 3 }))).content).toBe('Declined 1 position');
   });
 
   it('gives no tip to a change that has nothing to explain', () => {
@@ -295,8 +409,8 @@ describe('change and URL tips', () => {
     const ranked = cell({ url: URL_REF });
     expect(renderTip((tips) => tips.url(urlDisplay(ranked, 1), rankDisplay(ranked, false)))).toEqual({
       content: URL_REF.canonical_url,
-      detail: `Checked ${DATE}`,
-      description: `Checked ${DATE}`,
+      detail: `Checked ${DATE}.`,
+      description: `Checked ${DATE}.`,
     });
   });
 
@@ -311,5 +425,11 @@ describe('change and URL tips', () => {
     );
     const none = cell({ state: 'beyond_depth', rank: null });
     expect(renderTip((tips) => tips.url(urlDisplay(none, 0), rankDisplay(none, false))).content).toBe('none');
+  });
+
+  it('explains the n/a of Best rank after a failed check, and Pending before the first one', () => {
+    expect(renderTip((tips) => tips.best('failed')).content).toBe('The last check failed. It will be tried again.');
+    expect(renderTip((tips) => tips.best('not_checked')).content).toBe('The first check has not run yet.');
+    expect(renderTip((tips) => tips.best('ranked')).content).toBe('none');
   });
 });

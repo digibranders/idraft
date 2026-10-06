@@ -167,7 +167,19 @@ export const col = {
       options,
       (row) => {
         const instant = value(row);
-        if (instant === null) return <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} />;
+        const marker = options.marker?.(row) ?? null;
+        if (instant === null) {
+          // A row with no date can still carry the marker (a keyword whose every check failed is stale)
+          const unknown = <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} />;
+          return marker === null ? (
+            unknown
+          ) : (
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              {marker}
+              {unknown}
+            </span>
+          );
+        }
         const date = (
           <span
             className={
@@ -177,7 +189,6 @@ export const col = {
             {formatTableDateTime(instant, options.timeZone)}
           </span>
         );
-        const marker = options.marker?.(row) ?? null;
         return marker === null ? (
           date
         ) : (

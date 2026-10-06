@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { changeDisplay, rankDisplay, urlDisplay } from './rank-display';
+import { changeDisplay, rankDisplay, rowChangeDisplay, urlDisplay } from './rank-display';
 import type { RankCell, RankChange, UrlRef } from '@/lib/api/types';
 
 const current = (over: Partial<RankCell> = {}): RankCell => ({
@@ -22,6 +22,7 @@ describe('rank display', () => {
       depth: 20,
       observedAt: '2026-10-06T02:00:00Z',
       stale: false,
+      failing: false,
     });
   });
 
@@ -31,6 +32,7 @@ describe('rank display', () => {
       depth: 50,
       observedAt: '2026-10-06T02:00:00Z',
       stale: false,
+      failing: false,
     });
   });
 
@@ -47,6 +49,27 @@ describe('rank display', () => {
 
   it('marks a stale keyword', () => {
     expect(rankDisplay(current(), true)).toMatchObject({ kind: 'ranked', stale: true });
+  });
+
+  it('keeps the rank of the last good check and marks that the checks since then failed', () => {
+    // The API keeps `current` from the last good check and only counts the failures after it
+    expect(rankDisplay(current(), false, 2)).toMatchObject({ kind: 'ranked', rank: 3, failing: true });
+    expect(rankDisplay(current({ state: 'beyond_depth', rank: null }), false, 1)).toMatchObject({
+      kind: 'beyond',
+      failing: true,
+    });
+    expect(rankDisplay(current(), false, 0)).toMatchObject({ failing: false });
+    // A keyword that never had a good check is `failed` already: the count adds nothing to say
+    expect(rankDisplay(current({ state: 'failed', rank: null }), false, 3)).toEqual({
+      kind: 'failed',
+      observedAt: '2026-10-06T02:00:00Z',
+      stale: false,
+    });
+  });
+
+  it('reads a count that is not a whole number above zero as no failure', () => {
+    expect(rankDisplay(current(), false, -1)).toMatchObject({ failing: false });
+    expect(rankDisplay(current(), false, Number.NaN)).toMatchObject({ failing: false });
   });
 
   it('never shows a number for a ranked cell the API sent incomplete', () => {
@@ -69,6 +92,7 @@ describe('rank display', () => {
       depth: 20,
       observedAt: null,
       stale: false,
+      failing: false,
     });
   });
 });
@@ -116,11 +140,36 @@ describe('change display', () => {
     expect(changeDisplay(change('lost'))).toEqual({ kind: 'lost' });
     expect(changeDisplay(change('first_check'))).toEqual({ kind: 'empty', reason: 'firstCheck' });
     expect(changeDisplay(change('unchanged_beyond'))).toEqual({ kind: 'empty', reason: 'stillBeyond' });
-    expect(changeDisplay(change('consistent_beyond'))).toEqual({ kind: 'empty', reason: 'stillBeyond' });
+    // A rank may exist on one side of a `consistent_beyond` pair, so it is not said to be "still beyond"
+    expect(changeDisplay(change('consistent_beyond'))).toEqual({ kind: 'empty', reason: 'withinDepth' });
   });
 
   it('gives a numeric change with no value the same as no change', () => {
     expect(changeDisplay(change('numeric', null))).toEqual({ kind: 'flat' });
+  });
+});
+
+describe('change display of a row', () => {
+  it('says nothing, not even "first check", before any check has run or while every check has failed', () => {
+    expect(rowChangeDisplay(current({ state: 'not_checked', rank: null }), change('first_check'))).toEqual({
+      kind: 'blank',
+    });
+    expect(rowChangeDisplay(current({ state: 'failed', rank: null }), change('first_check'))).toEqual({
+      kind: 'blank',
+    });
+  });
+
+  it('keeps the first check of a keyword that has been checked once', () => {
+    expect(rowChangeDisplay(current(), change('first_check'))).toEqual({ kind: 'empty', reason: 'firstCheck' });
+    expect(rowChangeDisplay(current({ state: 'beyond_depth', rank: null }), change('first_check'))).toEqual({
+      kind: 'empty',
+      reason: 'firstCheck',
+    });
+  });
+
+  it('shows the change of a checked keyword as it is', () => {
+    expect(rowChangeDisplay(current(), change('numeric', 5))).toEqual(changeDisplay(change('numeric', 5)));
+    expect(rowChangeDisplay(current(), change('lost'))).toEqual({ kind: 'lost' });
   });
 });
 
@@ -148,7 +197,10 @@ describe('url display', () => {
   it('shows not ranking when nothing ranks and pending before the first check', () => {
     expect(urlDisplay(current({ state: 'beyond_depth', rank: null }), 0)).toEqual({ kind: 'none' });
     expect(urlDisplay(current({ state: 'not_checked', rank: null }), 0)).toEqual({ kind: 'pending' });
-    expect(urlDisplay(current({ state: 'failed', rank: null }), 0)).toEqual({ kind: 'pending' });
+  });
+
+  it('shows a failed check as failed, not as pending or as not ranking', () => {
+    expect(urlDisplay(current({ state: 'failed', rank: null }), 0)).toEqual({ kind: 'failed' });
   });
 
   it('shows not ranking for a ranked cell the API sent without a URL', () => {

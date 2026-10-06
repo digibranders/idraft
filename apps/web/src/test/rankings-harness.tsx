@@ -213,6 +213,21 @@ export function columnTexts(grid: HTMLElement, name: RegExp): string[] {
     .map((header) => header.closest('tr')?.cells[index]?.textContent ?? '');
 }
 
+/** What a sighted person reads in a node: the text without the words that are only for a screen reader. */
+function visibleText(node: Node): string {
+  if (node instanceof Element && node.classList.contains('sr-only')) return '';
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+  return [...node.childNodes].map(visibleText).join('');
+}
+
+/** `columnTexts` without the hidden text: a rank cell reads "12" even when a screen reader also hears "stale". */
+export function visibleColumnTexts(grid: HTMLElement, name: RegExp): string[] {
+  const index = columnIndex(grid, name);
+  return within(grid)
+    .getAllByRole('rowheader')
+    .map((header) => visibleText(header.closest('tr')?.cells[index] ?? document.createTextNode('')));
+}
+
 /** The keywords as their cells show them; the cells' tooltips hold the location and device too. */
 export const keywordsIn = (grid: HTMLElement): string[] =>
   within(grid)

@@ -1,6 +1,6 @@
 'use client';
 
-import { TriangleAlert } from 'lucide-react';
+import { Clock, TriangleAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
@@ -32,29 +32,82 @@ const TONE = {
   negative: cn('text-negative-text'),
   neutral: cn('text-foreground'),
 } as const;
+/** The words, under `rankings.rank.speech`, for a change that shows nothing. */
+const EMPTY_SPEECH = {
+  firstCheck: 'speech.firstCheck',
+  stillBeyond: 'speech.stillBeyond',
+  withinDepth: 'speech.withinDepth',
+} as const satisfies Record<Extract<ChangeDisplay, { kind: 'empty' }>['reason'], string>;
 /** About what a mono path fits in the URL column's usual width; the cell clips what is left with an ellipsis. */
 const PATH_CHARS = 30;
 
-/** The rank: its number, `>20` for the depth that was checked, Pending, or a failed check. */
+/** The cell's content, right aligned: marks, if any, then the value. A mark that does not fit grows to the left. */
+const ROW = cn('flex items-center justify-end gap-1');
+
+/**
+ * What may make a rank look current when it is not, at any table width (the Updated column's own marker shows
+ * only from 1680 px): a clock when the API flags the keyword stale, a warning when checks after the one shown
+ * have failed. The glyphs are decoration; the words are hidden text, and the tooltip carries the detail.
+ */
+function Marks({ stale, failing }: { stale: boolean; failing: boolean }): ReactElement {
+  const t = useTranslations('rankings.rank');
+  return (
+    <>
+      {stale ? (
+        <>
+          <Icon icon={Clock} size="xs" className="text-warning-text" />
+          <span className="sr-only">{t('speech.stale')}</span>
+        </>
+      ) : null}
+      {failing ? (
+        <>
+          <Icon icon={TriangleAlert} size="xs" className="text-warning-text" />
+          <span className="sr-only">{t('speech.lastCheckFailed')}</span>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** The rank: its number, `>20` for the depth that was checked, Pending, or a failed check; stale and failing marked. */
 export function RankCellView({ display }: { display: RankDisplay }): ReactElement {
   const t = useTranslations('rankings.rank');
   switch (display.kind) {
     case 'ranked':
-      return <span className="num text-foreground">{formatInteger(display.rank)}</span>;
+      return (
+        <span className={ROW}>
+          <Marks stale={display.stale} failing={display.failing} />
+          <span className="num text-foreground">{formatInteger(display.rank)}</span>
+        </span>
+      );
     case 'beyond':
       return (
-        <>
+        <span className={ROW}>
+          <Marks stale={display.stale} failing={display.failing} />
           <span aria-hidden="true" className="num text-foreground-tertiary">
             {formatRankCell({ rank: null, depth: display.depth })}
           </span>
           <span className="sr-only">{t('speech.beyond', { depth: display.depth })}</span>
-        </>
+        </span>
       );
     case 'pending':
       return <span className="text-foreground-tertiary">{t('pending')}</span>;
     case 'failed':
-      return <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />;
+      return (
+        <span className={ROW}>
+          <Marks stale={display.stale} failing={false} />
+          <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
+        </span>
+      );
   }
+}
+
+/** The best rank: a number, or the same word for what is not one as the other rank columns use. */
+export function BestRankView({ best, state }: { best: number | null; state: RankCell['state'] }): ReactElement {
+  const t = useTranslations('rankings.rank');
+  if (best !== null) return <span className="num text-foreground">{formatInteger(best)}</span>;
+  const word = state === 'not_checked' ? 'pending' : state === 'failed' ? 'unavailable' : 'notRanking';
+  return <span className="text-foreground-tertiary">{t(word)}</span>;
 }
 
 /** The change: an arrow glyph and the places, New or Lost, or nothing visible when there is nothing to show. */
@@ -101,11 +154,9 @@ export function RankChangeView({ display }: { display: ChangeDisplay }): ReactEl
         </>
       );
     case 'empty':
-      return (
-        <span className="sr-only">
-          {t(display.reason === 'firstCheck' ? 'speech.firstCheck' : 'speech.stillBeyond')}
-        </span>
-      );
+      return <span className="sr-only">{t(EMPTY_SPEECH[display.reason])}</span>;
+    case 'blank':
+      return <></>;
   }
 }
 
@@ -142,6 +193,8 @@ export function RankingUrlView({ display }: { display: UrlDisplay }): ReactEleme
       return <span className="text-foreground-tertiary">{t('notRanking')}</span>;
     case 'pending':
       return <span className="text-foreground-tertiary">{t('pending')}</span>;
+    case 'failed':
+      return <span className="text-foreground-tertiary">{t('unavailable')}</span>;
   }
 }
 
@@ -156,20 +209,25 @@ export function StaleMarker(): ReactElement {
 }
 
 export interface RankTips {
-  /** The tooltip and description of the Rank cell. */
-  rank: (display: RankDisplay) => CellTip | undefined;
+  /**
+   * The tooltip and description of the Rank cell: where and when it was checked, the rank before it when there
+   * is one, and what is wrong with it (stale, or the checks after it failed).
+   */
+  rank: (display: RankDisplay, previousRank?: number | null) => CellTip | undefined;
   /** Where a rank moved from and to, for a change that has both ranks. */
   change: (change: RankChange, current: RankCell) => CellTip | undefined;
   /** The whole address and the check of a ranking URL, or why there is none yet. */
   url: (display: UrlDisplay, rank: RankDisplay) => CellTip | undefined;
+  /** Why Best rank has no number yet or after a failed check; nothing for a keyword that was checked. */
+  best: (state: RankCell['state']) => CellTip | undefined;
   /** What the Stale marker of the Updated column means, with the last good check. */
   stale: (observedAt: string | null) => CellTip;
 }
 
 /**
  * The tooltips of the rank cells, in the project's time zone. A tip has a description only where the cell's
- * own text already says its first line (a change's words, a URL's path): the description is then the detail
- * alone, so a screen reader does not hear the line twice.
+ * own text already says its first line (a change's words, a `>20` that is spoken as "not in top 20"): the
+ * description is then the rest of the tooltip, so a screen reader does not hear the line twice.
  */
 export function useRankTips(timeZone: string): RankTips {
   const t = useTranslations('rankings.rank');
@@ -177,25 +235,43 @@ export function useRankTips(timeZone: string): RankTips {
     const date = (instant: string): string => formatDetailDateTime(instant, timeZone);
     const lastGood = (observedAt: string | null, stale: boolean): string | undefined =>
       stale && observedAt !== null ? t('lastGood', { date: date(observedAt) }) : undefined;
+    const previous = (rank: number | null): string | undefined =>
+      rank === null ? undefined : t('previousRank', { rank: formatInteger(rank) });
+    /** Sentences, each ending in its own full stop, as one line. */
+    const joined = (parts: readonly (string | undefined)[]): string | undefined => {
+      const found = parts.filter((part): part is string => part !== undefined);
+      return found.length === 0 ? undefined : found.join(' ');
+    };
     const withDetail = (content: string, detail: string | undefined): CellTip =>
       detail === undefined ? { content } : { content, detail };
     const failed = (): CellTip => ({ content: t('failedTooltip') });
     const pending = (): CellTip => ({ content: t('pendingTooltip') });
     return {
-      rank: (display) => {
+      rank: (display, previousRank = null) => {
         switch (display.kind) {
           case 'ranked':
             return withDetail(
               t('rankTip', { rank: formatInteger(display.rank), date: date(display.observedAt), depth: display.depth }),
-              lastGood(display.observedAt, display.stale),
+              joined([
+                previous(previousRank),
+                lastGood(display.observedAt, display.stale),
+                display.failing ? t('failedTooltip') : undefined,
+              ]),
             );
-          case 'beyond':
-            return display.observedAt === null
-              ? undefined
-              : withDetail(
-                  t('beyondTip', { depth: display.depth, date: date(display.observedAt) }),
-                  lastGood(display.observedAt, display.stale),
-                );
+          case 'beyond': {
+            if (display.observedAt === null) return undefined;
+            const rest = [
+              previous(previousRank),
+              lastGood(display.observedAt, display.stale),
+              display.failing ? t('failedTooltip') : undefined,
+            ];
+            // The cell says "not in top 20" itself: what the screen reader hears after it is the rest
+            const description = joined([t('checked', { date: date(display.observedAt) }), ...rest]);
+            return {
+              ...withDetail(t('beyondTip', { depth: display.depth, date: date(display.observedAt) }), joined(rest)),
+              ...(description === undefined ? {} : { description }),
+            };
+          }
           case 'pending':
             return pending();
           case 'failed':
@@ -208,11 +284,12 @@ export function useRankTips(timeZone: string): RankTips {
         const detail = t('fromTo', { from: formatInteger(change.previous_rank), to: formatInteger(current.rank) });
         const amount = Math.abs(change.value);
         return {
-          content: t(change.value > 0 ? 'speech.improved' : 'speech.declined', { count: amount }),
+          content: t(change.value > 0 ? 'changeTip.improved' : 'changeTip.declined', { count: amount }),
           detail,
           description: detail,
         };
       },
+      best: (state) => (state === 'failed' ? failed() : state === 'not_checked' ? pending() : undefined),
       url: (display, rank) => {
         switch (display.kind) {
           case 'url': {
@@ -221,7 +298,9 @@ export function useRankTips(timeZone: string): RankTips {
             return { content: display.full, detail, description: detail };
           }
           case 'pending':
-            return rank.kind === 'failed' ? failed() : pending();
+            return pending();
+          case 'failed':
+            return failed();
           case 'none':
             return undefined;
         }

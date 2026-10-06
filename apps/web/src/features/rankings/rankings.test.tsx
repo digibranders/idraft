@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TrackedKeywordState } from '@/lib/api/types';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
-import { rankStateOf } from '@/mocks/rank-state';
+import { FAILED_IDS, FAILING_IDS, rankStateOf } from '@/mocks/rank-state';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
@@ -22,6 +22,7 @@ import {
   rankingsAs as as,
   restoreWideScreen,
   stubWideScreen,
+  visibleColumnTexts,
 } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
@@ -322,6 +323,14 @@ function fixtureStates(): { text: string; state: TrackedKeywordState }[] {
   }));
 }
 
+/** The text of the keyword a tracked keyword tracks. */
+function textOfKeyword(trackedId: string): string {
+  const keywordId = MOCK_TRACKED_KEYWORDS.find((row) => row.tracked_keyword_id === trackedId)?.keyword_id;
+  const text = MOCK_KEYWORDS.find((keyword) => keyword.keyword_id === keywordId)?.text;
+  if (text === undefined) throw new Error(`No keyword text for ${trackedId}`);
+  return text;
+}
+
 describe('Rankings rank columns', () => {
   it('shows the rank, the change and the ranking URL of a ranked keyword from its own state', async () => {
     const all = fixtureStates();
@@ -362,7 +371,7 @@ describe('Rankings rank columns', () => {
     expect(stale).toBeGreaterThan(0);
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
-    const ranks = columnTexts(grid, /^Rank$/);
+    const ranks = visibleColumnTexts(grid, /^Rank$/);
     expect(ranks.filter((text) => text.startsWith('>'))).toHaveLength(beyond);
     expect(ranks.filter((text) => text === 'Pending')).toHaveLength(
       states.filter(({ current }) => current.state === 'not_checked').length,
@@ -385,9 +394,55 @@ describe('Rankings rank columns', () => {
     await waitFor(() => expect(keywordsIn(grid)).toContain('rank tracker api'));
     const at = keywordsIn(grid).indexOf('rank tracker api');
     expect(columnTexts(grid, /^Rank$/)[at]).toBe('Pending');
-    expect(columnTexts(grid, /^Change$/)[at]).toBe('first check');
+    // No check has run, so there is no first check to speak of: the Rank cell's "Pending" is all there is to say
+    expect(columnTexts(grid, /^Change$/)[at]).toBe('');
     expect(columnTexts(grid, /^Ranking URL$/)[at]).toBe('Pending');
   }, 15_000);
+
+  /** The cells of the row at a place in the grid, found by their column. */
+  function rowCells(grid: HTMLElement, at: number): (name: RegExp) => HTMLElement {
+    const row = within(grid).getAllByRole('rowheader')[at]?.closest('tr');
+    if (row === null || row === undefined) throw new Error(`No row ${String(at)}`);
+    return (name) => {
+      const cell = row.cells[columnIndex(grid, name)];
+      if (cell === undefined) throw new Error(`No ${String(name)} cell`);
+      return cell;
+    };
+  }
+
+  it('marks every stale keyword in its Rank cell too, and warns beside the rank when checks since then failed', async () => {
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const stale = fixtureStates().filter(({ state }) => state.is_stale);
+    expect(stale.length).toBeGreaterThan(1);
+    // The Rank cell speaks "stale" for exactly the keywords the API flags, whatever columns the width shows
+    expect(columnTexts(grid, /^Rank$/).filter((text) => text.includes('stale'))).toHaveLength(stale.length);
+    const failing = columnTexts(grid, /^Rank$/).flatMap((text, at) => (text.includes('last check failed') ? [at] : []));
+    expect(failing).toHaveLength(FAILING_IDS.size);
+    for (const at of failing) {
+      const cell = rowCells(grid, at)(/^Rank$/);
+      expect(within(cell).getByText('last check failed')).toHaveClass('sr-only');
+      expect(within(cell).getByText('stale')).toHaveClass('sr-only');
+      // The rank of the last good check is still there
+      expect(cell.querySelector('.num')?.textContent).toMatch(/^\d+$|^>\d+$/);
+      expect(keywordsIn(grid)[at]).toBe(textOfKeyword([...FAILING_IDS][0] ?? ''));
+    }
+  });
+
+  it('tells one story for a keyword whose checks all failed: a warning, n/a, no change, a stale marker', async () => {
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    for (const id of FAILED_IDS) {
+      const cells = rowCells(grid, keywordsIn(grid).indexOf(textOfKeyword(id)));
+      expect(within(cells(/^Rank$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
+      expect(within(cells(/^Rank$/)).getByText('stale')).toHaveClass('sr-only');
+      expect(cells(/^Ranking URL$/)).toHaveTextContent(/^n\/a$/);
+      expect(cells(/^Change$/)).toHaveTextContent(/^$/);
+      // Updated says the check failed and, because the API flags the keyword stale, shows the marker as well
+      expect(within(cells(/^Updated$/)).getByText('Check failed')).toBeInTheDocument();
+      expect(within(cells(/^Updated$/)).getByText('Stale')).toBeInTheDocument();
+    }
+  });
 
   it('sorts by rank best first with the keywords that have none last in both directions', async () => {
     const url = urlWrites();
@@ -396,7 +451,7 @@ describe('Rankings rank columns', () => {
     await user.click(within(grid).getByRole('button', { name: 'Rank' }));
     await waitFor(() => expect(url.latest().get('sort')).toBe('current_rank'));
     const numeric = (text: string): boolean => /^\d+$/.test(text);
-    const places = (): string[] => columnTexts(grid, /^Rank$/);
+    const places = (): string[] => visibleColumnTexts(grid, /^Rank$/);
     const asc = places();
     const ranked = asc.filter(numeric).map(Number);
     expect(ranked.length).toBeGreaterThan(5);
@@ -419,7 +474,10 @@ describe('Rankings rank columns', () => {
     expect(cell).toHaveAttribute('role', 'gridcell');
     const tip = /^(Rank \d+|Not in the top \d+), \w{3} \d+, \d{4} · \d{2}:\d{2} \w+/;
     await waitFor(() => expect(document.querySelector('[data-slot="tooltip"]')?.textContent).toMatch(tip));
-    expect(cell).toHaveAccessibleDescription(expect.stringMatching(tip));
+    // The description is the whole tooltip, except for `>20`, which the cell already speaks as "not in top 20":
+    // then it is the check that follows
+    const checked = /^Checked \w{3} \d+, \d{4} · \d{2}:\d{2} \S+\./;
+    expect(cell).toHaveAccessibleDescription(expect.stringMatching(new RegExp(`${tip.source}|${checked.source}`)));
   });
 
   it('asks the API to sort by rank above 10,000 keywords', async () => {
@@ -486,7 +544,7 @@ describe('Rankings rank filters', () => {
     );
     expect(within4to10.length).toBeGreaterThan(0);
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(within4to10.length));
-    const places = columnTexts(grid, /^Rank$/).map(Number);
+    const places = visibleColumnTexts(grid, /^Rank$/).map(Number);
     expect(places.every((place) => place >= 4 && place <= 10)).toBe(true);
     expect(screen.getByRole('button', { name: 'Rank: 4 to 10. Edit filter' })).toBeInTheDocument();
   });
@@ -531,10 +589,26 @@ describe('Rankings rank filters', () => {
     const asked = listQueries();
     const { user } = renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
-    await choose(user, grid, 'Stale', 'Stale');
+    // The chip reads "Freshness: Stale", not "Stale: Stale"
+    await choose(user, grid, 'Freshness', 'Stale');
+    expect(await screen.findByRole('button', { name: 'Freshness: Stale. Edit filter' })).toBeInTheDocument();
     await waitFor(() => expect(asked.some((query) => query.get('filter[is_stale]') === 'true')).toBe(true));
     const stale = fixtureStates().filter(({ state }) => state.is_stale);
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(stale.length));
+  });
+
+  it('lists under the Stale filter only rows that show the marker, the failed keyword included', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await choose(user, grid, 'Freshness', 'Stale');
+    const stale = fixtureStates().filter(({ state }) => state.is_stale);
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(stale.length));
+    expect(keywordsIn(grid)).toContain(textOfKeyword([...FAILED_IDS][0] ?? ''));
+    const updated = columnTexts(grid, /^Updated$/);
+    expect(updated).toHaveLength(stale.length);
+    for (const text of updated) expect(text).toContain('Stale');
+    // The Rank cell of each says it too
+    for (const text of columnTexts(grid, /^Rank$/)) expect(text).toContain('stale');
   });
 
   it('applies a rank filter from a link, and sends no filter it does not have', async () => {

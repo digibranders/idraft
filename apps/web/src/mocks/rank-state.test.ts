@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MOCK_TRACKED_KEYWORDS, PENDING_TRACKED_IDS } from './keyword-fixtures';
 import { checksOf, FIRST_CHECK_DELAY_MS, type MockCheck } from './rank-history';
-import { changeOf, FAILED_IDS, rankStateOf, STALE_IDS } from './rank-state';
+import { changeOf, FAILED_IDS, FAILING_IDS, rankStateOf, STALE_IDS } from './rank-state';
 import { TRACKED_KEYWORD_STATE } from '@/test/api-shapes';
 
 const NOW = Date.parse('2026-10-06T12:00:00Z');
@@ -208,6 +208,26 @@ describe('mock rank state', () => {
     }
   });
 
+  it('keeps one stale fixture keyword failing after good checks: its rank stays, the failures are counted', () => {
+    expect(FAILING_IDS.size).toBe(1);
+    for (const id of FAILING_IDS) {
+      expect(STALE_IDS.has(id)).toBe(true);
+      const created = MOCK_TRACKED_KEYWORDS.find((row) => row.tracked_keyword_id === id)?.created_at;
+      if (created === undefined) throw new Error(`${id} is not a fixture keyword`);
+      const state = rankStateOf(id, created, NOW, DOMAIN);
+      // `current` is from the last good check; only the count says that checks since then failed
+      expect(['ranked', 'beyond_depth']).toContain(state.current.state);
+      expect(state.last_observed_at).not.toBeNull();
+      expect(state.consecutive_failures).toBe(2);
+      expect(TRACKED_KEYWORD_STATE.parse(state)).toBeDefined();
+    }
+    for (const id of STALE_IDS) {
+      if (FAILING_IDS.has(id)) continue;
+      const created = MOCK_TRACKED_KEYWORDS.find((row) => row.tracked_keyword_id === id)?.created_at;
+      expect(rankStateOf(id, created ?? CREATED, NOW, DOMAIN).consecutive_failures).toBe(0);
+    }
+  });
+
   it('keeps one fixture keyword failed: no successful check, three failures in a row', () => {
     expect(FAILED_IDS.size).toBe(1);
     for (const id of FAILED_IDS) {
@@ -220,10 +240,30 @@ describe('mock rank state', () => {
         last_observed_at: null,
         best_rank: null,
         ranking_url_count: 0,
-        is_stale: false,
       });
       expect(state.change.label).toBe('first_check');
       expect(TRACKED_KEYWORD_STATE.parse(state)).toBeDefined();
+    }
+  });
+
+  it('judges a keyword with no good check stale from its creation, as the backend does (coalesce of last check and created)', () => {
+    for (const id of FAILED_IDS) {
+      const created = MOCK_TRACKED_KEYWORDS.find((row) => row.tracked_keyword_id === id)?.created_at;
+      if (created === undefined) throw new Error(`${id} is not a fixture keyword`);
+      // The fixture keyword is older than 36 hours, so its failing checks leave it stale
+      expect(Date.parse(created)).toBeLessThan(NOW - 36 * HOUR_MS);
+      expect(rankStateOf(id, created, NOW, DOMAIN).is_stale).toBe(true);
+      // The same keyword created 35 hours ago is not stale yet, and 37 hours ago it is
+      expect(rankStateOf(id, new Date(NOW - 35 * HOUR_MS).toISOString(), NOW, DOMAIN).is_stale).toBe(false);
+      expect(rankStateOf(id, new Date(NOW - 37 * HOUR_MS).toISOString(), NOW, DOMAIN).is_stale).toBe(true);
+    }
+  });
+
+  it('never calls a keyword stale that has not been checked or failed yet: it has no state row', () => {
+    for (const id of PENDING_TRACKED_IDS) {
+      const created = MOCK_TRACKED_KEYWORDS.find((row) => row.tracked_keyword_id === id)?.created_at;
+      if (created === undefined) throw new Error(`${id} is not a fixture keyword`);
+      expect(rankStateOf(id, created, NOW + 90 * 24 * HOUR_MS, DOMAIN).is_stale).toBe(false);
     }
   });
 
@@ -295,7 +335,8 @@ describe('mock rank state of the fixtures', () => {
     );
     expect(count((state) => state.current.state === 'not_checked')).toBe(PENDING_TRACKED_IDS.size);
     expect(count((state) => state.current.state === 'failed')).toBe(FAILED_IDS.size);
-    expect(count((state) => state.is_stale)).toBe(STALE_IDS.size);
+    // The failed fixture keyword is older than 36 hours with no good check, so it is stale as well
+    expect(count((state) => state.is_stale)).toBe(STALE_IDS.size + FAILED_IDS.size);
     expect(count((state) => state.ranking_url_count > 1)).toBeGreaterThanOrEqual(1);
   });
 

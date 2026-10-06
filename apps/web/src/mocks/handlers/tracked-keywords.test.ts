@@ -674,10 +674,14 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     expect(stale.length).toBeGreaterThan(0);
     const fresh = await idsOfList(viewer, 'filter[is_stale]=false');
     expect(fresh).toEqual(ids(live().filter((entry) => !entry.state.is_stale)));
+    // A keyword that waits for its first check has no state row, so it is never stale; one whose checks all failed
+    // has a state row and is judged from its creation, so the old failed fixture keyword is stale
     for (const entry of live().filter(neverChecked)) {
-      expect(fresh).toContain(entry.id);
-      expect(stale).not.toContain(entry.id);
+      const stillWaiting = PENDING_TRACKED_IDS.has(entry.id);
+      expect(stale.includes(entry.id)).toBe(!stillWaiting);
+      expect(fresh.includes(entry.id)).toBe(stillWaiting);
     }
+    for (const id of FAILED_IDS) expect(stale).toContain(id);
   });
 
   it('filters by feature, owned feature, AI Overview, ranking URL and target URL match', async () => {

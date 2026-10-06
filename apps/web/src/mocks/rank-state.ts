@@ -32,6 +32,10 @@ const CHECKED_FIXTURES = MOCK_TRACKED_KEYWORDS.filter(
 
 /** Every 17th fixture keyword: its latest check is 40 hours old or more, so it is stale. */
 export const STALE_IDS: ReadonlySet<string> = new Set(CHECKED_FIXTURES.filter((_, index) => index % 17 === 16));
+/** The first stale fixture keyword is stale because its checks fail, the others because none ran (a paused collector). */
+export const FAILING_IDS: ReadonlySet<string> = new Set([...STALE_IDS].slice(0, 1));
+/** How many checks in a row the failing fixture keyword has lost since its last good one. */
+const FAILING_RUN = 2;
 /** One fixture keyword whose checks all failed. */
 export const FAILED_IDS: ReadonlySet<string> = new Set(CHECKED_FIXTURES.filter((_, index) => index === 6));
 
@@ -64,8 +68,13 @@ export function changeOf(previous: ChangeSide | null, current: ChangeSide): Rank
   };
 }
 
-/** The state of a keyword with no successful check; `failures` checks in a row failed (`failed`), or none ran yet. */
-function notChecked(failures: number): TrackedKeywordState {
+/**
+ * The state of a keyword with no successful check; `failures` checks in a row failed (`failed`), or none ran yet.
+ * `stale` is the backend's judgment for a keyword that has a state row: no good check for 36 hours, counted from
+ * the keyword's creation when there is none (`seo_rank_health.py` coalesces `last_observed_at` and `created_at`).
+ * A keyword never checked and never failed has no state row at all, so it is never stale.
+ */
+function notChecked(failures: number, stale: boolean): TrackedKeywordState {
   return {
     current: {
       state: failures > 0 ? 'failed' : 'not_checked',
@@ -87,7 +96,7 @@ function notChecked(failures: number): TrackedKeywordState {
     target_url_match: null,
     url_changed_at: null,
     consecutive_failures: failures,
-    is_stale: false,
+    is_stale: stale,
     last_observed_at: null,
     ranking_url_count: 0,
   };
@@ -141,15 +150,15 @@ export function rankStateOf(
   domain: string | null,
   targetUrl: string | null = null,
 ): TrackedKeywordState {
-  if (PENDING_TRACKED_IDS.has(trackedId)) return notChecked(0);
-  if (FAILED_IDS.has(trackedId)) return notChecked(FAILED_RUN);
+  if (PENDING_TRACKED_IDS.has(trackedId)) return notChecked(0, false);
+  if (FAILED_IDS.has(trackedId)) return notChecked(FAILED_RUN, now - Date.parse(createdAt) > STALE_AFTER_MS);
   // A stale fixture keyword shows the history of 40 hours ago: its checks since then did not happen
   const asOf = STALE_IDS.has(trackedId) ? now - STALE_FIXTURE_AGE_MS : now;
   const checks = checksOf(trackedId, createdAt, asOf).map((check) =>
     domain === null ? { ...check, rank: null, path: null, urlCount: 0 } : check,
   );
   const latest = checks.at(-1);
-  if (latest === undefined) return notChecked(0);
+  if (latest === undefined) return notChecked(0, false);
   const ranked = checks.filter((check): check is MockCheck & { rank: number } => check.rank !== null);
   const best = ranked.reduce<(MockCheck & { rank: number }) | null>(
     (found, check) => (found === null || check.rank < found.rank ? check : found),
@@ -183,7 +192,7 @@ export function rankStateOf(
     aio: aioOf(trackedId),
     target_url_match: url === null || targetUrl === null ? null : url.canonical_url === targetUrl,
     url_changed_at: null,
-    consecutive_failures: 0,
+    consecutive_failures: FAILING_IDS.has(trackedId) ? FAILING_RUN : 0,
     is_stale: now - Date.parse(latest.observedAt) > STALE_AFTER_MS,
     last_observed_at: latest.observedAt,
     ranking_url_count: latest.urlCount,
