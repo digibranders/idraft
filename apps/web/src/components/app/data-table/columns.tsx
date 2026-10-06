@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 
 import type { CellTip, ColumnPriority, DataTableColumn } from './types';
+import { CopyButton } from '@/components/app/cells/copy-button';
 import { CollectionStatusIcon, type CollectionStatus } from '@/components/app/status/collection-progress';
 import { Badge } from '@/components/ui/badge';
 import { Truncate } from '@/components/ui/truncate';
@@ -80,11 +81,18 @@ const reasonTip = (value: UnknownValue | undefined): CellTip | undefined =>
 const NOT_AVAILABLE: UnknownValue = { label: EMPTY_VALUE };
 
 export const col = {
-  /** The identity column: the row header, flexible width, pinned left, never hidden. */
+  /**
+   * The identity column: the row header, flexible width, pinned left, never hidden. With `copy` a copy button
+   * for the text lies over the end of the cell, drawn on row hover and focus (12-tables.md section 6), and the
+   * cell is named by the text alone, not by the button's name too.
+   */
   keyword<TRow>(
     id: string,
     text: (row: TRow) => string,
-    options: Options & { detail?: ((row: TRow) => string) | undefined },
+    options: Options & {
+      detail?: ((row: TRow) => string) | undefined;
+      copy?: { label: (row: TRow) => string; announcement: string } | undefined;
+    },
   ): DataTableColumn<TRow> {
     return {
       ...base(
@@ -94,10 +102,19 @@ export const col = {
         (row) => {
           const value = text(row);
           // With a detail the cell's own tooltip shows the value and the detail
-          return options.detail?.(row) === undefined ? (
-            <Truncate text={value} className="text-foreground" />
-          ) : (
-            <span className="block min-w-0 truncate text-foreground">{value}</span>
+          const label =
+            options.detail?.(row) === undefined ? (
+              <Truncate text={value} className="text-foreground" />
+            ) : (
+              <span className="block min-w-0 truncate text-foreground">{value}</span>
+            );
+          if (options.copy === undefined) return label;
+          // `bg-inherit` hands the cell's own background (hover, selected) to the button's backing
+          return (
+            <span className="relative flex min-w-0 items-center bg-inherit">
+              {label}
+              <CopyButton text={value} label={options.copy.label(row)} announcement={options.copy.announcement} />
+            </span>
           );
         },
         (row) => text(row).toLocaleLowerCase(),
@@ -108,6 +125,7 @@ export const col = {
         },
       ),
       identity: true,
+      cellLabel: options.copy === undefined ? undefined : text,
     };
   },
 

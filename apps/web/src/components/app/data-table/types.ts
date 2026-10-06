@@ -61,6 +61,12 @@ export interface DataTableColumn<TRow> {
    * focus and is the cell's description for assistive technology.
    */
   cellTip?: ((row: TRow) => CellTip | undefined) | undefined;
+  /**
+   * A cell's accessible name, for a cell that holds controls: their names would otherwise become part of it,
+   * and the identity cell's name is what is read with every other cell of the row. Not given: the cell is
+   * named by its content, as always.
+   */
+  cellLabel?: ((row: TRow) => string) | undefined;
   priority: ColumnPriority;
   /** The screen's default width, between the type's minimum and maximum. */
   width?: number | undefined;

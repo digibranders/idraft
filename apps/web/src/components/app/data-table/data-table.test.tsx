@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { col } from './columns';
 import { DataTable } from './data-table';
 import type { DataTableColumn, RecordAction, RowActions, ServerPaging, TableStatus } from './types';
+import { CopyButton } from '@/components/app/cells/copy-button';
 import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
+import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import type { Density, SortKey } from '@/lib/tables/table-state';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
@@ -728,5 +730,208 @@ describe('DataTable rank, change and URL columns', () => {
       .getAllByRole('gridcell')
       .find((cell) => cell.textContent === '>20');
     expect(beyond).toHaveAccessibleDescription('Not in the top 20');
+  });
+});
+
+/** A keyword cell with a copy button, and a URL cell with a link and a copy button, as Rankings builds them. */
+const CONTROLLED = [
+  col.keyword<Row>('keyword', (row) => row.keyword, {
+    header: 'Keyword',
+    detail: (row) => `Berlin, desktop for ${row.keyword}`,
+    copy: { label: (row) => `Copy keyword ${row.keyword}`, announcement: 'Keyword copied' },
+  }),
+  col.volume<Row>('volume', (row) => row.volume, { header: 'Volume' }),
+  col.url<Row>('url', () => null, {
+    header: 'URL',
+    sortable: false,
+    cell: (row) => (
+      <span className="flex min-w-0 items-center">
+        <a
+          {...CELL_CONTROL}
+          href={`https://example.test/${row.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open /${row.id} in a new tab`}
+        >
+          {`/${row.id}`}
+        </a>
+        <span>+1</span>
+        <CopyButton text={`https://example.test/${row.id}`} label="Copy ranking URL" announcement="URL copied" />
+      </span>
+    ),
+  }),
+];
+
+describe('DataTable controls in cells', () => {
+  const writeText = vi.fn<(text: string) => Promise<void>>();
+  /** A link click would navigate a real browser; the page stays here. */
+  const keepPage = (event: Event): void => event.preventDefault();
+
+  beforeEach(() => {
+    writeText.mockReset();
+    writeText.mockResolvedValue(undefined);
+    document.addEventListener('click', keepPage);
+  });
+  afterEach(() => {
+    document.removeEventListener('click', keepPage);
+    Reflect.deleteProperty(navigator, 'clipboard');
+  });
+
+  /** Rendered, then given a clipboard: rendering sets up user-event, which installs one of its own. */
+  function renderControlled(): ReturnType<typeof renderWithProviders> {
+    const view = renderWithProviders(<Harness rows={rowsOf(3)} columns={CONTROLLED} />);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    return view;
+  }
+  const firstRow = (): HTMLElement => {
+    const row = within(grid()).getAllByRole('row')[1];
+    if (row === undefined) throw new Error('no row');
+    return row;
+  };
+  /** The fourth cell of a row: after the checkbox, the keyword and the volume. */
+  const urlCellOf = (row: Element | undefined): HTMLElement => {
+    const cell = row?.children[3];
+    if (!(cell instanceof HTMLElement)) throw new Error('no URL cell');
+    return cell;
+  };
+  const urlCell = (): HTMLElement => urlCellOf(firstRow());
+  const keywordCell = (): HTMLElement => within(firstRow()).getByRole('rowheader');
+  const focusCell = (cell: HTMLElement): void => {
+    act(() => cell.focus());
+  };
+
+  it('keeps one tab stop, and names the row header by the keyword alone', () => {
+    renderControlled();
+    expect(grid().querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+    const buttons = within(grid()).getAllByRole('button', { name: /^Copy / });
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(buttons.every((button) => button.getAttribute('tabindex') === '-1')).toBe(true);
+    expect(keywordCell()).toHaveAccessibleName('keyword 002');
+    expect(keywordCell()).toHaveAccessibleDescription('Berlin, desktop for keyword 002');
+    expect(within(keywordCell()).getByRole('button', { name: 'Copy keyword keyword 002' })).toBeInTheDocument();
+  });
+
+  it('moves into the controls of a cell with F2, steps between them with Tab, and comes back with Escape', async () => {
+    const { user } = renderControlled();
+    focusCell(urlCell());
+    await user.keyboard('{F2}');
+    const link = within(urlCell()).getByRole('link', { name: 'Open /k2 in a new tab' });
+    const copy = within(urlCell()).getByRole('button', { name: 'Copy ranking URL' });
+    expect(link).toHaveFocus();
+    await user.keyboard('{Tab}');
+    expect(copy).toHaveFocus();
+    // It wraps, both ways, and the grid keeps its one tab stop
+    await user.keyboard('{Tab}');
+    expect(link).toHaveFocus();
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(copy).toHaveFocus();
+    expect(grid().querySelectorAll('[tabindex="0"]')).toHaveLength(1);
+    await user.keyboard('{Escape}');
+    expect(urlCell()).toHaveFocus();
+  });
+
+  it('stays on the only control of a cell on Tab, and hands the arrows back to the grid', async () => {
+    const { user } = renderControlled();
+    focusCell(keywordCell());
+    await user.keyboard('{F2}');
+    const copy = within(keywordCell()).getByRole('button', { name: /^Copy keyword/ });
+    expect(copy).toHaveFocus();
+    await user.keyboard('{Tab}');
+    expect(copy).toHaveFocus();
+    await user.keyboard('{ArrowRight}');
+    expect(within(firstRow()).getAllByRole('gridcell')[1]).toHaveFocus();
+  });
+
+  it('does nothing on F2 in a cell without controls', async () => {
+    const { user } = renderControlled();
+    const volume = within(firstRow()).getAllByRole('gridcell')[1];
+    if (volume === undefined) throw new Error('no cell');
+    focusCell(volume);
+    await user.keyboard('{F2}');
+    expect(volume).toHaveFocus();
+  });
+
+  it('leaves Tab alone for a control that was clicked rather than entered with F2', async () => {
+    const { user } = renderControlled();
+    const copy = within(urlCell()).getByRole('button', { name: 'Copy ranking URL' });
+    await user.click(copy);
+    expect(copy).toHaveFocus();
+    expect(fireEvent.keyDown(copy, { key: 'Tab' })).toBe(true);
+  });
+
+  it('stops taking Tab for the cell once focus has gone from it', async () => {
+    const { user } = renderControlled();
+    focusCell(urlCell());
+    await user.keyboard('{F2}');
+    await user.keyboard('{ArrowDown}');
+    expect(urlCellOf(within(grid()).getAllByRole('row')[2])).toHaveFocus();
+    const copy = within(urlCell()).getByRole('button', { name: 'Copy ranking URL' });
+    copy.focus();
+    expect(fireEvent.keyDown(copy, { key: 'Tab' })).toBe(true);
+  });
+
+  it('keeps Enter for the inspector on a focused cell, and Enter on a control for the control', async () => {
+    const { user } = renderControlled();
+    focusCell(keywordCell());
+    await user.keyboard('{Enter}');
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'k2' }), 'inspector');
+    onOpen.mockClear();
+    await user.keyboard('{F2}{Enter}');
+    expect(writeText).toHaveBeenCalledExactlyOnceWith('keyword 002');
+    expect(onOpen).not.toHaveBeenCalled();
+    // Space on a control does not select the row
+    await user.keyboard(' ');
+    expect(screen.queryByText(/selected$/)).toBeNull();
+  });
+
+  it('copies the keyword from the keyboard, as it is, and says so', async () => {
+    const { user } = renderControlled();
+    focusCell(keywordCell());
+    await user.keyboard('{F2}{Enter}');
+    expect(writeText).toHaveBeenCalledExactlyOnceWith('keyword 002');
+    await waitFor(() => expect(document.getElementById('live-region-polite')).toHaveTextContent('Keyword copied'));
+  });
+
+  it('does not open the row, select it or toggle its checkbox for a click on a control', async () => {
+    const { user } = renderControlled();
+    const checkbox = within(firstRow()).getByRole('checkbox', { name: 'Select keyword 002' });
+    await user.click(within(urlCell()).getByRole('link'));
+    await user.click(within(urlCell()).getByRole('button', { name: 'Copy ranking URL' }));
+    await user.click(within(keywordCell()).getByRole('button', { name: /^Copy keyword/ }));
+    // A new tab and a middle click are the link's own
+    await user.keyboard('{Control>}');
+    await user.click(within(urlCell()).getByRole('link'));
+    await user.keyboard('{/Control}');
+    fireEvent(
+      within(urlCell()).getByRole('link'),
+      new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }),
+    );
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(checkbox).not.toBeChecked();
+    expect(firstRow()).toHaveAttribute('aria-selected', 'false');
+    expect(screen.queryByText(/selected$/)).toBeNull();
+  });
+
+  it('still opens the row for a click on the cell outside its controls', async () => {
+    const { user } = renderControlled();
+    await user.click(within(urlCell()).getByText('+1'));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'k2' }), 'inspector');
+    onOpen.mockClear();
+    await user.click(within(keywordCell()).getByText('keyword 002'));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'k2' }), 'inspector');
+  });
+
+  it('reveals the controls on hover and focus by CSS only, so they stay in the page for everything else', () => {
+    renderControlled();
+    expect(keywordCell()).toHaveClass('group/cell');
+    expect(urlCell()).toHaveClass('group/cell');
+    const wrapper = within(keywordCell()).getByRole('button', { name: /^Copy keyword/ }).parentElement;
+    expect(wrapper).toHaveClass('opacity-0', 'group-hover:opacity-100', 'group-focus-within/cell:opacity-100');
+    expect(grid().querySelector('.hidden, .invisible')).toBeNull();
+  });
+
+  it('passes the accessibility check with the controls in the rows', async () => {
+    const { container } = renderControlled();
+    expect(await axe(container)).toHaveNoViolations();
   });
 });
