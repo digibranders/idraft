@@ -112,6 +112,11 @@ const keywordIdOf = (row: KeywordRow): string => {
 /** The table's rows with their tracked keyword ids, in order. */
 const TRACKED_ROWS = KEYWORD_TABLE.map((row, index) => ({ row, id: mockId('tracked', index + 1) }));
 
+/** The tracked keywords still waiting for Labs: they stand for keywords added minutes ago, so they have no rank check either. */
+export const PENDING_TRACKED_IDS: ReadonlySet<string> = new Set(
+  TRACKED_ROWS.filter(({ row }) => row.metrics === null).map(({ id }) => id),
+);
+
 export const MOCK_TRACKED_KEYWORDS: readonly StoredTracked[] = TRACKED_ROWS.map(({ row, id }, index) => {
   const added = row.metrics === null ? PENDING_ADDED_AT : new Date(ADDED_FROM + index * 37 * HOUR_MS).toISOString();
   return {

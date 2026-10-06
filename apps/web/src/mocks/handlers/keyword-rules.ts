@@ -5,7 +5,14 @@ import { at, bodyError, enumError, extraMembers, isOneOf, isRecord, queryError, 
 import { stateTime } from '../entities-codec';
 import { MOCK_LOCATIONS } from '../entity-fixtures';
 import { MOCK_WORKSPACE } from '../fixtures';
-import { canonicalUrl, decimalOfCents, groupAndBelow, readingOf, type Include } from '../factories/keyword';
+import {
+  canonicalUrl,
+  decimalOfCents,
+  groupAndBelow,
+  readingOf,
+  type Include,
+  type RankContext,
+} from '../factories/keyword';
 import {
   DEPTH_PROFILES,
   FREQUENCIES,
@@ -121,6 +128,15 @@ export const workspaceKeyword = (
 
 export const keywordsOfWorkspace = (world: KeywordWorld, workspaceId: string): StoredKeyword[] =>
   world.keywords.filter((row) => workspaceOfKeyword(row) === workspaceId);
+
+/**
+ * What the rank state of the project's keywords depends on in one request. The caller reads the mock clock
+ * (`Date.now()`, which Playwright's `page.clock` and Vitest's fake timers move) once and passes the context to
+ * the filter, the sort and the rows, so they all see the same moment.
+ */
+export function rankContext(caller: KeywordProjectCaller, now: number = Date.now()): RankContext {
+  return { now, domain: caller.project.primary_domain?.host ?? null };
+}
 
 /** The tracked keywords of a project that were not deleted. */
 export const liveTrackedOf = (world: KeywordWorld, projectId: string): StoredTracked[] =>

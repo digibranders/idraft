@@ -64,13 +64,13 @@ export function checksOf(trackedId: string, createdAt: string, now: number): Moc
   const firstCheckAt = Date.parse(createdAt) + FIRST_CHECK_DELAY_MS;
   if (now < firstCheckAt) return [];
   const random = seeded(trackedId);
-  // The keyword has a usual rank between 2 and 59 that the walk drifts around and is pulled back to
-  const home = 2 + Math.floor(random() * 58);
+  // The keyword has a usual rank, mostly in the first pages, that the walk drifts around and is pulled back to
+  const home = 1 + Math.floor(random() ** 2 * 70);
   const path = PATHS[Math.floor(random() * PATHS.length)] ?? '/';
   let rank = home;
   const checks = checkTimes(firstCheckAt, now).map((time): MockCheck => {
-    // A step of up to 4 places a day, and now and then a jump of up to 30
-    const step = random() < 0.04 ? Math.round((random() - 0.5) * 60) : Math.round((random() - 0.5) * 8);
+    // A step of up to 4 places a day, and now and then a jump of up to 25 that takes a keyword in or out of view
+    const step = random() < 0.08 ? Math.round((random() - 0.5) * 50) : Math.round((random() - 0.5) * 8);
     rank = Math.min(DEEPEST_RANK, Math.max(1, rank + step + Math.round((home - rank) * 0.1)));
     const depth = DEPTHS[Math.floor(random() * DEPTHS.length)] ?? 20;
     const second = random() < 0.15;

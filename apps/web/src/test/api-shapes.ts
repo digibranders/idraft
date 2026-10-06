@@ -386,7 +386,7 @@ const RANK_CHANGE = z.object({
 });
 
 /** The rank state every tracked keyword carries (doc 19 section 3.6.4). */
-const TRACKED_KEYWORD_STATE = z.object({
+export const TRACKED_KEYWORD_STATE = z.object({
   current: RANK_CELL,
   change: RANK_CHANGE,
   best_rank: z.number().nullable(),

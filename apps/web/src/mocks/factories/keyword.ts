@@ -4,6 +4,7 @@ import type { EntityWorld } from '../entities-state';
 import { MOCK_INVITED_USER, MOCK_USERS } from '../fixtures';
 import { fixtureReading, fixtureReadingsOf, METRICS_FETCHED_AT, type FixtureReading } from '../keyword-fixtures';
 import { keywordMetrics, metricsHistory } from '../keyword-metrics';
+import { rankStateOf } from '../rank-state';
 import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   currentVersion,
@@ -222,34 +223,29 @@ export function trackedKeywordView(world: KeywordWorld, row: StoredTracked): Tra
 }
 
 /**
- * The rank state of a keyword that has no check yet, as the API answers for it. The rank columns are
- * not built, so the mocks have no ranks to show; a keyword is `not_checked` until they are.
+ * What the rank state of a tracked keyword depends on besides the keyword: the mock clock, which a request
+ * reads once so that its filter, its sort and its rows agree, and the project's primary domain, which the
+ * ranking URLs are under.
  */
-const NOT_CHECKED_STATE: TrackedKeywordRow['state'] = {
-  current: {
-    state: 'not_checked',
-    rank: null,
-    absolute_rank: null,
-    depth_requested: null,
-    url: null,
-    observed_at: null,
-    serp_snapshot_id: null,
-  },
-  change: { label: 'first_check', value: null, previous_rank: null, previous_observed_at: null },
-  best_rank: null,
-  best_rank_at: null,
-  worst_rank: null,
-  first_ranked_at: null,
-  feature_types_present: [],
-  owned_feature_types: [],
-  aio: { state: 'unknown', citation_position: null, observation_id: null },
-  target_url_match: null,
-  url_changed_at: null,
-  consecutive_failures: 0,
-  is_stale: false,
-  last_observed_at: null,
-  ranking_url_count: 0,
-};
+export interface RankContext {
+  now: number;
+  domain: string | null;
+}
+
+/**
+ * The keyword's rank state at `rank.now`, as the API answers it: derived from its id, when it was created and
+ * the clock (./rank-state.ts), and from its target URL for the match. A keyword added in a browser is
+ * `not_checked` until its first check runs.
+ */
+export function stateOf(row: StoredTracked, rank: RankContext): TrackedKeywordRow['state'] {
+  return rankStateOf(
+    row.tracked_keyword_id,
+    row.created_at,
+    rank.now,
+    rank.domain,
+    urlRef(currentVersion(row).target_url)?.canonical_url ?? null,
+  );
+}
 
 /** The group's names from the root down, joined by `/`. */
 export function groupPath(world: KeywordWorld, row: StoredGroup): string {
@@ -344,6 +340,7 @@ export function trackedKeywordRowView(
   entities: EntityWorld,
   row: StoredTracked,
   include: ReadonlySet<Include>,
+  rank: RankContext,
 ): TrackedKeywordRow {
   return {
     ...trackedKeywordView(world, row),
@@ -351,7 +348,7 @@ export function trackedKeywordRowView(
     groups: include.has('groups') ? groupsOf(world, row.tracked_keyword_id) : null,
     terms: include.has('terms') ? termsOf(world, entities, row.tracked_keyword_id) : null,
     competitors: include.has('competitors') ? overridesOf(world, entities, row) : null,
-    state: NOT_CHECKED_STATE,
+    state: stateOf(row, rank),
   };
 }
 
@@ -360,6 +357,7 @@ export function trackedKeywordDetailView(
   entities: EntityWorld,
   row: StoredTracked,
   schedule: Schemas['ScheduleRef'] | null,
+  rank: RankContext,
 ): TrackedKeywordDetail {
   return {
     ...trackedKeywordView(world, row),
@@ -369,7 +367,7 @@ export function trackedKeywordDetailView(
     competitor_overrides: overridesOf(world, entities, row),
     config_history_count: row.versions.length,
     schedule,
-    state: NOT_CHECKED_STATE,
+    state: stateOf(row, rank),
   };
 }
 

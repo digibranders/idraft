@@ -16,6 +16,7 @@ import {
   parseSort,
   queryFilter,
   quotaProblem,
+  rankContext,
   savedKeywords,
   selectedRows,
   selectionErrors,
@@ -102,8 +103,9 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     scope.sort();
     const page = cursorPage(rows, paging, `${caller.project.project_id}?${scope.toString()}`);
     if (page === null) return problem(request, 'invalid_cursor');
+    const rank = rankContext(caller);
     return HttpResponse.json({
-      data: page.data.map((row) => trackedKeywordRowView(caller.keywords, caller.world, row, include)),
+      data: page.data.map((row) => trackedKeywordRowView(caller.keywords, caller.world, row, include, rank)),
       page: { ...page.page, total: rows.length },
     });
   }),
@@ -227,15 +229,19 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const schedule = operations.schedules.find(
       (candidate) => candidate.schedule_id === row.schedule_id && candidate.deleted_at === null,
     );
+    // The clock is read once, so the schedule and the rank state see the same moment
+    const clock = Date.now();
     const scheduleRef =
       schedule === undefined
         ? null
         : {
             schedule_id: schedule.schedule_id,
             name: schedule.name,
-            next_run_at: currentNextRunAt(schedule, Date.now()),
+            next_run_at: currentNextRunAt(schedule, clock),
           };
-    return HttpResponse.json({ data: trackedKeywordDetailView(caller.keywords, caller.world, row, scheduleRef) });
+    return HttpResponse.json({
+      data: trackedKeywordDetailView(caller.keywords, caller.world, row, scheduleRef, rankContext(caller, clock)),
+    });
   }),
 
   mock('patch', `${P}/tracked-keywords/{tracked_keyword_id}`, async ({ request, cookies, params }) => {
