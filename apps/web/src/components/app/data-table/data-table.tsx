@@ -100,6 +100,12 @@ const isRowClick = (event: MouseEvent<HTMLTableRowElement>): boolean =>
 /** The keys a control inside a cell hands back to the grid (20-accessibility.md section 6.3, widget mode). */
 const GRID_KEYS = new Set(['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
+/** The `data-cell` key of the cell `target` is a control of (`CELL_CONTROL`), or `null` when it is not one. */
+const controlCellOf = (target: EventTarget): string | null =>
+  target instanceof Element && target.matches(CELL_CONTROL_SELECTOR)
+    ? (target.closest<HTMLElement>('[data-cell]')?.dataset.cell ?? null)
+    : null;
+
 /** The controls of a cell that F2 reaches (a copy button, a link): the ones marked with `CELL_CONTROL`, in DOM order. */
 const controlsIn = (cell: HTMLElement): HTMLElement[] =>
   [...cell.querySelectorAll<HTMLElement>(CELL_CONTROL_SELECTOR)].filter(
@@ -167,6 +173,8 @@ export function DataTable<TRow extends RowData>({
     const column = byId.get(id);
     return column === undefined ? [] : [column];
   });
+  // F2 does something only where a column shown has controls in its cells, so only then does the hint say so
+  const hasControls = shown.some((column) => column.hasControls === true);
   const grid: GridColumn<TRow>[] = [
     ...(selection === undefined ? [] : [{ kind: 'select' as const }]),
     ...shown.map((column) => ({ kind: 'data' as const, column })),
@@ -362,6 +370,10 @@ export function DataTable<TRow extends RowData>({
   // (20-accessibility.md section 6.3, widget mode). A control that was clicked is not in widget mode, so Tab
   // leaves it as it would any button.
   const widgetCell = useRef<HTMLElement | null>(null);
+  // The cell that has a control of its own in focus. A control's tooltip and the cell's are both triggers, and
+  // focus in a control reaches the cell's too, which would show its tooltip over the control's: while a
+  // control has focus the cell's own tooltip is off (and closes, if it was open from the cell's focus)
+  const [controlCell, setControlCell] = useState<string | null>(null);
   // Escape in widget mode goes back to the cell at once. It is taken before the control's tooltip, which
   // closes on Escape and would use up the first press, so the way out is the same for every control.
   const onKeyDownCapture = (event: KeyboardEvent<HTMLTableElement>): void => {
@@ -375,12 +387,22 @@ export function DataTable<TRow extends RowData>({
   };
   const onGridBlur = (event: FocusEvent<HTMLTableElement>): void => {
     const next = event.relatedTarget;
+    // The window lost focus (a new tab opened by a link, a switch to another window): the element blurs with
+    // nothing to hand focus to, and is still the page's active element. Focus has not left the table, and
+    // is back on the element when the window is
+    if (next === null && document.activeElement === event.target) return;
     // Focus left for somewhere else, rather than with an element the table removed
     if (next instanceof Node ? !event.currentTarget.contains(next) : event.target.isConnected) {
       focusInGrid.current = false;
+      setControlCell(null);
     }
     const widget = widgetCell.current;
-    if (widget !== null && (next instanceof Node ? !widget.contains(next) : event.target.isConnected)) {
+    // Widget mode is for the controls of the cell. Focus on the cell itself (a click on its padding or on its
+    // text) is not in a control, so the next click on a control is a click on a control, not widget mode
+    if (
+      widget !== null &&
+      (next instanceof Node ? next === widget || !widget.contains(next) : event.target.isConnected)
+    ) {
       widgetCell.current = null;
     }
   };
@@ -503,6 +525,13 @@ export function DataTable<TRow extends RowData>({
           next.focus({ preventScroll: true });
           return;
         }
+      }
+      // A link is activated by Enter alone in a browser, and Space on it scrolls the table: here Space opens it
+      // too, as the keyboard map says for the controls of a cell. A held key opens it once
+      if (event.key === ' ' && plain && target instanceof HTMLAnchorElement && target.matches(CELL_CONTROL_SELECTOR)) {
+        event.preventDefault();
+        if (!event.repeat) target.click();
+        return;
       }
       // A control that used the key (an open trigger, a caret in a field) keeps it
       const typing = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio';
@@ -715,7 +744,7 @@ export function DataTable<TRow extends RowData>({
         {caption}
       </h2>
       <p id={hintId} className="sr-only">
-        {t('hint')}
+        {t(hasControls ? 'hintControls' : 'hint')}
       </p>
       {selecting && selection !== undefined ? (
         <BulkActionBar
@@ -780,8 +809,9 @@ export function DataTable<TRow extends RowData>({
           aria-busy={status === 'refetching' || status === 'loading' ? true : undefined}
           onKeyDown={onKeyDown}
           onKeyDownCapture={onKeyDownCapture}
-          onFocus={() => {
+          onFocus={(event) => {
             focusInGrid.current = true;
+            setControlCell(controlCellOf(event.target));
           }}
           onBlur={onGridBlur}
           className="table-fixed border-separate border-spacing-0 type-table"
@@ -1001,7 +1031,13 @@ export function DataTable<TRow extends RowData>({
                               return tip === undefined ? (
                                 cellNode
                               ) : (
-                                <Tooltip key={keyOf(column)} content={tip.content} detail={tip.detail} purpose="label">
+                                <Tooltip
+                                  key={keyOf(column)}
+                                  content={tip.content}
+                                  detail={tip.detail}
+                                  purpose="label"
+                                  disabled={controlCell === `${String(index)}:${String(columnIndex)}`}
+                                >
                                   {cellNode}
                                 </Tooltip>
                               );

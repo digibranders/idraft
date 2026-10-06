@@ -72,6 +72,7 @@ export function useRankColumns(timeZone: string): RankColumns {
         priority: 2,
         width: 180,
         sortable: false,
+        hasControls: true,
         cell: (row) => <RankingUrlView display={urlDisplay(row.state.current, row.state.ranking_url_count)} />,
         cellTip: (row) => tips.url(urlDisplay(row.state.current, row.state.ranking_url_count), display(row)),
       }),

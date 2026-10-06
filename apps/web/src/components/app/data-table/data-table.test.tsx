@@ -734,6 +734,28 @@ describe('DataTable rank, change and URL columns', () => {
 });
 
 /** A keyword cell with a copy button, and a URL cell with a link and a copy button, as Rankings builds them. */
+const CONTROLLED_URL = col.url<Row>('url', () => null, {
+  header: 'URL',
+  sortable: false,
+  hasControls: true,
+  // The cell's own tooltip: what shows on the cell while no control in it has the keyboard focus
+  cellTip: (row) => ({ content: `Whole address of ${row.id}` }),
+  cell: (row) => (
+    <span className="flex min-w-0 items-center">
+      <a
+        {...CELL_CONTROL}
+        href={`https://example.test/${row.id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open /${row.id} in a new tab`}
+      >
+        {`/${row.id}`}
+      </a>
+      <span>+1</span>
+      <CopyButton text={`https://example.test/${row.id}`} label="Copy ranking URL" announcement="URL copied" />
+    </span>
+  ),
+});
 const CONTROLLED = [
   col.keyword<Row>('keyword', (row) => row.keyword, {
     header: 'Keyword',
@@ -741,25 +763,7 @@ const CONTROLLED = [
     copy: { label: (row) => `Copy keyword ${row.keyword}`, announcement: 'Keyword copied' },
   }),
   col.volume<Row>('volume', (row) => row.volume, { header: 'Volume' }),
-  col.url<Row>('url', () => null, {
-    header: 'URL',
-    sortable: false,
-    cell: (row) => (
-      <span className="flex min-w-0 items-center">
-        <a
-          {...CELL_CONTROL}
-          href={`https://example.test/${row.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Open /${row.id} in a new tab`}
-        >
-          {`/${row.id}`}
-        </a>
-        <span>+1</span>
-        <CopyButton text={`https://example.test/${row.id}`} label="Copy ranking URL" announcement="URL copied" />
-      </span>
-    ),
-  }),
+  CONTROLLED_URL,
 ];
 
 describe('DataTable controls in cells', () => {
@@ -799,6 +803,28 @@ describe('DataTable controls in cells', () => {
   const focusCell = (cell: HTMLElement): void => {
     act(() => cell.focus());
   };
+
+  it('says in its hint how F2 reaches the controls, which a table without controls does not mention', () => {
+    const { unmount } = renderWithProviders(<Harness rows={rowsOf(3)} />);
+    expect(grid()).toHaveAccessibleDescription(/Use the arrow keys to move between cells\. Enter opens the row/);
+    expect(grid()).not.toHaveAccessibleDescription(/F2/);
+    unmount();
+    renderControlled();
+    expect(grid()).toHaveAccessibleDescription(/Use the arrow keys to move between cells\. Enter opens the row/);
+    expect(grid()).toHaveAccessibleDescription(
+      /F2 moves into the buttons and links of a cell, Tab steps between them and Escape comes back to the cell/,
+    );
+    expect(grid()).toHaveAccessibleDescription(/On a column header, Enter sorts/);
+  });
+
+  it('leaves F2 out of the hint when the columns with controls are not the ones shown', () => {
+    // The URL column holds controls and waits in the column chooser, so no cell shown has one
+    renderWithProviders(
+      <Harness rows={rowsOf(3)} columns={[...COLUMNS, { ...CONTROLLED_URL, defaultVisible: false }]} />,
+    );
+    expect(within(grid()).queryByRole('link')).toBeNull();
+    expect(grid()).not.toHaveAccessibleDescription(/F2/);
+  });
 
   it('keeps one tab stop, and names the row header by the keyword alone', () => {
     renderControlled();
@@ -879,9 +905,132 @@ describe('DataTable controls in cells', () => {
     await user.keyboard('{F2}{Enter}');
     expect(writeText).toHaveBeenCalledExactlyOnceWith('keyword 002');
     expect(onOpen).not.toHaveBeenCalled();
-    // Space on a control does not select the row
+    // Space on a control does not select the row. The selection is announced after 250 ms, so the row's own
+    // state is what says it was not selected
     await user.keyboard(' ');
-    expect(screen.queryByText(/selected$/)).toBeNull();
+    expect(firstRow()).toHaveAttribute('aria-selected', 'false');
+    expect(within(firstRow()).getByRole('checkbox', { name: 'Select keyword 002' })).not.toBeChecked();
+  });
+
+  it('opens the link with Space as well as Enter, and Space does not scroll the table or select the row', async () => {
+    const { user } = renderControlled();
+    const clicked = vi.fn<(event: Event) => void>();
+    document.addEventListener('click', clicked);
+    try {
+      focusCell(urlCell());
+      await user.keyboard('{F2}');
+      const link = within(urlCell()).getByRole('link', { name: 'Open /k2 in a new tab' });
+      expect(link).toHaveFocus();
+      // Enter is the browser's own; Space on an anchor scrolls unless the table takes it
+      await user.keyboard('{Enter}');
+      expect(clicked).toHaveBeenCalledOnce();
+      clicked.mockClear();
+      expect(fireEvent.keyDown(link, { key: ' ' })).toBe(false);
+      expect(clicked).toHaveBeenCalledOnce();
+      expect(clicked.mock.calls[0]?.[0].target).toBe(link);
+      clicked.mockClear();
+      await user.keyboard(' ');
+      expect(clicked).toHaveBeenCalledOnce();
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(firstRow()).toHaveAttribute('aria-selected', 'false');
+    } finally {
+      document.removeEventListener('click', clicked);
+    }
+  });
+
+  it('keeps widget mode while the window has no focus, and Tab goes on to the next control when it is back', async () => {
+    const { user } = renderControlled();
+    focusCell(urlCell());
+    await user.keyboard('{F2}');
+    const link = within(urlCell()).getByRole('link', { name: 'Open /k2 in a new tab' });
+    const copy = within(urlCell()).getByRole('button', { name: 'Copy ranking URL' });
+    expect(link).toHaveFocus();
+    // A new tab or another window takes the focus: the link blurs with no element to give it to, and is
+    // still the page's active element
+    act(() => {
+      window.dispatchEvent(new Event('blur'));
+      fireEvent.blur(link, { relatedTarget: null });
+    });
+    expect(link).toHaveFocus();
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      fireEvent.focus(link);
+    });
+    await user.keyboard('{Tab}');
+    expect(copy).toHaveFocus();
+    expect(urlCell().contains(document.activeElement)).toBe(true);
+  });
+
+  it('leaves widget mode when focus goes to nothing: the element is no longer the active one', async () => {
+    const { user } = renderControlled();
+    focusCell(urlCell());
+    await user.keyboard('{F2}');
+    const copy = within(urlCell()).getByRole('button', { name: 'Copy ranking URL' });
+    await user.keyboard('{Tab}');
+    expect(copy).toHaveFocus();
+    // A click on the page's background: nothing takes the focus
+    act(() => copy.blur());
+    act(() => {
+      fireEvent.blur(copy, { relatedTarget: null });
+    });
+    expect(document.body).toHaveFocus();
+    act(() => copy.focus());
+    expect(fireEvent.keyDown(copy, { key: 'Tab' })).toBe(true);
+  });
+
+  it('stays in widget mode through a copy that falls back to a selected field, and keeps its focus', async () => {
+    const { user } = renderControlled();
+    // No Clipboard API (a plain http page): the field is selected and copied
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    const execCommand = vi.fn<(commandId: string) => boolean>().mockReturnValue(true);
+    Object.defineProperty(document, 'execCommand', { value: execCommand, configurable: true, writable: true });
+    try {
+      focusCell(urlCell());
+      await user.keyboard('{F2}');
+      const link = within(urlCell()).getByRole('link', { name: 'Open /k2 in a new tab' });
+      const copy = within(urlCell()).getByRole('button', { name: 'Copy ranking URL' });
+      await user.keyboard('{Tab}');
+      expect(copy).toHaveFocus();
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(execCommand).toHaveBeenCalledExactlyOnceWith('copy'));
+      await waitFor(() => expect(within(urlCell()).getByRole('button', { name: 'Copied' })).toBe(copy));
+      expect(copy).toHaveFocus();
+      // Still in widget mode: Tab steps to the link rather than leaving the cell
+      await user.keyboard('{Tab}');
+      expect(link).toHaveFocus();
+    } finally {
+      Reflect.deleteProperty(document, 'execCommand');
+    }
+  });
+
+  it('leaves widget mode for a click on the cell itself, so a clicked control is Tab as any button', async () => {
+    const { user } = renderControlled();
+    focusCell(urlCell());
+    await user.keyboard('{F2}');
+    // The padding of the cell, which is focusable itself: focus goes to the cell, inside the widget cell
+    await user.click(urlCell());
+    expect(urlCell()).toHaveFocus();
+    const copy = within(urlCell()).getByRole('button', { name: 'Copy ranking URL' });
+    await user.click(copy);
+    expect(copy).toHaveFocus();
+    expect(fireEvent.keyDown(copy, { key: 'Tab' })).toBe(true);
+  });
+
+  it('shows the control own tooltip while a control has the keyboard focus, and the cell one otherwise', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} columns={CONTROLLED} />);
+    focusCell(urlCell());
+    await user.keyboard('{ArrowLeft}{ArrowRight}');
+    expect(urlCell()).toHaveFocus();
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Whole address of k2'));
+    await user.keyboard('{F2}{Tab}');
+    expect(within(urlCell()).getByRole('button', { name: 'Copy ranking URL' })).toHaveFocus();
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Copy ranking URL'));
+    expect(document.querySelectorAll('[data-slot="tooltip"]')).toHaveLength(1);
+    expect(tooltip()).not.toHaveTextContent('Whole address');
+    // Escape is the way back to the cell, and the control's tooltip does not use the first press
+    await user.keyboard('{Escape}');
+    expect(urlCell()).toHaveFocus();
+    await waitFor(() => expect(tooltip()).toBeNull());
   });
 
   it('copies the keyword from the keyboard, as it is, and says so', async () => {

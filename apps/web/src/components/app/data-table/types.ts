@@ -67,6 +67,11 @@ export interface DataTableColumn<TRow> {
    * named by its content, as always.
    */
   cellLabel?: ((row: TRow) => string) | undefined;
+  /**
+   * The column's cells hold controls marked with `CELL_CONTROL` (a copy button, a link), which F2 reaches. The
+   * table's hint mentions F2 only when a column shown has them, since on other tables the key does nothing.
+   */
+  hasControls?: boolean | undefined;
   priority: ColumnPriority;
   /** The screen's default width, between the type's minimum and maximum. */
   width?: number | undefined;

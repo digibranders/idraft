@@ -1372,7 +1372,8 @@
     "deleteVocabularyFailed": "{name} was not deleted. Try again in a moment."
   },
   "dataTable": {
-    "hint": "Use the arrow keys to move between cells. Enter opens the row and Space selects it. F2 moves into the buttons and links of a cell, Tab steps between them and Escape comes back to the cell. On a column header, Enter sorts and Alt plus Down Arrow opens the column options.",
+    "hint": "Use the arrow keys to move between cells. Enter opens the row and Space selects it. On a column header, Enter sorts and Alt plus Down Arrow opens the column options.",
+    "hintControls": "Use the arrow keys to move between cells. Enter opens the row and Space selects it. F2 moves into the buttons and links of a cell, Tab steps between them and Escape comes back to the cell. On a column header, Enter sorts and Alt plus Down Arrow opens the column options.",
     "count": "{count, plural, one {# {nounOne}} other {# {nounOther}}}",
     "search": "Search in table",
     "toolbar": "{caption} table actions",

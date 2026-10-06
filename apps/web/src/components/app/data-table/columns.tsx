@@ -29,6 +29,8 @@ interface Options {
   defaultVisible?: boolean | undefined;
   /** Whether the column sorts; on by default for the types that sort. */
   sortable?: boolean | undefined;
+  /** Its cells hold `CELL_CONTROL` controls (a screen's own `cell` with a copy button or a link). */
+  hasControls?: boolean | undefined;
 }
 
 const clampWidth = (type: ColumnType, width: number | undefined): number | undefined => {
@@ -51,6 +53,7 @@ function base<TRow>(
     header: options.header,
     headerTooltip: options.headerTooltip,
     cellTip,
+    hasControls: options.hasControls,
     priority: options.priority ?? 1,
     width: clampWidth(type, options.width),
     defaultVisible: options.defaultVisible ?? true,
@@ -126,6 +129,7 @@ export const col = {
       ),
       identity: true,
       cellLabel: options.copy === undefined ? undefined : text,
+      hasControls: options.copy !== undefined,
     };
   },
 
