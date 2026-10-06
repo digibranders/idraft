@@ -56,6 +56,7 @@ export function useKeywordRowName(projectLanguage: string | null): (row: Tracked
 
 export function useKeywordColumns(timeZone: string): readonly DataTableColumn<TrackedKeywordRow>[] {
   const t = useTranslations('rankings.columns');
+  const common = useTranslations('common');
   const locale = useLocale();
   return useMemo(() => {
     // Before Labs answers there is nothing; after an empty answer there is no data (12-tables.md 7.3)
@@ -134,10 +135,11 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
       ),
       col.date<TrackedKeywordRow>('created_at', (row) => row.created_at, {
         header: t('added'),
+        headerTooltip: common('timesIn', { timeZone }),
         priority: 4,
         timeZone,
         secondary: true,
       }),
     ];
-  }, [t, locale, timeZone]);
+  }, [t, common, locale, timeZone]);
 }

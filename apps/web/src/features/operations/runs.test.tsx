@@ -471,6 +471,12 @@ describe('Runs', () => {
     expect(bodyRows(table)[0]).toHaveTextContent('Failed');
     expect(bodyRows(table)[0]).toHaveTextContent('Keyword metrics');
     expect(within(table).getByRole('columnheader', { name: /Started/ })).toHaveAttribute('aria-sort', 'descending');
+    // The times name their zone in the headers' descriptions (22-content-formatting.md section 4)
+    for (const name of ['Started', 'Window', 'Finished']) {
+      expect(within(table).getByRole('columnheader', { name: new RegExp(name) })).toHaveAccessibleDescription(
+        'Times in Europe/Berlin (project time zone)',
+      );
+    }
     // One request to the project's list for the UTC month, with no filter left in as an empty parameter
     const first = asked[0];
     expect(first?.path).toContain(`/projects/${fynix.project_id}/runs`);

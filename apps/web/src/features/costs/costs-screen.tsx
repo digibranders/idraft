@@ -9,7 +9,6 @@ import { useMemo, type ReactElement } from 'react';
 import { BudgetMeter } from './budget-meter';
 import { COST_TABS, CostBreakdown, useProjectLabel, type CostsProject } from './cost-breakdown';
 import { money, shareOf, workspaceBudget } from './cost-model';
-import { CostTable, type CostColumn } from './cost-table';
 import { CostsError } from './costs-error';
 import { useBudgetStatus, useCosts, type CostScope } from './costs-queries';
 import { useSpendChart } from './use-spend-chart';
@@ -20,6 +19,7 @@ import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { MetricStrip, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import { PageHeader } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
+import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
@@ -218,7 +218,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
 
   const stripGroups = [{ id: 'month', items: stripItems }];
 
-  const workloadColumns: CostColumn<CostRow>[] = [
+  const workloadColumns: PlainColumn<CostRow>[] = [
     { id: 'workload', header: t('workload'), align: 'left', cell: (row) => workloadName(row.keys.workload ?? '') },
     { id: 'cost', header: t('cost'), align: 'right', cell: (row) => formatCurrency(money(row.cost_usd)) },
     {
@@ -314,7 +314,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
           <h2 id="costs-by-workload" className="type-section-title">
             {t('byWorkload')}
           </h2>
-          <CostTable
+          <PlainTable
             caption={t('byWorkload')}
             columns={workloadColumns}
             rows={byWorkload.data?.data ?? []}

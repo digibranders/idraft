@@ -20,12 +20,12 @@ import { useScheduleWords, useSelectorNames } from './schedule-words';
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
-import { Skeleton } from '@/components/ui/skeleton';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
@@ -189,6 +189,94 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
     return items;
   };
 
+  const columns: PlainColumn<Schedule>[] = [
+    {
+      id: 'schedule',
+      header: t('columns.schedule'),
+      align: 'left',
+      wrap: true,
+      cell: (schedule) => (
+        <span className="flex flex-col">
+          <span className="type-body text-foreground">{schedule.name}</span>
+          <span className="type-meta">{workloadName(schedule.workload)}</span>
+        </span>
+      ),
+    },
+    {
+      id: 'collects',
+      header: t('columns.collects'),
+      align: 'left',
+      wrap: true,
+      cell: (schedule) => words.collects(schedule.selector, names),
+    },
+    {
+      id: 'when',
+      header: t('columns.when'),
+      align: 'left',
+      wrap: true,
+      cell: (schedule) => (
+        <>
+          {words.when(schedule)}
+          {schedule.timezone === timeZone ? null : <span className="block type-meta">{schedule.timezone}</span>}
+        </>
+      ),
+    },
+    {
+      id: 'next',
+      header: t('columns.next'),
+      // 22-content-formatting.md section 4: a column of times says which zone they are in
+      description: t('columns.nextZone', { timeZone }),
+      align: 'left',
+      cell: (schedule) => (
+        <>
+          {schedule.is_active ? (
+            <span className="block num type-body whitespace-nowrap text-foreground-secondary">
+              {formatTableDateTime(schedule.next_run_at, schedule.timezone)}
+            </span>
+          ) : (
+            <Badge tone="warning">{t('pausedBadge')}</Badge>
+          )}
+          {/* The API names the last run by its id only, so Runs is where its time is */}
+          <span className="block type-meta">
+            {schedule.last_run_id === null ? (
+              t('neverRun')
+            ) : (
+              <TextLink render={<Link href={runsPath(workspaceSlug, projectSlug)} />}>{t('lastRun')}</TextLink>
+            )}
+          </span>
+        </>
+      ),
+    },
+    ...(canWrite
+      ? [
+          {
+            id: 'actions',
+            header: t('columns.actions'),
+            hideHeader: true,
+            align: 'right',
+            cell: (schedule: Schedule) => (
+              <Menu
+                align="end"
+                trigger={
+                  <IconButton
+                    icon={MoreHorizontal}
+                    size="icon-sm"
+                    variant="ghost"
+                    label={t('actionsFor', { name: schedule.name })}
+                    // Only the schedule being changed waits, and keeps focus while it does
+                    disabled={busy === schedule.schedule_id}
+                    focusableWhenDisabled
+                    data-schedule-menu={schedule.schedule_id}
+                  />
+                }
+                items={itemsFor(schedule)}
+              />
+            ),
+          } satisfies PlainColumn<Schedule>,
+        ]
+      : []),
+  ];
+
   const newSchedule = (
     <Button
       variant="primary"
@@ -239,99 +327,16 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
           primaryAction={canWrite ? newSchedule : undefined}
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-          <table className="w-full" aria-label={t('tableLabel')}>
-            <thead className="bg-surface-subtle">
-              <tr>
-                <th scope="col" className="h-row-header px-4 text-left type-label">
-                  {t('columns.schedule')}
-                </th>
-                <th scope="col" className="h-row-header px-3 text-left type-label">
-                  {t('columns.collects')}
-                </th>
-                <th scope="col" className="h-row-header px-3 text-left type-label">
-                  {t('columns.when')}
-                </th>
-                <th scope="col" className="h-row-header px-3 text-left type-label">
-                  {t('columns.next')}
-                </th>
-                {canWrite ? (
-                  <th scope="col" className="h-row-header px-4">
-                    <span className="sr-only">{t('columns.actions')}</span>
-                  </th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody aria-busy={schedules.isPending}>
-              {schedules.isPending
-                ? Array.from({ length: SKELETON_ROWS }, (_, index) => (
-                    <tr key={index} className="h-row border-t border-border-subtle">
-                      <td colSpan={canWrite ? 5 : 4} className="px-4">
-                        <Skeleton shape="text-14" widthPct={48} />
-                      </td>
-                    </tr>
-                  ))
-                : rows.map((schedule) => (
-                    <tr key={schedule.schedule_id} className="h-row border-t border-border-subtle">
-                      <th scope="row" className="px-4 py-2 text-left font-normal">
-                        <span className="flex flex-col">
-                          <span className="type-body text-foreground">{schedule.name}</span>
-                          <span className="type-meta">{workloadName(schedule.workload)}</span>
-                        </span>
-                      </th>
-                      <td className="px-3 py-2 type-body text-foreground-secondary">
-                        {words.collects(schedule.selector, names)}
-                      </td>
-                      <td className="px-3 py-2 type-body text-foreground-secondary">
-                        {words.when(schedule)}
-                        {schedule.timezone === timeZone ? null : (
-                          <span className="block type-meta">{schedule.timezone}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        {schedule.is_active ? (
-                          <span className="block num type-body whitespace-nowrap text-foreground-secondary">
-                            {formatTableDateTime(schedule.next_run_at, schedule.timezone)}
-                          </span>
-                        ) : (
-                          <Badge tone="warning">{t('pausedBadge')}</Badge>
-                        )}
-                        {/* The API names the last run by its id only, so Runs is where its time is */}
-                        <span className="block type-meta">
-                          {schedule.last_run_id === null ? (
-                            t('neverRun')
-                          ) : (
-                            <TextLink render={<Link href={runsPath(workspaceSlug, projectSlug)} />}>
-                              {t('lastRun')}
-                            </TextLink>
-                          )}
-                        </span>
-                      </td>
-                      {canWrite ? (
-                        <td className="px-4 text-right">
-                          <Menu
-                            align="end"
-                            trigger={
-                              <IconButton
-                                icon={MoreHorizontal}
-                                size="icon-sm"
-                                variant="ghost"
-                                label={t('actionsFor', { name: schedule.name })}
-                                // Only the schedule being changed waits, and keeps focus while it does
-                                disabled={busy === schedule.schedule_id}
-                                focusableWhenDisabled
-                                data-schedule-menu={schedule.schedule_id}
-                              />
-                            }
-                            items={itemsFor(schedule)}
-                          />
-                        </td>
-                      ) : null}
-                    </tr>
-                  ))}
-            </tbody>
-          </table>
-        </div>
+        <PlainTable<Schedule>
+          caption={t('tableLabel')}
+          columns={columns}
+          rows={rows}
+          rowKey={(schedule) => schedule.schedule_id}
+          status={schedules.isPending ? 'loading' : 'ready'}
+          errorState={null}
+          emptyText={t('emptyTitle')}
+          skeletonRows={SKELETON_ROWS}
+        />
       )}
       <ScheduleDialog
         scope={scope}

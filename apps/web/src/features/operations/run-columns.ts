@@ -46,6 +46,7 @@ export interface RunColumns {
 
 export function useRunColumns(timeZone: string): RunColumns {
   const t = useTranslations('runs');
+  const common = useTranslations('common');
   const workloadName = useWorkloadName();
   return useMemo(() => {
     const statusLabel = (row: Run): string => t(`statuses.${RUN_STATUS_KEYS[row.status]}`);
@@ -57,7 +58,11 @@ export function useRunColumns(timeZone: string): RunColumns {
         header: t('columns.status'),
         width: 168,
       }),
-      col.date<Run>('created_at', (row) => row.created_at, { header: t('columns.created'), timeZone }),
+      col.date<Run>('created_at', (row) => row.created_at, {
+        header: t('columns.created'),
+        headerTooltip: common('timesIn', { timeZone }),
+        timeZone,
+      }),
       col.badge<Run>('trigger', (row) => ({ label: triggerLabel(row) }), {
         header: t('columns.trigger'),
         priority: 2,
@@ -84,10 +89,17 @@ export function useRunColumns(timeZone: string): RunColumns {
             start: formatTableDateTime(row.window_start, timeZone),
             end: formatTableDateTime(row.window_end, timeZone),
           }),
-        { header: t('columns.window'), priority: 3, width: 240, sortable: false },
+        {
+          header: t('columns.window'),
+          headerTooltip: common('timesIn', { timeZone }),
+          priority: 3,
+          width: 240,
+          sortable: false,
+        },
       ),
       col.date<Run>('completed_at', (row) => row.completed_at, {
         header: t('columns.completed'),
+        headerTooltip: common('timesIn', { timeZone }),
         priority: 4,
         timeZone,
         secondary: true,
@@ -99,5 +111,5 @@ export function useRunColumns(timeZone: string): RunColumns {
       rowName: (row) =>
         t('rowName', { workload: workloadName(row.workload), started: formatTableDateTime(row.created_at, timeZone) }),
     };
-  }, [t, workloadName, timeZone]);
+  }, [t, common, workloadName, timeZone]);
 }

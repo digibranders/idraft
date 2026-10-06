@@ -7,9 +7,9 @@ import type { ReactElement } from 'react';
 import { BudgetMeter } from './budget-meter';
 import { BudgetStatusBadge } from './budget-status-badge';
 import { budgetRows, money, projectBudget, shareOf } from './cost-model';
-import { CostTable, type CostColumn } from './cost-table';
 import { CostsError } from './costs-error';
 import { useCosts, usePriceBook, type CostScope } from './costs-queries';
+import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import type { BudgetStatus, BudgetStatusList, CostRow, Price } from '@/lib/api/types';
@@ -108,7 +108,7 @@ function ProviderPanel({
   const t = useTranslations('costs');
   const query = useCosts(scope, ['provider'], now);
   const total = query.data?.meta.total_cost_usd ?? '0';
-  const columns: CostColumn<CostRow>[] = [
+  const columns: PlainColumn<CostRow>[] = [
     { id: 'provider', header: t('provider'), align: 'left', cell: (row) => row.keys.provider ?? '' },
     { id: 'requests', header: t('requests'), align: 'right', cell: (row) => formatInteger(row.request_count) },
     { id: 'subjects', header: t('subjects'), align: 'right', cell: (row) => formatInteger(row.subjects) },
@@ -116,7 +116,7 @@ function ProviderPanel({
     { id: 'share', header: t('share'), align: 'right', cell: (row) => share(row.cost_usd, total) },
   ];
   return (
-    <CostTable
+    <PlainTable
       caption={t('tabs.provider')}
       columns={columns}
       rows={query.data?.data ?? []}
@@ -152,7 +152,7 @@ function ProjectPanel({
     const known = projects.find((project) => project.id === id);
     return known === undefined ? t('deletedProject') : projectLabel(known);
   };
-  const columns: CostColumn<CostRow>[] = [
+  const columns: PlainColumn<CostRow>[] = [
     { id: 'project', header: t('project'), align: 'left', cell: nameOf },
     { id: 'cost', header: t('cost'), align: 'right', cell: (row) => usd(row.cost_usd) },
     { id: 'share', header: t('share'), align: 'right', cell: (row) => share(row.cost_usd, total) },
@@ -166,7 +166,7 @@ function ProjectPanel({
               const status = budgetOf(row);
               return status === null ? null : <BudgetUse status={status} showWorkload />;
             },
-          } satisfies CostColumn<CostRow>,
+          } satisfies PlainColumn<CostRow>,
           {
             id: 'status',
             header: t('status'),
@@ -175,12 +175,12 @@ function ProjectPanel({
               const status = budgetOf(row);
               return status === null ? null : <BudgetStatusBadge state={status.state} />;
             },
-          } satisfies CostColumn<CostRow>,
+          } satisfies PlainColumn<CostRow>,
         ]
       : []),
   ];
   return (
-    <CostTable
+    <PlainTable
       caption={t('tabs.project')}
       columns={columns}
       rows={rows}
@@ -224,7 +224,7 @@ function BudgetUse({ status, showWorkload = false }: { status: BudgetStatus; sho
 function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'month' | 'now'>): ReactElement {
   const t = useTranslations('costs');
   const query = usePriceBook(scope.workspaceId, month, now);
-  const columns: CostColumn<Price>[] = [
+  const columns: PlainColumn<Price>[] = [
     { id: 'provider', header: t('provider'), align: 'left', cell: (row) => row.provider_code },
     { id: 'endpoint', header: t('endpoint'), align: 'left', cell: (row) => row.endpoint },
     { id: 'unit', header: t('unit'), align: 'left', cell: (row) => row.price_unit },
@@ -243,7 +243,7 @@ function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'm
         <Badge variant="outline">{t('estimate')}</Badge>
         {t('unitCostsNote')}
       </p>
-      <CostTable
+      <PlainTable
         caption={t('tabs.units')}
         columns={columns}
         rows={query.data?.data ?? []}
@@ -260,7 +260,7 @@ function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects'
   const t = useTranslations('costs');
   const projectLabel = useProjectLabel();
   const workloadName = useWorkloadName();
-  const columns: CostColumn<BudgetStatus>[] = [
+  const columns: PlainColumn<BudgetStatus>[] = [
     {
       id: 'scope',
       header: t('scope'),
@@ -284,7 +284,7 @@ function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects'
     { id: 'status', header: t('status'), align: 'left', cell: (row) => <BudgetStatusBadge state={row.state} /> },
   ];
   return (
-    <CostTable
+    <PlainTable
       caption={t('tabs.budgets')}
       columns={columns}
       rows={budgetRows(budgets.data?.data ?? [])}

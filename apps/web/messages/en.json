@@ -24,6 +24,7 @@
       "weeklyLight": "Weekly light",
       "untilOwnMatch100": "Until own match, top 100"
     },
+    "timesIn": "Times in {timeZone} (project time zone)",
     "quota": "Your plan has {room, plural, =0 {no room for another active keyword} one {room for # more active keyword} other {room for # more active keywords}} ({used, number} of {limit, number} used); this adds {requested, number}.",
     "location": {
       "placeholder": "Search countries and cities",
@@ -469,6 +470,7 @@
         "collects": "Collects",
         "when": "When",
         "next": "Next run",
+        "nextZone": "Times in each schedule’s time zone: {timeZone}, the project’s, unless the When column names another.",
         "actions": "Actions"
       },
       "pausedBadge": "Paused",

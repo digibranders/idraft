@@ -78,6 +78,10 @@ describe('Rankings', () => {
       .getAllByRole('gridcell')
       .find((cell) => cell.textContent === 'Pending');
     expect(pending).toHaveAccessibleDescription('Metrics arrive within minutes of adding a keyword');
+    // A time names its zone in the header's description: 22-content-formatting.md section 4
+    expect(screen.getByRole('columnheader', { name: /Added/ })).toHaveAccessibleDescription(
+      'Times in Europe/Berlin (project time zone)',
+    );
   });
 
   it('writes a sort from a header into the URL, and leaves the default out', async () => {

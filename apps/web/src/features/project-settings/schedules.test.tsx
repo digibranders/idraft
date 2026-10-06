@@ -150,6 +150,14 @@ describe('Project settings > Schedules', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('names the time zone the next runs are in, in the description of the column header', async () => {
+    renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    expect(screen.getByRole('columnheader', { name: /Next run/ })).toHaveAccessibleDescription(
+      'Times in each schedule’s time zone: Europe/Berlin, the project’s, unless the When column names another.',
+    );
+  });
+
   it('names the time zone of a schedule that keeps one other than the project’s', async () => {
     renderWithProviders(screenAs('editor', 'America/New_York'));
     const daily = await rowOf('Daily rankings');
