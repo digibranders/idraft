@@ -35,10 +35,12 @@ from sightline.api.schemas.operations import (
     RunPage,
     RunPageMeta,
     RunResponse,
+    RunResults,
     RunStatus,
     Trigger,
     Workload,
 )
+from sightline.api.schemas.ranks import CheckNow
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.api.workspaces.dependencies import require_permission
 
@@ -151,6 +153,27 @@ async def refresh_keyword_metrics(
     return RunResponse(data=run_view(record, access.workspace_id))
 
 
+@router.post(
+    "/seo/check-now",
+    status_code=202,
+    summary="Check keywords now (a manual run, asked of the provider live)",
+    description="The given tracked keywords (at most 100, which the project collects; "
+    "`422 validation_failed` with `keyword_unknown` otherwise), each asked of the provider "
+    "live, at `depth` or else its daily depth. The run is `planned` and the worker plans it "
+    "within a minute; a result is normally there within seconds after that. Read the run for "
+    "its progress and the keywords' rank for the answer. A budget used up blocks it "
+    "(`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with "
+    "`limit`; `422 quota_exceeded` when the month's live checks would pass the workspace's "
+    "`max_serp_checks_per_month`; `503 provider_paused` while the provider is refusing every "
+    "request.",
+)
+async def check_now(
+    project_id: UUID, body: CheckNow, access: TriggerRuns, runs: Runs, info: Info
+) -> RunResponse:
+    record = await runs.check_now(access, project_id, body, info)
+    return RunResponse(data=run_view(record, access.workspace_id))
+
+
 @router.get(
     "/runs",
     summary="The project's runs",
@@ -211,11 +234,14 @@ async def get_run(
 ) -> RunDetailResponse:
     found = await runs.detail(access, project_id, run_id)
     view = run_view(found.run, access.workspace_id)
+    selector = found.run.config_snapshot.get("selector")
+    named = selector.get("tracked_keyword_ids") if isinstance(selector, dict) else None
     return RunDetailResponse(
         data=RunDetail(
             **view.model_dump(),
             tasks_by_status=found.tasks_by_status,
             config_snapshot=dict(found.run.config_snapshot),
+            results=RunResults(tracked_keyword_ids=named) if isinstance(named, list) else None,
         )
     )
 

@@ -927,6 +927,18 @@ CREATE TABLE seo.serp_current_results (
 );
 ```
 
+**As built (step 5, rank tables, migration 0013).** The tables of sections 7.3 to 7.6 and `seo.rank_events` (doc 09 section 4.1) exist, with these differences:
+
+- Every tenant table carries `workspace_id`, and keys between tenant tables include it. `seo.tracked_keyword_state` and `seo.serp_current_results` gain `workspace_id` and `project_id` and refer to `seo.tracked_keywords` through `(id, project_id, workspace_id)` with `ON DELETE CASCADE`; so do the snapshots and the events. Features and observations refer to their snapshot through `(id, observed_at, workspace_id, project_id, tracked_keyword_id)`, so they cannot name another project or keyword than their snapshot's; `domain_rank_observations` has an index on its snapshot, for the cascade. PostgreSQL copies such a key onto each partition of the table it refers to; the metadata test ignores the copies. Entity ids and URL ids carry no key.
+- One snapshot per task: `(collection_task_id, observed_at)` is unique. The arrays of a snapshot run in parallel (equal lengths), the extras are at most 8 KB and a feature's payload 4 KB. A ranked entity has a ranking URL and an unranked one has none. An event type is one of the 21 of doc 09, and `seo.rank_events` gains `feature_type` for `feature_gained` and `feature_lost` (set exactly for those two).
+- `seo.tracked_keyword_state` adds `consecutive_beyond` (the debounce of `new_ranking` and `lost_ranking`), `last_ranked_rank` (a check that does not rank extends the run only when it looked as deep as the keyword last ranked) and `previous_depth_requested` (the depth the previous check looked at; a change is read within the smaller depth of the two checks). `seo.serp_current_results` holds ranks 1 to 20.
+- The four observation tables are monthly partitions, registered in `ops.partitioned_tables`; the worker creates them ahead as for the ledger.
+- Grants: the API reads all of them; the worker inserts into the observation tables and `seo.serp_feature_types` (an unknown DataForSEO type becomes `other:<type>`), changes the state in named columns only, and replaces the current results (INSERT and DELETE). The worker reads `core.entities`, `core.entity_domains`, `core.project_entities`, `core.project_domain_roles` and `seo.tracked_keyword_competitors` to resolve ranks.
+- `seo.serp_snapshot_raw(snapshot_id)` is a `SECURITY DEFINER` function the API calls for the raw route (`app_api` only): it returns the registry row of the snapshot's payload when the snapshot belongs to the current workspace (review log F8).
+- The price book gets the SERP rows of `serp/google/organic`: $0.0006, $0.0012 and $0.002 a page (`conditions.queue` is `standard`, `priority` or `live`) and the asynchronous AI Overview surcharge ($0.0006 a task).
+- A check now is a task with `provider_endpoint = 'serp/google/organic/live'` and `ready_source = 'live'`, which goes from `submit_unknown` straight to `fetched` and has no provider task id; the month's count of such tasks is the usage of `core.workspace_quotas.max_serp_checks_per_month`. The tracked keyword's state takes its check like any other (`current_depth_requested` is the depth asked).
+- Schedules of the `seo_rank` workload made before this revision have their `next_run_at` moved to now, so the planner starts them at their next window instead of recording the past ones as missed (review log F72).
+
 ### 7.7 SEO rollups
 
 ```sql
@@ -2226,7 +2238,8 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `core.domains` | SELECT; INSERT of `host`, `registrable_domain`, `public_suffix`, `is_ip` only (an entity domain or a project's primary domain adds its host; no route lists the table; `ON CONFLICT (host) DO NOTHING` then a SELECT, since the API cannot update the row) | the same (a keyword import adds the hosts of target URLs) |
 | `core.urls` | SELECT; INSERT of `url_hash`, `canonical_url`, `domain_id`, `path`, `canonicalizer_version` (a tracked keyword's target URL) | the same (imports now, SERP ingest next) |
 | `core.locations`, `core.provider_location_map` | SELECT | SELECT, INSERT, UPDATE (the location sync) |
-| `core.entities`, `core.entity_aliases` | SELECT, INSERT, UPDATE, DELETE | none until ingest and extraction read them |
+| `core.entities` | SELECT, INSERT, UPDATE, DELETE | SELECT (rank ingest resolves a SERP against them; migration 0013) |
+| `core.entity_aliases` | SELECT, INSERT, UPDATE, DELETE | none until extraction reads them |
 | `core.taxonomy_vocabularies`, `core.taxonomy_terms` | SELECT, INSERT, UPDATE, DELETE | SELECT; INSERT on terms (an import creates the terms its rows name) |
 | `seo.keywords` | SELECT; INSERT (`workspace_id`, `text`, `normalized_text`, `language_code`) | the same (imports) |
 | `seo.tracked_keywords` | SELECT, INSERT; UPDATE of the mutable columns (identity columns never change; deleting sets `deleted_at`) | SELECT, INSERT; UPDATE (`is_active`, `updated_at`, `deleted_at`, `schedule_id`: an import brings back or unarchives a row, and drops a schedule deleted since) |
@@ -2234,14 +2247,18 @@ Least privilege, per table and, where a role may change some columns of a row bu
 | `seo.keyword_groups` | SELECT, INSERT, UPDATE, DELETE | SELECT, INSERT |
 | `seo.keyword_group_members` | SELECT, INSERT, DELETE | SELECT, INSERT |
 | `seo.tracked_keyword_terms` | SELECT, INSERT, DELETE | SELECT, INSERT, DELETE (migration 0012: a keyword an import brings back loses its surplus terms under a single-valued vocabulary) |
-| `seo.tracked_keyword_competitors` | SELECT, INSERT, DELETE | none |
+| `seo.tracked_keyword_competitors` | SELECT, INSERT, DELETE | SELECT (migration 0013) |
+| `seo.serp_feature_types` | SELECT | SELECT, INSERT (an unknown provider type is added as `other:<type>`) |
+| `seo.serp_snapshots`, `seo.serp_features`, `seo.domain_rank_observations`, `seo.rank_events` | SELECT | SELECT, INSERT |
+| `seo.tracked_keyword_state` | SELECT | SELECT, INSERT; UPDATE on every column but the keys |
+| `seo.serp_current_results` | SELECT | SELECT, INSERT, DELETE (the top 20 is replaced) |
 | `seo.keyword_metric_snapshots` | SELECT | SELECT, INSERT |
 | `seo.keyword_metrics_current` | SELECT | SELECT, INSERT, UPDATE |
 | `seo.keyword_imports` | SELECT, INSERT; UPDATE (`column_mapping`, `defaults`, `status`, `duplicate_action`, `finished_at`) | SELECT; UPDATE (`column_mapping`, `status`, `counts`, `error_code`, `finished_at`) |
 | `seo.keyword_import_rows` | SELECT; UPDATE (`action`) | SELECT, INSERT, DELETE (a new preview replaces the rows); UPDATE (`result`, `tracked_keyword_id`, `write_error_code`) |
-| `core.entity_domains` | SELECT, INSERT, DELETE | none |
-| `core.project_entities` | SELECT, INSERT, UPDATE (a removed role keeps its row; `removed_at` is set) | none |
-| `core.project_domain_roles` (view, `security_invoker`; `tests/db/test_grants.py` refuses any view a runtime role reads that is not, and any readable materialized view) | SELECT | none |
+| `core.entity_domains` | SELECT, INSERT, DELETE | SELECT (migration 0013) |
+| `core.project_entities` | SELECT, INSERT, UPDATE (a removed role keeps its row; `removed_at` is set) | SELECT (migration 0013) |
+| `core.project_domain_roles` (view, `security_invoker`; `tests/db/test_grants.py` refuses any view a runtime role reads that is not, and any readable materialized view) | SELECT | SELECT (migration 0013) |
 | `ops.budgets` | SELECT, INSERT, UPDATE, DELETE | SELECT |
 | `ops.schedules` | SELECT, INSERT, UPDATE (deleting sets `deleted_at`, so runs keep naming the schedule) | SELECT, INSERT (a project's keyword metrics schedule, made with its first tracked keyword); UPDATE (`next_run_at`, `last_run_id`) |
 | `ops.collection_runs` | SELECT; INSERT (what a manual run asks for: scope, workload, window, trigger, status, creator, request id, estimated cost, config snapshot); UPDATE (`status`, `status_reason`, `completed_at`) | SELECT, INSERT; UPDATE (status, counters, cost and completion columns; `window_start`, `window_end` and `config_snapshot`, which the planner sets when it plans a manual run) |

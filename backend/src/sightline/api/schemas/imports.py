@@ -16,7 +16,7 @@ from pydantic import AfterValidator, BaseModel, Field, StringConstraints, model_
 
 from sightline.api.pagination import CursorPageInfo
 from sightline.api.schemas.common import Body, LanguageCode, UserRef, printable
-from sightline.api.schemas.keywords import DepthProfile, DeviceChoice
+from sightline.api.schemas.keywords import DeviceChoice, OfferedDepthProfile
 from sightline.api.schemas.operations import Operation
 
 IMPORT_ROWS_MAX = 10_000
@@ -68,7 +68,7 @@ class ImportDefaults(Body):
     location_id: int | None = None
     language_code: LanguageCode | None = None
     device: DeviceChoice | None = None
-    depth_profile: DepthProfile | None = None
+    depth_profile: OfferedDepthProfile | None = None
     priority: Annotated[int, Field(ge=1, le=5)] | None = None
     group_path: (
         Annotated[str, StringConstraints(min_length=1, max_length=1000), AfterValidator(printable)]

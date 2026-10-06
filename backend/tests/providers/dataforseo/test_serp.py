@@ -117,7 +117,7 @@ def test_a_task_of_another_workload_is_not_built() -> None:
         {"depth": 0},
         {"depth": 701},
         {"people_also_ask_click_depth": 5},
-        {"queue": "live"},
+        {"queue": "slow"},
         {"device": "desktop", "os": "ios"},
         {"device": "mobile", "os": "windows"},
         {"pingback_url": "https://example.com/"},

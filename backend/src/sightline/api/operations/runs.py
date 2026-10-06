@@ -18,6 +18,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Final
 from uuid import UUID
 
+import structlog
+from redis.exceptions import RedisError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -32,20 +34,29 @@ from sightline.api.problems import (
     InvalidStateTransitionError,
     ManualRunLimitError,
     NotFoundError,
+    ProviderPausedError,
+    QuotaExceededError,
     invalid_field,
 )
 from sightline.api.request_info import RequestInfo
 from sightline.api.schemas.keywords import MetricsRefresh
+from sightline.api.schemas.ranks import CheckNow
 from sightline.api.workspaces.access import WorkspaceAccess
 from sightline.db.engine import workspace_transaction
+from sightline.providers.dataforseo.provider import CODE as DATAFORSEO
+from sightline.providers.pauses import RedisPauses
 
 # docs/24 section 8.
 MANUAL_RUNS_PER_DAY: Final = 20
 # How long a manual run has to send its tasks.
 MANUAL_WINDOW: Final = timedelta(hours=1)
 KEYWORD_METRICS: Final = "keyword_metrics"
+SEO_RANK: Final = "seo_rank"
+# What a refused check now tells the caller to wait; a pause lasts at most fifteen minutes.
+PAUSED_RETRY_SECONDS: Final = 300
 CANCELLED_BY_USER: Final = "cancelled_by_user"
 _OPEN: Final = frozenset({"planned", "running"})
+_log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +76,11 @@ async def _today(db: AsyncSession) -> datetime:
     """The start of the day (UTC) by the database clock."""
     now: datetime = (await db.execute(select(func.now()))).scalar_one()
     return now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+async def _month_start(db: AsyncSession) -> datetime:
+    """The start of the month (UTC) by the database clock."""
+    return (await _today(db)).replace(day=1)
 
 
 async def _live_project(db: AsyncSession, access: WorkspaceAccess, project_id: UUID) -> None:
@@ -101,8 +117,11 @@ def _after(cursor: str, scope: dict[str, object]) -> tuple[datetime, UUID]:
 
 
 class RunService:
-    def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self, *, sessions: async_sessionmaker[AsyncSession], pauses: RedisPauses | None = None
+    ) -> None:
         self._sessions = sessions
+        self._pauses = pauses
 
     def _transaction(self, access: WorkspaceAccess) -> AbstractAsyncContextManager[AsyncSession]:
         return workspace_transaction(self._sessions, access.workspace_id, user_id=access.user_id)
@@ -166,6 +185,101 @@ class RunService:
                     "workload": KEYWORD_METRICS,
                     "keyword_count": len(body.keyword_ids or ()),
                     "stale_days": body.stale_days,
+                },
+            )
+            created = await runs.get_run(db, access.workspace_id, project_id, run_id)
+        if created is None:  # pragma: no cover - inserted by this transaction
+            raise NotFoundError
+        return created
+
+    async def _provider_paused(self) -> bool:
+        """Whether the provider is being left alone. Redis being out is not a reason to refuse:
+        the dispatcher looks at the pause again before it sends anything."""
+        if self._pauses is None:
+            return False
+        try:
+            return DATAFORSEO in await self._pauses.paused([DATAFORSEO])
+        except RedisError:
+            _log.warning("provider pause not read; the check goes ahead", exc_info=True)
+            return False
+
+    async def check_now(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        body: CheckNow,
+        info: RequestInfo,
+    ) -> RunRecord:
+        """A manual rank run of the given tracked keywords, each asked of the provider live.
+        `422 quota_exceeded` when the month's live checks would pass the workspace's limit,
+        `503 provider_paused` while the provider is refusing everyone."""
+        if await self._provider_paused():
+            raise ProviderPausedError(
+                "The data provider is not being asked just now. Try again in a few minutes.",
+                headers={"Retry-After": str(PAUSED_RETRY_SECONDS)},
+            )
+        wanted = sorted(set(body.tracked_keyword_ids))
+        async with self._transaction(access) as db:
+            await _live_project(db, access, project_id)
+            tracked = await runs.active_tracked_ids(db, access.workspace_id, project_id, wanted)
+            if len(tracked) != len(wanted):
+                raise invalid_field(
+                    "tracked_keyword_ids",
+                    code="keyword_unknown",
+                    message="A keyword the project does not track, or has archived.",
+                )
+            await runs.lock_manual_runs(db, project_id)
+            used = await runs.manual_runs_since(
+                db, access.workspace_id, project_id, await _today(db)
+            )
+            if used >= MANUAL_RUNS_PER_DAY:
+                raise ManualRunLimitError(
+                    f"The project has had its {MANUAL_RUNS_PER_DAY} manual runs today (UTC).",
+                    limit=MANUAL_RUNS_PER_DAY,
+                )
+            limit = await runs.lock_serp_check_limit(db, access.workspace_id)
+            checks = await runs.live_serp_checks_since(
+                db, access.workspace_id, await _month_start(db)
+            )
+            if checks + len(wanted) > limit:
+                raise QuotaExceededError(
+                    f"The workspace has made {checks} of its {limit} live checks this month "
+                    f"(UTC); {len(wanted)} more do not fit.",
+                    limit=limit,
+                    used=checks,
+                    requested=len(wanted),
+                    quota="max_serp_checks_per_month",
+                )
+            selector: dict[str, object] = {
+                "tracked_keyword_ids": [str(tracked_id) for tracked_id in wanted],
+                "live": True,
+            }
+            if body.depth is not None:
+                selector["depth"] = body.depth
+            run_id = await runs.insert_manual_run(
+                db,
+                workspace_id=access.workspace_id,
+                project_id=project_id,
+                workload=SEO_RANK,
+                user_id=access.user_id,
+                request_id=info.request_id,
+                selector=selector,
+                window=MANUAL_WINDOW,
+            )
+            await audit.record(
+                db,
+                workspace_id=access.workspace_id,
+                actor_id=access.user_id,
+                action="collection_run.requested",
+                target_type="collection_run",
+                target_id=run_id,
+                info=info,
+                after={
+                    "project_id": str(project_id),
+                    "workload": SEO_RANK,
+                    "keyword_count": len(wanted),
+                    "depth": body.depth,
+                    "live": True,
                 },
             )
             created = await runs.get_run(db, access.workspace_id, project_id, run_id)

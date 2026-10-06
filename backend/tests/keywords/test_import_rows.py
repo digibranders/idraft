@@ -23,6 +23,7 @@ from sightline.keywords.import_rows import (
     read_paste,
     resolve_mapping,
 )
+from sightline.ranks.depth import UNAVAILABLE
 
 LOCATIONS = Locations(
     active_ids=frozenset({2840, 2826, 1023191}),
@@ -400,6 +401,7 @@ def test_without_any_language_a_row_has_none() -> None:
 
 
 def test_the_value_sets_match_the_api_schemas() -> None:
-    assert frozenset(get_args(DepthProfile)) == import_rows.DEPTH_PROFILES
+    # Every profile but the ones not offered yet (`ranks.depth.UNAVAILABLE`).
+    assert frozenset(get_args(DepthProfile)) - UNAVAILABLE == import_rows.DEPTH_PROFILES
     assert frozenset(get_args(Intent)) == import_rows.INTENTS
     assert frozenset(get_args(FunnelStage)) == import_rows.FUNNEL_STAGES

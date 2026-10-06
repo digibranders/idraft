@@ -1,0 +1,35 @@
+{
+  "endpoint": "serp/google/organic/task_get/advanced",
+  "fixtures": [
+    {
+      "id": "serp_rich",
+      "file": "serp/serp_rich.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "sha256": "15be6783b767f447d8d85105269e6234b0f0f256a29c0156f305ae5c0b18a05f",
+      "schema_hash": "4e429bce26899b2f65bf3c0597f9d3a600c69e36421810d85b26e551cf95f642",
+      "tags": ["ads", "ai_overview:cached", "featured_snippet", "people_also_ask", "sitelinks", "related_result", "right_column"]
+    },
+    {
+      "id": "serp_no_results",
+      "file": "serp/serp_no_results.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "sha256": "ef73da0b717432c63bbf1922efc170354e7bd6dadbe315c3193ac0090b33629b",
+      "schema_hash": "3ac67ac73034ca50d0165531f69037c12be1032f7461a790b75574e6ba8623d7",
+      "tags": ["no_results"]
+    },
+    {
+      "id": "task_get_advanced",
+      "file": "task_get_advanced.json",
+      "provider": "dataforseo",
+      "captured_at": null,
+      "source": "synthetic",
+      "sha256": "c88eeb81cc5c37d3b3607b83023ed4e767ae6000ab36b4029888bf650a6fb6f9",
+      "schema_hash": "123a16db7d2d00e0278eb8248dc141ed203d596c965c5444326d7f52c8a8db9d",
+      "tags": ["organic_only"]
+    }
+  ]
+}

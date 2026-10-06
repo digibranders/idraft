@@ -18,7 +18,7 @@ from pydantic import (
 
 from sightline.api.pagination import CursorPageInfo, OffsetPageInfo
 from sightline.api.schemas.common import Body, Patch, printable, refuse_null
-from sightline.api.schemas.keywords import DepthProfile
+from sightline.api.schemas.keywords import DepthProfile, OfferedDepthProfile
 from sightline.api.schemas.metrics import Usd
 from sightline.api.timezones import Timezone
 
@@ -245,9 +245,18 @@ class Run(BaseModel):
     operation: Operation
 
 
+class RunResults(BaseModel):
+    """Where a manual run's results are: the tracked keywords whose rank it checks."""
+
+    tracked_keyword_ids: list[UUID] | None = None
+
+
 class RunDetail(Run):
     tasks_by_status: dict[str, int]
     config_snapshot: dict[str, object]
+    results: RunResults | None = Field(
+        default=None, description="Manual runs of tracked keywords: links to their results."
+    )
 
 
 class RunResponse(BaseModel):
@@ -381,7 +390,7 @@ class ProjectSettingsResponse(BaseModel):
 
 class SeoSettingsPatch(Patch):
     default_device: Literal["desktop", "mobile", "both"] | None = None
-    default_depth_profile: DepthProfile | None = None
+    default_depth_profile: OfferedDepthProfile | None = None
     default_frequency: Literal["daily", "weekly"] | None = None
     visibility_weight_scheme: Literal["uniform", "priority", "business_value"] | None = None
     visibility_volume_mode: Literal["annual_average", "seasonal"] | None = None

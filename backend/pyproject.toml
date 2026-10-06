@@ -79,6 +79,9 @@ follow_untyped_imports = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "gold: parser results over the recorded provider answers (docs/26-testing-quality.md section 4); `pytest -m gold` runs them alone",
+]
 filterwarnings = [
     "error",
     # taskiq-redis builds a pipeline for every read of a stream and does not close it when the
@@ -115,6 +118,16 @@ source_modules = ["sightline.extraction"]
 forbidden_modules = [
   "sightline.api", "sightline.worker", "sightline.collectors", "sightline.providers",
   "sightline.db", "sightline.storage", "sightline.config", "sightline.domain",
+  "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
+]
+
+[[tool.importlinter.contracts]]
+name = "ranks is pure: no database, workers, entrypoints or I/O libraries"
+type = "forbidden"
+source_modules = ["sightline.ranks"]
+forbidden_modules = [
+  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.db",
+  "sightline.storage", "sightline.config", "sightline.domain",
   "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
 ]
 

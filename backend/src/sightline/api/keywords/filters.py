@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Final, Literal
 from uuid import UUID
@@ -40,6 +40,7 @@ from sightline.api.schemas.keywords import TrackedKeywordFilter
 from sightline.db.tables import (
     keyword_group_members,
     keywords,
+    tracked_keyword_state,
     tracked_keyword_terms,
     tracked_keywords,
 )
@@ -47,7 +48,16 @@ from sightline.keywords.text import normalize
 from sightline.keywords.trees import among_ids, descendants
 
 SortField = Literal[
-    "keyword", "search_volume", "keyword_difficulty", "cpc_usd", "priority", "created_at"
+    "keyword",
+    "search_volume",
+    "keyword_difficulty",
+    "cpc_usd",
+    "priority",
+    "created_at",
+    "current_rank",
+    "rank_change",
+    "best_rank",
+    "last_observed_at",
 ]
 SORT_FIELDS: Final[tuple[SortField, ...]] = (
     "keyword",
@@ -56,7 +66,13 @@ SORT_FIELDS: Final[tuple[SortField, ...]] = (
     "cpc_usd",
     "priority",
     "created_at",
+    "current_rank",
+    "rank_change",
+    "best_rank",
+    "last_observed_at",
 )
+_EPOCH: Final = datetime(1970, 1, 1, tzinfo=UTC)
+STATE = tracked_keyword_state.c
 type Kind = Literal["text", "int", "decimal", "time", "id"]
 _BOUND_TYPES: Final[dict[Kind, TypeEngine[Any]]] = {
     "text": Text(),
@@ -204,6 +220,74 @@ def conditions(
         found.append(LABS_CURRENT.c.search_volume >= given.search_volume_gte)
     if given.keyword_difficulty_lte is not None:
         found.append(LABS_CURRENT.c.keyword_difficulty <= given.keyword_difficulty_lte)
+    found.extend(_rank_conditions(given))
+    return found
+
+
+def change_label() -> ColumnElement[str]:
+    """The label of the rank change, from the stored ranks and depths: the rule of
+    `ranks.state.classify_change` as one expression (a test keeps the two equal)."""
+    compared = func.least(STATE.previous_depth_requested, STATE.current_depth_requested)
+    before = and_(STATE.previous_rank.is_not(None), STATE.previous_rank <= compared)
+    now = and_(STATE.current_rank.is_not(None), STATE.current_rank <= compared)
+    return case(
+        (
+            or_(
+                STATE.last_observed_at.is_(None),
+                STATE.previous_depth_requested.is_(None),
+                STATE.current_depth_requested.is_(None),
+            ),
+            "first_check",
+        ),
+        (and_(before, now), "numeric"),
+        (now, "new"),
+        (before, "lost"),
+        (
+            or_(STATE.previous_rank.is_not(None), STATE.current_rank.is_not(None)),
+            "consistent_beyond",
+        ),
+        else_="unchanged_beyond",
+    )
+
+
+def _rank_conditions(given: TrackedKeywordFilter) -> list[ColumnElement[bool]]:
+    """The filters on what the latest check says. A keyword never checked has no state row, so
+    a rank filter does not match it, except `rank_is_null=false`'s opposite: beyond depth means
+    checked and not ranked."""
+    found: list[ColumnElement[bool]] = []
+    if given.rank_lte is not None:
+        found.append(STATE.current_rank <= given.rank_lte)
+    if given.rank_gte is not None:
+        found.append(STATE.current_rank >= given.rank_gte)
+    if given.rank_is_null is not None:
+        found.append(
+            and_(STATE.last_observed_at.is_not(None), STATE.current_rank.is_(None))
+            if given.rank_is_null
+            else STATE.current_rank.is_not(None)
+        )
+    if given.rank_change_label_in is not None:
+        found.append(change_label().in_(list(given.rank_change_label_in)))
+    if given.improved is not None:
+        # `false` is everything else: a keyword with no numeric change did not improve either.
+        change = func.coalesce(STATE.rank_change, 0)
+        found.append(change > 0 if given.improved else change <= 0)
+    if given.declined is not None:
+        change = func.coalesce(STATE.rank_change, 0)
+        found.append(change < 0 if given.declined else change >= 0)
+    if given.feature_present is not None:
+        found.append(STATE.feature_types_present.contains([given.feature_present]))
+    if given.feature_owned is not None:
+        found.append(STATE.owned_feature_types.contains([given.feature_owned]))
+    if given.aio_state is not None:
+        # A keyword with no state, or none checked, shows `unknown`.
+        found.append(func.coalesce(STATE.aio_state, "unknown").in_(list(given.aio_state)))
+    if given.ranking_url_id is not None:
+        found.append(STATE.current_url_id == given.ranking_url_id)
+    if given.target_url_match is not None:
+        found.append(STATE.target_url_match.is_(given.target_url_match))
+    if given.is_stale is not None:
+        # A keyword with no state row is not stale, as its row shows.
+        found.append(func.coalesce(STATE.is_stale, false()).is_(given.is_stale))
     return found
 
 
@@ -232,6 +316,15 @@ def _sorted_column(field: SortField) -> tuple[ColumnElement[Any], Kind, bool]:
             return t.priority, "int", False
         case "created_at":
             return t.created_at, "time", False
+        # The rank state: a keyword beyond the depth, or not checked, sorts last both ways.
+        case "current_rank":
+            return STATE.current_rank, "int", True
+        case "rank_change":
+            return STATE.rank_change, "int", True
+        case "best_rank":
+            return STATE.best_rank, "int", True
+        case "last_observed_at":
+            return STATE.last_observed_at, "time", True
 
 
 def components(keys: Sequence[SortKey]) -> list[Component]:
@@ -242,7 +335,7 @@ def components(keys: Sequence[SortKey]) -> list[Component]:
             # Nulls last both ways: the flag sorts ascending whatever the direction, and a null's
             # value is a constant, so rows without the metric compare equal on it.
             found.append(Component(case((column.is_(None), 1), else_=0), False, "int"))
-            column = func.coalesce(column, 0)
+            column = func.coalesce(column, literal(_EPOCH) if kind == "time" else 0)
         found.append(Component(column, key.descending, kind))
     found.append(Component(tracked_keywords.c.id, False, "id"))
     return found

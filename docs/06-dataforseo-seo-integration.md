@@ -12,7 +12,7 @@ Related: [05-provider-integrations.md](05-provider-integrations.md), [09-rank-tr
 | Rank tracking, SERP features, AI Overview | `POST /v3/serp/google/organic/task_post` | Standard queue (task) | 4 |
 | Readiness (polling only, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) | `GET /v3/serp/google/organic/tasks_ready` | poll | 4 |
 | Result fetch | `GET /v3/serp/google/organic/task_get/advanced/{id}` | fetch | 4 |
-| On-demand single check ("check now") | `POST /v3/serp/google/organic/live/advanced` | Live | 5 |
+| On-demand single check ("check now") | `POST /v3/serp/google/organic/live/advanced` (one search a call, $0.002 a page; built in Phase 4, `providers/dataforseo/serp.py`) | Live | 4 |
 | Error reconciliation | `POST /v3/serp/google/organic/errors` (tasks errored in past 7 days) | poll, 10/min | 4 |
 | Tasks posted in a period, with their tags (resolving unknown submissions) | `POST /v3/serp/id_list` with `include_metadata` (per API; 1,000 ids a call, 10 calls/min, a month back with metadata) | reconciler, off until S-01 | 4 |
 | Webhook replay | `POST /v3/appendix/webhook_resend` (up to 100 ids, no double charge) | Not used in V1: no pingback endpoint | n/a |
@@ -169,7 +169,7 @@ stateDiagram-v2
 4. Task to `fetched`; insert `ops.fetch_cache` row keyed by request fingerprint and UTC date.
 5. Enqueue the `ingest_serp` Taskiq task on the `process` queue with the raw payload id (step 5 of the build order). The local spool of doc 22 is not built: ingest reads the payload from R2 (plan `docs/superpowers/plans/2026-09-30-dataforseo-raw-storage.md`, decision D5), and if R2 fails the fetch is tried again, since DataForSEO keeps results for 30 days.
 
-The task becomes `fetched` with the id of its registered payload; the `ops.fetch_cache` row of step 4 arrives with rank collection (step 5 of the build order). A result that is not ready yet, or a fetch or storage failure that may mend, puts the task back to `submitted` without counting an attempt (doc 21 section 8.1).
+The task becomes `fetched` with the id of its registered payload. **As built (step 5, rank collection):** the `ops.fetch_cache` row of step 4 is not built (the shared fetch cache is deferred), and step 5 is not a queued job: the ingest is a tick of the worker (`collectors/seo_rank_ingest.py`, doc 21 section 4) that takes `fetched` rank tasks, so a task is ingested within seconds of being fetched and a restart loses no job. A result that is not ready yet, or a fetch or storage failure that may mend, puts the task back to `submitted` without counting an attempt (doc 21 section 8.1).
 
 ### 4.4 Ingest
 
@@ -184,6 +184,14 @@ The task becomes `fetched` with the id of its registered payload; the `ops.fetch
 7. task to `ingested`
 
 Then debounced tasks on the `process` queue: `extract_observation` (AIO), `rollup_seo_day` (per project and date, debounce 5 minutes), `evaluate_alerts` (per project, debounce 10 minutes).
+
+**As built (step 5, rank collection).** The ingest writes one transaction per task, in this order and with these differences from the list above (plan `docs/superpowers/plans/2026-10-05-rank-ingest.md`, R17 to R22):
+
+- Item 4 is not written: `ai.*` waits for step 8 (AI analytics), so the AI Overview is kept as a SERP feature (`seo.serp_features`, type `ai_overview`) and its citations as a feature payload; the events `aio_appeared`, `aio_disappeared`, `aio_citation_gained` and `aio_citation_lost` are written from it. The three follow-up jobs are not queued yet; their first readers arrive with the rollups and alerts.
+- Items 1 to 3 and 5 to 7 are written together with `seo.rank_events`. The state moves only for a check newer than the one it holds (an out-of-order check writes its snapshot and observations and leaves the state), and a rank is never imputed beyond the depth checked.
+- The snapshot's `observed_at` is the provider's time when it is within seven days before and one hour after the fetch, else the fetch time (R19). The request echo in `tasks[].data` (depth, device, language, operating system) gives what was asked; a live answer has the same shape and no tag.
+- A payload that is permanently unreadable ends its task as failed with the reason; one that cannot be read from storage or written now waits (R20), so a storage hiccup holds up no other task. A device and operating system that do not belong together fail only that task, not the batch.
+- Features are followed on page one only (the tenth organic result's absolute rank is the limit), a grouped sub-result is another URL at its parent's rank, and the AI Overview is cited, not owned (doc 09 section 4, doc 10).
 
 ## 5. Normalization rules (parser version 1)
 

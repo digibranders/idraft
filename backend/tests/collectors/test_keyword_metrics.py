@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import keyword_metrics, ledger
 from sightline.collectors.fetching import RETENTION_CLASS
+from sightline.collectors.ingest_waits import IngestReport
 from sightline.collectors.keyword_metrics import (
     KeywordMetricsWorkload,
     ingest,
@@ -429,7 +430,7 @@ async def test_each_task_gets_one_snapshot_and_the_keyword_its_current_metrics(
     report = await ingest(worker_db, store)
     again = await ingest(worker_db, store)
 
-    assert report == keyword_metrics.IngestReport(ingested=3)
+    assert report == IngestReport(ingested=3)
     assert again.quiet
     (row,) = await _snapshots(migrated, best)
     assert (row["search_volume"], row["cpc_usd"], row["competition"], row["competition_level"]) == (
@@ -580,7 +581,7 @@ async def test_an_answer_not_read_for_a_day_fails_its_tasks_so_the_run_can_finis
 
     report = await ingest(worker_db, store)
 
-    assert report == keyword_metrics.IngestReport(failed=1)
+    assert report == IngestReport(failed=1)
     (task,) = await task_rows(migrated, run_id)
     assert (task["status"], task["last_error_code"]) == ("failed", keyword_metrics.NOT_READ)
 

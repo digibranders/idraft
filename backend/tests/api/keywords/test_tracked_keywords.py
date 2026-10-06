@@ -268,6 +268,51 @@ async def test_a_keyword_that_cannot_be_tracked_is_refused(
     assert errors(response) == [("keyword", code)]
 
 
+@pytest.mark.parametrize(
+    ("body", "accepted"),
+    [
+        ({"device": "desktop", "os": "ios"}, False),
+        ({"device": "mobile", "os": "windows"}, False),
+        ({"device": "both", "os": "ios"}, False),
+        ({"os": "ios"}, False),
+        ({"device": "mobile", "os": "ios"}, True),
+        ({"device": "desktop", "os": "macos"}, True),
+    ],
+)
+async def test_an_operating_system_must_run_on_the_keywords_device(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    body: dict[str, Any],
+    accepted: bool,
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await track(api, workspace, project, owner, "crm", **body)
+
+    if accepted:
+        assert response.status_code == 201
+    else:
+        assert response.status_code == 422
+        assert errors(response) == [("os", "os_device_mismatch")]
+
+
+async def test_a_depth_profile_that_is_not_offered_yet_is_refused_by_name(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _owner(resources, migrated)
+
+    response = await track(
+        api, workspace, project, owner, "crm", depth_profile="until_own_match_100"
+    )
+
+    assert response.status_code == 422
+    assert errors(response) == [("depth_profile", "depth_profile_not_available")]
+    # The others are accepted.
+    ok = await track(api, workspace, project, owner, "crm", depth_profile="weekly_light")
+    assert ok.status_code == 201
+
+
 async def test_references_are_checked(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

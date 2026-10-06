@@ -203,7 +203,7 @@ Representative cases, not the full list.
 | ID | Case | Assertion |
 |---|---|---|
 | ADP-SEO-01 | Doc 05 section 3.5 contract suite over all SERP fixtures | Pydantic-valid, deterministic, stable fingerprint |
-| ADP-SEO-02 | Request body | `load_async_ai_overview: true`, `group_organic_results: true`, `calculate_rectangles: false`; `location_code` from the map; casing preserved; `tag` matches `^t:[0-9a-z]+:r:[0-9a-z]+$`; no `pingback_url` or `postback_url` is sent (readiness is polling only, ADR-022) |
+| ADP-SEO-02 | Request body | `load_async_ai_overview: true`, `group_organic_results: true`, `calculate_rectangles: false`; `location_code` from the map; casing preserved; `tag` matches `^i:[a-z0-9]{1,16}:t:[0-9a-z]{1,13}:a:[0-9]{1,5}:r:[0-9a-f]{32}$` (installation, task, attempt, run; a live check now carries no tag); no `pingback_url` or `postback_url` is sent (readiness is polling only, ADR-022) |
 | ADP-SEO-03 | `validate` on `site:crm`, 701-character keyword, depth 701, 101-task batch | rejected with reason; respx call count 0 |
 | ADP-SEO-04 | `submit` response mixing `20100` and `40501` | accepted and rejected split; per-task cost kept |
 | ADP-SEO-05 | `classify_error` over doc 06 section 9 (20000, 20100, 40006, 40202, 40203, 40209, 40403, 401, 402, 50301, 5xx, timeout), including HTTP 200 with task-level errors | kind and retry decision as documented |

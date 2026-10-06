@@ -17,6 +17,7 @@ import asyncio
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Final
 
 import structlog
 from sqlalchemy import func, select
@@ -26,7 +27,7 @@ from sightline.collectors import ledger
 from sightline.collectors.fetching import RETENTION_CLASS
 from sightline.collectors.ledger import Cost, LedgerTask
 from sightline.collectors.raw_payloads import RawPayload, store_raw_payload
-from sightline.domain.retries import ProviderErrorKind, decide
+from sightline.domain.retries import ProviderErrorKind, RetryDecision, decide
 from sightline.providers.contract import (
     CanonicalRequest,
     LiveResult,
@@ -34,9 +35,15 @@ from sightline.providers.contract import (
     ProviderCallError,
     ProviderError,
 )
+from sightline.providers.dataforseo.serp import SERP_ORGANIC_LIVE
 from sightline.storage.raw import ObjectStore, RawStorageError
 
 K = ProviderErrorKind
+
+# A live search is paid for by the call, and a call that failed may still have been charged
+# with no cost event to show it (a read timeout), so a few are tried twice at most, not as
+# often as the policy allows. A person can ask again.
+MAX_LIVE_ATTEMPTS: Final = {SERP_ORGANIC_LIVE: 2}
 
 NO_ANSWER = "The provider's answer did not mention the task."
 NOT_STORED = "The answer could not be stored; the task is asked for again."
@@ -244,6 +251,15 @@ async def _fail(
         window_open=now < task.window_end,
         retry_after=error.retry_after,
     )
+    cap = MAX_LIVE_ATTEMPTS.get(task.provider_endpoint)
+    if (
+        cap is not None
+        and decision.status == "pending"
+        and decision.counts
+        and task.attempts >= cap
+    ):
+        # Ended: a live call that failed may have been paid for, and nothing records that.
+        decision = RetryDecision(status="failed")
     return await ledger.record_failure(
         db,
         task.ref,

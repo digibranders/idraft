@@ -13,6 +13,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+import asyncpg
 import httpx
 import pytest
 from fastapi.routing import iter_route_contexts
@@ -21,6 +22,7 @@ from sightline.api.auth.tokens import hash_token, new_token
 from sightline.api.main import create_app
 from sightline.api.openapi import placeholder_settings
 from sightline.api.resources import Resources
+from sightline.storage.raw import compress, digest
 from tests.api.auth.support import (
     User,
     Workspace,
@@ -37,6 +39,7 @@ from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
 from tests.conftest import PostgresServer
+from tests.db.support import seed_rank
 from tests.security.cross_tenant_exceptions import NOT_PATH_SCOPED
 
 _W = "/api/v1/workspaces/{workspace_id}"
@@ -120,6 +123,9 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     },
     ("POST", _W + "/projects/{project_id}/keyword-metrics/refresh"): {
         "keyword_ids": ["{keyword_id}"],
+    },
+    ("POST", _W + "/projects/{project_id}/seo/check-now"): {
+        "tracked_keyword_ids": ["{tracked_keyword_id}"],
     },
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-update"): {
         "ids": ["{tracked_keyword_id}"],
@@ -208,6 +214,8 @@ class Tenant:
     budget_id: uuid.UUID
     # A keyword import whose preview is ready, so changing or cancelling it would succeed.
     import_id: uuid.UUID
+    # A SERP snapshot of the tracked keyword, with its raw answer registered.
+    serp_snapshot_id: int
 
     def ids(self) -> dict[str, str]:
         return {
@@ -228,6 +236,7 @@ class Tenant:
             "run_id": str(self.run_id),
             "budget_id": str(self.budget_id),
             "import_id": str(self.import_id),
+            "serp_snapshot_id": str(self.serp_snapshot_id),
         }
 
     def secrets(self) -> list[str]:
@@ -440,6 +449,26 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         workspace.id,
         LOCATION,
     )
+    rank_db = await asyncpg.connect(pg.url())
+    try:
+        snapshot_id = await seed_rank(
+            rank_db, workspace.id, project_id, tracked["id"], entity["id"]
+        )
+    finally:
+        await rank_db.close()
+    # The snapshot's raw answer is really in the store, so reading it would succeed.
+    if resources.import_store is not None:
+        answer = f'{{"tasks": [], "planted": "{label}-{uuid.uuid4().hex}"}}'.encode()
+        key = f"raw/v1/serp_raw/dataforseo/planted/{label}-{uuid.uuid4().hex}.json.zst"
+        await resources.import_store.put(key, compress(answer))
+        await execute(
+            pg,
+            "UPDATE ops.raw_payloads SET object_key = $1, sha256 = $2 "
+            "WHERE id = (SELECT raw_payload_id FROM seo.serp_snapshots WHERE id = $3)",
+            key,
+            digest(answer),
+            snapshot_id,
+        )
     # Fresh, so that a route wanting a recent credential is not refused for that instead.
     token, _ = await open_session(resources, owner, fresh=True)
     return Tenant(
@@ -463,12 +492,22 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str) -> Tenan
         run_id=run["id"],
         budget_id=budget["id"],
         import_id=keyword_import["id"],
+        serp_snapshot_id=snapshot_id,
     )
 
 
 @pytest.fixture
 async def tenants(resources: Resources, migrated: PostgresServer) -> tuple[Tenant, Tenant]:
     return await _tenant(resources, migrated, "a"), await _tenant(resources, migrated, "b")
+
+
+def _nowhere(ids: dict[str, str]) -> dict[str, str]:
+    """Ids that name nothing, of the kind each path parameter takes: a UUID, or for a SERP
+    snapshot a number no sequence has reached."""
+    return {
+        name: "9223372036854775000" if name == "serp_snapshot_id" else str(uuid.uuid4())
+        for name in ids
+    }
 
 
 def _fill(path: str, ids: dict[str, str]) -> str:
@@ -587,7 +626,7 @@ async def test_another_workspaces_path_is_not_found(
     """XT-01, XT-02 and XT-03: B's ids in the path, as A's owner. Always 404, never 403, and
     the same answer as for a workspace that does not exist."""
     a, b = tenants
-    missing = {name: str(uuid.uuid4()) for name in b.ids()}
+    missing = _nowhere(b.ids())
 
     foreign = await _call(api, method, path, b.ids(), a.headers)
     nowhere = await _call(api, method, path, missing, a.headers)
@@ -604,7 +643,7 @@ async def test_another_workspaces_child_in_the_callers_own_path_is_not_found(
     invitation after it."""
     a, b = tenants
     ids = {**b.ids(), "workspace_id": str(a.workspace.id)}
-    missing = {**{name: str(uuid.uuid4()) for name in b.ids()}, "workspace_id": str(a.workspace.id)}
+    missing = {**_nowhere(b.ids()), "workspace_id": str(a.workspace.id)}
 
     foreign = await _call(api, method, path, ids, a.headers)
     nowhere = await _call(api, method, path, missing, a.headers)

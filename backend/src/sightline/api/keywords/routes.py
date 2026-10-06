@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
-from sightline.api.keywords import filters, metric_values
+from sightline.api.keywords import filters, metric_values, rank_views
 from sightline.api.keywords.repository import (
     CompetitorRecord,
     ConfigRecord,
@@ -36,6 +36,7 @@ from sightline.api.resources import Resources, get_resources
 from sightline.api.schemas.common import LanguageCode, LocationRef, QueryText, UserRef
 from sightline.api.schemas.entities import EntityRef
 from sightline.api.schemas.keywords import (
+    AioState,
     BulkArchiveResponse,
     BulkArchiveResult,
     BulkCreateResponse,
@@ -64,6 +65,7 @@ from sightline.api.schemas.keywords import (
     KeywordPage,
     KeywordSource,
     MetricsSource,
+    RankChangeLabel,
     ScheduleRef,
     TermRef,
     TrackedInclude,
@@ -249,10 +251,13 @@ Include = Annotated[
     "",
     summary="The project's tracked keywords",
     description="Sorted by `sort`, a comma list of `keyword`, `search_volume`, "
-    "`keyword_difficulty`, `cpc_usd`, `priority` and `created_at`, each at most once and with "
-    "`-` for descending; `keyword` when left out, and the id always last. A metric sorts "
-    "keywords without one last in both directions. `page.total` counts every match. A cursor "
-    "is bound to its filters and sort (`400 invalid_cursor` otherwise).",
+    "`keyword_difficulty`, `cpc_usd`, `priority`, `created_at`, `current_rank`, `rank_change`, "
+    "`best_rank` and `last_observed_at`, each at most once and with `-` for descending; "
+    "`keyword` when left out, and the id always last. A metric or a rank sorts keywords without "
+    "one (beyond the depth, or never checked) last in both directions. Every row carries its "
+    "rank `state`; `include` adds `sparkline`, `competitor_ranks`, `features` and `aio`. "
+    "`page.total` counts every match. A cursor is bound to its filters and sort "
+    "(`400 invalid_cursor` otherwise).",
 )
 async def list_tracked_keywords(
     project_id: UUID,
@@ -301,6 +306,30 @@ async def list_tracked_keywords(
     keyword_difficulty_lte: Annotated[
         int | None, Query(alias="filter[keyword_difficulty_lte]", ge=0, le=100)
     ] = None,
+    rank_lte: Annotated[int | None, Query(alias="filter[rank_lte]", ge=1, le=700)] = None,
+    rank_gte: Annotated[int | None, Query(alias="filter[rank_gte]", ge=1, le=700)] = None,
+    rank_is_null: Annotated[
+        bool | None,
+        Query(
+            alias="filter[rank_is_null]",
+            description="True: beyond the depth at the latest check. False: ranked.",
+        ),
+    ] = None,
+    rank_change_label_in: Annotated[
+        list[RankChangeLabel] | None, Commas, Query(alias="filter[rank_change_label_in]")
+    ] = None,
+    improved: Annotated[bool | None, Query(alias="filter[improved]")] = None,
+    declined: Annotated[bool | None, Query(alias="filter[declined]")] = None,
+    feature_present: Annotated[
+        str | None, Query(alias="filter[feature_present]", min_length=1, max_length=100)
+    ] = None,
+    feature_owned: Annotated[
+        str | None, Query(alias="filter[feature_owned]", min_length=1, max_length=100)
+    ] = None,
+    aio_state: Annotated[list[AioState] | None, Commas, Query(alias="filter[aio_state]")] = None,
+    ranking_url_id: Annotated[int | None, Query(alias="filter[ranking_url_id]", ge=1)] = None,
+    target_url_match: Annotated[bool | None, Query(alias="filter[target_url_match]")] = None,
+    is_stale: Annotated[bool | None, Query(alias="filter[is_stale]")] = None,
 ) -> TrackedKeywordPage:
     given = _query_filter(
         {
@@ -320,6 +349,18 @@ async def list_tracked_keywords(
             "depth_profile_in": depth_profile_in,
             "search_volume_gte": search_volume_gte,
             "keyword_difficulty_lte": keyword_difficulty_lte,
+            "rank_lte": rank_lte,
+            "rank_gte": rank_gte,
+            "rank_is_null": rank_is_null,
+            "rank_change_label_in": rank_change_label_in,
+            "improved": improved,
+            "declined": declined,
+            "feature_present": feature_present,
+            "feature_owned": feature_owned,
+            "aio_state": aio_state,
+            "ranking_url_id": ranking_url_id,
+            "target_url_match": target_url_match,
+            "is_stale": is_stale,
         }
     )
     result = await keywords.page(
@@ -338,6 +379,17 @@ async def list_tracked_keywords(
                     "competitors": None
                     if row.overrides is None
                     else [_override(o) for o in row.overrides],
+                    "state": rank_views.state_view(row.state),
+                    "sparkline": None
+                    if row.sparkline is None
+                    else rank_views.sparkline_view(row.sparkline),
+                    "competitor_ranks": None
+                    if row.competitor_ranks is None
+                    else [rank_views.competitor_view(c) for c in row.competitor_ranks],
+                    "features": None
+                    if row.features is None
+                    else rank_views.features_view(row.features),
+                    "aio": None if row.cited is None else rank_views.aio_view(row.state, row.cited),
                 }
             )
             for row in result.rows
@@ -482,6 +534,7 @@ async def get_tracked_keyword(
                 "groups": [_group(group) for group in detail.groups],
                 "terms": [_term(term) for term in detail.terms],
                 "competitor_overrides": [_override(o) for o in detail.overrides],
+                "state": rank_views.state_view(detail.state),
                 "config_history_count": detail.config_versions,
                 "schedule": None
                 if schedule is None

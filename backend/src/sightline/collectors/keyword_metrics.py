@@ -24,6 +24,7 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.collectors import ledger
+from sightline.collectors.ingest_waits import IngestReport, not_now
 from sightline.collectors.ledger import FetchedTask, LedgerTask, NewRun, NewTask, TaskRef
 from sightline.collectors.raw_payloads import load_raw_payload
 from sightline.collectors.registry import Plan, ScheduleWindow
@@ -434,18 +435,6 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
 # Ingesting.
 
 
-@dataclass(frozen=True, slots=True)
-class IngestReport:
-    ingested: int = 0
-    failed: int = 0
-    # Whose answer could not be ingested this time: tried again after `INGEST_RETRY`.
-    waiting: int = 0
-
-    @property
-    def quiet(self) -> bool:
-        return self == IngestReport()
-
-
 async def ingest(
     sessions: async_sessionmaker[AsyncSession], store: ObjectStore, *, limit: int = INGEST_LIMIT
 ) -> IngestReport:
@@ -511,21 +500,9 @@ async def _not_now(
 ) -> tuple[int, int]:
     """Tasks whose answer could not be ingested: those fetched `INGEST_GIVE_UP` ago fail, the
     others wait `INGEST_RETRY`. Returns how many wait and how many failed."""
-    async with sessions() as db, db.begin():
-        now = await ledger.transaction_time(db)
-        stale = [task for task in tasks if task.fetched_at <= now - INGEST_GIVE_UP]
-        failed = 0
-        for task in stale:
-            failed += await ledger.ingest_failed(db, task.ref, code=code, message=message, now=now)
-        later = await ledger.ingest_later(
-            db,
-            [task.ref for task in tasks if task not in stale],
-            code=code,
-            message=message,
-            wait=INGEST_RETRY,
-            now=now,
-        )
-    return later, failed
+    return await not_now(
+        sessions, tasks, code=code, message=message, retry=INGEST_RETRY, give_up=INGEST_GIVE_UP
+    )
 
 
 async def _keep(

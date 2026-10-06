@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -17,6 +17,7 @@ from pydantic import (
     BaseModel,
     Field,
     StringConstraints,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -36,10 +37,28 @@ from sightline.api.schemas.common import (
 )
 from sightline.api.schemas.entities import EntityRef
 from sightline.api.schemas.metrics import MetricValue, Usd
+from sightline.ranks.depth import UNAVAILABLE
 
+_SYSTEMS: Final = {"desktop": ("windows", "macos"), "mobile": ("android", "ios")}
 DepthProfile = Literal[
     "light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"
 ]
+
+
+def _offered(profile: DepthProfile) -> DepthProfile:
+    """`until_own_match_100` needs `stop_crawl_on_match`, which the adapter does not send yet
+    (docs/06 section 2.3): no rank check would be planned for it, so it is refused when set."""
+    if profile in UNAVAILABLE:
+        raise PydanticCustomError(
+            "depth_profile_not_available",
+            "The depth profile `{profile}` is not offered yet.",
+            {"profile": profile},
+        )
+    return profile
+
+
+# The profiles a request may set; what is stored and returned may be any.
+OfferedDepthProfile = Annotated[DepthProfile, AfterValidator(_offered)]
 Intent = Literal["informational", "navigational", "commercial", "transactional", "local", "unknown"]
 FunnelStage = Literal["tofu", "mofu", "bofu", "retention", "unknown"]
 Os = Literal["windows", "macos", "android", "ios"]
@@ -113,7 +132,7 @@ class TrackedKeywordCreate(Body):
         default="google", description="Bing arrives with its collection."
     )
     os: Os | None = None
-    depth_profile: DepthProfile | None = None
+    depth_profile: OfferedDepthProfile | None = None
     target_url: TargetUrl | None = None
     intent: Intent | None = Field(default=None, description="Given: `intent_source` is `manual`.")
     funnel_stage: FunnelStage = "unknown"
@@ -124,6 +143,21 @@ class TrackedKeywordCreate(Body):
     group_ids: Links = Field(default_factory=list)
     term_ids: Links = Field(default_factory=list)
     competitor_overrides: CompetitorOverrides | None = None
+
+    @field_validator("os")
+    @classmethod
+    def _os_of_the_device(cls, os: str | None, info: ValidationInfo) -> str | None:
+        """An operating system belongs to one device: DataForSEO refuses the other pairings,
+        and a task it refuses must not be stored to fail every day."""
+        if os is None:
+            return None
+        device = info.data.get("device")
+        if device not in ("desktop", "mobile") or os not in _SYSTEMS[device]:
+            raise PydanticCustomError(
+                "os_device_mismatch",
+                "An operating system needs a device it runs on: desktop or mobile, not `both`.",
+            )
+        return os
 
 
 class TrackedKeywordBulkCreate(Body):
@@ -139,7 +173,7 @@ class TrackedKeywordPatch(Patch):
     """At least one member. `depth_profile` or `target_url` makes a new configuration version
     (`config_version`) with a history row; identity fields cannot change."""
 
-    depth_profile: DepthProfile | None = None
+    depth_profile: OfferedDepthProfile | None = None
     target_url: TargetUrl | None = None
     intent: Intent | None = None
     funnel_stage: FunnelStage | None = None
@@ -194,7 +228,106 @@ class UrlRef(BaseModel):
     path: str
 
 
-TrackedInclude = Literal["metrics", "groups", "terms", "competitors"]
+TrackedInclude = Literal[
+    "metrics",
+    "groups",
+    "terms",
+    "competitors",
+    "sparkline",
+    "competitor_ranks",
+    "features",
+    "aio",
+]
+RankCellState = Literal["ranked", "beyond_depth", "not_checked", "failed"]
+RankChangeLabel = Literal[
+    "numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"
+]
+AioState = Literal["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"]
+
+
+class RankCell(BaseModel):
+    """One check's result for one site (docs/19 section 2, `RankCell`). A rank is known only
+    within the depth that was checked: `beyond_depth` says it is further down, not absent."""
+
+    state: RankCellState
+    rank: int | None = Field(description="The organic rank; null unless `state` is `ranked`.")
+    absolute_rank: int | None
+    depth_requested: int | None = Field(description="Null when `state` is `not_checked`.")
+    url: UrlRef | None
+    observed_at: datetime | None
+    serp_snapshot_id: str | None
+
+
+class RankChange(BaseModel):
+    """How a check compares with the one before it, within the smaller depth of the two."""
+
+    value: int | None = Field(
+        description="Previous rank minus current rank (positive = improved); null unless "
+        "`label` is `numeric`."
+    )
+    label: RankChangeLabel
+    previous_rank: int | None
+    previous_observed_at: datetime | None
+
+
+class AioStateInfo(BaseModel):
+    state: AioState
+    citation_position: int | None
+    observation_id: str | None
+
+
+class TrackedKeywordState(BaseModel):
+    """The keyword's latest rank facts (`seo.tracked_keyword_state`)."""
+
+    current: RankCell
+    change: RankChange
+    best_rank: int | None
+    best_rank_at: datetime | None
+    worst_rank: int | None
+    first_ranked_at: datetime | None
+    feature_types_present: list[str] = Field(description="On the first page of results.")
+    owned_feature_types: list[str]
+    aio: AioStateInfo
+    target_url_match: bool | None
+    url_changed_at: datetime | None
+    consecutive_failures: int
+    is_stale: bool
+    last_observed_at: datetime | None
+    ranking_url_count: int = Field(description="Own URLs that ranked at the last check.")
+
+
+class SparklinePoint(BaseModel):
+    t: datetime
+    rank: int | None
+    depth: int
+    state: Literal["ranked", "beyond_depth"]
+
+
+class Sparkline(BaseModel):
+    depth_mode: Literal["daily_depth"] = "daily_depth"
+    points: list[SparklinePoint] = Field(description="The last 30 checks, oldest first.")
+
+
+class CompetitorRank(BaseModel):
+    entity: EntityRef
+    current: RankCell
+    change: RankChange
+
+
+class FeatureOnPage(BaseModel):
+    feature_type: str
+    ordinal: int
+    rank_absolute: int | None
+    owned_by_project: bool
+    owned_position: int | None
+
+
+class AioCitations(BaseModel):
+    state: AioState
+    citation_position: int | None
+    cited_urls: list[UrlRef] = Field(description="What the AI Overview cites, in order.")
+
+
 MetricsSource = Literal["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"]
 CompetitionLevel = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -270,6 +403,17 @@ class TrackedKeywordRow(TrackedKeyword):
     competitors: list[CompetitorOverride] | None = Field(
         default=None, description="`include=competitors`: the keyword's overrides."
     )
+    state: TrackedKeywordState
+    sparkline: Sparkline | None = Field(default=None, description="`include=sparkline`.")
+    competitor_ranks: list[CompetitorRank] | None = Field(
+        default=None, description="`include=competitor_ranks`: the competitors' ranks."
+    )
+    features: list[FeatureOnPage] | None = Field(
+        default=None, description="`include=features`: the features of the last check."
+    )
+    aio: AioCitations | None = Field(
+        default=None, description="`include=aio`: what the last AI Overview cites."
+    )
 
 
 class TrackedKeywordResponse(BaseModel):
@@ -296,6 +440,7 @@ class ScheduleRef(BaseModel):
 
 
 class TrackedKeywordDetail(TrackedKeyword):
+    state: TrackedKeywordState
     metrics: KeywordMetrics | None
     groups: list[GroupRef]
     terms: list[TermRef]
@@ -359,6 +504,21 @@ class TrackedKeywordFilter(Body):
     depth_profile_in: FilterList[DepthProfile] | None = None
     search_volume_gte: Annotated[int, Field(ge=0)] | None = None
     keyword_difficulty_lte: Annotated[int, Field(ge=0, le=100)] | None = None
+    # What the latest check says (`seo.tracked_keyword_state`).
+    rank_lte: Annotated[int, Field(ge=1, le=700)] | None = None
+    rank_gte: Annotated[int, Field(ge=1, le=700)] | None = None
+    rank_is_null: bool | None = Field(
+        default=None, description="Beyond the depth at the latest check (true) or ranked (false)."
+    )
+    rank_change_label_in: FilterList[RankChangeLabel] | None = None
+    improved: bool | None = Field(default=None, description="Ranked higher than the check before.")
+    declined: bool | None = Field(default=None, description="Ranked lower than the check before.")
+    feature_present: Annotated[str, StringConstraints(min_length=1, max_length=100)] | None = None
+    feature_owned: Annotated[str, StringConstraints(min_length=1, max_length=100)] | None = None
+    aio_state: FilterList[AioState] | None = None
+    ranking_url_id: Annotated[int, Field(ge=1)] | None = None
+    target_url_match: bool | None = None
+    is_stale: bool | None = None
 
 
 class Selection(Body):

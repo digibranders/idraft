@@ -48,7 +48,7 @@ CODE: Final = "dataforseo"
 BATCH_SIZE: Final = 100
 ENDPOINTS: Final[Mapping[str, TaskEndpoint]] = MappingProxyType({serp.SERP_ORGANIC: serp.ENDPOINT})
 # Endpoints answered in the call itself.
-LIVE_ENDPOINTS: Final = frozenset({labs.KEYWORD_OVERVIEW})
+LIVE_ENDPOINTS: Final = frozenset({labs.KEYWORD_OVERVIEW, serp.SERP_ORGANIC_LIVE})
 # `id_list` gives up to 1,000 tasks a call. A look at a period makes at most this many calls;
 # a period that needs more is refused rather than read in part.
 ID_LIST_LIMIT: Final = 1_000
@@ -170,19 +170,81 @@ class DataForSeo:
         return False
 
     def batch_size(self, endpoint: str) -> int:
+        if endpoint == serp.SERP_ORGANIC_LIVE:
+            return 1  # a live SERP call is one search
         if self.is_live(endpoint):
             return labs.BATCH_SIZE
         return BATCH_SIZE
 
     def result_lifetime(self, endpoint: str) -> timedelta:
+        if endpoint == serp.SERP_ORGANIC_LIVE:
+            return labs.RESULT_LIFETIME
         if self.is_live(endpoint):
             return labs.RESULT_LIFETIME
         return self._endpoint(endpoint).result_lifetime
 
     def payload_slug(self, endpoint: str) -> str:
+        if endpoint == serp.SERP_ORGANIC_LIVE:
+            # The answer has the shape of `task_get/advanced`, so it is kept as one.
+            return serp.ENDPOINT.payload_slug
         if self.is_live(endpoint):
             return labs.PAYLOAD_SLUG
         return self._endpoint(endpoint).payload_slug
+
+    async def _serp_live(self, requests: Sequence[CanonicalRequest]) -> list[LiveResult]:
+        """One live search a call. A request that cannot be sent fails on its own; a call that
+        fails fails its request, and the others keep theirs."""
+        results: list[LiveResult] = []
+        seen: set[str] = set()
+        for request in requests:
+            try:
+                if request.task_id in seen:
+                    raise ValueError("the task is already in this call")
+                body = serp.live_body(request)
+            except (TypeError, ValueError) as error:
+                refusal = ProviderError(kind=K.INVALID_REQUEST, message=f"not sent: {error}")
+                results.append(_failed(request.task_id, refusal))
+                continue
+            seen.add(request.task_id)
+            try:
+                answered = await self._client.call(
+                    "POST", serp.LIVE_PATH, family=serp.LIVE_FAMILY, sending=True, body=[body]
+                )
+            except ProviderCallError as error:
+                results.append(_failed(request.task_id, error.error))
+                continue
+            # From here on nothing may raise: the call may have been paid for.
+            try:
+                results.append(await self._serp_live_answer(answered, request.task_id))
+            except Exception as error:
+                _log.exception("a live SERP answer could not be read; it is asked for again")
+                unread = ProviderError(kind=K.TIMEOUT, message=type(error).__name__)
+                results.append(_failed(request.task_id, unread))
+        return results
+
+    async def _serp_live_answer(self, answered: Answered, task_id: str) -> LiveResult:
+        task = answered.tasks[0] if len(answered.tasks) == 1 else None
+        if task is None:
+            unreadable = ProviderError(
+                kind=K.TIMEOUT, message="the answer did not hold one readable task"
+            )
+            return _failed(task_id, unreadable)
+        outcome = read_status(task.status_code, task.status_message, sending=True)
+        if isinstance(outcome, ProviderError):
+            await self._client.slow_if_limited(outcome)
+            return _failed(task_id, outcome)
+        cost = _cost(task.cost)
+        if cost is not None and cost > serp.LIVE_CALL_COST_MAX:
+            _log.error("a live SERP call's cost is not believed", cost_usd=str(cost))
+            cost = None
+        return LiveResult(
+            task_id=task_id,
+            call_id=task.id,
+            status="ready",
+            body=answered.content,
+            content_type=answered.content_type,
+            cost_usd=cost,
+        )
 
     async def live(self, endpoint: str, requests: Sequence[CanonicalRequest]) -> list[LiveResult]:
         """One `keyword_overview/live` call per location and language among the requests (the
@@ -191,6 +253,10 @@ class DataForSeo:
         does not take. A call that fails fails its requests; the other calls keep theirs."""
         if endpoint not in LIVE_ENDPOINTS:
             raise _invalid(f"{endpoint!r} is not a live DataForSEO endpoint")
+        if endpoint == serp.SERP_ORGANIC_LIVE:
+            if len(requests) > 1:
+                raise _invalid(f"{len(requests)} searches in one live call; it takes one")
+            return await self._serp_live(requests)
         if len(requests) > labs.BATCH_SIZE:
             raise _invalid(f"{len(requests)} keywords in one call; Labs takes {labs.BATCH_SIZE}")
         results: list[LiveResult] = []

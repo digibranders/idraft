@@ -1551,10 +1551,15 @@ class FetchedTask:
 
     ref: TaskRef
     workspace_id: UUID
+    project_id: UUID
     subject_id: str
     location_id: int | None
     raw_payload_id: int
     fetched_at: datetime
+    provider_code: str
+    provider_endpoint: str
+    provider_task_id: str | None
+    cost_usd: Decimal | None
 
 
 async def fetched_tasks(
@@ -1568,9 +1573,14 @@ async def fetched_tasks(
             _tasks.c.id,
             _tasks.c.created_at,
             _tasks.c.workspace_id,
+            _tasks.c.project_id,
             _tasks.c.subject_id,
             _tasks.c.location_id,
             _tasks.c.raw_payload_id,
+            _tasks.c.provider_code,
+            _tasks.c.provider_endpoint,
+            _tasks.c.provider_task_id,
+            _tasks.c.cost_usd,
             func.coalesce(_tasks.c.ready_at, _tasks.c.submitted_at, _tasks.c.created_at).label(
                 "fetched_at"
             ),
@@ -1591,10 +1601,15 @@ async def fetched_tasks(
         FetchedTask(
             ref=TaskRef(id=row.id, created_at=row.created_at),
             workspace_id=row.workspace_id,
+            project_id=row.project_id,
             subject_id=row.subject_id,
             location_id=row.location_id,
             raw_payload_id=row.raw_payload_id,
             fetched_at=row.fetched_at,
+            provider_code=row.provider_code,
+            provider_endpoint=row.provider_endpoint,
+            provider_task_id=row.provider_task_id,
+            cost_usd=row.cost_usd,
         )
         for row in rows
     ]

@@ -115,6 +115,16 @@ CREATE INDEX ON seo.rank_events (project_id, occurred_at DESC, event_type);
 
 Debounce rules for `new_ranking` and `lost_ranking` exist because single-check flips at the edge of the depth are common and would otherwise flood alerts.
 
+**As built (step 5, rank collection).** The rules are the pure functions of `backend/src/sightline/ranks/` (no database, no I/O; an import contract keeps them so), applied by the ingest. Where the text above leaves room, this is what they do:
+
+- **The own side is one.** A keyword's current rank is the best organic rank among all entities with role `own`, and its events are attributed to the primary own entity (a project without one writes no rank events). Each own and competitor entity still has its own `domain_rank_observations` row per check.
+- **The previous check is the last successful check**, held in the state (`previous_rank`, `previous_observed_at`, `previous_depth_requested`). A change is computed within the smaller depth of the two checks: both ranks beyond that depth count as beyond it. A numeric change is written as `rank_gain` or `rank_drop` for every change, with the ranks; thresholds belong to the alert rules.
+- **The debounce run** (`consecutive_beyond`) grows only on a check that looked as deep as the keyword last ranked (`last_ranked_rank`), so a daily depth-20 check cannot declare a keyword seen at 45 lost. A ranked check that is `consistent_beyond` leaves the run alone, so a weekly deep check neither ends it nor hides a later `new_ranking`. `lost_ranking` carries that last rank as `from_rank`.
+- **Features count on the first page only** (the tenth organic result's absolute rank is the limit), so the state does not change with the depth of the check; the feature rows keep the whole truth. The AI Overview is cited, not owned: it is left out of owned feature types and followed by the `aio_*` events.
+- **A grouped sub-result** is another URL at its parent's rank (`all_organic_ranks` repeats the rank, `result_count` counts distinct ranks). The ranking URL changes only between two ranked checks in a row.
+- **The depth of a check is the depth requested.** A SERP that returns fewer results because Google has no more is not told apart yet.
+- **Carried for a product decision:** the `entered_top_100`, `lost_top_100` events and numeric changes between ranks 21 and 100 cannot fire in the `standard` profile, because a deep check is only ever compared with the daily check before it (the state would need the previous deep check). A citation change across a check where the AI Overview did not load is not reported.
+
 ## 5. Project-level SEO metrics
 
 Let K be the set of active tracked keywords in scope (filters: group, term, device, location, intent) and T the check date. For each keyword k, `r_k` is the latest rank on or before T (for daily series) or from the latest deep check (for top-100 metrics).

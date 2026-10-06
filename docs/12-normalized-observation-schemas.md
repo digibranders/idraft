@@ -68,7 +68,9 @@ class Provenance(Canonical):
 ## 3. NormalizedSerp
 
 ```python
-# backend/src/sightline/domain/observations/serp.py
+# backend/src/sightline/providers/dataforseo/serp_parse.py  (as built: `domain` may not import
+# `extraction`, so the SERP types and the parser live with the provider; the pure rank rules are
+# in backend/src/sightline/ranks/)
 class NormalizedUrl(Canonical):
     raw_url: str
     canonical_url: HttpUrl

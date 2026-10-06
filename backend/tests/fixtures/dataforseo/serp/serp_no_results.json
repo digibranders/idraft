@@ -1,0 +1,32 @@
+{
+  "version": "0.1.20260915",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.0900 sec.",
+  "cost": 0,
+  "tasks_count": 1,
+  "tasks_error": 1,
+  "tasks": [
+    {
+      "id": "10011234-1535-0066-0000-5b2e1e3c3b88",
+      "status_code": 40102,
+      "status_message": "No Search Results.",
+      "time": "0.0700 sec.",
+      "cost": 0,
+      "result_count": 0,
+      "path": ["v3", "serp", "google", "organic", "task_get", "advanced", "10011234-1535-0066-0000-5b2e1e3c3b88"],
+      "data": {
+        "api": "serp",
+        "function": "task_get",
+        "se": "google",
+        "se_type": "organic",
+        "keyword": "zzzz qqqq xxxx",
+        "location_code": 2840,
+        "language_code": "en",
+        "device": "desktop",
+        "depth": 20
+      },
+      "result": null
+    }
+  ]
+}

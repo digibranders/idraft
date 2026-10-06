@@ -154,6 +154,9 @@ EXPECTED: dict[tuple[str, str], str] = {
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-metrics/refresh",
     ): "runs:trigger",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/check-now"): (
+        "runs:trigger"
+    ),
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs/{run_id}"): "data:read",
     # Who may cancel is decided by the service: schedules:write, or runs:trigger for a manual
@@ -244,6 +247,33 @@ EXPECTED: dict[tuple[str, str], str] = {
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords",
+    ): "data:read",
+    **{
+        (
+            "GET",
+            "/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/"
+            f"{{tracked_keyword_id}}/{leaf}",
+        ): "data:read"
+        for leaf in (
+            "rank-history",
+            "serp-snapshots",
+            "serp-current",
+            "serp-features",
+            "aio-history",
+        )
+    },
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/serp-snapshots/{serp_snapshot_id}",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/serp-snapshots/"
+        "{serp_snapshot_id}/raw",
+    ): "raw:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/seo/rank-events",
     ): "data:read",
     (
         "POST",
@@ -341,6 +371,9 @@ PATH_PARAMETERS = {
     "schedule_id",
     "run_id",
     "import_id",
+    # Inside one project, after `{project_id}`: the service finds the snapshot within that
+    # project, so a snapshot of another project is a 404.
+    "serp_snapshot_id",
 }
 # `{name}` or `{name:converter}`.
 PATH_PARAMETER = re.compile(r"\{(\w+)(?::\w+)?\}")

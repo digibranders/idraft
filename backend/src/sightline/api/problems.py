@@ -238,6 +238,24 @@ class StorageUnavailableError(ProblemError):
     status, code, title = 503, "storage_unavailable", "Storage unavailable"
 
 
+class WindowTooLargeError(ProblemError):
+    """Carries `limit_days`."""
+
+    status, code, title = 422, "window_too_large", "The window is too large"
+
+
+class RawExpiredError(ProblemError):
+    """The provider's answer was kept for its retention period, and that has passed."""
+
+    status, code, title = 410, "raw_expired", "The raw answer is past its retention"
+
+
+class RawUnavailableError(ProblemError):
+    """The stored answer could not be read now; it may be there when asked again."""
+
+    status, code, title = 503, "raw_unavailable", "The raw answer is not available now"
+
+
 class LastOwnerError(ProblemError):
     status, code, title = 409, "last_owner", "A workspace needs an owner"
 
@@ -284,6 +302,12 @@ class RateLimitedError(ProblemError):
 
 class ServiceUnavailableError(ProblemError):
     status, code, title = 503, "service_unavailable", "Service unavailable"
+
+
+class ProviderPausedError(ProblemError):
+    """A data provider that is refusing everyone is not asked for now; the pause ends by itself."""
+
+    status, code, title = 503, "provider_paused", "The data provider is paused"
 
 
 class QueryTimeoutError(ProblemError):

@@ -19,7 +19,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from sightline.api import audit
-from sightline.api.keywords import filters, repository
+from sightline.api.keywords import filters, rank_repository, repository
+from sightline.api.keywords.rank_repository import (
+    CompetitorRank as CompetitorRankRecord,
+)
+from sightline.api.keywords.rank_repository import FeatureRecord, SparkPoint, StateRecord
 from sightline.api.keywords.repository import (
     CompetitorRecord,
     ConfigRecord,
@@ -31,6 +35,7 @@ from sightline.api.keywords.repository import (
     SnapshotRecord,
     TermRecord,
     TrackedRecord,
+    UrlRecord,
     VariantRecord,
 )
 from sightline.api.pagination import CursorParams, decode_cursor, encode_cursor, invalid_cursor
@@ -154,17 +159,23 @@ class TrackedDetail:
     overrides: list[OverrideRecord]
     config_versions: int
     schedule: ScheduleRecord | None
+    state: StateRecord | None
 
 
 @dataclass(frozen=True, slots=True)
 class TrackedRow:
-    """A list row; a block the request did not `include` is None."""
+    """A list row; a block the request did not `include` is None. The state is always read."""
 
     record: TrackedRecord
     metrics: MetricsRecord | None
     groups: list[GroupRecord] | None
     terms: list[TermRecord] | None
     overrides: list[OverrideRecord] | None
+    state: StateRecord | None = None
+    sparkline: list[SparkPoint] | None = None
+    competitor_ranks: list[CompetitorRankRecord] | None = None
+    features: list[FeatureRecord] | None = None
+    cited: list[UrlRecord] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -480,6 +491,9 @@ class KeywordService:
                     await repository.overrides_of(db, access.workspace_id, project_id, ids)
                 ).get(record.id, []),
                 config_versions=await repository.config_counts(db, access.workspace_id, record.id),
+                state=(await rank_repository.states_of(db, access.workspace_id, ids)).get(
+                    record.id
+                ),
                 schedule=None
                 if record.schedule_id is None
                 else await repository.schedule_ref(db, access.workspace_id, record.schedule_id),
@@ -1081,6 +1095,22 @@ class KeywordService:
             if "competitors" in include
             else None
         )
+        states = await rank_repository.states_of(db, workspace_id, ids)
+        sparklines = (
+            await rank_repository.sparklines_of(db, workspace_id, ids)
+            if "sparkline" in include
+            else None
+        )
+        competitor_ranks = (
+            await rank_repository.competitor_ranks_of(db, workspace_id, project_id, ids)
+            if "competitor_ranks" in include
+            else None
+        )
+        features, cited = (
+            await rank_repository.features_of(db, workspace_id, ids)
+            if "features" in include or "aio" in include
+            else (None, None)
+        )
         return [
             TrackedRow(
                 record=record,
@@ -1090,6 +1120,15 @@ class KeywordService:
                 groups=None if groups is None else groups.get(record.id, []),
                 terms=None if terms is None else terms.get(record.id, []),
                 overrides=None if overrides is None else overrides.get(record.id, []),
+                state=states.get(record.id),
+                sparkline=None if sparklines is None else sparklines.get(record.id, []),
+                competitor_ranks=None
+                if competitor_ranks is None
+                else competitor_ranks.get(record.id, []),
+                features=None
+                if features is None or "features" not in include
+                else features.get(record.id, []),
+                cited=None if cited is None or "aio" not in include else cited.get(record.id, []),
             )
             for record in records
         ]

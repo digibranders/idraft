@@ -589,7 +589,7 @@ Carried:
 | F79 | Two projects of one workspace that overlap on keywords and plan their monthly refresh in the same tick send the overlap in two Labs calls when more than 700 tasks share a location and language, and pay twice. Cut batches by keyword across projects, or skip a keyword another planned task already covers | 5 (rank collection) |
 | F80 | The import worker holds a database connection and the import row lock while it downloads a source (up to 50 MB). The API side was changed; the worker's read could happen before the transaction that claims | launch hardening |
 | F81 | `GET .../rows` returns each row's source cells (`raw`) at up to 200 rows a page, which is up to about 40 MB for a file of 100 wide columns | launch hardening, with a smaller page for wide files |
-| F77 | Tracked keyword rows lack the rank columns the web session asked for: current position, change against yesterday and ranking URL | 5 (rank collection) |
+| F77 | Tracked keyword rows lack the rank columns the web session asked for: current position, change against yesterday and ranking URL | 5 (rank collection). **Closed** by rank collection (2026-10-05): the rows carry `state` with current, change, best and worst, features, AI Overview and target URL match |
 
 ### Keywords, imports, schedules and costs screens, web app (2026-10-05)
 
@@ -629,3 +629,36 @@ Carried (F85 was carried here and is fixed: the chart's grid now holds the axis 
 | F88 | The bulk update's link cap (`min(20000, 200000 / links)`) counts every group id named, also those that change nothing, so Move to group in a project with many groups needs smaller batches than the work requires | when the backend counts only real changes, or never |
 | F89 | When `backend/rank` lands, tracked keyword rows gain a required `state` (the typed mock factories will fail `tsc`), the list gains `include` options, twelve filters and four sorts, and the three rank columns can be built | step 5 part 2 (rank collection) frontend plan |
 | F90 | Two bulk and refresh details stay as built: an analyst (`runs:trigger` without `keywords:write`) cannot refresh "the selection", since choosing rows needs `keywords:write`; followed work is tracked in component state for imports and in the query cache for refreshes | when either changes |
+
+### Rank collection (2026-10-05)
+
+Plans `docs/superpowers/plans/2026-10-05-rank-collection.md` and `2026-10-05-rank-ingest.md`, branch `backend/rank`. Each task was reviewed on the Opus model before the next began.
+
+| Task | Found and fixed |
+|---|---|
+| 1. Schema | Review fixes in the commit "Rank schema review fixes": the snapshot identity key, the feature type on events, size limits and indexes |
+| 2. Parser | Review fixes in "SERP parser review fixes": payload size as the database counts it, text cleaning, lenient reads, citation kinds, local pack blocks and People Also Ask sources |
+| 3. Rank rules | The debounce let a daily depth-20 check declare a keyword last seen at 45 lost (the state now keeps `last_ranked_rank`, R16a); a weekly deep check ended or hid a debounce run; page-one features changed with the depth of the check; the AI Overview was counted as owned; a grouped sub-result got its own rank |
+| 4. Ingest | A device and operating system that do not belong together failed the whole batch (now that task only); an error that may mend (storage, a write that cannot be made now) was told apart from a payload that is unreadable for good, so the first waits and the second ends the task with its reason (R20) |
+| 5. Workload | A weekly profile away from its weekday made an empty new-keyword run again every minute; a cancelled run counted as the day's check for other schedules (the check is judged by the task, not the run); an archived keyword was still sent after it was planned; one keyword the provider would refuse took its batch down |
+| 6. End to end | Proved a new keyword is checked with nobody asking, a due schedule checks each keyword once however often the provider relists it, and a lost submission answer is found and ingested once |
+| 7. Rank state on tracked keywords | A grouped URL raised `KeyError` in the rows; the filters could disagree with the values the row showed (the label rule is one `CASE`, kept equal to the Python rule by a test over a grid); removed competitors and the own-series index were fixed in "Rank state API review fixes" |
+| 8. Rank routes | The rank-events route did not check that the project exists (caught by the cross-tenant suite); the history window was built from a dict with the wrong key and answered 500; the failed-checks query scanned the whole ledger; a summary could describe a competitor instead of the project; live keywords and projects, raw inline and event dates were fixed in "Rank routes review fixes" |
+| 9. Check now | A live search that failed could be tried four times and paid each time (now twice at most; the cost event is still open, F78); the quota count read tasks and waiting runs in two statements, so a run the planner committed between them counted zero times (now one statement); check now without a depth went to depth 100 on the deep weekday (now the daily depth); a shallow check now cancelled that day's scheduled check, including the weekly deep one (a check now no longer stands for the day's check); the API accepted keywords the worker would never plan (other engines, a profile not offered, a keyword over 700 characters) and answered 202 for a run of no tasks; a Redis outage in the pause check gave a 500; the worker did not validate the selector (depth and number of keywords); `RunDetail.results` was missing |
+| 10. Cost checks | Built with tests; the first version stored timestamps in a form Redis readers could not parse (now ISO) |
+
+Decisions that changed the specification, as "As built (step 5, rank collection)" notes: doc 04 (the rank tables and a live task), doc 06 (the live endpoint, fetch and ingest), doc 09 (the rank rules), doc 10 (features on page one, the AI Overview as cited), doc 12 (the path of the SERP types), doc 19 (rank state, rank routes, check now), doc 21 (the ingest tick, the first rank check, account jobs, live SERP), doc 26 (the tag pattern), doc 27 (SERP prices and reconciliation), docs 29 and 31 (status).
+
+Carried:
+
+| Id | Item | Plan |
+|---|---|---|
+| F78 | (widened) A live call that was paid for but failed, for Labs and now for a live SERP search, writes no cost event, so budgets and the check-now quota do not see it. Live SERP is tried twice at most meanwhile. Carry an estimated cost on a failed live result and write it with the failure | the next live workload, or launch hardening |
+| F91 | The live estimate adds no asynchronous AI Overview surcharge, but the live body still asks for it. If DataForSEO bills it, estimates are low by about one page a task. Settle with spike S-01, then seed a live surcharge row or send `load_async_ai_overview: false` | S-01 |
+| F92 | F48: the dispatcher claims by `scheduled_for` only, so after a provider pause check-now tasks wait behind a project's overdue scheduled backlog. Order the claim by priority first | launch hardening |
+| F93 | Check now: the quota counts failed tasks that never left (an invalid request, a request that could not be built); `collection_tasks` has no index on workspace and endpoint, so each count scans the month's partition (a partial index on `(workspace_id, created_at)` for the live endpoint fixes it); the live call id is dropped, so live snapshots have no `provider_task_id`; live cost events say `price_unit = 'item'` where `task` is meant | launch hardening |
+| F94 | Check now has no `Idempotency-Key` (as F74) and no `Retry-After` on the `202`; its budget is judged when the run is planned, so `budget_blocked` appears on the run, not in the `202` (doc 19 says it is in the 202) | launch hardening, with F74 |
+| F95 | Top 100 events and numeric changes between ranks 21 and 100 cannot fire in the `standard` profile (the state would need the previous deep check); a citation change across a check where the AI Overview did not load is not reported | a product decision |
+| F96 | `balance_check` and `cost_reconcile` keep their readings in Redis, raise no `ops.platform_alerts` row and ping no Healthchecks check; the account's day is taken as UTC, and spend after the last reading of a day is not in that day's comparison (up to 15 minutes) | the operations step (doc 25) |
+| F97 | Every SERP fixture and the live answer shape (taken to equal `task_get/advanced`) are synthetic until spike S-01 captures real ones; re-run the parser tests on the captured set before the first deploy | S-01, before deploy |
+| F98 | The competitor backfill from stored snapshots and `ops.derivation_log`, the shared fetch cache, the data quality tables, `ops.task_attempts`, the load test on recorded payloads and the real 14-day run were deferred (plan R14) | steps 6 and 7 |

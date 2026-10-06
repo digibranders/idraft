@@ -49,9 +49,8 @@ FIELDS: Final = frozenset(
         "depth_profile",
     }
 )
-DEPTH_PROFILES: Final = frozenset(
-    {"light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"}
-)
+# `until_own_match_100` is not offered yet (it needs `stop_crawl_on_match`, docs/06 section 2.3).
+DEPTH_PROFILES: Final = frozenset({"light", "standard", "deep", "full", "weekly", "weekly_light"})
 INTENTS: Final = frozenset(
     {"informational", "navigational", "commercial", "transactional", "local", "unknown"}
 )

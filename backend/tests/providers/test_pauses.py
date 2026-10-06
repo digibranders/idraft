@@ -1,11 +1,22 @@
 """Provider pauses in Redis (docs/21-scheduler-workers.md section 6)."""
 
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import timedelta
 
+import pytest
 from redis.asyncio import Redis
 
-from sightline.worker.pauses import RedisPauses
+from sightline.providers.pauses import RedisPauses
+
+
+@pytest.fixture
+async def redis(redis_url: str) -> AsyncIterator[Redis]:
+    """A client on an empty database: no pause of an earlier test."""
+    client = Redis.from_url(redis_url)
+    await client.flushdb()
+    yield client
+    await client.aclose()
 
 
 async def test_a_paused_provider_is_paused_until_the_pause_runs_out(redis: Redis) -> None:

@@ -1,11 +1,20 @@
 """The table metadata the application queries through must match the migrated schema
 (docs/26-testing-quality.md: DB-MIG-01)."""
 
+import re
 from collections.abc import Mapping
 
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import Column, FetchedValue, MetaData, Table, Text, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    FetchedValue,
+    ForeignKeyConstraint,
+    MetaData,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.schema import SchemaItem
@@ -57,7 +66,16 @@ DECLARED = {
     "seo.keyword_metrics_current",
     "seo.keyword_imports",
     "seo.keyword_import_rows",
+    "seo.serp_feature_types",
+    "seo.serp_snapshots",
+    "seo.serp_features",
+    "seo.domain_rank_observations",
+    "seo.tracked_keyword_state",
+    "seo.serp_current_results",
+    "seo.rank_events",
 }
+# A monthly partition's name ends in `_pYYYYMM`.
+_PARTITION = re.compile(r"_p\d{6}$")
 # Alembic reports a difference as a tuple, or as a list of tuples for one column.
 Difference = tuple[object, ...] | list[tuple[object, ...]]
 
@@ -77,7 +95,13 @@ def _differences(connection: Connection, metadata: MetaData) -> list[Difference]
         item: SchemaItem, name: str | None, type_: str, reflected: bool, compare_to: object
     ) -> bool:
         # Indexes are not declared: partial-index expressions do not compare reliably.
-        return type_ != "index"
+        if type_ == "index":
+            return False
+        # PostgreSQL copies a key from one partitioned table to another onto each partition of
+        # the table it refers to; the declared key is the one on the parent.
+        if type_ == "foreign_key_constraint" and isinstance(item, ForeignKeyConstraint):
+            return not _PARTITION.search(item.referred_table.name)
+        return True
 
     context = MigrationContext.configure(
         connection,

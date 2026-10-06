@@ -130,6 +130,25 @@ async def test_a_schedule_without_a_provider_mode_takes_its_workloads(
     assert ranks.json()["data"]["provider_mode"] == "standard_queue"
 
 
+async def test_a_rank_schedule_takes_the_task_queues_and_not_the_live_call(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    """A live search is one a person asks for (check now) and is counted against the month's
+    live checks; a schedule that said `live` would have been sent on the standard queue."""
+    workspace, project, owner = await _owner(resources, migrated)
+    rank = _body(workload="seo_rank", selector={"all": True})
+
+    live = await _create(api, workspace, project, owner, {**rank, "provider_mode": "live"})
+    priority = await _create(
+        api, workspace, project, owner, {**rank, "provider_mode": "priority_queue"}
+    )
+
+    assert problem(live) == (422, "validation_failed")
+    assert errors(live) == [("provider_mode", "provider_mode_not_supported")]
+    assert priority.status_code == 201, priority.text
+    assert priority.json()["data"]["provider_mode"] == "priority_queue"
+
+
 async def test_weekly_and_monthly_schedules_run_on_their_day(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

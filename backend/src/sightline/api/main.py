@@ -44,6 +44,10 @@ from sightline.api.operations.settings_routes import router as settings_routes_r
 from sightline.api.problems import register_problem_handlers
 from sightline.api.projects.routes import router as projects_router
 from sightline.api.projects.service import ProjectService
+from sightline.api.ranks.routes import event_router as rank_events_router
+from sightline.api.ranks.routes import keyword_router as rank_history_router
+from sightline.api.ranks.routes import snapshot_router as serp_snapshots_router
+from sightline.api.ranks.service import RankService
 from sightline.api.registries import router as registries_router
 from sightline.api.request_id import RequestIdMiddleware
 from sightline.api.resources import Resources
@@ -61,6 +65,7 @@ from sightline.config.settings import Settings, load_settings
 from sightline.db.engine import create_engine, create_session_factory
 from sightline.db.migrate import migration_state
 from sightline.providers.email import EmailSender, build_email_sender
+from sightline.providers.pauses import RedisPauses
 from sightline.storage.raw import ObjectStore, RawStore, open_raw_store
 
 REDIS_TIMEOUT_SECONDS = 1.0
@@ -172,11 +177,12 @@ def create_app(
                 taxonomy=TaxonomyService(sessions=sessions),
                 keywords=KeywordService(sessions=sessions),
                 keyword_groups=GroupService(sessions=sessions),
-                runs=RunService(sessions=sessions),
+                runs=RunService(sessions=sessions, pauses=RedisPauses(redis)),
                 schedules=ScheduleService(sessions=sessions),
                 project_settings=SettingsService(sessions=sessions),
                 costs=CostService(sessions=sessions),
                 imports=ImportService(sessions=sessions, store=sources),
+                ranks=RankService(sessions=sessions, raw_store=sources),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -212,6 +218,9 @@ def create_app(
     app.include_router(taxonomy_router)
     app.include_router(keywords_router)
     app.include_router(tracked_keywords_router)
+    app.include_router(rank_history_router)
+    app.include_router(serp_snapshots_router)
+    app.include_router(rank_events_router)
     app.include_router(keyword_groups_router)
     app.include_router(term_assignments_router)
     app.include_router(run_routes_router)

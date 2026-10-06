@@ -1,0 +1,217 @@
+{
+  "version": "0.1.20260915",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.2100 sec.",
+  "cost": 0,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "10011234-1535-0066-0000-5b2e1e3c3b87",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "0.1900 sec.",
+      "cost": 0,
+      "result_count": 1,
+      "path": ["v3", "serp", "google", "organic", "task_get", "advanced", "10011234-1535-0066-0000-5b2e1e3c3b87"],
+      "data": {
+        "api": "serp",
+        "function": "task_get",
+        "se": "google",
+        "se_type": "organic",
+        "keyword": "best crm for startups",
+        "location_code": 2840,
+        "language_code": "en",
+        "device": "desktop",
+        "os": "windows",
+        "depth": 20,
+        "tag": "i:test:t:z:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"
+      },
+      "result": [
+        {
+          "keyword": "best crm for startups",
+          "type": "organic",
+          "se_domain": "google.com",
+          "location_code": 2840,
+          "language_code": "en",
+          "check_url": "https://www.google.com/search?q=best%20crm%20for%20startups&num=20&hl=en&gl=US",
+          "datetime": "2026-10-01 09:12:44 +00:00",
+          "spell": null,
+          "refinement_chips": null,
+          "item_types": ["paid", "ai_overview", "featured_snippet", "people_also_ask", "organic", "images", "related_searches", "knowledge_graph"],
+          "se_results_count": 412000000,
+          "items_count": 11,
+          "items": [
+            {
+              "type": "paid",
+              "rank_group": 1,
+              "rank_absolute": 1,
+              "position": "left",
+              "title": "CRM for startups, free trial",
+              "url": "https://ads.example-crm.com/trial?utm_source=google",
+              "domain": "ads.example-crm.com"
+            },
+            {
+              "type": "paid",
+              "rank_group": 2,
+              "rank_absolute": 2,
+              "position": "left",
+              "title": "Try Acme CRM",
+              "url": "https://www.acme.example/crm",
+              "domain": "www.acme.example"
+            },
+            {
+              "type": "ai_overview",
+              "rank_group": 1,
+              "rank_absolute": 3,
+              "position": "left",
+              "asynchronous_ai_overview": false,
+              "references": [
+                {"type": "ai_overview_reference", "source": "Example CRM", "domain": "www.example-crm.com", "url": "https://www.example-crm.com/startups", "title": "The best CRM for startups"},
+                {"type": "ai_overview_reference", "source": "Reviews", "domain": "reviews.example.org", "url": "https://reviews.example.org/crm", "title": "CRM for startups compared"}
+              ],
+              "items": [
+                {
+                  "type": "ai_overview_element",
+                  "title": "Pick by team size",
+                  "text": "Small teams do well with a simple CRM.",
+                  "links": [
+                    {"type": "link_element", "url": "https://blog.example.net/crm-guide", "title": "A CRM guide"}
+                  ],
+                  "references": [
+                    {"type": "ai_overview_reference", "url": "https://reviews.example.org/crm", "title": "CRM for startups compared"}
+                  ]
+                },
+                {
+                  "type": "ai_overview_table_element",
+                  "title": "Comparison",
+                  "links": null,
+                  "references": null
+                }
+              ]
+            },
+            {
+              "type": "featured_snippet",
+              "rank_group": 1,
+              "rank_absolute": 4,
+              "position": "left",
+              "featured_title": "What is the best CRM for a startup?",
+              "description": "Start with a CRM that is free for the first users.",
+              "url": "https://www.example-crm.com/startups",
+              "domain": "www.example-crm.com",
+              "table": null
+            },
+            {
+              "type": "people_also_ask",
+              "rank_group": 1,
+              "rank_absolute": 5,
+              "position": "left",
+              "items": [
+                {
+                  "type": "people_also_ask_element",
+                  "title": "Is there a free CRM?",
+                  "expanded_element": [
+                    {"type": "people_also_ask_expanded_element", "url": "https://free.example.io/crm", "domain": "free.example.io", "title": "Free CRMs"}
+                  ]
+                },
+                {
+                  "type": "people_also_ask_element",
+                  "title": "What does a CRM cost?",
+                  "expanded_element": null
+                }
+              ]
+            },
+            {
+              "type": "organic",
+              "rank_group": 1,
+              "rank_absolute": 6,
+              "position": "left",
+              "domain": "www.example-crm.com",
+              "title": "The best CRM for startups",
+              "url": "https://www.example-crm.com/startups",
+              "breadcrumb": "https://www.example-crm.com > startups",
+              "description": "A CRM that grows with your team.",
+              "is_image": false,
+              "is_video": false,
+              "amp_version": false,
+              "links": [
+                {"type": "link_element", "title": "Pricing", "url": "https://www.example-crm.com/pricing"},
+                {"type": "link_element", "title": "Docs", "url": "https://www.example-crm.com/docs"}
+              ],
+              "related_result": [
+                {"type": "related_result_element", "title": "Startup plan", "url": "https://www.example-crm.com/startups/plan", "domain": "www.example-crm.com"}
+              ],
+              "rating": {"value": 4.6, "votes_count": 812, "rating_max": 5}
+            },
+            {
+              "type": "images",
+              "rank_group": 1,
+              "rank_absolute": 7,
+              "position": "left",
+              "items": [
+                {"type": "images_element", "url": "https://images.example.com/crm-1", "alt": "dashboard"},
+                {"type": "images_element", "url": "https://images.example.com/crm-2", "alt": "pipeline"}
+              ]
+            },
+            {
+              "type": "organic",
+              "rank_group": 2,
+              "rank_absolute": 8,
+              "position": "left",
+              "domain": "reviews.example.org",
+              "title": "CRM for startups compared",
+              "url": "https://reviews.example.org/crm",
+              "breadcrumb": "https://reviews.example.org > crm",
+              "description": "Twelve CRMs tested with small teams.",
+              "is_image": false,
+              "is_video": true,
+              "amp_version": false,
+              "links": null,
+              "related_result": null,
+              "rating": null
+            },
+            {
+              "type": "related_searches",
+              "rank_group": 1,
+              "rank_absolute": 9,
+              "position": "left",
+              "items": [
+                {"type": "related_searches_element", "title": "free crm for small business"},
+                {"type": "related_searches_element", "title": "crm software comparison"}
+              ]
+            },
+            {
+              "type": "knowledge_graph",
+              "rank_group": 1,
+              "rank_absolute": 1,
+              "position": "right",
+              "title": "CRM",
+              "sub_title": "Customer relationship management",
+              "items": [
+                {"type": "knowledge_graph_element", "url": "https://en.wikipedia.org/wiki/Customer_relationship_management"}
+              ]
+            },
+            {
+              "type": "organic",
+              "rank_group": 3,
+              "rank_absolute": 10,
+              "position": "left",
+              "domain": "blog.example.net",
+              "title": "A CRM guide for startups",
+              "url": "https://blog.example.net/crm-guide?utm_medium=feed",
+              "breadcrumb": "https://blog.example.net > crm-guide",
+              "description": "How to pick, set up and use a first CRM.",
+              "is_image": false,
+              "is_video": false,
+              "amp_version": false,
+              "links": null,
+              "related_result": null,
+              "rating": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
