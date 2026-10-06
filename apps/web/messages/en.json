@@ -1469,7 +1469,8 @@
   "costs": {
     "pageTitle": "Costs",
     "title": "Costs",
-    "meta": "{month}. Provider days in UTC. Up to an hour behind.",
+    "metaAll": "All projects in {workspace}, {month}. Provider days in UTC. Up to an hour behind.",
+    "metaProject": "{project}, {month}. Provider days in UTC. Up to an hour behind.",
     "month": "Month",
     "filters": {
       "project": "Project",

@@ -38,7 +38,7 @@ import { formatInteger, formatList } from '@/lib/format';
 import { currentMonth, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { can, useCan, useMembership } from '@/lib/permissions';
-import { workspacePath } from '@/lib/routes/paths';
+import { projectPath, workspacePath } from '@/lib/routes/paths';
 import { useMe } from '@/lib/session/use-me';
 import {
   formatColumns,
@@ -91,6 +91,10 @@ export function RunsScreen(props: RunsScreenProps): ReactNode {
   const t = useTranslations('runs');
   const canRead = useCan('data:read');
   const { project } = props;
+  // Inside a project its root opens the first destination the role can open; the workspace's root is the way
+  // back only for the page outside any project
+  const backPath =
+    project === null ? workspacePath(props.workspaceSlug) : projectPath(props.workspaceSlug, project.slug);
   if (!canRead) {
     return (
       <div className={PAGE_CLASS}>
@@ -100,9 +104,7 @@ export function RunsScreen(props: RunsScreenProps): ReactNode {
           title={t('noAccessTitle')}
           reason={t('noAccessReason')}
           headingLevel={2}
-          secondaryAction={
-            <TextLink render={<Link href={workspacePath(props.workspaceSlug)} />}>{t('backToOverview')}</TextLink>
-          }
+          secondaryAction={<TextLink render={<Link href={backPath} />}>{t('backToOverview')}</TextLink>}
         />
       </div>
     );

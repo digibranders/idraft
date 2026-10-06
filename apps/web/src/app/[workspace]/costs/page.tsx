@@ -31,6 +31,8 @@ export default async function CostsPage({ params, searchParams }: PageProps<'/[w
     <CostsScreen
       workspaceId={membership.workspace.workspace_id}
       workspaceSlug={membership.workspace.slug}
+      workspaceName={membership.workspace.name}
+      projectSlug={null}
       projects={projects.map((project) => ({
         id: project.project_id,
         slug: project.slug,

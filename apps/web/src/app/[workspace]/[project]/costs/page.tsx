@@ -18,13 +18,15 @@ export async function generateMetadata(): Promise<Metadata> {
  * which starts empty. The screen decides what a member without `costs:read` sees.
  */
 export default async function CostsPage({ params }: PageProps<'/[workspace]/[project]/costs'>): Promise<ReactNode> {
-  const { workspace } = await params;
+  const { workspace, project: projectSlug } = await params;
   const { membership } = await requireMembership(workspace);
   const projects = await projectsWithArchivedOfMembership(membership);
   return (
     <CostsScreen
       workspaceId={membership.workspace.workspace_id}
       workspaceSlug={membership.workspace.slug}
+      workspaceName={membership.workspace.name}
+      projectSlug={projectSlug}
       projects={projects.map((project) => ({
         id: project.project_id,
         slug: project.slug,

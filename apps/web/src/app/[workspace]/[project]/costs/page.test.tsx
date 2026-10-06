@@ -36,6 +36,8 @@ describe('Costs inside a project', () => {
       props: {
         workspaceId: 'w1',
         workspaceSlug: 'digibranders',
+        workspaceName: 'Digibranders',
+        projectSlug: 'fynix',
         projects: [
           { id: fynixSeed.project_id, slug: 'fynix', name: 'Fynix', archived: false },
           { id: cleanstartSeed.project_id, slug: 'cleanstart', name: 'Cleanstart', archived: true },

@@ -54,12 +54,25 @@ afterEach(() => {
   server.events.removeAllListeners();
 });
 
-/** The Costs page for a signed-in member of `role`, who may open `shown` projects. */
-function costsAs(role: Role, shown: readonly CostsProject[] = projects): ReactElement {
+/**
+ * The Costs page for a signed-in member of `role`, who may open `shown` projects, in the shell of
+ * `projectSlug` (`null` for the workspace's own page, which a member who can open no project stays on).
+ */
+function costsAs(
+  role: Role,
+  shown: readonly CostsProject[] = projects,
+  projectSlug: string | null = 'fynix',
+): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <PermissionProvider membership={membershipFactory(role)}>
-      <CostsScreen workspaceId={MOCK_WORKSPACE.workspace_id} workspaceSlug={MOCK_WORKSPACE.slug} projects={shown} />
+      <CostsScreen
+        workspaceId={MOCK_WORKSPACE.workspace_id}
+        workspaceSlug={MOCK_WORKSPACE.slug}
+        workspaceName={MOCK_WORKSPACE.name}
+        projectSlug={projectSlug}
+        projects={shown}
+      />
     </PermissionProvider>
   );
 }
@@ -503,6 +516,41 @@ describe('Costs', () => {
     expect(screen.getByRole('button', { name: 'Project: Fynix. Edit filter' })).toBeInTheDocument();
   });
 
+  describe('the scope the header names', () => {
+    const behind = 'Provider days in UTC. Up to an hour behind.';
+
+    it('says the figures are of all projects of the workspace while the Project filter is empty', async () => {
+      renderWithProviders(costsAs('admin'));
+      expect(await screen.findByText(`All projects in Digibranders, September 2026. ${behind}`)).toBeInTheDocument();
+      // The page is in Fynix's shell, and the filter is not filled in for it
+      expect(screen.queryByRole('button', { name: /^Project: / })).toBeNull();
+    });
+
+    it('names the project once the Project filter holds one', async () => {
+      const fynix = projects[0];
+      renderWithProviders(costsAs('admin'), { searchParams: `?project=${fynix?.id ?? ''}` });
+      expect(await screen.findByText(`Fynix, September 2026. ${behind}`)).toBeInTheDocument();
+      expect(screen.queryByText(/All projects in/)).toBeNull();
+    });
+
+    it('names an archived project as the filter does', async () => {
+      const [fynix] = projects;
+      if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
+      renderWithProviders(costsAs('admin', [{ ...fynix, archived: true }]), { searchParams: `?project=${fynix.id}` });
+      expect(await screen.findByText(`Fynix (archived), September 2026. ${behind}`)).toBeInTheDocument();
+    });
+
+    it('follows the month and the removal of the filter', async () => {
+      const fynix = projects[0];
+      const { user } = renderWithProviders(costsAs('admin'), {
+        searchParams: `?month=2026-08&project=${fynix?.id ?? ''}`,
+      });
+      expect(await screen.findByText(`Fynix, August 2026. ${behind}`)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Remove filter Project: Fynix' }));
+      expect(await screen.findByText(`All projects in Digibranders, August 2026. ${behind}`)).toBeInTheDocument();
+    });
+  });
+
   it('asks for another month when it is chosen, for its days and for its budgets', async () => {
     const costs = recordRequests('/costs');
     const budgets = recordRequests('/budgets/status');
@@ -606,10 +654,16 @@ describe('Costs', () => {
     expect(
       screen.getByText('You do not have permission to view costs. Ask an admin of this workspace.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
+    // Inside a project the way back is that project's own root, which opens its first destination
+    expect(screen.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders/fynix');
     expect(screen.getByRole('heading', { level: 1, name: 'Costs' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Month summary' })).toBeNull();
     expect([...costs, ...budgets, ...prices]).toEqual([]);
+  });
+
+  it('goes back to the workspace from the no-access state of the page outside any project', async () => {
+    renderWithProviders(costsAs('viewer', projects, null));
+    expect(await screen.findByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
   });
 });
 

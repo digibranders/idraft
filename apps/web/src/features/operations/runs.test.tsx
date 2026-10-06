@@ -899,12 +899,18 @@ describe('Runs', () => {
     expect(
       screen.getByText('You do not have permission to view runs. Ask an admin of this workspace.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
+    // Inside the project the way back is the project's own root, which opens the first destination the role can open
+    expect(screen.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders/fynix');
     expect(screen.getByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
     expect(screen.queryByRole('grid')).toBeNull();
     expect(screen.queryByText('The runs could not be loaded')).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(asked).toEqual([]);
+  });
+
+  it('goes back to the workspace from the no-access state of a member with no project', async () => {
+    renderWithProviders(runsAs('billing', null));
+    expect(await screen.findByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
   });
 
   it('says there is nothing to show when the member has no project', async () => {
