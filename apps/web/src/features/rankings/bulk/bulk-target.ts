@@ -1,5 +1,6 @@
 import type { KeywordFilters } from '../rankings-queries';
 import type { ApiInit } from '@/lib/api/query';
+import type { TrackedKeywordRow } from '@/lib/api/types';
 
 export const BULK_UPDATE = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-update';
 export const BULK_ARCHIVE = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/bulk-archive';
@@ -42,6 +43,45 @@ export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilte
 
 /** The API takes this many ids in one bulk request. */
 export const MAX_IDS = 5000;
+/** The groups and terms one change may gain or lose in all, the rows chosen times the links (backend `LINK_CHANGES_MAX`). */
+export const LINK_CHANGES_MAX = 200_000;
+
+/**
+ * The ids one request may name when each keyword gains or loses `links` groups and terms: 5,000, and fewer
+ * as the links grow, so that ids times links stay within 200,000. A link counts for every keyword chosen,
+ * whether or not the keyword has it, so naming fewer groups is what keeps the batches large.
+ */
+export const batchSizeFor = (links: number): number =>
+  links <= 0 ? MAX_IDS : Math.max(1, Math.min(MAX_IDS, Math.floor(LINK_CHANGES_MAX / links)));
+
+/**
+ * The groups the keywords of a target are in, so that a move names only those to leave; `null` when that is
+ * not known and every group must be named. Ids are known when each is among `rows` with its groups read; a
+ * filter's matches are known only when `rows` is the whole list (`complete`), and then they are all of them
+ * or fewer (the search narrows the match, never widens it).
+ */
+export function groupsHeldBy(
+  target: BulkTarget,
+  rows: readonly Pick<TrackedKeywordRow, 'tracked_keyword_id' | 'groups'>[],
+  complete: boolean,
+): ReadonlySet<string> | null {
+  const held = new Set<string>();
+  if ('filter' in target) {
+    if (!complete) return null;
+    for (const row of rows) {
+      if (row.groups === undefined || row.groups === null) return null;
+      for (const group of row.groups) held.add(group.group_id);
+    }
+    return held;
+  }
+  const byId = new Map(rows.map((row) => [row.tracked_keyword_id, row]));
+  for (const id of target.ids) {
+    const groups = byId.get(id)?.groups;
+    if (groups === undefined || groups === null) return null;
+    for (const group of groups) held.add(group.group_id);
+  }
+  return held;
+}
 
 /**
  * The requests a target takes: a filter in one, ids in groups of 5,000 (client mode holds up to 10,000

@@ -2355,6 +2355,7 @@
         "reasonTooLong": "Use at most {max} characters",
         "counter": "{count} of {max}",
         "same": "Choose a different depth profile",
+        "notAvailable": "This depth profile is not available yet. Choose another.",
         "submit": "Change depth",
         "done": "Depth profile changed"
       }

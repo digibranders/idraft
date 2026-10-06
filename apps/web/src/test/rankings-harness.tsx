@@ -121,6 +121,8 @@ export function answerTrackedAsMany({
   pages = Number.POSITIVE_INFINITY,
   failSecond = () => false,
   slow = () => false,
+  withoutGroups = false,
+  rowsPerPage = null,
 }: {
   total: number;
   pages?: number;
@@ -128,6 +130,10 @@ export function answerTrackedAsMany({
   failSecond?: () => boolean;
   /** Pages after the first take 300 ms while this is true, so a test can act while one loads. */
   slow?: () => boolean;
+  /** The rows carry no `groups`, as when the list was read without them. */
+  withoutGroups?: boolean;
+  /** Rows in each page, the fixture rows repeated (their ids made unique), instead of the fixture's own few. */
+  rowsPerPage?: number | null;
 }): URLSearchParams[] {
   const asked: URLSearchParams[] = [];
   server.use(
@@ -147,9 +153,18 @@ export function answerTrackedAsMany({
       return HttpResponse.json({
         // Each page's rows get ids of their own: the page number goes ahead of the row's (below 1,000), so
         // the first page keeps the real ids and no two rows share one
-        data: body.data.map((row) => ({
+        data: (rowsPerPage === null
+          ? body.data
+          : Array.from({ length: rowsPerPage }, (_, at) => body.data[at % body.data.length]).flatMap((row) =>
+              row === undefined ? [] : [row],
+            )
+        ).map((row, at) => ({
           ...row,
-          tracked_keyword_id: `${row.tracked_keyword_id.slice(0, -6)}${String(index).padStart(3, '0')}${row.tracked_keyword_id.slice(-3)}`,
+          ...(withoutGroups ? { groups: undefined } : {}),
+          tracked_keyword_id:
+            rowsPerPage === null
+              ? `${row.tracked_keyword_id.slice(0, -6)}${String(index).padStart(3, '0')}${row.tracked_keyword_id.slice(-3)}`
+              : `${row.tracked_keyword_id.slice(0, -12)}${String(index).padStart(4, '0')}${String(at).padStart(8, '0')}`,
         })),
         page: { ...body.page, total, has_more: more, next_cursor: more ? `cursor-${String(index + 1)}` : null },
       });

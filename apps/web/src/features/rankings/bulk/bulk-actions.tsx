@@ -6,7 +6,16 @@ import { useTranslations } from 'next-intl';
 import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { BulkFailure } from './bulk-failure';
-import { BULK_ARCHIVE, BULK_DELETE, BULK_UPDATE, bulkTarget, targetBatches, type BulkTarget } from './bulk-target';
+import {
+  BULK_ARCHIVE,
+  BULK_DELETE,
+  BULK_UPDATE,
+  batchSizeFor,
+  bulkTarget,
+  groupsHeldBy,
+  targetBatches,
+  type BulkTarget,
+} from './bulk-target';
 import { MoveToGroupDialog } from './move-to-group-dialog';
 import { PriorityDialog } from './priority-dialog';
 import { TagsDialog } from './tags-dialog';
@@ -29,6 +38,13 @@ const GROUP_LIST = 100;
 
 type UpdateBody = NonNullable<ApiInit<'post', typeof BULK_UPDATE>['body']>;
 type Change = Omit<UpdateBody, 'ids' | 'filter'>;
+
+/** The groups and terms a change names: each counts once for every keyword it is sent for. */
+const linksOf = (change: Change): number =>
+  (change.add_group_ids?.length ?? 0) +
+  (change.remove_group_ids?.length ?? 0) +
+  (change.add_term_ids?.length ?? 0) +
+  (change.remove_term_ids?.length ?? 0);
 type Dialog = 'tags' | 'group' | 'target' | 'priority' | 'archive' | 'delete';
 
 interface Opened {
@@ -47,6 +63,10 @@ export interface BulkContext {
   archived: boolean;
   /** Every keyword the filters match, for the count when all of them are chosen. */
   matchingTotal: number | null;
+  /** The rows the list holds, with their groups: what a move reads to name only the groups to leave. */
+  rows: readonly TrackedKeywordRow[];
+  /** The rows are every keyword the filters match (client mode, read to its end). */
+  rowsComplete: boolean;
   /** After a change: the selection is cleared. */
   onDone: () => void;
 }
@@ -61,7 +81,7 @@ export function useBulkActions(context: BulkContext): {
   actions: RecordAction<TrackedKeywordRow>[];
   dialogs: ReactNode;
 } {
-  const { scope, filters, search, archived, matchingTotal, onDone } = context;
+  const { scope, filters, search, archived, matchingTotal, rows, rowsComplete, onDone } = context;
   const t = useTranslations('rankings.bulk');
   const common = useTranslations('common');
   const queryClient = useQueryClient();
@@ -133,11 +153,19 @@ export function useBulkActions(context: BulkContext): {
           : { remove_group_ids: part },
       );
     }
+    // Nothing to change (a move out of groups the keywords are not in): no request, and no refusal for an empty one
+    if (changes.every((body) => Object.keys(body).length === 0)) {
+      finish();
+      return { matched: opened.count, versions: 0 };
+    }
+    // The API limits the groups and terms one change gains or loses in all, ids times links: the ids go in
+    // batches small enough for the request that names the most
+    const batchSize = batchSizeFor(Math.max(...changes.map(linksOf)));
     let matched = 0;
     let versions = 0;
     let landed = 0;
     try {
-      for (const target of targetBatches(opened.target)) {
+      for (const target of targetBatches(opened.target, batchSize)) {
         let matchedHere = 0;
         for (const body of changes) {
           const answer = await update.mutateAsync({ params: { path: project }, body: { ...target, ...body } });
@@ -287,9 +315,13 @@ export function useBulkActions(context: BulkContext): {
         finalFocus={gridFocus}
         countText={countOfOpened}
         onApply={async (groupId, others, groupName) => {
+          // A group the chosen keywords are not in need not be named: each name counts for every keyword
+          // (the API limits ids times names), so only the groups they hold are left, when those are known
+          const held = opened === null ? null : groupsHeldBy(opened.target, rows, rowsComplete);
+          const leaving = held === null ? others : others.filter((id) => held.has(id));
           const { matched } = await applyChange({
             ...(groupId === null ? {} : { add_group_ids: [groupId] }),
-            remove_group_ids: others,
+            ...(leaving.length === 0 ? {} : { remove_group_ids: leaving }),
           });
           toast({
             type: 'success',

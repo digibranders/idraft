@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { DEPTH_KEY, DEPTH_PROFILES, FUNNEL_STAGES, INTENTS, SOURCE_KEY, SOURCES } from './keyword-values';
+import { DEPTH_KEY, FUNNEL_STAGES, INTENTS, OFFERED_DEPTH_PROFILES, SOURCE_KEY, SOURCES } from './keyword-values';
 import type { ProjectScope } from './rankings-queries';
 import { useKeywordGroups, useVocabularies } from './taxonomy-queries';
 import type { FilterField, FilterOption } from '@/components/app/filters/types';
@@ -146,7 +146,7 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
         kind: 'enum',
         label: t('depth'),
         multi: true,
-        options: options(DEPTH_PROFILES, (value) => t(`depths.${DEPTH_KEY[value]}`)),
+        options: options(OFFERED_DEPTH_PROFILES, (value) => t(`depths.${DEPTH_KEY[value]}`)),
       },
       { id: 'vol', kind: 'range', label: t('volume'), ends: 'min', bounds: { min: 0, max: 100_000_000 } },
       { id: 'kd', kind: 'range', label: t('difficulty'), ends: 'max', bounds: { min: 0, max: 100 } },

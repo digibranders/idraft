@@ -209,12 +209,18 @@ export function RankingsScreen({
     list.total !== null && list.total > list.rows.length && (list.mode === 'server' || view.q.trim() === '')
       ? list.total
       : null;
+  // Only a list that holds every match, read to its end, can tell that the filters or the search leave a
+  // keyword out of the table, and which groups the keywords a change reaches are in
+  const listComplete =
+    list.mode === 'client' && !list.loading && !list.stale && list.loadProgress === null && list.incomplete === null;
   const bulk = useBulkActions({
     scope,
     filters,
     search: bulkSearch,
     archived: view.archived,
     matchingTotal: list.total,
+    rows: list.rows,
+    rowsComplete: listComplete,
     onDone: clearSelection,
   });
   const filtered = Object.keys(values).length > 0;
@@ -273,10 +279,6 @@ export function RankingsScreen({
     guarded(() => inspector.step(direction, order));
   };
   const openRow = openId === null ? null : (list.rows.find((row) => row.tracked_keyword_id === openId) ?? null);
-  // Only a list that holds every match, read to its end, can tell that the filters or the search leave the
-  // keyword out of the table
-  const listComplete =
-    list.mode === 'client' && !list.loading && !list.stale && list.loadProgress === null && list.incomplete === null;
   const hiddenByFilters = openId !== null && listComplete && !order.includes(openId);
   const onRowOpen = (row: TrackedKeywordRow, intent: 'inspector' | 'new-tab'): void => {
     const target = { type: 'keyword' as const, id: row.tracked_keyword_id };

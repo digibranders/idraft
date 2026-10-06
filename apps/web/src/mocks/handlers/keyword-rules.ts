@@ -884,6 +884,16 @@ export function selectionErrors(
 /** The most ids a selection names, and the most rows a filter may match (`422 too_many_subjects`). */
 export const MAX_SELECTED_IDS = 5000;
 export const MAX_FILTER_MATCHES = 20_000;
+/** The groups and terms gained or lost in one bulk change, rows times links (backend `LINK_CHANGES_MAX`). */
+export const LINK_CHANGES_MAX = 200_000;
+
+/**
+ * The most rows one change may touch when each gains or loses `links` groups and terms: 20,000, and fewer
+ * as the links grow so that rows times links stay within 200,000. A link counts whether or not the row has
+ * it (the backend counts the ids named, not the changes made); the limit applies to ids and filters alike.
+ */
+export const subjectLimit = (links: number): number =>
+  links === 0 ? MAX_FILTER_MATCHES : Math.min(MAX_FILTER_MATCHES, Math.floor(LINK_CHANGES_MAX / links));
 
 /** The live rows of the project a selection names, or the problem to answer. */
 export function selectedRows(
@@ -892,22 +902,25 @@ export function selectedRows(
   body: Readonly<Record<string, unknown>>,
   idsName = 'ids',
   filterName = 'filter',
+  /** Groups and terms each row gains or loses in this change, which lower the limit. */
+  links = 0,
 ): StoredTracked[] | HttpResponse<Problem> {
+  const limit = subjectLimit(links);
+  const tooMany = (): HttpResponse<Problem> =>
+    problem(request, 'too_many_subjects', {
+      detail: `This change takes at most ${String(limit)} tracked keywords; choose fewer.`,
+      limit,
+    });
   const ids = body[idsName];
   if (Array.isArray(ids)) {
     const wanted = new Set(ids);
-    return liveTrackedOf(caller.keywords, caller.project.project_id).filter((row) =>
+    const rows = liveTrackedOf(caller.keywords, caller.project.project_id).filter((row) =>
       wanted.has(row.tracked_keyword_id),
     );
+    return rows.length > limit ? tooMany() : rows;
   }
   const filter = bodyFilter(body[filterName], filterName);
   if (Array.isArray(filter)) return invalid(request, filter);
   const rows = filteredRows(caller, filter);
-  return rows.length > MAX_FILTER_MATCHES
-    ? problem(request, 'too_many_subjects', {
-        detail: `The filter matches ${String(rows.length)} keywords; at most ${String(MAX_FILTER_MATCHES)}.`,
-        matched: rows.length,
-        limit: MAX_FILTER_MATCHES,
-      })
-    : rows;
+  return rows.length > limit ? tooMany() : rows;
 }

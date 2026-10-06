@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { keywordProjectCaller, MAX_TRACKED_KEYWORDS, quotaProblem, type KeywordProjectCaller } from './keyword-rules';
+import {
+  keywordProjectCaller,
+  MAX_FILTER_MATCHES,
+  MAX_TRACKED_KEYWORDS,
+  quotaProblem,
+  selectedRows,
+  subjectLimit,
+  type KeywordProjectCaller,
+} from './keyword-rules';
 import { MOCK_ENTITY_IDS, MOCK_TERMS, MOCK_TERM_IDS } from '../entity-fixtures';
 import { readingOf } from '../factories/keyword';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
@@ -252,6 +260,63 @@ describe('tracked keywords: the workspace quota', () => {
       used: MAX_TRACKED_KEYWORDS - 1,
       requested: 2,
     });
+  });
+});
+
+describe('tracked keywords: how many keywords one bulk change may touch', () => {
+  /** A caller whose project tracks `count` live keywords. */
+  function callerTracking(count: number): KeywordProjectCaller {
+    const request = new Request(`${TEST_API_ORIGIN}${TK}`);
+    const session = `mock.active.${mockUser('editor').user_id}.${String(Date.now() + 60_000)}`;
+    const caller = keywordProjectCaller(
+      request,
+      { [SESSION_COOKIE]: session },
+      MOCK_WORKSPACE.workspace_id,
+      fynix?.project_id,
+      { permission: 'keywords:write' },
+    );
+    if (caller instanceof Response) throw new Error('The editor cannot write keywords');
+    const [template] = MOCK_TRACKED_KEYWORDS;
+    if (template === undefined) throw new Error('No tracked keyword fixture');
+    const tracked = Array.from({ length: count }, (_, index) => ({
+      ...template,
+      tracked_keyword_id: mockId('tracked', index + 1),
+    }));
+    return { ...caller, keywords: { ...caller.keywords, tracked } };
+  }
+  const idsOf = (count: number): string[] => Array.from({ length: count }, (_, index) => mockId('tracked', index + 1));
+  const request = new Request(`${TEST_API_ORIGIN}${TK}/bulk-update`, { method: 'POST' });
+
+  it('limits a request to 200,000 link changes in all: 20,000 rows, fewer as each row gains or loses more links', () => {
+    expect(subjectLimit(0)).toBe(MAX_FILTER_MATCHES);
+    expect(subjectLimit(1)).toBe(20_000);
+    expect(subjectLimit(10)).toBe(20_000);
+    expect(subjectLimit(50)).toBe(4_000);
+    expect(subjectLimit(101)).toBe(1_980);
+    expect(subjectLimit(400)).toBe(500);
+  });
+
+  it('refuses 5,000 chosen keywords when each gains or loses 50 groups, with the limit that would have fit', async () => {
+    const caller = callerTracking(5_000);
+    const body = { ids: idsOf(5_000) };
+    const refused = selectedRows(request, caller, body, 'ids', 'filter', 50);
+    expect(refused).toBeInstanceOf(Response);
+    if (!(refused instanceof Response)) throw new Error('The mock took 5,000 keywords at 50 links each');
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toMatchObject({ code: 'too_many_subjects', limit: 4_000 });
+    // 4,000 keywords fit, and so do 5,000 at 40 links (200,000 in all)
+    expect(selectedRows(request, caller, { ids: idsOf(4_000) }, 'ids', 'filter', 50)).toHaveLength(4_000);
+    expect(selectedRows(request, caller, body, 'ids', 'filter', 40)).toHaveLength(5_000);
+  });
+
+  it('applies the same limit to the rows a filter matches, and counts a link whether or not the row has it', async () => {
+    const caller = callerTracking(4_001);
+    const body = { filter: { is_active: true } };
+    const refused = selectedRows(request, caller, body, 'ids', 'filter', 50);
+    expect(refused).toBeInstanceOf(Response);
+    if (!(refused instanceof Response)) throw new Error('The mock took 4,001 matches at 50 links each');
+    expect(await refused.json()).toMatchObject({ code: 'too_many_subjects', limit: 4_000 });
+    expect(selectedRows(request, caller, body, 'ids', 'filter', 49)).toHaveLength(4_001);
   });
 });
 

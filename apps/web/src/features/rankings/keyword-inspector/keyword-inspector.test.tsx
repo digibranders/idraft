@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DETAIL, TERM_ASSIGNMENTS } from './inspector-queries';
 import { mockId } from '@/mocks/mock-ids';
-import { mswPath, problem } from '@/mocks/respond';
+import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import { keywordsIn, loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
@@ -226,6 +226,39 @@ describe('The keyword inspector', () => {
     const history = section(inspector, 'Configuration history');
     expect(await within(history).findByText('Reason: Competitive term')).toBeInTheDocument();
     expect(within(inspector).getByText('Depth: Deep')).toBeInTheDocument();
+  });
+
+  it('offers the depth profiles the API takes, and not the one a later step builds', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const inspector = await openFromRow(user, 'seo agency');
+    await user.click(within(inspector).getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
+    await user.click(within(dialog).getByRole('combobox', { name: 'Depth profile' }));
+    const options = (await screen.findAllByRole('option')).map((option) => option.textContent ?? '');
+    expect(options.some((text) => text.startsWith('Deep'))).toBe(true);
+    expect(options.some((text) => /Until own match/.test(text))).toBe(false);
+  });
+
+  it('puts a depth profile the API does not offer yet on the field, not in a general failure', async () => {
+    server.use(
+      http.patch(mswPath(DETAIL), ({ request }) =>
+        invalidField(request, 'depth_profile', 'depth_profile_not_available', 'Not available yet.'),
+      ),
+    );
+    const { user } = renderWithProviders(as('editor'));
+    const inspector = await openFromRow(user, 'seo agency');
+    await user.click(within(inspector).getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
+    await user.click(within(dialog).getByRole('combobox', { name: 'Depth profile' }));
+    await user.click(await screen.findByRole('option', { name: /^Deep/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Change depth' }));
+    expect(
+      await within(dialog).findByText('This depth profile is not available yet. Choose another.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/could not be saved/i)).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Change depth profile' })).toBeInTheDocument();
   });
 
   it('archives the keyword with an undo', async () => {

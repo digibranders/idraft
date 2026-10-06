@@ -403,7 +403,9 @@ export const trackedKeywordHandlers: HttpHandler[] = [
       ...termErrors(caller, ids('remove_term_ids'), 'remove_term_ids', { removing: true }),
     ];
     if (service.length > 0) return invalid(request, service);
-    const selected = selectedRows(request, caller, body);
+    // Every group and term named counts once for each row chosen, whether or not the row has it
+    const links = LINKS.reduce((sum, name) => sum + ids(name).length, 0);
+    const selected = selectedRows(request, caller, body, 'ids', 'filter', links);
     if (selected instanceof Response) return selected;
     const singleValued = new Set(
       caller.world.vocabularies

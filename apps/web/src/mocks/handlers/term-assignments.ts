@@ -78,7 +78,7 @@ export const termAssignmentHandlers: HttpHandler[] = [
     const termIds = body.term_ids.filter((id): id is string => typeof id === 'string');
     const terms = termErrors(caller, termIds, 'term_ids', { removing: body.op === 'remove' });
     if (terms.length > 0) return invalid(request, terms);
-    const subjects = selectedRows(request, caller, body, 'subject_ids', 'subject_filter');
+    const subjects = selectedRows(request, caller, body, 'subject_ids', 'subject_filter', termIds.length);
     if (subjects instanceof Response) return subjects;
     const vocabularyOf = (termId: string): string | undefined =>
       caller.world.terms.find((term) => term.term_id === termId)?.vocabulary_id;

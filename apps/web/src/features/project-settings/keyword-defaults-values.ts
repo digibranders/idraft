@@ -1,4 +1,5 @@
 import type { components } from '@/lib/api/schema';
+import { OFFERED_DEPTH_PROFILES } from '@/lib/keywords/depth-profiles';
 
 type SeoSettings = components['schemas']['SeoSettings'];
 
@@ -10,17 +11,10 @@ export type DefaultFrequency = SeoSettings['default_frequency'];
 export const DEFAULT_DEVICES = ['desktop', 'mobile', 'both'] as const satisfies readonly DefaultDevice[];
 
 /**
- * The depth profiles a default can be set to. `until_own_match_100` is left out: a later step of the backend
- * answers it `422 depth_profile_not_available`, so it is not offered until that step is built.
+ * The depth profiles a default can be set to: the ones every screen offers (`until_own_match_100` is left
+ * out, since the API answers it `422 depth_profile_not_available` until a later step of the backend).
  */
-export const DEFAULT_DEPTHS = [
-  'light',
-  'standard',
-  'deep',
-  'full',
-  'weekly',
-  'weekly_light',
-] as const satisfies readonly DefaultDepth[];
+export const DEFAULT_DEPTHS = OFFERED_DEPTH_PROFILES satisfies readonly DefaultDepth[];
 
 export const DEFAULT_FREQUENCIES = ['daily', 'weekly'] as const satisfies readonly DefaultFrequency[];
 

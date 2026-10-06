@@ -22,6 +22,8 @@ export type Intent = (typeof INTENTS)[number];
 export type FunnelStage = (typeof FUNNEL_STAGES)[number];
 export type KeywordSource = (typeof SOURCES)[number];
 export type DepthProfile = (typeof DEPTH_PROFILES)[number];
+/** The profiles Rankings offers to filter by and to change to: those the API takes today. */
+export { OFFERED_DEPTH_PROFILES } from '@/lib/keywords/depth-profiles';
 
 export const SOURCE_KEY = {
   manual: 'manual',

@@ -1,14 +1,19 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { http } from 'msw';
+import { getResponse, http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
+import { api } from '@/lib/api/client';
+import { MOCK_WORKSPACE } from '@/mocks/fixtures';
+import { handlers } from '@/mocks/handlers';
 import { MOCK_GROUP_IDS } from '@/mocks/keyword-fixtures';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import {
   answerTrackedAsMany,
+  fynix,
   keywordsIn,
   loadedGrid,
   rankingsAs as as,
@@ -55,6 +60,35 @@ function urlWrites(): { onUrlUpdate: (event: UrlUpdateEvent) => void; latest: ()
   };
 }
 
+const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
+const UPDATE_BODY = z.object({
+  ids: z.array(z.string()).optional(),
+  add_group_ids: z.array(z.string()).optional(),
+  remove_group_ids: z.array(z.string()).optional(),
+});
+
+/** The project's keywords with their groups, as the API lists them. */
+async function keywordsWithGroups(): Promise<{ text: string; groups: string[] }[]> {
+  const answer = await api.GET(TRACKED, {
+    params: {
+      path: { workspace_id: MOCK_WORKSPACE.workspace_id, project_id: fynix.project_id },
+      query: { include: ['groups'], limit: 200, 'filter[is_active]': true },
+    },
+  });
+  return (answer.data?.data ?? []).map((row) => ({
+    text: row.keyword.text,
+    groups: (row.groups ?? []).map((group) => group.group_id),
+  }));
+}
+
+/** The ids of the groups a keyword is in. */
+const groupsOf = async (text: string): Promise<string[]> =>
+  (await keywordsWithGroups()).find((row) => row.text === text)?.groups ?? [];
+
+/** The text of an active keyword that is in no group. */
+const ungroupedKeyword = async (): Promise<string | undefined> =>
+  (await keywordsWithGroups()).find((row) => row.groups.length === 0)?.text;
+
 type User = ReturnType<typeof renderWithProviders>['user'];
 
 /** Ticks the rows of these keywords and answers the bulk bar. */
@@ -93,10 +127,112 @@ describe('Bulk actions', () => {
     await user.click(await screen.findByRole('option', { name: 'Brand' }));
     await user.click(within(dialog).getByRole('button', { name: 'Move 1 keyword' }));
     expect(await screen.findByText('1 keyword moved to Brand')).toBeInTheDocument();
-    const body = seen.at(-1)?.body as { add_group_ids: string[]; remove_group_ids: string[] };
+    const body = seen.at(-1)?.body as { add_group_ids: string[]; remove_group_ids?: string[] };
     expect(body.add_group_ids).toEqual([MOCK_GROUP_IDS.brand]);
-    expect(body.remove_group_ids).toHaveLength(4);
-    expect(body.remove_group_ids).not.toContain(MOCK_GROUP_IDS.brand);
+    // Only the groups the keyword is in are named: the API counts every name for every keyword chosen
+    const held = await groupsOf('seo agency');
+    expect(held.length).toBeGreaterThan(0);
+    // The project has more groups than the keyword is in: the others are not named
+    expect(held.length).toBeLessThan(4);
+    expect([...(body.remove_group_ids ?? [])].sort()).toEqual(held.filter((id) => id !== MOCK_GROUP_IDS.brand).sort());
+    expect(body.remove_group_ids ?? []).not.toContain(MOCK_GROUP_IDS.brand);
+  });
+
+  describe('moving many keywords to a group', () => {
+    const GROUPS = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups';
+    const GROUP_LIST = z.object({ data: z.array(z.record(z.string(), z.unknown())) });
+
+    /** The project's groups made 50, as a project with a deep tree has them. */
+    function fiftyGroups(): void {
+      server.use(
+        http.get(mswPath(GROUPS), async ({ request }) => {
+          if (new URL(request.url).searchParams.get('format') !== 'flat') return undefined;
+          const real = await getResponse([...handlers], new Request(request.url, { headers: request.headers }));
+          const { data } = GROUP_LIST.parse(await real?.json());
+          const [template] = data;
+          if (template === undefined) throw new Error('The project has no group to copy');
+          const more = Array.from({ length: 50 - data.length }, (_, at) => ({
+            ...template,
+            group_id: `0192d1a8-9999-7a10-8e07-${String(at).padStart(12, '0')}`,
+            name: `Group ${String(at)}`,
+            path: `Group ${String(at)}`,
+          }));
+          return HttpResponse.json({ data: [...data, ...more] });
+        }),
+      );
+    }
+
+    /** Answers every bulk update with what it matched, and records the bodies. */
+    function recordUpdates(): { ids: number; removing: number; adding: number }[] {
+      const seen: { ids: number; removing: number; adding: number }[] = [];
+      server.use(
+        http.post(mswPath(BULK_UPDATE), async ({ request }) => {
+          const body = UPDATE_BODY.parse(await request.json());
+          seen.push({
+            ids: body.ids?.length ?? 0,
+            removing: body.remove_group_ids?.length ?? 0,
+            adding: body.add_group_ids?.length ?? 0,
+          });
+          return HttpResponse.json({
+            data: { matched: body.ids?.length ?? 0, updated: 0, config_versions_created: 0 },
+          });
+        }),
+      );
+      return seen;
+    }
+
+    async function moveAll(user: User, group: string): Promise<void> {
+      await loadedGrid();
+      await waitFor(() => expect(screen.queryByText(/^Loaded /)).toBeNull(), { timeout: 20_000 });
+      await user.click(screen.getByRole('checkbox', { name: /^Select all/ }));
+      const bar = screen.getByRole('group', { name: /Bulk actions/ });
+      await user.click(within(bar).getByRole('button', { name: 'Move to group' }));
+      const dialog = await screen.findByRole('dialog', { name: /^Move \d/ });
+      await user.click(within(dialog).getByRole('combobox', { name: 'Group' }));
+      await user.click(await screen.findByRole('option', { name: group }));
+      await user.click(within(dialog).getByRole('button', { name: /^Move \d/ }));
+    }
+
+    it('sends batches of at most 4,000 keywords when 50 groups are named and the groups of the rows are not known', async () => {
+      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200, withoutGroups: true });
+      fiftyGroups();
+      const updates = recordUpdates();
+      const { user } = renderWithProviders(as('editor'));
+      await moveAll(user, 'Brand');
+      await waitFor(() => expect(updates).toHaveLength(2), { timeout: 10_000 });
+      // 50 names (the group moved to and the 49 to leave) for every keyword: 4,000 keywords make 200,000 links
+      expect(updates).toEqual([
+        { ids: 4_000, removing: 49, adding: 1 },
+        { ids: 1_000, removing: 49, adding: 1 },
+      ]);
+    }, 40_000);
+
+    it('names only the groups the chosen keywords are in, so 5,000 keywords go in one request', async () => {
+      answerTrackedAsMany({ total: 5_000, pages: 25, rowsPerPage: 200 });
+      fiftyGroups();
+      const updates = recordUpdates();
+      const { user } = renderWithProviders(as('editor'));
+      await moveAll(user, 'Brand');
+      await waitFor(() => expect(updates).toHaveLength(1), { timeout: 10_000 });
+      expect(updates[0]?.ids).toBe(5_000);
+      expect(updates[0]?.adding).toBe(1);
+      // The fixture keywords are in a handful of groups: those are the ones named, not all 49 others
+      expect(updates[0]?.removing).toBeLessThanOrEqual(4);
+    }, 40_000);
+  });
+
+  it('sends no request for a move out of groups the chosen keywords are not in', async () => {
+    const seen = writes();
+    const { user } = renderWithProviders(as('editor'));
+    const ungrouped = (await ungroupedKeyword()) ?? 'no keyword';
+    const bar = await choose(user, ungrouped);
+    await user.click(within(bar).getByRole('button', { name: 'Move to group' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Move 1 keyword' });
+    await user.click(within(dialog).getByRole('combobox', { name: 'Group' }));
+    await user.click(await screen.findByRole('option', { name: /^No group/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Move 1 keyword' }));
+    expect(await screen.findByText('1 keyword taken out of their groups')).toBeInTheDocument();
+    expect(seen.filter((write) => write.route === 'bulk-update')).toEqual([]);
   });
 
   it('takes tags off, and checks a target URL before it sets one', async () => {

@@ -8,7 +8,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import { DETAIL, refreshAfterWrite, type KeywordDetail, type KeywordScope } from './inspector-queries';
-import { DEPTH_KEY, DEPTH_PROFILES, oneOf } from '../keyword-values';
+import { DEPTH_KEY, DEPTH_PROFILES, OFFERED_DEPTH_PROFILES, oneOf } from '../keyword-values';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,9 @@ import { FormAlert } from '@/components/ui/form-alert';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
+import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
+import { applyServerErrors } from '@/lib/forms/apply-server-errors';
 import { textLength } from '@/lib/text/length';
 
 /** The API's limit on a change reason. */
@@ -49,7 +51,14 @@ export function DepthDialog({
   const common = useTranslations('common');
   const queryClient = useQueryClient();
   const [alert, setAlert] = useState<string | null>(null);
-  const depthOptions = DEPTH_PROFILES.map((value) => ({ value, label: filters(`depths.${DEPTH_KEY[value]}`) }));
+  // The profiles the API takes; the one the keyword holds stays named when it is not among them
+  const depthOptions = useMemo(() => {
+    const offered = OFFERED_DEPTH_PROFILES.map((value) => ({ value, label: filters(`depths.${DEPTH_KEY[value]}`) }));
+    const held = oneOf(detail.depth_profile, DEPTH_PROFILES);
+    return held === null || offered.some((option) => option.value === held)
+      ? offered
+      : [...offered, { value: held, label: filters(`depths.${DEPTH_KEY[held]}`), disabled: true }];
+  }, [filters, detail.depth_profile]);
   const schema = useMemo(
     () =>
       z.object({
@@ -94,7 +103,15 @@ export function DepthDialog({
         await refreshAfterWrite(queryClient, scope);
         toast({ type: 'success', title: t('done') });
         close();
-      } catch {
+      } catch (error) {
+        // A profile the API does not take yet is the field's problem, not a failed save
+        if (isApiProblem(error, 'validation_failed')) {
+          const rest = applyServerErrors(form, error.errors, {
+            fields: ['depth_profile', 'change_reason'],
+            messages: { depth_profile_not_available: t('notAvailable') },
+          });
+          if (rest.length === 0) return;
+        }
         setAlert(inspector('saveFailed'));
       }
     }),
