@@ -8,7 +8,7 @@ import { mockId } from '@/mocks/mock-ids';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
-import { loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
+import { keywordsIn, loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
 // jsdom has no canvas: the chart's frame, legend and table view are what these tests read
@@ -28,6 +28,33 @@ function urlWrites(): { onUrlUpdate: (event: UrlUpdateEvent) => void; latest: ()
     onUrlUpdate: (event) => writes.push(event.queryString),
     latest: () => new URLSearchParams(writes.at(-1) ?? ''),
   };
+}
+
+/** How many times the list of keywords (not its poll, not its count) was read. */
+function countListReads(): () => number {
+  let reads = 0;
+  server.events.on('request:start', ({ request }) => {
+    const url = new URL(request.url);
+    if (request.method !== 'GET' || !url.pathname.endsWith('/tracked-keywords')) return;
+    if (url.searchParams.get('limit') === '1' || url.searchParams.get('sort') === '-created_at') return;
+    reads += 1;
+  });
+  return () => reads;
+}
+
+/** The Priority cell of a keyword's row in the grid. */
+function priorityInRow(keyword: string): string | undefined {
+  const grid = screen.getByRole('grid', { name: 'Tracked keywords' });
+  const header = within(grid)
+    .getAllByRole('rowheader')
+    .find((cell) => cell.querySelector('.truncate')?.textContent === keyword);
+  const row = header?.closest('[role="row"]');
+  if (row === null || row === undefined) return undefined;
+  const columns = within(grid)
+    .getAllByRole('columnheader')
+    .map((column) => column.textContent ?? '');
+  const index = columns.findIndex((name) => /^Priority/.test(name));
+  return [...row.children][index]?.textContent ?? undefined;
 }
 
 const inspectorOf = (keyword: string): Promise<HTMLElement> =>
@@ -104,6 +131,38 @@ describe('The keyword inspector', () => {
     expect(within(section(inspector, 'Tracking')).getByText('3')).toBeInTheDocument();
     // A new target URL starts a configuration version
     expect(await within(section(inspector, 'Configuration history')).findByText('Version 2')).toBeInTheDocument();
+  });
+
+  it('shows a saved value in the keyword’s row without reading the whole list again', async () => {
+    const listReads = countListReads();
+    const { user } = renderWithProviders(as('editor'));
+    const inspector = await openFromRow(user, 'seo agency');
+    const before = listReads();
+    expect(priorityInRow('seo agency')).toBe('1');
+    await user.click(within(inspector).getByRole('button', { name: 'Edit Tracking' }));
+    await user.click(within(section(inspector, 'Tracking')).getByRole('combobox', { name: 'Priority' }));
+    await user.click(await screen.findByRole('option', { name: '3' }));
+    await user.click(within(inspector).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(within(inspector).queryByRole('button', { name: 'Save' })).toBeNull());
+    await waitFor(() => expect(priorityInRow('seo agency')).toBe('3'));
+    expect(listReads()).toBe(before);
+  });
+
+  it('reads the list again when the saved keyword no longer matches its filters', async () => {
+    const listReads = countListReads();
+    const { user } = renderWithProviders(as('editor'), { searchParams: '?prio=..1' });
+    const inspector = await openFromRow(user, 'seo agency');
+    const before = listReads();
+    await user.click(within(inspector).getByRole('button', { name: 'Edit Tracking' }));
+    await user.click(within(section(inspector, 'Tracking')).getByRole('combobox', { name: 'Priority' }));
+    await user.click(await screen.findByRole('option', { name: '3' }));
+    await user.click(within(inspector).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(within(inspector).queryByRole('button', { name: 'Save' })).toBeNull());
+    // The filter says priority 1 at most: the row is gone from the list, which was read again
+    await waitFor(() => expect(listReads()).toBeGreaterThan(before));
+    await waitFor(() =>
+      expect(keywordsIn(screen.getByRole('grid', { name: 'Tracked keywords' }))).not.toContain('seo agency'),
+    );
   });
 
   it('asks before it leaves a keyword with unsaved changes', async () => {

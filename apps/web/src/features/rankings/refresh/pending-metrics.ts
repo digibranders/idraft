@@ -48,6 +48,8 @@ interface ReadArgs {
   oldest: number | null;
   /** What the earlier polls heard, which this one adds to. */
   heard: Heard | undefined;
+  /** Client mode: where the last poll stopped short of the oldest waiting keyword; this poll goes on from it. */
+  resume: { cursor: string | null };
   signal: AbortSignal;
 }
 
@@ -56,28 +58,47 @@ interface ReadArgs {
  * cursor). In client mode the keywords are read newest first, page after page by cursor, until a page ends
  * with a keyword older than the oldest waiting one (so every waiting keyword was on a page read), and at
  * most `PENDING_PAGES_MAX` pages: a project of many thousand keywords is not read whole every 30 seconds.
+ * When the pages run out before the oldest waiting keyword, the cursor is kept: the next poll reads the
+ * newest page again (new keywords wait there) and goes on from the kept cursor, so a long wait after a
+ * large import reaches the oldest keywords within a few polls instead of never.
  */
-async function readWaiting({ scope, filters, pageRequest, oldest, heard, signal }: ReadArgs): Promise<Heard> {
+async function readWaiting({ scope, filters, pageRequest, oldest, heard, resume, signal }: ReadArgs): Promise<Heard> {
   const found = new Map(heard);
   if (pageRequest !== null) {
     absorb(found, (await readPage(scope, pageRequest, signal)).data);
     return found;
   }
   let cursor: string | null = null;
-  for (let read = 0; read < PENDING_PAGES_MAX; read += 1) {
-    const page = await readPage(
-      scope,
-      { ...filters, sort: '-created_at', include: ['metrics'], limit: PAGE, ...(cursor === null ? {} : { cursor }) },
-      signal,
-    );
+  let budget = PENDING_PAGES_MAX;
+  if (resume.cursor !== null) {
+    // The newest page first, then where the last poll stopped
+    const newest = await readPage(scope, pendingQuery(filters, null), signal);
+    absorb(found, newest.data);
+    budget -= 1;
+    cursor = resume.cursor;
+  }
+  resume.cursor = null;
+  for (let read = 0; read < budget; read += 1) {
+    const page = await readPage(scope, pendingQuery(filters, cursor), signal);
     absorb(found, page.data);
     const last = page.data.at(-1);
     const reached = oldest === null || last === undefined || Date.parse(last.created_at) < oldest;
-    if (reached || !page.page.has_more || page.page.next_cursor === null) break;
+    if (reached || !page.page.has_more || page.page.next_cursor === null) return found;
     cursor = page.page.next_cursor;
   }
+  // The pages ran out before the oldest waiting keyword: the next poll goes on from here
+  resume.cursor = cursor;
   return found;
 }
+
+/** The request of one page of a poll: the keywords newest first, with their metrics only. */
+const pendingQuery = (filters: KeywordFilters, cursor: string | null): ListQuery => ({
+  ...filters,
+  sort: '-created_at',
+  include: ['metrics'],
+  limit: PAGE,
+  ...(cursor === null ? {} : { cursor }),
+});
 
 /**
  * New keywords show "Pending" until their first metrics arrive, within minutes (backend plan D8). While a
@@ -103,17 +124,24 @@ export function usePendingMetrics({
   const queryKey = [...keywordsKey(scope), filters, 'pending', request];
   // When the oldest waiting row was created: set by an effect, read by the poll
   const oldestWaiting = useRef<number | null>(null);
+  // Where the polls of client mode stopped short of the oldest waiting keyword, for the filters it was kept
+  // under (a cursor is bound to its filters)
+  const resume = useRef<{ filters: string; cursor: string | null }>({ filters: '', cursor: null });
+  const filtersText = JSON.stringify(filters);
   const poll = useQuery({
     queryKey,
-    queryFn: ({ signal }) =>
-      readWaiting({
+    queryFn: ({ signal }) => {
+      if (resume.current.filters !== filtersText) resume.current = { filters: filtersText, cursor: null };
+      return readWaiting({
         scope,
         filters,
         pageRequest: request,
         oldest: oldestWaiting.current,
         heard: queryClient.getQueryData<Heard>(queryKey),
+        resume: resume.current,
         signal,
-      }),
+      });
+    },
     // Read by the timer below, never by the query itself
     enabled: false,
   });

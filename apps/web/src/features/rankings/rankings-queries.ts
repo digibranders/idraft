@@ -30,7 +30,7 @@ import { formatSort, type SortKey } from '@/lib/tables/table-state';
 
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
 export type ListQuery = NonNullable<paths[typeof TRACKED]['get']['parameters']['query']>;
-type ListPage = paths[typeof TRACKED]['get']['responses'][200]['content']['application/json'];
+export type ListPage = paths[typeof TRACKED]['get']['responses'][200]['content']['application/json'];
 
 /** The list's filters as the API takes them: everything but the sort, the paging and the search. */
 export type KeywordFilters = Omit<ListQuery, 'sort' | 'include' | 'cursor' | 'limit' | 'filter[q]'>;
@@ -49,12 +49,34 @@ const INCLUDE: NonNullable<ListQuery['include']> = ['metrics', 'groups', 'terms'
 const FIRST_PAGE: string | null = null;
 /** The sort the client mode loads in: the table sorts in memory, so changing it reads nothing again. */
 const LOAD_SORT = 'keyword';
+/** The whole list is read again after this long, or when a write invalidates it (never on a focus). */
+const ALL_STALE_MS = 5 * 60_000;
+/** A list no screen shows is kept this long. */
+const ALL_GC_MS = 30_000;
 
 /** Every query of the project's tracked keywords: `refreshKeywords` invalidates them all. */
 export const keywordsKey = (scope: ProjectScope): QueryKey => [
   ...projectKey(scope.workspaceId, scope.projectId),
   'tracked-keywords',
 ];
+
+/**
+ * The keys of the three kinds of list query, under `keywordsKey`: the whole list of client mode, one page
+ * of server mode, and the count of the page's meta line. `keyword-cache.ts` finds the first two by their
+ * shape, so they are built here and nowhere else.
+ */
+export const allListKey = (scope: ProjectScope, filters: KeywordFilters): QueryKey => [
+  ...keywordsKey(scope),
+  filters,
+  'all',
+];
+export const pageListKey = (scope: ProjectScope, filters: KeywordFilters, query: ListQuery): QueryKey => [
+  ...keywordsKey(scope),
+  filters,
+  'page',
+  query,
+];
+export const countKey = (scope: ProjectScope): QueryKey => [...keywordsKey(scope), 'count'];
 
 /**
  * After any change to tracked keywords: the list, its counts, every page and the open keyword. Resolves
@@ -178,7 +200,7 @@ type AllPages = UseInfiniteQueryResult<InfiniteData<ListPage, string | null>>;
 /** The rows of Rankings in the mode their count calls for. */
 export function useKeywordList({ scope, filters, sort, search }: ListArgs): KeywordList {
   const all: AllPages = useInfiniteQuery({
-    queryKey: [...keywordsKey(scope), filters, 'all'],
+    queryKey: allListKey(scope, filters),
     queryFn: ({ pageParam, signal }) =>
       readPage(
         scope,
@@ -195,18 +217,29 @@ export function useKeywordList({ scope, filters, sort, search }: ListArgs): Keyw
     getNextPageParam: (last) => (last.page.has_more ? last.page.next_cursor : null),
     // The rows stay while new filters load: no skeleton flash (12-tables.md section 7, 17 section 3.4)
     placeholderData: keepPreviousData,
+    // Reading the whole list again costs a request per 200 rows, so it is read again when something wrote
+    // to it (the writes invalidate it), not on every focus or visit
+    staleTime: ALL_STALE_MS,
+    refetchOnWindowFocus: false,
+    // A combination of filters nobody looks at any more is not kept: each holds up to 10,000 rows
+    gcTime: ALL_GC_MS,
   });
   // While new filters load, the previous answer keeps the mode, so server mode asks for its page at once
   const total = all.data?.pages[0]?.page.total ?? null;
   const mode: ListMode | null = total === null ? null : total <= CLIENT_MODE_LIMIT ? 'client' : 'server';
 
-  // Client mode reads the rest of the pages one after another, never from the previous filters' pages
-  const { hasNextPage, isFetchingNextPage, isError, isPlaceholderData, fetchNextPage } = all;
+  // Client mode reads the rest of the pages one after another, never from the previous filters' pages. The
+  // effect runs again with every page that lands, so it does not depend on seeing a flag change: the
+  // notifications of a query arrive in batches, and a page can arrive in the same batch as the next fetch's
+  // start. It waits while anything is being read (a refetch after a write included) and never cancels a
+  // read under way: the page that follows is the one after the pages the refetch brought.
+  const { hasNextPage, isFetching, isError, isPlaceholderData, fetchNextPage } = all;
+  const loadedPages = all.data?.pages.length ?? 0;
   useEffect(() => {
-    if (mode === 'client' && hasNextPage && !isFetchingNextPage && !isError && !isPlaceholderData) {
-      void fetchNextPage();
+    if (mode === 'client' && hasNextPage && !isFetching && !isError && !isPlaceholderData) {
+      void fetchNextPage({ cancelRefetch: false });
     }
-  }, [mode, hasNextPage, isFetchingNextPage, isError, isPlaceholderData, fetchNextPage]);
+  }, [mode, hasNextPage, isFetching, isError, isPlaceholderData, fetchNextPage, loadedPages]);
   const rows = useMemo(() => all.data?.pages.flatMap((page) => page.data) ?? [], [all.data]);
 
   const server = useServerPage({ scope, filters, sort, search }, mode === 'server');
@@ -238,7 +271,9 @@ export function useKeywordList({ scope, filters, sort, search }: ListArgs): Keyw
     // A failed later page leaves the rows that loaded; the list says it is incomplete instead
     error: all.isFetchNextPageError ? null : all.error,
     refetch: () => void all.refetch(),
-    incomplete: all.isFetchNextPageError ? { retry: () => void fetchNextPage(), retrying: isFetchingNextPage } : null,
+    incomplete: all.isFetchNextPageError
+      ? { retry: () => void fetchNextPage({ cancelRefetch: false }), retrying: all.isFetchingNextPage }
+      : null,
     server: null,
     pageRequest: null,
   };
@@ -273,7 +308,7 @@ function useServerPage(
   };
   const offset = (cursors.length - 1) * pageSize;
   const result = useQuery({
-    queryKey: [...keywordsKey(scope), filters, 'page', query],
+    queryKey: pageListKey(scope, filters, query),
     // The page keeps its offset, so the range under the rows on screen is theirs while the next one loads
     queryFn: async ({ signal }): Promise<{ offset: number; page: ListPage }> => ({
       offset,
@@ -314,7 +349,7 @@ function useServerPage(
 /** The project's tracked keywords in all, active ones, for the page's meta line. */
 export function useTrackedCount(scope: ProjectScope): number | null {
   const result = useQuery({
-    queryKey: [...keywordsKey(scope), 'count'],
+    queryKey: countKey(scope),
     queryFn: ({ signal }) => readPage(scope, { limit: 1 }, signal),
   });
   return result.data?.page.total ?? null;

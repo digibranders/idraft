@@ -1063,9 +1063,10 @@ describe('A refresh in the header', () => {
     expect(screen.queryByText('Metrics refreshed: 10 of 10 read')).toBeNull();
     expect(screen.queryByText('Refreshing metrics')).toBeNull();
     expect(screen.queryByRole('progressbar')).toBeNull();
-    // Nothing asked about the run again, and the one read of the list is the screen's own, not a report's
+    // Nothing asked about the run again, and no report reads the list: it was read after the run ended and
+    // is still fresh, so the screen opened again shows it as it is
     expect(reads.reads()).toBe(readsBefore);
-    expect(listReads()).toBe(listBefore + 1);
+    expect(listReads()).toBe(listBefore);
   });
 
   it('keeps a viewer out of it: nothing is read, nothing follows', async () => {
@@ -1253,8 +1254,6 @@ function serveSynthetic({
       if (url.searchParams.get('limit') === '1') return undefined;
       asked.push(new URLSearchParams(url.searchParams));
       const cursor = url.searchParams.get('cursor');
-      // A page that takes a moment, as one from the network does: the list reads on from the state in between
-      await delay(50);
       const limit = Number(url.searchParams.get('limit') ?? 200);
       // The real answer of the first page for the same filters gives the rows to copy
       url.searchParams.delete('cursor');
@@ -1348,10 +1347,33 @@ describe('Keywords that wait beyond the first page of the poll', () => {
     await waitFor(() => expect(feed.polls()).toHaveLength(5), { timeout: 20_000 });
     await act(() => vi.advanceTimersByTimeAsync(1_000));
     expect(cursors(feed.polls())).toEqual([null, 'c200', 'c400', 'c600', 'c800']);
-    // The next poll reads the same five, not the seven that would reach the oldest
+    // The next poll reads the newest page again, then goes on where the last stopped: the oldest keywords
+    // are reached after two polls instead of never
     await tick();
-    await waitFor(() => expect(feed.polls()).toHaveLength(10), { timeout: 20_000 });
-    expect(cursors(feed.polls().slice(5))).toEqual([null, 'c200', 'c400', 'c600', 'c800']);
+    await waitFor(() => expect(feed.polls()).toHaveLength(8), { timeout: 20_000 });
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(cursors(feed.polls().slice(5))).toEqual([null, 'c1000', 'c1200']);
+    // Having reached the end, the poll starts from the newest again
+    await tick();
+    await waitFor(() => expect(feed.polls()).toHaveLength(13), { timeout: 20_000 });
+    expect(cursors(feed.polls().slice(8))).toEqual([null, 'c200', 'c400', 'c600', 'c800']);
+  });
+
+  it('reaches keywords older than the pages of one poll once their metrics arrive: 3,000 waiting after an import', async () => {
+    const feed = serveSynthetic({ count: 2_600, waitingFrom: 0 });
+    renderWithProviders(as('editor'));
+    await loadedGrid();
+    await waitFor(() => expect(listPages(feed)).toBe(13), { timeout: 20_000 });
+    feed.arrive();
+    // Poll one: pages 1 to 5. Poll two: the newest page, then pages 6 to 9. Poll three: the newest, then 10 to 13.
+    for (let poll = 1; poll <= 3; poll += 1) {
+      await tick();
+      await waitFor(() => expect(feed.polls().length).toBeGreaterThanOrEqual(poll === 1 ? 5 : poll === 2 ? 10 : 15), {
+        timeout: 20_000,
+      });
+    }
+    const oldest = feed.polls().map((poll) => Number((poll.get('cursor') ?? 'c0').slice(1)));
+    expect(Math.max(...oldest)).toBe(2_400);
   });
 
   it('reads the page on screen again in server mode, with the request the list made for it, and nothing else', async () => {

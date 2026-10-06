@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 
+import { applyKeywordWrite } from '../keyword-cache';
 import { keywordsKey, refreshKeywords, type ProjectScope } from '../rankings-queries';
 import { apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
 
@@ -43,17 +44,22 @@ const keywordPath = (scope: KeywordScope) =>
   }) as const;
 
 /**
- * After a write to the open keyword: the list reads again in the background (in client mode that is every
- * page), and this resolves once the keyword and its history have, so a section leaves edit mode showing
- * what was saved.
+ * After a write to the open keyword: the keyword and its history read again, and this resolves once they
+ * have, so a section leaves edit mode showing what was saved. The lists are not read again whole (in client
+ * mode that is a request per 200 rows): the keyword as just read is laid over its row, and a list reads
+ * again only where the write can change what it holds (`applyKeywordWrite`). When the keyword could not be
+ * read, the lists are invalidated instead.
  */
 export async function refreshAfterWrite(queryClient: QueryClient, scope: KeywordScope): Promise<void> {
-  void refreshKeywords(queryClient, scope);
-  // The keyword's queries are already reading again: wait for those reads rather than start new ones
   await queryClient.invalidateQueries(
     { queryKey: [...keywordsKey(scope), scope.trackedKeywordId] },
     { cancelRefetch: false },
   );
+  const key = detailQuery(scope).queryKey;
+  const read = queryClient.getQueryState<{ data: KeywordDetail }>(key);
+  const detail = read?.status === 'success' ? read.data?.data : undefined;
+  if (detail === undefined) void refreshKeywords(queryClient, scope);
+  else applyKeywordWrite(queryClient, scope, detail);
 }
 
 export const detailQuery = (scope: KeywordScope): ApiQueryOptions<typeof DETAIL> =>
