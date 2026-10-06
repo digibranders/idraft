@@ -284,6 +284,7 @@ Rows are not links (`<a>` wrapping a row breaks table semantics). Navigation is 
 - Checkbox column (40 px) with a tri-state header checkbox selecting all rows currently loaded.
 - When all loaded rows are selected and more exist, the bulk bar offers "Select all 4,812 matching". Bulk actions then apply to the server-side filter scope, and the confirmation states the count.
 - Maximum bulk scope: 10,000 records per action; larger scopes require an export and import workflow.
+- The bar never clips an action out of sight: the actions that do not fit its width (the inspector docked beside the table at 1280 px) go into a "More actions" menu at its end, in the same order with destructive ones last ([25 deviation 141](25-component-inventory.md)). An action that belongs last but loses nothing (Archive, which has Undo) is drawn neutral; only a destructive one is red.
 - Bulk actions are ordered: non-destructive first, destructive last and separated. Destructive bulk actions always confirm with the exact count. Any bulk action over 100 rows, reversible or not, confirms in an `AlertDialog` that names the count ([20-accessibility.md](20-accessibility.md) section 2, criterion 3.3.4).
 - Selection persists across sorting and client-side filtering; server-side page changes keep selected ids; a filter change that removes selected rows from the result shows "3 selected rows are hidden by filters".
 

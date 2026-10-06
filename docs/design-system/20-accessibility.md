@@ -269,6 +269,8 @@ Rules:
 3. The grid is named by the table title (visible or visually hidden) and described by a short hint paragraph. The hint is written once per grid, not per cell.
 4. Hidden columns are absent from the DOM ([19-responsive-behavior.md](19-responsive-behavior.md)). Columns are not virtualized in v1 (tables stay under 30 columns), so `aria-colcount` and `aria-colindex` are omitted. If column virtualization is ever added, both become mandatory on every row and cell.
 5. Row hover and cell focus look the same on the row (`surface-hover`); the focused cell also has the inset ring ([08-interaction-states.md](08-interaction-states.md)).
+6. A header's definition ("KD", "Volume" as an estimate) and a cell's reason ("Pending", "No data", a keyword's location and device) belong to the cell that holds the focus: that cell has `aria-describedby` to a hidden description outside the table, so the cell's own text stays its name, and it opens the cell's tooltip when the keyboard focuses it. A tooltip on an inner span that is never focused reaches no keyboard or screen reader user ([25 deviation 142](25-component-inventory.md)).
+7. A row's name for assistive technology (its checkbox, its menu) tells rows apart that the identity text does not: a keyword tracked on both devices reads "seo agency, desktop, Germany" and "seo agency, mobile, Germany".
 
 ### 6.3 DataTable keyboard map
 

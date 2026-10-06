@@ -61,6 +61,13 @@
 - [ ] **Step 4:** `DataTableToolbar` (search with `/`, count "1,000 keywords", density, columns) and `BulkActionBar` (replaces the toolbar on selection; count, actions, Clear; destructive actions last after a separator), each with axe and keyboard tests.
 - [ ] **Step 5:** Design-system section with a 300-row sample in both modes and densities, e2e section check, gates, Opus review, commit "Add the data table".
 
+- **As built (whole-branch review, part 2, 2026-10-06).**
+  - The bulk bar fits its actions to its width: the width of each action is read from a hidden copy of the bar (out of sight, `inert` and `aria-hidden`), the room is the bar's actions area observed with a `ResizeObserver`, and `fitCount` (`lib/tables/bulk-fit.ts`) keeps the first actions that fit as buttons. The rest go into a "More actions" menu in the same order, with destructive ones last. Before the first measure every action is a button. At 1440 px with the inspector open (a column of about 780 px) Rankings' bar shows the first buttons and More actions holds Archive and Delete, so nothing is clipped yet reachable by Tab.
+  - A `RecordAction` has a `tone` (`default` or `destructive`); the destructive group draws destructive unless the action says `default`. Archive and Unarchive keep their place last, beside Delete, drawn neutral.
+  - A header's definition and a cell's reason are on the cell that holds the grid focus: `aria-describedby` points to a hidden description outside the table (so a cell's text stays its value), and the cell is the trigger of its tooltip, which opens on keyboard focus. `DataTableColumn.cellTip` gives a cell's tooltip (`col.keyword` with a `detail`, and the `unknown` reason of `col.*`).
+  - The count, "Select all", the load progress and "All N matching selected" take the singular and plural noun through ICU plurals; the table still takes `itemNoun` as `{ one, other }`.
+  - Previous page and Next page stay focusable when they have nowhere to go, so pressing Next on the last page keeps focus.
+
 ### Task 2: Filters, inspector, stepper, strip, chart, progress
 
 **Files:** `src/components/app/filters/{filter-bar,filter-chip,filter-editors}.tsx`, `src/components/app/inspector/*`, `src/components/ui/stepper-dialog.tsx`, `src/components/app/metric/metric-strip.tsx`, `src/components/app/chart/chart-frame.tsx`, `src/components/app/status/collection-progress.tsx`, tests, design-system sections.
@@ -70,6 +77,10 @@
 - [ ] **Step 3:** `StepperDialog` to doc 16 section 4.6 (720 px, `<ol>` stepper, completed steps are buttons back, Continue validates the step and focuses the first error, the final button names the result, a close past step 1 is a dirty close).
 - [ ] **Step 4:** `MetricStrip` (doc 23 section 2: label, value, context line, `num`), `ChartFrame` on ECharts (doc 15 section 2: title, legend, "Table" toggle that renders the same data as a `SimpleTable`, theme from tokens, reduced motion off, ARIA description) and `CollectionProgress` (doc 17 section 4: label, done of total, cancel).
 - [ ] **Step 5:** Design-system sections, axe and keyboard tests, e2e section checks, gates, Opus review, commit "Add filters, inspector, stepper, metric strip, chart and progress".
+
+- **As built (whole-branch review, part 2, 2026-10-06).**
+  - An inspector for a record that is not known yet (a shared link to a deleted keyword, a list that has not reached the row) is titled by its type ("Keyword", "Run"), so the heading that takes focus and labels the landmark is never empty. Its More menu is named after the record ("More actions for seo agency"), apart from the page's own More actions. A dialog opened from that menu (the depth dialog) gives focus back to the More button.
+  - The category chart's grid padding is the outer edge of the axis labels (`outerBoundsMode: 'same'`, `outerBoundsContain: 'axisLabel'`), so a five-digit y label is not cut at the left edge (review log F85).
 
 ### Task 3: Generated client and mocks
 
@@ -96,6 +107,11 @@
   - The server's sort is the database's collation of `normalized_text`, and client mode sorts `keyword.text` in memory: the order of two keywords that differ in accents or case can differ between the modes. Nothing sends a client-mode sort to the API, so it shows only when the count crosses 10,000 and the table changes mode.
   - Search text goes to the API as printable characters, at most 200 (`src/lib/keywords/query-text.ts`), and a list filter sends at most 100 values.
 
+- **As built (whole-branch review, part 2, 2026-10-06).**
+  - A row's name is its keyword, device and location, and the language when it is not the project's ("Select seo agency, mobile, Germany"), so the desktop and mobile rows of one keyword are told apart by assistive technology. The keyword cell is described by its location, device, engine and language.
+  - The page says once how fresh the metrics are: in the header's meta line, not again in the table footer.
+  - Followed work is tracked two ways: an import in component state (`startedImports`, `endedImports`) and a refresh in the query cache (`refresh-queries.ts`), and `GET /runs/{id}` is cached under two keys. They work and are tested; one store for both is a refactor of both followers and was left for a later change.
+
 ### Task 5: Keyword inspector
 
 **Files:** `src/features/rankings/keyword-inspector/{keyword-inspector,demand-section,settings-section,links-section,competitors-section,history-section}.tsx`, tests.
@@ -111,6 +127,8 @@
   - Groups and tags save pessimistically, not optimistically as 16 section 2.5 suggests, because one save is several requests. Terms go as one `replace` per save, and a partial save says so.
   - A save in flight holds Close, J, K and row opens. The browser's Back on a dirty inspector is not caught: this is the documented `useLeaveGuard` limit.
   - The user asked on 2026-10-01 for three rank columns (current position, change since yesterday's check, ranking URL). The backend recorded them for the part 2 contract; they join Rankings with rank collection.
+
+- **As built (whole-branch review, part 2, 2026-10-06).** The inspector's Archive and Unarchive are in its More menu: Archive has Undo, and Unarchive has none, since Archive undoes it (doc 20 section 5.3 says so). A keyword that did not load says "The server did not answer. Try again in a moment.", not that the rest of the keyword is shown. The archive and unarchive failure toasts say "Try again." The depth names live once in `common.depths` (`lib/keywords/use-depth-label.ts`), used by the filters, the depth dialog, the inspector and the keyword defaults.
 
 ### Task 6: Add keywords
 
@@ -141,6 +159,11 @@
   - The selection is dropped for good when the filters, the view or the API's search change, and focus goes back to the grid after a dialog made its change.
   - Choosing terms is shared with Add keywords through `src/features/rankings/term-choices.ts`.
 
+- **As built (whole-branch review, part 2, 2026-10-06).**
+  - Unarchive above 100 keywords asks first with the count, like Archive (12-tables.md section 14 and 25 inventory 7.3), with its own words ("Unarchive 12,000 keywords?", which says the keywords count against the plan again). Up to 100 either runs at once with an Undo toast.
+  - Archive and Unarchive are drawn neutral in the bar (`tone: 'default'`), as in the confirmation and the inspector; only Delete is destructive.
+  - The one sentence about the plan's keyword limit is `common.quota` ("Your plan has room for 1 more active keyword (59 of 60 used); this adds 2."), built from the problem by `quotaFacts` (`lib/keywords/quota.ts`) for Add keywords, the bulk actions, the import and the inspector.
+
 ### Task 8: Keyword groups
 
 **Files:** `src/features/rankings/groups/{manage-groups-dialog,group-picker}.tsx`, tests.
@@ -154,6 +177,8 @@
   - The filter keeps the filter bar's own group editor (paths with counts); a filter never creates a group.
   - `GroupPicker` (several, on `MultiSelect` with `creatable`) serves Add keywords and the inspector; `GroupSelect` (one or "No group", on `Combobox` filtered by the caller) serves bulk Move to group. A typed path such as `Blog/Guides` creates its missing levels when the form is saved, parents first; Cancel creates nothing.
   - Manage groups is a 560 px dialog from Rankings' More actions menu (`keywords:write` only) with inline forms for add, rename and move, and a confirmation for delete that counts the subgroups.
+
+- **As built (whole-branch review, part 2, 2026-10-06).** The Manage groups toolbar keeps its actions focusable before a group is chosen and describes them ("Select a group first", or the depth limit); Delete is destructive in tone, and cancelling its question returns focus to Delete. Every field of chips gives the same two hints (`useMultiSelectHints`, `common.multiSelect`). Quotes around content are typographic in every message, and the catalog test holds that and "cannot" in full.
 
 ### Task 9: Import
 
@@ -177,6 +202,8 @@
   - The import dialog opens on a history entry of its own (Back closes it), its code loads when it is first opened, a paste is checked against the API's limits before it is sent, and the wait for the API to read a file polls with the tab hidden and asks once more before it gives up.
   - The component tests cannot upload through `XMLHttpRequest` or a multipart `fetch` under jsdom, so they replace `uploadForm` with `src/test/fetch-upload.ts`, which sends the file's rows to the JSON route; the real upload is covered by `upload.test.ts`, the mocks' own tests and the Playwright flow.
 
+- **As built (whole-branch review, part 2, 2026-10-06).** The start of an import is announced ("Import started. Its progress shows under the page title."), as a refresh's is. An import that cannot be followed is an info toast ("It may still be running. Reload the page to check on it."), the same kind and pattern as a refresh that is let go of.
+
 ### Task 10: Keyword metrics
 
 **Files:** `src/features/rankings/refresh-metrics.tsx`, tests.
@@ -192,6 +219,8 @@
   - Rows with no metrics poll every 30 seconds. In client mode the keywords are read newest first (`-created_at`, `include=metrics`) page after page by cursor until a page ends with a keyword older than the oldest waiting one, at most 5 pages a poll, and when they run out before the oldest waiting keyword the next poll reads the newest page again and goes on from where the last stopped, so a long wait after a large import reaches the oldest keywords; in server mode the page on screen is read again with the request the list made for it. The metrics are laid over the waiting rows that have none and kept from poll to poll, the list's own queries are never written, rows keep their identity, and the table neither flashes nor loses its selection. The poll runs while an active row on screen has no metrics, stops when none has, stops for rows after 15 minutes with the tab shown (hidden time does not count), reads at once when the tab is shown again, and stops with the screen.
   - After a `422 keyword_unknown` the list is read again and the chosen keywords that left it are dropped from the selection (client mode: every one the list no longer holds; server mode: those that were on the page and are not any more, and any the error names by position), so the second try is not refused for the same keyword. The keyword ids sent come only from rows known as active.
   - The statuses and reasons of runs are shared with Runs in `src/lib/runs/` (`run-status.ts`, `use-run-reason.ts`, the `runReasons` messages), held to the catalog and the API enums by `run-status.test.ts`. The refresh messages are under `rankings.refresh`; `FINISH_KEYS` maps the finished statuses to them and is held to the catalog by `refresh-model.test.ts`.
+
+- **As built (whole-branch review, part 2, 2026-10-06).** "Read" means succeeded in the refresh bar and in its finished toast ("7 of 10 read, 3 failed" in both), and the bar moves with every task that has an outcome. The sum of a run's tasks is one helper, `taskSummary` in `lib/runs/task-summary.ts`, used by Runs, its inspector and the refresh.
 
 ### Task 11: Schedules and keyword defaults
 
@@ -214,6 +243,8 @@
   - **Keyword defaults** is a section of General (`seo` of `{P}/settings`): default device, default depth profile, default check frequency, with its own Save (inline, shown while the section is dirty, apart from the save bar of the project's details, which sends a different request). The contract has no search engine setting (the API tracks Google only), so there is none; the visibility settings (`visibility_weight_scheme`, `visibility_volume_mode`) are left out, since doc 20 section 5.19.5 does not put them under keyword defaults. `until_own_match_100` is not offered (a later backend step answers it `422 depth_profile_not_available`, which the section also maps onto its field); a profile the project already holds that is not offered stays visible and cannot be chosen again. The settings document has no concurrency token (`version` is the constant 1): the request is a merge patch of only the members that changed, so a save never overwrites a default someone else changed meanwhile. The controls are disabled while the save is on its way, so a change made then is not overwritten by what the save returns. After a save the settings query is set and read again, which is what Add keywords reads for its default device (Add keywords sets its default with `reset` and `keepDirtyValues`, since `resetField` does nothing for a field that is not rendered yet, which is the case when the settings were cached before the dialog opened). The two forms of General that save apart (the project's details and the keyword defaults) report their unsaved changes to the page through `unsaved-forms.ts`, and the page has the one `useLeaveGuard` and one question ("Discard your unsaved changes on this page?") for both, so a link and the narrow-screen section select (`useGuardedPush`) ask once, and discarding puts both forms back. `projects:write` changes them; the rest see the values; a role that reads no project data sees no section.
   - **Tests** are `schedule-model.test.ts` (bodies, differences, words and error targets), `schedules.test.tsx` (the table, creates, changes, pause, resume, delete, read-only, errors, focus), `keyword-defaults.test.tsx`, `project-settings.test.tsx` (General, including the one question for both forms), `src/test/keyword-defaults-add-keywords.test.tsx` (Add keywords opens on the device just saved as the default, the two features in one tree), `project-settings-messages.test.ts` (the key maps against the catalog) and the Schedules item in `settings-frame.test.tsx`; the flow is `e2e/flows/schedules.spec.ts`, and Schedules is a page of the visual suite (`e2e/visual/pages.spec.ts`, baselines made in the pinned image only).
 
+- **As built (whole-branch review, part 2, 2026-10-06).** The list is the shared `PlainTable` (`components/app/table/plain-table.tsx`, which Costs uses too), not its own markup. The Next run header says which zone the times are in. A row's menu button holds only while its own change runs, and keeps focus. The edit and delete dialogs give focus back to the menu button of the row they came from, by an explicit target.
+
 ### Task 12: Costs and runs
 
 **Files:** `src/app/[workspace]/costs/page.tsx`, `src/app/[workspace]/ops/runs/page.tsx`, `src/features/costs/*`, `src/features/operations/*`, the workspace menu and Settings > Workspace links, tests.
@@ -230,6 +261,8 @@
   - Linked from the project switcher's Workspace group and Settings' workspace group: Costs needs `costs:read`, Runs and Operations need `data:read` (a billing member reads costs but not data).
   - After the whole-branch review: Costs reads the projects with the archived ones (the cost routes still count what an archived project spent) and names them "Name (archived)"; both pages have a layout with the workspace shell, a loading skeleton and an error with Try again, as Settings has; a run's `status_reason` has words for `missed_window` (a scheduled window that passed before the planner found it) and `not_planned`; past 2,000 runs a run that ended is read by its id, so it stops showing as running and the poll stops; the cost and budget mocks refuse what the backend refuses (period, years, list lengths, a project that is not the caller's, a limit of nothing is 100 percent used).
   - Shared: the workload names live in the `workloads` message namespace and `src/lib/workloads`; `DataTable` takes `rowActions` as a function of the row and `col.status` shows a collection status; the inspector's `KeyValues` moved to `components/app/inspector`.
+
+- **As built (whole-branch review, part 2, 2026-10-06).** A Runs search that finds nothing says so, with Clear search, and keeps the filter question for when filters are on; a filter of a link that does not read is dropped with a notice, as in Rankings and Costs. Costs and Runs share the month select, the reader of an enum filter and the page padding; the error id with its words is one hook (`useErrorId`, `lib/api`), and a failed region of Costs is an alert. The time columns of Runs and the Added column of Rankings say which zone they are in, as the header's description (22-content-formatting.md section 4). The committed estimate of a budget is called "Under way (estimate)", since it covers queued and running runs.
 
 ### Task 13: Contract switch, end to end, documents, review
 
