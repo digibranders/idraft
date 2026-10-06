@@ -358,6 +358,37 @@ describe('Bulk actions', () => {
     expect(await screen.findByText(/unarchived$/)).toBeInTheDocument();
   }, 20_000);
 
+  it('passes the accessibility checks in the tags and target URL dialogs and in the archive and delete questions', async () => {
+    answerTrackedAsMany({ total: 12_000 });
+    const { user } = renderWithProviders(as('editor'));
+    await loadedGrid();
+    await user.click(screen.getByRole('checkbox', { name: /^Select all/ }));
+    const bar = screen.getByRole('group', { name: /Bulk actions/ });
+    await user.click(within(bar).getByRole('button', { name: 'Select all 12,000 matching' }));
+    // Each opens over the table and is checked with the page behind it, then closed with its own Cancel
+    const closeWith = async (dialog: HTMLElement): Promise<void> => {
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    };
+    const barNow = (): HTMLElement => screen.getByRole('group', { name: /Bulk actions/ });
+    await user.click(within(barNow()).getByRole('button', { name: 'Add tags' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Tags for 12,000 keywords' });
+    expect(await axe(document.body)).toHaveNoViolations();
+    await closeWith(dialog);
+    await user.click(within(barNow()).getByRole('button', { name: 'Set target URL' }));
+    dialog = await screen.findByRole('dialog', { name: 'Target URL for 12,000 keywords' });
+    expect(await axe(document.body)).toHaveNoViolations();
+    await closeWith(dialog);
+    await user.click(within(barNow()).getByRole('button', { name: 'Archive' }));
+    dialog = await screen.findByRole('alertdialog', { name: 'Archive 12,000 keywords?' });
+    expect(await axe(document.body)).toHaveNoViolations();
+    await closeWith(dialog);
+    await user.click(within(barNow()).getByRole('button', { name: 'Delete' }));
+    dialog = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
+    expect(await axe(document.body)).toHaveNoViolations();
+    await closeWith(dialog);
+  }, 30_000);
+
   it('draws Archive in the bar neutral and Delete destructive, both last', async () => {
     const { user } = renderWithProviders(as('editor'));
     const bar = await choose(user, 'seo agency');

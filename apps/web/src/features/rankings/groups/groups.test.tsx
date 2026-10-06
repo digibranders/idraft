@@ -612,6 +612,8 @@ describe('Manage groups', () => {
     await user.click(groupItem('Brand'));
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
     const confirm = await screen.findByRole('alertdialog', { name: 'Delete Brand?' });
+    // The question stacked over Manage groups passes the checks, with the dialog behind it
+    expect(await axe(document.body)).toHaveNoViolations();
     await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(within(dialog).getByRole('button', { name: 'Delete' })).toHaveFocus();

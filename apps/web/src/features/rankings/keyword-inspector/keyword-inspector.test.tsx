@@ -234,6 +234,7 @@ describe('The keyword inspector', () => {
     await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
     const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
+    expect(await axe(document.body)).toHaveNoViolations();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Change depth profile' })).toBeNull());
     expect(within(inspector).getByRole('button', { name: 'More actions for seo agency' })).toHaveFocus();

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { expectAccessible, expectPolicy, signIn, watchPolicy } from '../support';
+import { expectAccessible, expectPolicy, signIn, waitForContent, watchPolicy } from '../support';
 
 const PROFILE = '/digibranders/fynix/settings/profile';
 const SECURITY = '/digibranders/fynix/settings/security';
@@ -111,11 +111,36 @@ test.describe('the application shell', () => {
       '/digibranders/fynix/settings/entities',
       '/digibranders/fynix/settings/taxonomy',
       '/digibranders/fynix/seo/rankings',
+      '/digibranders/costs',
+      '/digibranders/ops/runs?project=fynix',
+      '/digibranders/fynix/settings/schedules',
       '/digibranders/onboarding',
     ]) {
       await page.goto(path);
       await expect(page.locator('html')).toHaveClass(/\bdark\b/);
       await expectAccessible(page);
+    }
+  });
+
+  test('at 375 px the pages of keywords, costs, runs and schedules pass the checks and do not scroll sideways', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await signIn(page, 'tomas@digibranders.test');
+    for (const path of [
+      '/digibranders/fynix/seo/rankings',
+      '/digibranders/costs',
+      '/digibranders/ops/runs?project=fynix',
+      '/digibranders/fynix/settings/schedules',
+    ]) {
+      await page.goto(path);
+      await waitForContent(page);
+      await expectAccessible(page);
+      // The page itself never scrolls sideways (19-responsive-behavior.md): a wide table scrolls inside its own region
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `${path} is wider than the screen by ${String(overflow)} px`).toBeLessThanOrEqual(0);
     }
   });
 
