@@ -130,15 +130,15 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ## Phase 4: SEO rank collection
 
-- [ ] SERP adapter: submit (batches of 100), `tasks_ready` polling (60 s, 30 s while a collection window is open), sweeper, fetch, `submit_unknown` recovery via `id_list`
-- [ ] Normalizer v1: organic list, grouped results, rank validation, redirect unwrap, features mapping, AIO parsing ([06](06-dataforseo-seo-integration.md) section 5)
-- [ ] Ingest transaction (snapshots, features, domain ranks, AIO observation and citations, state, current results, events)
-- [ ] Planner and dispatcher for `seo_rank`: staggering, deep-check weekday, fairness cap
-- [ ] Retry policy per error kind; dead letters; requeue endpoint
-- [ ] Cost capture per task; daily reconciliation with `user_data`
+- [x] SERP adapter: submit (batches of 100), `tasks_ready` polling (60 s, 30 s while a collection window is open), sweeper, fetch, `submit_unknown` recovery via `id_list`; plus the live endpoint for check now
+- [x] Normalizer v1: organic list, grouped results, rank validation, redirect unwrap, features mapping, AIO parsing ([06](06-dataforseo-seo-integration.md) section 5). Synthetic fixtures only until spike S-01
+- [x] Ingest transaction (snapshots, features, domain ranks, state, current results, events; the AI Overview is a SERP feature, and its `ai.observations` and `ai.citations` wait for step 8)
+- [x] Planner and dispatcher for `seo_rank`: staggering, deep-check weekday, fairness cap; the default daily schedule, the first check of new keywords and check now
+- [ ] Retry policy per error kind; dead letters; requeue endpoint (the policy and dead letters are built; the requeue endpoint and the tasks and providers routes are not)
+- [x] Cost capture per task; daily reconciliation with `user_data` (reports the difference; books no adjustment; F96)
 - [ ] Competitor backfill from stored snapshots
-- [ ] Rank Tracker with ranks, features, AIO, competitors, sparklines; Keyword Detail v1
-- [ ] SEO gold set in CI; 14-day production soak at 5,000 keywords
+- [ ] Rank Tracker with ranks, features, AIO, competitors, sparklines; Keyword Detail v1 (the backend routes are built; the screens are not)
+- [ ] SEO gold set in CI; 14-day production soak at 5,000 keywords (the accelerated 14-day run at 5,000 keywords against fakes passed on 2026-10-06; the gold set and the production soak are not done)
 
 ## Phase 5: SEO analytics
 
