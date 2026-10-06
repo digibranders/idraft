@@ -24,7 +24,10 @@ export interface InspectorHeaderProps {
   titleId: string;
   /** The title takes focus when the inspector opens (16 section 2.8). */
   titleRef?: Ref<HTMLHeadingElement> | undefined;
-  /** The record's name, clamped to two lines; the first card repeats it in full when it is long. */
+  /**
+   * The record's name, clamped to two lines; the first card repeats it in full when it is long. Empty while
+   * the name is not known: the type label stands in.
+   */
   title: string;
   /** The title's language, when it is not the interface's (a keyword in German). */
   lang?: string | undefined;
@@ -74,6 +77,9 @@ export function InspectorHeader({
 }: InspectorHeaderProps): ReactElement {
   const t = useTranslations('inspector');
   const context = [typeLabel, positionText ?? null].filter((part): part is string => part !== null);
+  // A record with no name yet (a link to one that is gone, or a list that has not reached it) is named by
+  // its type: the title takes focus and labels the landmark, so it is never empty
+  const heading = title.trim() === '' ? typeLabel : title;
   return (
     <div className="flex flex-col gap-2 px-4 pt-4">
       {backLabel === null || backLabel === undefined ? null : (
@@ -89,7 +95,7 @@ export function InspectorHeader({
           lang={lang}
           className="line-clamp-2 min-w-0 flex-1 type-inspector-title text-balance text-foreground outline-none"
         >
-          {title}
+          {heading}
         </h2>
         <div className="flex shrink-0 items-center gap-1">
           {onOpenPage === null || onOpenPage === undefined ? null : (
@@ -98,7 +104,10 @@ export function InspectorHeader({
           {moreActions.length === 0 ? null : (
             <Menu
               align="end"
-              trigger={<IconButton icon={EllipsisVertical} variant="ghost" label={t('moreActions')} />}
+              // Named by the record: the page's own More actions button may be on screen beside it
+              trigger={
+                <IconButton icon={EllipsisVertical} variant="ghost" label={t('moreActionsFor', { name: heading })} />
+              }
               items={moreActions}
             />
           )}

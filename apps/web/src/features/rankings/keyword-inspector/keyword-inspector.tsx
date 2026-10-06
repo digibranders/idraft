@@ -187,7 +187,8 @@ export function KeywordInspector({
             : { id: 'unarchive', label: t('more.unarchive'), onSelect: () => void setActive(true, data, false) },
         ];
 
-  const title = data?.keyword.text ?? row?.keyword.text ?? '';
+  // Until the keyword is known (a shared link, a list that has not reached it) the type names the inspector
+  const title = data?.keyword.text ?? row?.keyword.text ?? t('type');
   const scopeOf = data ?? row;
   const badges =
     scopeOf === null ? null : (

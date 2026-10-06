@@ -123,7 +123,7 @@ export function RunInspector({
       onClose={onClose}
       onStep={onStep}
       header={{
-        title: run === null ? '' : workloadName(run.workload),
+        title: run === null ? t('inspector.type') : workloadName(run.workload),
         typeLabel: t('inspector.type'),
         typeNoun: t('inspector.noun'),
         positionText,

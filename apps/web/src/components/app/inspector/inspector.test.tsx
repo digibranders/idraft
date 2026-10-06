@@ -27,7 +27,13 @@ class AreaObserver {
 const onClose = vi.fn();
 const onStep = vi.fn();
 
-function Harness({ atFirst = false }: { atFirst?: boolean }): ReactElement {
+function Harness({
+  atFirst = false,
+  title = 'best crm for startups',
+}: {
+  atFirst?: boolean;
+  title?: string;
+}): ReactElement {
   return (
     <InspectorLayout
       inspector={
@@ -37,7 +43,7 @@ function Harness({ atFirst = false }: { atFirst?: boolean }): ReactElement {
           onClose={onClose}
           onStep={onStep}
           header={{
-            title: 'best crm for startups',
+            title,
             typeLabel: 'Keyword',
             typeNoun: 'keyword',
             positionText: '12 of 986',
@@ -96,6 +102,13 @@ describe('Inspector', () => {
     expect(screen.getByText('12 of 986')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('falls back to the type label for a record without a name yet, so the focused title and the landmark are never empty', () => {
+    renderWithProviders(<Harness title="" />);
+    const heading = screen.getByRole('heading', { level: 2, name: 'Keyword' });
+    expect(heading).toHaveFocus();
+    expect(screen.getByRole('complementary', { name: 'Keyword' })).toBeInTheDocument();
   });
 
   it('lays over the list when the main column would be narrower than 720 px', () => {
@@ -174,7 +187,7 @@ describe('Inspector', () => {
 
   it('offers the widths in its More menu', async () => {
     const { user } = renderWithProviders(<Harness />);
-    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('button', { name: 'More actions for best crm for startups' }));
     expect(await screen.findByRole('menuitemradio', { name: 'Default' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('menuitemradio', { name: 'Wide' })).toHaveAttribute('aria-checked', 'false');
     await user.click(screen.getByRole('menuitemradio', { name: 'Wide' }));

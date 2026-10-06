@@ -280,6 +280,8 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
     return list.fetching ? 'refetching' : 'ready';
   })();
   const errorId = isApiProblem(list.error) ? list.error.requestId : null;
+  // The search is of the loaded runs, so it is what the box holds
+  const searched = view.q.trim();
   const clearFilters = useCallback(() => setValues({}), [setValues]);
 
   const manual = list.manualRunsToday;
@@ -413,19 +415,33 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
             }
             emptyState={<EmptyState title={t('empty', { month: label })} reason={t('emptyReason')} headingLevel={2} />}
             filteredEmptyState={
-              <EmptyState
-                title={t('emptyFiltered', { month: label })}
-                reason={t('emptyFilteredReason')}
-                headingLevel={2}
-                details={filtered ? <ReadOnlyFilterChips fields={fields} values={values} /> : undefined}
-                primaryAction={
-                  filtered ? (
-                    <Button variant="secondary" onClick={clearFilters}>
-                      {t('clearFilters')}
+              searched !== '' ? (
+                <EmptyState
+                  title={t('searchEmpty.title', { query: searched, month: label })}
+                  reason={t('searchEmpty.reason')}
+                  headingLevel={2}
+                  details={filtered ? <ReadOnlyFilterChips fields={fields} values={values} /> : undefined}
+                  primaryAction={
+                    <Button variant="secondary" onClick={() => void setView({ q: null })}>
+                      {t('searchEmpty.clear')}
                     </Button>
-                  ) : undefined
-                }
-              />
+                  }
+                />
+              ) : (
+                <EmptyState
+                  title={t('emptyFiltered', { month: label })}
+                  reason={t('emptyFilteredReason')}
+                  headingLevel={2}
+                  details={filtered ? <ReadOnlyFilterChips fields={fields} values={values} /> : undefined}
+                  primaryAction={
+                    filtered ? (
+                      <Button variant="secondary" onClick={clearFilters}>
+                        {t('clearFilters')}
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              )
             }
             onRowOpen={onRowOpen}
             activeRowId={openId}

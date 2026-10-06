@@ -573,6 +573,26 @@ describe('Runs', () => {
     ).toBe(true);
   });
 
+  it('says a search that finds nothing is a search, with Clear search, and not that filters are on', async () => {
+    const url = urlWrites();
+    const { user } = renderWithProviders(runsAs('admin'), { onUrlUpdate: url.onUrlUpdate });
+    await screen.findAllByRole('rowheader');
+    await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'zebra');
+    expect(await screen.findByRole('heading', { name: 'No runs match “zebra” in September 2026' })).toBeInTheDocument();
+    expect(screen.queryByText(/match these filters/)).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Applied filters' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+    await waitFor(() => expect(url.latest().has('q')).toBe(false));
+    expect((await screen.findAllByRole('rowheader')).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the filters in the empty state of a search that finds nothing while filters are on', async () => {
+    renderWithProviders(runsAs('admin'), { searchParams: '?status=completed&q=zebra' });
+    expect(await screen.findByRole('heading', { name: 'No runs match “zebra” in September 2026' })).toBeInTheDocument();
+    const applied = screen.getByRole('list', { name: 'Applied filters' });
+    expect(within(applied).getByText('Status: Completed')).toBeInTheDocument();
+  });
+
   it('opens a run in the inspector with its tasks by status from the detail', async () => {
     const url = urlWrites();
     const { user } = renderWithProviders(runsAs('admin'), { onUrlUpdate: url.onUrlUpdate });
@@ -620,6 +640,12 @@ describe('Runs', () => {
   it('says a run does not exist for a link to one the project has not got', async () => {
     renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(999)}` });
     expect(await screen.findByText('This run does not exist or you do not have access to it.')).toBeInTheDocument();
+  });
+
+  it('names the inspector of a run that is not known by its type, and focuses that title, never an empty one', async () => {
+    renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(999)}` });
+    const inspector = await screen.findByRole('complementary', { name: 'Run' });
+    expect(within(inspector).getByRole('heading', { level: 2, name: 'Run' })).toHaveFocus();
   });
 
   it('cancels a run that is still open after asking, and shows it cancelled', async () => {

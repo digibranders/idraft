@@ -215,7 +215,7 @@ describe('The keyword inspector', () => {
   it('changes the depth profile through its dialog, with the reason in the history', async () => {
     const { user } = renderWithProviders(as('editor'));
     const inspector = await openFromRow(user, 'seo agency');
-    await user.click(within(inspector).getByRole('button', { name: 'More actions' }));
+    await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
     const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
     await user.click(within(dialog).getByRole('combobox', { name: 'Depth profile' }));
@@ -231,7 +231,7 @@ describe('The keyword inspector', () => {
   it('offers the depth profiles the API takes, and not the one a later step builds', async () => {
     const { user } = renderWithProviders(as('editor'));
     const inspector = await openFromRow(user, 'seo agency');
-    await user.click(within(inspector).getByRole('button', { name: 'More actions' }));
+    await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
     const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
     await user.click(within(dialog).getByRole('combobox', { name: 'Depth profile' }));
@@ -248,7 +248,7 @@ describe('The keyword inspector', () => {
     );
     const { user } = renderWithProviders(as('editor'));
     const inspector = await openFromRow(user, 'seo agency');
-    await user.click(within(inspector).getByRole('button', { name: 'More actions' }));
+    await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
     const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
     await user.click(within(dialog).getByRole('combobox', { name: 'Depth profile' }));
@@ -264,7 +264,7 @@ describe('The keyword inspector', () => {
   it('archives the keyword with an undo', async () => {
     const { user } = renderWithProviders(as('editor'));
     const inspector = await openFromRow(user, 'seo agency');
-    await user.click(within(inspector).getByRole('button', { name: 'More actions' }));
+    await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Archive keyword' }));
     expect(await screen.findByText('Keyword archived')).toBeInTheDocument();
     // It left the active list, so the inspector says the filters hide it
@@ -330,6 +330,12 @@ describe('The keyword inspector', () => {
     expect(
       await within(links).findByText('Some of the changes were saved and some were not. Save again to finish.'),
     ).toBeInTheDocument();
+  });
+
+  it('names the inspector of a keyword that is not known by its type, and focuses that title, never an empty one', async () => {
+    renderWithProviders(as('viewer'), { searchParams: `?inspect=keyword:${mockId('tracked', 9999)}` });
+    const inspector = await screen.findByRole('complementary', { name: 'Keyword' });
+    expect(within(inspector).getByRole('heading', { level: 2, name: 'Keyword' })).toHaveFocus();
   });
 
   it('says so when the keyword of a link does not exist', async () => {
