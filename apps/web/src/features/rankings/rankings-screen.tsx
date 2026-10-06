@@ -530,7 +530,6 @@ export function RankingsScreen({
             }
             emptyState={emptyState}
             filteredEmptyState={filteredEmpty}
-            footerNote={updatedText ?? undefined}
             onRowOpen={onRowOpen}
             activeRowId={openId}
             onRowOrderChange={setOrder}

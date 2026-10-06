@@ -35,7 +35,7 @@ import { useErrorId } from '@/lib/api/use-error-id';
 import type { Run } from '@/lib/api/types';
 import { useUtcDay } from '@/lib/dom/use-utc-day';
 import { enumValuesOf } from '@/lib/filters/filter-values';
-import { formatInteger } from '@/lib/format';
+import { formatInteger, formatList } from '@/lib/format';
 import { currentMonth, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { can, useCan, useMembership } from '@/lib/permissions';
@@ -170,7 +170,20 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
     ],
     [t, workloadName],
   );
-  const [values, setValues] = useUrlFilters(fields);
+  // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
+  const [values, setValues] = useUrlFilters(fields, {
+    onDropped: (dropped) =>
+      toast({
+        type: 'info',
+        title: t('droppedFilters.title', { count: dropped.length }),
+        description: t('droppedFilters.description', {
+          fields: formatList(
+            dropped.map((field) => field.label),
+            locale,
+          ),
+        }),
+      }),
+  });
   const filters = useMemo((): RunFilters => {
     const workloads = enumValuesOf(values.workload);
     const statuses = enumValuesOf(values.status);

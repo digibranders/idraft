@@ -608,6 +608,18 @@ describe('Runs', () => {
     expect(within(applied).getByText('Status: Completed')).toBeInTheDocument();
   });
 
+  it('leaves out a filter of the link that the list does not have, and says so', async () => {
+    const url = urlWrites();
+    renderWithProviders(runsAs('admin'), {
+      searchParams: '?status=bogus&trigger=manual',
+      onUrlUpdate: url.onUrlUpdate,
+    });
+    expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
+    expect(screen.getAllByText('Status: the link holds a value this list does not have.')).not.toHaveLength(0);
+    await waitFor(() => expect(url.latest().has('status')).toBe(false));
+    expect(screen.getByRole('button', { name: 'Trigger: Manual. Edit filter' })).toBeInTheDocument();
+  });
+
   it('opens a run in the inspector with its tasks by status from the detail', async () => {
     const url = urlWrites();
     const { user } = renderWithProviders(runsAs('admin'), { onUrlUpdate: url.onUrlUpdate });

@@ -1613,6 +1613,10 @@
     "emptyFiltered": "No runs match these filters in {month}",
     "emptyFilteredReason": "Remove a filter to see more of the month's runs.",
     "clearFilters": "Clear filters",
+    "droppedFilters": {
+      "title": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
+      "description": "{fields}: the link holds a value this list does not have."
+    },
     "searchEmpty": {
       "title": "No runs match “{query}” in {month}",
       "reason": "Clear the search to see the month's runs again.",
@@ -2234,10 +2238,7 @@
       "saveFailed": "The changes were not saved. Try again.",
       "partialSave": "Some of the changes were saved and some were not. Save again to finish.",
       "discard": {
-        "title": "Discard unsaved changes?",
-        "description": "Your changes to this keyword will be lost.",
-        "keepEditing": "Keep editing",
-        "discard": "Discard changes"
+        "description": "Your changes to this keyword will be lost."
       },
       "more": {
         "changeDepth": "Change depth profile",

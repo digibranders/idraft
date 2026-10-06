@@ -84,6 +84,14 @@ describe('Rankings', () => {
     );
   });
 
+  it('says once how fresh the metrics are: in the page header, not again in the table footer', async () => {
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(ACTIVE.length));
+    expect(screen.getAllByText(/Updated /)).toHaveLength(1);
+    expect(screen.getByText(/Updated .* · 59 tracked keywords/)).toBeInTheDocument();
+  });
+
   it('writes a sort from a header into the URL, and leaves the default out', async () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
