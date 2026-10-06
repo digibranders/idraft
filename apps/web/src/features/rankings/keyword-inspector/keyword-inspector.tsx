@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChartColumn } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useId, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import { CompetitorsSection } from './competitors-section';
 import { DepthDialog } from './depth-dialog';
@@ -140,6 +140,8 @@ export function KeywordInspector({
   useEffect(() => () => onEditStateChange('clean'), [onEditStateChange]);
 
   const [depthOpen, setDepthOpen] = useState(false);
+  // Where focus goes back to when the depth dialog closes: the More button its item was in
+  const moreButton = useRef<HTMLButtonElement>(null);
   const patch = useMutation(apiMutation('patch', DETAIL));
   const setActive = async (active: boolean, keyword: KeywordDetail, undo: boolean): Promise<void> => {
     try {
@@ -229,6 +231,7 @@ export function KeywordInspector({
         freshness:
           fetchedAt === null ? null : <span>{t('updated', { time: formatRelative(fetchedAt, timeZone) })}</span>,
         moreActions,
+        moreButtonRef: moreButton,
       }}
       footer={
         section === null ? undefined : (
@@ -289,6 +292,7 @@ export function KeywordInspector({
                     detail={data}
                     open={depthOpen}
                     onOpenChange={setDepthOpen}
+                    finalFocus={moreButton}
                   />
                 </>
               )}

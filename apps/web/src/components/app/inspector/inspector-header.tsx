@@ -48,6 +48,8 @@ export interface InspectorHeaderProps {
   /** Previous and Next in the list's order; left out with the position counter. */
   navigation?: InspectorNavigation | null | undefined;
   moreActions: readonly MenuItemDef[];
+  /** The More button, for a dialog that opens from its menu to give focus back to. */
+  moreButtonRef?: Ref<HTMLButtonElement> | undefined;
   onClose: () => void;
   /** The sheet below 768 px goes back to the list instead of closing: "Back to Rankings". */
   backLabel?: string | null | undefined;
@@ -72,6 +74,7 @@ export function InspectorHeader({
   onOpenPage,
   navigation,
   moreActions,
+  moreButtonRef,
   onClose,
   backLabel,
 }: InspectorHeaderProps): ReactElement {
@@ -106,7 +109,12 @@ export function InspectorHeader({
               align="end"
               // Named by the record: the page's own More actions button may be on screen beside it
               trigger={
-                <IconButton icon={EllipsisVertical} variant="ghost" label={t('moreActionsFor', { name: heading })} />
+                <IconButton
+                  ref={moreButtonRef}
+                  icon={EllipsisVertical}
+                  variant="ghost"
+                  label={t('moreActionsFor', { name: heading })}
+                />
               }
               items={moreActions}
             />

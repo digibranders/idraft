@@ -228,6 +228,17 @@ describe('The keyword inspector', () => {
     expect(within(inspector).getByText('Depth: Deep')).toBeInTheDocument();
   });
 
+  it('returns focus to the inspector’s More actions button when the depth dialog is cancelled', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const inspector = await openFromRow(user, 'seo agency');
+    await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Change depth profile' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change depth profile' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Change depth profile' })).toBeNull());
+    expect(within(inspector).getByRole('button', { name: 'More actions for seo agency' })).toHaveFocus();
+  });
+
   it('offers the depth profiles the API takes, and not the one a later step builds', async () => {
     const { user } = renderWithProviders(as('editor'));
     const inspector = await openFromRow(user, 'seo agency');

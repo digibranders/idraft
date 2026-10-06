@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -598,6 +598,16 @@ describe('Schedules: changing one', () => {
     expect(within(await rowOf('Daily rankings')).getByText('Priority 1 to 3')).toBeInTheDocument();
   });
 
+  it('returns focus to the row’s menu button when the edit dialog is cancelled', async () => {
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await openMenu(user, 'Daily rankings', 'Edit');
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Daily rankings' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Actions for Daily rankings' })).toHaveFocus();
+  });
+
   it('closes without a request when nothing changed', async () => {
     const bodies = recordBodies('PATCH');
     const { user } = renderWithProviders(screenAs('editor'));
@@ -819,6 +829,35 @@ describe('Schedules: pausing, resuming and deleting', () => {
     await waitFor(() => expect(screen.queryByRole('rowheader', { name: /^Daily rankings/ })).toBeNull());
     expect(await screen.findByText('Daily rankings deleted')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Schedules' })).toHaveFocus();
+  });
+
+  it('returns focus to the row’s menu button when the delete question is cancelled', async () => {
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await openMenu(user, 'Daily rankings', 'Delete');
+    const confirm = await screen.findByRole('alertdialog', { name: 'Delete Daily rankings?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Actions for Daily rankings' })).toHaveFocus();
+  });
+
+  it('holds only the menu of the schedule being paused, and keeps focus on it', async () => {
+    server.use(
+      http.post(mswPath(`${SCHEDULES}/:schedule_id/pause`), async () => {
+        await delay(300);
+      }),
+    );
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await openMenu(user, 'Daily rankings', 'Pause');
+    const own = screen.getByRole('button', { name: 'Actions for Daily rankings' });
+    await waitFor(() => expect(own).toHaveAttribute('aria-disabled', 'true'));
+    expect(own).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Actions for Keyword metrics' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await waitFor(() => expect(own).not.toHaveAttribute('aria-disabled', 'true'));
   });
 
   it('keeps the schedule when keywords still follow it, and says what to do, with no count the API does not give', async () => {

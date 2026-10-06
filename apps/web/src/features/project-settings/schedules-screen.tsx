@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, MoreHorizontal, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { ScheduleDialog } from './schedule-dialog';
 import { isEditableSchedule, type EditableSchedule } from './schedule-model';
@@ -69,13 +69,35 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   // Which schedule a pause or a resume is working on: its menu waits, and no second request starts
   const [busy, setBusy] = useState<string | null>(null);
-  // Once a row is gone together with its menu button, a closing dialog hands focus to the section's heading
-  const [rowGone, setRowGone] = useState(false);
   // Whether the dialog was opened from the empty state, whose button is gone once a schedule is made
   const [fromEmptyState, setFromEmptyState] = useState(false);
-  // Whether focus goes to the heading when the dialog goes away: what opened it is gone, or about to be
+  // Once a row is gone together with its menu button, a closing delete question hands focus to the heading
+  const [rowGone, setRowGone] = useState(false);
+  // Whether focus goes to the heading when the edit dialog goes away: what opened it is gone, or about to be
   const focusHeading = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  // The schedule whose menu opened the dialog: focus goes back to that row's menu button when the dialog
+  // closes. The button is found by its attribute when it is needed, since a ref callback on a row is
+  // detached and attached again at every render. Read by what closes the dialogs, so kept in a ref.
+  const [openedFrom, setOpenedFrom] = useState<string | null>(null);
+  const latest = useRef({ openedFrom, rowGone });
+  useEffect(() => {
+    latest.current = { openedFrom, rowGone };
+  });
+  const menuButtonOfOpener = useCallback((): HTMLElement | null => {
+    const from = latest.current.openedFrom;
+    return from === null
+      ? null
+      : (document.querySelector<HTMLElement>(`[data-schedule-menu="${from}"]`) ?? heading.current);
+  }, []);
+  const deleteFocus = useMemo(
+    (): RefObject<HTMLElement | null> => ({
+      get current(): HTMLElement | null {
+        return latest.current.rowGone ? heading.current : menuButtonOfOpener();
+      },
+    }),
+    [menuButtonOfOpener],
+  );
   const rows = schedules.data?.data ?? [];
   // A role without `data:read` cannot list the schedules at all, which is not a failure to retry
   const forbidden = schedules.isError && isApiProblem(schedules.error, 'forbidden');
@@ -144,6 +166,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
         label: t('menu.edit'),
         onSelect: () => {
           setFromEmptyState(false);
+          setOpenedFrom(schedule.schedule_id);
           setEditing(schedule);
         },
       });
@@ -159,6 +182,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
       tone: 'destructive',
       onSelect: () => {
         setRowGone(false);
+        setOpenedFrom(schedule.schedule_id);
         setDeleting(schedule);
       },
     });
@@ -171,6 +195,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
       icon={Plus}
       onClick={() => {
         setFromEmptyState(rows.length === 0);
+        setOpenedFrom(null);
         setEditing('new');
       }}
     >
@@ -292,7 +317,10 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
                                 size="icon-sm"
                                 variant="ghost"
                                 label={t('actionsFor', { name: schedule.name })}
-                                disabled={busy !== null}
+                                // Only the schedule being changed waits, and keeps focus while it does
+                                disabled={busy === schedule.schedule_id}
+                                focusableWhenDisabled
+                                data-schedule-menu={schedule.schedule_id}
                               />
                             }
                             items={itemsFor(schedule)}
@@ -316,7 +344,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
           setEditing(null);
         }}
         // Read when the dialog goes away, after `onClose` has said how it ended; `true` is back to what opened it
-        finalFocus={() => (focusHeading.current ? heading.current : true)}
+        finalFocus={() => (focusHeading.current ? heading.current : menuButtonOfOpener()) ?? true}
       />
       <ConfirmDialog
         open={deleting !== null}
@@ -326,7 +354,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
             setDeleteError(null);
           }
         }}
-        finalFocus={rowGone ? heading : undefined}
+        finalFocus={deleteFocus}
         title={t('deleteTitle', { name: deleting?.name ?? '' })}
         description={t('deleteDescription', { name: deleting?.name ?? '' })}
         confirmLabel={t('deleteConfirm')}

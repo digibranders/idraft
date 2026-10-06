@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement, type RefObject } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -39,11 +39,14 @@ export function DepthDialog({
   detail,
   open,
   onOpenChange,
+  finalFocus,
 }: {
   scope: KeywordScope;
   detail: KeywordDetail;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Where focus goes when the dialog closes: the button of the menu that opened it. */
+  finalFocus: RefObject<HTMLElement | null>;
 }): ReactElement {
   const t = useTranslations('rankings.inspector.depthDialog');
   const inspector = useTranslations('rankings.inspector');
@@ -126,6 +129,7 @@ export function DepthDialog({
         else if (!patch.isPending) close();
       }}
       size="sm"
+      finalFocus={finalFocus}
       dirty={form.formState.isDirty}
       discard={{
         title: inspector('discard.title'),
