@@ -16,6 +16,7 @@ export type Cadence = (typeof CADENCES)[number];
 export const SCHEDULE_PRIORITIES = ['high', 'standard', 'low'] as const satisfies readonly Schedule['priority'][];
 export type SchedulePriority = (typeof SCHEDULE_PRIORITIES)[number];
 
+/** Every provider mode the API names on a schedule it returns: all of them are read, only some are offered. */
 export const PROVIDER_MODES = [
   'standard_queue',
   'priority_queue',
@@ -23,12 +24,42 @@ export const PROVIDER_MODES = [
 ] as const satisfies readonly Schedule['provider_mode'][];
 export type ProviderMode = (typeof PROVIDER_MODES)[number];
 
-/** The catalog key of a provider mode under `dialog.providerModes`: keys are camel case, the API's codes are not. */
+/**
+ * The modes a rank schedule is given. `live` is a search a person asks for (check now), so the service
+ * answers `422 provider_mode_not_supported` for it on a schedule; it stays in `PROVIDER_MODES` for reading
+ * what the API returns.
+ */
+export const OFFERED_PROVIDER_MODES = ['standard_queue', 'priority_queue'] as const satisfies readonly ProviderMode[];
+export type OfferedProviderMode = (typeof OFFERED_PROVIDER_MODES)[number];
+
+/**
+ * The provider modes each workload's form offers, in order. Keyword metrics have none to choose: Labs is
+ * called live, which is the workload's own mode, so the form leaves the field out and the request too.
+ */
+export const WORKLOAD_PROVIDER_MODES: Readonly<Record<ScheduleWorkload, readonly OfferedProviderMode[]>> = {
+  keyword_metrics: [],
+  seo_rank: OFFERED_PROVIDER_MODES,
+};
+
+/** The catalog key of an offered provider mode under `dialog.providerModes`: keys are camel case, the API's codes are not. */
 export const PROVIDER_MODE_KEYS = {
   standard_queue: 'standardQueue',
   priority_queue: 'priorityQueue',
-  live: 'live',
-} as const satisfies Record<ProviderMode, string>;
+} as const satisfies Record<OfferedProviderMode, string>;
+
+/**
+ * Whether a schedule holds a provider mode its workload no longer takes: a rank schedule on `live`. Its form
+ * shows the held mode as a disabled option, and leaves it alone unless a queue is chosen.
+ */
+export function isRetiredProviderMode(schedule: Pick<Schedule, 'workload' | 'provider_mode'>): boolean {
+  return schedule.workload === 'seo_rank' && schedule.provider_mode === 'live';
+}
+
+/** The mode of a rank schedule as a request may name it: `live` is never sent, and a form that holds it is a mistake of the caller. */
+function queueModeOf(mode: ProviderMode): OfferedProviderMode {
+  if (mode === 'live') throw new Error('A rank schedule cannot be sent with the live provider mode');
+  return mode;
+}
 
 /** How a form chooses the keywords a schedule collects. One mode is one radio of the selector. */
 export const SELECTOR_MODES = ['stale', 'all', 'groups', 'priority'] as const;
@@ -222,7 +253,8 @@ function selectorTouched(values: ScheduleValues, initial: ScheduleValues): boole
 
 /**
  * The body of a new schedule. The provider mode is left out for keyword metrics, whose only mode is the
- * workload's own (`live`); a day is sent only for the cadence that uses it.
+ * workload's own (`live`), and is a queue for rankings, never `live`; a day is sent only for the cadence
+ * that uses it.
  */
 export function createBodyOf(values: ScheduleValues): ScheduleInput {
   return {
@@ -235,7 +267,7 @@ export function createBodyOf(values: ScheduleValues): ScheduleInput {
     window_hours: Number(values.window_hours),
     timezone: values.timezone,
     priority: values.priority,
-    ...(values.workload === 'seo_rank' ? { provider_mode: values.provider_mode } : {}),
+    ...(values.workload === 'seo_rank' ? { provider_mode: queueModeOf(values.provider_mode) } : {}),
     selector: selectorOfValues(values),
   };
 }
@@ -243,8 +275,8 @@ export function createBodyOf(values: ScheduleValues): ScheduleInput {
 /**
  * The body of a change: only what differs from `schedule`, since every change of the rule moves the next
  * run. A cadence that starts to use a day names it (`required` otherwise); one that stops using it does
- * not (`not_applicable` otherwise). The selector is sent only when a control of it changed. The body is
- * empty while nothing changed.
+ * not (`not_applicable` otherwise). The selector is sent only when a control of it changed. The provider
+ * mode of a rank schedule is sent only when it changed to a queue. The body is empty while nothing changed.
  */
 export function updateBodyOf(values: ScheduleValues, schedule: Schedule): ScheduleUpdate {
   const initial = valuesOfSchedule(schedule);
@@ -264,8 +296,9 @@ export function updateBodyOf(values: ScheduleValues, schedule: Schedule): Schedu
     ...(values.window_hours === initial.window_hours ? {} : { window_hours: Number(values.window_hours) }),
     ...(values.timezone === initial.timezone ? {} : { timezone: values.timezone }),
     ...(values.priority === initial.priority ? {} : { priority: values.priority }),
+    // Only a changed mode is sent, so a rank schedule that still holds `live` can be renamed
     ...(values.workload === 'seo_rank' && values.provider_mode !== initial.provider_mode
-      ? { provider_mode: values.provider_mode }
+      ? { provider_mode: queueModeOf(values.provider_mode) }
       : {}),
     ...(selectorTouched(values, initial) ? { selector: selectorOfValues(values, schedule.selector) } : {}),
   };

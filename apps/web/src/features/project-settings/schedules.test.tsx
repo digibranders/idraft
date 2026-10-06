@@ -372,6 +372,44 @@ describe('Schedules: making one', () => {
     expect(within(made).getByText('Groups: Local')).toBeInTheDocument();
   });
 
+  it('offers a rank schedule the standard and the priority queue and no live mode, standard first', async () => {
+    const bodies = recordBodies('POST');
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await user.click(screen.getByRole('button', { name: 'New schedule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Queue ranks');
+    await choose(user, dialog, 'What to collect', 'SEO rank');
+    const mode = within(dialog).getByRole('combobox', { name: 'Provider mode' });
+    expect(mode).toHaveTextContent('Standard queue');
+    await user.click(mode);
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      expect.stringMatching(/^Standard queue/),
+      expect.stringMatching(/^Priority queue/),
+    ]);
+    await user.keyboard('{Escape}');
+    await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(bodies).toEqual([expect.objectContaining({ workload: 'seo_rank', provider_mode: 'standard_queue' })]);
+  });
+
+  it('offers keyword metrics no provider mode, and drops a mode chosen for rankings when the workload changes back', async () => {
+    const bodies = recordBodies('POST');
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await user.click(screen.getByRole('button', { name: 'New schedule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Back to metrics');
+    await choose(user, dialog, 'What to collect', 'SEO rank');
+    await choose(user, dialog, 'Provider mode', /^Priority queue/);
+    await choose(user, dialog, 'What to collect', 'Keyword metrics');
+    expect(within(dialog).queryByRole('combobox', { name: 'Provider mode' })).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).not.toHaveProperty('provider_mode');
+  });
+
   it('makes a monthly schedule on a day from 1 to 28 and offers no cron', async () => {
     const bodies = recordBodies('POST');
     const { user } = renderWithProviders(screenAs('editor'));
@@ -492,6 +530,35 @@ describe('Schedules: making one', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
     expect(await within(dialog).findByText('Choose which keywords to collect.')).toBeInTheDocument();
     expect(within(dialog).getByText('A schedule repeats every day, week or month.')).toBeInTheDocument();
+  });
+
+  it('shows a provider mode the workload does not take under the Provider mode field', async () => {
+    server.use(
+      http.post(mswPath(SCHEDULES), ({ request }) =>
+        invalid(request, [
+          {
+            location: 'body',
+            path: 'provider_mode',
+            code: 'provider_mode_not_supported',
+            message: 'A seo_rank schedule takes the provider mode priority_queue or standard_queue.',
+          },
+        ]),
+      ),
+    );
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Daily rankings');
+    await user.click(screen.getByRole('button', { name: 'New schedule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New schedule' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Refused mode');
+    await choose(user, dialog, 'What to collect', 'SEO rank');
+    await user.click(within(dialog).getByRole('button', { name: 'Create schedule' }));
+    const message = await within(dialog).findByText('This workload does not take that provider mode.');
+    expect(within(dialog).getByRole('combobox', { name: 'Provider mode' })).toHaveAccessibleDescription(
+      'This workload does not take that provider mode.',
+    );
+    expect(dialog).toContainElement(message);
+    // The error is on the field, not in the alert for what belongs to none
+    expect(within(dialog).queryByText('The schedule was not saved. Try again in a moment.')).toBeNull();
   });
 
   it('waits for the groups and terms before a schedule that selects by them can be made', async () => {
@@ -739,6 +806,63 @@ describe('Schedules: changing one', () => {
       await waitFor(() => expect(dialog).not.toBeInTheDocument());
     }
     expect(bodies).toEqual([{ name: 'Top ranks 2' }, { name: 'Bare metrics 2' }]);
+  });
+
+  it('shows the live mode a rank schedule still holds as a disabled option, and sends no provider mode for a rename', async () => {
+    const held: Schedule = { ...SCHEDULE, name: 'Old live ranks', provider_mode: 'live', selector: { all: true } };
+    server.use(
+      listing(held),
+      http.patch(mswPath(`${SCHEDULES}/:schedule_id`), async ({ request }) => {
+        const body: unknown = await request.clone().json();
+        const name = typeof body === 'object' && body !== null && 'name' in body ? body.name : undefined;
+        return HttpResponse.json({ data: { ...held, name: typeof name === 'string' ? name : held.name } });
+      }),
+    );
+    const bodies = recordBodies('PATCH');
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Old live ranks');
+    await openMenu(user, 'Old live ranks', 'Edit');
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Old live ranks' });
+    const mode = within(dialog).getByRole('combobox', { name: 'Provider mode' });
+    expect(mode).toHaveTextContent('Live (no longer available)');
+    await user.click(mode);
+    const options = await screen.findAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual([
+      expect.stringMatching(/^Live \(no longer available\)/),
+      expect.stringMatching(/^Standard queue/),
+      expect.stringMatching(/^Priority queue/),
+    ]);
+    const [retired, standard] = options;
+    if (retired === undefined || standard === undefined) throw new Error('The provider mode options are missing');
+    expect(retired).toHaveAttribute('aria-disabled', 'true');
+    expect(standard).not.toHaveAttribute('aria-disabled', 'true');
+    // Choosing the disabled option does nothing: the held value stays
+    await user.click(retired);
+    await user.keyboard('{Escape}');
+    expect(mode).toHaveTextContent('Live (no longer available)');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), ' 2');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(bodies).toEqual([{ name: 'Old live ranks 2' }]);
+  });
+
+  it('sends the queue chosen for a rank schedule that held the live mode', async () => {
+    const held: Schedule = { ...SCHEDULE, name: 'Old live ranks', provider_mode: 'live', selector: { all: true } };
+    server.use(
+      listing(held),
+      http.patch(mswPath(`${SCHEDULES}/:schedule_id`), () =>
+        HttpResponse.json({ data: { ...held, provider_mode: 'standard_queue' } }),
+      ),
+    );
+    const bodies = recordBodies('PATCH');
+    const { user } = renderWithProviders(screenAs('editor'));
+    await rowOf('Old live ranks');
+    await openMenu(user, 'Old live ranks', 'Edit');
+    const dialog = await screen.findByRole('dialog', { name: 'Edit Old live ranks' });
+    await choose(user, dialog, 'Provider mode', /^Standard queue/);
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(bodies).toEqual([{ provider_mode: 'standard_queue' }]);
   });
 
   it('names the time zone of the next run in a toast when it is not the project’s', async () => {

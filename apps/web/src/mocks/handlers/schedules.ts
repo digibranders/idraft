@@ -37,8 +37,9 @@ import { currentTimeZoneName, isKnownTimeZone, TIMEZONE_PATTERN } from '@/lib/fo
  * and `monthly` (on day 1 to 28) cadences, for the two workloads this step runs, with a selector checked per
  * workload. Pausing keeps the schedule; resuming does not catch up. A delete keeps the row for its runs and
  * is refused while a tracked keyword names the schedule. As built (backend `api/operations/schedules.py`),
- * the service answers the first stage that fails: the workload, the cadence and the provider mode; then the
- * selector; then the days (on a change) or `cron_expr`; then the time zone; then the groups and terms.
+ * the service answers the first stage that fails: the workload, the cadence and the provider mode (checked
+ * on the mode as it would be after the change, so `live` for rankings is `provider_mode_not_supported`, named
+ * or held); then the selector; then the days (on a change) or `cron_expr`; then the time zone; then the groups and terms.
  */
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
@@ -68,9 +69,10 @@ const WORKLOAD_RULES: Readonly<
     providerModes: ['live'],
     needsSelector: false,
   },
+  // A live search is one a person asks for (check now), so a schedule of rankings never takes `live`
   seo_rank: {
     selectors: ['all', 'groups', 'terms', 'priority_lte'],
-    providerModes: ['standard_queue', 'priority_queue', 'live'],
+    providerModes: ['standard_queue', 'priority_queue'],
     needsSelector: true,
   },
 };

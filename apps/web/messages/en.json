@@ -560,14 +560,14 @@
         "providerMode": "Provider mode",
         "providerModes": {
           "standardQueue": "Standard queue",
-          "priorityQueue": "Priority queue",
-          "live": "Live"
+          "priorityQueue": "Priority queue"
         },
         "providerModeHints": {
           "standardQueue": "The provider's regular queue",
-          "priorityQueue": "Faster, and it costs more",
-          "live": "Answered at once, and it costs the most"
+          "priorityQueue": "Faster, and it costs more"
         },
+        "providerModeRetired": "Live (no longer available)",
+        "providerModeRetiredHint": "Rank schedules use a queue now. Choose one to change it.",
         "selector": "Keywords to collect",
         "selectorModes": {
           "stale": "Keywords with out-of-date metrics",
