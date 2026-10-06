@@ -23,6 +23,9 @@ export default defineConfig({
           name: 'dom',
           include: ['src/**/*.test.tsx'],
           environment: 'jsdom',
+          // The Rankings grid renders 13 data columns (the rank columns brought it from 8), so its DOM tests
+          // take about 60 percent longer than they did; the 5 s default timed them out in full parallel runs
+          testTimeout: 15_000,
           // https, so the `__Host-` session cookie can be set: jsdom applies the cookie prefix rules
           environmentOptions: { jsdom: { url: 'https://localhost:3000/' } },
           setupFiles: ['./vitest.msw.ts', './vitest.setup.ts'],
