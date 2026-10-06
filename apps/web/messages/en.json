@@ -1509,6 +1509,7 @@
     "provider": "Provider",
     "project": "Project",
     "deletedProject": "Deleted project",
+    "archivedProject": "{name} (archived)",
     "noProject": "No project",
     "endpoint": "Endpoint",
     "unit": "Unit",

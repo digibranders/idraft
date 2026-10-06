@@ -7,7 +7,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs';
 import { useMemo, type ReactElement } from 'react';
 
 import { BudgetMeter } from './budget-meter';
-import { COST_TABS, CostBreakdown, type CostsProject } from './cost-breakdown';
+import { COST_TABS, CostBreakdown, useProjectLabel, type CostsProject } from './cost-breakdown';
 import { money, shareOf, workspaceBudget } from './cost-model';
 import { CostTable, type CostColumn } from './cost-table';
 import { CostsError } from './costs-error';
@@ -38,7 +38,10 @@ import { isCostWorkload } from '@/lib/workloads/workloads';
 export interface CostsScreenProps {
   workspaceId: string;
   workspaceSlug: string;
-  /** The projects the member can open: the names of the cost rows and the options of the Project filter. */
+  /**
+   * The projects the member can open, archived ones included (the cost routes count what they spent): the
+   * names of the cost rows and the options of the Project filter.
+   */
   projects: readonly CostsProject[];
 }
 
@@ -94,6 +97,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
   const label = monthLabel(month, locale);
   const { from, to } = monthDays(month, now);
 
+  const projectLabel = useProjectLabel();
   // The providers the month has costs for, whatever the filters: the options of the Provider filter
   const providerRows = useCosts({ workspaceId, month }, ['provider'], now);
   const fields = useMemo(
@@ -103,7 +107,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
         kind: 'enum',
         label: t('filters.project'),
         multi: false,
-        options: projects.map((project) => ({ value: project.id, label: project.name })),
+        options: projects.map((project) => ({ value: project.id, label: projectLabel(project) })),
       },
       {
         id: 'workload',
@@ -123,7 +127,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
         optionsLoading: providerRows.isPending || providerRows.isError,
       },
     ],
-    [t, projects, workloadName, providerRows.data, providerRows.isPending, providerRows.isError],
+    [t, projects, projectLabel, workloadName, providerRows.data, providerRows.isPending, providerRows.isError],
   );
   // A filter of the link that the month has nothing for (a provider with no costs in it) is left out, and the person is told
   const [values, setValues] = useUrlFilters(fields, {

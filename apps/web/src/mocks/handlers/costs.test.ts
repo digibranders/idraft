@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
+import { pctUsed } from './costs';
 import { blockingBudget } from './operations-rules';
 import { RUN_PLANNED_MS, RUN_WORKING_MS, runView } from '../factories/operations';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
@@ -72,6 +73,69 @@ describe('costs', () => {
     });
   });
 
+  it('refuses a period that ends before it starts or runs past 366 days, as the backend does', async () => {
+    const analyst = mockBrowser('analyst');
+    expect(fieldCodes(await analyst.call('GET', `${W}/costs?from=2026-09-30&to=2026-09-01`))).toEqual([
+      'to:range_invalid',
+    ]);
+    // A period holds both its ends: 366 days is the longest, a leap year's
+    expect((await analyst.call('GET', `${W}/costs?from=2024-01-01&to=2024-12-31`)).status).toBe(200);
+    expect((await analyst.call('GET', `${W}/costs?from=2025-01-01&to=2026-01-01`)).status).toBe(200);
+    expect(fieldCodes(await analyst.call('GET', `${W}/costs?from=2025-01-01&to=2026-01-02`))).toEqual([
+      'to:range_too_long',
+    ]);
+  });
+
+  it('refuses a day outside the years 2000 to 2100, and a month outside them', async () => {
+    const analyst = mockBrowser('analyst');
+    expect(fieldCodes(await analyst.call('GET', `${W}/costs?from=1999-12-31&to=2000-01-02`))).toEqual([
+      'from:value_error',
+    ]);
+    expect(fieldCodes(await analyst.call('GET', `${W}/costs?from=2100-12-31&to=2101-01-01`))).toEqual([
+      'to:value_error',
+    ]);
+    expect((await analyst.call('GET', `${W}/costs?from=2000-01-01&to=2000-01-31`)).status).toBe(200);
+    expect(fieldCodes(await analyst.call('GET', `${W}/budgets/status?month=1999-12`))).toEqual([
+      'month:string_pattern_mismatch',
+    ]);
+    expect(fieldCodes(await analyst.call('GET', `${W}/budgets/status?month=2101-01`))).toEqual([
+      'month:string_pattern_mismatch',
+    ]);
+  });
+
+  it('takes at most 7 group_by keys and 20 workloads', async () => {
+    const analyst = mockBrowser('analyst');
+    const eight = 'project,workload,provider,endpoint,engine,day,channel,project';
+    expect(fieldCodes(await analyst.call('GET', `${W}/costs?from=2026-09-01&to=2026-09-30&group_by=${eight}`))).toEqual(
+      ['group_by:too_long'],
+    );
+    const many = Array.from({ length: 21 }, () => 'seo_rank').join(',');
+    expect(
+      fieldCodes(await analyst.call('GET', `${W}/costs?from=2026-09-01&to=2026-09-30&filter[workload_in]=${many}`)),
+    ).toEqual(['filter[workload_in]:too_long']);
+  });
+
+  it('answers 404 for a project filter that is not a project the caller sees', async () => {
+    const analyst = mockBrowser('analyst');
+    const costs = `${W}/costs?from=2026-09-01&to=2026-09-30`;
+    expect((await analyst.call('GET', `${costs}&filter[project_id]=${fynix.project_id}`)).status).toBe(200);
+    expect(await analyst.call('GET', `${costs}&filter[project_id]=0192d1a8-ffff-7a10-8e07-000000000001`)).toMatchObject(
+      { status: 404, code: 'not_found' },
+    );
+    // Another workspace's project is as unknown
+    const owner = mockBrowser('owner');
+    const second = await owner.call('POST', '/api/v1/workspaces', { name: 'Second', slug: 'second-filter' });
+    const secondId = dataOf(second, z.object({ workspace_id: z.string() })).workspace_id;
+    expect(
+      (
+        await owner.call(
+          'GET',
+          `/api/v1/workspaces/${secondId}/costs?from=2026-09-01&to=2026-09-30&filter[project_id]=${fynix.project_id}`,
+        )
+      ).status,
+    ).toBe(404);
+  });
+
   it('counts a manual refresh once it has run', async () => {
     const editor = mockBrowser('editor');
     await editor.call('POST', `${P}/keyword-metrics/refresh`, {});
@@ -81,6 +145,15 @@ describe('costs', () => {
     expect(dataOf(await editor.call('GET', october), ROWS)).toEqual([
       { keys: { project: fynix.project_id }, cost_usd: '0.012360', request_count: 1, subjects: 3 },
     ]);
+  });
+});
+
+describe('the share of a limit that is used', () => {
+  it('is a percent to one decimal, and 100 for a limit of nothing, which is used up from the start', () => {
+    expect(pctUsed(12_500_000, 50)).toBe(25);
+    expect(pctUsed(1_234_567, 3)).toBe(41.2);
+    expect(pctUsed(0, 0)).toBe(100);
+    expect(pctUsed(5_000_000, 0)).toBe(100);
   });
 });
 

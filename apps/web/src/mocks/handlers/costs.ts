@@ -10,7 +10,7 @@ import {
 import { offsetPageOf, offsetPaging, queryError, uuidError } from './rules';
 import { usdOfMicros } from '../factories/operations';
 import { MOCK_PRICES } from '../operations-fixtures';
-import { invalid, mock } from '../respond';
+import { invalid, mock, problem } from '../respond';
 import type { ValidationItem } from '@/lib/api/types';
 
 /**
@@ -39,16 +39,36 @@ const COST_WORKLOADS = [
   'keyword_research',
   'first_party',
 ] as const;
+/** `filter[workload_in]` takes at most this many workloads. */
+const MAX_WORKLOADS = 20;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** A month of the years the ledger holds, 2000 to 2100 (backend `_MONTH_PATTERN`). */
+const MONTH = /^(20\d{2}|2100)-(0[1-9]|1[0-2])$/;
+/** The years a day may be in: no cost is older, and none is from the far future. */
+const YEAR_MIN = 2000;
+const YEAR_MAX = 2100;
+/** A period holds at most this many days, both ends included: a leap year's whole period. */
+const PERIOD_DAYS_MAX = 366;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const isDate = (value: string): boolean => DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 
 function dateParam(url: URL, name: string, required: boolean): string | null | ValidationItem {
   const value = url.searchParams.get(name);
   if (value === null) return required ? queryError(name, 'missing', 'Field required') : null;
-  return isDate(value) ? value : queryError(name, 'date_from_datetime_parsing', 'Input should be a valid date');
+  if (!isDate(value)) return queryError(name, 'date_from_datetime_parsing', 'Input should be a valid date');
+  const year = Number(value.slice(0, 4));
+  return year < YEAR_MIN || year > YEAR_MAX
+    ? queryError(name, 'value_error', `a day from ${String(YEAR_MIN)} to ${String(YEAR_MAX)}`)
+    : value;
 }
+
+/**
+ * The share of a limit that is spent, a percent to one decimal. A limit of nothing is used up from the
+ * start, as the planner judges it (backend `_pct`).
+ */
+export const pctUsed = (spentMicros: number, limitUsd: number): number =>
+  limitUsd <= 0 ? 100 : Math.round((spentMicros / 1_000_000 / limitUsd) * 1000) / 10;
 
 const keyOf = (event: CostEvent, key: GroupKey): string => {
   switch (key) {
@@ -95,12 +115,16 @@ export const costHandlers: HttpHandler[] = [
     const errors: ValidationItem[] = [
       ...(typeof from === 'string' || from === null ? [] : [from]),
       ...(typeof to === 'string' || to === null ? [] : [to]),
-      ...(groupBy.every((key) => GROUP_BY.some((allowed) => allowed === key))
-        ? []
-        : [queryError('group_by', 'enum', `Allowed: ${GROUP_BY.join(', ')}.`)]),
-      ...(workloads.every((workload) => COST_WORKLOADS.some((allowed) => allowed === workload))
-        ? []
-        : [queryError('filter[workload_in]', 'enum', `Allowed: ${COST_WORKLOADS.join(', ')}.`)]),
+      ...(groupBy.length > GROUP_BY.length
+        ? [queryError('group_by', 'too_long', `At most ${String(GROUP_BY.length)} keys.`)]
+        : groupBy.every((key) => GROUP_BY.some((allowed) => allowed === key))
+          ? []
+          : [queryError('group_by', 'enum', `Allowed: ${GROUP_BY.join(', ')}.`)]),
+      ...(workloads.length > MAX_WORKLOADS
+        ? [queryError('filter[workload_in]', 'too_long', `At most ${String(MAX_WORKLOADS)} workloads.`)]
+        : workloads.every((workload) => COST_WORKLOADS.some((allowed) => allowed === workload))
+          ? []
+          : [queryError('filter[workload_in]', 'enum', `Allowed: ${COST_WORKLOADS.join(', ')}.`)]),
       ...(projectId === null
         ? []
         : uuidError(projectId, 'filter[project_id]').map((item) =>
@@ -111,8 +135,17 @@ export const costHandlers: HttpHandler[] = [
         : []),
     ];
     if (errors.length > 0 || typeof from !== 'string' || typeof to !== 'string') return invalid(request, errors);
+    // The period itself is checked once every parameter has read (the backend does it in the route)
+    if (to < from) return invalid(request, [queryError('to', 'range_invalid', '`to` is on or after `from`.')]);
+    if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS >= PERIOD_DAYS_MAX) {
+      return invalid(request, [
+        queryError('to', 'range_too_long', `A period of at most ${String(PERIOD_DAYS_MAX)} days.`),
+      ]);
+    }
     const keys = GROUP_BY.filter((key) => groupBy.includes(key));
     const visible = new Set(caller.projects.map((project) => project.project_id));
+    // A project the caller cannot see, or that does not exist, is not found
+    if (projectId !== null && !visible.has(projectId)) return problem(request, 'not_found');
     const events = costEvents(caller.operations, Date.now()).filter(
       (event) =>
         visible.has(event.project_id) &&
@@ -187,7 +220,7 @@ export const costHandlers: HttpHandler[] = [
           spent_usd: usdOfMicros(reading.spentMicros),
           committed_estimate_usd: usdOfMicros(reading.committedMicros),
           // Percent of the limit spent, to one decimal
-          pct_used: limit === 0 ? 0 : Math.round((reading.spentMicros / 1_000_000 / limit) * 1000) / 10,
+          pct_used: pctUsed(reading.spentMicros, limit),
           state: reading.state,
           blocked_runs: reading.blockedRuns,
         };

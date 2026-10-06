@@ -24,6 +24,14 @@ export interface CostsProject {
   id: string;
   slug: string;
   name: string;
+  /** The project is archived: the cost routes still count what it spent, so it is listed, named as archived. */
+  archived?: boolean;
+}
+
+/** The name of a project in a cost table or filter: an archived one says so. */
+export function useProjectLabel(): (project: CostsProject) => string {
+  const t = useTranslations('costs');
+  return (project) => (project.archived === true ? t('archivedProject', { name: project.name }) : project.name);
 }
 
 export interface CostBreakdownProps {
@@ -128,6 +136,7 @@ function ProjectPanel({
   emptyText,
 }: Pick<CostBreakdownProps, 'scope' | 'now' | 'projects' | 'budgets' | 'emptyText'>): ReactElement {
   const t = useTranslations('costs');
+  const projectLabel = useProjectLabel();
   const query = useCosts(scope, ['project'], now);
   const total = query.data?.meta.total_cost_usd ?? '0';
   const budgetList = budgets.data?.data ?? [];
@@ -140,7 +149,8 @@ function ProjectPanel({
   const nameOf = (row: CostRow): string => {
     const id = row.keys.project ?? '';
     if (id === '') return t('noProject');
-    return projects.find((project) => project.id === id)?.name ?? t('deletedProject');
+    const known = projects.find((project) => project.id === id);
+    return known === undefined ? t('deletedProject') : projectLabel(known);
   };
   const columns: CostColumn<CostRow>[] = [
     { id: 'project', header: t('project'), align: 'left', cell: nameOf },
@@ -248,16 +258,18 @@ function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'm
 
 function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects' | 'budgets'>): ReactElement {
   const t = useTranslations('costs');
+  const projectLabel = useProjectLabel();
   const workloadName = useWorkloadName();
   const columns: CostColumn<BudgetStatus>[] = [
     {
       id: 'scope',
       header: t('scope'),
       align: 'left',
-      cell: (row) =>
-        row.budget.project_id === null
-          ? t('workspaceScope')
-          : (projects.find((project) => project.id === row.budget.project_id)?.name ?? t('deletedProject')),
+      cell: (row) => {
+        if (row.budget.project_id === null) return t('workspaceScope');
+        const known = projects.find((project) => project.id === row.budget.project_id);
+        return known === undefined ? t('deletedProject') : projectLabel(known);
+      },
     },
     {
       id: 'workload',

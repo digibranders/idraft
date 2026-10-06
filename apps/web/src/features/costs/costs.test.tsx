@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BudgetMeter } from './budget-meter';
 import { BudgetStatusBadge } from './budget-status-badge';
+import type { CostsProject } from './cost-breakdown';
 import { CostsScreen } from './costs-screen';
 import type { BudgetStatus, Role } from '@/lib/api/types';
 import { formatCurrency } from '@/lib/format';
@@ -54,7 +55,7 @@ afterEach(() => {
 });
 
 /** The Costs page for a signed-in member of `role`, who may open `shown` projects. */
-function costsAs(role: Role, shown: readonly (typeof projects)[number][] = projects): ReactElement {
+function costsAs(role: Role, shown: readonly CostsProject[] = projects): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <PermissionProvider membership={membershipFactory(role)}>
@@ -440,6 +441,28 @@ describe('Costs', () => {
     expect(within(table).getByRole('row', { name: /No project/ })).toHaveTextContent('33.3%');
     // Neither has a budget, so the table has no budget columns
     expect(within(table).queryByRole('columnheader', { name: 'Status' })).toBeNull();
+  });
+
+  it('names an archived project as one, in the By project table and in the Project filter, not as a deleted project', async () => {
+    const [fynix, ...others] = projects;
+    if (fynix === undefined) throw new Error('The fixtures have no project');
+    const { user } = renderWithProviders(costsAs('admin', [{ ...fynix, archived: true }, ...others]));
+    await user.click(await screen.findByRole('tab', { name: 'By project' }));
+    const table = await screen.findByRole('table', { name: 'By project' });
+    const row = await within(table).findByRole('row', { name: /Fynix/ });
+    expect(row).toHaveTextContent('Fynix (archived)');
+    expect(within(table).queryByRole('row', { name: /Deleted project/ })).toBeNull();
+    // A project that is not archived is named as it is
+    expect(within(table).queryByText('Cleanstart (archived)')).toBeNull();
+  });
+
+  it('offers an archived project in the Project filter by the same name', async () => {
+    const [fynix, ...others] = projects;
+    if (fynix === undefined) throw new Error('The fixtures have no project');
+    renderWithProviders(costsAs('admin', [{ ...fynix, archived: true }, ...others]), {
+      searchParams: `?project=${fynix.id}`,
+    });
+    expect(await screen.findByRole('button', { name: 'Project: Fynix (archived). Edit filter' })).toBeInTheDocument();
   });
 
   it('filters every cost request by workload and writes it to the URL', async () => {
