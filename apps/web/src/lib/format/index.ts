@@ -5,6 +5,7 @@
  */
 export * from './number';
 export * from './rank';
+export * from './rank-display';
 export * from './delta';
 export * from './date';
 export * from './url';
