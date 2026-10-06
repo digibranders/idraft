@@ -69,7 +69,9 @@ WORKLOADS: Final[Mapping[str, WorkloadRules]] = {
     ),
     "seo_rank": WorkloadRules(
         selectors=frozenset({"all", "groups", "terms", "priority_lte"}),
-        provider_modes=frozenset({"standard_queue", "priority_queue", "live"}),
+        # Not `live`: a live check is one a person asks for (check now), counted against the
+        # workspace's monthly live checks; a schedule's tasks go to the task queue.
+        provider_modes=frozenset({"standard_queue", "priority_queue"}),
         default_mode="standard_queue",
         needs_selector=True,
     ),

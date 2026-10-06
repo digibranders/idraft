@@ -37,6 +37,7 @@ from sightline.collectors.registry import Registry
 from sightline.collectors.seo_rank import WORKLOAD as SEO_RANK
 from sightline.collectors.seo_rank import SeoRankWorkload
 from sightline.collectors.seo_rank import queue_new_keywords as queue_new_rank_keywords
+from sightline.collectors.seo_rank_health import refresh_health
 from sightline.collectors.seo_rank_ingest import ingest as ingest_ranks
 from sightline.collectors.submission import submit_batch
 from sightline.config.settings import Settings
@@ -78,6 +79,8 @@ COSTS_REBUILT_AT = "37 1 * * *"
 # docs/21-scheduler-workers.md section 10: the provider's balance every 15 minutes, and its
 # spend for the day before against our cost events at 00:45 UTC.
 BALANCE_CHECK_AT = "*/15 * * * *"
+# Failed rank checks and stale keywords into the keyword state (docs/21 section 9).
+RANK_HEALTH_EVERY = timedelta(minutes=10)
 COST_RECONCILE_AT = "45 0 * * *"
 _log = structlog.get_logger(__name__)
 
@@ -252,6 +255,16 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
     async def cost_reconcile() -> None:
         await run_cost_reconcile(context, parts)
 
+    async def rank_health() -> None:
+        """Failed checks and stale keywords into the state (docs/21 section 9)."""
+        if SEO_RANK not in parts.workloads:
+            return
+        now = await database_time(context.sessions)
+        report = await refresh_health(context.sessions, now=now)
+        if not report.quiet:
+            _log.info("rank health refreshed", **asdict(report))
+
+    context.queues.register_scheduled("rank_health", rank_health, every=RANK_HEALTH_EVERY)
     context.queues.register_scheduled("balance_check", balance_check, cron=BALANCE_CHECK_AT)
     context.queues.register_scheduled("cost_reconcile", cost_reconcile, cron=COST_RECONCILE_AT)
 

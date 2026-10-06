@@ -624,6 +624,45 @@ async def test_a_project_with_unchecked_keywords_gets_one_planned_run(
     assert await _runs(migrated, quiet) == []
 
 
+async def test_only_the_steps_own_empty_run_holds_back_the_next(
+    worker_db: Ledger, migrated: PostgresServer, world: World
+) -> None:
+    """An empty window of a schedule, or a cancelled manual run, says nothing about whether new
+    keywords can be checked; the step's own run that planned nothing does (it would be made
+    again every minute)."""
+    project = world.project
+    await _tracked(migrated, project, "crm new")
+    schedule = await make_schedule(migrated, project, selector={"all": True})
+    for schedule_id, trigger, status, selector in (
+        (schedule, "schedule", "completed", "{}"),
+        (None, "manual", "cancelled", '{"selector": {"all": true}}'),
+    ):
+        await execute(
+            migrated,
+            "INSERT INTO ops.collection_runs (workspace_id, project_id, schedule_id, workload, "
+            "window_start, window_end, trigger, status, config_snapshot, created_at) "
+            "VALUES ($1, $2, $3, 'seo_rank', $4, $4, $5, $6, $7::jsonb, $4)",
+            project.workspace_id,
+            project.id,
+            schedule_id,
+            NOW - timedelta(hours=2),
+            trigger,
+            status,
+            selector,
+        )
+
+    first = await queue_new_keywords(worker_db, now=NOW)
+    await execute(
+        migrated,
+        "UPDATE ops.collection_runs SET status = 'completed' WHERE project_id = $1 "
+        'AND config_snapshot = \'{"selector": {"new": true}}\'::jsonb',
+        project.id,
+    )
+    again = await queue_new_keywords(worker_db, now=NOW + timedelta(hours=1))
+
+    assert (first, again) == (1, 0)
+
+
 async def test_a_run_blocked_by_a_budget_is_not_made_again_for_a_day(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:

@@ -537,8 +537,15 @@ async def queue_new_keywords(sessions: async_sessionmaker[AsyncSession], *, now:
         or_(
             r.status == "planned",
             and_(r.status == "budget_blocked", r.created_at >= now - NEW_KEYWORD_QUIET),
-            # A run that found nothing to check (no price, say) would be made again every minute.
-            and_(r.tasks_total == 0, r.created_at >= now - NEW_KEYWORD_QUIET),
+            # A new-keyword run that found nothing to check (no price, say) would be made again
+            # every minute. Only this step's own runs count: a schedule's empty window, a missed
+            # one or a cancelled manual run says nothing about whether new keywords can be checked.
+            and_(
+                r.tasks_total == 0,
+                r.created_at >= now - NEW_KEYWORD_QUIET,
+                r.schedule_id.is_(None),
+                r.config_snapshot["selector"]["new"].as_boolean().is_(True),
+            ),
         ),
     )
     async with sessions() as db, db.begin():

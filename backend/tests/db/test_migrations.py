@@ -166,6 +166,84 @@ def test_schedules_and_runs_from_before_the_ledger_revisions_are_carried_over(
     ) == ["True"]
 
 
+def test_projects_that_already_track_keywords_get_the_default_rank_schedule(
+    pg: PostgresServer,
+) -> None:
+    """0013 gives the schedule a first tracked keyword makes to every project that tracked
+    keywords before it: otherwise they would be checked once, as new keywords, and never again."""
+    url = _fresh_database(pg, "migrate_rank_schedules")
+    command.upgrade(alembic_config(url), "0012")
+    (workspace,) = _query(
+        url, "INSERT INTO auth.workspaces (name, slug) VALUES ('w', 'w') RETURNING id"
+    )
+    _query(
+        url,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) "
+        "VALUES (2840, 'United States', 'US', 'Country') RETURNING id",
+    )
+
+    def project(slug: str, zone: str = "UTC", status: str = "active", deleted: bool = False) -> str:
+        (project_id,) = _query(
+            url,
+            "INSERT INTO core.projects (workspace_id, name, slug, timezone, status, deleted_at) "
+            f"VALUES ('{workspace}', '{slug}', '{slug}', '{zone}', '{status}', "
+            f"{'now()' if deleted else 'NULL'}) RETURNING id",
+        )
+        return project_id
+
+    def track(project_id: str, text: str, active: bool = True) -> None:
+        (keyword,) = _query(
+            url,
+            "INSERT INTO seo.keywords (workspace_id, text, normalized_text, language_code) "
+            f"VALUES ('{workspace}', '{text}', '{text}', 'en') RETURNING id",
+        )
+        _query(
+            url,
+            "INSERT INTO seo.tracked_keywords (workspace_id, project_id, keyword_id, "
+            "location_id, language_code, device, is_active) "
+            f"VALUES ('{workspace}', '{project_id}', '{keyword}', 2840, 'en', 'desktop', "
+            f"{active}) RETURNING id",
+        )
+
+    tracking = project("tracking", "Asia/Kolkata")
+    track(tracking, "crm")
+    has_schedule = project("has-schedule")
+    track(has_schedule, "erp")
+    _query(
+        url,
+        "INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone, "
+        f"is_active, next_run_at) VALUES ('{workspace}', '{has_schedule}', 'seo_rank', 'Mine', "
+        "'daily', 'UTC', false, now() + interval '3 days') RETURNING id",
+    )
+    project("empty")
+    archived_only = project("archived-only")
+    track(archived_only, "hr", active=False)
+    track(project("paused", status="paused"), "payroll")
+    track(project("deleted", deleted=True), "benefits")
+
+    upgrade_to_head(url)
+
+    made = _query(
+        url,
+        "SELECT p.slug || '|' || s.name || '|' || s.cadence || '|' || s.window_start_local || '|' "
+        "|| s.window_hours || '|' || s.provider_mode || '|' || s.selector::text || '|' || "
+        "s.is_active FROM ops.schedules s JOIN core.projects p ON p.id = s.project_id "
+        "WHERE s.workload = 'seo_rank' ORDER BY p.slug",
+    )
+    assert made == [
+        "has-schedule|Mine|daily|02:00:00|6|standard_queue|{}|false",
+        'tracking|Daily rank checks|daily|02:00:00|6|standard_queue|{"all": true}|true',
+    ]
+    # The next 02:00 in the project's own time, within a day from now.
+    (next_run,) = _query(
+        url,
+        "SELECT ((next_run_at AT TIME ZONE 'Asia/Kolkata')::time = time '02:00' "
+        "AND next_run_at > now() AND next_run_at <= now() + interval '1 day 1 hour')::text "
+        f"FROM ops.schedules WHERE project_id = '{tracking}'",
+    )
+    assert next_run == "true"
+
+
 def test_concurrent_migrators_take_turns(pg: PostgresServer) -> None:
     """Four migrator processes against an empty database: the advisory lock makes them queue."""
     url = _fresh_database(pg, "migrate_race")

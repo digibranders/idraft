@@ -374,6 +374,33 @@ _STATE_WORKER_UPDATE = (
     "updated_at",
 )
 
+_DEFAULT_RANK_SCHEDULES = """
+INSERT INTO ops.schedules (workspace_id, project_id, workload, name, cadence, timezone,
+                           window_start_local, window_hours, provider_mode, selector, next_run_at)
+SELECT project.workspace_id, project.id, 'seo_rank', 'Daily rank checks', 'daily',
+       project.timezone, time '02:00', 6, 'standard_queue', '{"all": true}'::jsonb,
+       -- The next 02:00 in the project's own time.
+       CASE WHEN window_today > now() THEN window_today ELSE window_today + interval '1 day' END
+FROM core.projects project
+CROSS JOIN LATERAL (
+    SELECT (((now() AT TIME ZONE project.timezone)::date + time '02:00')
+            AT TIME ZONE project.timezone) AS window_today
+) local_window
+WHERE project.deleted_at IS NULL
+  AND project.status = 'active'
+  AND EXISTS (
+      SELECT 1 FROM seo.tracked_keywords tracked
+      WHERE tracked.project_id = project.id
+        AND tracked.workspace_id = project.workspace_id
+        AND tracked.deleted_at IS NULL
+        AND tracked.is_active)
+  AND NOT EXISTS (
+      SELECT 1 FROM ops.schedules existing
+      WHERE existing.project_id = project.id
+        AND existing.workspace_id = project.workspace_id
+        AND existing.workload = 'seo_rank')
+"""
+
 # docs/27-cost-model.md section 1, verified 2026-09-29: a page is 10 results.
 _SERP_ENDPOINT = "serp/google/organic"
 _SERP_PRICING_URL = "https://dataforseo.com/pricing/serp-api/google-serp-api"
@@ -454,6 +481,11 @@ def upgrade() -> None:
         "UPDATE ops.schedules SET next_run_at = greatest(next_run_at, now()) "
         "WHERE workload = 'seo_rank' AND deleted_at IS NULL"
     )
+    # A project that tracked keywords before this step has no rank schedule: they would be
+    # checked once, as new keywords, and never again. Give each the schedule a first keyword
+    # makes (`keywords.writer.ensure_rank_schedule`): daily at 02:00 project time, six hours,
+    # standard queue, every keyword. One a person made, paused or deleted is left as it is.
+    op.execute(_DEFAULT_RANK_SCHEDULES)
 
 
 def downgrade() -> None:

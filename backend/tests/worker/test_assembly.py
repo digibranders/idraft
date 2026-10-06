@@ -236,6 +236,8 @@ async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(
     assert schedules["cost_rebuild"].cron == "37 1 * * *"
     # The provider's balance every 15 minutes, and its spend against ours at 00:45 UTC (R11).
     assert schedules["balance_check"].cron == "*/15 * * * *"
+    # Failed rank checks and stale keywords reach the keyword state every ten minutes.
+    assert schedules["rank_health"].interval == 600
     assert schedules["cost_reconcile"].cron == "45 0 * * *"
 
 
