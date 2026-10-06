@@ -1402,6 +1402,7 @@
     "allMatchingSelected": "All {count} matching selected",
     "allMatchingAnnounced": "All {count} matching {noun} selected. Bulk actions apply to all of them.",
     "clearSelection": "Clear selection",
+    "moreActions": "More actions",
     "selectionCleared": "Selection cleared",
     "bulkActions": "Bulk actions, {selected}",
     "hiddenSelected": "{count, plural, one {# selected row is} other {# selected rows are}} hidden by filters",
@@ -1425,7 +1426,7 @@
     "widthValue": "{width} pixels",
     "close": "Close",
     "back": "Back to {page}",
-    "moreActions": "More actions",
+    "moreActionsFor": "More actions for {name}",
     "openPage": "Open page",
     "previous": "Previous {type}",
     "next": "Next {type}",
@@ -1613,6 +1614,11 @@
     "emptyFiltered": "No runs match these filters in {month}",
     "emptyFilteredReason": "Remove a filter to see more of the month's runs.",
     "clearFilters": "Clear filters",
+    "searchEmpty": {
+      "title": "No runs match “{query}” in {month}",
+      "reason": "Clear the search to see the month's runs again.",
+      "clear": "Clear search"
+    },
     "loadFailed": "The runs could not be loaded",
     "loadFailedReason": "The server returned an error. Your filters are unchanged.",
     "noAccessTitle": "You do not have access to Runs",
@@ -1706,6 +1712,11 @@
         "title": "Archive {count}?",
         "description": "Archived keywords are no longer checked and do not count against the plan. Their history is kept, and you can unarchive them.",
         "confirm": "Archive {count}"
+      },
+      "unarchiveConfirm": {
+        "title": "Unarchive {count}?",
+        "description": "Unarchived keywords are checked again and count against the plan. Their history and settings are kept.",
+        "confirm": "Unarchive {count}"
       },
       "archived": "{count} archived",
       "unarchived": "{count} unarchived",
@@ -1882,6 +1893,7 @@
       "discardDescription": "Nothing has been imported yet. The file and your choices are dropped.",
       "discardConfirm": "Stop import",
       "discardKeep": "Keep importing",
+      "started": "Import started. Its progress shows under the page title.",
       "progressText": "Importing keywords",
       "progressCounts": "{done} of {total} rows",
       "finished": "Import finished: {created} added, {skipped} skipped",
@@ -2126,6 +2138,8 @@
     "columns": {
       "keyword": "Keyword",
       "keywordDetail": "{location} · {device} · {engine} · {language}",
+      "rowName": "{keyword}, {device}, {location}",
+      "rowNameLanguage": "{keyword}, {device}, {location}, {language}",
       "desktop": "Desktop",
       "mobile": "Mobile",
       "google": "Google",

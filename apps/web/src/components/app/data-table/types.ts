@@ -10,6 +10,11 @@ export interface RecordAction<TRow> {
   label: string;
   icon?: LucideIcon | undefined;
   group: 'open' | 'object' | 'copy' | 'destructive';
+  /**
+   * How the action is drawn. The destructive group draws destructive; an action that belongs last but loses
+   * nothing (Archive, which has Undo) sets `default` to stay neutral.
+   */
+  tone?: 'default' | 'destructive' | undefined;
   /** Shown in place of a shortcut; the item stays focusable. */
   disabledReason?: string | null | undefined;
   /**
@@ -18,6 +23,16 @@ export interface RecordAction<TRow> {
    * the filters, not ids.
    */
   onSelect: (rows: readonly TRow[], scope: ActionScope) => void;
+}
+
+/** A cell's tooltip text. */
+export interface CellTip {
+  /** The first line. */
+  content: string;
+  /** A second line in a lighter color. */
+  detail?: string | undefined;
+  /** What assistive technology reads after the cell's own text; the lines of the tooltip when not given. */
+  description?: string | undefined;
 }
 
 /** The actions of a row's menu: the same for every row, or chosen by the row. */
@@ -40,6 +55,12 @@ export interface DataTableColumn<TRow> {
   header: string;
   /** The definition of an abbreviated or methodological header ("KD", "Volume" as an estimate). */
   headerTooltip?: string | undefined;
+  /**
+   * The tooltip of a row's cell, when it has one (the reason for "Pending", the detail of a keyword). The
+   * table puts it on the cell itself, which is what holds the focus: it opens when the cell takes keyboard
+   * focus and is the cell's description for assistive technology.
+   */
+  cellTip?: ((row: TRow) => CellTip | undefined) | undefined;
   priority: ColumnPriority;
   /** The screen's default width, between the type's minimum and maximum. */
   width?: number | undefined;

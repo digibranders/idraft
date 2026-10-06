@@ -162,7 +162,6 @@ export function useMetricsRefresh({
       setStarted((previous) => (previous.includes(run.run_id) ? previous : [...previous, run.run_id]));
       // The bar that shows the run says nothing when it first appears, only when its status changes
       announce(t('progress.started'));
-      // The bar that shows the run says nothing when it first appears, only when its status changes
     },
     [queryClient, scope, refetch, t],
   );

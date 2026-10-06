@@ -94,7 +94,10 @@ type User = ReturnType<typeof renderWithProviders>['user'];
 /** Ticks the rows of these keywords and answers the bulk bar. */
 async function choose(user: User, ...keywords: string[]): Promise<HTMLElement> {
   await loadedGrid();
-  for (const keyword of keywords) await user.click(screen.getByRole('checkbox', { name: `Select ${keyword}` }));
+  // A row's name goes on after the keyword: its device and location
+  for (const keyword of keywords) {
+    await user.click(screen.getByRole('checkbox', { name: new RegExp(`^Select ${keyword},`) }));
+  }
   return screen.getByRole('group', { name: /Bulk actions/ });
 }
 
@@ -331,6 +334,41 @@ describe('Bulk actions', () => {
     ).not.toHaveLength(0);
   });
 
+  it('asks before unarchiving more than 100 keywords, with the count, and sends nothing when it is cancelled', async () => {
+    answerTrackedAsMany({ total: 12_000 });
+    const seen = writes();
+    const { user } = renderWithProviders(as('editor'), { searchParams: '?archived=true' });
+    await loadedGrid();
+    await user.click(screen.getByRole('checkbox', { name: /^Select all/ }));
+    const bar = screen.getByRole('group', { name: /Bulk actions/ });
+    await user.click(within(bar).getByRole('button', { name: 'Select all 12,000 matching' }));
+    await user.click(within(bar).getByRole('button', { name: 'Unarchive' }));
+    const asking = await screen.findByRole('alertdialog', { name: 'Unarchive 12,000 keywords?' });
+    expect(asking).toHaveAccessibleDescription(/count against the plan/);
+    await user.click(within(asking).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(seen.filter((write) => write.route === 'bulk-archive')).toHaveLength(0);
+    await user.click(
+      within(screen.getByRole('group', { name: /Bulk actions/ })).getByRole('button', { name: 'Unarchive' }),
+    );
+    const confirm = await screen.findByRole('alertdialog', { name: 'Unarchive 12,000 keywords?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Unarchive 12,000 keywords' }));
+    await waitFor(() => expect(seen.some((write) => write.route === 'bulk-archive')).toBe(true));
+    expect(seen.find((write) => write.route === 'bulk-archive')?.body).toMatchObject({ archive: false });
+    expect(await screen.findByText(/unarchived$/)).toBeInTheDocument();
+  }, 20_000);
+
+  it('draws Archive in the bar neutral and Delete destructive, both last', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const bar = await choose(user, 'seo agency');
+    const names = within(bar)
+      .getAllByRole('button')
+      .map((button) => button.textContent);
+    expect(names.slice(-3)).toEqual(['Archive', 'Delete', '']);
+    expect(within(bar).getByRole('button', { name: 'Archive' }).className).not.toContain('negative');
+    expect(within(bar).getByRole('button', { name: 'Delete' }).className).toContain('negative');
+  });
+
   it('says when the filters match too many keywords for one change', async () => {
     answerTrackedAsMany({ total: 25_000 });
     server.use(
@@ -361,7 +399,7 @@ describe('Bulk actions', () => {
     let bar = screen.getByRole('group', { name: /Bulk actions/ });
     await user.click(within(bar).getByRole('button', { name: 'Select all 12,000 matching' }));
     // Unticking one row means the chosen rows, not every match, and never the one unticked
-    await user.click(screen.getAllByRole('checkbox', { name: 'Select seo agency' })[0] ?? bar);
+    await user.click(screen.getAllByRole('checkbox', { name: 'Select seo agency, desktop, United States' })[0] ?? bar);
     bar = screen.getByRole('group', { name: /Bulk actions/ });
     expect(within(bar).queryByText(/All 12,000 matching selected/)).toBeNull();
     await user.click(within(bar).getByRole('button', { name: 'Delete' }));
@@ -385,7 +423,7 @@ describe('Bulk actions', () => {
     await user.click(screen.getByRole('radio', { name: 'Active' }));
     await loadedGrid();
     expect(screen.queryByRole('group', { name: /Bulk actions/ })).toBeNull();
-    expect(screen.getByRole('checkbox', { name: 'Select seo agency' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).not.toBeChecked();
   });
 
   it('returns focus to the grid once a dialog made its change', async () => {
@@ -401,6 +439,6 @@ describe('Bulk actions', () => {
   it('offers no choosing to a member who may not change keywords', async () => {
     renderWithProviders(as('viewer'));
     await loadedGrid();
-    expect(screen.queryByRole('checkbox', { name: 'Select seo agency' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeNull();
   });
 });

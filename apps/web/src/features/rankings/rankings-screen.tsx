@@ -12,7 +12,7 @@ import { useBulkActions } from './bulk/bulk-actions';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
 import { ImportProgress } from './import/import-progress';
 import { forgetWritingImport, useWritingImport } from './import/import-queries';
-import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
+import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns, useKeywordRowName } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
 import {
@@ -42,6 +42,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { toast } from '@/components/ui/toast';
+import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
@@ -141,6 +142,7 @@ export function RankingsScreen({
   });
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
   const columns = useKeywordColumns(timeZone);
+  const rowName = useKeywordRowName(defaults.languageCode);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
     const parsed = parseSort(view.sort, SORT_FIELDS);
@@ -169,9 +171,14 @@ export function RankingsScreen({
   const followedImports = [...startedImports, ...(writingNow === null ? [] : [writingNow])].filter(
     (importId, index, all) => !endedImports.has(importId) && all.indexOf(importId) === index,
   );
-  const onImportConfirmed = useCallback((importId: string): void => {
-    setStartedImports((started) => (started.includes(importId) ? started : [...started, importId]));
-  }, []);
+  const onImportConfirmed = useCallback(
+    (importId: string): void => {
+      setStartedImports((started) => (started.includes(importId) ? started : [...started, importId]));
+      // The bar that shows the import says nothing when it first appears, only when it ends
+      announce(t('import.started'));
+    },
+    [t],
+  );
   const onImportSettled = useCallback(
     (importId: string): void => {
       setEndedImports((ended) => new Set(ended).add(importId));
@@ -508,7 +515,7 @@ export function RankingsScreen({
             onSearchChange={(next) => void setView({ q: next === '' ? null : next })}
             searchPlaceholder={t('search')}
             searchText={list.mode === 'server' ? undefined : keywordText}
-            rowName={keywordText}
+            rowName={rowName}
             status={status}
             errorState={
               <InlineError

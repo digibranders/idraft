@@ -108,7 +108,8 @@ type User = ReturnType<typeof renderWithProviders>['user'];
 /** Ticks the rows of these keywords and opens "Move to group". */
 async function openMove(user: User, keyword: string): Promise<HTMLElement> {
   await loadedGrid();
-  await user.click(screen.getByRole('checkbox', { name: `Select ${keyword}` }));
+  // A row's name goes on after the keyword: its device and location
+  await user.click(screen.getByRole('checkbox', { name: new RegExp(`^Select ${keyword},`) }));
   const bar = screen.getByRole('group', { name: /Bulk actions/ });
   await user.click(within(bar).getByRole('button', { name: 'Move to group' }));
   return screen.findByRole('dialog', { name: 'Move 1 keyword' });

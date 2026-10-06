@@ -16,11 +16,12 @@ import {
   type ReactNode,
 } from 'react';
 
+import { toneOf } from './action-tone';
 import { BulkActionBar } from './bulk-action-bar';
 import { ColumnChooser } from './column-chooser';
 import { TableFooter } from './table-footer';
 import { DataTableToolbar } from './toolbar';
-import type { ActionScope, DataTableColumn, DataTableProps, RecordAction, RowActions } from './types';
+import type { ActionScope, CellTip, DataTableColumn, DataTableProps, RecordAction, RowActions } from './types';
 import { useSortedRows } from './use-sorted-rows';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Icon } from '@/components/ui/icon';
@@ -81,7 +82,7 @@ const toMenuItem = <TRow,>(action: RecordAction<TRow>, rows: readonly TRow[], sc
   id: action.id,
   label: action.label,
   icon: action.icon,
-  tone: action.group === 'destructive' ? 'destructive' : 'default',
+  tone: toneOf(action),
   disabledReason: action.disabledReason ?? undefined,
   onSelect: () => action.onSelect(rows, scope),
 });
@@ -640,6 +641,18 @@ export function DataTable<TRow extends RowData>({
   const trailingGap = gaps[ranges.length] ?? 0;
   if (trailingGap > 0) bodyItems.push({ kind: 'gap', key: 'gap-end', height: trailingGap });
 
+  // The tooltips of headers and cells: shown on the cell they are about, and read from a hidden description
+  // outside the table, so the cell's own text stays what it names the cell by (20 section 6.3)
+  const descriptions: { id: string; text: string }[] = [];
+  const describe = (position: string, tip: CellTip): string => {
+    const id = `${gridId}-tip-${position}`;
+    descriptions.push({
+      id,
+      text: tip.description ?? (tip.detail === undefined ? tip.content : `${tip.content} ${tip.detail}`),
+    });
+    return id;
+  };
+
   const bodyMessage = (content: ReactNode): ReactElement => (
     <tr role="row" aria-rowindex={2}>
       <td role="gridcell" colSpan={grid.length} className="p-0">
@@ -736,11 +749,15 @@ export function DataTable<TRow extends RowData>({
               {grid.map((column, index) => {
                 const left = stickyLeft(column);
                 const sortKey = column.kind === 'data' ? sort.find((key) => key.id === column.column.id) : undefined;
-                return (
+                const definition = column.kind === 'data' ? column.column.headerTooltip : undefined;
+                const header = (
                   <th
                     key={keyOf(column)}
                     role="columnheader"
                     scope="col"
+                    aria-describedby={
+                      definition === undefined ? undefined : describe(`h${String(index)}`, { content: definition })
+                    }
                     {...cellProps(-1, index)}
                     aria-sort={
                       column.kind === 'data' && primarySort?.id === column.column.id
@@ -789,6 +806,13 @@ export function DataTable<TRow extends RowData>({
                       <span className="sr-only">{t('actionsColumn')}</span>
                     )}
                   </th>
+                );
+                return definition === undefined ? (
+                  header
+                ) : (
+                  <Tooltip key={keyOf(column)} content={definition} side="bottom" purpose="label">
+                    {header}
+                  </Tooltip>
                 );
               })}
             </tr>
@@ -858,11 +882,17 @@ export function DataTable<TRow extends RowData>({
                               const first = columnIndex === 0;
                               const identity = column.kind === 'data' && column.column.identity === true;
                               const Cell = cellTag(identity);
-                              return (
+                              const tip = column.kind === 'data' ? column.column.cellTip?.(row) : undefined;
+                              const cellNode = (
                                 <Cell
                                   key={keyOf(column)}
                                   role={identity ? 'rowheader' : 'gridcell'}
                                   scope={identity ? ROW_SCOPE : undefined}
+                                  aria-describedby={
+                                    tip === undefined
+                                      ? undefined
+                                      : describe(`${String(index)}-${String(columnIndex)}`, tip)
+                                  }
                                   {...cellProps(index, columnIndex)}
                                   style={left === null ? undefined : { left }}
                                   className={cn(
@@ -921,12 +951,26 @@ export function DataTable<TRow extends RowData>({
                                   )}
                                 </Cell>
                               );
+                              return tip === undefined ? (
+                                cellNode
+                              ) : (
+                                <Tooltip key={keyOf(column)} content={tip.content} detail={tip.detail} purpose="label">
+                                  {cellNode}
+                                </Tooltip>
+                              );
                             })}
                           </tr>
                         );
                       })}
           </tbody>
         </table>
+      </div>
+      <div hidden>
+        {descriptions.map((description) => (
+          <span key={description.id} id={description.id}>
+            {description.text}
+          </span>
+        ))}
       </div>
       {/* No count while the first rows load: "0 keywords" would be wrong */}
       <TableFooter countText={status === 'loading' ? null : footerCount} note={footerNote} server={server} />
@@ -976,13 +1020,7 @@ function HeaderContent<TRow>({
           onClick={(event) => onSort(event.shiftKey)}
           className={cn('flex min-w-0 items-center gap-1 rounded-sm', right && 'flex-row-reverse')}
         >
-          {column.headerTooltip === undefined ? (
-            label
-          ) : (
-            <Tooltip content={column.headerTooltip} side="bottom">
-              {label}
-            </Tooltip>
-          )}
+          {label}
           {sortKey === null ? null : (
             <Icon
               icon={sortKey.desc ? ArrowDownWideNarrow : ArrowUpNarrowWide}

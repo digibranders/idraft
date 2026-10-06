@@ -332,7 +332,7 @@ describe('Who sees Refresh metrics', () => {
     serveRuns({ used: 0, open: [] });
     const { user, unmount } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
     const names = within(bar)
       .getAllByRole('button')
@@ -343,7 +343,7 @@ describe('Who sees Refresh metrics', () => {
     unmount();
     renderWithProviders(as('analyst'));
     await loadedGrid();
-    expect(screen.queryByRole('checkbox', { name: 'Select seo agency' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeNull();
   });
 });
 
@@ -379,8 +379,8 @@ describe('What the dialog refreshes', () => {
     const sent = serveRefresh(() => accepted(run()));
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany' }));
     const dialog = await openRefresh(user);
     expect(within(dialog).getByRole('radio', { name: 'The 2 chosen keywords' })).toBeChecked();
     await submit(user, dialog, 'Refresh metrics for 2 keywords');
@@ -390,7 +390,7 @@ describe('What the dialog refreshes', () => {
     expect(sent.bodies[0]).toEqual({ keyword_ids: [first.keyword, second.keyword] });
     expect(first.keyword).not.toBe(first.tracked);
     // The choice is kept: the chosen rows stay chosen
-    expect(screen.getByRole('checkbox', { name: 'Select seo agency' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeChecked();
   });
 
   it('opens from the bulk bar for the same keywords', async () => {
@@ -399,7 +399,7 @@ describe('What the dialog refreshes', () => {
     const sent = serveRefresh(() => accepted(run()));
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
     const bar = screen.getByRole('group', { name: /Bulk actions/ });
     await user.click(within(bar).getByRole('button', { name: 'Refresh metrics' }));
     const dialog = await screen.findByRole('dialog', { name: 'Refresh metrics' });
@@ -478,11 +478,13 @@ describe('What the dialog refreshes', () => {
     const sent = serveRefresh(() => accepted(run()));
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     // The second page holds the same keywords under ids of their own: the first page's choice is not ticked
-    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Select seo agency' })).not.toBeChecked());
-    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker' }));
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).not.toBeChecked(),
+    );
+    await user.click(screen.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany' }));
     const dialog = await openRefresh(user);
     expect(within(dialog).getByRole('radio', { name: 'The 2 chosen keywords' })).toBeChecked();
     await submit(user, dialog, 'Refresh metrics for 2 keywords');
@@ -575,7 +577,7 @@ describe('What the dialog refreshes', () => {
     serveRuns({ used: 0, open: [] });
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
     const dialog = await openRefresh(user);
     expect(within(dialog).getByRole('radio', { name: 'The chosen keyword' })).toBeChecked();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -587,7 +589,7 @@ describe('What the dialog refreshes', () => {
     serveRuns({ used: 0, open: [] });
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
     const dialog = await openRefresh(user);
     const hint = 'A keyword is read at every location and language it is tracked in.';
     expect(within(dialog).getByText(hint)).toBeInTheDocument();
@@ -681,7 +683,8 @@ describe('When the API does not take the refresh', () => {
     const { user } = renderWithProviders(as('editor'));
     await loadedGrid();
     for (const name of ['seo agency', 'backlink checker', 'crawl budget']) {
-      await user.click(screen.getByRole('checkbox', { name: `Select ${name}` }));
+      // A row's name goes on after the keyword: its device and location
+      await user.click(screen.getByRole('checkbox', { name: new RegExp(`^Select ${name},`) }));
     }
     // Another member archives one of the three while the dialog is open
     const dialog = await openRefresh(user);
@@ -697,8 +700,12 @@ describe('When the API does not take the refresh', () => {
     // The list is read again, and the keyword that left it is no longer chosen, here or in the table
     await waitFor(() => expect(within(dialog).getByRole('radio', { name: 'The 2 chosen keywords' })).toBeChecked());
     // The table is behind the dialog, which leaves it out of the accessibility tree
-    expect(screen.getByRole('checkbox', { name: 'Select seo agency', hidden: true })).toBeChecked();
-    expect(screen.queryByRole('checkbox', { name: 'Select backlink checker', hidden: true })).toBeNull();
+    expect(
+      screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', hidden: true }),
+    ).toBeChecked();
+    expect(
+      screen.queryByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', hidden: true }),
+    ).toBeNull();
 
     await submit(user, dialog, 'Refresh metrics for 2 keywords');
     await waitFor(() => expect(sent.bodies).toHaveLength(2));
@@ -1200,7 +1207,7 @@ describe('Keywords that wait for their first metrics', () => {
     expect(waiting).toBeGreaterThanOrEqual(3);
     await waitFor(() => expect(listReads()).toBeGreaterThan(0));
     const loaded = listReads();
-    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' }));
 
     await act(() => vi.advanceTimersByTimeAsync(29_000));
     expect(poll.polls()).toBe(0);
@@ -1215,7 +1222,7 @@ describe('Keywords that wait for their first metrics', () => {
     await waitFor(() => expect(poll.polls()).toBe(2));
     await waitFor(() => expect(pending(grid)).toBe(0));
     // The chosen row is still chosen, and no page of the list was read again
-    expect(screen.getByRole('checkbox', { name: 'Select seo agency' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop, United States' })).toBeChecked();
     expect(listReads()).toBe(loaded);
 
     // None is left: the polling stops

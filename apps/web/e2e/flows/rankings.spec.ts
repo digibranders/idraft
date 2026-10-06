@@ -87,8 +87,8 @@ test.describe('rankings', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix/seo/rankings');
-    await page.getByRole('checkbox', { name: 'Select seo agency', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'Select backlink checker', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await expect(bar.getByText('2 selected')).toBeVisible();
     await bar.getByRole('button', { name: 'Set priority' }).click();
@@ -101,6 +101,39 @@ test.describe('rankings', () => {
     await expect(bar).toBeHidden();
   });
 
+  test('the bulk bar at 1280 px with the inspector open keeps every action in sight, Archive and Delete in the More menu', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await grid.getByRole('rowheader').first().click();
+    await expect(page.getByRole('complementary', { name: 'seo agency' })).toBeVisible();
+    await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
+    const bar = page.getByRole('group', { name: /Bulk actions/ });
+    await expect(bar.getByText('1 selected')).toBeVisible();
+
+    // Every control the bar shows is inside it and in view, so none is clipped yet reachable by Tab
+    const barBox = await bar.boundingBox();
+    if (barBox === null) throw new Error('The bulk bar has no box');
+    for (const button of await bar.getByRole('button').all()) {
+      const box = await button.boundingBox();
+      if (box === null) throw new Error('A button of the bulk bar has no box');
+      expect(box.x).toBeGreaterThanOrEqual(barBox.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(barBox.x + barBox.width + 1);
+      await expect(button).toBeInViewport({ ratio: 1 });
+    }
+
+    // What did not fit is in the More menu, with Delete last
+    await bar.getByRole('button', { name: 'More actions' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Archive' })).toBeVisible();
+    const items = await page.getByRole('menuitem').allTextContents();
+    expect(items.at(-1)).toBe('Delete');
+    await page.keyboard.press('Escape');
+    await expectAccessible(page);
+  });
+
   test('chosen keywords move to a group, are archived, and come back with Undo', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
@@ -111,8 +144,8 @@ test.describe('rankings', () => {
       grid.getByRole('row').filter({ has: page.getByRole('rowheader', { name: new RegExp(`^${keyword}`) }) });
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     const choose = async (): Promise<void> => {
-      await page.getByRole('checkbox', { name: 'Select seo agency', exact: true }).click();
-      await page.getByRole('checkbox', { name: 'Select backlink checker', exact: true }).click();
+      await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
+      await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
       await expect(bar.getByText('2 selected')).toBeVisible();
     };
 
@@ -145,8 +178,8 @@ test.describe('rankings', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix/seo/rankings');
-    await page.getByRole('checkbox', { name: 'Select seo agency', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'Select backlink checker', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await bar.getByRole('button', { name: 'Move to group' }).click();
     const move = page.getByRole('dialog', { name: 'Move 2 keywords' });

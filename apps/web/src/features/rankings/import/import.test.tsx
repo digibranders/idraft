@@ -409,6 +409,21 @@ describe('Import progress', () => {
   });
 
   it(
+    'announces that the import started, which the bar does not say when it first shows',
+    async () => {
+      const { user } = renderWithProviders(<Controlled changes={[]} />);
+      await loadedGrid();
+      await importPaste(user, 'rank tracker api\nbacklink watcher', 'Import 2 keywords');
+      await waitFor(() =>
+        expect(document.getElementById('live-region-polite')).toHaveTextContent(
+          'Import started. Its progress shows under the page title.',
+        ),
+      );
+    },
+    WRITE_TEST,
+  );
+
+  it(
     'follows the write in the header, then offers the report and shows the new keywords',
     async () => {
       const clicked: { href: string | null; download: string }[] = [];

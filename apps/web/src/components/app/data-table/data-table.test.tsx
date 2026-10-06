@@ -1,10 +1,10 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { useState, type ReactElement } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 import { col } from './columns';
 import { DataTable } from './data-table';
-import type { RecordAction, RowActions, ServerPaging, TableStatus } from './types';
+import type { DataTableColumn, RecordAction, RowActions, ServerPaging, TableStatus } from './types';
 import type { Density, SortKey } from '@/lib/tables/table-state';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
@@ -60,13 +60,19 @@ function Harness({
   server,
   onRowOrderChange,
   rowActions = ACTIONS,
+  bulkActions = ACTIONS,
+  rowName = keywordOf,
+  columns = COLUMNS,
 }: {
+  columns?: readonly DataTableColumn<Row>[];
   rows: Row[];
   status?: TableStatus;
   matchingTotal?: number | null;
   server?: ServerPaging;
   onRowOrderChange?: (ids: readonly string[]) => void;
   rowActions?: RowActions<Row>;
+  bulkActions?: readonly RecordAction<Row>[];
+  rowName?: (row: Row) => string;
 }): ReactElement {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
   const [density, setDensity] = useState<Density>('default');
@@ -79,7 +85,7 @@ function Harness({
       <DataTable<Row>
         caption="Keywords"
         itemNoun={{ one: 'keyword', other: 'keywords' }}
-        columns={COLUMNS}
+        columns={columns}
         getRowId={rowId}
         rows={rows}
         total={server === undefined ? rows.length : 4812}
@@ -101,9 +107,9 @@ function Harness({
           allMatching,
           onAllMatchingChange: setAllMatching,
         }}
-        bulkActions={ACTIONS}
+        bulkActions={bulkActions}
         rowActions={rowActions}
-        rowName={(row) => row.keyword}
+        rowName={rowName}
         onRowOpen={onOpen}
         onRowOrderChange={onRowOrderChange}
         status={status}
@@ -115,11 +121,15 @@ function Harness({
   );
 }
 
+/** The width the bulk bar's action area is given; the grid's region is always 1600 px. */
+let actionsWidth = 1600;
+
 class FixedResizeObserver {
   constructor(private readonly callback: ResizeObserverCallback) {}
   observe(target: Element): void {
+    const inBar = target instanceof HTMLElement && target.dataset.slot === 'bulk-actions';
     this.callback(
-      [{ target, contentRect: { width: 1600, height: 480 } } as unknown as ResizeObserverEntry],
+      [{ target, contentRect: { width: inBar ? actionsWidth : 1600, height: 480 } } as unknown as ResizeObserverEntry],
       this as unknown as ResizeObserver,
     );
   }
@@ -128,6 +138,7 @@ class FixedResizeObserver {
 }
 
 beforeEach(() => {
+  actionsWidth = 1600;
   onOpen.mockReset();
   archive.mockReset();
   vi.stubGlobal('ResizeObserver', FixedResizeObserver);
@@ -147,6 +158,7 @@ afterEach(() => {
 
 const grid = (): HTMLElement => screen.getByRole('grid', { name: 'Keywords' });
 const bulkBar = (): HTMLElement => screen.getByRole('group', { name: /Bulk actions/ });
+const tooltip = (): Element | null => document.querySelector('[data-slot="tooltip"]');
 const bodyKeywords = (): string[] =>
   within(grid())
     .getAllByRole('rowheader')
@@ -395,5 +407,137 @@ describe('DataTable', () => {
     await user.keyboard('{Shift>}{F10}{/Shift}');
     await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
     expect(archive).toHaveBeenCalledWith([expect.objectContaining({ id: 'k2' })], expect.anything());
+  });
+});
+
+/** Five bulk actions in the order the bar draws them; Archive is neutral and Delete is the one destructive. */
+const MANY_ACTIONS: RecordAction<Row>[] = [
+  { id: 'open', label: 'Open', group: 'open', onSelect: vi.fn() },
+  { id: 'tags', label: 'Add tags', group: 'object', onSelect: vi.fn() },
+  { id: 'priority', label: 'Set priority', group: 'object', onSelect: vi.fn() },
+  { id: 'archive', label: 'Archive', group: 'destructive', tone: 'default', onSelect: archive },
+  { id: 'delete', label: 'Delete', group: 'destructive', onSelect: vi.fn() },
+];
+
+describe('DataTable bulk bar width', () => {
+  let width: MockInstance<() => number>;
+  beforeEach(() => {
+    // Every button and the More button measure 100 px
+    width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100);
+  });
+  afterEach(() => width.mockRestore());
+
+  const barButtons = (): string[] =>
+    within(bulkBar())
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label') ?? button.textContent);
+
+  it('keeps every action a button when the bar is wide', async () => {
+    actionsWidth = 1000;
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} bulkActions={MANY_ACTIONS} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 001' }));
+    expect(barButtons()).toEqual(['Open', 'Add tags', 'Set priority', 'Archive', 'Delete', 'Clear selection']);
+    expect(within(bulkBar()).queryByRole('button', { name: 'More actions' })).toBeNull();
+  });
+
+  it('moves the actions that do not fit into a More actions menu, destructive ones last, and keeps all reachable', async () => {
+    // Two buttons, a gap and the More button fit in 320 px; five buttons need 532
+    actionsWidth = 320;
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} bulkActions={MANY_ACTIONS} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 001' }));
+    expect(barButtons()).toEqual(['Open', 'Add tags', 'More actions', 'Clear selection']);
+    await user.click(within(bulkBar()).getByRole('button', { name: 'More actions' }));
+    expect((await screen.findAllByRole('menuitem')).map((item) => item.textContent)).toEqual([
+      'Set priority',
+      'Archive',
+      'Delete',
+    ]);
+    await user.click(screen.getByRole('menuitem', { name: 'Archive' }));
+    expect(archive).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'k1' })],
+      expect.objectContaining({ allMatching: false }),
+    );
+  });
+
+  it('leaves only the More button when not even one action fits, and draws Archive neutral and Delete destructive', async () => {
+    actionsWidth = 120;
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} bulkActions={MANY_ACTIONS} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 001' }));
+    expect(barButtons()).toEqual(['More actions', 'Clear selection']);
+    await user.click(within(bulkBar()).getByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Delete' })).toHaveClass('text-negative-text');
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).not.toHaveClass('text-negative-text');
+  });
+
+  it('draws an action with a neutral tone as a secondary button even in the destructive group', async () => {
+    actionsWidth = 1000;
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} bulkActions={MANY_ACTIONS} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 001' }));
+    expect(within(bulkBar()).getByRole('button', { name: 'Archive' }).className).not.toContain('negative');
+    expect(within(bulkBar()).getByRole('button', { name: 'Delete' }).className).toContain('negative');
+  });
+});
+
+describe('DataTable cell descriptions', () => {
+  const DESCRIBED = [
+    col.keyword<Row>('keyword', (row) => row.keyword, {
+      header: 'Keyword',
+      detail: (row) => `Berlin, desktop, Google, English for ${row.keyword}`,
+    }),
+    col.volume<Row>('volume', (row) => row.volume, {
+      header: 'Volume',
+      priority: 1,
+      headerTooltip: 'Monthly searches, an estimate',
+      unknown: () => ({ label: 'Pending', tooltip: 'Labs has not answered yet' }),
+    }),
+  ];
+
+  it('describes a header by the header cell, which is what holds the focus', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={DESCRIBED} />);
+    expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveAccessibleDescription(
+      'Monthly searches, an estimate',
+    );
+  });
+
+  it('describes a row header and an unknown value by their cells', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={DESCRIBED} />);
+    const first = within(grid()).getAllByRole('rowheader')[0];
+    expect(first).toHaveAccessibleDescription('Berlin, desktop, Google, English for keyword 002');
+    const pending = within(grid())
+      .getAllByRole('gridcell')
+      .find((cell) => cell.textContent === 'Pending');
+    expect(pending).toHaveAccessibleDescription('Labs has not answered yet');
+  });
+
+  it('keeps the text of a cell to its value, so the descriptions add nothing to what a cell reads', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={DESCRIBED} />);
+    expect(bodyKeywords()).toEqual(['keyword 002', 'keyword 000', 'keyword 001']);
+  });
+
+  it('opens the tooltip of a header and of a cell when the keyboard focuses it', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} columns={DESCRIBED} />);
+    for (let presses = 0; presses < 6 && !grid().contains(document.activeElement); presses += 1) {
+      await user.tab();
+    }
+    await user.keyboard('{ArrowRight}');
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveFocus();
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Monthly searches, an estimate'));
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{ArrowLeft}');
+    expect(within(grid()).getAllByRole('rowheader')[0]).toHaveFocus();
+    await waitFor(() => expect(tooltip()).toHaveTextContent('Berlin, desktop, Google, English for keyword 002'));
+  });
+
+  it('gives two rows of one keyword the names their row name gives, in the checkbox and the row menu', () => {
+    const rows = [
+      { id: 'a', keyword: 'seo agency', volume: 10, difficulty: 1 },
+      { id: 'b', keyword: 'seo agency', volume: 10, difficulty: 1 },
+    ];
+    renderWithProviders(
+      <Harness rows={rows} rowName={(row) => `${row.keyword}, ${row.id === 'a' ? 'desktop' : 'mobile'}`} />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, desktop' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select seo agency, mobile' })).toBeInTheDocument();
   });
 });

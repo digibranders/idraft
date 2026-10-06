@@ -52,6 +52,34 @@ describe('Rankings', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('names the rows of one keyword apart by device and location, and by language when it is not the project’s', async () => {
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    expect(
+      within(grid).getByRole('checkbox', { name: 'Select seo agency berlin, desktop, Germany' }),
+    ).toBeInTheDocument();
+    expect(
+      within(grid).getByRole('checkbox', { name: 'Select seo agency berlin, mobile, Germany' }),
+    ).toBeInTheDocument();
+    expect(
+      within(grid).getByRole('checkbox', { name: 'Select seo agentur berlin, desktop, Germany, German' }),
+    ).toBeInTheDocument();
+  });
+
+  it('describes a keyword’s row header by where, on what device and in which language it is tracked', async () => {
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const header = within(grid).getAllByRole('rowheader')[0];
+    expect(header).toHaveAccessibleDescription('United States · Desktop · Google · English');
+    expect(screen.getByRole('columnheader', { name: /KD/ })).toHaveAccessibleDescription(
+      'Keyword difficulty, from 0 to 100',
+    );
+    const pending = within(grid)
+      .getAllByRole('gridcell')
+      .find((cell) => cell.textContent === 'Pending');
+    expect(pending).toHaveAccessibleDescription('Metrics arrive within minutes of adding a keyword');
+  });
+
   it('writes a sort from a header into the URL, and leaves the default out', async () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });

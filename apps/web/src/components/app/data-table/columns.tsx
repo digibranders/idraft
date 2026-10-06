@@ -1,9 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
 
-import type { ColumnPriority, DataTableColumn } from './types';
+import type { CellTip, ColumnPriority, DataTableColumn } from './types';
 import { CollectionStatusIcon, type CollectionStatus } from '@/components/app/status/collection-progress';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip } from '@/components/ui/tooltip';
 import { Truncate } from '@/components/ui/truncate';
 import { EMPTY_VALUE, formatCurrency, formatInteger, formatTableDateTime } from '@/lib/format';
 import { COLUMN_TYPES, type ColumnType } from '@/lib/tables/column-types';
@@ -42,12 +41,14 @@ function base<TRow>(
   options: Options,
   cell: (row: TRow) => ReactNode,
   sortValue: ((row: TRow) => string | number | null) | undefined,
+  cellTip?: ((row: TRow) => CellTip | undefined) | undefined,
 ): DataTableColumn<TRow> {
   return {
     id,
     type,
     header: options.header,
     headerTooltip: options.headerTooltip,
+    cellTip,
     priority: options.priority ?? 1,
     width: clampWidth(type, options.width),
     defaultVisible: options.defaultVisible ?? true,
@@ -56,19 +57,14 @@ function base<TRow>(
   };
 }
 
-/** A missing value: `n/a`, or the column's own word for it, in tertiary text with its reason on hover. */
+/** A missing value: `n/a`, or the column's own word for it, in tertiary text. Its reason is the cell's tooltip. */
 function Unknown({ value }: { value: UnknownValue }): ReactElement {
-  const text = <span className="text-foreground-tertiary">{value.label}</span>;
-  return value.tooltip === undefined ? (
-    text
-  ) : (
-    <Tooltip content={value.tooltip}>
-      <span className="text-foreground-tertiary" tabIndex={-1}>
-        {value.label}
-      </span>
-    </Tooltip>
-  );
+  return <span className="text-foreground-tertiary">{value.label}</span>;
 }
+
+/** The tooltip of a cell that shows a missing value: the reason, when the column gives one. */
+const reasonTip = (value: UnknownValue | undefined): CellTip | undefined =>
+  value?.tooltip === undefined ? undefined : { content: value.tooltip };
 
 const NOT_AVAILABLE: UnknownValue = { label: EMPTY_VALUE };
 
@@ -86,18 +82,19 @@ export const col = {
         options,
         (row) => {
           const value = text(row);
-          const detail = options.detail?.(row);
-          return detail === undefined ? (
+          // With a detail the cell's own tooltip shows the value and the detail
+          return options.detail?.(row) === undefined ? (
             <Truncate text={value} className="text-foreground" />
           ) : (
-            <Tooltip content={value} detail={detail}>
-              <span className="block min-w-0 truncate text-foreground" tabIndex={-1}>
-                {value}
-              </span>
-            </Tooltip>
+            <span className="block min-w-0 truncate text-foreground">{value}</span>
           );
         },
         (row) => text(row).toLocaleLowerCase(),
+        (row) => {
+          const detail = options.detail?.(row);
+          // The value is the cell's name: its description is the detail alone
+          return detail === undefined ? undefined : { content: text(row), detail, description: detail };
+        },
       ),
       identity: true,
     };
@@ -118,6 +115,7 @@ export const col = {
         return text === null ? <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} /> : <Truncate text={text} />;
       },
       (row) => value(row)?.toLocaleLowerCase() ?? null,
+      (row) => (value(row) === null ? reasonTip(options.unknown?.(row)) : undefined),
     );
   },
 
@@ -199,6 +197,7 @@ export const col = {
         );
       },
       (row) => value(row)?.label.toLocaleLowerCase() ?? null,
+      (row) => (value(row) === null ? reasonTip(options.unknown?.(row)) : undefined),
     );
   },
 
@@ -225,6 +224,7 @@ export const col = {
         );
       },
       (row) => value(row)?.label.toLocaleLowerCase() ?? null,
+      (row) => (value(row) === null ? reasonTip(options.unknown?.(row)) : undefined),
     );
   },
 };
@@ -249,5 +249,6 @@ function numeric<TRow>(
       );
     },
     value,
+    (row) => (value(row) === null ? reasonTip(options.unknown?.(row)) : undefined),
   );
 }

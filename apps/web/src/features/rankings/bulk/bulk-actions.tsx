@@ -45,7 +45,7 @@ const linksOf = (change: Change): number =>
   (change.remove_group_ids?.length ?? 0) +
   (change.add_term_ids?.length ?? 0) +
   (change.remove_term_ids?.length ?? 0);
-type Dialog = 'tags' | 'group' | 'target' | 'priority' | 'archive' | 'delete';
+type Dialog = 'tags' | 'group' | 'target' | 'priority' | 'archive' | 'unarchive' | 'delete';
 
 interface Opened {
   dialog: Dialog;
@@ -75,7 +75,8 @@ export interface BulkContext {
  * The bulk actions of Rankings (24-page-templates.md section 9.3, backend plan D15) in the template's
  * order: Add tags, Move to group, Set target URL, Set priority, then Archive (or Unarchive) and Delete. An
  * action applies to the chosen keywords by id, or to every keyword the filters match by the filters.
- * Archive runs at once with Undo, asking first above 100 keywords; Delete always asks, with the count.
+ * Archive and Unarchive run at once with Undo, asking first above 100 keywords (12-tables.md section 14);
+ * Delete always asks, with the count.
  */
 export function useBulkActions(context: BulkContext): {
   actions: RecordAction<TrackedKeywordRow>[];
@@ -265,16 +266,18 @@ export function useBulkActions(context: BulkContext): {
       id: 'archive',
       label: archived ? t('unarchive') : t('archive'),
       icon: archived ? ArchiveRestore : Archive,
+      // Last in the bar, but neutral: it loses nothing, and its toast has Undo
       group: 'destructive',
+      tone: 'default',
       onSelect: (rows, actionScope) => {
         const count = actionScope.allMatching ? (matchingTotal ?? actionScope.ids.size) : actionScope.ids.size;
         const target = bulkTarget(actionScope, filters, search);
-        // Unarchiving loses nothing, and a small archive is undone from its toast: neither asks
-        if (archived || count <= CONFIRM_ABOVE) {
+        // A small change runs at once, with Undo; one above 100 keywords asks first, with the count
+        if (count <= CONFIRM_ABOVE) {
           void runArchive(target, !archived, { undoable: true, toastFailure: true }).catch(() => undefined);
           return;
         }
-        open('archive')(rows, actionScope);
+        open(archived ? 'unarchive' : 'archive')(rows, actionScope);
       },
     },
     {
@@ -287,6 +290,8 @@ export function useBulkActions(context: BulkContext): {
   ];
 
   const countOfOpened = countText(opened?.count ?? 0);
+  // The one question of Archive and Unarchive: it keeps its words while it closes
+  const unarchiving = opened?.dialog === 'unarchive' || (opened === null && archived);
   const dialogs = (
     <>
       <TagsDialog
@@ -364,19 +369,27 @@ export function useBulkActions(context: BulkContext): {
         }}
       />
       <ConfirmDialog
-        open={opened?.dialog === 'archive'}
+        open={opened?.dialog === 'archive' || opened?.dialog === 'unarchive'}
         onOpenChange={(next) => (next ? undefined : close())}
         finalFocus={gridFocus}
-        title={t('archiveConfirm.title', { count: countOfOpened })}
-        description={t('archiveConfirm.description')}
-        confirmLabel={t('archiveConfirm.confirm', { count: countOfOpened })}
+        title={
+          unarchiving
+            ? t('unarchiveConfirm.title', { count: countOfOpened })
+            : t('archiveConfirm.title', { count: countOfOpened })
+        }
+        description={unarchiving ? t('unarchiveConfirm.description') : t('archiveConfirm.description')}
+        confirmLabel={
+          unarchiving
+            ? t('unarchiveConfirm.confirm', { count: countOfOpened })
+            : t('archiveConfirm.confirm', { count: countOfOpened })
+        }
         cancelLabel={common('cancel')}
         tone="neutral"
         error={confirmError}
         onConfirm={async () => {
           if (opened === null) return;
           try {
-            await runArchive(opened.target, true, { undoable: true, toastFailure: false });
+            await runArchive(opened.target, !unarchiving, { undoable: true, toastFailure: false });
             close();
           } catch (error) {
             setConfirmError(error instanceof BulkFailure ? error.message : t('failed'));

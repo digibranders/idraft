@@ -31,6 +31,29 @@ export const SORT_FIELDS: ReadonlySet<string> = new Set([
 export const rowId = (row: TrackedKeywordRow): string => row.tracked_keyword_id;
 export const keywordText = (row: TrackedKeywordRow): string => row.keyword.text;
 
+/**
+ * What names a keyword's row for assistive technology ("Select seo agency, mobile, Germany"): the text, the
+ * device and the location, as one keyword is tracked on both devices and in more than one place, and the
+ * language when it is not the project's.
+ */
+export function useKeywordRowName(projectLanguage: string | null): (row: TrackedKeywordRow) => string {
+  const t = useTranslations('rankings.columns');
+  const locale = useLocale();
+  return useMemo(
+    () => (row) => {
+      const parts = {
+        keyword: row.keyword.text,
+        device: t(row.device === 'mobile' ? 'mobile' : 'desktop').toLocaleLowerCase(locale),
+        location: row.location.name,
+      };
+      return row.language_code === projectLanguage
+        ? t('rowName', parts)
+        : t('rowNameLanguage', { ...parts, language: languageName(row.language_code, locale) });
+    },
+    [t, locale, projectLanguage],
+  );
+}
+
 export function useKeywordColumns(timeZone: string): readonly DataTableColumn<TrackedKeywordRow>[] {
   const t = useTranslations('rankings.columns');
   const locale = useLocale();
