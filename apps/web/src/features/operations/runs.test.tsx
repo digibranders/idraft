@@ -4,7 +4,7 @@ import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RunsScreen } from './runs-screen';
+import { RunsScreen, type RunsProject } from './runs-screen';
 import type { Role } from '@/lib/api/types';
 import { monthInstants } from '@/lib/format/month';
 import { PermissionProvider } from '@/lib/permissions';
@@ -22,7 +22,7 @@ import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/ops/runs',
+  usePathname: () => '/digibranders/fynix/ops/runs',
 }));
 
 const W = '/api/v1/workspaces/{workspace_id}';
@@ -35,12 +35,14 @@ const NOW = new Date('2026-09-30T23:00:00Z');
 
 const [fynix, cleanstart] = MOCK_PROJECTS;
 if (fynix === undefined || cleanstart === undefined) throw new Error('The fixture projects are missing');
-const projects = MOCK_PROJECTS.map((project) => ({
+const asRunsProject = (project: (typeof MOCK_PROJECTS)[number]): RunsProject => ({
   id: project.project_id,
   slug: project.slug,
   name: project.name,
   timeZone: project.timezone,
-}));
+});
+const fynixProject = asRunsProject(fynix);
+const cleanstartProject = asRunsProject(cleanstart);
 
 /** The fixture runs of Fynix in September 2026 (UTC), as the list should show them. */
 const SEPTEMBER = monthInstants('2026-09');
@@ -59,13 +61,13 @@ afterEach(() => {
   server.events.removeAllListeners();
 });
 
-/** The Runs page for a signed-in member of `role`, who may open `shown` projects. */
-function runsAs(role: Role, shown: readonly (typeof projects)[number][] = projects): ReactElement {
+/** The Runs page of `project` for a signed-in member of `role`; `null` is the workspace page of a member with no project. */
+function runsAs(role: Role, project: RunsProject | null = fynixProject): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <PermissionProvider membership={membershipFactory(role)}>
       <Suspense fallback={null}>
-        <RunsScreen workspaceId={MOCK_WORKSPACE.workspace_id} workspaceSlug={MOCK_WORKSPACE.slug} projects={shown} />
+        <RunsScreen workspaceId={MOCK_WORKSPACE.workspace_id} workspaceSlug={MOCK_WORKSPACE.slug} project={project} />
       </Suspense>
     </PermissionProvider>
   );
@@ -448,12 +450,14 @@ describe('Runs while a run is open', () => {
 });
 
 describe('Runs', () => {
-  it("lists the first project's runs of the month, the newest first, with what the plan names", async () => {
+  it("lists the project's runs of the month, the newest first, with what the plan names", async () => {
     const asked = recordRequests('/runs');
     const { container } = renderWithProviders(runsAs('admin'));
     const table = await grid();
     await waitFor(() => expect(bodyRows(table)).toHaveLength(septemberRuns.length));
-    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveTextContent('Fynix');
+    // The project is the route, so the page offers no choice of project, only the month and the filters
+    expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Month' })).toBeInTheDocument();
     for (const name of [
       'Workload',
       'Status',
@@ -487,43 +491,40 @@ describe('Runs', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('asks for the other project and writes it to the URL, closing the run that was open', async () => {
+  it("asks for the runs of the project the page is in, and names it: another project's page lists its own runs", async () => {
     const asked = recordRequests('/runs');
+    renderWithProviders(runsAs('admin', cleanstartProject));
+    // Cleanstart has no runs, and none of Fynix's are on screen
+    expect(await screen.findByText('No runs in September 2026')).toBeInTheDocument();
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.every((request) => request.path.includes(cleanstart.project_id))).toBe(true);
+    expect(screen.queryByRole('rowheader')).toBeNull();
+    expect(screen.getByText(/^Cleanstart, September 2026\./)).toBeInTheDocument();
+  });
+
+  it('closes the run that was open when another month is chosen', async () => {
     const url = urlWrites();
     const open = septemberRuns[0]?.run_id ?? '';
     const { user } = renderWithProviders(runsAs('admin'), {
-      searchParams: `?inspect=run:${open}`,
+      searchParams: `?inspect=run:${open}&itab=tasks`,
       onUrlUpdate: url.onUrlUpdate,
     });
     expect(await screen.findByRole('heading', { name: 'Keyword metrics' })).toBeInTheDocument();
-    await user.click(screen.getByRole('combobox', { name: 'Project' }));
-    await user.click(await screen.findByRole('option', { name: 'Cleanstart' }));
-    await waitFor(() => expect(url.latest().get('project')).toBe('cleanstart'));
+    await user.click(screen.getByRole('combobox', { name: 'Month' }));
+    await user.click(await screen.findByRole('option', { name: 'December 2025' }));
+    await waitFor(() => expect(url.latest().get('month')).toBe('2025-12'));
     expect(url.latest().has('inspect')).toBe(false);
-    await waitFor(() => expect(asked.some((request) => request.path.includes(cleanstart.project_id))).toBe(true));
-    // Cleanstart has no runs, and none of Fynix's stay on screen
-    expect(await screen.findByText('No runs in September 2026')).toBeInTheDocument();
-    expect(screen.queryByRole('rowheader')).toBeNull();
-    // The first project is the default, so choosing it again leaves `project` out
-    await user.click(screen.getByRole('combobox', { name: 'Project' }));
-    await user.click(await screen.findByRole('option', { name: 'Fynix' }));
-    await waitFor(() => expect(url.latest().has('project')).toBe(false));
+    expect(url.latest().has('itab')).toBe(false);
   });
 
-  it('reads the project from the URL, and falls back to the first for one that is not offered', async () => {
+  it('leaves a `project` key of an old link alone: the project of the route is the one listed', async () => {
     const asked = recordRequests('/runs');
-    renderWithProviders(runsAs('admin'), { searchParams: '?project=nowhere&month=1999-01' });
+    renderWithProviders(runsAs('admin'), { searchParams: '?project=cleanstart&month=1999-01' });
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
     expect(asked.every((request) => request.path.includes(fynix.project_id))).toBe(true);
+    // A month that is not offered is the current one
     expect(asked.every((request) => request.query.get('from') === '2026-09-01T00:00:00Z')).toBe(true);
-  });
-
-  it('opens on the project of the link the project switcher gives, the slug in `project`', async () => {
-    const asked = recordRequests('/runs');
-    renderWithProviders(runsAs('admin'), { searchParams: '?project=cleanstart' });
-    await waitFor(() => expect(asked.length).toBeGreaterThan(0));
-    expect(asked.every((request) => request.path.includes(cleanstart.project_id))).toBe(true);
-    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveTextContent('Cleanstart');
+    expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull();
   });
 
   it('names the time zone of the times, which is the project’s while the month is counted in UTC', async () => {
@@ -544,7 +545,7 @@ describe('Runs', () => {
       ),
     );
     const berlin = { id: fynix.project_id, slug: fynix.slug, name: fynix.name, timeZone: 'Europe/Berlin' };
-    renderWithProviders(runsAs('admin', [berlin]), { searchParams: '?month=2026-09' });
+    renderWithProviders(runsAs('admin', berlin), { searchParams: '?month=2026-09' });
     const table = await grid();
     await waitFor(() => expect(bodyRows(table)).toHaveLength(1));
     expect(asked[0]?.query.get('from')).toBe('2026-09-01T00:00:00Z');
@@ -908,7 +909,7 @@ describe('Runs', () => {
 
   it('says there is nothing to show when the member has no project', async () => {
     const asked = recordRequests('/runs');
-    renderWithProviders(runsAs('admin', []));
+    renderWithProviders(runsAs('admin', null));
     expect(await screen.findByText('No projects to show runs for')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'All projects' })).toHaveAttribute('href', '/digibranders');
     expect(asked).toEqual([]);

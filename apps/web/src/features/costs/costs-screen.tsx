@@ -52,8 +52,9 @@ const usd = (value: string): string => formatCurrency(money(value), { context: '
 
 /**
  * Workspace Costs (T1 with tables, 24-page-templates.md section 9.14): what the month's data collection
- * cost, where it went, and where the budgets stand. Without `costs:read` the page says so and asks for
- * nothing.
+ * cost, where it went, and where the budgets stand. The data is the whole workspace's, whichever project's
+ * shell the page is opened in (`/{workspace}/{project}/costs`), so the Project filter starts empty and the
+ * project in the route is no filter. Without `costs:read` the page says so and asks for nothing.
  */
 export function CostsScreen(props: CostsScreenProps): ReactElement {
   const t = useTranslations('costs');

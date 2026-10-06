@@ -42,15 +42,40 @@ export const rankingsImportPath = (workspace: string, project: string): Route =>
 /** `path` with the query string `query` (without its `?`) kept, as when a dialog opens over a filtered page. */
 export const withQuery = (path: Route, query: string): Route => (query === '' ? path : (`${path}?${query}` as Route));
 
-/** Workspace Costs (11-navigation.md section 1). */
-export const costsPath = (workspace: string): Route => `/${encodeURIComponent(workspace)}/costs` as Route;
+/**
+ * Costs (11-navigation.md section 1): the page of `project` inside the project shell, which shows the
+ * whole workspace's spend. Without a project (a member who can open none) the workspace's own page, in the
+ * workspace shell.
+ */
+export const costsPath = (workspace: string, project?: string | undefined): Route =>
+  project === undefined
+    ? (`/${encodeURIComponent(workspace)}/costs` as Route)
+    : projectPath(workspace, project, '/costs');
 
-/** Workspace Operations > Runs, on `project` (its slug, the page's `project` key) when one is given. */
-export const runsPath = (workspace: string, project?: string): Route =>
-  withQuery(
-    `/${encodeURIComponent(workspace)}/ops/runs` as Route,
-    project === undefined ? '' : `project=${encodeURIComponent(project)}`,
-  );
+/**
+ * Operations > Runs of `project`, inside the project shell. Without a project (a member who can open none)
+ * the workspace's own page, which says there is nothing to show.
+ */
+export const runsPath = (workspace: string, project?: string | undefined): Route =>
+  project === undefined
+    ? (`/${encodeURIComponent(workspace)}/ops/runs` as Route)
+    : projectPath(workspace, project, '/ops/runs');
+
+/**
+ * The query string (without its `?`) of a page's `searchParams`, for a redirect that keeps what the person
+ * had chosen: every key in its order, a repeated key repeated, except the keys in `omit`.
+ */
+export function queryOf(
+  searchParams: Readonly<Record<string, string | readonly string[] | undefined>>,
+  omit: readonly string[] = [],
+): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value === undefined || omit.includes(key)) continue;
+    for (const item of typeof value === 'string' ? [value] : value) query.append(key, item);
+  }
+  return query.toString();
+}
 
 /** The sections of Settings that exist outside any project: the account's and the workspace's. */
 export type WorkspaceSettingsSection = 'profile' | 'security' | 'preferences' | 'workspace' | 'members';

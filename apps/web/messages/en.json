@@ -1546,7 +1546,6 @@
     "pageTitle": "Runs",
     "title": "Runs",
     "meta": "{project}, {month}. Times in {timeZone}.",
-    "project": "Project",
     "month": "Month",
     "filters": {
       "workload": "Workload",

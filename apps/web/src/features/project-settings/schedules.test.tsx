@@ -134,7 +134,7 @@ describe('Project settings > Schedules', () => {
     expect(within(metrics).getByText('Oct 20, 03:00')).toBeInTheDocument();
     expect(within(metrics).getByRole('link', { name: 'Last run' })).toHaveAttribute(
       'href',
-      '/digibranders/ops/runs?project=fynix',
+      '/digibranders/fynix/ops/runs',
     );
     const daily = await rowOf('Daily rankings');
     expect(within(daily).getByText('All keywords')).toBeInTheDocument();
