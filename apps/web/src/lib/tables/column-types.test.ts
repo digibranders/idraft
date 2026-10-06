@@ -25,11 +25,11 @@ describe('rank, change and URL column types (12-tables.md section 5)', () => {
     });
   });
 
-  it('gives a rank change 56 px, right aligned, the biggest improvement first', () => {
+  it('gives a rank change 56 px (up to 88, which a header with its sort arrow needs), right aligned, the biggest improvement first', () => {
     expect(COLUMN_TYPES.rankDelta).toEqual({
       width: 56,
       min: 48,
-      max: 72,
+      max: 88,
       align: 'right',
       defaultDesc: true,
       flex: false,

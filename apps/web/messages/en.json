@@ -2178,7 +2178,6 @@
       "bestRank": "Best rank",
       "bestRankTooltip": "The best organic rank in the checks kept.",
       "updated": "Updated",
-      "updatedTooltip": "When the latest successful check ran. Times in {timeZone}.",
       "pending": "Pending",
       "pendingTooltip": "The first check has not run yet.",
       "failed": "Check failed",

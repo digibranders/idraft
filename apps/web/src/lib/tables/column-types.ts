@@ -43,7 +43,8 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   status: { width: 120, min: 96, max: 180, align: 'left', defaultDesc: false, flex: false },
   // Best (lowest) rank first, and the biggest improvement first (12-tables.md section 5)
   rank: { width: 64, min: 56, max: 80, align: 'right', defaultDesc: false, flex: false },
-  rankDelta: { width: 56, min: 48, max: 72, align: 'right', defaultDesc: true, flex: false },
+  // 12-tables.md gives 72 as the largest; 88 lets the header "Change" show whole beside its sort arrow
+  rankDelta: { width: 56, min: 48, max: 88, align: 'right', defaultDesc: true, flex: false },
   // The identity place stays with the keyword column: a ranking URL is a plain column here
   url: { width: 260, min: 180, max: 480, align: 'left', defaultDesc: false, flex: false },
   actions: { width: 40, min: 40, max: 40, align: 'right', defaultDesc: null, flex: false },

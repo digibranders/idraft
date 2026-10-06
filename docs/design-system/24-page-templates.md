@@ -502,6 +502,8 @@ At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 
 | Table | `DataTable` with the columns above | Default sort Volume descending |
 | Footer | Count and freshness | Client mode up to 10,000 keywords |
 
+As built (2026-10-06, [20-frontend-specification.md](../20-frontend-specification.md) section 5.3): the table has Keyword, Rank, Change (headed "Change", not "Δ", so a screen reader and a narrow header both read it whole), Ranking URL, Volume, KD, CPC, Intent, Priority, Group, Tags, Best rank (chooser only), Updated and Added. Volume moved to tier 2 so that Rank, Change and Ranking URL come first. The sparkline, SERP features, AI Overview and competitor columns, the metric strip and Check now are not built yet. The Rank filter is a single choice (Top 3, 4 to 10, 11 to 20, 21 to 50, 51 to 100, Beyond depth) without bucket counts, with Change (`chg`: Improved, Declined, Entered, Lost) and Stale beside it.
+
 ### 9.4 Keyword Detail (T3)
 
 Route `/seo/keywords/[tkId]`. Laid out on the T3 grid (section 5): the evidence column holds the rank history, URL, competitor, AI Overview history and GSC panels; the right rail stacks related prompts (the AI answers panel), SERP features and events. The content is unchanged from the single-column version; only the arrangement follows reference screen 3.

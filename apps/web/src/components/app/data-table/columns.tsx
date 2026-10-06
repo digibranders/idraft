@@ -169,7 +169,11 @@ export const col = {
         const instant = value(row);
         if (instant === null) return <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} />;
         const date = (
-          <span className={options.secondary === true ? 'num text-foreground-tertiary' : 'num'}>
+          <span
+            className={
+              options.secondary === true ? 'num whitespace-nowrap text-foreground-tertiary' : 'num whitespace-nowrap'
+            }
+          >
             {formatTableDateTime(instant, options.timeZone)}
           </span>
         );

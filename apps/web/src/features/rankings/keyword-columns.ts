@@ -90,7 +90,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         header: t('volume'),
         headerTooltip: t('volumeTooltip'),
         priority: 2,
-        width: 80,
+        width: 88,
         unknown: missing,
       }),
       col.count<TrackedKeywordRow>('keyword_difficulty', (row) => metrics(row)?.keyword_difficulty ?? null, {
@@ -106,7 +106,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           const cpc = metrics(row)?.cpc_usd ?? null;
           return cpc === null ? null : Number(cpc);
         },
-        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 80, unknown: missing },
+        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 96, unknown: missing },
       ),
       col.badge<TrackedKeywordRow>(
         'intent',
@@ -137,7 +137,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           const paths = (row.groups ?? []).map((group) => group.path);
           return paths.length === 0 ? null : paths.join(', ');
         },
-        { header: t('group'), priority: 3, width: 120, sortable: false, unknown: () => ({ label: t('none') }) },
+        { header: t('group'), priority: 3, width: 104, sortable: false, unknown: () => ({ label: t('none') }) },
       ),
       col.text<TrackedKeywordRow>(
         'tags',
@@ -145,7 +145,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           const names = (row.terms ?? []).map((term) => term.name);
           return names.length === 0 ? null : names.join(', ');
         },
-        { header: t('tags'), priority: 4, sortable: false, unknown: () => ({ label: t('none') }) },
+        { header: t('tags'), priority: 4, width: 104, sortable: false, unknown: () => ({ label: t('none') }) },
       ),
       ranks.best,
       ranks.updated,
@@ -153,6 +153,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         header: t('added'),
         headerTooltip: common('timesIn', { timeZone }),
         priority: 4,
+        width: 112,
         timeZone,
         secondary: true,
       }),

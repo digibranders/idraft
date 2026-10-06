@@ -6,6 +6,39 @@ import { expectAccessible, signIn } from '../support';
 
 const EDITOR = 'priya@digibranders.test';
 
+/** The header of the column `name`: its accessible name is the label and the name of its options button. */
+function headerOf(grid: Locator, name: string): Locator {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return grid.getByRole('columnheader', { name: new RegExp(`^${escaped} ${escaped} column options$`) });
+}
+
+/** The place of a column among the cells of a row. */
+async function indexOf(grid: Locator, name: string): Promise<number> {
+  const index = await headerOf(grid, name).evaluate((cell) =>
+    cell instanceof HTMLTableCellElement ? cell.cellIndex : -1,
+  );
+  if (index < 0) throw new Error(`The column ${name} has no cell index`);
+  return index;
+}
+
+/** The cell of `row` under the column `name` (the row header is the first cell of a row). */
+async function cellOf(grid: Locator, row: Locator, name: string): Promise<Locator> {
+  return row.locator('th, td').nth(await indexOf(grid, name));
+}
+
+/** The text of every body cell under the column `name`, row by row in the order shown. */
+async function columnOf(grid: Locator, name: string): Promise<string[]> {
+  const index = await indexOf(grid, name);
+  return grid.locator('tbody tr[role="row"]').evaluateAll(
+    (rows, at) =>
+      rows.flatMap((tr) => {
+        const cell = tr instanceof HTMLTableRowElement ? tr.cells[at] : undefined;
+        return cell === undefined ? [] : [cell.textContent ?? ''];
+      }),
+    index,
+  );
+}
+
 test.describe('rankings', () => {
   test('a project opens on Rankings, and a filter and the archived view live in the URL', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -35,6 +68,74 @@ test.describe('rankings', () => {
     await expect(page.getByText('3 keywords', { exact: true }).first()).toBeVisible();
     await expect(grid.getByRole('rowheader', { name: /seo meme/ })).toBeVisible();
     await expectAccessible(page);
+  });
+
+  test('Rank, Change and the ranking URL show for the keywords, sort by rank, and filter by a bucket', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    for (const name of ['Rank', 'Change', 'Ranking URL']) {
+      await expect(headerOf(grid, name)).toBeVisible();
+    }
+    // Ranked keywords show a number and an arrow, a keyword beyond the depth shows the depth it was checked at,
+    // and the one still waiting for its first check says so
+    await expect(grid.getByText(/^[↑↓]\d+$/).first()).toBeVisible();
+    await expect(grid.getByText(/^>\d+$/).first()).toBeVisible();
+    await expect(grid.getByText('Pending').first()).toBeVisible();
+    await expect(grid.getByRole('img', { name: 'Check failed' })).toHaveCount(1);
+    await expectAccessible(page);
+
+    // Best rank first, and the keywords with no rank last
+    await grid.getByRole('button', { name: 'Rank', exact: true }).click();
+    await expect(headerOf(grid, 'Rank')).toHaveAttribute('aria-sort', 'ascending');
+    await expect(page).toHaveURL(/[?&]sort=current_rank/);
+    const places = await columnOf(grid, 'Rank');
+    const ranked = places.filter((text) => /^\d+$/.test(text)).map(Number);
+    expect(ranked.length).toBeGreaterThan(5);
+    expect(ranked).toEqual([...ranked].sort((a, b) => a - b));
+    expect(places.slice(0, ranked.length).every((text) => /^\d+$/.test(text))).toBe(true);
+    expect(places.slice(ranked.length).some((text) => /^\d+$/.test(text))).toBe(false);
+
+    // Rank 4 to 10 only, through the chip
+    await page.getByRole('button', { name: 'Add a filter' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Rank' }).click();
+    await page.getByRole('dialog').getByRole('radio', { name: '4 to 10' }).click();
+    await expect(page).toHaveURL(/[?&]rank=top10/);
+    await expect(page.getByRole('button', { name: 'Rank: 4 to 10. Edit filter' })).toBeVisible();
+    await expect.poll(async () => (await columnOf(grid, 'Rank')).length).toBeGreaterThan(0);
+    const inRange = (await columnOf(grid, 'Rank')).map(Number);
+    expect(inRange.every((place) => place >= 4 && place <= 10)).toBe(true);
+    await expectAccessible(page);
+  });
+
+  test('the Keyword column keeps its room at 1440 and 1280 px, with the rank columns in view', async ({ page }) => {
+    await signIn(page, EDITOR);
+    for (const [width, columns, room] of [
+      [1440, ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)', 'Intent', 'Priority', 'Group'], 280],
+      [1280, ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)'], 320],
+    ] as const) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/digibranders/fynix/seo/rankings');
+      const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+      await expect(grid.getByRole('rowheader').first()).toBeVisible();
+      for (const name of columns) {
+        await expect(headerOf(grid, name)).toBeVisible();
+      }
+      // The tiers: Updated waits for 1680 px, Best rank for the chooser
+      await expect(headerOf(grid, 'Updated')).toHaveCount(0);
+      await expect(headerOf(grid, 'Best rank')).toHaveCount(0);
+      const keyword = await headerOf(grid, 'Keyword').boundingBox();
+      if (keyword === null) throw new Error('The Keyword header has no box');
+      expect(keyword.width).toBeGreaterThanOrEqual(room);
+      // The header of each rank column shows its whole name, not cut short
+      for (const name of ['Rank', 'Change', 'Ranking URL']) {
+        const label = headerOf(grid, name).locator('.truncate').first();
+        expect(await label.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      }
+    }
   });
 
   test('a keyword opens in the inspector, steps with J, and saves a setting in place', async ({ page }) => {
@@ -230,11 +331,21 @@ test.describe('rankings', () => {
     const row = grid.getByRole('row').filter({ has: page.getByRole('rowheader', { name: /seo reporting tool/ }) });
     await expect(row).toBeVisible();
     await expect(row.getByText('Pending').first()).toBeVisible();
+    // Before its first check the rank and the ranking URL say Pending, and the metrics do (3 more cells)
+    const waiting = await row.getByText('Pending').count();
+    expect(waiting).toBeGreaterThanOrEqual(5);
 
-    // The 2 minutes pass: the next poll brings the metrics, and the row stops waiting
+    // The 2 minutes pass: the next poll brings the metrics, and the row stops waiting for them. Its first
+    // rank check comes a minute later, so the rank and the ranking URL still say Pending
     await page.clock.runFor(150_000);
-    await expect(row.getByText('Pending')).toHaveCount(0);
+    await expect(row.getByText('Pending')).toHaveCount(2);
     await expect(row.getByRole('gridcell').filter({ hasText: /^\d[\d,]*$/ })).not.toHaveCount(0);
+
+    // The first check has run: the poll that follows fills the rank in, with no reload
+    await page.clock.runFor(60_000);
+    await expect(row.getByText('Pending')).toHaveCount(0);
+    const rank = await cellOf(grid, row, 'Rank');
+    await expect(rank).toHaveText(/^(\d+|>\d+not in top \d+)$/);
   });
 
   test('metrics are refreshed from More actions, and the run is followed in the header', async ({ page }) => {

@@ -63,7 +63,8 @@ export function useRankColumns(timeZone: string): RankColumns {
           header: t('change'),
           headerTooltip: t('changeTooltip'),
           priority: 1,
-          width: 72,
+          // The header "Change" with its sort arrow needs 84 px: the type's 72 px cut it to "Cha"
+          width: 88,
           cell: (row) => <RankChangeView display={changeDisplay(row.state.change)} />,
           cellTip: (row) => tips.change(row.state.change, row.state.current),
         },
@@ -71,7 +72,7 @@ export function useRankColumns(timeZone: string): RankColumns {
       url: col.url<TrackedKeywordRow>(RANK_COLUMN_IDS.url, () => null, {
         header: t('rankingUrl'),
         priority: 2,
-        width: 200,
+        width: 180,
         sortable: false,
         cell: (row) => <RankingUrlView display={urlDisplay(row.state.current, row.state.ranking_url_count)} />,
         cellTip: (row) => tips.url(urlDisplay(row.state.current, row.state.ranking_url_count), display(row)),
