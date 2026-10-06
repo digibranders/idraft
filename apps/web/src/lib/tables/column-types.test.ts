@@ -13,6 +13,41 @@ const COLUMNS: SizedColumn[] = [
 ];
 const FIXED = 40 + 88 + 88 + 120;
 
+describe('rank, change and URL column types (12-tables.md section 5)', () => {
+  it('gives a rank 64 px, right aligned, best (lowest) first', () => {
+    expect(COLUMN_TYPES.rank).toEqual({
+      width: 64,
+      min: 56,
+      max: 80,
+      align: 'right',
+      defaultDesc: false,
+      flex: false,
+    });
+  });
+
+  it('gives a rank change 56 px, right aligned, the biggest improvement first', () => {
+    expect(COLUMN_TYPES.rankDelta).toEqual({
+      width: 56,
+      min: 48,
+      max: 72,
+      align: 'right',
+      defaultDesc: true,
+      flex: false,
+    });
+  });
+
+  it('gives a URL 260 px, left aligned, A to Z, without taking the identity column place', () => {
+    expect(COLUMN_TYPES.url).toEqual({
+      width: 260,
+      min: 180,
+      max: 480,
+      align: 'left',
+      defaultDesc: false,
+      flex: false,
+    });
+  });
+});
+
 describe('resolveWidths', () => {
   it('gives the flex column what the others leave, so the table fills its panel', () => {
     expect(resolveWidths(COLUMNS, FIXED + 300).get('keyword')).toBe(300);

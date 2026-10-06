@@ -20,7 +20,7 @@ const FEATURES = tableFeatures({
   sortedRowModel: createSortedRowModel(),
   sortFns: { text: sortFn_text, basic: sortFn_basic },
 });
-const TEXT_TYPES = new Set(['keyword', 'text', 'badge', 'status']);
+const TEXT_TYPES = new Set(['keyword', 'text', 'badge', 'status', 'url']);
 
 /**
  * The rows in the order `sort` asks for (12-tables.md section 8), sorted by TanStack Table in client mode;

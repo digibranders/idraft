@@ -201,6 +201,29 @@ export const col = {
     );
   },
 
+  /**
+   * A rank: right aligned, best (lowest) first. The cell is the screen's, since what it shows depends on the
+   * check (a number, `>20`, Pending, a failure); `sortValue` is the rank, or `null` for a keyword with none,
+   * which sorts last both ways (12-tables.md sections 6 and 8).
+   */
+  rank<TRow>(id: string, sortValue: (row: TRow) => number | null, options: RichOptions<TRow>): DataTableColumn<TRow> {
+    return rich(id, 'rank', sortValue, options);
+  },
+
+  /** A change in rank: right aligned, the biggest improvement first; `null` sorts last both ways. */
+  rankDelta<TRow>(
+    id: string,
+    sortValue: (row: TRow) => number | null,
+    options: RichOptions<TRow>,
+  ): DataTableColumn<TRow> {
+    return rich(id, 'rankDelta', sortValue, options);
+  },
+
+  /** A URL: left aligned, A to Z; `null` sorts last both ways. */
+  url<TRow>(id: string, sortValue: (row: TRow) => string | null, options: RichOptions<TRow>): DataTableColumn<TRow> {
+    return rich(id, 'url', sortValue, options);
+  },
+
   /** A neutral badge, such as an intent. */
   badge<TRow>(
     id: string,
@@ -228,6 +251,23 @@ export const col = {
     );
   },
 };
+
+/** The options of a column whose cell and tooltip the screen builds, since they depend on more than one value. */
+interface RichOptions<TRow> extends Options {
+  /** The cell's content. */
+  cell: (row: TRow) => ReactNode;
+  /** The cell's tooltip and description; the table puts it on the cell that holds the focus. */
+  cellTip?: ((row: TRow) => CellTip | undefined) | undefined;
+}
+
+function rich<TRow>(
+  id: string,
+  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url'>,
+  sortValue: (row: TRow) => string | number | null,
+  options: RichOptions<TRow>,
+): DataTableColumn<TRow> {
+  return base(id, type, options, options.cell, sortValue, options.cellTip);
+}
 
 function numeric<TRow>(
   id: string,

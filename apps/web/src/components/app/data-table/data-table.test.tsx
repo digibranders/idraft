@@ -602,3 +602,64 @@ describe('DataTable cell descriptions', () => {
     expect(screen.getByRole('checkbox', { name: 'Select seo agency, mobile' })).toBeInTheDocument();
   });
 });
+
+describe('DataTable rank, change and URL columns', () => {
+  /** The rows' `volume` stands for a rank here: `null` is beyond the depth or never checked. */
+  const RANKED = [
+    col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+    col.rank<Row>('rank', (row) => row.volume, {
+      header: 'Rank',
+      headerTooltip: 'Organic rank at the latest check',
+      cell: (row) => <span>{row.volume === null ? '>20' : String(row.volume)}</span>,
+      cellTip: (row) => (row.volume === null ? { content: 'Not in the top 20' } : undefined),
+    }),
+    col.rankDelta<Row>('change', (row) => row.difficulty, {
+      header: 'Change',
+      cell: (row) => <span>{`move ${String(row.difficulty)}`}</span>,
+    }),
+    col.url<Row>('url', () => null, {
+      header: 'Page URL',
+      sortable: false,
+      cell: (row) => <span>{`/page-${row.id}`}</span>,
+    }),
+  ];
+
+  it('sizes each type as its spec says, and keeps a screen width between its minimum and maximum', () => {
+    const wide = col.rank<Row>('rank', () => 1, { header: 'Rank', width: 500, cell: () => null });
+    const narrow = col.url<Row>('url', () => null, { header: 'URL', width: 50, cell: () => null });
+    expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
+    expect(wide.width).toBe(80);
+    expect(narrow.width).toBe(180);
+  });
+
+  it('shows the cell the screen gives and sorts rank best first, with unknown ranks last both ways', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} columns={RANKED} />);
+    expect(screen.getByText('/page-k3')).toBeInTheDocument();
+    await user.click(within(grid()).getByRole('button', { name: 'Rank' }));
+    expect(screen.getByRole('columnheader', { name: /Rank/ })).toHaveAttribute('aria-sort', 'ascending');
+    // Ranks are 0, null, 74, 111 and 148 by index; the unknown one is last when ascending
+    expect(bodyKeywords()).toEqual(['keyword 000', 'keyword 002', 'keyword 003', 'keyword 004', 'keyword 001']);
+    await user.click(within(grid()).getByRole('button', { name: 'Rank' }));
+    expect(screen.getByRole('columnheader', { name: /Rank/ })).toHaveAttribute('aria-sort', 'descending');
+    expect(bodyKeywords()).toEqual(['keyword 004', 'keyword 003', 'keyword 002', 'keyword 000', 'keyword 001']);
+  });
+
+  it('sorts a change with the biggest improvement first, and leaves a URL column unsortable', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} columns={RANKED} />);
+    await user.click(within(grid()).getByRole('button', { name: 'Change' }));
+    expect(screen.getByRole('columnheader', { name: /Change/ })).toHaveAttribute('aria-sort', 'descending');
+    expect(bodyKeywords()[0]).toBe('keyword 004');
+    expect(within(grid()).queryByRole('button', { name: 'Page URL' })).not.toBeInTheDocument();
+  });
+
+  it('describes a cell through the cell that holds the focus, and a header by its tooltip', () => {
+    renderWithProviders(<Harness rows={rowsOf(5)} columns={RANKED} />);
+    expect(screen.getByRole('columnheader', { name: /Rank/ })).toHaveAccessibleDescription(
+      'Organic rank at the latest check',
+    );
+    const beyond = within(grid())
+      .getAllByRole('gridcell')
+      .find((cell) => cell.textContent === '>20');
+    expect(beyond).toHaveAccessibleDescription('Not in the top 20');
+  });
+});
