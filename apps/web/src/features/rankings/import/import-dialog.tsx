@@ -164,7 +164,8 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
   const vocabularyState: VocabularyListState =
     vocabularies.data !== undefined ? 'ready' : vocabularies.isError ? 'error' : 'loading';
   const vocabularyLoad = { state: vocabularyState, onRetry: () => void vocabularies.refetch() };
-  const current = useImport(scope, state.importId, DIALOG_POLL_MS);
+  // Polls with the tab hidden too: a file read in the background is waited for, not given up on
+  const current = useImport(scope, state.importId, DIALOG_POLL_MS, true);
   const imported = current.data;
   const phase = imported === undefined ? null : importPhase(imported.status);
   const counts = imported?.counts ?? NO_COUNTS;
@@ -328,7 +329,9 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
   }, [open]);
 
   const settle = (importId: string): Promise<KeywordImport> =>
-    settledImport(queryClient, importKey(scope, importId), session.current.controller.signal, READ_TIMEOUT_MS);
+    settledImport(queryClient, importKey(scope, importId), session.current.controller.signal, READ_TIMEOUT_MS, () =>
+      queryClient.fetchQuery({ ...importQueryOptions(scope, importId), staleTime: 0 }),
+    );
 
   /** What the dialog does with an import that finished reading: on to the next step, or why not. */
   const arrive = (read: KeywordImport, held: ImportState, fresh: boolean): Verdict => {

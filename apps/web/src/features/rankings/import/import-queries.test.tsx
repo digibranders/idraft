@@ -1,15 +1,19 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { describe, expect, it } from 'vitest';
+import type { ReactNode } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { KeywordImport } from './import-model';
 import {
+  IMPORT,
   IMPORT_ROWS,
   ReadTimeoutError,
   conflictRowActions,
   forgetWritingImport,
   readRows,
   settledImport,
+  useImport,
   writingImportKey,
 } from './import-queries';
 import { mswPath } from '@/mocks/respond';
@@ -115,6 +119,41 @@ describe('settledImport', () => {
     );
   });
 
+  it('asks the API once more before it gives up, so a tab that polled nothing while hidden is not wrong', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(KEY, importAs('uploaded'));
+    const recheck = vi.fn(() => Promise.resolve(importAs('preview_ready')));
+    await expect(settledImport(queryClient, KEY, new AbortController().signal, 30, recheck)).resolves.toMatchObject({
+      status: 'preview_ready',
+    });
+    expect(recheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up when the second read finds the import still being read, or cannot read it', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(KEY, importAs('uploaded'));
+    const still = settledImport(queryClient, KEY, new AbortController().signal, 30, () =>
+      Promise.resolve(importAs('parsing')),
+    );
+    await expect(still).rejects.toBeInstanceOf(ReadTimeoutError);
+    const unreachable = settledImport(queryClient, KEY, new AbortController().signal, 30, () =>
+      Promise.reject(new TypeError('Failed to fetch')),
+    );
+    await expect(unreachable).rejects.toBeInstanceOf(ReadTimeoutError);
+  });
+
+  it('does not ask once the dialog closed during the wait', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(KEY, importAs('uploaded'));
+    const recheck = vi.fn(() => Promise.resolve(importAs('preview_ready')));
+    const controller = new AbortController();
+    const waiting = settledImport(queryClient, KEY, controller.signal, 30, recheck);
+    controller.abort();
+    await expect(waiting).rejects.toMatchObject({ name: 'AbortError' });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(recheck).not.toHaveBeenCalled();
+  });
+
   it('stops waiting when the dialog closes, and does not time out afterwards', async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(KEY, importAs('uploaded'));
@@ -122,6 +161,50 @@ describe('settledImport', () => {
     const waiting = settledImport(queryClient, KEY, controller.signal, 30);
     controller.abort();
     await expect(waiting).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
+
+describe('useImport in a tab that is hidden', () => {
+  const asHidden = (): void => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
+  const answers = (): { reads: () => number } => {
+    let reads = 0;
+    server.use(
+      http.get(mswPath(IMPORT), () => {
+        reads += 1;
+        return HttpResponse.json({ data: importAs(reads < 3 ? 'uploaded' : 'preview_ready') });
+      }),
+    );
+    return { reads: () => reads };
+  };
+  const view = (background: boolean) => {
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }): ReactNode => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    return renderHook(() => useImport(SCOPE, 'i1', 20, background), { wrapper });
+  };
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('keeps polling for the dialog, which is waiting for the import to be read', async () => {
+    const asked = answers();
+    asHidden();
+    const { result } = view(true);
+    await waitFor(() => expect(result.current.data?.status).toBe('preview_ready'));
+    expect(asked.reads()).toBeGreaterThanOrEqual(3);
+  });
+
+  it('does not poll for a header that nobody sees', async () => {
+    const asked = answers();
+    asHidden();
+    const { result } = view(false);
+    await waitFor(() => expect(result.current.data?.status).toBe('uploaded'));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(asked.reads()).toBe(1);
   });
 });
 

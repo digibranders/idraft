@@ -75,13 +75,23 @@ export const importQueryOptions = (
   queryFn: ({ signal }) => fetchImport(scope, importId, signal),
 });
 
-/** One import, asked about every `pollMs` while it is reading or writing. */
-export function useImport(scope: ProjectScope, importId: string | null, pollMs: number): UseQueryResult<KeywordImport> {
+/**
+ * One import, asked about every `pollMs` while it is reading or writing. `background` keeps asking while
+ * the tab is hidden: the dialog, which waits for the read to finish, needs it, and a hidden tab that stopped
+ * polling would let the wait run out on an import that was ready. The header's follow-up stops with the tab.
+ */
+export function useImport(
+  scope: ProjectScope,
+  importId: string | null,
+  pollMs: number,
+  background = false,
+): UseQueryResult<KeywordImport> {
   return useQuery({
     queryKey: importKey(scope, importId ?? 'none'),
     enabled: importId !== null,
     queryFn: ({ signal }) => fetchImport(scope, importId ?? '', signal),
     refetchInterval: (query) => (query.state.data !== undefined && unsettled(query.state.data.status) ? pollMs : false),
+    refetchIntervalInBackground: background,
   });
 }
 
@@ -100,13 +110,16 @@ export class ReadTimeoutError extends Error {
  * Resolves with the import once it is out of `uploaded` and `parsing`: the answer a Continue was waiting
  * for. It reads the cache and does not ask the API itself, so the polling of `useImport` is the only
  * traffic. It rejects when the reads fail for good, with a `ReadTimeoutError` when the import is still being
- * read after `timeoutMs`, and with an `AbortError` when the signal fires (the dialog was closed).
+ * read after `timeoutMs`, and with an `AbortError` when the signal fires (the dialog was closed). Before it
+ * gives up it asks the API once more (`recheck`): the clock counts the time a tab was hidden, which the
+ * polling may not have, and an import that was ready must not be cancelled for a file that went up.
  */
 export function settledImport(
   queryClient: QueryClient,
   key: QueryKey,
   signal: AbortSignal,
   timeoutMs: number = READ_TIMEOUT_MS,
+  recheck?: () => Promise<KeywordImport>,
 ): Promise<KeywordImport> {
   return new Promise((resolve, reject) => {
     const abortError = (): DOMException => new DOMException('The wait was stopped', 'AbortError');
@@ -121,8 +134,25 @@ export function settledImport(
       signal.removeEventListener('abort', onAbort);
     };
     const timer = setTimeout(() => {
-      stop();
-      reject(new ReadTimeoutError());
+      if (recheck === undefined) {
+        stop();
+        reject(new ReadTimeoutError());
+        return;
+      }
+      // Still listening (the cache's own news and the abort) while the last read is under way
+      recheck().then(
+        (read) => {
+          if (signal.aborted) return;
+          stop();
+          if (importPhase(read.status) === 'reading') reject(new ReadTimeoutError());
+          else resolve(read);
+        },
+        () => {
+          if (signal.aborted) return;
+          stop();
+          reject(new ReadTimeoutError());
+        },
+      );
     }, timeoutMs);
     const check = (): void => {
       const state = queryClient.getQueryState<KeywordImport, Error>(key);

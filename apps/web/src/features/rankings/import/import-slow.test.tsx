@@ -3,7 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CANCEL_PATH } from './import-queries';
 import { forgetImports } from '@/mocks/handlers/keyword-imports';
-import { Controlled, answerImportAs, csv, openImport, press, spy, uploadAndContinue } from '@/test/import-harness';
+import {
+  Controlled,
+  MAP_INTRO,
+  answerImportAs,
+  csv,
+  openImport,
+  press,
+  spy,
+  uploadAndContinue,
+} from '@/test/import-harness';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
@@ -26,6 +35,29 @@ beforeEach(stubWideScreen);
 afterEach(() => {
   restoreWideScreen();
   forgetImports();
+});
+
+describe('Import dialog: a tab that is hidden while the file is read', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not give up on a file that was read in the meantime: the wait asks the API once more', async () => {
+    // The API reads the file within the wait; a hidden tab's timers and polls are what the test stands for
+    let reads = 0;
+    answerImportAs((view) => {
+      reads += 1;
+      return reads <= 2 ? { ...view, status: 'uploaded' } : view;
+    });
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    const cancels = spy('post', CANCEL_PATH);
+    const { user } = renderWithProviders(<Controlled changes={[]} />);
+    const { dialog } = await openImport(user);
+    await uploadAndContinue(user, dialog, csv('keyword\nbacklink watcher'));
+    expect(await within(dialog).findByText(MAP_INTRO, undefined, { timeout: 8_000 })).toBeInTheDocument();
+    expect(within(dialog).queryByText('Reading the file is taking longer than expected. Try again.')).toBeNull();
+    expect(cancels.bodies).toHaveLength(0);
+  }, 20_000);
 });
 
 describe('Import dialog: a file the API reads slowly', () => {
