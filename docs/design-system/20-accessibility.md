@@ -286,7 +286,7 @@ Navigation mode (default):
 | Ctrl+Home, Ctrl+End | First header cell, or the last cell of the last row (scrolls and renders it) |
 | Page Down, Page Up | Moves by the number of fully visible rows minus one, same column |
 | Enter on a body cell without widgets | Opens the row in the inspector; focus moves to the inspector title |
-| Enter or F2 on a cell with widgets (URL cell, row actions, inline editor) | Enters widget mode on that cell. As built, F2 does this for the controls marked `CELL_CONTROL` (the copy buttons and the ranking URL link of Rankings), and Enter keeps opening the row on every data cell ([12-tables.md](12-tables.md) section 9, "Controls in a cell") |
+| Enter or F2 on a cell with widgets (URL cell, row actions, inline editor) | Enters widget mode on that cell. As built, F2 does this for the controls marked `CELL_CONTROL` (the copy buttons and the ranking URL link of Rankings; on a Mac laptop the key is usually fn+F2), and Enter keeps opening the row on every data cell. The grid's hint mentions F2 only when a column shown has such controls ([12-tables.md](12-tables.md) section 9, "Controls in a cell") |
 | Space | Toggles selection of the focused row (when selection is enabled) |
 | Shift+Space | Selects the range from the selection anchor to the focused row |
 | Ctrl+A (Cmd+A on Mac) | Selects every row loaded in the current filter scope; the bulk bar offers "Select all N matching" when more exist |
@@ -300,8 +300,8 @@ Widget mode:
 
 | Key | Action |
 |---|---|
-| Tab, Shift+Tab | Moves between widgets inside the cell, wrapping. Only after F2: a control that was clicked is not in widget mode, and Tab leaves it as it leaves any button |
-| Enter, Space | Activates the focused widget |
+| Tab, Shift+Tab | Moves between widgets inside the cell, wrapping. Only after F2: a control that was clicked, or a click on the cell itself, is not widget mode, and Tab leaves it as it leaves any button. A window that loses focus (a link opened a new tab) does not end widget mode |
+| Enter, Space | Activates the focused widget. On a link the table itself takes Space (the browser gives a link Enter alone and Space would scroll the table) and opens the link |
 | Escape | Returns to navigation mode on the same cell, at once, also while the widget's tooltip is open |
 | Arrow keys | Hand focus back to the grid and move on from the cell |
 
@@ -416,7 +416,7 @@ Hit areas are enlarged with padding or a transparent `::after`, never by scaling
 1. **Icon buttons:** `aria-label` equals the tooltip text and starts with a verb when it is an action ("Copy ranking URL", "Close inspector"). The icon is `aria-hidden`.
 2. **Repeated controls in rows** include the row identity: "More actions for best crm for startups", "Open best crm for startups".
 3. **Visible label first** (2.5.3): if a button shows "Export", its accessible name starts with "Export" ("Export CSV" is fine, "Download" is not).
-4. **External links** append visually hidden "(opens in a new tab)" and show the `ExternalLink` icon.
+4. **External links** append visually hidden "(opens in a new tab)" and show the `ExternalLink` icon. As built, the ranking URL link in a table cell has the words in its name ("Open /pricing in a new tab") and no icon, since the column has no width to spare for it ([12-tables.md](12-tables.md) section 9, "Controls in a cell").
 5. **Badges with meaning** are text, not color: "Estimate", "Stale", engine names. Beyond-depth ranks are plain text, not a badge (section 9.2). A status dot always sits next to its word; a dot alone is `aria-hidden` only when the word is present.
 6. **Abbreviations** that appear to save width ("obs", "pts", "vol") are rendered with an `aria-hidden` short form and a visually hidden full form, so screen readers say "observations" and "percentage points".
 7. **Unknown is never zero.** A missing value shows `n/a` ([22-content-formatting.md](22-content-formatting.md) section 2, rule 5) with the accessible name "No data", an insufficient one "Insufficient data" (visible text "Insufficient" in cells, "Insufficient data" in tiles and the inspector, [17-empty-loading-error-states.md](17-empty-loading-error-states.md) section 8), never "0" or an empty cell.
