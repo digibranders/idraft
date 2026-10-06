@@ -32,7 +32,7 @@ const row = (rowNo: number, part = 1): Record<string, unknown> => ({
   language_code: null,
   device: 'desktop',
   outcome: 'conflict',
-  reason_code: 'conflict',
+  reason_code: 'archived',
   reason: null,
   existing_tracked_keyword_id: null,
   action: 'skip',
@@ -83,13 +83,31 @@ describe('import rows', () => {
     expect(asked.every((query) => query.get('limit') === '200')).toBe(true);
   });
 
+  it('stops reading pages when the dialog closes: the request under way is aborted and no later page is asked', async () => {
+    const all = Array.from({ length: 450 }, (_, index) => row(index + 1));
+    const asked = answerRows(all, 200);
+    const controller = new AbortController();
+    const reading = conflictRowActions(SCOPE, 'i1', 'merge', controller.signal);
+    // Closed while the first page is on its way
+    controller.abort();
+    await expect(reading).rejects.toMatchObject({ name: 'AbortError' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(asked.length).toBeLessThanOrEqual(1);
+    // Closed already: nothing is asked
+    const before = asked.length;
+    await expect(conflictRowActions(SCOPE, 'i1', 'merge', controller.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(asked).toHaveLength(before);
+  });
+
   it('answers nothing for an import without conflicts', async () => {
     answerRows([], 200);
     expect(await conflictRowActions(SCOPE, 'i1')).toEqual([]);
   });
 
   it('leaves a row that repeats an earlier row of the file out of the unarchiving, which it cannot take', async () => {
-    answerRows([row(1), { ...row(2), reason_code: 'repeated_row' }, row(3)], 200);
+    answerRows([row(1), { ...row(2), reason_code: 'repeated_in_file' }, row(3)], 200);
     expect((await conflictRowActions(SCOPE, 'i1')).map((action) => action.row_no)).toEqual([1, 3]);
     // Taking the unarchiving back is a skip, which every row takes
     const skips = await conflictRowActions(SCOPE, 'i1', 'skip');

@@ -109,25 +109,48 @@ const DEFAULT_ACTION: Readonly<Record<Outcome, RowAction>> = {
   invalid: 'skip',
 };
 
+/** The limits of a row's cells (backend `keywords/import_rows.py`). */
+const CELL_MAX = 2000;
+const TAGS_MAX = 50;
+const NAME_MAX = 100;
+const PATH_DEPTH_MAX = 10;
+
+/** The reasons of an invalid row, as the backend words them. */
 const REASONS: Readonly<Record<string, string>> = {
-  keyword_missing: 'The row has no keyword.',
-  keyword_invalid: 'The keyword holds a control character.',
-  keyword_too_long: 'The keyword is longer than 700 characters.',
-  search_operator_not_allowed: 'Search operators such as site: are not tracked.',
-  location_unknown: 'No location by this name or id.',
-  language_invalid: 'Not a two-letter language code.',
-  device_invalid: 'Device is desktop, mobile or both.',
-  priority_invalid: 'Priority is a whole number from 1 to 5.',
-  depth_profile_invalid: 'Not a depth profile.',
-  target_url_invalid: 'Not an http(s) URL.',
-  group_path_invalid: 'A group path is names of 1 to 100 characters joined by "/".',
+  cell_too_long: `A cell has at most ${String(CELL_MAX)} characters.`,
+  keyword_missing: 'A keyword has at least one character.',
+  keyword_invalid: 'A keyword has no control characters.',
+  keyword_too_long: 'A keyword has at most 700 characters.',
+  search_operator_not_allowed:
+    'Search operators (site:, intitle:, a quoted phrase, a word excluded with a minus) are not tracked.',
+  cell_invalid: 'A cell has a character that cannot be kept.',
+  location_unknown: 'No active location has this name, id or country.',
+  language_invalid: 'A language is two letters, such as en.',
+  device_invalid: 'A device is desktop, mobile or both.',
+  priority_invalid: 'A priority is a whole number from 1 to 5.',
+  depth_profile_invalid: 'This depth profile does not exist.',
+  intent_invalid: 'This intent does not exist.',
+  funnel_stage_invalid: 'This funnel stage does not exist.',
+  target_url_invalid: 'A target URL is a full http or https address.',
+  group_path_invalid: `A group is a path of names (Product/Pricing), at most ${String(PATH_DEPTH_MAX)} levels of ${String(NAME_MAX)} characters.`,
+  tags_invalid: `A row has at most ${String(TAGS_MAX)} tags, of at most ${String(NAME_MAX)} characters each.`,
+  topic_invalid: `A topic is a path of names (CRM/Startups), at most ${String(PATH_DEPTH_MAX)} levels of ${String(NAME_MAX)} characters.`,
 };
 
 /** A path such as `Services/SEO audits`, as names; `null` when a name is empty or too long. */
 export function pathNames(path: string): string[] | null {
   const names = path.split('/').map((name) => name.trim());
-  return names.every((name) => name.length >= 1 && name.length <= 100) ? names : null;
+  return names.every((name) => name.length >= 1 && name.length <= NAME_MAX) ? names : null;
 }
+
+/** A path of at most `PATH_DEPTH_MAX` names, or `null`. */
+const boundedPath = (path: string): string[] | null => {
+  const names = pathNames(path);
+  return names !== null && names.length <= PATH_DEPTH_MAX ? names : null;
+};
+
+/** A cell the database cannot keep: a NUL or a lone surrogate. */
+const unstorable = (cell: string): boolean => cell.includes('\u0000') || /\p{Surrogate}/u.test(cell);
 
 /** A location of the file: an id or a name in `location`, else a country code in `country`. */
 function locationOf(location: string, country: string): number | null | 'unknown' {
@@ -174,8 +197,13 @@ export function analyzeRows(
       return header === undefined ? '' : (record[header] ?? '').trim();
     };
     const text = value('keyword');
-    // The first problem of the row, in the order the columns are checked
-    let problem: string | null = keywordTextProblem(text);
+    // The first problem of the row, in the order the backend checks: a cell over its limit (any cell of the
+    // source row), the keyword, a cell the database cannot keep, then the columns
+    const cells = Object.values(record);
+    let problem: string | null = cells.some((cell) => cell.length > CELL_MAX)
+      ? 'cell_too_long'
+      : keywordTextProblem(text);
+    if (problem === null && cells.some(unstorable)) problem = 'cell_invalid';
     const location = locationOf(value('location'), value('country'));
     const locationId =
       location === 'unknown' ? null : (location ?? defaults.location_id ?? project.default_location_id);
@@ -199,25 +227,37 @@ export function analyzeRows(
     const depthText = value('depth_profile');
     const depth = DEPTH_PROFILES.find((profile) => profile === depthText) ?? null;
     if (problem === null && depthText !== '' && depth === null) problem = 'depth_profile_invalid';
+    // An intent and a funnel stage that a row names must be ones the API has; a blank cell is `unknown`
+    const intentText = value('intent').toLowerCase();
+    const intent = intentText === '' ? 'unknown' : (INTENTS.find((candidate) => candidate === intentText) ?? null);
+    if (problem === null && intent === null) problem = 'intent_invalid';
+    const stageText = value('funnel_stage').toLowerCase();
+    const stage = stageText === '' ? 'unknown' : (FUNNEL_STAGES.find((candidate) => candidate === stageText) ?? null);
+    if (problem === null && stage === null) problem = 'funnel_stage_invalid';
     const target = value('target_url');
     if (problem === null && target !== '' && canonicalUrl(target) === null) problem = 'target_url_invalid';
     const groupText = value('group') !== '' ? value('group') : (defaults.group_path ?? '');
-    const group = groupText === '' ? [] : pathNames(groupText);
+    const group = groupText === '' ? [] : boundedPath(groupText);
     if (problem === null && group === null) problem = 'group_path_invalid';
-    const intentText = value('intent').toLowerCase();
-    const stageText = value('funnel_stage').toLowerCase();
+    // Distinct tags without regard to case; a row names at most 50, of at most 100 characters
+    const tags = [...new Map(list(value('tags')).map((tag) => [tag.toLowerCase(), tag])).values()];
+    if (problem === null && (tags.length > TAGS_MAX || tags.some((tag) => tag.length > NAME_MAX))) {
+      problem = 'tags_invalid';
+    }
+    const topic = value('topic') === '' ? [] : boundedPath(value('topic'));
+    if (problem === null && topic === null) problem = 'topic_invalid';
     const common = {
       row_no: rowNo,
       raw: { ...record },
       priority: Number.isInteger(priority) ? priority : 3,
       depth_profile: depth ?? defaults.depth_profile,
       target_url: target === '' ? null : target,
-      // An intent or stage that is not one is left to the provider and the default
-      intent: INTENTS.find((intent) => intent === intentText) ?? null,
-      funnel_stage: FUNNEL_STAGES.find((stage) => stage === stageText) ?? 'unknown',
+      // A row that names no intent leaves it to the provider
+      intent: intentText === '' ? null : intent,
+      funnel_stage: stage ?? 'unknown',
       group_path: group ?? [],
-      tags: list(value('tags')),
-      topic: value('topic') === '' ? [] : (pathNames(value('topic')) ?? []),
+      tags,
+      topic: topic ?? [],
       repeats: null,
     };
     if (problem !== null || locationId === null || language === null || device === null) {
@@ -260,8 +300,8 @@ export function analyzeRows(
         rows.push({
           ...base,
           outcome: 'duplicate',
-          reason_code: 'repeated_row',
-          reason: `Repeats row ${String(first.row_no)}; its groups and tags join that row.`,
+          reason_code: 'repeated_in_file',
+          reason: `Same as row ${String(first.row_no)}`,
           existing_tracked_keyword_id: null,
           default_action: DEFAULT_ACTION.duplicate,
           allowed_actions: ['skip'],
@@ -283,18 +323,26 @@ export function analyzeRows(
           : live.is_active
             ? 'duplicate'
             : 'conflict';
+      // The codes and words of the backend: tracked, archived and casing_differs
       const reason =
         outcome === 'variant'
-          ? `Tracked as "${keyword?.text ?? ''}": the provider gets the first casing.`
+          ? `Tracked as "${keyword?.text ?? ''}"`
           : outcome === 'duplicate'
-            ? 'The project already tracks this keyword here.'
+            ? 'Already tracked.'
             : outcome === 'conflict'
-              ? 'The project has this keyword archived; merge to unarchive it.'
+              ? 'Tracked, and archived.'
               : null;
       rows.push({
         ...base,
         outcome,
-        reason_code: outcome === 'new' ? null : outcome === 'duplicate' ? 'already_tracked' : outcome,
+        reason_code:
+          outcome === 'new'
+            ? null
+            : outcome === 'duplicate'
+              ? 'tracked'
+              : outcome === 'conflict'
+                ? 'archived'
+                : 'casing_differs',
         reason,
         existing_tracked_keyword_id: live?.tracked_keyword_id ?? null,
         default_action: DEFAULT_ACTION[outcome],

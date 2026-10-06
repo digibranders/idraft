@@ -53,41 +53,56 @@ export function ImportProgress({ scope, importId, timeZone, onSettled }: ImportP
       return;
     }
     const phase = importPhase(imported.status);
-    if (phase === 'done') {
-      handled.current = true;
+    // The report is offered when the import links to one, and downloaded from that link when it is a path of
+    // this app's API (the known path stands in for any other)
+    const report = reportLinkOf(imported.operation.links, reportPath(scope, importId), window.location.origin);
+    const reportAction = {
+      label: t('downloadReport'),
+      onAction: () => {
+        if (report !== null) {
+          downloadUrl(report, t('reportName', { date: formatIsoDate(imported.finished_at ?? new Date(), timeZone) }));
+        }
+      },
+    };
+    const readAgain = (): void => {
       void refreshKeywords(queryClient, scope);
       void refreshGroups(queryClient, scope);
       void refreshVocabularies(queryClient, scope.workspaceId);
+    };
+    if (phase === 'done') {
+      handled.current = true;
+      readAgain();
       const { created, merged, skipped } = imported.counts;
-      const date = formatIsoDate(imported.finished_at ?? new Date(), timeZone);
-      // The report is offered when the import links to one, and downloaded from that link when it is a path of
-      // this app's API (the known path stands in for any other)
-      const report = reportLinkOf(imported.operation.links, reportPath(scope, importId), window.location.origin);
+      const counts = {
+        created: formatInteger(created),
+        merged: formatInteger(merged),
+        skipped: formatInteger(skipped),
+      };
       toast({
         id: toastId,
-        type: 'success',
+        // Rows the write could not keep are named, and the report lists them
+        type: imported.status === 'completed_with_errors' ? 'info' : 'success',
         title:
-          merged > 0
-            ? t('finishedMerged', {
-                created: formatInteger(created),
-                merged: formatInteger(merged),
-                skipped: formatInteger(skipped),
-              })
-            : t('finished', { created: formatInteger(created), skipped: formatInteger(skipped) }),
-        action:
-          report === null
-            ? undefined
-            : { label: t('downloadReport'), onAction: () => downloadUrl(report, t('reportName', { date })) },
+          imported.status === 'completed_with_errors'
+            ? t('finishedWithErrors', counts)
+            : merged > 0
+              ? t('finishedMerged', counts)
+              : t('finished', { created: counts.created, skipped: counts.skipped }),
+        action: report === null ? undefined : reportAction,
       });
       onSettled(importId);
     } else if (phase === 'failed') {
       handled.current = true;
+      // A write that stopped on an error keeps what its earlier batches wrote, and its report stays available:
+      // the lists are read again, and the report is offered, instead of telling to try the import again
+      if (imported.error_code === 'write_failed' || imported.counts.created > 0 || report !== null) readAgain();
       toast({
         id: toastId,
         type: 'error',
         title: t('finishedFailed', {
           reason: failureText(imported.error_code ?? imported.operation.error?.code, t('requestFailed')),
         }),
+        action: report === null ? undefined : reportAction,
       });
       onSettled(importId);
     } else if (phase === 'gone' || phase === 'expired') {

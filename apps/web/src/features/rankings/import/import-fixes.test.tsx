@@ -6,7 +6,6 @@ import { z } from 'zod';
 
 import { CANCEL_PATH, CONFIRM_PATH, IMPORT, IMPORTS, IMPORT_ROWS } from './import-queries';
 import { MOCK_VOCABULARY_IDS } from '@/mocks/entity-fixtures';
-import { forgetImports } from '@/mocks/handlers/keyword-imports';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
 import {
   Controlled,
@@ -45,7 +44,6 @@ vi.mock('@/lib/api/upload', async () => {
 beforeEach(stubWideScreen);
 afterEach(() => {
   restoreWideScreen();
-  forgetImports();
   resetUploadScript();
 });
 
@@ -85,7 +83,7 @@ describe('Import dialog: archived keywords that were told to unarchive', () => {
       language_code: null,
       device: 'desktop',
       outcome: 'conflict',
-      reason_code: 'conflict',
+      reason_code: 'archived',
       reason: null,
       existing_tracked_keyword_id: null,
       action: 'skip',

@@ -55,12 +55,12 @@ All commands run in `apps/web`. Before any markup, invoke `design-taste-frontend
 3. A header maps to the field of the same name, without case, after trimming. `column_mapping` keys are matched to the file's headers without case; send the header text exactly as the file has it.
 4. Two headers mapped to one field: `422 validation_failed`, `field_mapped_twice` at `column_mapping`. With a paste, `column_mapping` is `422` with `not_applicable`.
 5. `row_actions` together with a mapping or defaults: `422` with `not_with_mapping` at `row_actions`. `row_actions` only in `preview_ready`.
-6. Actions per outcome: `new` and `variant` take `create` or `skip`; tracked `duplicate` and `conflict` take `skip` or `merge`; in-file repeats (`reason_code: 'repeated_row'`) and `invalid` take `skip` only. `force_separate` is `422 force_separate_not_available` (never offered).
+6. Actions per outcome: `new` and `variant` take `create` or `skip`; tracked `duplicate` and `conflict` take `skip` or `merge`; in-file repeats (`reason_code: 'repeated_in_file'`) and `invalid` take `skip` only. `force_separate` is `422 force_separate_not_available` (never offered).
 7. Counts count parts: a `device: both` row is two parts (`part` 1 desktop, 2 mobile) and counts twice; `rows_total` is the number of parts.
 8. Confirm: `422 quota_exceeded` (`limit`, `used`, `requested`) writes nothing; `409 invalid_state_transition` in any state but `preview_ready`.
 9. `GET {W}/runs` is not in part 1 (irrelevant here; noted for Task 12).
 
-**Invalid reason codes** (D12): `keyword_missing`, `keyword_invalid`, `keyword_too_long`, `search_operator_not_allowed`, `location_unknown`, `language_invalid`, `device_invalid`, `priority_invalid`, `depth_profile_invalid`, `target_url_invalid`, `group_path_invalid`. Other rows carry `repeated_row`, `already_tracked`, `variant`, `conflict`.
+**Invalid reason codes** (D12, as the backend sends them, in the order it checks a row): `cell_too_long`, `keyword_missing`, `keyword_invalid`, `keyword_too_long`, `search_operator_not_allowed`, `cell_invalid`, `location_unknown`, `language_invalid`, `device_invalid`, `priority_invalid`, `depth_profile_invalid`, `intent_invalid`, `funnel_stage_invalid`, `target_url_invalid`, `group_path_invalid`, `tags_invalid`, `topic_invalid`. Other rows carry `repeated_in_file` and `tracked` (duplicates), `casing_differs` (variants) and `archived` (conflicts). An earlier draft of this plan, and the first mocks, named them `repeated_row`, `already_tracked`, `variant` and `conflict`; the backend never sent those.
 
 **Fields** (`ImportField`): `keyword`, `country`, `location`, `language`, `device`, `tags`, `topic`, `group`, `intent`, `funnel_stage`, `priority`, `target_url`, `depth_profile`. `competitors` does not exist in part 1.
 
@@ -121,7 +121,7 @@ All commands run in `apps/web`. Before any markup, invoke `design-taste-frontend
   4. A paste whose line holds a TAB, with no tags vocabulary, reads `needs_mapping` with `tags_vocabulary_missing`.
   5. A paste import PATCHed with `column_mapping` is `422` with `not_applicable` at `column_mapping`.
   6. A PATCH with both `row_actions` and `defaults` is `422` with `not_with_mapping` at `row_actions`.
-  7. A `merge` row action on a `repeated_row` duplicate is `422` with `action_not_allowed`; `skip` is fine.
+  7. A `merge` row action on a `repeated_in_file` duplicate is `422` with `action_not_allowed`; `skip` is fine.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -132,7 +132,7 @@ Expected: tests 1 to 7 FAIL; the existing tests pass.
   - `statusOf`: return `'uploaded'` where it returns `'parsing'` now. Keep `'parsing'` in the status list (the contract has it) but never produce it. In `importView`, `parsing` becomes `status === 'uploaded'`.
   - Separate a failure from a mapping problem: keep `entry.error_code` for `failed` only, and add `function mappingProblem(entry): 'keyword_column_missing' | 'tags_vocabulary_missing' | 'topic_vocabulary_missing' | null` (keyword first, then tags, then topic; tags and topic count when a mapped column names them or, for a paste, when a line holds a TAB). `statusOf` returns `needs_mapping` when it is not `null`; the view's `error_code` is `entry.error_code ?? (status === 'needs_mapping' ? mappingProblem(entry) : null)`.
   - PATCH: refuse `column_mapping` on a paste (`bodyError('column_mapping', 'not_applicable', 'A paste has no columns.')`); refuse `row_actions` sent with `column_mapping` or `defaults` (`bodyError('row_actions', 'not_with_mapping', 'Row actions apply to a preview; send them on their own.')`).
-  - Row actions: add `allowed_actions: readonly RowAction[]` to `AnalyzedRow` in `keyword-import-rows.ts`, set from `ACTIONS_OF[outcome]` except `['skip']` for `repeated_row`; the PATCH checks `row.allowed_actions` instead of `ACTIONS_OF[row.outcome]`.
+  - Row actions: add `allowed_actions: readonly RowAction[]` to `AnalyzedRow` in `keyword-import-rows.ts`, set from `ACTIONS_OF[outcome]` except `['skip']` for `repeated_in_file`; the PATCH checks `row.allowed_actions` instead of `ACTIONS_OF[row.outcome]`.
   - Update the handler's doc comment where it describes statuses.
 
 - [ ] **Step 4: Run the mock tests**
@@ -697,7 +697,8 @@ export function confirmPlan(counts: Counts, choices: ReviewChoices): ConfirmPlan
 export const REASON_CODES = [
   'keyword_missing', 'keyword_invalid', 'keyword_too_long', 'search_operator_not_allowed', 'location_unknown',
   'language_invalid', 'device_invalid', 'priority_invalid', 'depth_profile_invalid', 'target_url_invalid',
-  'group_path_invalid', 'repeated_row', 'already_tracked', 'variant', 'conflict',
+  'group_path_invalid', 'repeated_in_file', 'tracked', 'casing_differs', 'archived',
+  // as built: also cell_too_long, cell_invalid, intent_invalid, funnel_stage_invalid, tags_invalid, topic_invalid
 ] as const;
 export type ReasonCode = (typeof REASON_CODES)[number];
 export const isReasonCode = (code: string | null): code is ReasonCode =>
@@ -968,10 +969,10 @@ git commit -m "Rankings: an import route over the mounted screen"
     "depth_profile_invalid": "Not a depth profile of this workspace.",
     "target_url_invalid": "Not an http or https URL.",
     "group_path_invalid": "A group path is names of 1 to 100 characters joined by /.",
-    "repeated_row": "Repeats an earlier row of the file.",
-    "already_tracked": "Already tracked.",
-    "variant": "Typed differently from a tracked keyword.",
-    "conflict": "Archived in this project."
+    "repeatedInFile": "Repeats an earlier row of the file.",
+    "tracked": "Already tracked.",
+    "casingDiffers": "Typed differently from a tracked keyword.",
+    "archived": "Archived in this project."
   },
   "confirmIntro": "When you confirm, Sightline writes the rows in the background. You can keep working; the header shows progress.",
   "confirmCreate": "{count, plural, one {# keyword is} other {# keywords are}} tracked",

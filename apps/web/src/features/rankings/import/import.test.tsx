@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CANCEL_PATH, CONFIRM_PATH, IMPORT, IMPORTS } from './import-queries';
 import { MOCK_VOCABULARY_IDS } from '@/mocks/entity-fixtures';
-import { forgetImports } from '@/mocks/handlers/keyword-imports';
+import { writeTrouble } from '@/mocks/handlers/keyword-imports';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import {
@@ -45,11 +45,8 @@ vi.mock('@/lib/api/upload', async () => {
 });
 
 beforeEach(stubWideScreen);
-afterEach(() => {
-  restoreWideScreen();
-  // The mocks keep imports in memory: one test's write must not be the next test's "write under way"
-  forgetImports();
-});
+// The mocks' imports are forgotten after every test (resetMockState): one test's write is not the next one's
+afterEach(restoreWideScreen);
 
 describe('Import dialog', () => {
   it(
@@ -472,20 +469,9 @@ describe('Import progress', () => {
   it(
     'says why a write failed',
     async () => {
-      // By the time the header asks again, the mock has written the rows: it is the write that "failed"
-      answerImportAs((view) =>
-        view.status === 'writing' || view.status === 'completed'
-          ? {
-              ...view,
-              status: 'failed',
-              operation: {
-                ...view.operation,
-                status: 'failed',
-                error: { code: 'write_failed', detail: 'The disk is full' },
-              },
-            }
-          : view,
-      );
+      // The write stops on an error after its first batch, as the backend ends an import it cannot write
+      writeTrouble.stopAfterBatches = 1;
+      writeTrouble.batchSize = 1;
       const { user } = renderWithProviders(<Controlled changes={[]} />);
       await loadedGrid();
       await importPaste(user, 'rank tracker api\nbacklink watcher', 'Import 2 keywords');
@@ -493,12 +479,12 @@ describe('Import progress', () => {
       // and the API's own English detail is not shown
       expect(
         await screen.findAllByText(
-          'Import failed: The keywords could not be saved. Try the import again in a few minutes.',
+          'Import failed: Some keywords were added before the import stopped. The report lists what was and was not written.',
           undefined,
           WRITTEN,
         ),
       ).not.toHaveLength(0);
-      expect(screen.queryByText(/The disk is full/)).toBeNull();
+      expect(screen.queryByText(/The write stopped on an error/)).toBeNull();
       await waitFor(() => expect(screen.queryByRole('progressbar', { name: 'Importing keywords' })).toBeNull());
     },
     WRITE_TEST,

@@ -55,6 +55,7 @@ import {
   type StoredGroup,
 } from '../keywords-state';
 import { mockId } from '../mock-ids';
+import { onMockReset } from '../state';
 import { projectList } from '../workspace-state';
 import { termSlug } from '../term-slug';
 import { invalid, mock, problem } from '../respond';
@@ -111,6 +112,12 @@ const STATUSES: readonly ImportStatus[] = [
   'expired',
 ];
 
+/** What became of a row the write reached: the report's `result` and `write_error_code`. */
+interface RowResult {
+  result: 'created' | 'skipped' | 'merged' | 'failed';
+  error: string | null;
+}
+
 interface Written {
   at: number;
   until: number;
@@ -119,7 +126,33 @@ interface Written {
   merged: number;
   /** The tracked keyword each row ended as, for the report. */
   trackedIds: Map<string, string>;
+  /** What became of each row the write reached, by `row_no:part`. */
+  results: Map<string, RowResult>;
+  /** Rows that ended `failed`: the import is `completed_with_errors` when any did. */
+  failed: number;
+  /** The write stopped on an error (`failed`, `write_failed`) after this many rows; `null` when it did not. */
+  stoppedAfter: number | null;
 }
+
+/**
+ * What the write of a confirmed import does wrong, for tests: the way to reach the states the backend
+ * ends an import in when its write goes wrong. `forgetImports` (which every test's reset calls) puts it
+ * back.
+ */
+export interface WriteTrouble {
+  /** The write stops on an error after this many batches: `failed` with `write_failed`, the batches before it kept. */
+  stopAfterBatches: number | null;
+  /** Rows to a batch; the backend's is 1,000. */
+  batchSize: number;
+  /** Rows, by `row_no`, the write cannot keep: each ends `failed`, and the import `completed_with_errors`. */
+  failedRows: readonly number[];
+}
+
+const NO_TROUBLE: WriteTrouble = { stopAfterBatches: null, batchSize: 1_000, failedRows: [] };
+export const writeTrouble: WriteTrouble = { ...NO_TROUBLE };
+
+/** The most imports the store keeps: past it the oldest finished ones go, as an old import would expire. */
+const IMPORTS_KEPT = 20;
 
 interface StoredImport {
   import_id: string;
@@ -177,16 +210,20 @@ function statusOf(entry: StoredImport, at: number): ImportStatus {
   if (entry.error_code !== null) return 'failed';
   if (entry.written !== null) {
     if (at < entry.written.until) return 'writing';
-    return entry.rows.some((row) => row.outcome === 'invalid') ? 'completed_with_errors' : 'completed';
+    // `completed_with_errors` is for rows the write could not keep; rows the preview skipped (invalid ones)
+    // are a `completed` import
+    if (entry.written.stoppedAfter !== null) return 'failed';
+    return entry.written.failed > 0 ? 'completed_with_errors' : 'completed';
   }
   if (at >= entry.created_at + EXPIRY_MS) return 'expired';
   if (at < entry.parsed_at) return 'uploaded';
   return mappingProblem(entry) === null ? 'preview_ready' : 'needs_mapping';
 }
 
+/** An import's status as an operation's (19 section 2.11), as the backend maps it. */
 const OPERATION_STATUS: Readonly<Record<ImportStatus, components['schemas']['Operation']['status']>> = {
-  uploaded: 'running',
-  parsing: 'running',
+  uploaded: 'queued',
+  parsing: 'queued',
   needs_mapping: 'waiting_for_input',
   preview_ready: 'waiting_for_input',
   writing: 'running',
@@ -194,13 +231,43 @@ const OPERATION_STATUS: Readonly<Record<ImportStatus, components['schemas']['Ope
   completed_with_errors: 'succeeded_with_errors',
   failed: 'failed',
   cancelled: 'cancelled',
-  expired: 'cancelled',
+  expired: 'failed',
 };
 
-/** Statuses an import may still be cancelled in: before writing starts. */
-const CANCELLABLE: readonly ImportStatus[] = ['uploaded', 'parsing', 'needs_mapping', 'preview_ready'];
-/** Statuses an import has rows in. */
-const WITH_ROWS: readonly ImportStatus[] = ['preview_ready', 'writing', 'completed', 'completed_with_errors'];
+/** What each failure code says (`operation.error.detail`), as the backend words it. */
+const FAILURES: Readonly<Record<string, string>> = {
+  not_utf8: 'The file is not UTF-8 text.',
+  not_csv: 'The file is not readable as CSV.',
+  no_header: 'The file has no header row.',
+  duplicate_headers: 'Two columns have the same header, without regard to case.',
+  too_many_rows: 'An import has at most 10,000 rows.',
+  too_many_columns: 'An import has at most 100 columns.',
+  parse_failed: 'The source could not be read. Upload it again.',
+  write_failed: 'The write stopped on an error. The report shows what was written.',
+  source_corrupt: 'The stored source could not be read. Upload the file again.',
+  source_unreadable: 'The stored source could not be fetched. Upload the file again.',
+  project_gone: 'The project was deleted.',
+  expired: 'The preview expired before it was confirmed.',
+};
+
+/** Statuses an import may still be cancelled in: before writing starts (not while its source is being read). */
+const CANCELLABLE: readonly ImportStatus[] = ['uploaded', 'needs_mapping', 'preview_ready'];
+/** Statuses an import has no rows in yet: its source is waiting to be read, or read again. */
+const NO_ROWS_YET: readonly ImportStatus[] = ['uploaded', 'parsing', 'needs_mapping'];
+
+/**
+ * Whether the import has rows to list and report on: it was read into a preview, and the preview was not
+ * dropped. An import that failed while being read, or was cancelled or expired before it had a preview, has
+ * none; one that failed while writing keeps them.
+ */
+function hasRows(entry: StoredImport, status: ImportStatus): boolean {
+  if (NO_ROWS_YET.includes(status)) return false;
+  if (status === 'failed') return entry.written !== null;
+  if (status === 'cancelled')
+    return entry.cancelled_at !== null && entry.cancelled_at >= entry.parsed_at && mappingProblem(entry) === null;
+  if (status === 'expired') return mappingProblem(entry) === null;
+  return true;
+}
 
 const iso = (ms: number): string => new Date(ms).toISOString();
 
@@ -208,7 +275,8 @@ function importView(caller: KeywordProjectCaller, entry: StoredImport, at: numbe
   const status = statusOf(entry, at);
   const parts = entry.rows;
   const count = (outcome: Outcome): number => parts.filter((row) => row.outcome === outcome).length;
-  const ready = WITH_ROWS.includes(status);
+  const ready = hasRows(entry, status);
+  const finishedWriting = status === 'completed' || status === 'completed_with_errors';
   const used = activeRows(caller);
   const wouldUse = parts.filter((row) => {
     const action = actionOf(entry, row);
@@ -216,15 +284,20 @@ function importView(caller: KeywordProjectCaller, entry: StoredImport, at: numbe
   }).length;
   const self = `/api/v1/workspaces/${entry.workspace_id}/projects/${entry.project_id}/keyword-imports/${entry.import_id}`;
   const parsing = status === 'uploaded';
+  // The rows the write has reached: all of them, or those before the error that stopped it
+  const written = entry.written;
+  const reach = written?.stoppedAfter ?? parts.length;
   const writingDone =
-    entry.written === null
+    written === null
       ? 0
-      : Math.min(
-          parts.length,
-          Math.floor((parts.length * (at - entry.written.at)) / (entry.written.until - entry.written.at)),
-        );
-  const finished =
-    entry.cancelled_at ?? (entry.written !== null && at >= entry.written.until ? entry.written.until : null);
+      : Math.min(reach, Math.floor((reach * (at - written.at)) / Math.max(1, written.until - written.at)));
+  const finished = entry.cancelled_at ?? (written !== null && at >= written.until ? written.until : null);
+  // An import that failed while writing says `write_failed`; an expired one has no `error_code` of its own,
+  // and its operation names `expired`
+  const failedWriting = status === 'failed' && written !== null && written.stoppedAfter !== null;
+  const errorCode = entry.error_code ?? (failedWriting ? 'write_failed' : null);
+  const operationCode = errorCode ?? (status === 'expired' ? 'expired' : null);
+  const report = ready;
   return {
     import_id: entry.import_id,
     source: entry.source,
@@ -241,14 +314,15 @@ function importView(caller: KeywordProjectCaller, entry: StoredImport, at: numbe
       variant: ready ? count('variant') : 0,
       conflict: ready ? count('conflict') : 0,
       invalid: ready ? count('invalid') : 0,
-      created: entry.written?.created ?? 0,
-      skipped: entry.written?.skipped ?? 0,
-      merged: entry.written?.merged ?? 0,
+      // Counted when the write has ended with every row given a result, as the backend does: an import that
+      // failed while writing keeps the counts of its preview, with none of these
+      created: finishedWriting ? (written?.created ?? 0) : 0,
+      skipped: finishedWriting ? (written?.skipped ?? 0) : 0,
+      merged: finishedWriting ? (written?.merged ?? 0) : 0,
     },
-    quota: ready
-      ? { limit: MAX_TRACKED_KEYWORDS, used, would_use: used + (entry.written === null ? wouldUse : 0) }
-      : null,
-    error_code: entry.error_code ?? (status === 'needs_mapping' ? mappingProblem(entry) : null),
+    // The quota is judged against the preview, so only a ready preview has one
+    quota: status === 'preview_ready' ? { limit: MAX_TRACKED_KEYWORDS, used, would_use: used + wouldUse } : null,
+    error_code: errorCode ?? (status === 'needs_mapping' ? mappingProblem(entry) : null),
     created_by: userRef(entry.created_by) ?? { user_id: entry.created_by, name: 'Member', email: '' },
     created_at: iso(entry.created_at),
     expires_at: iso(entry.created_at + EXPIRY_MS),
@@ -261,18 +335,21 @@ function importView(caller: KeywordProjectCaller, entry: StoredImport, at: numbe
           ? Math.floor((entry.records.length * Math.max(0, at - (entry.parsed_at - PARSE_MS))) / PARSE_MS)
           : status === 'writing'
             ? writingDone
-            : parts.length,
+            : reach,
         total: parsing ? entry.records.length : parts.length,
         unit: 'rows',
       },
       started_at: iso(entry.created_at),
       finished_at: finished === null ? null : iso(finished),
-      error: entry.error_code === null ? null : { code: entry.error_code, detail: 'The file has no rows to import.' },
+      error:
+        operationCode === null
+          ? null
+          : { code: operationCode, detail: FAILURES[operationCode] ?? 'The import could not be read.' },
       links: {
         self,
         ...(CANCELLABLE.includes(status) ? { cancel: `${self}/cancel` } : {}),
-        ...(status === 'preview_ready' ? { result: `${self}/rows` } : {}),
-        ...(status === 'completed' || status === 'completed_with_errors' ? { result: `${self}/report` } : {}),
+        // The report, whenever there are rows to report on (`links.result` is set exactly then)
+        ...(report ? { result: `${self}/report` } : {}),
       },
     },
   };
@@ -542,10 +619,25 @@ function created(
     actions: new Map(),
     written: null,
     cancelled_at: null,
-    error_code: read.records.length === 0 ? 'no_rows' : null,
+    // A file with a header and no rows is a preview of no rows, not a failure
+    error_code: null,
   };
   IMPORTS.set(entry.import_id, entry);
+  trimImports(entry.import_id);
   return entry;
+}
+
+/** Keeps the store to `IMPORTS_KEPT`: the oldest finished imports go first, and never the one just made. */
+function trimImports(keep: string): void {
+  const at = Date.now();
+  const finished = (entry: StoredImport): boolean => {
+    const status = statusOf(entry, at);
+    return !['uploaded', 'parsing', 'needs_mapping', 'preview_ready', 'writing'].includes(status);
+  };
+  for (const [id, entry] of [...IMPORTS]) {
+    if (IMPORTS.size <= IMPORTS_KEPT) return;
+    if (id !== keep && finished(entry)) IMPORTS.delete(id);
+  }
 }
 
 const accepted = (caller: KeywordProjectCaller, entry: StoredImport): Response => {
@@ -558,13 +650,16 @@ const accepted = (caller: KeywordProjectCaller, entry: StoredImport): Response =
 /**
  * The keyword and entity changes confirming writes, with the counts: groups and terms that are missing are
  * made, then each row is created, merged or skipped by its action. A repeated row's groups and tags join the
- * row it repeats.
+ * row it repeats. Only the first `reach` rows are written (all of them unless a test made the write stop on
+ * an error), and the rows of `failedRows` end `failed`.
  */
 function writeRows(
   caller: KeywordProjectCaller,
   entry: StoredImport,
   duplicateAction: 'skip' | 'merge_terms',
   scheduleIsLive: ScheduleCheck,
+  reach: number,
+  failedRows: ReadonlySet<number>,
 ): {
   keywords: KeywordChanges;
   entities: EntityChanges;
@@ -652,26 +747,37 @@ function writeRows(
     world: entityWorld(entities, caller.changes),
   };
   const trackedIds = new Map<string, string>();
+  const results = new Map<string, RowResult>();
   let created = 0;
   let skipped = 0;
   let merged = 0;
+  let failed = 0;
   const byKey = new Map(entry.rows.map((row) => [rowKey(row), row]));
-  for (const row of entry.rows) {
+  for (const row of entry.rows.slice(0, reach)) {
     // `merge_terms` applies to duplicates left at their default action, not to a skip the user chose
     const action =
       row.outcome === 'duplicate' && duplicateAction === 'merge_terms' && !entry.actions.has(rowKey(row))
         ? 'merge'
         : actionOf(entry, row);
     const link = links.get(rowKey(row)) ?? { groupIds: [], termIds: [] };
+    const key = rowKey(row);
+    if (failedRows.has(row.row_no) && action !== 'skip') {
+      // A row the write could not keep: nothing of it is written
+      results.set(key, { result: 'failed', error: 'tracked_keyword_gone' });
+      failed += 1;
+      continue;
+    }
     if (row.repeats !== null) {
       // A repeated row is skipped, its groups and tags joining the row it repeats, whatever that row became
       const repeated = rowKey(row.repeats);
       const first = trackedIds.get(repeated) ?? byKey.get(repeated)?.existing_tracked_keyword_id ?? undefined;
       if (first !== undefined) keywords = mergeTerms(writer, keywords, first, link);
+      results.set(key, { result: 'skipped', error: null });
       skipped += 1;
       continue;
     }
     if (action === 'skip' || row.outcome === 'invalid' || row.keyword === null || row.device === null) {
+      results.set(key, { result: 'skipped', error: null });
       skipped += 1;
       continue;
     }
@@ -684,6 +790,7 @@ function writeRows(
       }
       keywords = mergeTerms(writer, keywords, id, link);
       trackedIds.set(rowKey(row), id);
+      results.set(key, { result: 'merged', error: null });
       merged += 1;
       continue;
     }
@@ -711,6 +818,7 @@ function writeRows(
     keywords = written(writer, planned.changes, fresh, item);
     const [made] = planned.rows;
     if (made !== undefined) trackedIds.set(rowKey(row), made.row.tracked_keyword_id);
+    results.set(key, { result: fresh.length > 0 ? 'created' : 'skipped', error: null });
     if (fresh.length > 0) created += 1;
     else skipped += 1;
   }
@@ -718,7 +826,16 @@ function writeRows(
     keywords: keywordIds.commit(keywords),
     entities: entityIds.commit(entities),
     termsCreated,
-    written: { created, skipped, merged, trackedIds },
+    written: {
+      created,
+      skipped,
+      merged,
+      trackedIds,
+      results,
+      failed,
+      // Short of the rows: the write stopped on an error there
+      stoppedAfter: reach < entry.rows.length ? reach : null,
+    },
   };
 }
 
@@ -1000,7 +1117,19 @@ export const keywordImportHandlers: HttpHandler[] = [
     // Nothing is written when the import would pass the quota (D4)
     const over = quotaProblem(request, caller, requested);
     if (over) return over;
-    const result = writeRows(caller, entry, duplicateAction, scheduleCheckFor(cookies));
+    // The batches the write gets through before it stops (every one unless a test made it fail)
+    const reach =
+      writeTrouble.stopAfterBatches === null
+        ? entry.rows.length
+        : Math.min(entry.rows.length, writeTrouble.stopAfterBatches * writeTrouble.batchSize);
+    const result = writeRows(
+      caller,
+      entry,
+      duplicateAction,
+      scheduleCheckFor(cookies),
+      reach,
+      new Set(writeTrouble.failedRows),
+    );
     // Nothing is saved yet: an import that would make terms needs the right to make them
     if (result.termsCreated > 0 && !can(caller.access, 'taxonomy:write')) {
       return problem(request, 'forbidden', { detail: 'Making the terms of this import needs taxonomy:write.' });
@@ -1065,7 +1194,7 @@ export const keywordImportHandlers: HttpHandler[] = [
     ];
     if (errors.length > 0 || Array.isArray(paging)) return invalid(request, errors);
     const status = statusOf(entry, Date.now());
-    if (!WITH_ROWS.includes(status)) {
+    if (!hasRows(entry, status)) {
       return problem(request, 'invalid_state_transition', {
         detail: `The import is ${status}; it has no preview yet.`,
       });
@@ -1104,12 +1233,16 @@ export const keywordImportHandlers: HttpHandler[] = [
     const entry = importOf(caller, params.import_id);
     if (entry === undefined) return problem(request, 'not_found');
     const status = statusOf(entry, Date.now());
-    if (entry.written === null || (status !== 'completed' && status !== 'completed_with_errors')) {
+    // There is a report once the import has rows: from a ready preview on, and after a write that failed
+    if (!hasRows(entry, status)) {
       return problem(request, 'invalid_state_transition', {
-        detail: `The import is ${status}; the report comes when it is written.`,
+        detail: `The import is ${status}; there is nothing to report on yet.`,
       });
     }
-    const ids = entry.written.trackedIds;
+    const ids = entry.written?.trackedIds ?? new Map<string, string>();
+    const results = entry.written?.results ?? new Map<string, RowResult>();
+    // A cell a spreadsheet could run as a formula starts with `'`
+    const neutral = (cell: string): string => (/^[=+\-@\t\r]/.test(cell) ? `'${cell}` : cell);
     const csv = toCsv([
       [
         'row_no',
@@ -1119,24 +1252,30 @@ export const keywordImportHandlers: HttpHandler[] = [
         'language_code',
         'device',
         'outcome',
-        'action',
         'reason_code',
         'reason',
+        'action',
+        'result',
         'tracked_keyword_id',
+        'write_error_code',
       ],
-      ...entry.rows.map((row) => [
-        String(row.row_no),
-        String(row.part),
-        row.keyword ?? '',
-        row.location_id === null ? '' : String(row.location_id),
-        row.language_code ?? '',
-        row.device ?? '',
-        row.outcome,
-        actionOf(entry, row),
-        row.reason_code ?? '',
-        row.reason ?? '',
-        ids.get(rowKey(row)) ?? '',
-      ]),
+      ...entry.rows.map((row) =>
+        [
+          String(row.row_no),
+          String(row.part),
+          row.keyword ?? '',
+          row.location_id === null ? '' : String(row.location_id),
+          row.language_code ?? '',
+          row.device ?? '',
+          row.outcome,
+          row.reason_code ?? '',
+          row.reason ?? '',
+          actionOf(entry, row),
+          results.get(rowKey(row))?.result ?? '',
+          ids.get(rowKey(row)) ?? '',
+          results.get(rowKey(row))?.error ?? '',
+        ].map(neutral),
+      ),
     ]);
     return new HttpResponse(csv, {
       headers: {
@@ -1147,7 +1286,9 @@ export const keywordImportHandlers: HttpHandler[] = [
   }),
 ];
 
-/** Forgets every import: for tests that need a clean store. */
+/** Forgets every import and puts the write trouble back: every test's reset does it (`resetMockState`). */
 export const forgetImports = (): void => {
   IMPORTS.clear();
+  Object.assign(writeTrouble, NO_TROUBLE);
 };
+onMockReset(forgetImports);

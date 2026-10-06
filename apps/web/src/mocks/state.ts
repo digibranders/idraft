@@ -25,8 +25,19 @@ export const mockState: MockState = {
   revokedSessions: new Map(),
 };
 
+const resets = new Set<() => void>();
+
+/**
+ * Registers what a handler module keeps in memory of its own (the imports of the keyword import mock),
+ * to be forgotten with the rest by `resetMockState`.
+ */
+export function onMockReset(reset: () => void): void {
+  resets.add(reset);
+}
+
 /** Forgets everything, so each test starts from the fixtures. */
 export function resetMockState(): void {
   mockState.attempts.clear();
   mockState.revokedSessions.clear();
+  for (const reset of resets) reset();
 }

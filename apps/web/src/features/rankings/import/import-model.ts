@@ -162,45 +162,60 @@ export const FIELD_KEYS = {
   depth_profile: 'depthProfile',
 } as const satisfies Record<ImportField, string>;
 
-/** The reason codes of a row the dialog has words for; the API's own `reason` text is the fallback for others. */
+/**
+ * The reason codes of a row the dialog has words for, as the API sends them (19 section 3.6.3, Rows); the
+ * API's own `reason` text is the fallback for any other.
+ */
 export const REASON_CODES = [
+  // Invalid rows, in the order the API checks a row
+  'cell_too_long',
   'keyword_missing',
   'keyword_invalid',
   'keyword_too_long',
   'search_operator_not_allowed',
+  'cell_invalid',
   'location_unknown',
   'language_invalid',
   'device_invalid',
   'priority_invalid',
   'depth_profile_invalid',
+  'intent_invalid',
+  'funnel_stage_invalid',
   'target_url_invalid',
   'group_path_invalid',
   'tags_invalid',
-  'repeated_row',
-  'already_tracked',
-  'variant',
-  'conflict',
+  'topic_invalid',
+  // Duplicates, variants and conflicts
+  'repeated_in_file',
+  'tracked',
+  'casing_differs',
+  'archived',
 ] as const;
 export type ReasonCode = (typeof REASON_CODES)[number];
 
 /** The catalog key of a reason under `rankings.import.reasons`: `t(`reasons.${REASON_KEYS[code]}`)`. */
 export const REASON_KEYS = {
+  cell_too_long: 'cellTooLong',
   keyword_missing: 'keywordMissing',
   keyword_invalid: 'keywordInvalid',
   keyword_too_long: 'keywordTooLong',
   search_operator_not_allowed: 'searchOperatorNotAllowed',
+  cell_invalid: 'cellInvalid',
   location_unknown: 'locationUnknown',
   language_invalid: 'languageInvalid',
   device_invalid: 'deviceInvalid',
   priority_invalid: 'priorityInvalid',
   depth_profile_invalid: 'depthProfileInvalid',
+  intent_invalid: 'intentInvalid',
+  funnel_stage_invalid: 'funnelStageInvalid',
   target_url_invalid: 'targetUrlInvalid',
   group_path_invalid: 'groupPathInvalid',
   tags_invalid: 'tagsInvalid',
-  repeated_row: 'repeatedRow',
-  already_tracked: 'alreadyTracked',
-  variant: 'variant',
-  conflict: 'conflict',
+  topic_invalid: 'topicInvalid',
+  repeated_in_file: 'repeatedInFile',
+  tracked: 'tracked',
+  casing_differs: 'casingDiffers',
+  archived: 'archived',
 } as const satisfies Record<ReasonCode, string>;
 export const isReasonCode = (code: string | null): code is ReasonCode =>
   code !== null && (REASON_CODES as readonly string[]).includes(code);

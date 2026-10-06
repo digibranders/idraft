@@ -108,7 +108,20 @@ describe('import model', () => {
   });
 
   it('knows the reason codes it has words for', () => {
-    expect(isReasonCode('repeated_row')).toBe(true);
+    // The codes the API sends (19 section 3.6.3), not the ones the first mocks invented
+    for (const code of [
+      'repeated_in_file',
+      'tracked',
+      'casing_differs',
+      'archived',
+      'intent_invalid',
+      'topic_invalid',
+    ]) {
+      expect(isReasonCode(code)).toBe(true);
+    }
+    for (const code of ['repeated_row', 'already_tracked', 'variant', 'conflict']) {
+      expect(isReasonCode(code)).toBe(false);
+    }
     expect(isReasonCode('something_new')).toBe(false);
     expect(isReasonCode(null)).toBe(false);
   });

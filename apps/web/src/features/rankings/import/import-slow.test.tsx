@@ -2,7 +2,6 @@ import { waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CANCEL_PATH } from './import-queries';
-import { forgetImports } from '@/mocks/handlers/keyword-imports';
 import {
   Controlled,
   MAP_INTRO,
@@ -32,10 +31,7 @@ vi.mock('./import-queries', async (importOriginal) => ({
 }));
 
 beforeEach(stubWideScreen);
-afterEach(() => {
-  restoreWideScreen();
-  forgetImports();
-});
+afterEach(restoreWideScreen);
 
 describe('Import dialog: a tab that is hidden while the file is read', () => {
   afterEach(() => {

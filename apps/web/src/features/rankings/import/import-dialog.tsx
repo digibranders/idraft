@@ -514,7 +514,7 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
       // through may have sent them already, so a person who then chose to leave them archived sends the skip.
       const unarchiving = chosen.unarchive > 0;
       if (unarchiving || (known.counts.conflict > 0 && unarchiveSent.current === importId)) {
-        const actions = await conflictRowActions(scope, importId, unarchiving ? 'merge' : 'skip');
+        const actions = await conflictRowActions(scope, importId, unarchiving ? 'merge' : 'skip', signal);
         // Marked before the first request: a batch may be applied on the API though its answer never arrives, and
         // a later choice to leave the keywords archived must still take them all back
         if (unarchiving) unarchiveSent.current = importId;

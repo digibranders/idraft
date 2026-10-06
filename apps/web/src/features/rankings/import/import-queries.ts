@@ -242,24 +242,31 @@ export async function readRows(
 /** The most rows the API answers a page. */
 const ROWS_PAGE = 200;
 
-/** The reason code of a row that repeats an earlier row of the file: it takes `skip` and nothing else. */
-const REPEATED_ROW = 'repeated_row';
+/**
+ * The reason code of a row that repeats an earlier row of the file: it takes `skip` and nothing else. The API
+ * lists such a row as a duplicate, never as a conflict, so none shows among the conflict rows; the rule is
+ * kept for the day it does.
+ */
+const REPEATED_ROW = 'repeated_in_file';
 
 /**
  * A row action for every conflict row of the import, read page by page: `merge` is what unarchiving the
  * archived keywords sends just before Confirm, and `skip` takes it back when the person changed their mind
  * after a Confirm that did not go through. A row that repeats an earlier row of the file takes `skip` only
- * (the API refuses `merge` for it), so it is left out of the unarchiving.
+ * (the API refuses `merge` for it), so it is left out of the unarchiving. The signal stops the reading when
+ * the dialog closes: the request under way is aborted and no further page is asked.
  */
 export async function conflictRowActions(
   scope: ProjectScope,
   importId: string,
   action: 'merge' | 'skip' = 'merge',
+  signal?: AbortSignal,
 ): Promise<RowActionInput[]> {
   const actions: RowActionInput[] = [];
   let cursor: string | null = null;
   do {
-    const { rows, next } = await readRowsPage(scope, importId, 'conflict', ROWS_PAGE, cursor);
+    signal?.throwIfAborted();
+    const { rows, next } = await readRowsPage(scope, importId, 'conflict', ROWS_PAGE, cursor, signal);
     for (const row of rows) {
       if (action === 'merge' && row.reason_code === REPEATED_ROW) continue;
       actions.push({ row_no: row.row_no, part: row.part, action });

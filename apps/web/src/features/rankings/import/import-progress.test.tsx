@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT, IMPORTS } from './import-queries';
 import { dismissToast } from '@/components/ui/toast';
 import type { KeywordImport } from '@/lib/api/types';
-import { forgetImports } from '@/mocks/handlers/keyword-imports';
+import { writeTrouble } from '@/mocks/handlers/keyword-imports';
 import { mswPath } from '@/mocks/respond';
 import {
   Controlled,
@@ -36,7 +36,6 @@ vi.mock('@/lib/api/upload', async () => {
 beforeEach(stubWideScreen);
 afterEach(() => {
   restoreWideScreen();
-  forgetImports();
   vi.restoreAllMocks();
 });
 
@@ -118,6 +117,70 @@ describe('The report of an import', () => {
   });
 });
 
+describe('An import whose write goes wrong', () => {
+  it(
+    'offers the report and reads the keywords again when the write stopped on an error, not "try again"',
+    async () => {
+      const clicked = recordDownloads();
+      writeTrouble.stopAfterBatches = 1;
+      writeTrouble.batchSize = 1;
+      const { user } = renderWithProviders(<Controlled changes={[]} />);
+      await loadedGrid();
+      await importPaste(user, 'fresh idea one\nfresh idea two', 'Import 2 keywords');
+      expect(
+        await screen.findAllByText(
+          'Import failed: Some keywords were added before the import stopped. The report lists what was and was not written.',
+          undefined,
+          WRITTEN,
+        ),
+      ).not.toHaveLength(0);
+      expect(screen.queryByText(/Try the import again/)).toBeNull();
+      // The keyword of the batch that went through is in the table, read again after the failure; the one
+      // after it is not (the search is in memory, so only a list read again can hold either)
+      await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), 'fresh idea');
+      await waitFor(() =>
+        expect(screen.getByRole('grid', { name: 'Tracked keywords' })).toHaveTextContent('fresh idea one'),
+      );
+      expect(screen.getByRole('grid', { name: 'Tracked keywords' })).not.toHaveTextContent('fresh idea two');
+      // An error toast is announced through the live region and hidden from the tree until it is focused
+      await user.click(screen.getByRole('button', { name: 'Download report', hidden: true }));
+      expect(clicked).toHaveLength(1);
+      expect(clicked[0]?.href).toMatch(/\/keyword-imports\/[^/]+\/report$/);
+    },
+    WRITE_TEST,
+  );
+
+  it(
+    'says an import finished with errors when rows could not be written, and offers the report',
+    async () => {
+      writeTrouble.failedRows = [2];
+      const { user } = renderWithProviders(<Controlled changes={[]} />);
+      await loadedGrid();
+      await importPaste(user, 'fresh idea one\nfresh idea two', 'Import 2 keywords');
+      expect(
+        await screen.findAllByText(
+          'Import finished with errors: 1 added, 0 updated, 0 skipped. The report lists the rows that could not be written.',
+          undefined,
+          WRITTEN,
+        ),
+      ).not.toHaveLength(0);
+      expect(screen.getByRole('button', { name: 'Download report' })).toBeInTheDocument();
+    },
+    WRITE_TEST,
+  );
+
+  it(
+    'still reads a finished import as finished when only the preview skipped rows',
+    async () => {
+      const { user } = renderWithProviders(<Controlled changes={[]} />);
+      await loadedGrid();
+      await importPaste(user, 'fresh idea one\nsite:fynix.digital seo', 'Import 1 keyword');
+      expect(await screen.findByText('Import finished: 1 added, 1 skipped', undefined, WRITTEN)).toBeInTheDocument();
+    },
+    WRITE_TEST,
+  );
+});
+
 describe('Why a write failed, in words', () => {
   const failedWrite = (code: string | null): KeywordImport =>
     importFixture({
@@ -131,7 +194,10 @@ describe('Why a write failed, in words', () => {
     });
 
   it.each([
-    ['write_failed', 'The keywords could not be saved. Try the import again in a few minutes.'],
+    [
+      'write_failed',
+      'Some keywords were added before the import stopped. The report lists what was and was not written.',
+    ],
     ['project_gone', 'This project no longer exists, so nothing was imported.'],
     ['source_corrupt', 'The stored copy of the file is damaged. Upload the file again.'],
     ['source_unreadable', 'The stored copy of the file could not be read. Try again, or upload the file again.'],
@@ -171,7 +237,10 @@ describe('Why an import failed in the dialog, in words', () => {
     ['parse_failed', 'The file could not be parsed. Check that it is a well-formed CSV, then try again.'],
   ] as const;
   const SYSTEM = [
-    ['write_failed', 'The keywords could not be saved. Try the import again in a few minutes.'],
+    [
+      'write_failed',
+      'Some keywords were added before the import stopped. The report lists what was and was not written.',
+    ],
     ['source_corrupt', 'The stored copy of the file is damaged. Upload the file again.'],
     ['source_unreadable', 'The stored copy of the file could not be read. Try again, or upload the file again.'],
     ['project_gone', 'This project no longer exists, so nothing was imported.'],

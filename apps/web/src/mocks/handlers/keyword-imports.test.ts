@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
+import { writeTrouble } from './keyword-imports';
 import { MOCK_VOCABULARY_IDS } from '../entity-fixtures';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
 import { KEYWORD_TABLE } from '../keyword-table';
 import { mockId } from '../mock-ids';
+import { parseCsv } from '@/lib/csv/csv';
 import { IMPORT_ROW, KEYWORD_IMPORT, TRACKED_KEYWORD_DETAIL, TRACKED_KEYWORD_ROW } from '@/test/api-shapes';
 import { dataOf, fieldCodes, mockBrowser, type MockBrowser } from '@/test/mock-api';
 
@@ -57,7 +59,8 @@ describe('keyword imports', () => {
       source: 'paste',
       status: 'uploaded',
       quota: null,
-      operation: { status: 'running' },
+      // Queued for the worker that reads it, as the backend maps `uploaded`
+      operation: { status: 'queued' },
     });
     const path = `${I}/${started.import_id}`;
     expect(await editor.call('GET', `${path}/rows`)).toMatchObject({ status: 409, code: 'invalid_state_transition' });
@@ -68,13 +71,14 @@ describe('keyword imports', () => {
       column_mapping: { keyword: 'keyword', tags: 'tags' },
       counts: { rows_total: 4, new: 1, duplicate: 2, variant: 0, conflict: 0, invalid: 1 },
       quota: { limit: 5000, used: ACTIVE, would_use: ACTIVE + 1 },
-      operation: { status: 'waiting_for_input', links: { result: `${path}/rows` } },
+      // The report is linked whenever there are rows to report on, a ready preview included
+      operation: { status: 'waiting_for_input', links: { result: `${path}/report`, cancel: `${path}/cancel` } },
     });
     const rows = dataOf(await editor.call('GET', `${path}/rows`), ROWS);
     expect(rows.map((row) => [row.row_no, row.outcome, row.action, row.reason_code])).toEqual([
-      [1, 'duplicate', 'skip', 'already_tracked'],
+      [1, 'duplicate', 'skip', 'tracked'],
       [2, 'new', 'create', null],
-      [3, 'duplicate', 'skip', 'repeated_row'],
+      [3, 'duplicate', 'skip', 'repeated_in_file'],
       [4, 'invalid', 'skip', 'search_operator_not_allowed'],
     ]);
     expect(rows[0]?.existing_tracked_keyword_id).toBe(trackedId('seo audit'));
@@ -96,14 +100,20 @@ describe('keyword imports', () => {
 
     const confirmed = await editor.call('POST', `${path}/confirm`, {});
     expect(confirmed.status).toBe(202);
+    // Counted when the write has ended, as the backend does; the quota belongs to the preview alone
     expect(dataOf(confirmed, KEYWORD_IMPORT)).toMatchObject({
       status: 'writing',
-      counts: { created: 1, merged: 1, skipped: 2 },
+      counts: { created: 0, merged: 0, skipped: 0 },
+      quota: null,
     });
     clock += SETTLE_MS;
     const done = dataOf(await editor.call('GET', path), KEYWORD_IMPORT);
-    // An invalid row was left out, so the import completed with errors
-    expect(done).toMatchObject({ status: 'completed_with_errors', operation: { status: 'succeeded_with_errors' } });
+    // The invalid row was skipped, not a row the write failed on: the import completed
+    expect(done).toMatchObject({
+      status: 'completed',
+      counts: { created: 1, merged: 1, skipped: 2 },
+      operation: { status: 'succeeded' },
+    });
     expect(await editor.call('POST', `${path}/confirm`, {})).toMatchObject({ status: 409 });
 
     // The new keyword came from a paste, with its tags made in the Topics vocabulary
@@ -116,9 +126,17 @@ describe('keyword imports', () => {
     const lines = String(report.body.text).trim().split('\r\n');
     expect(lines).toHaveLength(5);
     expect(lines[0]).toBe(
-      'row_no,part,keyword,location_id,language_code,device,outcome,action,reason_code,reason,tracked_keyword_id',
+      'row_no,part,keyword,location_id,language_code,device,outcome,reason_code,reason,action,result,tracked_keyword_id,write_error_code',
     );
     expect(lines[2]).toContain(created?.tracked_keyword_id ?? 'missing');
+    // What became of each row: the merged one, the created one, and two skipped (a repeat, an invalid row)
+    expect(parseCsv(String(report.body.text)).map((cells) => cells[10])).toEqual([
+      'result',
+      'merged',
+      'created',
+      'skipped',
+      'skipped',
+    ]);
   });
 
   it('matches the mapping keys to the headers trimmed and without case, and echoes them as the backend does', async () => {
@@ -177,10 +195,10 @@ describe('keyword imports', () => {
     const rows = dataOf(await editor.call('GET', `${path}/rows`), ROWS);
     expect(rows.map((row) => [row.row_no, row.part, row.device, row.outcome, row.reason_code])).toEqual([
       // Tracked as "seo audit", not at this place: the same keyword typed differently
-      [1, 1, 'desktop', 'variant', 'variant'],
-      [2, 1, 'desktop', 'conflict', 'conflict'],
+      [1, 1, 'desktop', 'variant', 'casing_differs'],
+      [2, 1, 'desktop', 'conflict', 'archived'],
       // `both` is two rows of one row number
-      [3, 1, 'desktop', 'duplicate', 'already_tracked'],
+      [3, 1, 'desktop', 'duplicate', 'tracked'],
       [3, 2, 'mobile', 'new', null],
       [4, 1, null, 'invalid', 'device_invalid'],
     ]);
@@ -189,7 +207,13 @@ describe('keyword imports', () => {
       await editor.call('POST', `${path}/confirm`, { duplicate_action: 'skip' }),
       KEYWORD_IMPORT,
     );
-    expect(confirmed.counts).toMatchObject({ created: 2, merged: 1, skipped: 2 });
+    expect(confirmed.status).toBe('writing');
+    clock += SETTLE_MS;
+    expect(dataOf(await editor.call('GET', path), KEYWORD_IMPORT).counts).toMatchObject({
+      created: 2,
+      merged: 1,
+      skipped: 2,
+    });
     // The archived keyword was merged back in, and the group path was made
     const meme = dataOf(
       await editor.call('GET', `${P}/tracked-keywords/${trackedId('seo meme')}`),
@@ -257,7 +281,10 @@ describe('keyword imports', () => {
       await editor.call('POST', `${path}/confirm`, { duplicate_action: 'merge_terms' }),
       KEYWORD_IMPORT,
     );
-    expect(confirmed.counts).toMatchObject({ created: 0, merged: 1, skipped: 1 });
+    expect(confirmed.status).toBe('writing');
+    clock += SETTLE_MS;
+    const written = dataOf(await editor.call('GET', path), KEYWORD_IMPORT);
+    expect(written.counts).toMatchObject({ created: 0, merged: 1, skipped: 1 });
     const kept = dataOf(
       await editor.call('GET', `${P}/tracked-keywords/${trackedId('seo audit')}`),
       TRACKED_KEYWORD_DETAIL,
@@ -403,10 +430,210 @@ describe('keyword imports as the backend builds them', () => {
     clock += SETTLE_MS;
     const [first, repeat] = dataOf(await editor.call('GET', `${path}/rows`), ROWS);
     expect(first).toMatchObject({ outcome: 'new', action: 'create' });
-    expect(repeat).toMatchObject({ outcome: 'duplicate', reason_code: 'repeated_row', action: 'skip' });
+    expect(repeat).toMatchObject({ outcome: 'duplicate', reason_code: 'repeated_in_file', action: 'skip' });
     expect(fieldCodes(await editor.call('PATCH', path, { row_actions: [{ row_no: 2, action: 'merge' }] }))).toEqual([
       'row_actions.0.action:action_not_allowed',
     ]);
     expect((await editor.call('PATCH', path, { row_actions: [{ row_no: 2, action: 'skip' }] })).status).toBe(202);
+  });
+});
+
+describe('keyword imports: the reasons of invalid rows', () => {
+  const reasonsOf = async (csv: string, options?: unknown): Promise<(string | null)[]> => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, csv, 'keywords.csv', options), KEYWORD_IMPORT);
+    clock += SETTLE_MS;
+    return dataOf(await editor.call('GET', `${I}/${started.import_id}/rows`), ROWS).map((row) => row.reason_code);
+  };
+
+  it('refuses an intent and a funnel stage that do not exist, and takes a blank one', async () => {
+    expect(
+      await reasonsOf(
+        'keyword,intent,funnel_stage\nfresh idea one,commercial,\nfresh idea two,buying,\nfresh idea three,,top\nfresh idea four,Local,BOFU\n',
+      ),
+    ).toEqual([null, 'intent_invalid', 'funnel_stage_invalid', null]);
+  });
+
+  it('refuses a cell over 2,000 characters before anything else, and a cell with a NUL', async () => {
+    const long = 'x'.repeat(2_001);
+    expect(await reasonsOf(`keyword,notes\nfresh idea one,${long}\n,${long}\nfresh idea two,a\u0000b\n`)).toEqual([
+      'cell_too_long',
+      'cell_too_long',
+      'cell_invalid',
+    ]);
+  });
+
+  it('refuses a topic that is too deep and a row with too many or too long tags', async () => {
+    const options = {
+      defaults: { tags_vocabulary_id: MOCK_VOCABULARY_IDS.topics, topic_vocabulary_id: MOCK_VOCABULARY_IDS.topics },
+    };
+    const deep = Array.from({ length: 11 }, (_, level) => `level${String(level)}`).join('/');
+    const tags = Array.from({ length: 51 }, (_, tag) => `tag${String(tag)}`).join('|');
+    expect(
+      await reasonsOf(
+        `keyword,topic,tags\nfresh idea one,${deep},\nfresh idea two,,${tags}\nfresh idea three,,${'t'.repeat(101)}\nfresh idea four,CRM/Startups,a|A|b\n`,
+        options,
+      ),
+    ).toEqual(['topic_invalid', 'tags_invalid', 'tags_invalid', null]);
+  });
+
+  it('keeps the order the backend checks a row in: the first problem is the one named', async () => {
+    // A bad location and a bad intent: the location comes first
+    expect(await reasonsOf('keyword,location,intent\nfresh idea,Atlantis,buying\n')).toEqual(['location_unknown']);
+  });
+});
+
+describe('keyword imports: a write that goes wrong', () => {
+  const statusOf = async (browser: MockBrowser, path: string): Promise<KeywordImport> =>
+    dataOf(await browser.call('GET', path), KEYWORD_IMPORT);
+  const FIVE = 'keyword\nfresh idea one\nfresh idea two\nfresh idea three\nfresh idea four\nfresh idea five\n';
+
+  async function confirmed(): Promise<{ editor: MockBrowser; path: string }> {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, FIVE), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    clock += SETTLE_MS;
+    expect((await editor.call('POST', `${path}/confirm`, { duplicate_action: 'skip' })).status).toBe(202);
+    clock += SETTLE_MS;
+    return { editor, path };
+  }
+
+  const reportOf = async (editor: MockBrowser, path: string): Promise<string[][]> =>
+    parseCsv(String((await editor.call('GET', `${path}/report`)).body.text));
+  const tracked = async (editor: MockBrowser, text: string): Promise<boolean> =>
+    dataOf(
+      await editor.call('GET', `${P}/tracked-keywords?filter[q]=${encodeURIComponent(text)}`),
+      z.array(TRACKED_KEYWORD_ROW),
+    ).length > 0;
+
+  it('fails with write_failed after the batches that went through, which stay written, and keeps the report', async () => {
+    writeTrouble.stopAfterBatches = 1;
+    writeTrouble.batchSize = 2;
+    const { editor, path } = await confirmed();
+    const view = await statusOf(editor, path);
+    expect(view).toMatchObject({
+      status: 'failed',
+      error_code: 'write_failed',
+      // The counts of the preview stay, and nothing is counted as written (the backend counts at the end)
+      counts: { rows_total: 5, new: 5, created: 0, skipped: 0, merged: 0 },
+      quota: null,
+      operation: {
+        status: 'failed',
+        progress: { done: 2, total: 5 },
+        error: { code: 'write_failed' },
+        links: { result: `${path}/report` },
+      },
+    });
+    expect(view.finished_at).not.toBeNull();
+    expect(await tracked(editor, 'fresh idea one')).toBe(true);
+    expect(await tracked(editor, 'fresh idea two')).toBe(true);
+    expect(await tracked(editor, 'fresh idea three')).toBe(false);
+    // The report says what was written and leaves the rest without a result
+    const [head = [], ...lines] = await reportOf(editor, path);
+    const result = head.indexOf('result');
+    expect(lines.map((cells) => cells[result])).toEqual(['created', 'created', '', '', '']);
+  });
+
+  it('completes with errors only when rows could not be written, and says which in the report', async () => {
+    writeTrouble.failedRows = [2];
+    const { editor, path } = await confirmed();
+    expect(await statusOf(editor, path)).toMatchObject({
+      status: 'completed_with_errors',
+      counts: { created: 4, skipped: 0 },
+      operation: { status: 'succeeded_with_errors' },
+    });
+    expect(await tracked(editor, 'fresh idea two')).toBe(false);
+    const [head = [], ...lines] = await reportOf(editor, path);
+    const failure = lines.find((cells) => cells[head.indexOf('result')] === 'failed');
+    expect(failure?.[head.indexOf('keyword')]).toBe('fresh idea two');
+    expect(failure?.[head.indexOf('write_error_code')]).toBe('tracked_keyword_gone');
+  });
+
+  it('completes, not with errors, when only the preview skipped rows', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, 'keyword\nfresh idea one\nsite:fynix.digital seo\n'), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    clock += SETTLE_MS;
+    await editor.call('POST', `${path}/confirm`, { duplicate_action: 'skip' });
+    clock += SETTLE_MS;
+    expect(await statusOf(editor, path)).toMatchObject({
+      status: 'completed',
+      counts: { created: 1, skipped: 1, invalid: 1 },
+    });
+  });
+});
+
+describe('keyword imports: statuses and links as the backend gives them', () => {
+  const statusOf = async (browser: MockBrowser, path: string): Promise<KeywordImport> =>
+    dataOf(await browser.call('GET', path), KEYWORD_IMPORT);
+
+  it('previews a file that has a header and no rows, with no rows, instead of failing', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, 'keyword\n'), KEYWORD_IMPORT);
+    clock += SETTLE_MS;
+    expect(await statusOf(editor, `${I}/${started.import_id}`)).toMatchObject({
+      status: 'preview_ready',
+      error_code: null,
+      counts: { rows_total: 0 },
+    });
+  });
+
+  it('maps an expired preview to a failed operation named expired, and keeps its report', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, 'keyword\nfresh idea\n'), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    clock += SETTLE_MS;
+    clock += 7 * 24 * 60 * 60 * 1000;
+    expect(await statusOf(editor, path)).toMatchObject({
+      status: 'expired',
+      error_code: null,
+      operation: { status: 'failed', error: { code: 'expired' }, links: { result: `${path}/report` } },
+    });
+  });
+
+  it('offers cancel while the import is open and not after, and a report only once there are rows', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, 'keyword\nfresh idea\n'), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    // Being read: cancel, and no report yet
+    const reading = await statusOf(editor, path);
+    expect(reading.operation.links).toEqual({ self: path, cancel: `${path}/cancel` });
+    expect(await editor.call('GET', `${path}/report`)).toMatchObject({ status: 409, code: 'invalid_state_transition' });
+    clock += SETTLE_MS;
+    expect((await statusOf(editor, path)).operation.links).toEqual({
+      self: path,
+      cancel: `${path}/cancel`,
+      result: `${path}/report`,
+    });
+    // Cancelled after the preview: its rows stay reportable; a write cannot be cancelled
+    await editor.call('POST', `${path}/confirm`, { duplicate_action: 'skip' });
+    expect(await editor.call('POST', `${path}/cancel`)).toMatchObject({ status: 409 });
+    clock += SETTLE_MS;
+    expect((await statusOf(editor, path)).operation.links.cancel).toBeUndefined();
+  });
+
+  it('has a quota only while the preview is ready', async () => {
+    const editor = mockBrowser('editor');
+    const started = dataOf(await upload(editor, 'keyword\nfresh idea\n'), KEYWORD_IMPORT);
+    const path = `${I}/${started.import_id}`;
+    expect((await statusOf(editor, path)).quota).toBeNull();
+    clock += SETTLE_MS;
+    expect((await statusOf(editor, path)).quota).not.toBeNull();
+    await editor.call('POST', `${path}/confirm`, { duplicate_action: 'skip' });
+    clock += SETTLE_MS;
+    expect((await statusOf(editor, path)).quota).toBeNull();
+  });
+
+  it('keeps at most 20 imports: the oldest finished ones go, and an open one stays', async () => {
+    const editor = mockBrowser('editor');
+    const open = dataOf(await upload(editor, 'keyword\nfresh idea\n'), KEYWORD_IMPORT);
+    for (let made = 0; made < 25; made += 1) {
+      const next = dataOf(await upload(editor, 'keyword\n'), KEYWORD_IMPORT);
+      clock += SETTLE_MS;
+      await editor.call('POST', `${I}/${next.import_id}/cancel`);
+    }
+    const listed = dataOf(await editor.call('GET', `${I}?limit=100`), IMPORTS);
+    expect(listed.length).toBeLessThanOrEqual(20);
+    expect(listed.some((item) => item.import_id === open.import_id)).toBe(true);
   });
 });
