@@ -28,7 +28,7 @@ export const METRICS_FETCHED_AT = '2026-09-24T03:12:00Z';
 const ADDED_FROM = Date.parse('2026-06-15T08:00:00Z');
 const HOUR_MS = 60 * 60 * 1000;
 /** The three keywords still waiting for Labs were added just now, in mock time. */
-const PENDING_ADDED_AT = '2026-09-30T16:40:00Z';
+export const PENDING_ADDED_AT = '2026-09-30T16:40:00Z';
 
 export const MOCK_GROUP_IDS = {
   services: mockId('group', 1),

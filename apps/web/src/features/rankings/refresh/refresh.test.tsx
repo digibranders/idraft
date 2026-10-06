@@ -8,6 +8,7 @@ import { gate } from '@/test/gate';
 import type { Run } from '@/lib/api/types';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { handlers } from '@/mocks/handlers';
+import { PENDING_ADDED_AT } from '@/mocks/keyword-fixtures';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
@@ -1225,6 +1226,29 @@ function servePoll({ metricsFirst = false }: { metricsFirst?: boolean } = {}): {
   };
 }
 
+/**
+ * The list once Labs has answered every keyword while no rank check has run, counting the polls: what a project
+ * whose collection is paused (or out of budget) shows, however long ago its keywords were added.
+ */
+function serveMetricsWithoutChecks(): { polls: () => number } {
+  let polls = 0;
+  server.use(
+    http.get(mswPath(TRACKED), async ({ request }) => {
+      const url = new URL(request.url);
+      if (url.searchParams.get('limit') === '1') return undefined;
+      if (url.searchParams.get('sort') === '-created_at') polls += 1;
+      const real = await getResponse([...handlers], new Request(url, { headers: request.headers }));
+      const body = ROWS.parse(await real?.json());
+      const donor = donorMetrics(body.data);
+      return HttpResponse.json({ ...body, data: body.data.map((row) => ({ ...row, metrics: row.metrics ?? donor })) });
+    }),
+  );
+  return { polls: () => polls };
+}
+
+/** Mock time shortly after the fixture keywords that wait were added (`PENDING_ADDED_AT`): they are new. */
+const SHORTLY_AFTER_ADDED = Date.parse(PENDING_ADDED_AT) + 20 * 60_000;
+
 describe('Keywords that wait for their first metrics', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -1277,7 +1301,31 @@ describe('Keywords that wait for their first metrics', () => {
     expect(poll.polls()).toBe(reads);
   });
 
+  it('are not polled for a first rank check when they were added long ago: a paused project is not asked about', async () => {
+    // The fixture keywords were added on 30 September; the clock is days later, and their metrics are in
+    const feed = serveMetricsWithoutChecks();
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    expect(pending(grid)).toBe(0);
+    // They still say Pending in Rank: nothing is made up
+    expect(pendingRankCells(grid).length).toBeGreaterThanOrEqual(3);
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60_000));
+    expect(feed.polls()).toBe(0);
+  });
+
+  it('are polled for a first rank check when they were added within the last hour', async () => {
+    vi.setSystemTime(SHORTLY_AFTER_ADDED);
+    const feed = serveMetricsWithoutChecks();
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    expect(pending(grid)).toBe(0);
+    expect(pendingRankCells(grid).length).toBeGreaterThanOrEqual(3);
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    await waitFor(() => expect(feed.polls()).toBe(1));
+  });
+
   it('are read for their first rank check too: the metrics come first, the check later, and the polling stops after it', async () => {
+    vi.setSystemTime(SHORTLY_AFTER_ADDED);
     const poll = servePoll({ metricsFirst: true });
     renderWithProviders(as('editor'));
     const grid = await loadedGrid();
@@ -1303,6 +1351,7 @@ describe('Keywords that wait for their first metrics', () => {
   });
 
   it('are not waited for after 15 minutes when the first check never comes, though their metrics are there', async () => {
+    vi.setSystemTime(SHORTLY_AFTER_ADDED);
     const poll = servePoll({ metricsFirst: true });
     renderWithProviders(as('editor'));
     const grid = await loadedGrid();

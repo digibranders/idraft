@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   FINISH_KEYS,
+  FIRST_CHECK_WINDOW_MS,
   MAX_REFRESH_KEYWORDS,
   STALE_DAYS,
   chosenKeywordIds,
@@ -69,30 +70,63 @@ describe('Waiting for first metrics', () => {
     expect(isPendingMetrics({ is_active: true, metrics })).toBe(false);
   });
 
+  const NOW = Date.parse('2026-10-06T12:00:00Z');
+  const minutesAgo = (minutes: number): string => new Date(NOW - minutes * 60_000).toISOString();
+
   it('knows a keyword waits for its first rank check until the API says it was checked', () => {
     const state = (
       kind: 'not_checked' | 'ranked' | 'beyond_depth' | 'failed',
     ): { current: { state: typeof kind } } => ({
       current: { state: kind },
     });
-    expect(waitsForFirstCheck({ is_active: true, state: state('not_checked') })).toBe(true);
+    const added = minutesAgo(5);
+    expect(waitsForFirstCheck({ is_active: true, created_at: added, state: state('not_checked') }, NOW)).toBe(true);
     // A check that ran and failed is a check: the keyword does not wait for a first one any more
-    expect(waitsForFirstCheck({ is_active: true, state: state('failed') })).toBe(false);
-    expect(waitsForFirstCheck({ is_active: true, state: state('ranked') })).toBe(false);
-    expect(waitsForFirstCheck({ is_active: true, state: state('beyond_depth') })).toBe(false);
+    expect(waitsForFirstCheck({ is_active: true, created_at: added, state: state('failed') }, NOW)).toBe(false);
+    expect(waitsForFirstCheck({ is_active: true, created_at: added, state: state('ranked') }, NOW)).toBe(false);
+    expect(waitsForFirstCheck({ is_active: true, created_at: added, state: state('beyond_depth') }, NOW)).toBe(false);
     // Archived keywords are not collected
-    expect(waitsForFirstCheck({ is_active: false, state: state('not_checked') })).toBe(false);
+    expect(waitsForFirstCheck({ is_active: false, created_at: added, state: state('not_checked') }, NOW)).toBe(false);
+  });
+
+  it('waits for a first check only while the keyword is new: an old one is not collected soon, so it is not polled for', () => {
+    const unchecked = { current: { state: 'not_checked' as const } };
+    const row = (created_at: string): Parameters<typeof waitsForFirstCheck>[0] => ({
+      is_active: true,
+      created_at,
+      state: unchecked,
+    });
+    expect(FIRST_CHECK_WINDOW_MS).toBe(60 * 60_000);
+    expect(waitsForFirstCheck(row(minutesAgo(0)), NOW)).toBe(true);
+    expect(waitsForFirstCheck(row(minutesAgo(59)), NOW)).toBe(true);
+    expect(waitsForFirstCheck(row(minutesAgo(60)), NOW)).toBe(true);
+    expect(waitsForFirstCheck(row(minutesAgo(61)), NOW)).toBe(false);
+    // Imported weeks ago, in a paused or budget-blocked project
+    expect(waitsForFirstCheck(row(minutesAgo(21 * 24 * 60)), NOW)).toBe(false);
+    // A clock a little behind the server's puts the keyword slightly in the future: still new
+    expect(waitsForFirstCheck(row(minutesAgo(-3)), NOW)).toBe(true);
+    // A date that is not a date is not waited for
+    expect(waitsForFirstCheck(row('not a date'), NOW)).toBe(false);
   });
 
   it('waits for either: the metrics, or the first check', () => {
     const metrics = { volume: 880 };
     const checked = { current: { state: 'ranked' as const } };
     const unchecked = { current: { state: 'not_checked' as const } };
-    expect(isWaiting({ is_active: true, metrics, state: checked })).toBe(false);
-    expect(isWaiting({ is_active: true, metrics: null, state: checked })).toBe(true);
-    expect(isWaiting({ is_active: true, metrics, state: unchecked })).toBe(true);
-    expect(isWaiting({ is_active: true, metrics: null, state: unchecked })).toBe(true);
-    expect(isWaiting({ is_active: false, metrics: null, state: unchecked })).toBe(false);
+    const created_at = minutesAgo(5);
+    expect(isWaiting({ is_active: true, created_at, metrics, state: checked }, NOW)).toBe(false);
+    expect(isWaiting({ is_active: true, created_at, metrics: null, state: checked }, NOW)).toBe(true);
+    expect(isWaiting({ is_active: true, created_at, metrics, state: unchecked }, NOW)).toBe(true);
+    expect(isWaiting({ is_active: true, created_at, metrics: null, state: unchecked }, NOW)).toBe(true);
+    expect(isWaiting({ is_active: false, created_at, metrics: null, state: unchecked }, NOW)).toBe(false);
+  });
+
+  it('keeps waiting for the metrics of an old keyword, whatever its first check', () => {
+    // The metrics wait is not changed: only the first check is limited to a new keyword
+    const old = minutesAgo(30 * 24 * 60);
+    const unchecked = { current: { state: 'not_checked' as const } };
+    expect(isWaiting({ is_active: true, created_at: old, metrics: null, state: unchecked }, NOW)).toBe(true);
+    expect(isWaiting({ is_active: true, created_at: old, metrics: { volume: 1 }, state: unchecked }, NOW)).toBe(false);
   });
 });
 

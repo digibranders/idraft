@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   PENDING_CAP_MS,
@@ -125,8 +125,8 @@ const pendingQuery = (filters: KeywordFilters, cursor: string | null): ListQuery
 /**
  * New keywords show "Pending" until their first metrics arrive, within minutes (backend plan D8), and in the
  * rank columns until their first rank check has run (a few minutes after, rank collection). While a row on
- * screen is still waiting for either (an active keyword with no metrics, or one the API has not checked) the
- * list is read again every 30 seconds (see `readWaiting` for how much of it), and the metrics and the rank
+ * screen is still waiting for either (an active keyword with no metrics, or one added within the last hour that
+ * the API has not checked) the list is read again every 30 seconds (see `readWaiting` for how much of it), and the metrics and the rank
  * state it brings are laid over the waiting rows, each over a row that still lacks it. The list's own
  * queries are not touched, so fresher data in them is never overwritten. Rows keep their identity (only a
  * waiting row that got something is replaced), so the table does not flash and keeps its selection, its
@@ -134,7 +134,8 @@ const pendingQuery = (filters: KeywordFilters, cursor: string | null): ListQuery
  *
  * The polling stops when no row waits, and on rows that have waited 15 minutes with the tab shown: a keyword
  * that never gets metrics (no credentials, a run cancelled) or a first check (a paused project) is not asked
- * about for good. It stops with the screen, pauses while the tab is hidden, and reads at once when the tab is
+ * about for good. A keyword added more than an hour before the screen opened is not waited for to be checked at
+ * all: in a paused or budget-blocked project that would be every visit. It stops with the screen, pauses while the tab is hidden, and reads at once when the tab is
  * shown again.
  */
 export function usePendingMetrics({
@@ -145,6 +146,9 @@ export function usePendingMetrics({
   pageRequest,
 }: PendingArgs): readonly TrackedKeywordRow[] {
   const queryClient = useQueryClient();
+  // The moment the screen opened: a keyword that is not new by then is not waited for to be checked (see
+  // `FIRST_CHECK_WINDOW_MS`). A keyword added while the screen is open is created after it, so it always waits.
+  const [openedAt] = useState(() => Date.now());
   const request = mode === 'server' ? pageRequest : null;
   const queryKey = [...keywordsKey(scope), filters, 'pending', request];
   // When the oldest waiting row was created: set by an effect, read by the poll
@@ -175,22 +179,22 @@ export function usePendingMetrics({
     if (heard === undefined) return rows;
     let changed = false;
     const next = rows.map((row) => {
-      const fresh = isWaiting(row) ? heard.get(row.tracked_keyword_id) : undefined;
+      const fresh = isWaiting(row, openedAt) ? heard.get(row.tracked_keyword_id) : undefined;
       if (fresh === undefined) return row;
       // Only what the row still lacks is laid over it: metrics it has, or a rank it was already given, stay
       const metrics = isPendingMetrics(row) ? fresh.metrics : null;
-      const state = waitsForFirstCheck(row) ? fresh.state : null;
+      const state = waitsForFirstCheck(row, openedAt) ? fresh.state : null;
       if (metrics === null && state === null) return row;
       changed = true;
       return { ...row, ...(metrics === null ? {} : { metrics }), ...(state === null ? {} : { state }) };
     });
     return changed ? next : rows;
-  }, [rows, heard]);
+  }, [rows, heard, openedAt]);
 
   // How long each waiting row has been waited for with the tab shown. Only effects and timers touch it.
   const waited = useRef(new Map<string, number>());
   const waiting = useMemo(() => {
-    const rowsWaiting = merged.filter(isWaiting);
+    const rowsWaiting = merged.filter((row) => isWaiting(row, openedAt));
     return {
       key: rowsWaiting.map((row) => row.tracked_keyword_id).join(','),
       oldest: rowsWaiting.reduce<number | null>((oldest, row) => {
@@ -198,7 +202,7 @@ export function usePendingMetrics({
         return oldest === null || created < oldest ? created : oldest;
       }, null),
     };
-  }, [merged]);
+  }, [merged, openedAt]);
   const { refetch } = poll;
 
   useEffect(() => {
