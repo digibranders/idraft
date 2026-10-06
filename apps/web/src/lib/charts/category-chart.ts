@@ -2,7 +2,7 @@ import type { ChartTokens } from '@/lib/design/read-tokens';
 
 /**
  * The ECharts option of a line or bar chart over categories (months, days), styled by the rules of
- * 15-data-visualization.md sections 3 and 4: no animation, fixed grid padding, horizontal dashed
+ * 15-data-visualization.md sections 3 and 4: no animation, a fixed outer padding that holds the axis labels, horizontal dashed
  * gridlines, an x axis line only, 2 px lines, markers on series of 60 points or fewer, bars at most 24 px
  * wide. Colours come by role, never by position in the data.
  */
@@ -70,7 +70,9 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
     animation: false,
     // Decal patterns only: the frame names and describes the chart, so ECharts writes no label of its own
     aria: { enabled: true, label: { enabled: false }, decal: { show: patterns } },
-    grid: { left: 40, right: 16, top: 8, bottom: 24, outerBoundsMode: 'none' },
+    // The padding bounds the axis labels too: the plot shrinks until the y labels ("30,000", "1.2M") and the
+    // x labels fit inside it, so no width of label is cut at the card's edge
+    grid: { left: 4, right: 16, top: 8, bottom: 4, outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' },
     textStyle: label,
     xAxis: {
       type: 'category',

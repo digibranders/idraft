@@ -41,8 +41,14 @@ describe('categoryChartOption', () => {
   it('draws without animation, inside the fixed grid padding', () => {
     expect(option('line')).toMatchObject({
       animation: false,
-      grid: { left: 40, right: 16, top: 8, bottom: 24, outerBoundsMode: 'none' },
+      grid: { right: 16, top: 8 },
     });
+  });
+
+  it('makes room for the axis labels whatever their width, so a label of five digits is not cut at the edge', () => {
+    // The padding is the outer edge of the labels: the chart shrinks its plot until they fit inside it
+    expect(option('line').grid).toMatchObject({ outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' });
+    expect(option('bar').grid).toMatchObject({ outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' });
   });
 
   it('colours series by role, dashes the reference, keeps gaps, and leaves hidden series out', () => {
