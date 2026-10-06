@@ -61,7 +61,15 @@ export interface OpenRefreshes {
   manual: ManualRuns | null;
 }
 
-async function readOpen(scope: ProjectScope, signal: AbortSignal): Promise<OpenRefreshes> {
+/**
+ * Whether the member started the run. The backend makes manual runs of its own for new keywords (their first
+ * metrics, `created_by` a system actor, not counted against the day's 20), and other members start theirs: the
+ * header follows neither. The day's count in `meta` is the API's and needs no filtering.
+ */
+export const startedBy = (run: Pick<Run, 'created_by'>, userId: string): boolean =>
+  run.created_by?.actor_type === 'user' && run.created_by.actor_id === userId;
+
+async function readOpen(scope: ProjectScope, userId: string, signal: AbortSignal): Promise<OpenRefreshes> {
   const page = await unwrap(
     api.GET(RUNS, {
       params: {
@@ -76,22 +84,23 @@ async function readOpen(scope: ProjectScope, signal: AbortSignal): Promise<OpenR
       signal,
     }),
   );
-  return { runs: page.data, manual: page.meta.manual_runs_today ?? null };
+  return { runs: page.data.filter((run) => startedBy(run, userId)), manual: page.meta.manual_runs_today ?? null };
 }
 
 /**
- * The open manual refreshes of the project, which a reload resumes in the header, with the day's count of
- * manual runs (`meta.manual_runs_today`) that the menu quotes. Read on mount and again by `refetch`, when the
- * menu opens and after a refresh starts. Each open run it finds is put into the cache of the run itself, unless
- * that holds a reading already, so the header shows a run a reload resumed before the run is asked about.
+ * The open manual refreshes of the project that the member started, which a reload resumes in the header, with
+ * the day's count of manual runs (`meta.manual_runs_today`, every member's and the system's) that the menu
+ * quotes. Read on mount and again by `refetch`, when the menu opens and after a refresh starts. Each open run
+ * it finds is put into the cache of the run itself, unless that holds a reading already, so the header shows a
+ * run a reload resumed before the run is asked about.
  */
-export function useOpenRefreshes(scope: ProjectScope, enabled: boolean): UseQueryResult<OpenRefreshes> {
+export function useOpenRefreshes(scope: ProjectScope, userId: string, enabled: boolean): UseQueryResult<OpenRefreshes> {
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: openRefreshesKey(scope),
     enabled,
     queryFn: async ({ signal }) => {
-      const open = await readOpen(scope, signal);
+      const open = await readOpen(scope, userId, signal);
       for (const found of open.runs) {
         // Held as stale (updated at the start of time): it shows at once, and the run is still read on mount
         if (queryClient.getQueryData<Run>(refreshRunKey(scope, found.run_id)) === undefined) {

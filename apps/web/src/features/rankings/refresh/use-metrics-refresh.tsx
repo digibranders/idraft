@@ -29,6 +29,7 @@ import type { RecordAction } from '@/components/app/data-table/types';
 import { announce } from '@/lib/a11y/announcer';
 import type { Run, TrackedKeywordRow } from '@/lib/api/types';
 import { formatInteger } from '@/lib/format';
+import { useMe } from '@/lib/session/use-me';
 
 /** What opens the dialog: the More actions menu, or the bulk bar over the chosen keywords. */
 type Source = 'menu' | 'bar';
@@ -125,7 +126,8 @@ export function useMetricsRefresh({
 }: MetricsRefreshArgs): MetricsRefresh {
   const t = useTranslations('rankings.refresh');
   const queryClient = useQueryClient();
-  const open = useOpenRefreshes(scope, enabled);
+  const { user } = useMe();
+  const open = useOpenRefreshes(scope, user.user_id, enabled);
   const { refetch } = open;
   const manual = open.data?.manual ?? null;
   const left = manual === null ? null : leftToday(manual);

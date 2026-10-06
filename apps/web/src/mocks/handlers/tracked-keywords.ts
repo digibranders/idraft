@@ -24,7 +24,7 @@ import {
   type KeywordProjectCaller,
 } from './keyword-rules';
 import { mergeTerms, plan, written } from './keyword-writes';
-import { scheduleCheckFor } from './operations-rules';
+import { scheduleCheckFor, systemMetricsRun } from './operations-rules';
 import { at, bodyError, booleanError, extraMembers, isRecord, notAnObject, pageRequest, cursorPage } from './rules';
 import {
   configHistoryView,
@@ -46,7 +46,7 @@ import {
   type KeywordWorld,
   type StoredTracked,
 } from '../keywords-state';
-import { invalid, mock, noContent, problem } from '../respond';
+import { invalid, mock, noContent, problem, setCookies } from '../respond';
 import type { ValidationItem } from '@/lib/api/types';
 
 /**
@@ -135,10 +135,13 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const next = minter.commit(written(caller, planned.changes, planned.rows, item));
     const cookie = savedKeywords(request, next);
     if (typeof cookie !== 'string') return cookie;
+    // The worker asks for the first metrics of what was added, in a run of the system's
+    const metrics = systemMetricsRun(request, cookies, caller.project.project_id, rows.length);
+    if (metrics instanceof Response) return metrics;
     const world = keywordWorld(next);
     return HttpResponse.json(
       { data: rows.map((row) => trackedKeywordView(world, row)) },
-      { status: 201, headers: { 'set-cookie': cookie } },
+      { status: 201, headers: setCookies(cookie, metrics) },
     );
   }),
 
@@ -205,7 +208,12 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     if (over) return over;
     const cookie = savedKeywords(request, minter.commit(changes));
     if (typeof cookie !== 'string') return cookie;
-    return HttpResponse.json({ data: { created, restored, skipped, rejected } }, { headers: { 'set-cookie': cookie } });
+    const metrics = systemMetricsRun(request, cookies, caller.project.project_id, created.length);
+    if (metrics instanceof Response) return metrics;
+    return HttpResponse.json(
+      { data: { created, restored, skipped, rejected } },
+      { headers: setCookies(cookie, metrics) },
+    );
   }),
 
   mock('get', `${P}/tracked-keywords/{tracked_keyword_id}`, ({ request, cookies, params }) => {

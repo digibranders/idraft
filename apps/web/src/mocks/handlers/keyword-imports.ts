@@ -25,7 +25,7 @@ import {
   type ScheduleCheck,
 } from './keyword-rules';
 import { mergeTerms, plan, written } from './keyword-writes';
-import { scheduleCheckFor } from './operations-rules';
+import { scheduleCheckFor, systemMetricsRun } from './operations-rules';
 import {
   at,
   bodyError,
@@ -58,7 +58,7 @@ import { mockId } from '../mock-ids';
 import { onMockReset } from '../state';
 import { projectList } from '../workspace-state';
 import { termSlug } from '../term-slug';
-import { invalid, mock, problem } from '../respond';
+import { invalid, mock, problem, setCookies } from '../respond';
 import type { components } from '@/lib/api/schema';
 import type { ValidationItem } from '@/lib/api/types';
 import { parseCsv, toCsv } from '@/lib/csv/csv';
@@ -1144,9 +1144,10 @@ export const keywordImportHandlers: HttpHandler[] = [
       at: start,
       until: start + WRITE_MS_MIN + Math.ceil(entry.rows.length / 1000) * WRITE_MS_PER_1000,
     };
-    const headers = new Headers();
-    headers.append('set-cookie', keywordCookie);
-    headers.append('set-cookie', entityCookie);
+    // The worker asks for the first metrics of the keywords the import made, in a run of the system's
+    const metricsCookie = systemMetricsRun(request, cookies, caller.project.project_id, result.written.created);
+    if (typeof metricsCookie !== 'string' && metricsCookie !== null) return metricsCookie;
+    const headers = setCookies(keywordCookie, entityCookie, metricsCookie);
     const next = { ...caller, keywordChanges: result.keywords, keywords: keywordWorld(result.keywords) };
     return answerImport(next, entry, 202, headers);
   }),

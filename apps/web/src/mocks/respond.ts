@@ -36,6 +36,15 @@ const MAX_BODY_BYTES = 1024 * 1024;
 /** `/api/v1/workspaces/{workspace_id}` as an MSW path on any origin: `*\/api/v1/workspaces/:workspace_id`. */
 export const mswPath = (path: string): string => `*${path.replace(/\{([^}]+)\}/g, ':$1')}`;
 
+/** Headers that set each of the cookies given, one `Set-Cookie` each; `null` is left out. */
+export function setCookies(...cookies: readonly (string | null)[]): Headers {
+  const headers = new Headers();
+  for (const cookie of cookies) {
+    if (cookie !== null) headers.append('set-cookie', cookie);
+  }
+  return headers;
+}
+
 export function mock<M extends Method, P extends ApiPath<M>>(
   method: M,
   path: P,

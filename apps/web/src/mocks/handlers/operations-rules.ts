@@ -11,9 +11,12 @@ import { labsMicros, runState } from '../factories/operations';
 import { KEYWORD_OVERVIEW_ENDPOINT, MOCK_BUDGETS, type BudgetGroup, type StoredBudget } from '../operations-fixtures';
 import {
   OPERATIONS_COOKIE,
+  operationIdMinter,
   operationsCookie,
   operationWorld,
   readOperationChanges,
+  runTime,
+  withRun,
   type OperationChanges,
   type OperationWorld,
   type ScheduleWorkload,
@@ -111,6 +114,43 @@ export function manualRunsToday(world: OperationWorld, projectId: string, now: n
       run.created_by !== null &&
       run.created_at.slice(0, 10) === day,
   ).length;
+}
+
+/**
+ * The manual run the backend makes for keywords just added, to read their first metrics (backend
+ * `collectors/keyword_metrics.py`, doc 19 section 3.6.1): a `keyword_metrics` run with `created_by` the
+ * system, which does not count against the day's manual runs. Returns the `Set-Cookie` that keeps it beside
+ * the keywords', `null` when nothing was added, or the `422` when the cookie is full.
+ */
+export function systemMetricsRun(
+  request: Request,
+  cookies: Readonly<Record<string, string>>,
+  projectId: string,
+  added: number,
+): string | HttpResponse<Problem> | null {
+  if (added < 1) return null;
+  const changes = readOperationChanges(cookies);
+  const minter = operationIdMinter(changes);
+  const run: StoredRun = {
+    run_id: minter.next('run'),
+    project_id: projectId,
+    schedule_id: null,
+    workload: 'keyword_metrics',
+    trigger: 'manual',
+    created_at: runTime(),
+    created_by: null,
+    tasks_total: added,
+    tasks_failed: 0,
+    calls: 1,
+    keyword_count: added,
+    stale_days: null,
+    ending: 'completed',
+    status_reason: null,
+    blocked_by_budget_id: null,
+    cancelled_at: null,
+    cancel_reason: null,
+  };
+  return savedOperations(request, minter.commit(withRun(changes, run)));
 }
 
 // Cost events, as the hourly rollup groups them (D14)

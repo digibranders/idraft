@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { api } from '@/lib/api/client';
 import type { Run } from '@/lib/api/types';
-import { MOCK_WORKSPACE } from '@/mocks/fixtures';
+import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { handlers } from '@/mocks/handlers';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
@@ -66,7 +66,8 @@ function run(over: Partial<Run> = {}): Run {
     estimated_cost_usd: null,
     actual_cost_usd: null,
     blocked_by_budget_id: null,
-    created_by: null,
+    // The editor of these tests started it: the header follows the runs of the member alone
+    created_by: { actor_type: 'user', actor_id: mockUser('editor').user_id, label: 'Editor' },
     created_at: NOW,
     completed_at: null,
     operation: {
@@ -638,7 +639,7 @@ describe('When the API does not take the refresh', () => {
     const state: RunsState = { used: 19, open: [] };
     const { user, dialog } = await failWith((request) => {
       state.used = 20;
-      return problem(request, 'manual_run_limit', { limit: 20, used: 20, retry_after_seconds: 3600 });
+      return problem(request, 'manual_run_limit', { limit: 20 });
     }, state);
     expect(
       await within(dialog).findByText('This project has used its 20 manual runs today. The limit resets at 00:00 UTC.'),
@@ -957,6 +958,77 @@ describe('A refresh in the header', () => {
     renderWithProviders(as('editor'));
     expect(await screen.findByText('Refreshing metrics')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '3 of 10 read');
+  });
+
+  describe('that the member did not start', () => {
+    const SYSTEM = { actor_type: 'system', actor_id: 'system', label: 'Sightline' } as const;
+    const OTHER_MEMBER = { actor_type: 'user', actor_id: mockUser('admin').user_id, label: 'Another member' } as const;
+
+    it('does not follow the manual run the system starts for new keywords, and quotes the day’s count as the API says', async () => {
+      const runs = serveRuns({ used: 4, open: [running(0, 3, { created_by: SYSTEM })] });
+      const reads = serveRun(() => running(0, 3, { created_by: SYSTEM }));
+      const { user } = renderWithProviders(as('editor'));
+      await loadedGrid();
+      await waitFor(() => expect(runs.reads()).toBeGreaterThan(0));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(screen.queryByText('Refreshing metrics')).toBeNull();
+      expect(screen.queryByRole('progressbar')).toBeNull();
+      expect(reads.reads()).toBe(0);
+      // The API's count of the day (it leaves the system's runs out), which the menu quotes
+      const dialog = await openRefresh(user);
+      expect(within(dialog).getByText('16 of 20 manual runs left today.')).toBeInTheDocument();
+    });
+
+    it('shows no bar after keywords were added and the page was opened again, with the mock’s own system run open', async () => {
+      const first = renderWithProviders(as('editor'));
+      await loadedGrid();
+      const path = { workspace_id: MOCK_WORKSPACE.workspace_id, project_id: fynix.project_id };
+      const added = await api.POST(TRACKED, {
+        params: { path },
+        body: { keyword: 'fresh idea one', priority: 3, funnel_stage: 'unknown', search_engine: 'google' },
+      });
+      expect(added.response.status).toBe(201);
+      // The mocks record the run the worker would make for the new keyword's first metrics
+      const open = await api.GET(RUNS, {
+        params: { path, query: { 'filter[status_in]': ['planned', 'running'], 'filter[trigger_in]': ['manual'] } },
+      });
+      expect(open.data?.data.map((found) => found.created_by?.actor_type)).toEqual(['system']);
+      first.unmount();
+      renderWithProviders(as('editor'));
+      await loadedGrid();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(screen.queryByText('Refreshing metrics')).toBeNull();
+      expect(screen.queryByRole('progressbar')).toBeNull();
+    });
+
+    it('does not follow a refresh another member started', async () => {
+      serveRuns({ used: 1, open: [running(2, 10, { created_by: OTHER_MEMBER })] });
+      const reads = serveRun(() => running(2, 10, { created_by: OTHER_MEMBER }));
+      renderWithProviders(as('editor'));
+      await loadedGrid();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(screen.queryByText('Refreshing metrics')).toBeNull();
+      expect(reads.reads()).toBe(0);
+    });
+
+    it('follows the member’s own refresh among the others', async () => {
+      serveRuns({
+        used: 3,
+        open: [
+          running(0, 3, { created_by: SYSTEM, run_id: OTHER_RUN_ID }),
+          running(4, 10, { created_by: { ...OTHER_MEMBER, actor_id: mockUser('editor').user_id, label: 'Me' } }),
+        ],
+      });
+      serveRun((runId) =>
+        runId === RUN_ID
+          ? running(4, 10, { created_by: { ...OTHER_MEMBER, actor_id: mockUser('editor').user_id, label: 'Me' } })
+          : running(0, 3, { created_by: SYSTEM, run_id: OTHER_RUN_ID }),
+      );
+      renderWithProviders(as('editor'));
+      expect(await screen.findByText('Refreshing metrics')).toBeInTheDocument();
+      expect(screen.getAllByRole('progressbar')).toHaveLength(1);
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '4 of 10 read');
+    });
   });
 
   describe('that cannot be followed', () => {
