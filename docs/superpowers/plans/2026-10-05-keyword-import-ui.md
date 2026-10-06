@@ -41,7 +41,7 @@ All commands run in `apps/web`. Before any markup, invoke `design-taste-frontend
 | `POST {P}/keyword-imports/{id}/cancel` | before writing starts |
 | `GET {P}/keyword-imports/{id}/report` | `text/csv`, streamed, one line per row with outcome and reason |
 
-**`KeywordImport`** fields used here: `import_id`, `source`, `original_filename`, `status`, `column_mapping` (`{ header: field }`, only the headers that map), `defaults`, `counts { rows_total, new, duplicate, variant, conflict, invalid, created, skipped, merged }`, `quota { limit, used, would_use } | null` (once the preview is ready), `error_code`, `expires_at`, `operation { status, progress { done, total, unit } }`.
+**`KeywordImport`** fields used here: `import_id`, `source`, `original_filename`, `status`, `column_mapping` (`{ header: field }`, only the headers that map), `defaults`, `counts { rows_total, new, duplicate, variant, conflict, invalid, created, skipped, merged }`, `quota { limit, used, would_use } | null` (only while the preview is `preview_ready`, as the API gives it), `error_code`, `expires_at`, `operation { status, progress { done, total, unit } }`.
 
 **Statuses:** `uploaded`, `parsing`, `needs_mapping`, `preview_ready`, `writing`, `completed`, `completed_with_errors`, `failed`, `cancelled`, `expired`.
 
@@ -1264,3 +1264,14 @@ git commit -m "Rankings: import keywords"
 ```
 
 The client is generated from `backend/openapi/v1.json` (there is no draft folder in `apps/web`). When the backend changes that document after its imports Part A, run `pnpm gen:api` in `apps/web` and fix any difference before the review. Never add `.claude/launch.json` or `research/`. No attribution lines. Push only on the user's word.
+
+## After the whole-branch review (2026-10-06)
+
+What the review found and the code now does, where the steps above say otherwise:
+
+- **Reason codes** are the backend's (see "Invalid reason codes" above). Messages exist for every one; a code without words shows the API's own `reason`.
+- **A write that fails** (`status: 'failed'`, `error_code: 'write_failed'`) keeps what its earlier 1,000-row batches wrote, and its report stays available. The header reads the keywords, groups and vocabularies again and offers "Download report" with the failure. `completed_with_errors` means rows could not be written (not that the preview skipped invalid rows, which ends `completed`); it says so and offers the report. The mock can stop a write after N batches (`writeTrouble` in `keyword-imports.ts`).
+- **Statuses and links as the API gives them:** `uploaded` is `queued`, `expired` is `failed` with `error.code: 'expired'` (the import's `status` stays `expired`, which the dialog reads), `links.result` is the report whenever there are rows (a ready preview too), `cancel` only while the import is open (not in `parsing`, which is never committed), the quota only while the preview is ready, and a file with a header and no rows is a preview of no rows, not a failure (`no_rows` stays in the failure words, and no API sends it).
+- **Waiting for the read:** the dialog polls with the tab hidden, and asks the API once more before it ends the wait as slow, so an import that was ready is not cancelled for a file that went up. Closing the dialog stops reading the conflict rows.
+- **A paste** is checked before it is sent against the API's limits (a million characters, and a request body of 1 MiB, which line breaks and accents can exceed under a million characters), and a 413 on a paste has words of its own.
+- **The route** opens the dialog on a history entry of its own: the browser's Back closes it (the dialog stops what it had going, as when it is closed) and stays on Rankings. The code of the dialog loads on its first opening, and not for a member who cannot import. An upload times out after ten minutes.

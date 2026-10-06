@@ -946,3 +946,11 @@ git commit -m "Workspace costs and runs"
 ```
 
 Never add `.claude/launch.json` or `research/`. No attribution lines. Push only on the user's word.
+
+## After the whole-branch review (2026-10-06)
+
+- **Costs and archived projects.** The cost routes count an archived project's spend. Costs reads the workspace's projects with `filter[status_in]=active,paused,archived` and names an archived one "Name (archived)" in the By project table, the Budgets table and the Project filter, instead of calling its spend a deleted project's. The project list elsewhere stays the active and paused ones.
+- **Layouts.** `costs` and `ops/runs` each have a `layout.tsx` with the workspace shell (the page title in the breadcrumb), a `loading.tsx` with the page skeleton and an `error.tsx` with Try again, as `[workspace]/settings` has, so a loading or failed page keeps the shell.
+- **Run reasons.** `missed_window` (the scheduled window passed before the planner could plan it, so a run was recorded cancelled and nothing was collected) and `not_planned` (a manual run whose plan failed) have words; with `budget_exceeded`, `cancelled_by_user`, `project_not_collecting` and `workload_unavailable` they are every `status_reason` the backend writes. The mock mirrors the reason as `operation.error`, gives a failed run none of its own, and answers a refresh that a budget will block `planned` first.
+- **Runs at the cap.** When the month holds 2,000 runs, or more runs are open than the poll's page holds, the open runs of the list that the poll does not name are read by their ids, so a run that ended stops showing as running and the poll stops.
+- **The mocks** refuse a period that ends before it starts or runs past 366 days (`range_invalid`, `range_too_long`), days outside 2000 to 2100, more than 7 `group_by` keys or 20 workloads, and a project filter that is not a project the caller sees (404); `pct_used` of a limit of nothing is 100. `manual_run_limit` carries `limit` alone. Docs and comments say Runs needs `data:read`, which every role but billing holds.

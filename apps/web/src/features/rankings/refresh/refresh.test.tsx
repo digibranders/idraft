@@ -1,9 +1,10 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { delay, getResponse, http, HttpResponse } from 'msw';
+import { getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { api } from '@/lib/api/client';
+import { gate } from '@/test/gate';
 import type { Run } from '@/lib/api/types';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { handlers } from '@/mocks/handlers';
@@ -495,11 +496,12 @@ describe('What the dialog refreshes', () => {
     serveRuns({ used: 0, open: [] });
     const seen = watchRows();
     const sent = serveRefresh(() => accepted(run()));
-    // Without the filter the list answers late, and the rows of the filter stay on screen meanwhile
+    // Without the filter the list answers late (when the test says), and the rows of the filter stay on screen meanwhile
+    const late = gate();
     server.use(
       http.get(mswPath(TRACKED), async ({ request }) => {
         const url = new URL(request.url);
-        if (url.searchParams.get('limit') !== '1' && !url.searchParams.has('filter[intent_in]')) await delay(1_500);
+        if (url.searchParams.get('limit') !== '1' && !url.searchParams.has('filter[intent_in]')) await late.promise;
         return undefined;
       }),
     );
@@ -517,6 +519,7 @@ describe('What the dialog refreshes', () => {
     ).toBeInTheDocument();
     expect(within(dialog).getByRole('radio', { name: 'All keywords with stale metrics' })).toBeChecked();
     // Once the new list has loaded, the whole list is named, not the rows that were on screen
+    late.open();
     await waitFor(() => expect(matching).not.toHaveAttribute('aria-disabled', 'true'), { timeout: 5_000 });
     await user.click(matching);
     const count = Number(/\d+/.exec(within(dialog).getByText(/^All \d+ keywords in the list$/).textContent)?.[0]);
@@ -949,15 +952,18 @@ describe('A refresh in the header', () => {
 
   it('shows a refresh a reload found at once, from the open runs, before its own read has answered', async () => {
     serveRuns({ used: 3, open: [running(3, 10)] });
+    // The run's own read stays unanswered until the test ends
+    const unanswered = gate();
     server.use(
       http.get(mswPath(RUN), async () => {
-        await delay(3_000);
+        await unanswered.promise;
         return HttpResponse.json({ data: running(3, 10) });
       }),
     );
     renderWithProviders(as('editor'));
     expect(await screen.findByText('Refreshing metrics')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '3 of 10 read');
+    unanswered.open();
   });
 
   describe('that the member did not start', () => {
