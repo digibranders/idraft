@@ -330,7 +330,7 @@ describe('Bulk actions', () => {
     await user.click(within(bar).getByRole('button', { name: 'Unarchive' }));
     // The error toast and its announcement say it
     expect(
-      await screen.findAllByText('The plan has room for 1 more active keyword (59 of 60 used); this would add 2.'),
+      await screen.findAllByText('Your plan has room for 1 more active keyword (59 of 60 used); this adds 2.'),
     ).not.toHaveLength(0);
   });
 

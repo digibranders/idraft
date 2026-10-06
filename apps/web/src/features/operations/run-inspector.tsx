@@ -96,7 +96,7 @@ export function RunInspector({
   const loadError: ReactNode = (
     <InlineError
       title={failedTitle}
-      reason={t('loadFailedReason')}
+      reason={t('inspector.loadFailedReason')}
       errorId={
         errorId === null
           ? null

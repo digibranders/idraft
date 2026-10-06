@@ -15,6 +15,7 @@ import {
   wordAlias,
 } from './entity-queries';
 import { DomainInput } from '@/components/app/forms/domain-input';
+import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { Banner } from '@/components/app/status/banner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -71,6 +72,7 @@ function EntityForm({
 }: Omit<EntityDialogProps, 'role'> & { role: AddedRole }): ReactNode {
   const t = useTranslations('entitySettings.dialog');
   const domains = useTranslations('common.domain');
+  const multiSelectHints = useMultiSelectHints();
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
   const queryClient = useQueryClient();
@@ -310,8 +312,7 @@ function EntityForm({
               emptyText={() => t('aliasHelp')}
               chipsLabel={t('aliases')}
               removeLabel={(alias) => t('removeAlias', { alias })}
-              chipsHint={(count) => t('aliasesHint', { count })}
-              chipHint={t('aliasHint')}
+              {...multiSelectHints}
               disabled={createdId !== null}
             />
             <FieldDescription>{t('aliasesDescription')}</FieldDescription>

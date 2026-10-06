@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { DomainInput } from '@/components/app/forms/domain-input';
 import { FormField } from '@/components/app/forms/form-field';
 import { LocationCombobox } from '@/components/app/forms/location-combobox';
+import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { useBrowserTimeZoneDefault, useSlugSuggestion, useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { TimeZoneCombobox } from '@/components/app/forms/time-zone-combobox';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
@@ -68,6 +69,7 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
   const t = useTranslations('onboarding');
   const days = useTranslations('common.weekdays');
   const domainCopy = useTranslations('common.domain');
+  const multiSelectHints = useMultiSelectHints();
   const locations = useLocationSearch();
   const router = useRouter();
   const create = useMutation(apiMutation('post', '/api/v1/workspaces/{workspace_id}/projects'));
@@ -443,8 +445,7 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
                 emptyText={() => t('aliasHelp')}
                 chipsLabel={t('aliases')}
                 removeLabel={(alias) => t('removeAlias', { alias })}
-                chipsHint={(count) => t('aliasesChips', { count })}
-                chipHint={t('aliasChip')}
+                {...multiSelectHints}
                 className="min-h-control-lg"
               />
             )}

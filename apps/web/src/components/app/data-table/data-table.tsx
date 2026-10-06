@@ -525,10 +525,9 @@ export function DataTable<TRow extends RowData>({
   const primarySort = sort[0];
   // A search narrows the loaded rows here in client mode, so the count is of what it left
   const shownCount = serverMode || needle === '' ? (total ?? rows.length) : rows.length;
-  const countText = t('count', {
-    count: formatInteger(shownCount),
-    noun: shownCount === 1 ? itemNoun.one : itemNoun.other,
-  });
+  // The noun's form is the message's to choose (ICU plural), so a language with more forms can have them
+  const nouns = { nounOne: itemNoun.one, nounOther: itemNoun.other };
+  const countText = t('count', { count: shownCount, ...nouns });
   const sortSummary = sort.length < 2 ? null : sortText(sort);
   // The result count is announced when it changes after the first render (13-filters-search.md section 8),
   // whether the toolbar or the bulk bar is showing
@@ -579,11 +578,7 @@ export function DataTable<TRow extends RowData>({
   const footerCount =
     loadProgress === null || loadProgress === undefined
       ? countText
-      : t('loadProgress', {
-          loaded: formatInteger(loadProgress.loaded),
-          total: formatInteger(loadProgress.total),
-          noun: itemNoun.other,
-        });
+      : t('loadProgress', { loaded: loadProgress.loaded, total: loadProgress.total, ...nouns });
 
   // A column's options: sort, then moving and hiding it (12-tables.md section 10)
   const columnMenu = (column: DataTableColumn<TRow>, sorted: boolean): MenuItemDef[] => {
@@ -678,10 +673,9 @@ export function DataTable<TRow extends RowData>({
           onSelectAllMatching={() => {
             selection.onAllMatchingChange(true);
             if (selection.matchingTotal !== null) {
-              announce(
-                t('allMatchingAnnounced', { count: formatInteger(selection.matchingTotal), noun: itemNoun.other }),
-                { key: selectionKey },
-              );
+              announce(t('allMatchingAnnounced', { count: selection.matchingTotal, ...nouns }), {
+                key: selectionKey,
+              });
             }
           }}
           hiddenCount={hiddenSelected}
@@ -781,10 +775,7 @@ export function DataTable<TRow extends RowData>({
                     {column.kind === 'select' ? (
                       <Checkbox
                         checked={headerChecked}
-                        label={t('selectAll', {
-                          count: formatInteger(ids.length),
-                          noun: ids.length === 1 ? itemNoun.one : itemNoun.other,
-                        })}
+                        label={t('selectAll', { count: ids.length, ...nouns })}
                         labelDisplay="visually-hidden"
                         tabIndex={-1}
                         onCheckedChange={toggleAll}

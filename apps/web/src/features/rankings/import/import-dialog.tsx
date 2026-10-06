@@ -84,6 +84,7 @@ import { StepperDialog } from '@/components/ui/stepper-dialog';
 import { isApiProblem } from '@/lib/api/problem';
 import { uploadForm } from '@/lib/api/upload';
 import { formatInteger } from '@/lib/format';
+import { quotaFacts } from '@/lib/keywords/quota';
 import { useMembership } from '@/lib/permissions';
 
 /** The rows each outcome lists in Review; the report holds all of them. */
@@ -221,13 +222,7 @@ export function ImportDialog({ scope, open, onOpenChange, onConfirmed, defaults 
     if (isApiProblem(error, 'unsupported_media_type')) return t('uploadType');
     if (isApiProblem(error, 'storage_unavailable')) return t('storageUnavailable');
     if (isApiProblem(error, 'forbidden')) return t('forbidden');
-    if (isApiProblem(error, 'quota_exceeded')) {
-      return t('quotaExceeded', {
-        used: formatInteger(error.number('used') ?? 0),
-        limit: formatInteger(error.number('limit') ?? 0),
-        requested: formatInteger(error.number('requested') ?? 0),
-      });
-    }
+    if (isApiProblem(error, 'quota_exceeded')) return common('quota', { ...quotaFacts(error, 0) });
     return t('requestFailed');
   };
   const fail = (error: unknown, source: ImportSource = 'upload'): Verdict => {

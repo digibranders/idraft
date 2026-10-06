@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 import { DETAIL, refreshAfterWrite, type KeywordDetail, type KeywordScope } from './inspector-queries';
 import { EditButton, useEditFocus, type SectionEdit } from './section-edit';
-import { DEPTH_KEY, FUNNEL_STAGES, INTENTS, PRIORITIES, SOURCE_KEY, oneOf } from '../keyword-values';
+import { FUNNEL_STAGES, INTENTS, PRIORITIES, SOURCE_KEY, oneOf } from '../keyword-values';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
@@ -23,6 +23,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import { formatDetailDateTime } from '@/lib/format';
 import { applyServerErrors } from '@/lib/forms';
+import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 import { isWebUrl, MAX_URL_LENGTH } from '@/lib/urls/web-url';
 
 interface TrackingValues {
@@ -57,6 +58,7 @@ export function TrackingSection({
 }): ReactElement {
   const t = useTranslations('rankings.inspector.tracking');
   const filters = useTranslations('rankings.filters');
+  const depthLabel = useDepthLabel();
   const focus = useEditFocus(edit.active);
   const intent = filters(`intents.${detail.intent}`);
   const added = formatDetailDateTime(detail.created_at, timeZone);
@@ -69,7 +71,7 @@ export function TrackingSection({
       value: detail.intent_source === 'manual' ? t('intentManual', { intent }) : intent,
     },
     { id: 'stage', label: t('stage'), value: filters(`stages.${detail.funnel_stage}`) },
-    { id: 'depth', label: t('depth'), value: filters(`depths.${DEPTH_KEY[detail.depth_profile]}`) },
+    { id: 'depth', label: t('depth'), value: depthLabel(detail.depth_profile) },
     {
       id: 'schedule',
       label: t('schedule'),

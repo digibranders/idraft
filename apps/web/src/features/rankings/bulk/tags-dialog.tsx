@@ -10,6 +10,7 @@ import type { ProjectScope } from '../rankings-queries';
 import { useTermChoices, type TermChoice } from '../term-choices';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
+import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { RadioGroup } from '@/components/ui/radio-group';
 
@@ -47,6 +48,7 @@ export function TagsDialog({
   const t = useTranslations('rankings.bulk.tagsDialog');
   const bulk = useTranslations('rankings.bulk');
   const add = useTranslations('rankings.add');
+  const multiSelectHints = useMultiSelectHints();
   const terms = useTermChoices(scope);
   const [alert, setAlert] = useState<string | null>(null);
   const form = useForm<TagValues>({ defaultValues: START });
@@ -126,8 +128,7 @@ export function TagsDialog({
             emptyText={(query) => add('tagsEmpty', { query })}
             chipsLabel={add('chips', { field: t('tags') })}
             removeLabel={(value) => add('remove', { value })}
-            chipsHint={(count) => add('chipsHint', { count })}
-            chipHint={add('chipHint')}
+            {...multiSelectHints}
           />
         )}
       />

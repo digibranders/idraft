@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { entityQuery, refreshEntities, type EntityDetail, type ProjectScope } from './entity-queries';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
+import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { DiscardChangesDialog } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -101,6 +102,7 @@ function ReadOnlyDetails({ entity }: { entity: EntityDetail }): ReactNode {
 
 function DetailsForm({ scope, entity }: { scope: ProjectScope; entity: EntityDetail }): ReactNode {
   const t = useTranslations('entitySettings.details');
+  const multiSelectHints = useMultiSelectHints();
   const account = useTranslations('account');
   const queryClient = useQueryClient();
   const formId = useId();
@@ -287,8 +289,7 @@ function DetailsForm({ scope, entity }: { scope: ProjectScope; entity: EntityDet
               emptyText={() => t('hintsHelp')}
               chipsLabel={t('hints')}
               removeLabel={(hint) => t('removeHint', { hint })}
-              chipsHint={(count) => t('hintsChips', { count })}
-              chipHint={t('hintChip')}
+              {...multiSelectHints}
             />
           )}
         />

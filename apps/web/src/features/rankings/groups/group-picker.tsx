@@ -13,6 +13,7 @@ import {
 } from './group-choices';
 import { splitPath } from './group-paths';
 import type { ProjectScope } from '../rankings-queries';
+import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { Combobox } from '@/components/ui/combobox';
 import { MultiSelect } from '@/components/ui/multi-select';
 
@@ -51,6 +52,7 @@ export function GroupPicker({
   onValueChange: (value: readonly GroupChoice[]) => void;
 }): ReactElement {
   const t = useTranslations('rankings.groups');
+  const multiSelectHints = useMultiSelectHints();
   const groups = useGroupChoices(scope);
   return (
     <MultiSelect<GroupChoice>
@@ -70,8 +72,7 @@ export function GroupPicker({
       emptyText={(query) => emptyText(groups, query, t)}
       chipsLabel={t('chips')}
       removeLabel={(label) => t('remove', { value: label })}
-      chipsHint={(count) => t('chipsHint', { count })}
-      chipHint={t('chipHint')}
+      {...multiSelectHints}
     />
   );
 }

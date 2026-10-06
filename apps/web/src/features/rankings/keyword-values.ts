@@ -34,16 +34,6 @@ export const SOURCE_KEY = {
   discovery: 'discovery',
 } as const satisfies Record<KeywordSource, string>;
 
-export const DEPTH_KEY = {
-  light: 'light',
-  standard: 'standard',
-  deep: 'deep',
-  full: 'full',
-  weekly: 'weekly',
-  weekly_light: 'weeklyLight',
-  until_own_match_100: 'untilOwnMatch100',
-} as const satisfies Record<DepthProfile, string>;
-
 /** The one of `allowed` that `value` is, or `null`. */
 export function oneOf<T extends string>(value: string, allowed: readonly T[]): T | null {
   return allowed.find((candidate) => candidate === value) ?? null;

@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  DEFAULT_DEPTHS,
-  DEFAULT_DEVICES,
-  DEFAULT_FREQUENCIES,
-  DEPTH_KEYS,
-  SEO_DEFAULTS,
-} from './keyword-defaults-values';
+import { DEFAULT_DEPTHS, DEFAULT_DEVICES, DEFAULT_FREQUENCIES, SEO_DEFAULTS } from './keyword-defaults-values';
 import {
   CADENCES,
   PROVIDER_MODE_KEYS,
@@ -17,6 +11,7 @@ import {
   WEEKDAYS,
 } from './schedule-model';
 import messages from '../../../messages/en.json';
+import { DEPTH_KEYS } from '@/lib/keywords/depth-profiles';
 import {
   seoSettingsDefault_depth_profileValues,
   seoSettingsDefault_deviceValues,
@@ -44,7 +39,7 @@ describe('the words of Project settings', () => {
 
   it('keeps the depth profiles to the API’s, one message each, and offers all but the one not built yet', () => {
     expect(Object.keys(DEPTH_KEYS).sort()).toEqual([...seoSettingsDefault_depth_profileValues].sort());
-    expect(Object.values(DEPTH_KEYS).sort()).toEqual(Object.keys(keywordDefaults.depths).sort());
+    expect(Object.values(DEPTH_KEYS).sort()).toEqual(Object.keys(messages.common.depths).sort());
     expect([...DEFAULT_DEPTHS].sort()).toEqual(
       seoSettingsDefault_depth_profileValues.filter((depth) => depth !== 'until_own_match_100').sort(),
     );

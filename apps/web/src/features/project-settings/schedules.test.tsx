@@ -254,7 +254,11 @@ describe('Project settings > Schedules', () => {
 
   it('says so when the role cannot read the schedules at all, in one banner and not two', async () => {
     renderWithProviders(screenAs('billing'));
-    expect(await screen.findByText('Your role cannot see the schedules of this project.')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'You do not have permission to see the schedules of this project. Ask an admin of this workspace.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Owners, admins and editors can change schedules.')).toBeNull();
   });
 

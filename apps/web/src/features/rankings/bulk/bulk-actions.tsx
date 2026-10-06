@@ -30,6 +30,7 @@ import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation, type ApiInit } from '@/lib/api/query';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { formatInteger } from '@/lib/format';
+import { quotaFacts } from '@/lib/keywords/quota';
 
 /** Above this many keywords, archiving asks first (24-page-templates.md section 9.3). */
 const CONFIRM_ABOVE = 100;
@@ -99,16 +100,7 @@ export function useBulkActions(context: BulkContext): {
     if (isApiProblem(error, 'too_many_subjects')) {
       return t('tooMany', { limit: formatInteger(error.number('limit') ?? 20_000) });
     }
-    if (isApiProblem(error, 'quota_exceeded')) {
-      const limit = error.number('limit') ?? 0;
-      const used = error.number('used') ?? 0;
-      return t('quota', {
-        room: Math.max(limit - used, 0),
-        used: formatInteger(used),
-        limit: formatInteger(limit),
-        requested: formatInteger(error.number('requested') ?? 0),
-      });
-    }
+    if (isApiProblem(error, 'quota_exceeded')) return common('quota', { ...quotaFacts(error, 0) });
     return t('failed');
   };
   // A dialog that made its change closes onto a bulk bar that has gone with the selection: focus goes to

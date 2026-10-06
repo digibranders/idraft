@@ -33,6 +33,14 @@ describe('message catalog (22-content-formatting.md section 1)', () => {
     expect(failing((text) => / {2,}/.test(text))).toEqual([]);
   });
 
+  it('quotes content with typographic double quotes, never straight ones', () => {
+    expect(failing((text) => text.includes('"'))).toEqual([]);
+  });
+
+  it('writes "cannot" and the other negatives in full, with no contraction of not', () => {
+    expect(failing((text) => /\b[A-Za-z]+n['’]t\b/.test(text))).toEqual([]);
+  });
+
   it('has no exclamation mark: the voice is neutral', () => {
     expect(failing((text) => text.includes('!'))).toEqual([]);
   });

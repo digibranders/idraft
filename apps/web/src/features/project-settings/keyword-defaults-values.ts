@@ -18,17 +18,6 @@ export const DEFAULT_DEPTHS = OFFERED_DEPTH_PROFILES satisfies readonly DefaultD
 
 export const DEFAULT_FREQUENCIES = ['daily', 'weekly'] as const satisfies readonly DefaultFrequency[];
 
-/** The catalog key of a depth profile under `projectSettings.keywordDefaults.depths`: keys are camel case. */
-export const DEPTH_KEYS = {
-  light: 'light',
-  standard: 'standard',
-  deep: 'deep',
-  full: 'full',
-  weekly: 'weekly',
-  weekly_light: 'weeklyLight',
-  until_own_match_100: 'untilOwnMatch100',
-} as const satisfies Record<DefaultDepth, string>;
-
 /** The defaults a project has while its settings name none, as the contract declares them. */
 export const SEO_DEFAULTS: SeoSettings = {
   default_device: 'desktop',

@@ -12,7 +12,7 @@ import { DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
-import { formatInteger } from '@/lib/format';
+import { quotaFacts } from '@/lib/keywords/quota';
 
 /** A list in the result shows this many keywords, then how many more. */
 const SHOWN = 20;
@@ -50,7 +50,6 @@ export function AddKeywordsResult({
 }): ReactElement {
   const t = useTranslations('rankings.add.result');
   const add = useTranslations('rankings.add');
-  const archive = useTranslations('rankings.inspector.archive');
   const common = useTranslations('common');
   const queryClient = useQueryClient();
   const skippedId = useId();
@@ -78,13 +77,10 @@ export function AddKeywordsResult({
       announce(t('unarchivedAnnouncement', { keyword: label }));
       void refreshKeywords(queryClient, scope);
     } catch (error) {
-      const used = isApiProblem(error, 'quota_exceeded') ? error.number('used') : null;
-      const limit = isApiProblem(error, 'quota_exceeded') ? error.number('limit') : null;
       setState(id, {
-        failed:
-          used !== null && limit !== null
-            ? archive('quota', { used: formatInteger(used), limit: formatInteger(limit) })
-            : t('unarchiveFailed'),
+        failed: isApiProblem(error, 'quota_exceeded')
+          ? common('quota', { ...quotaFacts(error, 1) })
+          : t('unarchiveFailed'),
       });
     }
   };

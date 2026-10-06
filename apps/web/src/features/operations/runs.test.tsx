@@ -422,6 +422,15 @@ describe('Runs while a run is open', () => {
     await waitFor(() => expect(within(panel).queryByText(/Could not refresh/)).toBeNull());
   });
 
+  it('gives a run that did not load a reason that is about the run, not about filters', async () => {
+    server.use(http.get(mswPath(RUN), () => serverError()));
+    renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(999)}` });
+    const panel = await screen.findByRole('complementary');
+    expect(await within(panel).findAllByText('This run did not load')).not.toHaveLength(0);
+    expect(within(panel).getAllByText('The server did not answer. Try again in a moment.').length).toBeGreaterThan(0);
+    expect(within(panel).queryByText(/filters are unchanged/)).toBeNull();
+  });
+
   it('stops reading the open run once its inspector is closed', async () => {
     const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
     const served = servePaged(paged);
@@ -788,7 +797,9 @@ describe('Runs', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Cancel run' }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Cancel run' }));
-    expect(await within(dialog).findByText(/You can cancel the runs you started/)).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText('You do not have permission to cancel this run. Ask an admin of this workspace.'),
+    ).toBeInTheDocument();
     server.use(http.post(mswPath(CANCEL), () => serverError()));
     await user.click(within(dialog).getByRole('button', { name: 'Cancel run' }));
     expect(await within(dialog).findByText('The run could not be cancelled. Try again.')).toBeInTheDocument();
@@ -845,7 +856,7 @@ describe('Runs', () => {
       }),
     );
     const { user } = renderWithProviders(runsAs('admin'));
-    expect(await screen.findByText('Showing 1 runs. The rest did not load.')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 1 run. The rest did not load.')).toBeInTheDocument();
     fail = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(bodyRows(screen.getByRole('grid', { name: 'Runs' }))).toHaveLength(2));
@@ -866,7 +877,9 @@ describe('Runs', () => {
     const asked = recordRequests('/runs');
     renderWithProviders(runsAs('billing'), { searchParams: `?inspect=run:${uuid(1)}` });
     expect(await screen.findByRole('heading', { name: 'You do not have access to Runs' })).toBeInTheDocument();
-    expect(screen.getByText(/Viewing runs needs the data:read permission/)).toBeInTheDocument();
+    expect(
+      screen.getByText('You do not have permission to view runs. Ask an admin of this workspace.'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
     expect(screen.getByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
     expect(screen.queryByRole('grid')).toBeNull();

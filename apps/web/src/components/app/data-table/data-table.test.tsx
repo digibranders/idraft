@@ -63,7 +63,9 @@ function Harness({
   bulkActions = ACTIONS,
   rowName = keywordOf,
   columns = COLUMNS,
+  loadProgress = null,
 }: {
+  loadProgress?: { loaded: number; total: number } | null;
   columns?: readonly DataTableColumn<Row>[];
   rows: Row[];
   status?: TableStatus;
@@ -90,6 +92,7 @@ function Harness({
         rows={rows}
         total={server === undefined ? rows.length : 4812}
         server={server}
+        loadProgress={loadProgress}
         sort={sort}
         onSortChange={setSort}
         defaultSort={DEFAULT_SORT}
@@ -173,6 +176,16 @@ describe('DataTable', () => {
     expect(bodyKeywords()).toHaveLength(5);
     expect(screen.getAllByText('5 keywords')).toHaveLength(2);
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('says one row in the singular and several in the plural, in the count, the select-all name and the load progress', () => {
+    const { rerender } = renderWithProviders(<Harness rows={rowsOf(1)} />);
+    expect(screen.getAllByText('1 keyword')).toHaveLength(2);
+    expect(screen.getByRole('checkbox', { name: 'Select all 1 keyword loaded' })).toBeInTheDocument();
+    rerender(<Harness rows={rowsOf(1)} loadProgress={{ loaded: 0, total: 1 }} />);
+    expect(screen.getByText('Loading 0 of 1 keyword')).toBeInTheDocument();
+    rerender(<Harness rows={rowsOf(2)} loadProgress={{ loaded: 1, total: 2 }} />);
+    expect(screen.getByText('Loading 1 of 2 keywords')).toBeInTheDocument();
   });
 
   it('sorts from the header: the column default first, then reversed, then back to the table default', async () => {

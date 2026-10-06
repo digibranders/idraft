@@ -47,7 +47,8 @@ export function ImportProgress({ scope, importId, timeZone, onSettled }: ImportP
       // A read that fails for good leaves nothing to follow: say so, once
       if (lost) {
         handled.current = true;
-        toast({ id: toastId, type: 'error', title: t('progressLost') });
+        // Whether it ended is not known, so it is not an error: the same toast as a refresh that is let go of
+        toast({ id: toastId, type: 'info', title: t('progressLost') });
         onSettled(importId);
       }
       return;

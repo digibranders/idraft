@@ -592,7 +592,9 @@ describe('Costs', () => {
     const prices = recordRequests('/price-book');
     renderWithProviders(costsAs('viewer'));
     expect(await screen.findByRole('heading', { name: 'You do not have access to Costs' })).toBeInTheDocument();
-    expect(screen.getByText(/Viewing costs needs the costs:read permission/)).toBeInTheDocument();
+    expect(
+      screen.getByText('You do not have permission to view costs. Ask an admin of this workspace.'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/digibranders');
     expect(screen.getByRole('heading', { level: 1, name: 'Costs' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Month summary' })).toBeNull();

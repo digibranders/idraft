@@ -17,6 +17,7 @@ import { useTermChoices } from '../term-choices';
 import { FormField } from '@/components/app/forms/form-field';
 import { LocationCombobox } from '@/components/app/forms/location-combobox';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
+import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { FormAlert } from '@/components/ui/form-alert';
@@ -32,6 +33,7 @@ import { formatInteger, formatList } from '@/lib/format';
 import { LANGUAGE_CODES, languageName } from '@/lib/format/language';
 import { MAX_KEYWORDS_PER_ADD, readKeywordLines, type KeywordLines } from '@/lib/keywords/keyword-lines';
 import { MAX_KEYWORD_LENGTH, type KeywordTextProblem } from '@/lib/keywords/keyword-text';
+import { quotaFacts } from '@/lib/keywords/quota';
 import { useLocationSearch } from '@/lib/locations/use-location-search';
 
 type LocationRef = components['schemas']['LocationRef'];
@@ -105,6 +107,7 @@ export function AddKeywordsDialog({
   const discard = useTranslations('account.discard');
   const filters = useTranslations('rankings.filters');
   const tracking = useTranslations('rankings.inspector.tracking');
+  const multiSelectHints = useMultiSelectHints();
   const locale = useLocale();
   const queryClient = useQueryClient();
   const locations = useLocationSearch();
@@ -267,18 +270,7 @@ export function AddKeywordsDialog({
         });
       } catch (error) {
         if (isApiProblem(error, 'quota_exceeded')) {
-          const limit = error.number('limit') ?? 0;
-          const used = error.number('used') ?? 0;
-          setAlert(
-            withLeftover(
-              t('quota', {
-                requested: formatInteger(error.number('requested') ?? items.length * (both === 'yes' ? 2 : 1)),
-                room: formatInteger(Math.max(limit - used, 0)),
-                used: formatInteger(used),
-                limit: formatInteger(limit),
-              }),
-            ),
-          );
+          setAlert(withLeftover(common('quota', { ...quotaFacts(error, items.length * (both === 'yes' ? 2 : 1)) })));
           return;
         }
         if (isApiProblem(error, 'validation_failed')) {
@@ -443,8 +435,7 @@ export function AddKeywordsDialog({
                   emptyText={(query) => t('tagsEmpty', { query })}
                   chipsLabel={t('chips', { field: t('tags') })}
                   removeLabel={(value) => t('remove', { value })}
-                  chipsHint={(count) => t('chipsHint', { count })}
-                  chipHint={t('chipHint')}
+                  {...multiSelectHints}
                 />
               )}
             />

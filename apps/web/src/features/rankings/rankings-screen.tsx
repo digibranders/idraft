@@ -487,9 +487,9 @@ export function RankingsScreen({
                 ? undefined
                 : {
                     rangeText: t('range', {
-                      from: formatInteger(list.server.offset + 1),
-                      to: formatInteger(list.server.offset + list.rows.length),
-                      total: formatInteger(list.total ?? 0),
+                      from: list.server.offset + 1,
+                      to: list.server.offset + list.rows.length,
+                      total: list.total ?? 0,
                     }),
                     offset: list.server.offset,
                     hasPrevious: list.server.hasPrevious,

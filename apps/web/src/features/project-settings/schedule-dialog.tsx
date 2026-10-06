@@ -40,6 +40,7 @@ import { useScheduleWords } from './schedule-words';
 import { FormField } from '@/components/app/forms/form-field';
 import { TimeZoneCombobox } from '@/components/app/forms/time-zone-combobox';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
+import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader, type DialogProps } from '@/components/ui/dialog';
 import { FormAlert } from '@/components/ui/form-alert';
@@ -129,6 +130,7 @@ function ScheduleForm({
   const days = useTranslations('common.weekdays');
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
+  const multiSelectHints = useMultiSelectHints();
   const queryClient = useQueryClient();
   const workloadName = useWorkloadName();
   const words = useScheduleWords();
@@ -589,8 +591,7 @@ function ScheduleForm({
                       emptyText={(query) => t('groupsEmpty', { query })}
                       chipsLabel={t('groupsChips')}
                       removeLabel={(value) => t('removeValue', { value })}
-                      chipsHint={(count) => t('chipsHint', { count })}
-                      chipHint={t('chipHint')}
+                      {...multiSelectHints}
                     />
                   )}
                 />
@@ -614,8 +615,7 @@ function ScheduleForm({
                       emptyText={(query) => t('termsEmpty', { query })}
                       chipsLabel={t('termsChips')}
                       removeLabel={(value) => t('removeValue', { value })}
-                      chipsHint={(count) => t('chipsHint', { count })}
-                      chipHint={t('chipHint')}
+                      {...multiSelectHints}
                     />
                   )}
                 />

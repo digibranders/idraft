@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { delay, http } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -277,13 +277,23 @@ describe('The keyword inspector', () => {
     const inspector = await openFromRow(user, 'seo agency');
     await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Archive keyword' }));
-    expect(await screen.findByText('Keyword archived')).toBeInTheDocument();
+    expect(await screen.findByText('1 keyword archived')).toBeInTheDocument();
     // It left the active list, so the inspector says the filters hide it
     expect(await within(inspector).findByText('Hidden by the current filters')).toBeInTheDocument();
     expect(within(inspector).getByText('Archived')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(await screen.findByText('Keyword unarchived')).toBeInTheDocument();
+    expect(await screen.findByText('1 keyword unarchived')).toBeInTheDocument();
     await waitFor(() => expect(within(inspector).queryByText('Archived')).toBeNull());
+  });
+
+  it('says what to do when archiving fails: try again', async () => {
+    server.use(http.patch(mswPath(DETAIL), () => new HttpResponse('Bad gateway', { status: 502 })));
+    const { user } = renderWithProviders(as('editor'));
+    const inspector = await openFromRow(user, 'seo agency');
+    await user.click(within(inspector).getByRole('button', { name: 'More actions for seo agency' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive keyword' }));
+    expect((await screen.findAllByText('The keyword was not archived')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Try again.').length).toBeGreaterThan(0);
   });
 
   it('keeps focus through edit mode: into the first field, then back to Edit', async () => {
@@ -348,6 +358,17 @@ describe('The keyword inspector', () => {
     const inspector = await screen.findByRole('complementary', { name: 'Keyword' });
     expect(within(inspector).getByRole('heading', { level: 2, name: 'Keyword' })).toHaveFocus();
   });
+
+  it('gives a keyword that did not load a reason that is true when nothing else is shown', async () => {
+    server.use(http.get(mswPath(DETAIL), () => new HttpResponse('Bad gateway', { status: 502 })));
+    renderWithProviders(as('viewer'), { searchParams: `?inspect=keyword:${mockId('tracked', 9999)}` });
+    const inspector = await screen.findByRole('complementary', { name: 'Keyword' });
+    expect(
+      await within(inspector).findByText('This keyword did not load', undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    expect(within(inspector).getByText('The server did not answer. Try again in a moment.')).toBeInTheDocument();
+    expect(within(inspector).queryByText(/rest of the keyword/)).toBeNull();
+  }, 10_000);
 
   it('says so when the keyword of a link does not exist', async () => {
     renderWithProviders(as('viewer'), { searchParams: `?inspect=keyword:${mockId('tracked', 9999)}` });

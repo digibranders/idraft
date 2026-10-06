@@ -26,6 +26,7 @@ import { GroupPicker } from '../groups/group-picker';
 import { refreshGroups, useVocabularies, type VocabularyTerms } from '../taxonomy-queries';
 import { FormField } from '@/components/app/forms/form-field';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
+import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { FormAlert } from '@/components/ui/form-alert';
 import { MultiSelect } from '@/components/ui/multi-select';
@@ -170,6 +171,7 @@ function LinksForm({
 }): ReactElement {
   const t = useTranslations('rankings.inspector.links');
   const inspector = useTranslations('rankings.inspector');
+  const multiSelectHints = useMultiSelectHints();
   const queryClient = useQueryClient();
   const groups = useGroupChoices(scope);
   const ensureGroups = useEnsureGroups(scope);
@@ -327,8 +329,7 @@ function LinksForm({
                   emptyText={(query) => t('termsEmpty', { query })}
                   chipsLabel={t('chips', { field: vocabulary.name })}
                   removeLabel={(value) => t('remove', { value })}
-                  chipsHint={(count) => t('chipsHint', { count })}
-                  chipHint={t('chipHint')}
+                  {...multiSelectHints}
                 />
               )
             }

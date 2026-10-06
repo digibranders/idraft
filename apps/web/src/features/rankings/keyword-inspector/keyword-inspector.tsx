@@ -14,7 +14,6 @@ import { LinksSection } from './links-section';
 import type { EditableSection, SectionEdit } from './section-edit';
 import { SectionError } from './section-error';
 import { TrackingSection } from './tracking-section';
-import { DEPTH_KEY } from '../keyword-values';
 import type { ProjectScope } from '../rankings-queries';
 import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorFooter } from '@/components/app/inspector/inspector-footer';
@@ -30,8 +29,10 @@ import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import type { TrackedKeywordRow } from '@/lib/api/types';
-import { formatInteger, formatRelative } from '@/lib/format';
+import { formatRelative } from '@/lib/format';
 import { languageName } from '@/lib/format/language';
+import { quotaFacts } from '@/lib/keywords/quota';
+import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 import { useCan } from '@/lib/permissions';
 
 export interface KeywordInspectorProps {
@@ -91,6 +92,7 @@ export function KeywordInspector({
 }: KeywordInspectorProps): ReactElement {
   const t = useTranslations('rankings.inspector');
   const filters = useTranslations('rankings.filters');
+  const depthLabel = useDepthLabel();
   const common = useTranslations('common');
   const inspector = useTranslations('inspector');
   const locale = useLocale();
@@ -167,14 +169,12 @@ export function KeywordInspector({
         ...(undo ? { action: { label: t('archive.undo'), onAction: () => void setActive(true, keyword, false) } } : {}),
       });
     } catch (error) {
-      const used = isApiProblem(error, 'quota_exceeded') ? error.number('used') : null;
-      const limit = isApiProblem(error, 'quota_exceeded') ? error.number('limit') : null;
       toast({
         type: 'error',
         title: active ? t('archive.unarchiveFailed') : t('archive.failed'),
-        ...(used !== null && limit !== null
-          ? { description: t('archive.quota', { used: formatInteger(used), limit: formatInteger(limit) }) }
-          : {}),
+        ...(isApiProblem(error, 'quota_exceeded')
+          ? { description: common('quota', { ...quotaFacts(error, 1) }) }
+          : { description: t('tryAgain') }),
       });
     }
   };
@@ -207,7 +207,7 @@ export function KeywordInspector({
             language: languageName(scopeOf.language_code, locale),
           })}
         </Badge>
-        <Badge>{t('depth', { depth: filters(`depths.${DEPTH_KEY[scopeOf.depth_profile]}`) })}</Badge>
+        <Badge>{t('depth', { depth: depthLabel(scopeOf.depth_profile) })}</Badge>
         {scopeOf.is_active ? null : <Badge tone="warning">{t('archived')}</Badge>}
       </>
     );
@@ -269,6 +269,8 @@ export function KeywordInspector({
             ) : (
               <SectionError
                 title={t('loadFailed')}
+                // Nothing else of the keyword is shown, so the section's usual reason would not be true
+                reason={t('loadFailedReason')}
                 error={detail.error}
                 onRetry={() => void detail.refetch()}
                 retrying={detail.isFetching}

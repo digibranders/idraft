@@ -7,10 +7,10 @@ import type { ReactElement } from 'react';
 
 import { configHistoryQuery, type KeywordScope } from './inspector-queries';
 import { SectionError } from './section-error';
-import { DEPTH_KEY } from '../keyword-values';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { Badge } from '@/components/ui/badge';
 import { formatDetailDateTime } from '@/lib/format';
+import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 
 /** A card's list shows ten rows at most (16-drawers-dialogs-popovers.md section 2.4). */
 const SHOWN = 10;
@@ -21,7 +21,7 @@ const SHOWN = 10;
  */
 export function HistorySection({ scope, timeZone }: { scope: KeywordScope; timeZone: string }): ReactElement {
   const t = useTranslations('rankings.inspector.history');
-  const filters = useTranslations('rankings.filters');
+  const depthLabel = useDepthLabel();
   const history = useQuery(configHistoryQuery(scope));
   const versions = [...(history.data?.data ?? [])].sort((a, b) => b.config_version - a.config_version);
   const earlier = versions.length - SHOWN;
@@ -50,7 +50,7 @@ export function HistorySection({ scope, timeZone }: { scope: KeywordScope; timeZ
               </div>
               <p className="type-body wrap-anywhere text-foreground-secondary">
                 {t('settings', {
-                  depth: t('depth', { depth: filters(`depths.${DEPTH_KEY[version.depth_profile]}`) }),
+                  depth: t('depth', { depth: depthLabel(version.depth_profile) }),
                   target:
                     version.target_url === null
                       ? t('noTarget')

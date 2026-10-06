@@ -11,11 +11,25 @@
     "optional": "(optional)",
     "notifications": "Notifications",
     "clear": "Clear",
+    "multiSelect": {
+      "chipsHint": "{count, plural, one {# chosen. From the start of the field, press Left Arrow to reach it.} other {# chosen. From the start of the field, press Left Arrow to reach them.}}",
+      "chipHint": "Press Backspace or Delete to remove"
+    },
+    "depths": {
+      "light": "Light",
+      "standard": "Standard",
+      "deep": "Deep",
+      "full": "Full",
+      "weekly": "Weekly",
+      "weeklyLight": "Weekly light",
+      "untilOwnMatch100": "Until own match, top 100"
+    },
+    "quota": "Your plan has {room, plural, =0 {no room for another active keyword} one {room for # more active keyword} other {room for # more active keywords}} ({used, number} of {limit, number} used); this adds {requested, number}.",
     "location": {
       "placeholder": "Search countries and cities",
       "detail": "{type}, {country}",
       "searching": "Searching",
-      "empty": "No locations match \"{query}\"",
+      "empty": "No locations match “{query}”",
       "clear": "Clear the location",
       "open": "Show locations"
     },
@@ -40,7 +54,7 @@
     },
     "timeZone": {
       "search": "Search time zones",
-      "empty": "No time zone matches \"{query}\"",
+      "empty": "No time zone matches “{query}”",
       "open": "Show time zones"
     },
     "roles": {
@@ -204,7 +218,7 @@
     "projectSwitcher": {
       "label": "Project: {project}",
       "search": "Search projects",
-      "empty": "No projects match \"{query}\"",
+      "empty": "No projects match “{query}”",
       "clear": "Clear",
       "open": "Show projects",
       "timeZone": "Times in {timeZone}",
@@ -415,15 +429,6 @@
       },
       "depth": "Default depth profile",
       "depthHint": "How deep the daily rank checks read the results.",
-      "depths": {
-        "light": "Light",
-        "standard": "Standard",
-        "deep": "Deep",
-        "full": "Full",
-        "weekly": "Weekly",
-        "weeklyLight": "Weekly light",
-        "untilOwnMatch100": "Until own match, top 100"
-      },
       "depthHints": {
         "light": "Daily check to the top 10, deep check to the top 100 each week",
         "standard": "Daily check to the top 20, deep check to the top 100 each week",
@@ -452,7 +457,7 @@
       "newSchedule": "New schedule",
       "readOnlyLead": "Read only:",
       "readOnly": "Owners, admins and editors can change schedules.",
-      "forbidden": "Your role cannot see the schedules of this project.",
+      "forbidden": "You do not have permission to see the schedules of this project. Ask an admin of this workspace.",
       "loadFailed": "The schedules could not be loaded.",
       "loadFailedReason": "The server did not answer. Try again in a moment.",
       "emptyTitle": "No schedules yet",
@@ -581,23 +586,21 @@
         "priorityOption": "{priority, select, 1 {1, highest} 5 {5, lowest} other {{priority}}}",
         "groups": "Groups",
         "groupsPlaceholder": "Choose groups",
-        "groupsEmpty": "No group matches \"{query}\"",
+        "groupsEmpty": "No group matches “{query}”",
         "groupsChips": "Chosen groups",
         "removedGroup": "Removed group",
         "removedTerm": "Removed term",
         "terms": "Terms",
         "termsPlaceholder": "Choose terms",
-        "termsEmpty": "No term matches \"{query}\"",
+        "termsEmpty": "No term matches “{query}”",
         "termsChips": "Chosen terms",
         "removeValue": "Remove {value}",
-        "chipsHint": "{count, plural, one {# chosen. Press Left Arrow to reach it.} other {# chosen. Press Left Arrow to reach them.}}",
-        "chipHint": "Press Backspace or Delete to remove",
         "groupsOrTermsRequired": "Choose at least one group or term.",
         "reading": "Reading the groups and terms",
         "readFailed": "The groups and terms could not be loaded, so they cannot be chosen yet.",
         "discardDescription": "The changes to this schedule will be lost.",
         "saveFailed": "The schedule was not saved. Try again in a moment.",
-        "forbidden": "Your role cannot change schedules.",
+        "forbidden": "You do not have permission to change schedules. Ask an admin of this workspace.",
         "daysMismatch": "The weekday or the day of the month does not fit how often the schedule repeats."
       },
       "errors": {
@@ -764,10 +767,8 @@
     "aliasesHint": "Names AI answers use for the brand, such as its old name or a short form.",
     "aliasPlaceholder": "Fynix Digital",
     "aliasHelp": "Type a name and press Enter",
-    "addAlias": "Add \"{alias}\"",
+    "addAlias": "Add “{alias}”",
     "removeAlias": "Remove {alias}",
-    "aliasesChips": "{count, plural, one {# name} other {# names}}. From the start of the field, press Left Arrow to reach them.",
-    "aliasChip": "Press Backspace or Delete to remove",
     "aliasTooLong": "Each other name has at most {max} characters.",
     "aliasesTooMany": "Add at most {max} other names. More can be added later under Entities and aliases.",
     "aliasInvalid": "One of the other names cannot be saved. Check it and try again.",
@@ -996,10 +997,8 @@
       "aliasesDescription": "Other names AI answers use for this brand.",
       "aliasPlaceholder": "HubSpot CRM",
       "aliasHelp": "Type a name and press Enter",
-      "addAlias": "Add \"{alias}\"",
+      "addAlias": "Add “{alias}”",
       "removeAlias": "Remove {alias}",
-      "aliasesHint": "{count, plural, one {# alias} other {# aliases}}. From the start of the field, press Left Arrow to reach them.",
-      "aliasHint": "Press Backspace or Delete to remove",
       "sovLead": "Share of voice:",
       "sov": "Adding a competitor changes share of voice for all entities from today.",
       "count": "{count} of {limit} competitors tracked in SEO",
@@ -1059,10 +1058,8 @@
       "hintsHint": "Words that show an answer means this entity, such as its field or its products.",
       "hintsPlaceholder": "crm",
       "hintsHelp": "Type a word and press Enter",
-      "addHint": "Add \"{hint}\"",
+      "addHint": "Add “{hint}”",
       "removeHint": "Remove {hint}",
-      "hintsChips": "{count, plural, one {# hint} other {# hints}}. From the start of the field, press Left Arrow to reach them.",
-      "hintChip": "Press Backspace or Delete to remove",
       "note": "Note",
       "noteTooLong": "Use at most {max} characters.",
       "noteCounter": "{count} of {max}",
@@ -1075,7 +1072,7 @@
       "parent": "Part of",
       "parentHint": "The brand a product belongs to: its mentions also count for that brand.",
       "parentPlaceholder": "Search entities",
-      "parentEmpty": "No entities match \"{query}\"",
+      "parentEmpty": "No entities match “{query}”",
       "parentClear": "Clear the parent",
       "parentOpen": "Show entities",
       "parentCycle": "This entity already sits under the one chosen. Choose another.",
@@ -1140,14 +1137,14 @@
         "regex": "Regular expression"
       },
       "modeHints": {
-        "wordBoundary": "HubSpot matches \"HubSpot's\", not \"HubSpotter\"",
+        "wordBoundary": "HubSpot matches “HubSpot's”, not “HubSpotter”",
         "exactCase": "Only this exact spelling",
         "substring": "Also inside longer words",
         "regex": "A pattern, for advanced cases"
       },
       "options": "Options",
       "caseSensitive": "Case matters",
-      "caseSensitiveHint": "\"apple\" no longer matches \"Apple\".",
+      "caseSensitiveHint": "“apple” no longer matches “Apple”.",
       "negative": "Rules a mention out",
       "negativeHint": "Text matching this alias is never a mention of {name}, such as a product of another brand.",
       "context": "Needs a hint nearby",
@@ -1370,7 +1367,7 @@
   },
   "dataTable": {
     "hint": "Use the arrow keys to move between cells. Enter opens the row and Space selects it. On a column header, Enter sorts and Alt plus Down Arrow opens the column options.",
-    "count": "{count} {noun}",
+    "count": "{count, plural, one {# {nounOne}} other {# {nounOther}}}",
     "search": "Search in table",
     "toolbar": "{caption} table actions",
     "updating": "Updating",
@@ -1393,21 +1390,21 @@
     "moveLeft": "Move left",
     "moveRight": "Move right",
     "hide": "Hide column",
-    "selectAll": "Select all {count} {noun} loaded",
+    "selectAll": "Select all {count, plural, one {# {nounOne}} other {# {nounOther}}} loaded",
     "selectRow": "Select {name}",
     "rowActions": "Actions for {name}",
     "actionsColumn": "Actions",
     "selected": "{count} selected",
     "selectAllMatching": "Select all {count} matching",
     "allMatchingSelected": "All {count} matching selected",
-    "allMatchingAnnounced": "All {count} matching {noun} selected. Bulk actions apply to all of them.",
+    "allMatchingAnnounced": "All {count, plural, one {# matching {nounOne}} other {# matching {nounOther}}} selected. Bulk actions apply to all of them.",
     "clearSelection": "Clear selection",
     "moreActions": "More actions",
     "selectionCleared": "Selection cleared",
     "bulkActions": "Bulk actions, {selected}",
     "hiddenSelected": "{count, plural, one {# selected row is} other {# selected rows are}} hidden by filters",
     "otherPagesSelected": "{count, plural, one {# selected row is} other {# selected rows are}} on other pages",
-    "loadProgress": "Loading {loaded} of {total} {noun}",
+    "loadProgress": "Loading {loaded, number} of {total, plural, one {# {nounOne}} other {# {nounOther}}}",
     "footerNote": "{count} · {note}",
     "previous": "Previous page",
     "next": "Next page",
@@ -1524,7 +1521,7 @@
     "workspaceScope": "Workspace",
     "limit": "Limit",
     "spent": "Spent",
-    "committed": "Planned (estimate)",
+    "committed": "Under way (estimate)",
     "used": "Used",
     "status": "Status",
     "states": {
@@ -1538,7 +1535,7 @@
     "loadFailed": "The costs could not be loaded",
     "loadFailedReason": "The server returned an error. Your filters are unchanged.",
     "noAccessTitle": "You do not have access to Costs",
-    "noAccessReason": "Viewing costs needs the costs:read permission, which owners and admins can grant.",
+    "noAccessReason": "You do not have permission to view costs. Ask an admin of this workspace.",
     "backToOverview": "Back to Overview"
   },
   "runs": {
@@ -1608,7 +1605,7 @@
     "cancelled": "Run cancelled",
     "cancelFailed": "The run could not be cancelled. Try again.",
     "cancelEnded": "This run has already ended.",
-    "cancelForbidden": "You can cancel the runs you started, or any run with permission to edit schedules.",
+    "cancelForbidden": "You do not have permission to cancel this run. Ask an admin of this workspace.",
     "empty": "No runs in {month}",
     "emptyReason": "Runs appear here when a schedule starts or someone refreshes keyword metrics.",
     "emptyFiltered": "No runs match these filters in {month}",
@@ -1622,12 +1619,12 @@
     "loadFailed": "The runs could not be loaded",
     "loadFailedReason": "The server returned an error. Your filters are unchanged.",
     "noAccessTitle": "You do not have access to Runs",
-    "noAccessReason": "Viewing runs needs the data:read permission, which owners and admins can grant.",
+    "noAccessReason": "You do not have permission to view runs. Ask an admin of this workspace.",
     "backToOverview": "Back to Overview",
     "noProjects": "No projects to show runs for",
     "noProjectsReason": "Runs are listed per project. Create a project, or ask an admin for access to one.",
     "toProjects": "All projects",
-    "incomplete": "Showing {loaded} runs. The rest did not load.",
+    "incomplete": "Showing {loaded, plural, one {# run} other {# runs}}. The rest did not load.",
     "metaWithManual": "{project}, {month}. {manual}. Times in {timeZone}.",
     "rowName": "{workload}, started {started}",
     "inspector": {
@@ -1650,6 +1647,7 @@
       "estimate": "Estimate",
       "actual": "Actual",
       "loadFailed": "This run did not load",
+      "loadFailedReason": "The server did not answer. Try again in a moment.",
       "stale": "Could not refresh. These are the last figures read.",
       "position": "{index} of {count}"
     }
@@ -1721,7 +1719,6 @@
       "archived": "{count} archived",
       "unarchived": "{count} unarchived",
       "undo": "Undo",
-      "quota": "The plan has room for {room, plural, one {# more active keyword} other {# more active keywords}} ({used} of {limit} used); this would add {requested}.",
       "deleteConfirm": {
         "title": "Delete {count}?",
         "description": "Their rank checks stop and they leave Rankings. Their history is kept: adding one again brings it back with its settings.",
@@ -1766,7 +1763,7 @@
       "device": "Device",
       "deviceDesktop": "Desktop",
       "deviceMobile": "Mobile",
-      "deviceBoth": "Both",
+      "deviceBoth": "Desktop and mobile",
       "deviceDefault": "Project default",
       "tagsVocabulary": "Vocabulary for tags",
       "topicVocabulary": "Vocabulary for topics",
@@ -1883,9 +1880,8 @@
       "readingSlow": "Reading the file is taking longer than expected. Try again.",
       "gone": "This import was cancelled.",
       "requestFailed": "The import could not continue. Try again.",
-      "forbidden": "Importing keywords needs permission to import.",
+      "forbidden": "You do not have permission to import keywords. Ask an admin of this workspace.",
       "confirmForbidden": "This import uses a vocabulary shared across the workspace. Choose a vocabulary of this project, or ask an admin.",
-      "quotaExceeded": "The import is over your plan's limit: {used} of {limit} keywords are tracked and this adds {requested}.",
       "uploadTooLarge": "The file is larger than the 50 MB the API takes.",
       "uploadType": "The API takes CSV files only.",
       "storageUnavailable": "Uploads are unavailable right now. Paste the keywords instead, or try again later.",
@@ -1900,7 +1896,7 @@
       "finishedMerged": "Import finished: {created} added, {merged} updated, {skipped} skipped",
       "finishedWithErrors": "Import finished with errors: {created} added, {merged} updated, {skipped} skipped. The report lists the rows that could not be written.",
       "finishedFailed": "Import failed: {reason}",
-      "progressLost": "The import could not be followed. Reload the page to see how it went.",
+      "progressLost": "The import could not be followed here. It may still be running. Reload the page to check on it.",
       "downloadReport": "Download report",
       "reportName": "keyword-import-{date}.csv"
     },
@@ -1928,7 +1924,7 @@
       "devices": {
         "desktop": "Desktop",
         "mobile": "Mobile",
-        "both": "Both"
+        "both": "Desktop and mobile"
       },
       "groups": "Groups",
       "tags": "Tags",
@@ -1937,12 +1933,9 @@
       "tagsEmpty": "No tags match “{query}”",
       "tagLabel": "{vocabulary}: {term}",
       "chips": "Chosen {field}",
-      "chipsHint": "{count, plural, one {# chosen} other {# chosen}}. Press Backspace to remove the last.",
-      "chipHint": "Press Backspace or Delete to remove",
       "remove": "Remove {value}",
       "priority": "Priority",
       "submit": "{count, plural, =0 {Add keywords} one {Add # keyword} other {Add # keywords}}",
-      "quota": "This adds {requested} keywords and the plan has room for {room} ({used} of {limit} used).",
       "failed": "The keywords were not added. Try again.",
       "added": "{both, select, yes {{count, plural, one {# tracked keyword added} other {# tracked keywords added}}} other {{count, plural, one {# keyword added} other {# keywords added}}}}",
       "rejectedReasons": {
@@ -1977,13 +1970,11 @@
     "groups": {
       "pickerPlaceholder": "Choose or type a group",
       "selectPlaceholder": "Choose a group",
-      "create": "Create group \"{path}\"",
-      "empty": "No groups match \"{query}\". Type a path such as Blog/Guides to create one.",
+      "create": "Create group “{path}”",
+      "empty": "No groups match “{query}”. Type a path such as Blog/Guides to create one.",
       "noneYet": "No groups yet. Type a name to create one.",
       "chips": "Chosen groups",
       "remove": "Remove {value}",
-      "chipsHint": "{count, plural, one {# group chosen.} other {# groups chosen.}} Press Left Arrow to reach them.",
-      "chipHint": "Press Backspace or Delete to remove",
       "clear": "Clear",
       "open": "Show groups",
       "none": "No group",
@@ -1995,12 +1986,12 @@
       "pathTooDeep": "Groups go 10 levels deep at most.",
       "refusals": {
         "duplicate": "A group next to it already has this name.",
-        "slash": "A group name can't contain \"/\".",
+        "slash": "A group name cannot contain “/”.",
         "tooDeep": "Groups go 10 levels deep at most.",
         "pathTooLong": "This name makes the group's path too long.",
         "gone": "This group was deleted meanwhile. The list now shows the groups as they are.",
-        "cycle": "A group can't move into itself or a group under it.",
-        "forbidden": "Changing groups needs permission to edit keywords.",
+        "cycle": "A group cannot move into itself or a group under it.",
+        "forbidden": "You do not have permission to change groups. Ask an admin of this workspace.",
         "failed": "The groups could not be changed. Try again."
       },
       "manage": {
@@ -2067,7 +2058,7 @@
       "errors": {
         "limit": "This project has used its {limit} manual runs today. The limit resets at 00:00 UTC.",
         "keywordUnknown": "A keyword was archived or removed in the meantime. The list was read again, and the keywords that left it are no longer chosen. Check the choice and try again.",
-        "forbidden": "You do not have permission to refresh metrics in this project.",
+        "forbidden": "You do not have permission to refresh metrics in this project. Ask an admin of this workspace.",
         "failed": "The refresh could not be started. Try again in a moment.",
         "budgetBlocked": "A budget for keyword research is used up this month. The refresh did not start."
       },
@@ -2076,7 +2067,7 @@
         "running": "Refreshing metrics",
         "slow": "Metrics refresh is taking longer than usual to start",
         "started": "Metrics refresh queued. Its progress shows under the page title.",
-        "lost": "This refresh could not be followed here. It may still be running.",
+        "lost": "This refresh could not be followed here. It may still be running. Reload the page to check on it.",
         "counts": "{done} of {total} read",
         "countsFailed": "{done} of {total} read, {failed} failed"
       },
@@ -2098,7 +2089,7 @@
     "tracked": "{count, plural, one {{formatted} tracked keyword} other {{formatted} tracked keywords}}",
     "meta": "{updated} · {tracked}",
     "search": "Search keywords",
-    "range": "Showing {from} to {to} of {total} keywords",
+    "range": "Showing {from, number} to {to, number} of {total, plural, one {# keyword} other {# keywords}}",
     "view": {
       "label": "Show",
       "active": "Active",
@@ -2209,15 +2200,6 @@
         "discovery": "Discovery"
       },
       "depth": "Depth profile",
-      "depths": {
-        "light": "Light",
-        "standard": "Standard",
-        "deep": "Deep",
-        "full": "Full",
-        "weekly": "Weekly",
-        "weeklyLight": "Weekly light",
-        "untilOwnMatch100": "Until own match, top 100"
-      },
       "volume": "Volume",
       "difficulty": "KD"
     },
@@ -2239,6 +2221,8 @@
       "updated": "Metrics updated {time}",
       "hidden": "Hidden by the current filters",
       "loadFailed": "This keyword did not load",
+      "loadFailedReason": "The server did not answer. Try again in a moment.",
+      "tryAgain": "Try again.",
       "sectionErrorReason": "The rest of the keyword is shown as before.",
       "edit": "Edit",
       "editLabel": "Edit {section}",
@@ -2257,13 +2241,12 @@
         "unarchive": "Unarchive keyword"
       },
       "archive": {
-        "archived": "Keyword archived",
+        "archived": "1 keyword archived",
         "archivedDescription": "“{keyword}” is no longer checked. Its history is kept.",
-        "unarchived": "Keyword unarchived",
+        "unarchived": "1 keyword unarchived",
         "undo": "Undo",
         "failed": "The keyword was not archived",
-        "unarchiveFailed": "The keyword was not unarchived",
-        "quota": "The plan has no room for another active keyword ({used} of {limit} used)."
+        "unarchiveFailed": "The keyword was not unarchived"
       },
       "metrics": {
         "label": "Metrics for this keyword",
@@ -2309,8 +2292,6 @@
         "termsEmpty": "No terms match “{query}”",
         "noTerm": "None",
         "chips": "Chosen {field}",
-        "chipsHint": "{count, plural, one {# chosen} other {# chosen}}. Press Backspace to remove the last.",
-        "chipHint": "Press Backspace or Delete to remove",
         "remove": "Remove {value}",
         "single": "One term at most"
       },

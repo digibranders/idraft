@@ -9,7 +9,6 @@ import {
   DEFAULT_DEPTHS,
   DEFAULT_DEVICES,
   DEFAULT_FREQUENCIES,
-  DEPTH_KEYS,
   valuesOfSeo,
   type DefaultDepth,
   type DefaultDevice,
@@ -28,6 +27,8 @@ import { Select, type SelectOption } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
+import { DEPTH_KEYS } from '@/lib/keywords/depth-profiles';
+import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 import { apiMutation } from '@/lib/api/query';
 import type { components } from '@/lib/api/schema';
 import type { Project } from '@/lib/api/types';
@@ -93,10 +94,11 @@ export function KeywordDefaultsSection({
 
 function ReadOnlyDefaults({ values }: { values: DefaultsValues }): ReactNode {
   const t = useTranslations('projectSettings.keywordDefaults');
+  const depthLabel = useDepthLabel();
   return (
     <ReadOnlyList className="max-w-90">
       <ReadOnlyField label={t('device')} value={t(`devices.${values.default_device}`)} />
-      <ReadOnlyField label={t('depth')} value={t(`depths.${DEPTH_KEYS[values.default_depth_profile]}`)} />
+      <ReadOnlyField label={t('depth')} value={depthLabel(values.default_depth_profile)} />
       <ReadOnlyField label={t('frequency')} value={t(`frequencies.${values.default_frequency}`)} />
     </ReadOnlyList>
   );
@@ -112,6 +114,7 @@ function DefaultsForm({
   unsaved: UnsavedFormBinding;
 }): ReactNode {
   const t = useTranslations('projectSettings.keywordDefaults');
+  const depthLabel = useDepthLabel();
   const queryClient = useQueryClient();
   const formId = useId();
   const form = useForm<DefaultsValues>({ mode: 'onTouched', defaultValues: values });
@@ -128,14 +131,14 @@ function DefaultsForm({
   const depthOptions = useMemo((): SelectOption<DefaultDepth>[] => {
     const offered = DEFAULT_DEPTHS.map((value): SelectOption<DefaultDepth> => ({
       value,
-      label: t(`depths.${DEPTH_KEYS[value]}`),
+      label: depthLabel(value),
       description: t(`depthHints.${DEPTH_KEYS[value]}`),
     }));
     // A profile the project already holds that is not offered any more stays visible, and cannot be picked again
     const held = values.default_depth_profile;
     const listed = offered.some((option) => option.value === held);
-    return listed ? offered : [...offered, { value: held, label: t(`depths.${DEPTH_KEYS[held]}`), disabled: true }];
-  }, [t, values.default_depth_profile]);
+    return listed ? offered : [...offered, { value: held, label: depthLabel(held), disabled: true }];
+  }, [t, depthLabel, values.default_depth_profile]);
 
   const submit = form.handleSubmit(async (changed) => {
     const seo: SeoSettingsPatch = {

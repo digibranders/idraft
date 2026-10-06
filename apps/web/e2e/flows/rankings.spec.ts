@@ -184,7 +184,7 @@ test.describe('rankings', () => {
     await bar.getByRole('button', { name: 'Move to group' }).click();
     const move = page.getByRole('dialog', { name: 'Move 2 keywords' });
     await move.getByRole('combobox', { name: 'Group' }).fill('E2E/Group');
-    await page.getByRole('option', { name: 'Create group "E2E/Group"' }).click();
+    await page.getByRole('option', { name: 'Create group “E2E/Group”' }).click();
     await expectAccessible(page);
     await move.getByRole('button', { name: 'Move 2 keywords' }).click();
     await expect(page.getByText('2 keywords moved to E2E/Group')).toBeVisible();

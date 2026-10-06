@@ -61,6 +61,6 @@ describe('Keyword defaults and Add keywords', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add keywords' }));
     dialog = await screen.findByRole('dialog', { name: 'Add keywords' });
-    await waitFor(() => expect(within(dialog).getByRole('radio', { name: 'Both' })).toBeChecked());
+    await waitFor(() => expect(within(dialog).getByRole('radio', { name: 'Desktop and mobile' })).toBeChecked());
   }, 20_000);
 });

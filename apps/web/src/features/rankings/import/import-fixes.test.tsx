@@ -746,7 +746,9 @@ describe('Import dialog: vocabularies', () => {
           'This import uses a vocabulary shared across the workspace. Choose a vocabulary of this project, or ask an admin.',
         ),
       ).toBeInTheDocument();
-      expect(within(dialog).queryByText('Importing keywords needs permission to import.')).toBeNull();
+      expect(
+        within(dialog).queryByText('You do not have permission to import keywords. Ask an admin of this workspace.'),
+      ).toBeNull();
       expect(changes).toEqual([true]);
     },
     SLOW_TEST,

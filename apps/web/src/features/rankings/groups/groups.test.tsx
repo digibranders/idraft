@@ -149,7 +149,7 @@ describe('Choosing groups in the forms', () => {
     const { user } = renderWithProviders(as('editor'));
     const dialog = await openMove(user, 'seo agency');
     await user.type(within(dialog).getByRole('combobox', { name: 'Group' }), 'Blog/Guides');
-    await user.click(await screen.findByRole('option', { name: 'Create group "Blog/Guides"' }));
+    await user.click(await screen.findByRole('option', { name: 'Create group “Blog/Guides”' }));
     expect(seen.writes.filter((write) => write.route === 'keyword-groups')).toEqual([]);
     await user.click(within(dialog).getByRole('button', { name: 'Move 1 keyword' }));
     expect(await screen.findByText('1 keyword moved to Blog/Guides')).toBeInTheDocument();
@@ -224,7 +224,7 @@ describe('Choosing groups in the forms', () => {
     const { user } = renderWithProviders(as('editor'));
     const dialog = await openMove(user, 'seo agency');
     await user.type(within(dialog).getByRole('combobox', { name: 'Group' }), 'Fresh');
-    await user.click(await screen.findByRole('option', { name: 'Create group "Fresh"' }));
+    await user.click(await screen.findByRole('option', { name: 'Create group “Fresh”' }));
     await user.click(within(dialog).getByRole('button', { name: 'Move 1 keyword' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('A group next to it already has this name.');
     expect(screen.getByRole('dialog', { name: 'Move 1 keyword' })).toBeInTheDocument();
@@ -340,7 +340,7 @@ describe('Choosing groups in the forms', () => {
     const { user } = renderWithProviders(as('editor'));
     const dialog = await openMove(user, 'seo agency');
     await user.type(within(dialog).getByRole('combobox', { name: 'Group' }), 'BRAND');
-    await user.click(await screen.findByRole('option', { name: 'Create group "BRAND"' }));
+    await user.click(await screen.findByRole('option', { name: 'Create group “BRAND”' }));
     await user.click(within(dialog).getByRole('button', { name: 'Move 1 keyword' }));
     expect(await screen.findByText('1 keyword moved to Brand')).toBeInTheDocument();
     expect(seen.writes.at(-1)).toMatchObject({
@@ -412,7 +412,7 @@ describe('Choosing groups in the forms', () => {
     const { user } = renderWithProviders(as('editor'));
     const dialog = await openMove(user, 'seo agency');
     await user.type(within(dialog).getByRole('combobox', { name: 'Group' }), 'services / Fresh');
-    await user.click(await screen.findByRole('option', { name: 'Create group "services/Fresh"' }));
+    await user.click(await screen.findByRole('option', { name: 'Create group “services/Fresh”' }));
     await user.click(within(dialog).getByRole('button', { name: 'Move 1 keyword' }));
     expect(await screen.findByText('1 keyword moved to Services/Fresh')).toBeInTheDocument();
   }, 20_000);
@@ -526,7 +526,7 @@ describe('Manage groups', () => {
     expect(await within(dialog).findByText('Enter a name.')).toBeInTheDocument();
     await user.type(within(dialog).getByRole('textbox', { name: 'Name' }), 'Blog/Guides');
     await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
-    expect(await within(dialog).findByText('A group name can\'t contain "/".')).toBeInTheDocument();
+    expect(await within(dialog).findByText('A group name cannot contain “/”.')).toBeInTheDocument();
     expect(seen.writes).toEqual([]);
   }, 15_000);
 

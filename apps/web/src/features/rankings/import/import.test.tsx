@@ -145,7 +145,7 @@ describe('Import dialog', () => {
       await user.click(within(dialog).getByRole('radio', { name: "Unarchive them with the file's settings" }));
       await press(dialog, 'Continue');
       await press(dialog, 'Import 2 keywords');
-      await within(dialog).findByText(/^The import is over your plan's limit/);
+      await within(dialog).findByText(/^Your plan has (no )?room for/);
       expect(patches.bodies).toEqual([{ row_actions: [{ row_no: 1, part: 1, action: 'merge' }] }]);
 
       await press(dialog, 'Back');
@@ -353,7 +353,7 @@ describe('Import dialog', () => {
       await press(dialog, 'Import 2 keywords');
       expect(
         await within(dialog).findByText(
-          "The import is over your plan's limit: 4,999 of 5,000 keywords are tracked and this adds 2.",
+          'Your plan has room for 1 more active keyword (4,999 of 5,000 used); this adds 2.',
         ),
       ).toBeInTheDocument();
       expect(changes).toEqual([true]);
@@ -480,9 +480,12 @@ describe('Import progress', () => {
     );
     renderWithProviders(<Controlled changes={[]} />);
     await loadedGrid();
-    expect(
-      await screen.findAllByText('The import could not be followed. Reload the page to see how it went.'),
-    ).not.toHaveLength(0);
+    const lost = await screen.findAllByText(
+      'The import could not be followed here. It may still be running. Reload the page to check on it.',
+    );
+    expect(lost).not.toHaveLength(0);
+    // The outcome is unknown, not a failure: the same kind of toast as a refresh that is let go of
+    expect(lost[0]?.closest('[data-slot="toast"]')).toHaveAttribute('data-type', 'info');
     expect(screen.queryByRole('progressbar', { name: 'Importing keywords' })).toBeNull();
   });
 

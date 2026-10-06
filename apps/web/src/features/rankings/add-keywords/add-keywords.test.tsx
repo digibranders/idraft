@@ -52,7 +52,7 @@ describe('Add keywords', () => {
     await user.type(keywords, 'rank tracker api{Enter}Rank Tracker API{Enter}site:fynix.io seo');
     expect(within(dialog).getByText('1 keyword · 1 repeat left out')).toBeInTheDocument();
     // Both devices make two tracked keywords of each
-    await user.click(within(dialog).getByRole('radio', { name: 'Both' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'Desktop and mobile' }));
     expect(
       within(dialog).getByText('1 keyword · 1 repeat left out · 2 tracked keywords, one per device'),
     ).toBeInTheDocument();
@@ -141,7 +141,9 @@ describe('Add keywords', () => {
     await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'rank tracker api');
     await user.click(within(dialog).getByRole('button', { name: 'Add 1 keyword' }));
     expect(
-      await within(dialog).findByText('This adds 120 keywords and the plan has room for 80 (1,920 of 2,000 used).'),
+      await within(dialog).findByText(
+        'Your plan has room for 80 more active keywords (1,920 of 2,000 used); this adds 120.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -183,7 +185,7 @@ describe('Add keywords', () => {
     const result = await screen.findByRole('dialog', { name: 'No keywords added' });
     await user.click(await within(result).findByRole('button', { name: 'Unarchive: seo meme · Desktop' }));
     expect(
-      await within(result).findByText('The plan has no room for another active keyword (60 of 60 used).'),
+      await within(result).findByText('Your plan has no room for another active keyword (60 of 60 used); this adds 1.'),
     ).toBeInTheDocument();
     await user.click(within(result).getByRole('button', { name: 'Show it: seo meme · Desktop' }));
     await waitFor(() => expect(url.latest().get('archived')).toBe('true'));
@@ -234,7 +236,7 @@ describe('Add keywords', () => {
     );
     const { user } = renderWithProviders(as('editor'));
     let dialog = await openDialog(user);
-    await waitFor(() => expect(within(dialog).getByRole('radio', { name: 'Both' })).toBeChecked());
+    await waitFor(() => expect(within(dialog).getByRole('radio', { name: 'Desktop and mobile' })).toBeChecked());
     await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'rank api');
     await user.click(within(dialog).getByRole('radio', { name: 'Mobile' }));
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -243,7 +245,7 @@ describe('Add keywords', () => {
     await user.click(screen.getByRole('button', { name: 'Add keywords' }));
     dialog = await screen.findByRole('dialog', { name: 'Add keywords' });
     expect(within(dialog).getByRole('textbox', { name: 'Keywords' })).toHaveValue('');
-    expect(within(dialog).getByRole('radio', { name: 'Both' })).toBeChecked();
+    expect(within(dialog).getByRole('radio', { name: 'Desktop and mobile' })).toBeChecked();
   }, 15_000);
 
   it('is offered where the project tracks nothing yet, and not to a viewer', async () => {

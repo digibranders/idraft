@@ -12,10 +12,12 @@ export interface SectionErrorProps {
   error: unknown;
   onRetry: () => void;
   retrying: boolean;
+  /** Why, when the default ("The rest of the keyword is shown as before") is not true: nothing else is shown. */
+  reason?: string | undefined;
 }
 
 /** A section of the inspector that failed: its own error and Retry, so the other sections stay (16 section 2.4). */
-export function SectionError({ title, error, onRetry, retrying }: SectionErrorProps): ReactElement {
+export function SectionError({ title, error, onRetry, retrying, reason }: SectionErrorProps): ReactElement {
   const errors = useTranslations('status.error');
   const common = useTranslations('common');
   const t = useTranslations('rankings.inspector');
@@ -23,7 +25,7 @@ export function SectionError({ title, error, onRetry, retrying }: SectionErrorPr
   return (
     <InlineError
       title={title}
-      reason={t('sectionErrorReason')}
+      reason={reason ?? t('sectionErrorReason')}
       errorId={
         errorId === null
           ? null

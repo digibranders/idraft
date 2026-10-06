@@ -361,7 +361,7 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
             tone="warning"
             placement="region"
             live
-            message={t('incomplete', { loaded: formatInteger(list.rows.length) })}
+            message={t('incomplete', { loaded: list.rows.length })}
             actions={
               <Button variant="secondary" size="sm" onClick={list.incomplete.retry} loading={list.incomplete.retrying}>
                 {common('retry')}

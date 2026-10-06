@@ -718,7 +718,9 @@ describe('When the API does not take the refresh', () => {
   it('tells a refusal for lack of permission', async () => {
     const { dialog } = await failWith((request) => problem(request, 'forbidden'));
     expect(
-      await within(dialog).findByText('You do not have permission to refresh metrics in this project.'),
+      await within(dialog).findByText(
+        'You do not have permission to refresh metrics in this project. Ask an admin of this workspace.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -1062,9 +1064,10 @@ describe('A refresh in the header', () => {
       const reads = answerRunWith((request) => problem(request, 'forbidden'));
       renderWithProviders(as('editor'));
       await act(() => vi.advanceTimersByTimeAsync(5_000));
-      expect(
-        await screen.findByText('This refresh could not be followed here. It may still be running.'),
-      ).toBeInTheDocument();
+      const lost = await screen.findByText(
+        'This refresh could not be followed here. It may still be running. Reload the page to check on it.',
+      );
+      expect(lost.closest('[data-slot="toast"]')).toHaveAttribute('data-type', 'info');
       expect(screen.queryByRole('progressbar')).toBeNull();
       const asked = reads.reads();
       expect(asked).toBeGreaterThan(0);
@@ -1080,11 +1083,9 @@ describe('A refresh in the header', () => {
       while (reads.reads() < 4) await act(() => vi.advanceTimersByTimeAsync(5_000));
       await act(() => vi.advanceTimersByTimeAsync(1_000));
       expect(screen.getByRole('progressbar')).toBeInTheDocument();
-      expect(screen.queryByText('This refresh could not be followed here. It may still be running.')).toBeNull();
+      expect(screen.queryByText(/This refresh could not be followed here/)).toBeNull();
       while (reads.reads() < 5) await act(() => vi.advanceTimersByTimeAsync(5_000));
-      expect(
-        await screen.findByText('This refresh could not be followed here. It may still be running.'),
-      ).toBeInTheDocument();
+      expect(await screen.findByText(/^This refresh could not be followed here/)).toBeInTheDocument();
       expect(screen.queryByRole('progressbar')).toBeNull();
       await act(() => vi.advanceTimersByTimeAsync(60_000));
       expect(reads.reads()).toBe(5);
