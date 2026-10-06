@@ -39,6 +39,21 @@ export interface DisplayUrl {
   valid: boolean;
 }
 
+/**
+ * `raw` when it is an absolute http or https address, `null` for anything else: a script or data scheme, a
+ * relative address, text that is no address. For a link's `href`, which must never carry a scheme the browser
+ * would run. The value comes back exactly as it was given, since it is what a click opens and a copy puts on
+ * the clipboard.
+ */
+export function webHref(raw: string): string | null {
+  try {
+    const { protocol } = new URL(raw);
+    return protocol === 'http:' || protocol === 'https:' ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 export function displayDomain(host: string): string {
   const h = host.toLowerCase().replace(/\.$/, '');
   return h.startsWith('www.') ? h.slice(4) : h;

@@ -1,6 +1,6 @@
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   BestRankView,
@@ -288,6 +288,120 @@ describe('RankingUrlView', () => {
 
   it('has no accessibility violations', async () => {
     const { container } = renderWithProviders(urlView(cell({ url: URL_REF }), 2));
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('RankingUrlView link and copy button', () => {
+  /** What the API sends is copied and opened as it is: a fragment and tracking parameters stay. */
+  const FULL = 'https://fynix.digital/blog/local-seo/choose-an-agency?utm_source=news&ref=x#top';
+  const withUrl = (canonical_url: string): ReactElement => urlView(cell({ url: { ...URL_REF, canonical_url } }), 2);
+  const writeText = vi.fn<(text: string) => Promise<void>>();
+  const OPEN = `Open ${URL_REF.path} in a new tab`;
+
+  beforeEach(() => {
+    writeText.mockReset();
+    writeText.mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'clipboard');
+  });
+
+  /** Rendered, then given a clipboard: rendering sets up user-event, which installs one of its own. */
+  function renderUrl(ui: ReactElement): ReturnType<typeof renderWithProviders> {
+    const view = renderWithProviders(ui);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    return view;
+  }
+
+  it('links the path to the whole address in a new tab, and says so in its name', () => {
+    renderUrl(withUrl(FULL));
+    const link = screen.getByRole('link', { name: OPEN });
+    expect(link).toHaveAttribute('href', FULL);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    // The grid keeps its one tab stop: the table moves into the link with F2
+    expect(link).toHaveAttribute('tabindex', '-1');
+    expect(link).toHaveAttribute('data-cell-control');
+    expect(link).toHaveTextContent(URL_REF.path);
+  });
+
+  it('keeps the +1 marker, and its words, out of the link', () => {
+    renderUrl(withUrl(FULL));
+    const link = screen.getByRole('link', { name: OPEN });
+    expect(link).not.toHaveTextContent('+1');
+    expect(link).not.toHaveTextContent('more of your URLs');
+    expect(screen.getByText('+1')).toBeInTheDocument();
+    expect(screen.getByText('and 1 more of your URLs ranks')).toBeInTheDocument();
+  });
+
+  it('is a link for http and https only: any other scheme is the path as plain text', () => {
+    for (const canonical of ['javascript:alert(document.cookie)', 'data:text/html,<p>x</p>', 'ftp://fynix.digital/a']) {
+      const { unmount } = renderUrl(withUrl(canonical));
+      expect(screen.queryByRole('link')).toBeNull();
+      expect(document.querySelector('a')).toBeNull();
+      expect(screen.getByText(URL_REF.path)).toBeInTheDocument();
+      unmount();
+    }
+    renderUrl(withUrl('http://fynix.digital/blog'));
+    expect(screen.getByRole('link', { name: OPEN })).toHaveAttribute('href', 'http://fynix.digital/blog');
+  });
+
+  it('copies the whole address exactly as the API sent it, and shows and says that it did', async () => {
+    const { user } = renderUrl(withUrl(FULL));
+    const copy = screen.getByRole('button', { name: 'Copy ranking URL' });
+    expect(copy).toHaveAttribute('tabindex', '-1');
+    expect(copy).toHaveAttribute('data-cell-control');
+    await user.click(copy);
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(FULL);
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+    expect(document.getElementById('live-region-polite')).toHaveTextContent('Ranking URL copied');
+  });
+
+  it('has a copy button for a URL that is no link too, and none where there is no URL', () => {
+    const { rerender } = renderUrl(withUrl('javascript:alert(1)'));
+    expect(screen.getByRole('button', { name: 'Copy ranking URL' })).toBeInTheDocument();
+    for (const current of [
+      cell({ state: 'beyond_depth', rank: null }),
+      cell({ state: 'not_checked', rank: null }),
+      cell({ state: 'failed', rank: null }),
+    ]) {
+      rerender(urlView(current, 0));
+      expect(screen.queryByRole('link')).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
+    }
+  });
+
+  it('keeps the click on the link and on the copy button from the row around it', async () => {
+    const onClick = vi.fn();
+    const stay = (event: Event): void => event.preventDefault();
+    // Capturing: the link's own handler stops the click before it reaches the document
+    document.addEventListener('click', stay, true);
+    const { user } = renderUrl(
+      // The wrapper stands for the table row, which opens its record on a click
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+      <div onClick={onClick} onAuxClick={onClick}>
+        {withUrl(FULL)}
+      </div>,
+    );
+    await user.click(screen.getByRole('link', { name: OPEN }));
+    await user.keyboard('{Control>}');
+    await user.click(screen.getByRole('link', { name: OPEN }));
+    await user.keyboard('{/Control}');
+    fireEvent(
+      screen.getByRole('link', { name: OPEN }),
+      new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Copy ranking URL' }));
+    document.removeEventListener('click', stay, true);
+    expect(onClick).not.toHaveBeenCalled();
+    // The rest of the cell is the row's
+    await user.click(screen.getByText('+1'));
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it('has no accessibility violations with the link and the copy button', async () => {
+    const { container } = renderUrl(withUrl(FULL));
     expect(await axe(container)).toHaveNoViolations();
   });
 });

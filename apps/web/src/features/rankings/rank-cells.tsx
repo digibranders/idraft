@@ -4,18 +4,22 @@ import { Clock, TriangleAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import { CopyButton } from '@/components/app/cells/copy-button';
 import type { CellTip } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
+import { TextLink } from '@/components/ui/text-link';
 import type { RankCell, RankChange } from '@/lib/api/types';
 import {
   formatDetailDateTime,
   formatInteger,
   formatRankCell,
+  webHref,
   type ChangeDisplay,
   type RankDisplay,
   type UrlDisplay,
 } from '@/lib/format';
+import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import { cn } from '@/lib/utils';
 
 /**
@@ -190,15 +194,39 @@ function PathText({ path }: { path: string }): ReactElement {
   );
 }
 
-/** The own URL that ranks: its path in mono with its end in view, and `+1` when more of the project's URLs rank. */
+/**
+ * The own URL that ranks: its path in mono with its end in view, a link to the whole address in a new tab, and
+ * `+1` beside it, outside the link, when more of the project's URLs rank. A copy button follows (it copies the
+ * whole address as the API sent it). The link and the button are out of the tab order and marked for the grid,
+ * which reaches them with F2; their clicks stay with them, so the row does not open. An address that is not
+ * http or https is the path as text, never a link.
+ */
 export function RankingUrlView({ display }: { display: UrlDisplay }): ReactElement {
   const t = useTranslations('rankings.rank');
   switch (display.kind) {
     case 'url': {
+      const href = webHref(display.full);
       return (
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="block min-w-0 type-mono text-foreground">
-            <PathText path={display.path} />
+            {href === null ? (
+              <PathText path={display.path} />
+            ) : (
+              <TextLink
+                {...CELL_CONTROL}
+                tone="inherit"
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={t('openUrl', { path: display.path })}
+                // The row around the cell opens its record on a click; a click on the link is the link's own
+                onClick={(event) => event.stopPropagation()}
+                onAuxClick={(event) => event.stopPropagation()}
+                className="block"
+              >
+                <PathText path={display.path} />
+              </TextLink>
+            )}
           </span>
           {display.extra > 0 ? (
             <>
@@ -208,6 +236,7 @@ export function RankingUrlView({ display }: { display: UrlDisplay }): ReactEleme
               <span className="sr-only">{t('moreUrls', { count: display.extra })}</span>
             </>
           ) : null}
+          <CopyButton placement="inline" text={display.full} label={t('copyUrl')} announcement={t('urlCopied')} />
         </span>
       );
     }

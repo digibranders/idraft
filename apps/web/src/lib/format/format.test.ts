@@ -29,6 +29,7 @@ import {
   formatUnitPrice,
   rankBucket,
   truncatePath,
+  webHref,
 } from './index';
 
 describe('numbers', () => {
@@ -193,6 +194,35 @@ describe('dates', () => {
   it('names a calendar month with its year', () => {
     expect(formatMonth(2026, 9)).toBe('Sep 2026');
     expect(formatMonth(2025, 12)).toBe('Dec 2025');
+  });
+});
+
+describe('webHref', () => {
+  it('gives an http or https address back exactly as it came, fragment and tracking parameters too', () => {
+    expect(webHref('https://fynix.digital/blog/a?utm_source=x&ref=y#top')).toBe(
+      'https://fynix.digital/blog/a?utm_source=x&ref=y#top',
+    );
+    expect(webHref('http://fynix.digital/')).toBe('http://fynix.digital/');
+    expect(webHref('HTTPS://FYNIX.DIGITAL/Pricing')).toBe('HTTPS://FYNIX.DIGITAL/Pricing');
+  });
+
+  it('gives nothing for any other scheme, a relative address or text that is not an address', () => {
+    for (const raw of [
+      'javascript:alert(1)',
+      ' javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      'data:text/html,<p>x</p>',
+      'ftp://fynix.digital/file',
+      'mailto:a@b.c',
+      'file:///etc/passwd',
+      '/pricing',
+      '//fynix.digital/pricing',
+      'fynix.digital/pricing',
+      'not a url',
+      '',
+    ]) {
+      expect(webHref(raw), raw).toBeNull();
+    }
   });
 });
 

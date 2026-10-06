@@ -92,6 +92,47 @@ describe('Rankings', () => {
     );
   });
 
+  it('copies a keyword and its ranking URL from its row, and links the URL, without opening the keyword', async () => {
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await waitFor(() => expect(keywordsIn(grid)).toHaveLength(ACTIVE.length));
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    // The first row that ranks with a URL
+    const row = within(grid)
+      .getAllByRole('link', { name: /^Open \/.* in a new tab$/ })[0]
+      ?.closest('tr');
+    const header = row === null || row === undefined ? undefined : within(row).getByRole('rowheader');
+    const keyword = header?.querySelector('.truncate')?.textContent;
+    if (row === null || row === undefined || header === undefined || keyword === undefined || keyword === '') {
+      throw new Error('No row with a ranking URL');
+    }
+    // The row header is named by the keyword alone, whatever buttons it holds
+    expect(header).toHaveAccessibleName(keyword);
+    const keep = (event: Event): void => event.preventDefault();
+    // Capturing: the link's own handler stops the click before it reaches the document
+    document.addEventListener('click', keep, true);
+    try {
+      await user.click(within(header).getByRole('button', { name: `Copy keyword ${keyword}` }));
+      expect(writeText).toHaveBeenLastCalledWith(keyword);
+      const link = within(row).getByRole('link', { name: /^Open \/.* in a new tab$/ });
+      expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\//));
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      await user.click(within(row).getByRole('button', { name: 'Copy ranking URL' }));
+      expect(writeText).toHaveBeenLastCalledWith(link.getAttribute('href'));
+      await user.click(link);
+    } finally {
+      document.removeEventListener('click', keep, true);
+    }
+    // Nothing of that opened the keyword; a click on the keyword itself still does
+    expect(url.latest().has('inspect')).toBe(false);
+    await user.click(header);
+    await waitFor(() => expect(url.latest().get('inspect')).toMatch(/^keyword:/));
+    Reflect.deleteProperty(navigator, 'clipboard');
+  });
+
   it('says once how fresh the metrics are: in the page header, not again in the table footer', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();

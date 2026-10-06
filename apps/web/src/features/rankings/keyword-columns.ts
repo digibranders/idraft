@@ -75,6 +75,8 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
     return [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
+        // The keyword's own text is copied, not the row's longer name
+        copy: { label: (row) => t('copyKeyword', { keyword: row.keyword.text }), announcement: t('keywordCopied') },
         detail: (row) =>
           t('keywordDetail', {
             location: row.location.name,

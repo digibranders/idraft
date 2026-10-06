@@ -2142,6 +2142,8 @@
     "columns": {
       "keyword": "Keyword",
       "keywordDetail": "{location} · {device} · {engine} · {language}",
+      "copyKeyword": "Copy keyword {keyword}",
+      "keywordCopied": "Keyword copied",
       "rowName": "{keyword}, {device}, {location}",
       "rowNameLanguage": "{keyword}, {device}, {location}, {language}",
       "desktop": "Desktop",
@@ -2180,6 +2182,9 @@
       "change": "Change",
       "changeTooltip": "How the rank moved since the previous check. Arrows show the direction. Color marks a move of more than 2 places, and New and Lost always.",
       "rankingUrl": "Ranking URL",
+      "openUrl": "Open {path} in a new tab",
+      "copyUrl": "Copy ranking URL",
+      "urlCopied": "Ranking URL copied",
       "bestRank": "Best rank",
       "bestRankTooltip": "The best organic rank in the checks kept.",
       "updated": "Updated",
