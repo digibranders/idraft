@@ -307,6 +307,91 @@ describe('Runs while a run is open', () => {
     expect(served.lists()).toHaveLength(reads);
   });
 
+  describe('when the list cannot be read again to tell what ended', () => {
+    /**
+     * A month of 2,000 runs (ten full pages, the first run open) that the list is cut at; the poll for the
+     * open runs answers from the run's state at `paged.now`, with `pollHasMore` as its own `has_more`.
+     */
+    function serveCapped(paged: PagedRuns, pollHasMore = false): { follows: () => number; byId: () => number } {
+      let follows = 0;
+      let byId = 0;
+      const meta = { manual_runs_today: { used: 3, limit: 20 } };
+      const view = (run: StoredRun) => runView(MOCK_WORKSPACE.workspace_id, [], run, paged.now);
+      server.use(
+        http.get(mswPath(RUNS), ({ request }) => {
+          const query = new URL(request.url).searchParams;
+          if (query.get('filter[status_in]') === 'planned,running') {
+            follows += 1;
+            const open = [view(paged.run)].filter((row) => row.status === 'planned' || row.status === 'running');
+            return HttpResponse.json({
+              data: open,
+              page: { has_more: pollHasMore, next_cursor: pollHasMore ? 'later' : null, limit: 200 },
+              meta,
+            });
+          }
+          const cursor = query.get('cursor');
+          const page = cursor === null ? 0 : Number(cursor.replace('page-', ''));
+          const data = Array.from({ length: 200 }, (_, at) =>
+            page === 0 && at === 0
+              ? view(paged.run)
+              : view(
+                  store({
+                    run_id: uuid(page * 200 + at + 1),
+                    // Long ended: a run is open only for 15 seconds in the mock
+                    created_at: new Date(Date.parse('2026-09-20T00:00:00Z') - (page * 200 + at) * 60_000).toISOString(),
+                  }),
+                ),
+          );
+          return HttpResponse.json({
+            data,
+            page: { has_more: true, next_cursor: `page-${String(page + 1)}`, limit: 200 },
+            meta,
+          });
+        }),
+        http.get(mswPath(RUN), () => {
+          byId += 1;
+          return HttpResponse.json({ data: runDetailView(MOCK_WORKSPACE.workspace_id, [], paged.run, paged.now) });
+        }),
+      );
+      return { follows: () => follows, byId: () => byId };
+    }
+
+    it('shows a run that ended as ended, and stops polling, at the 2,000 runs the list is cut at', async () => {
+      const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
+      const served = serveCapped(paged);
+      renderWithProviders(runsAs('admin'));
+      const table = await grid();
+      await screen.findByText('Showing the newest 2,000 runs of the month. Narrow the filters to see older ones.');
+      await waitFor(() => expect(bodyRows(table)[0]).toHaveTextContent('Running'));
+      await waitFor(() => expect(served.follows()).toBeGreaterThanOrEqual(1));
+
+      // The run ends: the open runs no longer name it, and the list is not read again, so the run is read itself
+      paged.now = FROZEN + 60_000;
+      await vi.advanceTimersByTimeAsync(10_000);
+      await waitFor(() => expect(bodyRows(table)[0]).toHaveTextContent('Completed'));
+      expect(served.byId()).toBe(1);
+      const polls = served.follows();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(served.follows()).toBe(polls);
+      expect(served.byId()).toBe(1);
+    });
+
+    it('does the same when more than one page of runs is open and the poll cannot say which ended', async () => {
+      const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
+      const served = serveCapped(paged, true);
+      renderWithProviders(runsAs('admin'));
+      const table = await grid();
+      await waitFor(() => expect(bodyRows(table)[0]).toHaveTextContent('Running'));
+      await waitFor(() => expect(served.follows()).toBeGreaterThanOrEqual(1));
+      paged.now = FROZEN + 60_000;
+      await vi.advanceTimersByTimeAsync(10_000);
+      await waitFor(() => expect(bodyRows(table)[0]).toHaveTextContent('Completed'));
+      const polls = served.follows();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(served.follows()).toBe(polls);
+    });
+  });
+
   it('keeps the tasks it showed, with a note, when one poll of the open run fails', async () => {
     const paged: PagedRuns = { run: store({ run_id: uuid(1) }), now: FROZEN };
     servePaged(paged);

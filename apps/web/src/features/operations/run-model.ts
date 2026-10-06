@@ -85,7 +85,9 @@ export function overlayRuns<T extends Pick<Run, 'run_id'>>(rows: readonly T[], n
 /**
  * Whether the poll's answer (the first page of the month's open runs) says the list is out of date: a run
  * the list holds as open is not among them, so it has ended; or one is that the list does not hold, so it was
- * started since. A poll that did not fit in one page can say neither.
+ * started since. A poll that did not fit in one page (more than 200 runs open) can say neither, so it says
+ * `false` here; `useMonthRuns` then reads the open runs of the list that the page does not name by their ids,
+ * as it does when the list is cut at its cap.
  */
 export function needsListRead(
   listed: readonly Pick<Run, 'run_id' | 'status'>[],

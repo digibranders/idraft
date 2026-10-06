@@ -49,6 +49,8 @@ const PAGE = 200;
 const FIRST_PAGE: string | null = null;
 /** How often the page asks again while a run is still open (the API's `Retry-After`, 19 section 2.10). */
 const FOLLOW_MS = 10_000;
+/** The most open runs the poll reads one by one in a round, when the list cannot be read again. */
+const FOLLOW_READS_MAX = 20;
 /** The statuses of a run that has not ended: what the poll asks for. */
 const OPEN_STATUSES: readonly RunStatusFilter[] = ['planned', 'running'];
 
@@ -95,6 +97,21 @@ export function followFilters(filters: RunFilters): RunFilters | null {
   return statuses.length === 0 ? null : { ...filters, statuses };
 }
 
+/** One run by its id: the poll's way to learn how a run ended when the list cannot be read again. */
+async function readRun(scope: RunsScope, runId: string, signal: AbortSignal): Promise<RunDetail> {
+  const answer = await unwrap(
+    api.GET(RUN, {
+      params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId, run_id: runId } },
+      signal,
+    }),
+  );
+  return answer.data;
+}
+
+/** The answer of a poll, while it is newer than the list's last read; `null` before that. */
+const heardAfter = (poll: { data: RunPage | undefined; dataUpdatedAt: number }, listedAt: number): RunPage | null =>
+  poll.data !== undefined && poll.dataUpdatedAt > listedAt ? poll.data : null;
+
 /** What Runs shows of the list: the rows at hand and how they were read. */
 export interface MonthRuns {
   rows: readonly Run[];
@@ -120,7 +137,9 @@ export interface MonthRuns {
  * The runs of `month` for the filters, every page of them up to `MAX_RUNS`. While a run is open a small
  * second query asks every few seconds for the open runs alone (one page, not the ten the list may hold), and
  * what it hears replaces those runs' rows. A run it no longer hears of has ended, and a run it hears of that
- * the list does not hold was started since: either way the list is read again, once and quietly.
+ * the list does not hold was started since: either way the list is read again, once and quietly. Where the
+ * list cannot be read again to learn that (it is cut at `MAX_RUNS`, or more runs are open than the poll's
+ * page holds) the poll reads the listed open runs it did not hear of by their ids instead.
  */
 export function useMonthRuns(scope: RunsScope, month: MonthKey, filters: RunFilters): MonthRuns {
   const query = useInfiniteQuery({
@@ -138,16 +157,31 @@ export function useMonthRuns(scope: RunsScope, month: MonthKey, filters: RunFilt
   const capped = loaded.length >= MAX_RUNS && (hasNextPage || loaded.length > MAX_RUNS);
   const listed = useMemo(() => (loaded.length > MAX_RUNS ? loaded.slice(0, MAX_RUNS) : loaded), [loaded]);
 
-  // The poll runs while the list holds an open run, and stops by itself when the list says none is
+  // The poll runs while a run is open, as the list and the poll's own last answer say together, and stops by
+  // itself when none is
   const open = followFilters(filters);
   const follow = useQuery({
     queryKey: [...runsKey(scope), 'following', month, open],
-    queryFn: ({ signal }) => readPage(scope, month, open ?? filters, FIRST_PAGE, signal),
-    enabled: open !== null && listed.some(isOpenRun),
+    queryFn: async ({ signal }) => {
+      const page = await readPage(scope, month, open ?? filters, FIRST_PAGE, signal);
+      // Normally a run that is not among the open ones has ended, and the list is read again (below). Cut
+      // at the cap, or with more open runs than one page holds, the list cannot be read again to say so or
+      // the page cannot name them all: each open run of the list that the page does not name is read itself.
+      if (!capped && !page.page.has_more) return page;
+      const named = new Set(page.data.map((run) => run.run_id));
+      const unnamed = listed.filter((run) => isOpenRun(run) && !named.has(run.run_id)).slice(0, FOLLOW_READS_MAX);
+      const reads = await Promise.allSettled(unnamed.map((run) => readRun(scope, run.run_id, signal)));
+      return {
+        ...page,
+        data: [...page.data, ...reads.flatMap((read) => (read.status === 'fulfilled' ? [read.value] : []))],
+      };
+    },
+    enabled: (query) =>
+      open !== null && overlayRuns(listed, heardAfter(query.state, dataUpdatedAt)?.data ?? []).some(isOpenRun),
     refetchInterval: FOLLOW_MS,
   });
   // What the poll heard counts while it is newer than the list's last read
-  const heard = follow.data !== undefined && follow.dataUpdatedAt > dataUpdatedAt ? follow.data : null;
+  const heard = heardAfter(follow, dataUpdatedAt);
   const rows = useMemo(() => (heard === null ? listed : overlayRuns(listed, heard.data)), [listed, heard]);
 
   const answered = useRef(0);
