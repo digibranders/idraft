@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { getResponse, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
@@ -577,6 +577,44 @@ describe('Manage groups', () => {
     expect(await screen.findByText('Services deleted')).toBeInTheDocument();
     expect(seen.writes.at(-1)).toMatchObject({ method: 'DELETE', route: `keyword-groups/${MOCK_GROUP_IDS.services}` });
     await waitFor(() => expect(screen.queryByRole('treeitem', { name: 'Services' })).toBeNull());
+  }, 15_000);
+
+  it('keeps the actions of a group focusable before one is chosen, each with the reason it waits', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    for (const name of ['Add subgroup', 'Rename', 'Move to', 'Delete']) {
+      const button = within(dialog).getByRole('button', { name });
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expect(button).toHaveAccessibleDescription('Select a group first');
+      act(() => button.focus());
+      expect(button).toHaveFocus();
+      // A press does nothing
+      await user.click(button);
+    }
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(within(dialog).queryByRole('form')).toBeNull();
+    await user.click(groupItem('Brand'));
+    expect(within(dialog).getByRole('button', { name: 'Rename' })).not.toHaveAttribute('aria-disabled', 'true');
+  }, 15_000);
+
+  it('draws Delete as a destructive action, like the other deletes', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    expect(within(dialog).getByRole('button', { name: 'Delete' }).className).toContain('negative');
+  }, 15_000);
+
+  it('returns focus to Delete when its question is cancelled', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const dialog = await openManage(user);
+    await within(dialog).findByRole('tree', { name: 'Keyword groups' });
+    await user.click(groupItem('Brand'));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Delete Brand?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(within(dialog).getByRole('button', { name: 'Delete' })).toHaveFocus();
   }, 15_000);
 
   it('closes an open form on Escape and leaves the dialog open', async () => {

@@ -315,6 +315,19 @@ describe('DataTable', () => {
     expect(firstRow).toHaveAttribute('aria-rowindex', '202');
   });
 
+  it('keeps focus on Next page when it has no page left to go to, and does not move on when pressed', async () => {
+    const onNext = vi.fn();
+    const { user, rerender } = renderWithProviders(<Harness rows={rowsOf(100)} server={{ ...SERVER_PAGE, onNext }} />);
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(onNext).toHaveBeenCalledTimes(1);
+    rerender(<Harness rows={rowsOf(100)} server={{ ...SERVER_PAGE, hasNext: false, onNext }} />);
+    const next = screen.getByRole('button', { name: 'Next page' });
+    expect(next).toHaveAttribute('aria-disabled', 'true');
+    expect(next).toHaveFocus();
+    await user.click(next);
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
   it('scrolls back to the top when the page of a server list changes, and not when the same page reloads', () => {
     const view = renderWithProviders(<Harness rows={rowsOf(100)} server={SERVER_PAGE} />);
     const region = grid().parentElement;

@@ -3,7 +3,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState, type FormEvent, type ReactElement, type RefObject } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactElement,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+} from 'react';
 
 import { MAX_GROUP_DEPTH, MAX_GROUP_NAME } from './group-paths';
 import { groupRefusal } from './group-refusals';
@@ -20,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
+import { Tooltip } from '@/components/ui/tooltip';
 import { TreeView } from '@/components/ui/tree-view';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
@@ -112,6 +122,7 @@ function ManageGroups({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const toolbar = useRef<HTMLDivElement>(null);
   const firstButton = useRef<HTMLButtonElement>(null);
+  const deleteButton = useRef<HTMLButtonElement>(null);
   const tree = groups.data?.data ?? [];
   const all = flattenGroups(tree);
   const group = all.find((candidate) => candidate.group_id === selected) ?? null;
@@ -196,49 +207,45 @@ function ManageGroups({
           >
             {t('addGroup')}
           </Button>
-          <Button
+          <ToolbarButton
             data-opener="add-subgroup"
-            size="sm"
-            variant="ghost"
-            disabled={group === null || atDepthLimit}
-            onClick={() => {
+            reason={
+              group === null ? t('selectGroupFirst') : atDepthLimit ? t('depthLimit', { max: MAX_GROUP_DEPTH }) : null
+            }
+            onPress={() => {
               if (group !== null) setForm({ kind: 'add', parent: group });
             }}
           >
             {group === null ? t('addSubgroup') : t('addSubgroupOf', { name: group.name })}
-          </Button>
-          <Button
+          </ToolbarButton>
+          <ToolbarButton
             data-opener="rename"
-            size="sm"
-            variant="ghost"
-            disabled={group === null}
-            onClick={() => {
+            reason={group === null ? t('selectGroupFirst') : null}
+            onPress={() => {
               if (group !== null) setForm({ kind: 'rename', group });
             }}
           >
             {t('rename')}
-          </Button>
-          <Button
+          </ToolbarButton>
+          <ToolbarButton
             data-opener="move"
-            size="sm"
-            variant="ghost"
-            disabled={group === null}
-            onClick={() => {
+            reason={group === null ? t('selectGroupFirst') : null}
+            onPress={() => {
               if (group !== null) setForm({ kind: 'move', group });
             }}
           >
             {t('moveTo')}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={group === null}
-            onClick={() => {
+          </ToolbarButton>
+          <ToolbarButton
+            ref={deleteButton}
+            variant="destructive"
+            reason={group === null ? t('selectGroupFirst') : null}
+            onPress={() => {
               if (group !== null) setDeleting(group);
             }}
           >
             {t('delete')}
-          </Button>
+          </ToolbarButton>
         </div>
         {form === null ? null : (
           <GroupFormRow
@@ -290,7 +297,9 @@ function ManageGroups({
             setDeleteError(null);
           }
         }}
-        finalFocus={firstButton}
+        // Back to Delete, which opened the question; once a group is deleted none is selected, and Delete
+        // stays focusable with its reason
+        finalFocus={deleteButton}
         title={t('deleteTitle', { name: deleting?.name ?? '' })}
         description={subgroups > 0 ? t('deleteDescriptionWithSubgroups', { count: subgroups }) : t('deleteDescription')}
         confirmLabel={subgroups > 0 ? t('deleteConfirmWithSubgroups') : t('deleteConfirm')}
@@ -300,6 +309,41 @@ function ManageGroups({
       />
     </>
   );
+}
+
+interface ToolbarButtonProps {
+  children: ReactNode;
+  /** Why the action waits, or `null` when it is available. It stays focusable and says why (08 section 1). */
+  reason: string | null;
+  onPress: () => void;
+  variant?: 'ghost' | 'destructive';
+  ref?: Ref<HTMLButtonElement>;
+  'data-opener'?: string;
+}
+
+/** A button of the groups toolbar: a ghost button, or a destructive one, that is described rather than lost while it waits. */
+function ToolbarButton({
+  children,
+  reason,
+  onPress,
+  variant = 'ghost',
+  ref,
+  ...rest
+}: ToolbarButtonProps): ReactElement {
+  const button = (
+    <Button
+      {...rest}
+      ref={ref}
+      size="sm"
+      variant={variant}
+      disabled={reason !== null}
+      focusableWhenDisabled
+      onClick={onPress}
+    >
+      {children}
+    </Button>
+  );
+  return reason === null ? button : <Tooltip content={reason}>{button}</Tooltip>;
 }
 
 function CloseButton({ label }: { label: string }): ReactElement {

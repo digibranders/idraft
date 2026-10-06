@@ -2006,6 +2006,8 @@
         "rename": "Rename",
         "moveTo": "Move to",
         "delete": "Delete",
+        "selectGroupFirst": "Select a group first",
+        "depthLimit": "Groups go at most {max} levels deep",
         "name": "Name",
         "renameOf": "Rename {name}",
         "moveUnderOf": "Move {name} under",

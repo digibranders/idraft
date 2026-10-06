@@ -51,7 +51,9 @@ export function TableFooter({ countText, note, server }: TableFooterProps): Reac
             icon={ChevronLeft}
             variant="secondary"
             label={t('previous')}
+            // Stays focusable when there is no page to go to, so pressing the last page's Next does not drop focus
             disabled={!server.hasPrevious}
+            focusableWhenDisabled
             onClick={server.onPrevious}
           />
           <IconButton
@@ -59,6 +61,7 @@ export function TableFooter({ countText, note, server }: TableFooterProps): Reac
             variant="secondary"
             label={t('next')}
             disabled={!server.hasNext}
+            focusableWhenDisabled
             onClick={server.onNext}
           />
         </div>
