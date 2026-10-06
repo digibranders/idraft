@@ -624,6 +624,19 @@ describe('Rankings rank filters', () => {
     }
   });
 
+  it('keeps the first bucket of a link that names two, and says the other was left out', async () => {
+    // The API takes one range of places, so the chip holds one bucket; a spec-form link may name more
+    const asked = listQueries();
+    const url = urlWrites();
+    renderWithProviders(as('viewer'), { searchParams: '?rank=top3,top10', onUrlUpdate: url.onUrlUpdate });
+    expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Rank: Top 3. Edit filter' })).toBeInTheDocument();
+    await waitFor(() => expect(url.latest().get('rank')).toBe('top3'));
+    await loadedGrid();
+    expect(asked.some((query) => query.get('filter[rank_lte]') === '10')).toBe(false);
+    expect(asked.some((query) => query.get('filter[rank_lte]') === '3')).toBe(true);
+  });
+
   it('drops an invalid value of a link with the notice the other chips give, and sends nothing for it', async () => {
     const asked = listQueries();
     const url = urlWrites();
