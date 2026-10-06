@@ -1670,6 +1670,7 @@
       "unarchive": "Unarchive",
       "delete": "Delete",
       "failed": "The change was not made. Try again.",
+      "changed": "The keywords that match changed since you chose them: {count} now. Choose again.",
       "partial": "Part of the change was made before it stopped. Check the keywords, then try again for the rest.",
       "discardDescription": "Nothing has changed yet; your choices here will be lost.",
       "tooMany": "The filters match more than {limit} keywords. Narrow them, or choose the keywords.",

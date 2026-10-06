@@ -1,4 +1,4 @@
-import type { KeywordFilters } from '../rankings-queries';
+import type { KeywordFilters, ListQuery } from '../rankings-queries';
 import type { ApiInit } from '@/lib/api/query';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { queryTextOf } from '@/lib/keywords/query-text';
@@ -47,6 +47,16 @@ export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilte
     ...given('is_stale', filters['filter[is_stale]']),
     ...(q === '' ? {} : { q }),
   };
+}
+
+/**
+ * The list read that counts what a body filter will match: the list's filters and its search, one row. A rank
+ * filter matches what the latest check says, and a check runs every day, so what a person chose and what the
+ * API matches when the action arrives can differ: the screen counts again just before it acts.
+ */
+export function matchCountQuery(filters: KeywordFilters, search: string): ListQuery {
+  const q = queryTextOf(search);
+  return { ...filters, ...(q === '' ? {} : { 'filter[q]': q }), limit: 1 };
 }
 
 /** The API takes this many ids in one bulk request. */

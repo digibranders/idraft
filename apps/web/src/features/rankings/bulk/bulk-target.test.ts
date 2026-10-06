@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { batchSizeFor, bodyFilterOf, bulkTarget, groupsHeldBy, targetBatches } from './bulk-target';
+import { batchSizeFor, bodyFilterOf, bulkTarget, groupsHeldBy, matchCountQuery, targetBatches } from './bulk-target';
 import { keywordFilters } from '../rankings-queries';
 import type { FilterValues } from '@/components/app/filters/types';
 import type { TrackedKeywordRow } from '@/lib/api/types';
@@ -49,6 +49,18 @@ describe('bulk targets', () => {
     expect(bodyFilterOf({}, 'seo\tagency')).toEqual({ is_active: true, q: 'seo agency' });
     expect(bodyFilterOf({}, 'x'.repeat(300)).q).toHaveLength(200);
     expect(bodyFilterOf({}, '​ ')).toEqual({ is_active: true });
+  });
+
+  it('counts the matches with the list read the screen shows them by: its filters and search, one row', () => {
+    expect(matchCountQuery({ 'filter[is_active]': true, 'filter[rank_lte]': 3 }, ' crm ')).toEqual({
+      'filter[is_active]': true,
+      'filter[rank_lte]': 3,
+      'filter[q]': 'crm',
+      limit: 1,
+    });
+    // No search, no `filter[q]`; and the body filter of the same filters names the same keywords
+    expect(matchCountQuery({ 'filter[is_active]': false }, '')).toEqual({ 'filter[is_active]': false, limit: 1 });
+    expect(matchCountQuery({ 'filter[is_active]': true }, 'x'.repeat(300))['filter[q]']).toHaveLength(200);
   });
 
   it('chooses ids, or the filters for every match', () => {

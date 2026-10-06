@@ -140,7 +140,14 @@ export function answerTrackedAsMany({
   server.use(
     http.get(mswPath(TRACKED), async ({ request }) => {
       const url = new URL(request.url);
-      if (url.searchParams.get('limit') === '1') return undefined;
+      if (url.searchParams.get('limit') === '1') {
+        // The count of the project's keywords (no filter) is the fixtures'; the count a bulk action reads
+        // just before it acts (the list's filters, one row) is the total these tests give the list
+        const filtered = [...url.searchParams.keys()].some((key) => key.startsWith('filter['));
+        return filtered
+          ? HttpResponse.json({ data: [], page: { limit: 1, next_cursor: null, has_more: total > 1, total } })
+          : undefined;
+      }
       asked.push(new URLSearchParams(url.searchParams));
       const cursor = url.searchParams.get('cursor');
       if (cursor !== null && slow()) await delay(300);

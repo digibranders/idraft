@@ -13,6 +13,7 @@ import {
   batchSizeFor,
   bulkTarget,
   groupsHeldBy,
+  matchCountQuery,
   targetBatches,
   type BulkTarget,
 } from './bulk-target';
@@ -20,7 +21,7 @@ import { MoveToGroupDialog } from './move-to-group-dialog';
 import { PriorityDialog } from './priority-dialog';
 import { TagsDialog } from './tags-dialog';
 import { TargetUrlDialog } from './target-url-dialog';
-import { refreshKeywords, type KeywordFilters, type ProjectScope } from '../rankings-queries';
+import { readPage, refreshKeywords, type KeywordFilters, type ProjectScope } from '../rankings-queries';
 import { refreshGroups } from '../taxonomy-queries';
 import { gridTabStop } from '@/components/app/data-table/grid-focus';
 import type { ActionScope, RecordAction } from '@/components/app/data-table/types';
@@ -124,6 +125,26 @@ export function useBulkActions(context: BulkContext): {
     new BulkFailure(landed > 0 ? t('partial') : problemText(error));
 
   /**
+   * Before an action on every keyword the filters match: how many match now, against the count the person
+   * chose. The API reads the filter again when the action arrives, and a rank filter follows the daily
+   * check, so the set can have moved since; then nothing is sent, the list is read again to show what
+   * matches now, and the person chooses again. A count that cannot be read stops the action as well. An
+   * action on chosen ids needs none of this: the ids are what is sent.
+   */
+  const confirmMatch = async (target: BulkTarget, chosen: number | null): Promise<void> => {
+    if (!('filter' in target) || chosen === null) return;
+    let now: number;
+    try {
+      now = (await readPage(scope, matchCountQuery(filters, search), new AbortController().signal)).page.total;
+    } catch (error) {
+      throw failure(error, 0);
+    }
+    if (now === chosen) return;
+    void refreshKeywords(queryClient, scope);
+    throw new BulkFailure(t('changed', { count: formatInteger(now) }));
+  };
+
+  /**
    * A bulk update of the opened target: ids in requests of 5,000, the group lists in requests of 100. When
    * the target is a filter on a group the change takes the keywords out of, that removal goes last, or the
    * filter would match nothing for the rest.
@@ -151,6 +172,7 @@ export function useBulkActions(context: BulkContext): {
       finish();
       return { matched: opened.count, versions: 0 };
     }
+    await confirmMatch(opened.target, opened.count);
     // The API limits the groups and terms one change gains or loses in all, ids times links: the ids go in
     // batches small enough for the request that names the most
     const batchSize = batchSizeFor(Math.max(...changes.map(linksOf)));
@@ -184,13 +206,14 @@ export function useBulkActions(context: BulkContext): {
   const runArchive = async (
     target: BulkTarget,
     toArchive: boolean,
-    { undoable, toastFailure }: { undoable: boolean; toastFailure: boolean },
+    { undoable, toastFailure, chosen }: { undoable: boolean; toastFailure: boolean; chosen: number | null },
   ): Promise<void> => {
     if (archiving.current) return;
     archiving.current = true;
     let updated = 0;
     let landed = 0;
     try {
+      await confirmMatch(target, chosen);
       for (const batch of targetBatches(target)) {
         const answer = await archive.mutateAsync({ params: { path: project }, body: { ...batch, archive: toArchive } });
         updated += answer.data.updated;
@@ -198,7 +221,8 @@ export function useBulkActions(context: BulkContext): {
       }
     } catch (error) {
       void refreshKeywords(queryClient, scope);
-      const failed = failure(error, landed);
+      // The words of a stopped action are already the person's to read; an API error gets its own
+      const failed = error instanceof BulkFailure ? error : failure(error, landed);
       if (toastFailure) toast({ type: 'error', title: failed.message });
       throw failed;
     } finally {
@@ -216,7 +240,9 @@ export function useBulkActions(context: BulkContext): {
             action: {
               label: t('undo'),
               onAction: () =>
-                void runArchive(target, !toArchive, { undoable: false, toastFailure: true }).catch(() => undefined),
+                void runArchive(target, !toArchive, { undoable: false, toastFailure: true, chosen: null }).catch(
+                  () => undefined,
+                ),
             },
           }
         : {}),
@@ -224,10 +250,11 @@ export function useBulkActions(context: BulkContext): {
   };
 
   /** Deletes `target` as the single delete does: the history stays, and adding a keyword again restores it. */
-  const runDelete = async (target: BulkTarget): Promise<void> => {
+  const runDelete = async (target: BulkTarget, chosen: number | null): Promise<void> => {
     let deleted = 0;
     let landed = 0;
     try {
+      await confirmMatch(target, chosen);
       for (const batch of targetBatches(target)) {
         const answer = await remove.mutateAsync({ params: { path: project }, body: batch });
         deleted += answer.data.deleted;
@@ -235,7 +262,7 @@ export function useBulkActions(context: BulkContext): {
       }
     } catch (error) {
       void refreshKeywords(queryClient, scope);
-      throw failure(error, landed);
+      throw error instanceof BulkFailure ? error : failure(error, landed);
     }
     finish();
     toast({ type: 'success', title: t('deleted', { count: countText(deleted) }) });
@@ -266,7 +293,9 @@ export function useBulkActions(context: BulkContext): {
         const target = bulkTarget(actionScope, filters, search);
         // A small change runs at once, with Undo; one above 100 keywords asks first, with the count
         if (count <= CONFIRM_ABOVE) {
-          void runArchive(target, !archived, { undoable: true, toastFailure: true }).catch(() => undefined);
+          void runArchive(target, !archived, { undoable: true, toastFailure: true, chosen: count }).catch(
+            () => undefined,
+          );
           return;
         }
         open(archived ? 'unarchive' : 'archive')(rows, actionScope);
@@ -381,7 +410,11 @@ export function useBulkActions(context: BulkContext): {
         onConfirm={async () => {
           if (opened === null) return;
           try {
-            await runArchive(opened.target, !unarchiving, { undoable: true, toastFailure: false });
+            await runArchive(opened.target, !unarchiving, {
+              undoable: true,
+              toastFailure: false,
+              chosen: opened.count,
+            });
             close();
           } catch (error) {
             setConfirmError(error instanceof BulkFailure ? error.message : t('failed'));
@@ -401,7 +434,7 @@ export function useBulkActions(context: BulkContext): {
         onConfirm={async () => {
           if (opened === null) return;
           try {
-            await runDelete(opened.target);
+            await runDelete(opened.target, opened.count);
             close();
           } catch (error) {
             setConfirmError(error instanceof BulkFailure ? error.message : t('failed'));
