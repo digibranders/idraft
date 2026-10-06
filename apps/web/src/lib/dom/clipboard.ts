@@ -18,7 +18,9 @@ export async function copyText(text: string): Promise<boolean> {
 
 /**
  * The older way: a read-only field outside the view, selected and copied. Focus and the person's own
- * selection are put back, since the field takes both for the moment it exists.
+ * selection are put back, since the field takes both for the moment it exists. The field is put beside the
+ * element that has focus, not at the end of the page, so focus moves only within the part of the page it
+ * was in: a table that watches where focus goes (a cell in widget mode) does not see it leave.
  */
 function copyBySelection(text: string): boolean {
   const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -30,7 +32,10 @@ function copyBySelection(text: string): boolean {
   field.tabIndex = -1;
   field.setAttribute('aria-hidden', 'true');
   Object.assign(field.style, { position: 'fixed', top: '0', left: '-9999px', opacity: '0' });
-  document.body.append(field);
+  // The body has focus when nothing does, and its parent is the document element, which is no place for a field
+  const host =
+    previous === null || previous === document.body ? document.body : (previous.parentElement ?? document.body);
+  host.append(field);
   try {
     field.focus({ preventScroll: true });
     field.select();

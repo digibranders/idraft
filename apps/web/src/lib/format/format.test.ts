@@ -206,6 +206,30 @@ describe('webHref', () => {
     expect(webHref('HTTPS://FYNIX.DIGITAL/Pricing')).toBe('HTTPS://FYNIX.DIGITAL/Pricing');
   });
 
+  it('still sees the scheme through leading whitespace and control characters, which a browser skips', () => {
+    // The browser reads these as javascript:, so they are never a link
+    for (const raw of ['\u0000javascript:alert(1)', '\u001f javascript:alert(1)', '\n\tjavascript:alert(1)']) {
+      expect(webHref(raw), JSON.stringify(raw)).toBeNull();
+    }
+    // Tabs and line breaks inside the scheme are removed by the browser, so the scheme is still javascript
+    expect(webHref('java\tscript:alert(1)')).toBeNull();
+    expect(webHref('jav\nascript:alert(1)')).toBeNull();
+    // An http or https address with leading whitespace is one the browser opens; it is given back as it came
+    expect(webHref(' https://fynix.digital/blog')).toBe(' https://fynix.digital/blog');
+    expect(webHref('\u0001https://fynix.digital/blog')).toBe('\u0001https://fynix.digital/blog');
+  });
+
+  it('gives nothing for an address with a user name or a password, whose host is not the one that reads first', () => {
+    for (const raw of [
+      'https://user:secret@fynix.digital/blog',
+      'https://fynix.digital@evil.example/blog',
+      'http://admin@fynix.digital/',
+      'https://:secret@fynix.digital/',
+    ]) {
+      expect(webHref(raw), raw).toBeNull();
+    }
+  });
+
   it('gives nothing for any other scheme, a relative address or text that is not an address', () => {
     for (const raw of [
       'javascript:alert(1)',

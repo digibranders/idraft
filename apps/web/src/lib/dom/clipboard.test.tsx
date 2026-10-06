@@ -59,6 +59,35 @@ describe('copyText', () => {
     expect(button).toHaveFocus();
   });
 
+  it('puts the temporary field beside the focused element, so focus stays in the same part of the page', async () => {
+    stubClipboard(null);
+    const cell = document.createElement('td');
+    const button = document.createElement('button');
+    cell.append(button);
+    document.body.append(cell);
+    button.focus();
+    let parent: Element | null = null;
+    execCommand.mockImplementationOnce(() => {
+      parent = document.querySelector('textarea')?.parentElement ?? null;
+      return true;
+    });
+    await expect(copyText('https://fynix.digital/blog')).resolves.toBe(true);
+    expect(parent).toBe(cell);
+    expect(cell.querySelector('textarea')).toBeNull();
+    expect(button).toHaveFocus();
+  });
+
+  it('uses the page body for the field when nothing has focus', async () => {
+    stubClipboard(null);
+    let parent: Element | null = null;
+    execCommand.mockImplementationOnce(() => {
+      parent = document.querySelector('textarea')?.parentElement ?? null;
+      return true;
+    });
+    await expect(copyText('/pricing')).resolves.toBe(true);
+    expect(parent).toBe(document.body);
+  });
+
   it('uses the fallback when there is no Clipboard API at all', async () => {
     stubClipboard(null);
     await expect(copyText('/pricing')).resolves.toBe(true);
