@@ -3,7 +3,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 
-import { PENDING_CAP_MS, PENDING_PAGES_MAX, PENDING_POLL_MS, isPendingMetrics } from './refresh-model';
+import {
+  PENDING_CAP_MS,
+  PENDING_PAGES_MAX,
+  PENDING_POLL_MS,
+  isPendingMetrics,
+  isWaiting,
+  waitsForFirstCheck,
+} from './refresh-model';
 import {
   keywordsKey,
   readPage,
@@ -18,7 +25,15 @@ import type { TrackedKeywordRow } from '@/lib/api/types';
 const PAGE = 200;
 
 type Metrics = NonNullable<TrackedKeywordRow['metrics']>;
-type Heard = ReadonlyMap<string, Metrics>;
+type RankState = TrackedKeywordRow['state'];
+
+/** What the polls heard of a keyword: its metrics and its rank state, each only once it is something. */
+interface Fresh {
+  metrics: Metrics | null;
+  /** The rank state once the API has checked the keyword (a failed check included); never `not_checked`. */
+  state: RankState | null;
+}
+type Heard = ReadonlyMap<string, Fresh>;
 
 interface PendingArgs {
   scope: ProjectScope;
@@ -32,10 +47,17 @@ interface PendingArgs {
   pageRequest: ListQuery | null;
 }
 
-/** Adds the metrics a page brought to what was heard. */
-function absorb(heard: Map<string, Metrics>, page: readonly TrackedKeywordRow[]): void {
+/** Adds the metrics and the first rank checks a page brought to what was heard. */
+function absorb(heard: Map<string, Fresh>, page: readonly TrackedKeywordRow[]): void {
   for (const row of page) {
-    if (row.metrics !== null && row.metrics !== undefined) heard.set(row.tracked_keyword_id, row.metrics);
+    const metrics = row.metrics ?? null;
+    const state = row.state.current.state === 'not_checked' ? null : row.state;
+    if (metrics === null && state === null) continue;
+    const before = heard.get(row.tracked_keyword_id);
+    heard.set(row.tracked_keyword_id, {
+      metrics: metrics ?? before?.metrics ?? null,
+      state: state ?? before?.state ?? null,
+    });
   }
 }
 
@@ -91,7 +113,7 @@ async function readWaiting({ scope, filters, pageRequest, oldest, heard, resume,
   return found;
 }
 
-/** The request of one page of a poll: the keywords newest first, with their metrics only. */
+/** The request of one page of a poll: the keywords newest first, with their metrics (the rank state always comes). */
 const pendingQuery = (filters: KeywordFilters, cursor: string | null): ListQuery => ({
   ...filters,
   sort: '-created_at',
@@ -101,16 +123,19 @@ const pendingQuery = (filters: KeywordFilters, cursor: string | null): ListQuery
 });
 
 /**
- * New keywords show "Pending" until their first metrics arrive, within minutes (backend plan D8). While a
- * row on screen is still waiting (an active keyword with no metrics) the list is read again every 30 seconds
- * (see `readWaiting` for how much of it), and the metrics it brings are laid over the waiting rows. The
- * list's own queries are not touched, so fresher data in them is never overwritten. Rows keep their
- * identity (only a waiting row that got metrics is replaced), so the table does not flash and keeps its
- * selection, its scroll position and the keyword open in the inspector.
+ * New keywords show "Pending" until their first metrics arrive, within minutes (backend plan D8), and in the
+ * rank columns until their first rank check has run (a few minutes after, rank collection). While a row on
+ * screen is still waiting for either (an active keyword with no metrics, or one the API has not checked) the
+ * list is read again every 30 seconds (see `readWaiting` for how much of it), and the metrics and the rank
+ * state it brings are laid over the waiting rows, each over a row that still lacks it. The list's own
+ * queries are not touched, so fresher data in them is never overwritten. Rows keep their identity (only a
+ * waiting row that got something is replaced), so the table does not flash and keeps its selection, its
+ * scroll position and the keyword open in the inspector.
  *
  * The polling stops when no row waits, and on rows that have waited 15 minutes with the tab shown: a keyword
- * that never gets metrics (no credentials, a run cancelled) is not asked about for good. It stops with the
- * screen, pauses while the tab is hidden, and reads at once when the tab is shown again.
+ * that never gets metrics (no credentials, a run cancelled) or a first check (a paused project) is not asked
+ * about for good. It stops with the screen, pauses while the tab is hidden, and reads at once when the tab is
+ * shown again.
  */
 export function usePendingMetrics({
   scope,
@@ -150,10 +175,14 @@ export function usePendingMetrics({
     if (heard === undefined) return rows;
     let changed = false;
     const next = rows.map((row) => {
-      const metrics = isPendingMetrics(row) ? heard.get(row.tracked_keyword_id) : undefined;
-      if (metrics === undefined) return row;
+      const fresh = isWaiting(row) ? heard.get(row.tracked_keyword_id) : undefined;
+      if (fresh === undefined) return row;
+      // Only what the row still lacks is laid over it: metrics it has, or a rank it was already given, stay
+      const metrics = isPendingMetrics(row) ? fresh.metrics : null;
+      const state = waitsForFirstCheck(row) ? fresh.state : null;
+      if (metrics === null && state === null) return row;
       changed = true;
-      return { ...row, metrics };
+      return { ...row, ...(metrics === null ? {} : { metrics }), ...(state === null ? {} : { state }) };
     });
     return changed ? next : rows;
   }, [rows, heard]);
@@ -161,7 +190,7 @@ export function usePendingMetrics({
   // How long each waiting row has been waited for with the tab shown. Only effects and timers touch it.
   const waited = useRef(new Map<string, number>());
   const waiting = useMemo(() => {
-    const rowsWaiting = merged.filter(isPendingMetrics);
+    const rowsWaiting = merged.filter(isWaiting);
     return {
       key: rowsWaiting.map((row) => row.tracked_keyword_id).join(','),
       oldest: rowsWaiting.reduce<number | null>((oldest, row) => {

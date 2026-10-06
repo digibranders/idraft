@@ -180,15 +180,37 @@ export function answerTrackedAsMany({
  * are told apart by the description each cell carries.
  */
 export function pendingMetricCells(grid: HTMLElement): HTMLElement[] {
+  return pendingCells(grid, messages.rankings.columns.pendingTooltip);
+}
+
+/** The cells that say Pending because the keyword's first rank check has not run (Rank, Change, URL). */
+export function pendingRankCells(grid: HTMLElement): HTMLElement[] {
+  return pendingCells(grid, messages.rankings.rank.pendingTooltip);
+}
+
+function pendingCells(grid: HTMLElement, tooltip: string): HTMLElement[] {
   return within(grid)
     .queryAllByRole('gridcell')
     .filter((cell) => {
       if (cell.textContent !== 'Pending') return false;
       const described = cell.getAttribute('aria-describedby')?.split(' ') ?? [];
-      return described.some(
-        (id) => document.getElementById(id)?.textContent === messages.rankings.columns.pendingTooltip,
-      );
+      return described.some((id) => document.getElementById(id)?.textContent === tooltip);
     });
+}
+
+/** The place of a column among the cells of a row, found by its header. */
+export function columnIndex(grid: HTMLElement, name: RegExp): number {
+  const header = within(grid).getByRole('columnheader', { name });
+  if (!(header instanceof HTMLTableCellElement)) throw new Error(`The header ${String(name)} is not a table cell`);
+  return header.cellIndex;
+}
+
+/** The cells of a column, row by row in the order of the grid, found by the column's header. */
+export function columnTexts(grid: HTMLElement, name: RegExp): string[] {
+  const index = columnIndex(grid, name);
+  return within(grid)
+    .getAllByRole('rowheader')
+    .map((header) => header.closest('tr')?.cells[index]?.textContent ?? '');
 }
 
 /** The keywords as their cells show them; the cells' tooltips hold the location and device too. */

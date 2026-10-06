@@ -14,6 +14,8 @@ import { server } from '@/test/msw';
 import {
   answerTrackedAsMany,
   cleanstart,
+  columnIndex,
+  columnTexts,
   keywordsIn,
   loadedGrid,
   pendingMetricCells,
@@ -317,21 +319,6 @@ function fixtureStates(): { text: string; state: TrackedKeywordState }[] {
     text: texts.get(row.keyword_id) ?? '',
     state: rankStateOf(row.tracked_keyword_id, row.created_at, Date.now(), 'fynix.digital'),
   }));
-}
-
-/** The place of a column among the cells of a row, found by its header. */
-function columnIndex(grid: HTMLElement, name: RegExp): number {
-  const header = within(grid).getByRole('columnheader', { name });
-  if (!(header instanceof HTMLTableCellElement)) throw new Error(`The header ${String(name)} is not a table cell`);
-  return header.cellIndex;
-}
-
-/** The cells of a column, row by row, found by the column's header. */
-function columnTexts(grid: HTMLElement, name: RegExp): string[] {
-  const index = columnIndex(grid, name);
-  return within(grid)
-    .getAllByRole('rowheader')
-    .map((header) => header.closest('tr')?.cells[index]?.textContent ?? '');
 }
 
 describe('Rankings rank columns', () => {

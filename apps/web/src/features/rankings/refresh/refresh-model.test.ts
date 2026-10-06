@@ -6,11 +6,13 @@ import {
   STALE_DAYS,
   chosenKeywordIds,
   isPendingMetrics,
+  isWaiting,
   leftTheList,
   leftToday,
   refreshBody,
   uniqueKeywordIds,
   unknownPositions,
+  waitsForFirstCheck,
 } from './refresh-model';
 import messages from '../../../../messages/en.json';
 import { keywordMetrics } from '@/mocks/keyword-metrics';
@@ -65,6 +67,32 @@ describe('Waiting for first metrics', () => {
     expect(isPendingMetrics({ is_active: true, metrics: undefined })).toBe(true);
     expect(isPendingMetrics({ is_active: false, metrics: null })).toBe(false);
     expect(isPendingMetrics({ is_active: true, metrics })).toBe(false);
+  });
+
+  it('knows a keyword waits for its first rank check until the API says it was checked', () => {
+    const state = (
+      kind: 'not_checked' | 'ranked' | 'beyond_depth' | 'failed',
+    ): { current: { state: typeof kind } } => ({
+      current: { state: kind },
+    });
+    expect(waitsForFirstCheck({ is_active: true, state: state('not_checked') })).toBe(true);
+    // A check that ran and failed is a check: the keyword does not wait for a first one any more
+    expect(waitsForFirstCheck({ is_active: true, state: state('failed') })).toBe(false);
+    expect(waitsForFirstCheck({ is_active: true, state: state('ranked') })).toBe(false);
+    expect(waitsForFirstCheck({ is_active: true, state: state('beyond_depth') })).toBe(false);
+    // Archived keywords are not collected
+    expect(waitsForFirstCheck({ is_active: false, state: state('not_checked') })).toBe(false);
+  });
+
+  it('waits for either: the metrics, or the first check', () => {
+    const metrics = { volume: 880 };
+    const checked = { current: { state: 'ranked' as const } };
+    const unchecked = { current: { state: 'not_checked' as const } };
+    expect(isWaiting({ is_active: true, metrics, state: checked })).toBe(false);
+    expect(isWaiting({ is_active: true, metrics: null, state: checked })).toBe(true);
+    expect(isWaiting({ is_active: true, metrics, state: unchecked })).toBe(true);
+    expect(isWaiting({ is_active: true, metrics: null, state: unchecked })).toBe(true);
+    expect(isWaiting({ is_active: false, metrics: null, state: unchecked })).toBe(false);
   });
 });
 

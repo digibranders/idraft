@@ -52,6 +52,20 @@ export const leftToday = (manual: ManualRuns): number => Math.max(manual.limit -
 export const isPendingMetrics = (row: { is_active: boolean; metrics?: unknown }): boolean =>
   row.is_active && (row.metrics === null || row.metrics === undefined);
 
+/**
+ * A keyword that waits for its first rank check: active, and the API has not checked it yet. A check that
+ * ran and failed (`failed`) is a check, so the keyword stops waiting; the check is tried again by the worker.
+ */
+export const waitsForFirstCheck = (row: { is_active: boolean; state: { current: { state: string } } }): boolean =>
+  row.is_active && row.state.current.state === 'not_checked';
+
+/** A keyword the page still waits for: its metrics, or its first rank check. */
+export const isWaiting = (row: {
+  is_active: boolean;
+  metrics?: unknown;
+  state: { current: { state: string } };
+}): boolean => isPendingMetrics(row) || waitsForFirstCheck(row);
+
 /** What the screen has seen of a tracked keyword: which keyword it tracks, and whether it was active. */
 export interface SeenKeyword {
   keywordId: string;
