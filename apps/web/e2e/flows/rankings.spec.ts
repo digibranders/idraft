@@ -212,6 +212,20 @@ test.describe('rankings', () => {
       if (cellBox === null || tailBox === null) throw new Error('The ranking URL cell has no box');
       expect(tailBox.x + tailBox.width).toBeLessThanOrEqual(cellBox.x + cellBox.width + 0.5);
       expect(await tail.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+
+      // With no +N beside it the copy button lies over the end of the cell and takes no width from the path:
+      // the link runs to the cell's own padding, 30 px further than it would with a place for the button
+      const plain = grid
+        .getByRole('gridcell')
+        .filter({ hasText: '/blog/how-to-choose-an-seo-agency' })
+        .filter({ hasNot: page.getByText(/^\+\d+$/) })
+        .first();
+      await expect(plain).toBeVisible();
+      const plainBox = await plain.boundingBox();
+      const linkBox = await plain.getByRole('link').boundingBox();
+      const padding = await plain.evaluate((node) => Number.parseFloat(getComputedStyle(node).paddingRight));
+      if (plainBox === null || linkBox === null) throw new Error('The ranking URL cell has no box');
+      expect(plainBox.x + plainBox.width - padding - (linkBox.x + linkBox.width)).toBeLessThan(1);
     }
   });
 
@@ -245,10 +259,11 @@ test.describe('rankings', () => {
     await expect(copyUrl.locator('..')).toHaveCSS('opacity', '1');
     await expectAccessible(page);
 
-    // The keyword, then a check for a moment, then the glyph again
+    // The keyword, then a check for a moment, then the glyph again. The check is asserted before anything else
+    // waits: it shows for 2 seconds, and a slow machine must not use them up on the clipboard first
     await copyKeyword.click();
-    await expect.poll(clipboard).toBe(keyword);
     await expect(row.getByRole('button', { name: 'Copied' })).toHaveCount(1);
+    await expect.poll(clipboard).toBe(keyword);
     await expect(copyKeyword).toBeVisible();
 
     // The whole address as the API sent it, which is what the link opens
@@ -256,8 +271,9 @@ test.describe('rankings', () => {
     if (href === null) throw new Error('The ranking URL link has no href');
     expect(href).toMatch(/^https:\/\//);
     await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer nofollow');
     await copyUrl.click();
+    await expect(row.getByRole('button', { name: 'Copied' })).toHaveCount(1);
     await expect.poll(clipboard).toBe(href);
 
     // Clicking a control never opens the keyword
@@ -281,7 +297,13 @@ test.describe('rankings', () => {
     await expect(link).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(copyUrl).toBeFocused();
+    // The control's own tooltip shows on its keyboard focus, and the cell's, which holds the whole address, is not
+    // on top of it
+    const tooltip = page.locator('[data-slot="tooltip"]');
+    await expect(tooltip).toHaveCount(1);
+    await expect(tooltip).toHaveText('Copy ranking URL');
     await page.keyboard.press('Enter');
+    await expect(row.getByRole('button', { name: 'Copied' })).toHaveCount(1);
     await expect.poll(clipboard).toBe(href);
     await page.keyboard.press('Escape');
     await expect(urlCell).toBeFocused();

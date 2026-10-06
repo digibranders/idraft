@@ -319,11 +319,33 @@ describe('RankingUrlView link and copy button', () => {
     const link = screen.getByRole('link', { name: OPEN });
     expect(link).toHaveAttribute('href', FULL);
     expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    // An outbound link of search data: no opener, no referrer, and no endorsement
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer nofollow');
     // The grid keeps its one tab stop: the table moves into the link with F2
     expect(link).toHaveAttribute('tabindex', '-1');
     expect(link).toHaveAttribute('data-cell-control');
     expect(link).toHaveTextContent(URL_REF.path);
+  });
+
+  it('draws the link in the link color, underlined on hover and focus, so it is seen as a link', () => {
+    renderUrl(withUrl(FULL));
+    const link = screen.getByRole('link', { name: OPEN });
+    expect(link).toHaveClass('text-link', 'hover:underline', 'focus-visible:underline');
+    expect(link).not.toHaveClass('text-inherit');
+  });
+
+  it('lays the copy button over the end of the cell when there is no +N, so the path keeps the whole width', () => {
+    const { rerender } = renderUrl(urlView(cell({ url: URL_REF }), 1));
+    const wrapper = screen.getByRole('button', { name: 'Copy ranking URL' }).parentElement;
+    expect(wrapper).toHaveClass('absolute', 'right-0', 'bg-inherit');
+    expect(wrapper).not.toHaveClass('shrink-0');
+    // What the button lies over is positioned and hands the cell's own background on
+    expect(wrapper?.parentElement).toHaveClass('relative', 'bg-inherit');
+    // Beside a +N the button has a place of its own: the marker is never covered
+    rerender(urlView(cell({ url: URL_REF }), 2));
+    const inline = screen.getByRole('button', { name: 'Copy ranking URL' }).parentElement;
+    expect(inline).toHaveClass('shrink-0');
+    expect(inline).not.toHaveClass('absolute');
   });
 
   it('keeps the +1 marker, and its words, out of the link', () => {

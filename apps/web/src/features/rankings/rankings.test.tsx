@@ -119,7 +119,7 @@ describe('Rankings', () => {
       const link = within(row).getByRole('link', { name: /^Open \/.* in a new tab$/ });
       expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\//));
       expect(link).toHaveAttribute('target', '_blank');
-      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer nofollow');
       await user.click(within(row).getByRole('button', { name: 'Copy ranking URL' }));
       expect(writeText).toHaveBeenLastCalledWith(link.getAttribute('href'));
       await user.click(link);
