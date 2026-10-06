@@ -13,7 +13,7 @@ import {
 } from 'react';
 
 import { InspectorHeader, type InspectorHeaderProps } from './inspector-header';
-import { InspectorAreaContext, useViewportWidth } from './inspector-layout';
+import { InspectorAreaContext, InspectorOverlaySetterContext, useViewportWidth } from './inspector-layout';
 import { InspectorResizeHandle } from './inspector-resize-handle';
 import type { MenuItemDef } from '@/components/ui/menu';
 import { Sheet } from '@/components/ui/sheet';
@@ -21,6 +21,7 @@ import { useShortcut } from '@/lib/a11y/use-shortcut';
 import {
   defaultInspectorWidth,
   fitInspectorWidth,
+  INSPECTOR_EDGE,
   INSPECTOR_WIDTH,
   inspectorPlacement,
   type InspectorType,
@@ -90,6 +91,14 @@ export function Inspector({
   // takes in the layout at the committed width, so the list reflows once, on release (16 section 2.2)
   const drawn = preview === null ? width : fitInspectorWidth(preview, maxWidth);
   const setWidth = (next: number | null): void => writeInspectorWidth(type, next);
+
+  // Laid over the list, the card covers its right side: the list's own bars keep clear of where it begins
+  const setOverlay = use(InspectorOverlaySetterContext);
+  const overlayLeft = mode === 'overlay' ? viewportWidth - INSPECTOR_EDGE - drawn : null;
+  useEffect(() => {
+    setOverlay(overlayLeft);
+    return () => setOverlay(null);
+  }, [overlayLeft, setOverlay]);
 
   // Opening moves focus to the title, so the next Tab reaches the header's actions (16 section 2.8). The
   // sheet does the same through its own initial focus. Only on opening: a resize that turns the sheet into

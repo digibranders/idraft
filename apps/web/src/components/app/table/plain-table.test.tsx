@@ -1,5 +1,5 @@
 import { screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { PlainTable, type PlainColumn } from './plain-table';
 import { axe } from '@/test/axe';
@@ -100,6 +100,33 @@ describe('PlainTable', () => {
       />,
     );
     expect(screen.getByText('Nothing here')).toBeInTheDocument();
+  });
+
+  it('is a focusable, named region only while its table is wider than the screen, so the keyboard can scroll it', () => {
+    class Observer {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', Observer);
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(900);
+    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+    try {
+      const { unmount } = render();
+      const region = screen.getByRole('region', { name: 'Schedules of this project' });
+      expect(region).toHaveAttribute('tabindex', '0');
+      unmount();
+      client.mockReturnValue(900);
+      render();
+      expect(screen.queryByRole('region', { name: 'Schedules of this project' })).toBeNull();
+    } finally {
+      scroll.mockRestore();
+      client.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('draws a footer row when it is given and there are rows', () => {

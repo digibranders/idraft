@@ -14,7 +14,7 @@ test.describe('rankings', () => {
     await expect(page).toHaveURL(/\/digibranders\/fynix\/seo\/rankings$/);
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(grid.getByRole('rowheader').first()).toContainText('seo agency');
-    await expect(page.getByText('59 keywords', { exact: true })).toBeVisible();
+    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
     await expectAccessible(page);
 
     // Intent: Commercial through the chip editor
@@ -25,14 +25,14 @@ test.describe('rankings', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Apply' }).click();
     await expect(page).toHaveURL(/[?&]intent=commercial/);
     await expect(page.getByRole('button', { name: 'Intent: Commercial. Edit filter' })).toBeVisible();
-    await expect(page.getByText('24 keywords', { exact: true })).toBeVisible();
+    await expect(page.getByText('24 keywords', { exact: true }).first()).toBeVisible();
 
     // The archived view, kept across a reload
     await page.getByRole('button', { name: 'Remove filter Intent: Commercial' }).click();
     await page.getByRole('radio', { name: 'Archived' }).click();
     await expect(page).toHaveURL(/[?&]archived=true/);
     await page.reload();
-    await expect(page.getByText('3 keywords', { exact: true })).toBeVisible();
+    await expect(page.getByText('3 keywords', { exact: true }).first()).toBeVisible();
     await expect(grid.getByRole('rowheader', { name: /seo meme/ })).toBeVisible();
     await expectAccessible(page);
   });
@@ -114,14 +114,17 @@ test.describe('rankings', () => {
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await expect(bar.getByText('1 selected')).toBeVisible();
 
-    // Every control the bar shows is inside it and in view, so none is clipped yet reachable by Tab
+    // At 1280 px the card lays over the list. Every control the bar shows is inside the bar, in view and
+    // clear of the card, so none is clipped or covered yet reachable by Tab
     const barBox = await bar.boundingBox();
-    if (barBox === null) throw new Error('The bulk bar has no box');
+    const cardBox = await page.getByRole('complementary', { name: 'seo agency' }).boundingBox();
+    if (barBox === null || cardBox === null) throw new Error('The bulk bar or the inspector has no box');
+    expect(cardBox.x).toBeLessThan(barBox.x + barBox.width);
     for (const button of await bar.getByRole('button').all()) {
       const box = await button.boundingBox();
       if (box === null) throw new Error('A button of the bulk bar has no box');
       expect(box.x).toBeGreaterThanOrEqual(barBox.x);
-      expect(box.x + box.width).toBeLessThanOrEqual(barBox.x + barBox.width + 1);
+      expect(box.x + box.width).toBeLessThanOrEqual(cardBox.x);
       await expect(button).toBeInViewport({ ratio: 1 });
     }
 
@@ -139,7 +142,7 @@ test.describe('rankings', () => {
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix/seo/rankings');
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
-    await expect(page.getByText('59 keywords', { exact: true })).toBeVisible();
+    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
     const rowOf = (keyword: string): Locator =>
       grid.getByRole('row').filter({ has: page.getByRole('rowheader', { name: new RegExp(`^${keyword}`) }) });
     const bar = page.getByRole('group', { name: /Bulk actions/ });
@@ -165,11 +168,11 @@ test.describe('rankings', () => {
     await choose();
     await bar.getByRole('button', { name: 'Archive' }).click();
     await expect(page.getByText('2 keywords archived')).toBeVisible();
-    await expect(page.getByText('57 keywords', { exact: true })).toBeVisible();
+    await expect(page.getByText('57 keywords', { exact: true }).first()).toBeVisible();
     await expect(rowOf('backlink checker')).toHaveCount(0);
     await page.getByRole('button', { name: 'Undo' }).click();
     await expect(page.getByText('2 keywords unarchived')).toBeVisible();
-    await expect(page.getByText('59 keywords', { exact: true })).toBeVisible();
+    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
     await expect(rowOf('backlink checker')).toContainText('Brand');
     await expectAccessible(page);
   });
@@ -238,7 +241,7 @@ test.describe('rankings', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix/seo/rankings');
-    await expect(page.getByText('59 keywords', { exact: true })).toBeVisible();
+    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
 
     // The menu says how many manual runs the project has left today
     await page.getByRole('button', { name: 'More actions' }).click();
@@ -273,7 +276,7 @@ test.describe('rankings', () => {
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix/seo/rankings');
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
-    await expect(page.getByText('59 keywords', { exact: true })).toBeVisible();
+    await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
 
     await page.getByRole('button', { name: 'Import', exact: true }).click();
     await expect(page).toHaveURL(/\/seo\/rankings\/import$/);

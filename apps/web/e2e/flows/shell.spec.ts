@@ -137,10 +137,18 @@ test.describe('the application shell', () => {
       await waitForContent(page);
       await expectAccessible(page);
       // The page itself never scrolls sideways (19-responsive-behavior.md): a wide table scrolls inside its own region
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      );
-      expect(overflow, `${path} is wider than the screen by ${String(overflow)} px`).toBeLessThanOrEqual(0);
+      const { overflow, wide } = await page.evaluate(() => ({
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        // What reaches past the screen, to name the culprit when there is one
+        wide: [...document.querySelectorAll('body *')]
+          .filter((element) => element.getBoundingClientRect().right > window.innerWidth)
+          .slice(0, 6)
+          .map((element) => `${element.tagName.toLowerCase()}.${element.className.toString().slice(0, 60)}`),
+      }));
+      expect(
+        overflow,
+        `${path} is wider than the screen by ${String(overflow)} px: ${wide.join(' | ')}`,
+      ).toBeLessThanOrEqual(0);
     }
   });
 

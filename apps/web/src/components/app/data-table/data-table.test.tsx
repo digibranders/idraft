@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { col } from './columns';
 import { DataTable } from './data-table';
 import type { DataTableColumn, RecordAction, RowActions, ServerPaging, TableStatus } from './types';
+import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
 import type { Density, SortKey } from '@/lib/tables/table-state';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
@@ -501,6 +502,40 @@ describe('DataTable bulk bar width', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Select keyword 001' }));
     expect(within(bulkBar()).getByRole('button', { name: 'Archive' }).className).not.toContain('negative');
     expect(within(bulkBar()).getByRole('button', { name: 'Delete' }).className).toContain('negative');
+  });
+});
+
+describe('DataTable bulk bar beside an inspector laid over the list', () => {
+  it('keeps clear of the card, whose left edge is where the actions must end', async () => {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1200,
+      bottom: 48,
+      width: 1200,
+      height: 48,
+      toJSON: () => ({}),
+    });
+    try {
+      const { user } = renderWithProviders(
+        <InspectorOverlayContext value={900}>
+          <Harness rows={rowsOf(3)} bulkActions={MANY_ACTIONS} />
+        </InspectorOverlayContext>,
+      );
+      await user.click(screen.getByRole('checkbox', { name: 'Select keyword 001' }));
+      // The bar reaches 1200 px and the card begins at 900: 300 px are covered, besides the bar's own 12 px
+      expect(bulkBar().style.paddingRight).toBe('312px');
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it('leaves its padding alone when no inspector lays over the list', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(3)} bulkActions={MANY_ACTIONS} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select keyword 001' }));
+    expect(bulkBar().style.paddingRight).toBe('');
   });
 });
 

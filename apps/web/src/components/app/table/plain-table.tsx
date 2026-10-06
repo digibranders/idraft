@@ -1,4 +1,6 @@
-import { useId, type ReactElement, type ReactNode } from 'react';
+'use client';
+
+import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -56,11 +58,28 @@ export function PlainTable<TRow>({
   emptyText,
   skeletonRows = 4,
 }: PlainTableProps<TRow>): ReactElement {
+  // A table wider than the screen scrolls inside its own region, which then takes the keyboard (arrow keys
+  // scroll it) and a name: a region that scrolls and holds nothing focusable would be out of reach
+  const region = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState(false);
+  useEffect(() => {
+    const element = region.current;
+    if (element === null || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => setScrollable(element.scrollWidth > element.clientWidth));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [status]);
   if (status === 'error') {
     return <div className="rounded-lg border border-border bg-surface">{errorState}</div>;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+    <div
+      ref={region}
+      {...(scrollable ? { role: 'region', 'aria-label': caption, tabIndex: 0 } : {})}
+      // `relative` keeps the visually hidden header of an actions column (absolutely placed) inside the region, or it
+      // would sit past the table's edge and widen the page
+      className="relative overflow-x-auto rounded-lg border border-border bg-surface focus-visible:focus-ring"
+    >
       <table className="w-full">
         <caption className="sr-only">{caption}</caption>
         <thead className="bg-surface-subtle">

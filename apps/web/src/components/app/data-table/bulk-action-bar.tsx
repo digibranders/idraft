@@ -2,10 +2,11 @@
 
 import { Ellipsis, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useLayoutEffect, useRef, useState, type JSX, type ReactElement } from 'react';
+import { use, useLayoutEffect, useRef, useState, type JSX, type ReactElement } from 'react';
 
 import { toneOf } from './action-tone';
 import type { ActionScope, RecordAction } from './types';
+import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Menu, type MenuItemDef } from '@/components/ui/menu';
@@ -36,6 +37,8 @@ export interface BulkActionBarProps<TRow> {
 const ORDER: Readonly<Record<RecordAction<unknown>['group'], number>> = { open: 0, object: 1, copy: 2, destructive: 3 };
 /** The space between the bar's buttons: `gap-2`. */
 const GAP_PX = 8;
+/** The bar's side padding: `px-3`. */
+const BAR_PADDING_PX = 12;
 
 const sameWidths = (a: readonly number[], b: readonly number[]): boolean =>
   a.length === b.length && a.every((width, index) => width === b[index]);
@@ -68,6 +71,23 @@ export function BulkActionBar<TRow>({
       : t('selected', { count: formatInteger(selectedCount) });
   const ordered = [...actions].sort((a, b) => ORDER[a.group] - ORDER[b.group]);
   const firstDestructive = ordered.findIndex((action) => action.group === 'destructive');
+
+  // An inspector laid over the list covers the bar's right side: the bar's content stops where the card
+  // begins, so the actions and Clear stay in sight, and the actions that no longer fit go into More
+  const overlayLeft = use(InspectorOverlayContext);
+  const bar = useRef<HTMLDivElement>(null);
+  const [covered, setCovered] = useState(0);
+  useLayoutEffect(() => {
+    const element = bar.current;
+    if (element === null || overlayLeft === null) {
+      setCovered(0);
+      return undefined;
+    }
+    const update = (): void => setCovered(Math.max(0, Math.round(element.getBoundingClientRect().right - overlayLeft)));
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [overlayLeft]);
 
   // The room for the actions beside the count and Clear, and the width each action and the More button need
   const room = useRef<HTMLDivElement>(null);
@@ -118,8 +138,11 @@ export function BulkActionBar<TRow>({
   const separated = (index: number): boolean => index === firstDestructive && index > 0;
   return (
     <div
+      ref={bar}
       role="group"
       aria-label={t('bulkActions', { selected: selectedText })}
+      // The bar's own 12 px (`px-3`) beside what the card covers
+      style={covered === 0 ? undefined : { paddingRight: covered + BAR_PADDING_PX }}
       className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle bg-surface-selected px-3"
     >
       <p className="shrink-0 num type-body-strong">{selectedText}</p>

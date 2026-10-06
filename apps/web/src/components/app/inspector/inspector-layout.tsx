@@ -13,6 +13,15 @@ import {
 /** The width beside the sidebar, which the docking rule needs; `null` until it is measured. */
 export const InspectorAreaContext = createContext<number | null>(null);
 
+/**
+ * Where an inspector that lays over the list begins, in pixels from the window's left edge; `null` while
+ * none does. What the card covers is no place for a control of the list, so a bar of actions keeps clear of it.
+ */
+export const InspectorOverlayContext = createContext<number | null>(null);
+
+/** Set by an `Inspector` that lays over the list, and cleared when it docks, becomes a sheet or closes. */
+export const InspectorOverlaySetterContext = createContext<(left: number | null) => void>(() => undefined);
+
 const subscribeResize = (listener: () => void): (() => void) => {
   window.addEventListener('resize', listener);
   return () => window.removeEventListener('resize', listener);
@@ -44,6 +53,7 @@ export interface InspectorLayoutProps {
 export function InspectorLayout({ children, inspector }: InspectorLayoutProps): ReactElement {
   const area = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
+  const [overlayLeft, setOverlayLeft] = useState<number | null>(null);
   useEffect(() => {
     const element = area.current;
     if (element === null || typeof ResizeObserver === 'undefined') return undefined;
@@ -55,10 +65,14 @@ export function InspectorLayout({ children, inspector }: InspectorLayoutProps): 
   }, []);
   return (
     <InspectorAreaContext value={width}>
-      <div ref={area} className="flex min-w-0 flex-1 items-start">
-        <div className="flex min-w-0 flex-1 flex-col self-stretch">{children}</div>
-        {inspector}
-      </div>
+      <InspectorOverlayContext value={overlayLeft}>
+        <InspectorOverlaySetterContext value={setOverlayLeft}>
+          <div ref={area} className="flex min-w-0 flex-1 items-start">
+            <div className="flex min-w-0 flex-1 flex-col self-stretch">{children}</div>
+            {inspector}
+          </div>
+        </InspectorOverlaySetterContext>
+      </InspectorOverlayContext>
     </InspectorAreaContext>
   );
 }
