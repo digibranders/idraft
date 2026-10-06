@@ -2,6 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { FolderTree, MoreHorizontal, Plus, Upload } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsBoolean, parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -9,7 +10,6 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AddKeywordsDialog, type ProjectDefaults } from './add-keywords/add-keywords-dialog';
 import { useBulkActions } from './bulk/bulk-actions';
 import { ManageGroupsDialog } from './groups/manage-groups-dialog';
-import { ImportDialog } from './import/import-dialog';
 import { ImportProgress } from './import/import-progress';
 import { forgetWritingImport, useWritingImport } from './import/import-queries';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns } from './keyword-columns';
@@ -60,6 +60,12 @@ import {
   type SortKey,
 } from '@/lib/tables/table-state';
 
+// The import dialog (the upload and the review of a file) loads on its first opening, and a member who
+// cannot import never loads it: it is one of the larger chunks of the page. Hovering or focusing the button
+// starts the load, so the dialog is usually there when it is pressed.
+const loadImportDialog = (): Promise<typeof import('./import/import-dialog')> => import('./import/import-dialog');
+const ImportDialog = dynamic(() => loadImportDialog().then((module) => module.ImportDialog), { ssr: false });
+
 /** The server-mode search waits this long after the last keystroke (13-filters-search.md section 6). */
 const SEARCH_DELAY_MS = 250;
 /** The id of the More actions item that opens Manage groups. */
@@ -103,6 +109,9 @@ export function RankingsScreen({
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
+  // The import dialog is mounted from its first opening on, and stays so, keeping what it holds when closed
+  const [importWanted, setImportWanted] = useState(importOpen);
+  if (importOpen && !importWanted) setImportWanted(true);
   const canRefresh = useCan('runs:trigger');
   const [adding, setAdding] = useState(false);
   const [managing, setManaging] = useState(false);
@@ -310,7 +319,13 @@ export function RankingsScreen({
         />
       ) : null}
       {canImport ? (
-        <Button variant="secondary" icon={Upload} onClick={() => onImportOpenChange?.(true)}>
+        <Button
+          variant="secondary"
+          icon={Upload}
+          onClick={() => onImportOpenChange?.(true)}
+          onPointerEnter={() => void loadImportDialog()}
+          onFocus={() => void loadImportDialog()}
+        >
           {t('import.open')}
         </Button>
       ) : null}
@@ -548,7 +563,7 @@ export function RankingsScreen({
           onShowKeyword={showKeyword}
         />
       ) : null}
-      {canImport ? (
+      {canImport && importWanted ? (
         <ImportDialog
           scope={scope}
           open={importOpen}

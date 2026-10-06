@@ -32,13 +32,17 @@ function bodyOf(text: string): unknown {
   }
 }
 
+/** How long one upload may take, from the first byte to the answer: a 40 MB file on a slow line fits. */
+const UPLOAD_TIMEOUT_MS = 10 * 60_000;
+
 const abortError = (): DOMException => new DOMException('The upload was stopped', 'AbortError');
 
 /**
  * A multipart POST to this app's API with upload progress, which `fetch` cannot report. Same origin, so the
  * session cookie goes along as with the typed client, and with an `X-Request-Id` as every request has. The
  * answer is the parsed JSON body, `unknown` until the caller checks it; an error answer rejects with the
- * `ApiProblem`, a lost connection with a `TypeError` (retryable, as `fetch`'s), an abort with an `AbortError`.
+ * `ApiProblem`, a lost connection or a timeout (ten minutes) with a `TypeError` (retryable, as `fetch`'s), an
+ * abort with an `AbortError`.
  */
 export function uploadForm(path: `/api/v1/${string}`, form: FormData, options: UploadOptions = {}): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -49,10 +53,16 @@ export function uploadForm(path: `/api/v1/${string}`, form: FormData, options: U
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${window.location.origin}${path}`);
     xhr.setRequestHeader(REQUEST_ID_HEADER, newRequestId());
+    // A request that never ends (a connection that stalls without failing) is given up on
+    xhr.timeout = UPLOAD_TIMEOUT_MS;
+    // The signal outlives the request (the dialog's does): once it is over the listener goes with it
+    const stop = (): void => xhr.abort();
+    const done = (): void => options.signal?.removeEventListener('abort', stop);
     xhr.upload.onprogress = (event) => {
       options.onProgress?.({ loaded: event.loaded, total: event.lengthComputable ? event.total : null });
     };
     xhr.onload = () => {
+      done();
       const body = bodyOf(xhr.responseText);
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(body);
@@ -63,12 +73,18 @@ export function uploadForm(path: `/api/v1/${string}`, form: FormData, options: U
       reject(problemFrom(response, body));
     };
     xhr.onerror = () => {
+      done();
       reject(new TypeError('The upload lost its connection'));
     };
+    xhr.ontimeout = () => {
+      done();
+      reject(new TypeError('The upload timed out'));
+    };
     xhr.onabort = () => {
+      done();
       reject(abortError());
     };
-    options.signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+    options.signal?.addEventListener('abort', stop, { once: true });
     xhr.send(form);
   });
 }

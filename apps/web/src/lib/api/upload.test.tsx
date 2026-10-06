@@ -15,6 +15,8 @@ class FakeXhr {
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   onabort: (() => void) | null = null;
+  ontimeout: (() => void) | null = null;
+  timeout = 0;
   status = 0;
   responseText = '';
   headers = new Map<string, string>();
@@ -126,6 +128,42 @@ describe('uploadForm', () => {
     controller.abort();
     await expect(aborted).rejects.toMatchObject({ name: 'AbortError' });
     expect(lastXhr().aborted).toBe(true);
+  });
+
+  it('gives up on a request that takes ten minutes, as on a lost connection', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const answer = uploadForm('/api/v1/x', new FormData());
+    const xhr = lastXhr();
+    expect(xhr.timeout).toBe(10 * 60_000);
+    xhr.ontimeout?.();
+    await expect(answer).rejects.toBeInstanceOf(TypeError);
+  });
+
+  it('stops listening to the signal once the request is over, however it ended', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const endings: [string, (xhr: FakeXhr) => void][] = [
+      [
+        'an answer',
+        (xhr) => {
+          xhr.status = 202;
+          xhr.onload?.();
+        },
+      ],
+      ['a lost connection', (xhr) => xhr.onerror?.()],
+      ['a timeout', (xhr) => xhr.ontimeout?.()],
+    ];
+    for (const [, end] of endings) {
+      const controller = new AbortController();
+      const removed = vi.spyOn(controller.signal, 'removeEventListener');
+      const answer = uploadForm('/api/v1/x', new FormData(), { signal: controller.signal }).catch(() => undefined);
+      const xhr = lastXhr();
+      end(xhr);
+      await answer;
+      expect(removed).toHaveBeenCalledWith('abort', expect.any(Function));
+      // A later abort of the same signal (a dialog that closes) touches a request that is over no more
+      controller.abort();
+      expect(xhr.aborted).toBe(false);
+    }
   });
 
   it('does not send when the signal is already aborted', async () => {
