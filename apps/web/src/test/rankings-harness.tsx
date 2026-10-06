@@ -4,6 +4,7 @@ import { Suspense, type ReactElement } from 'react';
 import { expect, vi } from 'vitest';
 import { z } from 'zod';
 
+import messages from '../../messages/en.json';
 import { RankingsScreen, type RankingsScreenProps } from '@/features/rankings/rankings-screen';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
@@ -171,6 +172,23 @@ export function answerTrackedAsMany({
     }),
   );
   return asked;
+}
+
+/**
+ * The cells that say Pending because the keyword's Labs metrics have not come (the Volume, KD and CPC
+ * columns), not the Rank, Change and URL cells that say it because the first check has not run: the two
+ * are told apart by the description each cell carries.
+ */
+export function pendingMetricCells(grid: HTMLElement): HTMLElement[] {
+  return within(grid)
+    .queryAllByRole('gridcell')
+    .filter((cell) => {
+      if (cell.textContent !== 'Pending') return false;
+      const described = cell.getAttribute('aria-describedby')?.split(' ') ?? [];
+      return described.some(
+        (id) => document.getElementById(id)?.textContent === messages.rankings.columns.pendingTooltip,
+      );
+    });
 }
 
 /** The keywords as their cells show them; the cells' tooltips hold the location and device too. */

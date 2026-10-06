@@ -16,6 +16,7 @@ import {
   fynix,
   keywordsIn,
   loadedGrid,
+  pendingMetricCells,
   rankingsAs as as,
   restoreWideScreen,
   stubWideScreen,
@@ -1204,7 +1205,7 @@ describe('Keywords that wait for their first metrics', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
-  const pending = (grid: HTMLElement): number => within(grid).queryAllByText('Pending').length;
+  const pending = (grid: HTMLElement): number => pendingMetricCells(grid).length;
 
   it('are read every 30 seconds, newest first, until none is left, and the list is not read again', async () => {
     const poll = servePoll();
@@ -1390,7 +1391,7 @@ describe('Keywords that wait beyond the first page of the poll', () => {
   });
 
   // The table shows a window of its rows: the polls tell what was waited for, and when nothing is
-  const pending = (grid: HTMLElement): number => within(grid).queryAllByText('Pending').length;
+  const pending = (grid: HTMLElement): number => pendingMetricCells(grid).length;
   const cursors = (polls: readonly URLSearchParams[]): (string | null)[] => polls.map((poll) => poll.get('cursor'));
   /** The pages of the list itself read so far, in client mode. */
   const listPages = (feed: Synthetic): number => feed.asked.filter((query) => query.get('sort') === 'keyword').length;

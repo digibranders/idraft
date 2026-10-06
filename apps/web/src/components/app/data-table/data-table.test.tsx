@@ -652,6 +652,29 @@ describe('DataTable rank, change and URL columns', () => {
     expect(within(grid()).queryByRole('button', { name: 'Page URL' })).not.toBeInTheDocument();
   });
 
+  it('puts a marker before a date, and says why a row has none in the cell and its description', () => {
+    // Rows 0 and 2 have a date; row 1 has none, and row 2 is marked
+    const dated = (row: Row): string | null => (row.id === 'k1' ? null : '2026-10-06T02:00:00Z');
+    const columns = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.date<Row>('checked', dated, {
+        header: 'Updated',
+        timeZone: 'UTC',
+        marker: (row) => (row.id === 'k2' ? <span>Stale</span> : null),
+        cellTip: (row) => (row.id === 'k2' ? { content: 'No recent successful check' } : undefined),
+        unknown: () => ({ label: 'Pending', tooltip: 'The first check has not run yet' }),
+      }),
+    ];
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={columns} />);
+    const cells = within(grid())
+      .getAllByRole('gridcell')
+      .filter((cell) => /Oct 6|Pending/.test(cell.textContent));
+    expect(cells.map((cell) => cell.textContent)).toEqual(['Oct 6, 02:00', 'Pending', 'StaleOct 6, 02:00']);
+    expect(cells[1]).toHaveAccessibleDescription('The first check has not run yet');
+    expect(cells[2]).toHaveAccessibleDescription('No recent successful check');
+    expect(cells[0]).toHaveAccessibleDescription('');
+  });
+
   it('describes a cell through the cell that holds the focus, and a header by its tooltip', () => {
     renderWithProviders(<Harness rows={rowsOf(5)} columns={RANKED} />);
     expect(screen.getByRole('columnheader', { name: /Rank/ })).toHaveAccessibleDescription(

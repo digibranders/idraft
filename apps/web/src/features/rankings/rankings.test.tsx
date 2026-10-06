@@ -4,7 +4,10 @@ import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { TrackedKeywordState } from '@/lib/api/types';
+import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
+import { rankStateOf } from '@/mocks/rank-state';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
@@ -13,6 +16,7 @@ import {
   cleanstart,
   keywordsIn,
   loadedGrid,
+  pendingMetricCells,
   rankingsAs as as,
   restoreWideScreen,
   stubWideScreen,
@@ -74,10 +78,10 @@ describe('Rankings', () => {
     expect(screen.getByRole('columnheader', { name: /KD/ })).toHaveAccessibleDescription(
       'Keyword difficulty, from 0 to 100',
     );
-    const pending = within(grid)
-      .getAllByRole('gridcell')
-      .find((cell) => cell.textContent === 'Pending');
-    expect(pending).toHaveAccessibleDescription('Metrics arrive within minutes of adding a keyword');
+    // A keyword with no metrics yet says so in its Volume, KD and CPC cells; its Rank cell says Pending for the first check
+    expect(pendingMetricCells(grid)[0]).toHaveAccessibleDescription(
+      'Metrics arrive within minutes of adding a keyword',
+    );
     // A time names its zone in the header's description: 22-content-formatting.md section 4
     expect(screen.getByRole('columnheader', { name: /Added/ })).toHaveAccessibleDescription(
       'Times in Europe/Berlin (project time zone)',
@@ -303,6 +307,150 @@ describe('Rankings', () => {
     await waitFor(() => expect(grid).toHaveAttribute('aria-rowcount', '119'));
     expect(screen.getAllByText(/^118 keywords/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Some keywords did not load/)).toBeNull();
+  });
+});
+
+/** The fixture keywords as the mocks state them now: what the API will answer for each active row. */
+function fixtureStates(): { text: string; state: TrackedKeywordState }[] {
+  const texts = new Map(MOCK_KEYWORDS.map((keyword) => [keyword.keyword_id, keyword.text]));
+  return MOCK_TRACKED_KEYWORDS.filter((row) => row.is_active).map((row) => ({
+    text: texts.get(row.keyword_id) ?? '',
+    state: rankStateOf(row.tracked_keyword_id, row.created_at, Date.now(), 'fynix.digital'),
+  }));
+}
+
+/** The place of a column among the cells of a row, found by its header. */
+function columnIndex(grid: HTMLElement, name: RegExp): number {
+  const header = within(grid).getByRole('columnheader', { name });
+  if (!(header instanceof HTMLTableCellElement)) throw new Error(`The header ${String(name)} is not a table cell`);
+  return header.cellIndex;
+}
+
+/** The cells of a column, row by row, found by the column's header. */
+function columnTexts(grid: HTMLElement, name: RegExp): string[] {
+  const index = columnIndex(grid, name);
+  return within(grid)
+    .getAllByRole('rowheader')
+    .map((header) => header.closest('tr')?.cells[index]?.textContent ?? '');
+}
+
+describe('Rankings rank columns', () => {
+  it('shows the rank, the change and the ranking URL of a ranked keyword from its own state', async () => {
+    const all = fixtureStates();
+    const moved = all.find(
+      ({ text, state }) =>
+        state.current.state === 'ranked' &&
+        state.change.label === 'numeric' &&
+        Math.abs(state.change.value ?? 0) > 2 &&
+        state.current.url !== null &&
+        all.filter((other) => other.text === text).length === 1,
+    );
+    if (moved === undefined) throw new Error('No fixture keyword moved by more than 2 places');
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => candidate.textContent === moved.text);
+    const row = header?.closest('tr');
+    if (row === null || row === undefined) throw new Error(`No row for ${moved.text}`);
+    const change = moved.state.change.value ?? 0;
+    const cellOf = (name: RegExp): HTMLElement => {
+      const cell = row.cells[columnIndex(grid, name)];
+      if (cell === undefined) throw new Error(`No ${String(name)} cell`);
+      return cell;
+    };
+    expect(within(cellOf(/^Rank$/)).getByText(String(moved.state.current.rank))).toHaveClass('num');
+    expect(within(cellOf(/^Change$/)).getByText(`${change > 0 ? '↑' : '↓'}${String(Math.abs(change))}`)).toHaveClass(
+      change > 0 ? 'text-positive-text' : 'text-negative-text',
+    );
+    expect(within(cellOf(/^Ranking URL$/)).getByText(moved.state.current.url?.path ?? '')).toBeInTheDocument();
+  });
+
+  it('shows what is not a rank in words: beyond the depth, still waiting, a failed check, and stale', async () => {
+    const states = fixtureStates().map(({ state }) => state);
+    const beyond = states.filter(({ current }) => current.state === 'beyond_depth').length;
+    const stale = states.filter(({ is_stale: isStale }) => isStale).length;
+    expect(beyond).toBeGreaterThan(0);
+    expect(stale).toBeGreaterThan(0);
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const ranks = columnTexts(grid, /^Rank$/);
+    expect(ranks.filter((text) => text.startsWith('>'))).toHaveLength(beyond);
+    expect(ranks.filter((text) => text === 'Pending')).toHaveLength(
+      states.filter(({ current }) => current.state === 'not_checked').length,
+    );
+    expect(within(grid).getAllByRole('img', { name: 'Check failed' }).length).toBeGreaterThan(0);
+    // The marker follows the API's flag: one per stale keyword, nowhere else
+    expect(within(grid).getAllByText('Stale')).toHaveLength(stale);
+  });
+
+  it('says Pending in Rank for a keyword added a moment ago', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    await loadedGrid();
+    await user.click(screen.getByRole('button', { name: 'Add keywords' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add keywords' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'rank tracker api');
+    await user.click(within(dialog).getByRole('radio', { name: 'Desktop' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add 1 keyword' }));
+    expect(await screen.findByText('1 keyword added')).toBeInTheDocument();
+    const grid = await loadedGrid();
+    await waitFor(() => expect(keywordsIn(grid)).toContain('rank tracker api'));
+    const at = keywordsIn(grid).indexOf('rank tracker api');
+    expect(columnTexts(grid, /^Rank$/)[at]).toBe('Pending');
+    expect(columnTexts(grid, /^Change$/)[at]).toBe('first check');
+    expect(columnTexts(grid, /^Ranking URL$/)[at]).toBe('Pending');
+  }, 15_000);
+
+  it('sorts by rank best first with the keywords that have none last in both directions', async () => {
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await user.click(within(grid).getByRole('button', { name: 'Rank' }));
+    await waitFor(() => expect(url.latest().get('sort')).toBe('current_rank'));
+    const numeric = (text: string): boolean => /^\d+$/.test(text);
+    const places = (): string[] => columnTexts(grid, /^Rank$/);
+    const asc = places();
+    const ranked = asc.filter(numeric).map(Number);
+    expect(ranked.length).toBeGreaterThan(5);
+    expect(ranked).toEqual([...ranked].sort((a, b) => a - b));
+    expect(asc.slice(0, ranked.length).every(numeric)).toBe(true);
+    await user.click(within(grid).getByRole('button', { name: 'Rank' }));
+    await waitFor(() => expect(url.latest().get('sort')).toBe('-current_rank'));
+    const desc = places();
+    expect(desc.slice(0, ranked.length).map(Number)).toEqual([...ranked].reverse());
+    expect(desc.slice(ranked.length).some(numeric)).toBe(false);
+  });
+
+  it('gives the tooltip of a rank to the cell that holds the keyboard focus, as its description too', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    for (let presses = 0; presses < 6 && !grid.contains(document.activeElement); presses += 1) await user.tab();
+    // From the first header to the first row, then past its keyword (a viewer has no checkbox column) to the Rank cell
+    await user.keyboard('{ArrowDown}{ArrowRight}');
+    const cell = document.activeElement;
+    expect(cell).toHaveAttribute('role', 'gridcell');
+    const tip = /^(Rank \d+|Not in the top \d+), \w{3} \d+, \d{4} · \d{2}:\d{2} \w+/;
+    await waitFor(() => expect(document.querySelector('[data-slot="tooltip"]')?.textContent).toMatch(tip));
+    expect(cell).toHaveAccessibleDescription(expect.stringMatching(tip));
+  });
+
+  it('asks the API to sort by rank above 10,000 keywords', async () => {
+    const asked = answerAsMany({ total: 12_000 });
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await user.click(within(grid).getByRole('button', { name: 'Rank' }));
+    await waitFor(() => expect(asked.some((params) => params.get('sort') === 'current_rank')).toBe(true));
+  });
+
+  it('lists Best rank in the column chooser, off by default, and shows it when chosen', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    expect(within(grid).queryByRole('columnheader', { name: /Best rank/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const choice = screen.getByRole('checkbox', { name: 'Best rank' });
+    expect(choice).not.toBeChecked();
+    await user.click(choice);
+    expect(within(grid).getByRole('columnheader', { name: /Best rank/ })).toBeInTheDocument();
   });
 });
 

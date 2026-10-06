@@ -150,7 +150,16 @@ export const col = {
   date<TRow>(
     id: string,
     value: (row: TRow) => string | null,
-    options: Options & { timeZone: string; secondary?: boolean | undefined },
+    options: Options & {
+      timeZone: string;
+      secondary?: boolean | undefined;
+      /** What a row without a date shows; `n/a` when the column gives none. */
+      unknown?: ((row: TRow) => UnknownValue) | undefined;
+      /** A word before the date, such as a "Stale" marker; `null` for a row without one. */
+      marker?: ((row: TRow) => ReactNode) | undefined;
+      /** The tooltip of a row that has a date (a row without one explains itself through `unknown`). */
+      cellTip?: ((row: TRow) => CellTip | undefined) | undefined;
+    },
   ): DataTableColumn<TRow> {
     return base(
       id,
@@ -158,11 +167,19 @@ export const col = {
       options,
       (row) => {
         const instant = value(row);
-        return instant === null ? (
-          <Unknown value={NOT_AVAILABLE} />
-        ) : (
+        if (instant === null) return <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} />;
+        const date = (
           <span className={options.secondary === true ? 'num text-foreground-tertiary' : 'num'}>
             {formatTableDateTime(instant, options.timeZone)}
+          </span>
+        );
+        const marker = options.marker?.(row) ?? null;
+        return marker === null ? (
+          date
+        ) : (
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            {marker}
+            {date}
           </span>
         );
       },
@@ -170,6 +187,7 @@ export const col = {
         const instant = value(row);
         return instant === null ? null : Date.parse(instant);
       },
+      (row) => (value(row) === null ? reasonTip(options.unknown?.(row)) : options.cellTip?.(row)),
     );
   },
 
