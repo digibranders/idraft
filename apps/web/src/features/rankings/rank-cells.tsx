@@ -40,8 +40,12 @@ const EMPTY_SPEECH = {
 /** The last characters of a path that always stay in view: the last segment of a usual path, or most of it. */
 export const PATH_END_CHARS = 12;
 
-/** The cell's content, right aligned: marks, if any, then the value. A mark that does not fit grows to the left. */
-const ROW = cn('flex items-center justify-end gap-1');
+/**
+ * The cell's content, right aligned: marks, if any, then the value, 2 px apart (icon to counter). A cell that
+ * has both marks and a three digit rank is a little wider than the narrowest Rank column: the extra grows to
+ * the left, into the padding of the Keyword cell beside it, and does not touch the Change column.
+ */
+const ROW = cn('flex items-center justify-end gap-0.5');
 
 /**
  * What may make a rank look current when it is not, at any table width (the Updated column's own marker shows

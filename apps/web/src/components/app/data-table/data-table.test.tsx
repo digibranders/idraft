@@ -675,6 +675,50 @@ describe('DataTable rank, change and URL columns', () => {
     expect(cells[0]).toHaveAccessibleDescription('');
   });
 
+  it('puts the marker before the word of a row that has no date as well', () => {
+    const dated = (row: Row): string | null => (row.id === 'k1' ? null : '2026-10-06T02:00:00Z');
+    const columns = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.date<Row>('checked', dated, {
+        header: 'Updated',
+        timeZone: 'UTC',
+        marker: () => <span>Stale</span>,
+        unknown: () => ({ label: 'Check failed' }),
+      }),
+    ];
+    renderWithProviders(<Harness rows={rowsOf(3)} columns={columns} />);
+    const cells = within(grid())
+      .getAllByRole('gridcell')
+      .filter((cell) => /Oct 6|Check failed/.test(cell.textContent));
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      'StaleOct 6, 02:00',
+      'StaleCheck failed',
+      'StaleOct 6, 02:00',
+    ]);
+  });
+
+  it('keeps a date and its marker in the cell: the marker wraps under the date, and the date is never broken', () => {
+    const columns = [
+      col.keyword<Row>('keyword', (row) => row.keyword, { header: 'Keyword' }),
+      col.date<Row>('checked', () => '2026-10-06T02:00:00Z', {
+        header: 'Updated',
+        timeZone: 'UTC',
+        marker: (row) => (row.id === 'k0' ? <span>Stale</span> : null),
+      }),
+    ];
+    renderWithProviders(<Harness rows={rowsOf(2)} columns={columns} />);
+    const [marked, plain] = within(grid())
+      .getAllByRole('gridcell')
+      .filter((cell) => /Oct 6/.test(cell.textContent));
+    const dateOf = (cell: HTMLElement | undefined): Element | null | undefined =>
+      cell?.querySelector('.num') ?? undefined;
+    // With a marker the date stays in one piece and the pair may wrap, so it does not spill into the next column
+    expect(dateOf(marked)).toHaveClass('whitespace-nowrap');
+    expect(dateOf(marked)?.parentElement).toHaveClass('flex-wrap', 'max-w-full');
+    // A date alone is as it was: in a narrow column of the Runs table it may still wrap at its space
+    expect(dateOf(plain)).not.toHaveClass('whitespace-nowrap');
+  });
+
   it('describes a cell through the cell that holds the focus, and a header by its tooltip', () => {
     renderWithProviders(<Harness rows={rowsOf(5)} columns={RANKED} />);
     expect(screen.getByRole('columnheader', { name: /Rank/ })).toHaveAccessibleDescription(

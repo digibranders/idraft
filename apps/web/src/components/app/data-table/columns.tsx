@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Truncate } from '@/components/ui/truncate';
 import { EMPTY_VALUE, formatCurrency, formatInteger, formatTableDateTime } from '@/lib/format';
 import { COLUMN_TYPES, type ColumnType } from '@/lib/tables/column-types';
+import { cn } from '@/lib/utils';
 
 /**
  * The column helpers of 25-component-inventory.md section 7.13: each fixes its type's width, alignment,
@@ -58,8 +59,18 @@ function base<TRow>(
 }
 
 /** A missing value: `n/a`, or the column's own word for it, in tertiary text. Its reason is the cell's tooltip. */
-function Unknown({ value }: { value: UnknownValue }): ReactElement {
-  return <span className="text-foreground-tertiary">{value.label}</span>;
+function Unknown({ value, className }: { value: UnknownValue; className?: string | undefined }): ReactElement {
+  return <span className={cn('text-foreground-tertiary', className)}>{value.label}</span>;
+}
+
+/** A marker before a value in one cell: the pair wraps (the marker above the value) before it spills over. */
+function Marked({ marker, children }: { marker: ReactNode; children: ReactNode }): ReactElement {
+  return (
+    <span className="inline-flex max-w-full min-w-0 flex-wrap items-center justify-end gap-x-1.5">
+      {marker}
+      {children}
+    </span>
+  );
 }
 
 /** The tooltip of a cell that shows a missing value: the reason, when the column gives one. */
@@ -168,35 +179,21 @@ export const col = {
       (row) => {
         const instant = value(row);
         const marker = options.marker?.(row) ?? null;
+        // Beside a marker the value stays in one piece and the pair may wrap, the marker above it, rather than
+        // spill into the next column of a table-fixed table, whose cells do not clip. Alone, a date may still
+        // wrap at its space in a narrow column, as it always did.
+        const kept = marker === null ? undefined : 'whitespace-nowrap';
         if (instant === null) {
           // A row with no date can still carry the marker (a keyword whose every check failed is stale)
-          const unknown = <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} />;
-          return marker === null ? (
-            unknown
-          ) : (
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              {marker}
-              {unknown}
-            </span>
-          );
+          const unknown = <Unknown value={options.unknown?.(row) ?? NOT_AVAILABLE} className={kept} />;
+          return marker === null ? unknown : <Marked marker={marker}>{unknown}</Marked>;
         }
         const date = (
-          <span
-            className={
-              options.secondary === true ? 'num whitespace-nowrap text-foreground-tertiary' : 'num whitespace-nowrap'
-            }
-          >
+          <span className={cn('num', options.secondary === true && 'text-foreground-tertiary', kept)}>
             {formatTableDateTime(instant, options.timeZone)}
           </span>
         );
-        return marker === null ? (
-          date
-        ) : (
-          <span className="inline-flex min-w-0 items-center gap-1.5">
-            {marker}
-            {date}
-          </span>
-        );
+        return marker === null ? date : <Marked marker={marker}>{date}</Marked>;
       },
       (row) => {
         const instant = value(row);
