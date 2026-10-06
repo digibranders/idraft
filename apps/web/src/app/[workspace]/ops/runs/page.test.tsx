@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import RunsPage from './page';
@@ -58,6 +60,13 @@ beforeEach(() => {
 });
 
 describe('the old workspace route of Runs', () => {
+  it('redirects before it renders anything, and has no loading state whose Suspense boundary would stream the redirect', async () => {
+    await expect(page()).rejects.toBeInstanceOf(redirected.Redirected);
+    // A `loading.tsx` wraps the page in Suspense: the shell and a skeleton would be sent first, and the
+    // redirect would arrive behind them in the stream
+    expect(existsSync(path.join(import.meta.dirname, 'loading.tsx'))).toBe(false);
+  });
+
   it('goes to Runs of the first project the member can open', async () => {
     expect(await target()).toBe('/digibranders/fynix/ops/runs');
   });

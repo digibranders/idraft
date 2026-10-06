@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CostsError from './error';
 import CostsLayout from './layout';
-import CostsLoading from './loading';
 import { ApiProblem } from '@/lib/api/problem';
 import { mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
@@ -44,18 +43,19 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-/** The layout is the shell the page, its loading state and its error all render inside. */
+/** The layout is the shell the page and its error render inside. */
 async function inLayout(child: ReactNode): Promise<ReactElement> {
   return <>{await CostsLayout({ children: child, params: Promise.resolve({ workspace: 'digibranders' }) })}</>;
 }
 
-describe('Costs: the shell, the loading state and the error', () => {
-  it('keeps the workspace shell with Costs as the page while the page loads', async () => {
-    renderWithProviders(await inLayout(<CostsLoading />));
+// The route has no `loading.tsx`: its page redirects, and a loading state would stream that redirect
+describe('Costs: the shell and the error', () => {
+  it('keeps the workspace shell with Costs as the page around what the route renders', async () => {
+    renderWithProviders(await inLayout(<h1>Costs of the workspace</h1>));
     const crumbs = within(await screen.findByRole('banner')).getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(crumbs).getByRole('link', { name: 'Digibranders' })).toHaveAttribute('href', '/digibranders');
     expect(within(crumbs).getByText('Costs')).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('main')).toBeInTheDocument();
+    expect(screen.getByRole('main')).toContainElement(screen.getByRole('heading', { name: 'Costs of the workspace' }));
   });
 
   it('shows the error inside the shell, with the error id and Try again', async () => {
