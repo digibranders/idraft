@@ -135,26 +135,71 @@ describe('ProjectShell', () => {
     expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/settings');
   });
 
-  it('links the workspace pages the role can open from the project switcher: Costs needs costs:read, Runs data:read', async () => {
-    const asked: Record<string, string[]> = {};
+  it('lists Runs and Costs in the sidebar for the roles that can open them: Runs needs data:read, Costs costs:read', async () => {
+    const listed: Record<string, string[]> = {};
     for (const role of ['editor', 'viewer', 'billing'] as const) {
-      const { user, unmount } = renderWithProviders(shell(role));
+      const { unmount } = renderWithProviders(shell(role));
       await screen.findByRole('heading', { name: 'Profile' });
-      const [sidebarSwitcher] = screen.getAllByRole('combobox', { name: 'Project: Fynix' });
-      if (!sidebarSwitcher) throw new Error('no project switcher');
-      await user.click(sidebarSwitcher);
-      const group = await screen.findByRole('group', { name: 'Workspace' });
-      asked[role] = within(group)
+      listed[role] = within(screen.getByRole('navigation', { name: 'Primary' }))
         .getAllByRole('link')
         .map((link) => `${link.textContent ?? ''} ${link.getAttribute('href') ?? ''}`);
       unmount();
     }
-    // Runs lists one project at a time: the link opens it on the project the member is in
-    expect(asked).toEqual({
-      editor: ['Costs /digibranders/costs', 'Runs /digibranders/ops/runs?project=fynix'],
-      viewer: ['Runs /digibranders/ops/runs?project=fynix'],
-      billing: ['Costs /digibranders/costs'],
+    // Both open inside the project the member is in, so the sidebar stays on screen
+    expect(listed).toEqual({
+      editor: [
+        'Rankings /digibranders/fynix/seo/rankings',
+        'Runs /digibranders/fynix/ops/runs',
+        'Costs /digibranders/fynix/costs',
+        'Settings /digibranders/fynix/settings',
+      ],
+      viewer: [
+        'Rankings /digibranders/fynix/seo/rankings',
+        'Runs /digibranders/fynix/ops/runs',
+        'Settings /digibranders/fynix/settings',
+      ],
+      billing: ['Costs /digibranders/fynix/costs', 'Settings /digibranders/fynix/settings'],
     });
+  });
+
+  it('marks Runs as the destination of its nested path, and names it in the breadcrumb', async () => {
+    navigation.pathname = '/digibranders/fynix/ops/runs';
+    renderWithProviders(shell());
+    await screen.findByRole('heading', { name: 'Profile' });
+    const primary = within(screen.getByRole('navigation', { name: 'Primary' }));
+    expect(primary.getByRole('link', { name: 'Runs' })).toHaveAttribute('aria-current', 'page');
+    expect(primary.queryByRole('link', { current: 'page', name: 'Costs' })).toBeNull();
+    expect(primary.queryByRole('link', { current: 'page', name: 'Settings' })).toBeNull();
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getByText('Runs')).toHaveAttribute('aria-current', 'page');
+    navigation.pathname = '/digibranders/fynix/settings/profile';
+  });
+
+  it('marks Costs for the page of the project, and offers no Workspace group in the project switcher', async () => {
+    navigation.pathname = '/digibranders/fynix/costs';
+    const { user } = renderWithProviders(shell());
+    await screen.findByRole('heading', { name: 'Profile' });
+    expect(
+      within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'Costs' }),
+    ).toHaveAttribute('aria-current', 'page');
+    const [sidebarSwitcher] = screen.getAllByRole('combobox', { name: 'Project: Fynix' });
+    if (!sidebarSwitcher) throw new Error('no project switcher');
+    await user.click(sidebarSwitcher);
+    await screen.findByRole('link', { name: 'All projects in Digibranders' });
+    expect(screen.queryByRole('group', { name: 'Workspace' })).toBeNull();
+    navigation.pathname = '/digibranders/fynix/settings/profile';
+  });
+
+  it('opens another project on the same destination: Runs stays Runs', async () => {
+    navigation.pathname = '/digibranders/fynix/ops/runs';
+    const { user } = renderWithProviders(shell());
+    await screen.findByRole('heading', { name: 'Profile' });
+    const [sidebarSwitcher] = screen.getAllByRole('combobox', { name: 'Project: Fynix' });
+    if (!sidebarSwitcher) throw new Error('no project switcher');
+    await user.click(sidebarSwitcher);
+    await user.click(await screen.findByRole('option', { name: 'Cleanstart' }));
+    expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/ops/runs');
+    navigation.pathname = '/digibranders/fynix/settings/profile';
   });
 
   it('signs out from the account menu', async () => {
@@ -182,11 +227,11 @@ describe('ProjectShell', () => {
     ).toEqual(['System', 'Light', 'Dark']);
   });
 
-  it('lists only what the role can open: a billing member sees Settings, as everyone does', async () => {
+  it('lists only what the role can open: a billing member sees Costs and Settings, no page of the data', async () => {
     renderWithProviders(shell('billing'));
     await screen.findByRole('heading', { name: 'Profile' });
     const links = within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Settings']);
+    expect(links.map((link) => link.textContent)).toEqual(['Costs', 'Settings']);
   });
 
   it('opens the keyboard shortcuts from Help', async () => {

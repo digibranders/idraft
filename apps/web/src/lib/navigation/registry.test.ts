@@ -17,8 +17,8 @@ const keysOf = (sections: ReturnType<typeof visibleNavigation>): string[] =>
   sections.flatMap((section) => section.groups.flatMap((group) => group.items.map((item) => item.key)));
 
 describe('the navigation registry', () => {
-  it('has the 14 destinations of 11 section 1.1, in 3 sections', () => {
-    expect(NAVIGATION).toHaveLength(14);
+  it('has the 16 destinations of 11 section 1.1, in 3 sections', () => {
+    expect(NAVIGATION).toHaveLength(16);
     expect(new Set(NAVIGATION.map((item) => item.section))).toEqual(new Set([1, 2, 3]));
     expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual([
       'rankings',
@@ -34,8 +34,30 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Rankings and Settings, for now', () => {
-    expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual(['rankings', 'settings']);
+  it('lists only what is live: Rankings, Runs, Costs and Settings, for now', () => {
+    expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
+      'rankings',
+      'runs',
+      'costs',
+      'settings',
+    ]);
+  });
+
+  it('puts Runs and Costs in the third section, after Integrations and before Settings', () => {
+    const third = NAVIGATION.filter((item) => item.section === 3).map((item) => item.key);
+    expect(third).toEqual(['reports', 'integrations', 'runs', 'costs', 'settings']);
+    const runs = NAVIGATION.find((item) => item.key === 'runs');
+    const costs = NAVIGATION.find((item) => item.key === 'costs');
+    expect(runs).toMatchObject({ path: '/ops/runs', permission: 'data:read', status: 'live', group: null });
+    expect(costs).toMatchObject({ path: '/costs', permission: 'costs:read', status: 'live', group: null });
+  });
+
+  it('shows Runs to a reader and Costs to those who may read costs, hiding the one the role cannot open', () => {
+    const shownTo = (role: (typeof roleValues)[number]): string[] =>
+      keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
+    expect(shownTo('viewer')).toEqual(['rankings', 'runs', 'settings']);
+    expect(shownTo('analyst')).toEqual(['rankings', 'runs', 'costs', 'settings']);
+    expect(shownTo('billing')).toEqual(['costs', 'settings']);
   });
 
   it('never shows a role a destination it cannot open', () => {
@@ -63,9 +85,13 @@ describe('the navigation registry', () => {
   it('builds hrefs from the slugs', () => {
     const rankings = ALL_LIVE.find((item) => item.key === 'rankings');
     const overview = ALL_LIVE.find((item) => item.key === 'overview');
-    if (!rankings || !overview) throw new Error('missing destinations');
+    const runs = ALL_LIVE.find((item) => item.key === 'runs');
+    const costs = ALL_LIVE.find((item) => item.key === 'costs');
+    if (!rankings || !overview || !runs || !costs) throw new Error('missing destinations');
     expect(navHref(rankings, 'digibranders', 'fynix')).toBe('/digibranders/fynix/seo/rankings');
     expect(navHref(overview, 'digibranders', 'fynix')).toBe('/digibranders/fynix');
+    expect(navHref(runs, 'digibranders', 'fynix')).toBe('/digibranders/fynix/ops/runs');
+    expect(navHref(costs, 'digibranders', 'fynix')).toBe('/digibranders/fynix/costs');
   });
 
   it('finds the destination of a path, the deepest one, and none outside the project', () => {
@@ -74,6 +100,12 @@ describe('the navigation registry', () => {
     expect(at('/digibranders/fynix/settings/profile')).toBe('settings');
     expect(at('/digibranders/fynix/ai')).toBe('aiOverview');
     expect(at('/digibranders/fynix/ai/prompts/p_1')).toBe('prompts');
+    // Runs lives below `/ops`, which is no destination of its own
+    expect(at('/digibranders/fynix/ops/runs')).toBe('runs');
+    expect(at('/digibranders/fynix/ops/runs/')).toBe('runs');
+    expect(at('/digibranders/fynix/ops')).toBeUndefined();
+    expect(at('/digibranders/fynix/costs')).toBe('costs');
+    expect(at('/digibranders/fynix/costsx')).toBeUndefined();
     expect(at('/digibranders/fynix/aim')).toBeUndefined();
     expect(at('/digibranders/fynixx/settings')).toBeUndefined();
   });

@@ -1,4 +1,5 @@
 import {
+  Activity,
   Compass,
   FileChartColumn,
   FileText,
@@ -10,6 +11,7 @@ import {
   MessageSquareText,
   Plug,
   Quote,
+  Receipt,
   Settings,
   Tag,
   Users,
@@ -22,10 +24,12 @@ import type { Permission } from '@/lib/permissions/permissions';
 import { projectPath } from '@/lib/routes/paths';
 
 /**
- * The destinations of a project (11-navigation.md section 1.1, 14 items in 3 sections), the one list the
- * sidebar, the breadcrumb and later the command palette read. A destination whose screen is not built yet
- * is `planned`: it is absent from navigation and its route is the 404 page (20-frontend-specification.md
- * section 3.10, where phase gating is this registry, not a flag list from the API).
+ * The destinations of a project (11-navigation.md section 1.1, 16 items in 3 sections), the one list the
+ * sidebar, the breadcrumb and later the command palette read. Runs and Costs are in it too: Runs is the
+ * project's own, and Costs shows the whole workspace's spend but is opened from the project, so the sidebar
+ * stays on screen. A destination whose screen is not built yet is `planned`: it is absent from navigation
+ * and its route is the 404 page (20-frontend-specification.md section 3.10, where phase gating is this
+ * registry, not a flag list from the API).
  */
 export type NavKey =
   | 'overview'
@@ -41,6 +45,8 @@ export type NavKey =
   | 'discover'
   | 'reports'
   | 'integrations'
+  | 'runs'
+  | 'costs'
   | 'settings';
 
 /** The labelled groups inside the first section. A group label is text, never a link. */
@@ -178,6 +184,8 @@ export const NAVIGATION: readonly NavDestination[] = [
     permission: 'data:read',
     status: 'planned',
   },
+  { key: 'runs', path: '/ops/runs', icon: Activity, section: 3, group: null, permission: 'data:read', status: 'live' },
+  { key: 'costs', path: '/costs', icon: Receipt, section: 3, group: null, permission: 'costs:read', status: 'live' },
   // Your account is in Settings, and every member has one
   { key: 'settings', path: '/settings', icon: Settings, section: 3, group: null, permission: null, status: 'live' },
 ];

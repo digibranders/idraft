@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import type { Route } from 'next';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -21,33 +21,26 @@ function switcher(extra: Partial<ProjectSwitcherProps> = {}): ReturnType<typeof 
   );
 }
 
-describe('ProjectSwitcher workspace links', () => {
-  it('lists a Workspace group of links after the projects, before the links to all projects', async () => {
-    const { user } = switcher({
-      workspaceLabel: 'Workspace',
-      workspaceLinks: [
-        { href: '/digibranders/costs' as Route, label: 'Costs' },
-        { href: '/digibranders/ops/runs' as Route, label: 'Runs' },
-      ],
-    });
+describe('ProjectSwitcher footer', () => {
+  it('ends with the time zone, the link to all projects and no group of workspace pages: Costs and Runs are in the sidebar', async () => {
+    const { user } = switcher();
     await user.click(screen.getByRole('combobox', { name: 'Project: Fynix' }));
-    const group = await screen.findByRole('group', { name: 'Workspace' });
-    expect(within(group).getByRole('link', { name: 'Costs' })).toHaveAttribute('href', '/digibranders/costs');
-    expect(within(group).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/digibranders/ops/runs');
-    const all = screen.getByRole('link', { name: 'All projects in Digibranders' });
-    expect(group.compareDocumentPosition(all) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(await screen.findByText('Times in Europe/Berlin')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'All projects in Digibranders' })).toHaveAttribute('href', '/digibranders');
+    expect(screen.queryByRole('group', { name: 'Workspace' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Costs' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Runs' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Create project' })).toBeNull();
   });
 
-  it('has no such group without links, or when none is given', async () => {
-    const first = switcher();
-    await first.user.click(screen.getByRole('combobox', { name: 'Project: Fynix' }));
-    await screen.findByRole('link', { name: 'All projects in Digibranders' });
-    expect(screen.queryByRole('group', { name: 'Workspace' })).toBeNull();
-    first.unmount();
-
-    const second = switcher({ workspaceLabel: 'Workspace', workspaceLinks: [] });
-    await second.user.click(screen.getByRole('combobox', { name: 'Project: Fynix' }));
-    await screen.findByRole('link', { name: 'All projects in Digibranders' });
-    expect(screen.queryByRole('group', { name: 'Workspace' })).toBeNull();
+  it('offers Create project after the link to all projects, for a member who may create one', async () => {
+    const { user } = switcher({
+      createProject: { href: '/digibranders/onboarding' as Route, label: 'Create project' },
+    });
+    await user.click(screen.getByRole('combobox', { name: 'Project: Fynix' }));
+    const all = await screen.findByRole('link', { name: 'All projects in Digibranders' });
+    const create = screen.getByRole('link', { name: 'Create project' });
+    expect(create).toHaveAttribute('href', '/digibranders/onboarding');
+    expect(all.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

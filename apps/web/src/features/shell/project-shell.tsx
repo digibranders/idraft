@@ -16,8 +16,8 @@ import { Drawer } from '@/components/ui/drawer';
 import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import { destinationOf, LIVE_NAVIGATION, NAVIGATION, navHref, visibleNavigation } from '@/lib/navigation/registry';
 import type { SidebarPreference } from '@/lib/navigation/sidebar-state';
-import { can, canCreateProjects, useMembership } from '@/lib/permissions';
-import { costsPath, onboardingPath, projectPath, runsPath, workspacePath } from '@/lib/routes/paths';
+import { canCreateProjects, useMembership } from '@/lib/permissions';
+import { onboardingPath, projectPath, workspacePath } from '@/lib/routes/paths';
 import { useGuardedPush } from '@/lib/navigation/use-leave-guard';
 
 export interface ShellProject extends SwitcherProject {
@@ -105,16 +105,6 @@ export function ProjectShell({
   const createProject = canCreateProjects(membership)
     ? { href: onboardingPath(workspace.slug), label: t('projectSwitcher.create') }
     : undefined;
-  // The workspace's own pages: Costs for those who may read costs, Runs for those who may read data
-  const workspaceLinks = [
-    ...(can(permissions, 'costs:read')
-      ? [{ href: costsPath(workspace.slug), label: nav('workspaceLinks.costs') }]
-      : []),
-    ...(can(permissions, 'data:read')
-      ? [{ href: runsPath(workspace.slug, project.slug), label: nav('workspaceLinks.runs') }]
-      : []),
-  ];
-  const workspaceLabel = nav('workspaceLinks.label');
 
   const sidebar = (mode: 'page' | 'drawer'): ReactNode => (
     <SidebarNav
@@ -130,8 +120,6 @@ export function ProjectShell({
           rail={mode === 'page' && rail}
           allProjects={allProjects}
           createProject={createProject}
-          workspaceLinks={workspaceLinks}
-          workspaceLabel={workspaceLabel}
         />
       }
       toggle={
@@ -181,8 +169,6 @@ export function ProjectShell({
                     presentation="topbar"
                     allProjects={allProjects}
                     createProject={createProject}
-                    workspaceLinks={workspaceLinks}
-                    workspaceLabel={workspaceLabel}
                   />
                 }
                 page={pageLabel}

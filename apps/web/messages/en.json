@@ -291,18 +291,15 @@
       "discover": "Discover",
       "reports": "Reports",
       "integrations": "Integrations",
+      "runs": "Runs",
+      "costs": "Costs",
       "settings": "Settings"
     },
     "groups": {
       "seo": "SEO",
       "ai": "AI Visibility"
     },
-    "inGroup": "{group}: {item}",
-    "workspaceLinks": {
-      "label": "Workspace",
-      "costs": "Costs",
-      "runs": "Runs"
-    }
+    "inGroup": "{group}: {item}"
   },
   "status": {
     "error": {
