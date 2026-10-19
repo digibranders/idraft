@@ -33,7 +33,7 @@ import { announce } from '@/lib/a11y/announcer';
 import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import { formatInteger } from '@/lib/format';
 import { COLUMN_TYPES, resolveWidths, type SizedColumn } from '@/lib/tables/column-types';
-import { moveFocus, rangeOf, type GridCell } from '@/lib/tables/grid-focus';
+import { CELL_CONTROL_SELECTOR, moveFocus, rangeOf, stepControl, type GridCell } from '@/lib/tables/grid-focus';
 import { rangeGaps, rowWindow, SCROLL_STEP, scrollToRow } from '@/lib/tables/row-window';
 import { nextSort, type Density, type SortKey } from '@/lib/tables/table-state';
 import { columnsAtTier, chosenColumns, moveColumn, toggleColumn } from '@/lib/tables/visible-columns';
@@ -100,6 +100,18 @@ const isRowClick = (event: MouseEvent<HTMLTableRowElement>): boolean =>
 /** The keys a control inside a cell hands back to the grid (20-accessibility.md section 6.3, widget mode). */
 const GRID_KEYS = new Set(['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
+/** The `data-cell` key of the cell `target` is a control of (`CELL_CONTROL`), or `null` when it is not one. */
+const controlCellOf = (target: EventTarget): string | null =>
+  target instanceof Element && target.matches(CELL_CONTROL_SELECTOR)
+    ? (target.closest<HTMLElement>('[data-cell]')?.dataset.cell ?? null)
+    : null;
+
+/** The controls of a cell that F2 reaches (a copy button, a link): the ones marked with `CELL_CONTROL`, in DOM order. */
+const controlsIn = (cell: HTMLElement): HTMLElement[] =>
+  [...cell.querySelectorAll<HTMLElement>(CELL_CONTROL_SELECTOR)].filter(
+    (control) => !(control instanceof HTMLButtonElement && control.disabled),
+  );
+
 /**
  * The one table for record lists (12-tables.md, 20-accessibility.md section 6, 25-component-inventory.md
  * section 7.1). A native table with `role="grid"` and one roving tab stop: arrows move between cells, Enter
@@ -161,6 +173,8 @@ export function DataTable<TRow extends RowData>({
     const column = byId.get(id);
     return column === undefined ? [] : [column];
   });
+  // F2 does something only where a column shown has controls in its cells, so only then does the hint say so
+  const hasControls = shown.some((column) => column.hasControls === true);
   const grid: GridColumn<TRow>[] = [
     ...(selection === undefined ? [] : [{ kind: 'select' as const }]),
     ...shown.map((column) => ({ kind: 'data' as const, column })),
@@ -352,11 +366,44 @@ export function DataTable<TRow extends RowData>({
       .querySelector<HTMLElement>(`[data-cell="${String(current.row)}:${String(current.column)}"]`)
       ?.focus({ preventScroll: true });
   });
+  // The cell F2 moved into: Tab and Shift+Tab step between its controls only while focus stays in it
+  // (20-accessibility.md section 6.3, widget mode). A control that was clicked is not in widget mode, so Tab
+  // leaves it as it would any button.
+  const widgetCell = useRef<HTMLElement | null>(null);
+  // The cell that has a control of its own in focus. A control's tooltip and the cell's are both triggers, and
+  // focus in a control reaches the cell's too, which would show its tooltip over the control's: while a
+  // control has focus the cell's own tooltip is off (and closes, if it was open from the cell's focus)
+  const [controlCell, setControlCell] = useState<string | null>(null);
+  // Escape in widget mode goes back to the cell at once. It is taken before the control's tooltip, which
+  // closes on Escape and would use up the first press, so the way out is the same for every control.
+  const onKeyDownCapture = (event: KeyboardEvent<HTMLTableElement>): void => {
+    const cell = widgetCell.current;
+    const target = event.target;
+    if (event.key !== 'Escape' || cell === null || !(target instanceof Node) || target === cell) return;
+    if (!cell.contains(target)) return;
+    event.preventDefault();
+    widgetCell.current = null;
+    cell.focus({ preventScroll: true });
+  };
   const onGridBlur = (event: FocusEvent<HTMLTableElement>): void => {
     const next = event.relatedTarget;
+    // The window lost focus (a new tab opened by a link, a switch to another window): the element blurs with
+    // nothing to hand focus to, and is still the page's active element. Focus has not left the table, and
+    // is back on the element when the window is
+    if (next === null && document.activeElement === event.target) return;
     // Focus left for somewhere else, rather than with an element the table removed
     if (next instanceof Node ? !event.currentTarget.contains(next) : event.target.isConnected) {
       focusInGrid.current = false;
+      setControlCell(null);
+    }
+    const widget = widgetCell.current;
+    // Widget mode is for the controls of the cell. Focus on the cell itself (a click on its padding or on its
+    // text) is not in a control, so the next click on a control is a click on a control, not widget mode
+    if (
+      widget !== null &&
+      (next instanceof Node ? next === widget || !widget.contains(next) : event.target.isConnected)
+    ) {
+      widgetCell.current = null;
     }
   };
 
@@ -448,13 +495,48 @@ export function DataTable<TRow extends RowData>({
     const target = event.target;
     // Keys in a portaled menu or tooltip reach the table through React, and are theirs
     if (!(target instanceof HTMLElement) || !event.currentTarget.contains(target)) return;
+    const plain = !event.altKey && !event.ctrlKey && !event.metaKey;
+    // F2 on a cell with controls (a copy button, a link) moves into them: Enter stays the inspector's
+    if (target.dataset.cell !== undefined && event.key === 'F2' && plain && !event.shiftKey) {
+      const first = controlsIn(target)[0];
+      if (first === undefined) return;
+      event.preventDefault();
+      widgetCell.current = target;
+      first.focus({ preventScroll: true });
+      return;
+    }
     if (target.dataset.cell === undefined) {
       // A control in a cell (a checkbox, a sort button, a menu trigger) keeps its own keys, but Escape and
       // the arrows go back to the grid: Escape to the cell, the arrows on from it
       const cell = target.closest<HTMLElement>('[data-cell]');
+      // In widget mode Tab steps between the cell's controls, round the ends
+      if (event.key === 'Tab' && plain && cell !== null && widgetCell.current === cell && !event.defaultPrevented) {
+        const controls = controlsIn(cell);
+        const next =
+          controls[
+            stepControl(
+              controls.length,
+              controls.findIndex((control) => control.contains(target)),
+              event.shiftKey,
+            )
+          ];
+        if (next !== undefined) {
+          event.preventDefault();
+          next.focus({ preventScroll: true });
+          return;
+        }
+      }
+      // A link is activated by Enter alone in a browser, and Space on it scrolls the table: here Space opens it
+      // too, as the keyboard map says for the controls of a cell. A held key opens it once
+      if (event.key === ' ' && plain && target instanceof HTMLAnchorElement && target.matches(CELL_CONTROL_SELECTOR)) {
+        event.preventDefault();
+        if (!event.repeat) target.click();
+        return;
+      }
       // A control that used the key (an open trigger, a caret in a field) keeps it
       const typing = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio';
       if (cell === null || !GRID_KEYS.has(event.key) || event.altKey || event.defaultPrevented || typing) return;
+      widgetCell.current = null;
       if (event.key === 'Escape') {
         event.preventDefault();
         cell.focus({ preventScroll: true });
@@ -662,7 +744,7 @@ export function DataTable<TRow extends RowData>({
         {caption}
       </h2>
       <p id={hintId} className="sr-only">
-        {t('hint')}
+        {t(hasControls ? 'hintControls' : 'hint')}
       </p>
       {selecting && selection !== undefined ? (
         <BulkActionBar
@@ -726,8 +808,10 @@ export function DataTable<TRow extends RowData>({
           aria-multiselectable={selection === undefined ? undefined : true}
           aria-busy={status === 'refetching' || status === 'loading' ? true : undefined}
           onKeyDown={onKeyDown}
-          onFocus={() => {
+          onKeyDownCapture={onKeyDownCapture}
+          onFocus={(event) => {
             focusInGrid.current = true;
+            setControlCell(controlCellOf(event.target));
           }}
           onBlur={onGridBlur}
           className="table-fixed border-separate border-spacing-0 type-table"
@@ -879,6 +963,7 @@ export function DataTable<TRow extends RowData>({
                                   key={keyOf(column)}
                                   role={identity ? 'rowheader' : 'gridcell'}
                                   scope={identity ? ROW_SCOPE : undefined}
+                                  aria-label={column.kind === 'data' ? column.column.cellLabel?.(row) : undefined}
                                   aria-describedby={
                                     tip === undefined
                                       ? undefined
@@ -887,7 +972,8 @@ export function DataTable<TRow extends RowData>({
                                   {...cellProps(index, columnIndex)}
                                   style={left === null ? undefined : { left }}
                                   className={cn(
-                                    'border-b border-border-subtle bg-surface px-3 font-normal outline-none focus-visible:focus-ring-inset',
+                                    // `group/cell`: what a control in the cell shows for the cell's own hover and focus
+                                    'group/cell border-b border-border-subtle bg-surface px-3 font-normal outline-none focus-visible:focus-ring-inset',
                                     'group-hover:bg-surface-hover group-data-active:bg-surface-selected group-data-selected:bg-surface-selected',
                                     left !== null && 'sticky z-(--z-pinned-cell)',
                                     first && 'group-data-active:row-active-edge',
@@ -945,7 +1031,13 @@ export function DataTable<TRow extends RowData>({
                               return tip === undefined ? (
                                 cellNode
                               ) : (
-                                <Tooltip key={keyOf(column)} content={tip.content} detail={tip.detail} purpose="label">
+                                <Tooltip
+                                  key={keyOf(column)}
+                                  content={tip.content}
+                                  detail={tip.detail}
+                                  purpose="label"
+                                  disabled={controlCell === `${String(index)}:${String(columnIndex)}`}
+                                >
                                   {cellNode}
                                 </Tooltip>
                               );

@@ -7,12 +7,15 @@ import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
+import { useRankColumns } from './rank-columns';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
- * The columns of Rankings for step 5 part 1 (24-page-templates.md section 9.3), in the template's order
- * with the rank columns left out until rank collection: Keyword, Volume, KD, CPC, Intent, Priority, Group,
- * Tags, Added. The ids of the sortable ones are the API's sort fields, so server mode sends them as they are.
+ * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Rank, Change,
+ * Ranking URL, Volume, KD, CPC, Intent, Priority, Group, Tags, Best rank (in the column chooser only),
+ * Updated (the last successful check) and Added. The rank columns are built in `rank-columns.tsx`. Waiting for
+ * their own plans are the template's sparkline, SERP features, AI Overview and competitor columns. The ids of
+ * the sortable columns are the API's sort fields, so server mode sends them as they are.
  */
 
 /** Volume descending, the template's default. */
@@ -21,6 +24,10 @@ export const DEFAULT_SORT: readonly SortKey[] = [{ id: 'search_volume', desc: tr
 /** The API's sort fields, which are the sortable columns' ids. */
 export const SORT_FIELDS: ReadonlySet<string> = new Set([
   'keyword',
+  'current_rank',
+  'rank_change',
+  'best_rank',
+  'last_observed_at',
   'search_volume',
   'keyword_difficulty',
   'cpc_usd',
@@ -58,6 +65,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
   const locale = useLocale();
+  const ranks = useRankColumns(timeZone);
   return useMemo(() => {
     // Before Labs answers there is nothing; after an empty answer there is no data (12-tables.md 7.3)
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
@@ -67,6 +75,8 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
     return [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
+        // The keyword's own text is copied, not the row's longer name
+        copy: { label: (row) => t('copyKeyword', { keyword: row.keyword.text }), announcement: t('keywordCopied') },
         detail: (row) =>
           t('keywordDetail', {
             location: row.location.name,
@@ -75,16 +85,21 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
             language: languageName(row.language_code, locale),
           }),
       }),
+      ranks.rank,
+      ranks.change,
+      ranks.url,
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
         headerTooltip: t('volumeTooltip'),
-        priority: 1,
+        priority: 2,
+        width: 88,
         unknown: missing,
       }),
       col.count<TrackedKeywordRow>('keyword_difficulty', (row) => metrics(row)?.keyword_difficulty ?? null, {
         header: t('difficulty'),
         headerTooltip: t('difficultyTooltip'),
         priority: 2,
+        width: 72,
         unknown: missing,
       }),
       col.currency<TrackedKeywordRow>(
@@ -93,7 +108,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           const cpc = metrics(row)?.cpc_usd ?? null;
           return cpc === null ? null : Number(cpc);
         },
-        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, unknown: missing },
+        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 96, unknown: missing },
       ),
       col.badge<TrackedKeywordRow>(
         'intent',
@@ -107,6 +122,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         {
           header: t('intent'),
           priority: 3,
+          width: 96,
           sortable: false,
           unknown: (row) => (metrics(row) === null ? pending : { label: t('intentUnknown') }),
         },
@@ -115,7 +131,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         header: t('priority'),
         headerTooltip: t('priorityTooltip'),
         priority: 3,
-        width: 80,
+        width: 72,
       }),
       col.text<TrackedKeywordRow>(
         'group',
@@ -123,7 +139,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           const paths = (row.groups ?? []).map((group) => group.path);
           return paths.length === 0 ? null : paths.join(', ');
         },
-        { header: t('group'), priority: 3, sortable: false, unknown: () => ({ label: t('none') }) },
+        { header: t('group'), priority: 3, width: 104, sortable: false, unknown: () => ({ label: t('none') }) },
       ),
       col.text<TrackedKeywordRow>(
         'tags',
@@ -131,15 +147,18 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           const names = (row.terms ?? []).map((term) => term.name);
           return names.length === 0 ? null : names.join(', ');
         },
-        { header: t('tags'), priority: 4, sortable: false, unknown: () => ({ label: t('none') }) },
+        { header: t('tags'), priority: 4, width: 104, sortable: false, unknown: () => ({ label: t('none') }) },
       ),
+      ranks.best,
+      ranks.updated,
       col.date<TrackedKeywordRow>('created_at', (row) => row.created_at, {
         header: t('added'),
         headerTooltip: common('timesIn', { timeZone }),
         priority: 4,
+        width: 112,
         timeZone,
         secondary: true,
       }),
     ];
-  }, [t, common, locale, timeZone]);
+  }, [t, common, locale, timeZone, ranks]);
 }

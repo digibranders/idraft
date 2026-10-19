@@ -3,14 +3,19 @@ import { describe, expect, it } from 'vitest';
 import {
   CADENCES,
   DEFAULT_STALE_DAYS,
+  OFFERED_PROVIDER_MODES,
   PROVIDER_MODES,
+  SCHEDULE_ERROR_KEYS,
   SCHEDULE_PRIORITIES,
   SCHEDULE_WORKLOADS,
   SELECTOR_MODES,
+  WORKLOAD_PROVIDER_MODES,
   WORKLOAD_SELECTOR_MODES,
   clockOf,
   createBodyOf,
+  errorMessageKey,
   errorTarget,
+  isRetiredProviderMode,
   isClock,
   isEditableSchedule,
   newScheduleValues,
@@ -66,6 +71,21 @@ describe('the values the schedule form offers', () => {
     expect(CADENCES.every((cadence) => scheduleCadenceValues.includes(cadence))).toBe(true);
     expect([...SCHEDULE_PRIORITIES].sort()).toEqual([...schedulePriorityValues].sort());
     expect([...PROVIDER_MODES].sort()).toEqual([...scheduleProvider_modeValues].sort());
+  });
+
+  it('offer rankings the standard and the priority queue, and keyword metrics no mode at all', () => {
+    expect(OFFERED_PROVIDER_MODES).toEqual(['standard_queue', 'priority_queue']);
+    expect(WORKLOAD_PROVIDER_MODES.seo_rank).toEqual(['standard_queue', 'priority_queue']);
+    expect(WORKLOAD_PROVIDER_MODES.keyword_metrics).toEqual([]);
+    // Live stays readable: the API still names it on a schedule it returns
+    expect(PROVIDER_MODES).toContain('live');
+    expect(OFFERED_PROVIDER_MODES).not.toContain('live');
+  });
+
+  it('call a live rank schedule retired, and no other schedule', () => {
+    expect(isRetiredProviderMode(withSchedule({ provider_mode: 'live' }))).toBe(true);
+    expect(isRetiredProviderMode(withSchedule({ provider_mode: 'priority_queue' }))).toBe(false);
+    expect(isRetiredProviderMode(withSchedule({ workload: 'keyword_metrics', provider_mode: 'live' }))).toBe(false);
   });
 
   it('never offer cron, which the planner has no rule for', () => {
@@ -229,6 +249,19 @@ describe('the body of a new schedule', () => {
     expect(body).not.toHaveProperty('month_day');
   });
 
+  it('never sends live for a rank schedule, and a form that holds it is a mistake of the caller', () => {
+    const rank: ScheduleValues = {
+      ...newScheduleValues('UTC'),
+      name: 'Ranks',
+      workload: 'seo_rank',
+      selector_mode: 'all',
+    };
+    expect(createBodyOf({ ...rank, provider_mode: 'standard_queue' })).toMatchObject({
+      provider_mode: 'standard_queue',
+    });
+    expect(() => createBodyOf({ ...rank, provider_mode: 'live' })).toThrow(/live/);
+  });
+
   it('sends the day of the month of a monthly schedule and no weekday', () => {
     const body = createBodyOf({
       ...newScheduleValues('UTC'),
@@ -299,8 +332,21 @@ describe('the body of a change', () => {
     });
   });
 
-  it('sends the provider mode of a rank schedule when it changed', () => {
-    expect(updateBodyOf(valuesWith({ provider_mode: 'live' }), SCHEDULE)).toEqual({ provider_mode: 'live' });
+  it('sends the provider mode of a rank schedule when it changed, and never live', () => {
+    expect(updateBodyOf(valuesWith({ provider_mode: 'priority_queue' }), SCHEDULE)).toEqual({
+      provider_mode: 'priority_queue',
+    });
+    expect(() => updateBodyOf(valuesWith({ provider_mode: 'live' }), SCHEDULE)).toThrow(/live/);
+  });
+
+  it('sends no provider mode for a rank schedule that still holds live, until a queue is chosen', () => {
+    const held = withSchedule({ provider_mode: 'live' });
+    expect(valuesOfSchedule(held).provider_mode).toBe('live');
+    expect(updateBodyOf(valuesWith({ name: 'Renamed' }, held), held)).toEqual({ name: 'Renamed' });
+    expect(updateBodyOf(valuesWith({}, held), held)).toEqual({});
+    expect(updateBodyOf(valuesWith({ provider_mode: 'standard_queue' }, held), held)).toEqual({
+      provider_mode: 'standard_queue',
+    });
   });
 
   it('sends the name alone for a rename, whatever the selector holds that the form cannot show', () => {
@@ -425,6 +471,13 @@ describe('the field an API error belongs to', () => {
       field: 'stale_days',
       key: 'stale_days.int_parsing',
     });
+  });
+
+  it('is the provider mode field for a mode the workload does not take, with words of its own', () => {
+    const target = errorTarget(item('provider_mode', 'provider_mode_not_supported'));
+    expect(target).toEqual({ field: 'provider_mode', key: 'provider_mode.provider_mode_not_supported' });
+    expect(errorMessageKey(target.key)).toBe('providerModeNotSupported');
+    expect(Object.keys(SCHEDULE_ERROR_KEYS)).toContain(target.key);
   });
 
   it('is no field for the body as a whole or for something the form does not show', () => {

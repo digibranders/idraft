@@ -8,14 +8,18 @@ import { gate } from '@/test/gate';
 import type { Run } from '@/lib/api/types';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { handlers } from '@/mocks/handlers';
+import { PENDING_ADDED_AT } from '@/mocks/keyword-fixtures';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import {
   answerTrackedAsMany,
+  columnTexts,
   fynix,
   keywordsIn,
   loadedGrid,
+  pendingMetricCells,
+  pendingRankCells,
   rankingsAs as as,
   restoreWideScreen,
   stubWideScreen,
@@ -145,11 +149,23 @@ const ROWS = z.object({
         tracked_keyword_id: z.string(),
         keyword: z.object({ keyword_id: z.string(), text: z.string() }).loose(),
         metrics: z.unknown(),
+        state: z.object({ current: z.object({ state: z.string() }).loose() }).loose(),
       })
       .loose(),
   ),
   page: z.record(z.string(), z.unknown()),
 });
+
+type FeedRow = z.infer<typeof ROWS>['data'][number];
+
+/** The rank state of a keyword that has not been checked yet, and of one that has, as the fixtures give them. */
+function rankStates(rows: readonly FeedRow[]): { unchecked: FeedRow['state']; checked: FeedRow['state'] } {
+  const unchecked = rows.find((row) => row.state.current.state === 'not_checked')?.state;
+  const checked = rows.find((row) => row.state.current.state !== 'not_checked')?.state;
+  if (unchecked === undefined || checked === undefined)
+    throw new Error('The fixtures lack a checked or an unchecked keyword');
+  return { unchecked, checked };
+}
 
 /** Every tracked keyword the screen read, by name, as the list answered it. */
 function watchRows(): { ids: (text: string) => { tracked: string; keyword: string }; all: () => string[] } {
@@ -1172,8 +1188,15 @@ describe('A refresh in the header', () => {
   });
 });
 
-/** The poll of waiting keywords: the first page, newest first, with the metrics that arrived. */
-function servePoll(): { polls: () => number; arrive: () => void } {
+/**
+ * The poll of waiting keywords: the first page, newest first, with what has arrived: the metrics and the
+ * first rank check together, or (`metricsFirst`) the metrics from the first poll and the first check only
+ * once `arrive` says so.
+ */
+function servePoll({ metricsFirst = false }: { metricsFirst?: boolean } = {}): {
+  polls: () => number;
+  arrive: () => void;
+} {
   let polls = 0;
   let arrived = false;
   server.use(
@@ -1184,10 +1207,14 @@ function servePoll(): { polls: () => number; arrive: () => void } {
       const real = await getResponse([...handlers], new Request(url, { headers: request.headers }));
       const body = ROWS.parse(await real?.json());
       const donor = body.data.find((row) => row.metrics !== null && row.metrics !== undefined)?.metrics;
-      if (!arrived || donor === undefined) return HttpResponse.json(body);
+      const { checked } = rankStates(body.data);
       return HttpResponse.json({
         ...body,
-        data: body.data.map((row) => ({ ...row, metrics: row.metrics ?? donor })),
+        data: body.data.map((row) => ({
+          ...row,
+          metrics: (arrived || metricsFirst) && donor !== undefined ? (row.metrics ?? donor) : row.metrics,
+          state: arrived && row.state.current.state === 'not_checked' ? checked : row.state,
+        })),
       });
     }),
   );
@@ -1199,12 +1226,35 @@ function servePoll(): { polls: () => number; arrive: () => void } {
   };
 }
 
+/**
+ * The list once Labs has answered every keyword while no rank check has run, counting the polls: what a project
+ * whose collection is paused (or out of budget) shows, however long ago its keywords were added.
+ */
+function serveMetricsWithoutChecks(): { polls: () => number } {
+  let polls = 0;
+  server.use(
+    http.get(mswPath(TRACKED), async ({ request }) => {
+      const url = new URL(request.url);
+      if (url.searchParams.get('limit') === '1') return undefined;
+      if (url.searchParams.get('sort') === '-created_at') polls += 1;
+      const real = await getResponse([...handlers], new Request(url, { headers: request.headers }));
+      const body = ROWS.parse(await real?.json());
+      const donor = donorMetrics(body.data);
+      return HttpResponse.json({ ...body, data: body.data.map((row) => ({ ...row, metrics: row.metrics ?? donor })) });
+    }),
+  );
+  return { polls: () => polls };
+}
+
+/** Mock time shortly after the fixture keywords that wait were added (`PENDING_ADDED_AT`): they are new. */
+const SHORTLY_AFTER_ADDED = Date.parse(PENDING_ADDED_AT) + 20 * 60_000;
+
 describe('Keywords that wait for their first metrics', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
-  const pending = (grid: HTMLElement): number => within(grid).queryAllByText('Pending').length;
+  const pending = (grid: HTMLElement): number => pendingMetricCells(grid).length;
 
   it('are read every 30 seconds, newest first, until none is left, and the list is not read again', async () => {
     const poll = servePoll();
@@ -1250,6 +1300,92 @@ describe('Keywords that wait for their first metrics', () => {
     await act(() => vi.advanceTimersByTimeAsync(10 * 60_000));
     expect(poll.polls()).toBe(reads);
   });
+
+  it('are not polled for a first rank check when they were added long ago: a paused project is not asked about', async () => {
+    // The fixture keywords were added on 30 September; the clock is days later, and their metrics are in
+    const feed = serveMetricsWithoutChecks();
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    expect(pending(grid)).toBe(0);
+    // They still say Pending in Rank: nothing is made up
+    expect(pendingRankCells(grid).length).toBeGreaterThanOrEqual(3);
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60_000));
+    expect(feed.polls()).toBe(0);
+  });
+
+  it('are polled for a first rank check when they were added within the last hour', async () => {
+    vi.setSystemTime(SHORTLY_AFTER_ADDED);
+    const feed = serveMetricsWithoutChecks();
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    expect(pending(grid)).toBe(0);
+    expect(pendingRankCells(grid).length).toBeGreaterThanOrEqual(3);
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    await waitFor(() => expect(feed.polls()).toBe(1));
+  });
+
+  it('are read for their first rank check too: the metrics come first, the check later, and the polling stops after it', async () => {
+    vi.setSystemTime(SHORTLY_AFTER_ADDED);
+    const poll = servePoll({ metricsFirst: true });
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    const waiting = pendingRankCells(grid).length;
+    expect(waiting).toBeGreaterThanOrEqual(3);
+    expect(pending(grid)).toBeGreaterThanOrEqual(3);
+
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    await waitFor(() => expect(poll.polls()).toBe(1));
+    // The metrics arrived with the first poll, the first check did not: the rows still wait
+    await waitFor(() => expect(pending(grid)).toBe(0));
+    expect(pendingRankCells(grid)).toHaveLength(waiting);
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    await waitFor(() => expect(poll.polls()).toBe(3));
+
+    poll.arrive();
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    await waitFor(() => expect(pendingRankCells(grid)).toHaveLength(0));
+    const reads = poll.polls();
+    // Nothing waits any more: the polling stops
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60_000));
+    expect(poll.polls()).toBe(reads);
+  });
+
+  it('are not waited for after 15 minutes when the first check never comes, though their metrics are there', async () => {
+    vi.setSystemTime(SHORTLY_AFTER_ADDED);
+    const poll = servePoll({ metricsFirst: true });
+    renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    expect(pendingRankCells(grid).length).toBeGreaterThan(0);
+    for (let tick = 0; tick < 31; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
+    const reads = poll.polls();
+    expect(reads).toBeGreaterThanOrEqual(28);
+    expect(reads).toBeLessThanOrEqual(30);
+    await act(() => vi.advanceTimersByTimeAsync(10 * 60_000));
+    expect(poll.polls()).toBe(reads);
+    // The rows say Pending still: nothing was made up
+    expect(pendingRankCells(grid).length).toBeGreaterThan(0);
+  });
+
+  it('fills in the first rank of a keyword added a moment ago once its first check has run, without a reload', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    await loadedGrid();
+    await user.click(screen.getByRole('button', { name: 'Add keywords' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add keywords' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Keywords' }), 'rank tracker api');
+    await user.click(within(dialog).getByRole('radio', { name: 'Desktop' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add 1 keyword' }));
+    expect(await screen.findByText('1 keyword added')).toBeInTheDocument();
+    const grid = await loadedGrid();
+    await waitFor(() => expect(keywordsIn(grid)).toContain('rank tracker api'));
+    const rankOf = (): string => columnTexts(grid, /^Rank$/)[keywordsIn(grid).indexOf('rank tracker api')] ?? '';
+    expect(rankOf()).toBe('Pending');
+
+    // The metrics come at 2 minutes, the first check at 3: at 2 minutes and a half the rank still waits
+    for (let tick = 0; tick < 5; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(rankOf()).toBe('Pending');
+    for (let tick = 0; tick < 2; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
+    await waitFor(() => expect(rankOf()).toMatch(/^(\d+|>\d+not in top \d+)$/));
+  }, 20_000);
 
   it('are not polled when none on screen waits: archived keywords are not collected', async () => {
     const poll = servePoll();
@@ -1353,19 +1489,23 @@ function serveSynthetic({
       const real = await getResponse([...handlers], new Request(url, { headers: request.headers }));
       const body = ROWS.parse(await real?.json());
       const donor = donorMetrics(body.data);
+      const states = rankStates(body.data);
       const from = cursor === null ? 0 : Number(cursor.slice(1));
       const rows = Array.from({ length: Math.min(limit, count - from) }, (_, offset) => {
         const index = from + offset;
         const row = body.data[index % body.data.length];
         if (row === undefined) throw new Error('The list has no row to copy');
         const suffix = String(index).padStart(6, '0');
+        const waiting = index >= waitingFrom && index < waitingTo && !arrived;
         return {
           ...row,
           tracked_keyword_id: `0192d1a8-0000-7a10-8e07-${suffix}`,
           keyword: { ...row.keyword, keyword_id: `0192d1a8-1111-7a10-8e07-${suffix}` },
           is_active: true,
           created_at: new Date(newest - index * 60_000).toISOString(),
-          metrics: index >= waitingFrom && index < waitingTo && !arrived ? null : donor,
+          // A keyword that waits has neither its metrics nor its first check
+          metrics: waiting ? null : donor,
+          state: waiting ? states.unchecked : states.checked,
         };
       });
       const more = from + limit < count;
@@ -1390,7 +1530,7 @@ describe('Keywords that wait beyond the first page of the poll', () => {
   });
 
   // The table shows a window of its rows: the polls tell what was waited for, and when nothing is
-  const pending = (grid: HTMLElement): number => within(grid).queryAllByText('Pending').length;
+  const pending = (grid: HTMLElement): number => pendingMetricCells(grid).length;
   const cursors = (polls: readonly URLSearchParams[]): (string | null)[] => polls.map((poll) => poll.get('cursor'));
   /** The pages of the list itself read so far, in client mode. */
   const listPages = (feed: Synthetic): number => feed.asked.filter((query) => query.get('sort') === 'keyword').length;

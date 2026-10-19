@@ -11,6 +11,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 
 import { DEPTH_PROFILES, FUNNEL_STAGES, INTENTS, SOURCES } from './keyword-values';
+import { rankFilterParams } from './rank-filters';
 import type { PageSize } from '@/components/app/data-table/types';
 import type { FilterValues } from '@/components/app/filters/types';
 import { api, unwrap } from '@/lib/api/client';
@@ -104,7 +105,10 @@ const idsOf = (value: FilterValue | undefined): string[] => (value?.kind === 'en
 const minOf = (value: FilterValue | undefined): number | null => (value?.kind === 'range' ? value.min : null);
 const maxOf = (value: FilterValue | undefined): number | null => (value?.kind === 'range' ? value.max : null);
 
-/** The API's filters for the filter bar's values, and the Archived view (`is_active=false`). */
+/**
+ * The API's filters for the filter bar's values, and the Archived view (`is_active=false`). The rank
+ * chips' parameters come from `rankFilterParams`.
+ */
 export function keywordFilters(values: FilterValues, archived: boolean): KeywordFilters {
   const [group] = idsOf(values.grp);
   const terms = idsOf(values.tag);
@@ -138,6 +142,7 @@ export function keywordFilters(values: FilterValues, archived: boolean): Keyword
     ...(priority === null ? {} : { 'filter[priority_lte]': priority }),
     ...(volume === null ? {} : { 'filter[search_volume_gte]': volume }),
     ...(difficulty === null ? {} : { 'filter[keyword_difficulty_lte]': difficulty }),
+    ...rankFilterParams(values),
   };
 }
 

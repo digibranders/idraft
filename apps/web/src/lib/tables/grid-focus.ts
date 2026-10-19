@@ -45,6 +45,26 @@ export function moveFocus(cell: GridCell, key: string, size: GridSize, { ctrl }:
   }
 }
 
+/**
+ * What a control inside a cell (a copy button, a link) carries: the table finds it by the attribute when F2
+ * puts the cell in widget mode (20-accessibility.md section 6.3), and its place in the tab order is out,
+ * since the grid has one tab stop. A click and a screen reader's own commands still reach it.
+ */
+export const CELL_CONTROL = { 'data-cell-control': '', tabIndex: -1 } as const;
+/** The selector of the controls `CELL_CONTROL` marks. */
+export const CELL_CONTROL_SELECTOR = '[data-cell-control]';
+
+/**
+ * The control Tab (or Shift+Tab with `backwards`) goes to in widget mode, as an index among `count` controls
+ * in DOM order, wrapping at both ends. `index` is the control that has focus, `-1` when none does. `-1` back
+ * when there is no control to go to.
+ */
+export function stepControl(count: number, index: number, backwards: boolean): number {
+  if (count <= 0) return -1;
+  if (index < 0) return backwards ? count - 1 : 0;
+  return (index + (backwards ? count - 1 : 1)) % count;
+}
+
 /** The ids from `anchor` to `target` in list order, both included; just the target when the anchor is gone. */
 export function rangeOf(ids: readonly string[], anchor: string | null, target: string): string[] {
   const to = ids.indexOf(target);

@@ -68,6 +68,32 @@ describe('useUrlFilters', () => {
     expect(onDropped).toHaveBeenCalledWith([DIFFICULTY]);
   });
 
+  it('keeps the first value of a single-choice field, and says the others were left out', async () => {
+    const single: FilterField = {
+      id: 'rank',
+      kind: 'enum',
+      label: 'Rank',
+      multi: false,
+      options: [
+        { value: 'top3', label: 'Top 3' },
+        { value: 'top10', label: '4 to 10' },
+      ],
+    };
+    const { result, onDropped, latest } = setup('?rank=top3,top10', [single]);
+    // A spec-form link may name several buckets; the chip holds one, so it must not narrow in silence
+    expect(result.current[0]).toEqual({ rank: { kind: 'enum', values: ['top3'] } });
+    await waitFor(() => expect(latest().get('rank')).toBe('top3'));
+    expect(onDropped).toHaveBeenCalledTimes(1);
+    expect(onDropped).toHaveBeenCalledWith([single]);
+  });
+
+  it('does not report a single-choice field that names one value, even twice', async () => {
+    const single: FilterField = { ...INTENT, id: 'dev', multi: false };
+    const { result, onDropped } = setup('?dev=local,local', [single]);
+    expect(result.current[0]).toEqual({ dev: { kind: 'enum', values: ['local'] } });
+    await waitFor(() => expect(onDropped).not.toHaveBeenCalled());
+  });
+
   it('tidies a repeated id without a word', async () => {
     const { onDropped, latest } = setup('?intent=local,local');
     await waitFor(() => expect(latest().get('intent')).toBe('local'));

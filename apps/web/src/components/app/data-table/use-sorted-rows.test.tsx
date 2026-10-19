@@ -37,6 +37,35 @@ describe('useSortedRows', () => {
     expect(screen.getByRole('status')).toHaveTextContent('c,b,a');
   });
 
+  it('orders rows that tie on the sort by row id, whatever order they were loaded in and whichever way it runs', () => {
+    // Thirty keywords with no rank (nulls tie) and a few that share a rank, loaded in no particular order
+    const ids = Array.from({ length: 30 }, (_, index) => `row-${String((index * 7) % 30).padStart(2, '0')}`);
+    const rows: Row[] = ids.map((id, index) => ({ id, keyword: id, volume: index % 10 === 0 ? 500 : null }));
+    const byId = (a: string, b: string): number => (a < b ? -1 : 1);
+    const tied = rows.filter((row) => row.volume === null).map((row) => row.id);
+    const fixed = rows.filter((row) => row.volume !== null).map((row) => row.id);
+    const expected = [...fixed.sort(byId), ...tied.sort(byId)].join(',');
+    const { rerender } = render(<Order rows={rows} sort={[{ id: 'volume', desc: true }]} />);
+    expect(screen.getByRole('status')).toHaveTextContent(expected);
+    // The API breaks ties by id ascending in both directions, so the descending sort does the same
+    rerender(<Order rows={rows} sort={[{ id: 'volume', desc: false }]} />);
+    expect(screen.getByRole('status')).toHaveTextContent(expected);
+    // A different load order gives the same result
+    rerender(<Order rows={[...rows].reverse()} sort={[{ id: 'volume', desc: true }]} />);
+    expect(screen.getByRole('status')).toHaveTextContent(expected);
+  });
+
+  it('keeps the loaded order when there is no sort, and the API order in server mode', () => {
+    const loaded: Row[] = [
+      { id: 'z', keyword: 'z', volume: null },
+      { id: 'a', keyword: 'a', volume: null },
+    ];
+    const { rerender } = render(<Order rows={loaded} sort={[]} />);
+    expect(screen.getByRole('status')).toHaveTextContent('z,a');
+    rerender(<Order rows={loaded} sort={[{ id: 'volume', desc: true }]} manual />);
+    expect(screen.getByRole('status')).toHaveTextContent('z,a');
+  });
+
   it('sorts again only when the rows, the columns or the sort change, not on every render', () => {
     let reads = 0;
     const counted = [

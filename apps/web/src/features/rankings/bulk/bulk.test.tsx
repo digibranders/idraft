@@ -319,6 +319,138 @@ describe('Bulk actions', () => {
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   }, 20_000);
 
+  describe('when the keywords that match change before the action is sent', () => {
+    const CHANGED = 'The keywords that match changed since you chose them: 11,950 now. Choose again.';
+
+    /** Answers the count the screen reads just before it acts (the list's filters, one row) with `total()`. */
+    function answerRecount(total: () => number): { reads: () => number } {
+      let reads = 0;
+      server.use(
+        http.get(mswPath(TRACKED), ({ request }) => {
+          const url = new URL(request.url);
+          const filtered = [...url.searchParams.keys()].some((key) => key.startsWith('filter['));
+          if (url.searchParams.get('limit') !== '1' || !filtered) return undefined;
+          reads += 1;
+          return HttpResponse.json({
+            data: [],
+            page: { limit: 1, next_cursor: null, has_more: false, total: total() },
+          });
+        }),
+      );
+      return { reads: () => reads };
+    }
+
+    async function chooseAllMatching(user: User, total: string): Promise<HTMLElement> {
+      await loadedGrid();
+      await user.click(screen.getByRole('checkbox', { name: /^Select all/ }));
+      const bar = screen.getByRole('group', { name: /Bulk actions/ });
+      await user.click(within(bar).getByRole('button', { name: `Select all ${total} matching` }));
+      return bar;
+    }
+
+    it('stops a delete of every match, says how many match now, and reads the list again instead of acting', async () => {
+      const listReads = answerTrackedAsMany({ total: 12_000 });
+      let matching = 12_000;
+      const recount = answerRecount(() => matching);
+      const seen = writes();
+      const { user } = renderWithProviders(as('editor'));
+      const bar = await chooseAllMatching(user, '12,000');
+      await user.click(within(bar).getByRole('button', { name: 'Delete' }));
+      const deleting = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
+      const readBefore = listReads.length;
+      // A daily rank check moved 50 keywords out of the filter after the person chose them
+      matching = 11_950;
+      await user.click(within(deleting).getByRole('button', { name: 'Delete 12,000 keywords' }));
+      expect(await within(deleting).findByText(CHANGED)).toBeInTheDocument();
+      expect(recount.reads()).toBe(1);
+      expect(seen.filter((write) => write.route === 'bulk-delete')).toHaveLength(0);
+      await waitFor(() => expect(listReads.length).toBeGreaterThan(readBefore));
+    }, 20_000);
+
+    it('stops an archive of every match above 100 keywords the same way', async () => {
+      answerTrackedAsMany({ total: 12_000 });
+      let matching = 12_000;
+      answerRecount(() => matching);
+      const seen = writes();
+      const { user } = renderWithProviders(as('editor'));
+      const bar = await chooseAllMatching(user, '12,000');
+      await user.click(within(bar).getByRole('button', { name: 'Archive' }));
+      const asking = await screen.findByRole('alertdialog', { name: 'Archive 12,000 keywords?' });
+      matching = 11_950;
+      await user.click(within(asking).getByRole('button', { name: 'Archive 12,000 keywords' }));
+      expect(await within(asking).findByText(CHANGED)).toBeInTheDocument();
+      expect(seen.filter((write) => write.route === 'bulk-archive')).toHaveLength(0);
+    }, 20_000);
+
+    it('stops an archive that runs at once, without a question, and says so in a notice', async () => {
+      // 60 match, 59 are on screen: "Select all 60 matching" is offered, and 60 is below the question's 100
+      answerTrackedAsMany({ total: 60, pages: 1 });
+      let matching = 60;
+      answerRecount(() => matching);
+      const seen = writes();
+      const { user } = renderWithProviders(as('editor'));
+      const bar = await chooseAllMatching(user, '60');
+      matching = 55;
+      await user.click(within(bar).getByRole('button', { name: 'Archive' }));
+      expect(
+        (await screen.findAllByText('The keywords that match changed since you chose them: 55 now. Choose again.'))
+          .length,
+      ).toBeGreaterThan(0);
+      expect(seen.filter((write) => write.route === 'bulk-archive')).toHaveLength(0);
+    }, 20_000);
+
+    it('stops a change by filter too, and acts when the count is the one that was confirmed', async () => {
+      answerTrackedAsMany({ total: 12_000 });
+      let matching = 11_950;
+      answerRecount(() => matching);
+      const seen = writes();
+      const { user } = renderWithProviders(as('editor'));
+      const bar = await chooseAllMatching(user, '12,000');
+      await user.click(within(bar).getByRole('button', { name: 'Set priority' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Priority for 12,000 keywords' });
+      await user.click(within(dialog).getByRole('combobox', { name: 'Priority' }));
+      await user.click(await screen.findByRole('option', { name: '2' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Set for 12,000 keywords' }));
+      expect(await within(dialog).findByText(CHANGED)).toBeInTheDocument();
+      expect(seen.filter((write) => write.route === 'bulk-update')).toHaveLength(0);
+      // The count is what was confirmed again: the same press now goes through
+      matching = 12_000;
+      await user.click(within(dialog).getByRole('button', { name: 'Set for 12,000 keywords' }));
+      await waitFor(() => expect(seen.some((write) => write.route === 'bulk-update')).toBe(true));
+    }, 20_000);
+
+    it('does nothing when the count cannot be read: nothing was deleted, and it says so', async () => {
+      answerTrackedAsMany({ total: 12_000 });
+      server.use(
+        http.get(mswPath(TRACKED), ({ request }) => {
+          const url = new URL(request.url);
+          const filtered = [...url.searchParams.keys()].some((key) => key.startsWith('filter['));
+          return url.searchParams.get('limit') === '1' && filtered ? problem(request, 'not_found') : undefined;
+        }),
+      );
+      const seen = writes();
+      const { user } = renderWithProviders(as('editor'));
+      const bar = await chooseAllMatching(user, '12,000');
+      await user.click(within(bar).getByRole('button', { name: 'Delete' }));
+      const deleting = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
+      await user.click(within(deleting).getByRole('button', { name: 'Delete 12,000 keywords' }));
+      expect(await within(deleting).findByText('The change was not made. Try again.')).toBeInTheDocument();
+      expect(seen.filter((write) => write.route === 'bulk-delete')).toHaveLength(0);
+    }, 20_000);
+
+    it('does not count again for chosen keywords: their ids are what is sent', async () => {
+      const recount = answerRecount(() => 1);
+      const seen = writes();
+      const { user } = renderWithProviders(as('editor'));
+      const bar = await choose(user, 'seo agency', 'backlink checker');
+      await user.click(within(bar).getByRole('button', { name: 'Delete' }));
+      const deleting = await screen.findByRole('alertdialog');
+      await user.click(within(deleting).getByRole('button', { name: /^Delete/ }));
+      await waitFor(() => expect(seen.some((write) => write.route === 'bulk-delete')).toBe(true));
+      expect(recount.reads()).toBe(0);
+    }, 20_000);
+  });
+
   it('unarchives in the Archived view, and says how many fit when the plan is full', async () => {
     server.use(
       http.post(mswPath(BULK_ARCHIVE), ({ request }) =>

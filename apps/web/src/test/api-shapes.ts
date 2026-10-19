@@ -386,7 +386,7 @@ const RANK_CHANGE = z.object({
 });
 
 /** The rank state every tracked keyword carries (doc 19 section 3.6.4). */
-const TRACKED_KEYWORD_STATE = z.object({
+export const TRACKED_KEYWORD_STATE = z.object({
   current: RANK_CELL,
   change: RANK_CHANGE,
   best_rank: z.number().nullable(),
@@ -443,6 +443,11 @@ export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   groups: z.array(GROUP_REF).nullable().exactOptional(),
   terms: z.array(TERM_REF).nullable().exactOptional(),
   competitors: z.array(COMPETITOR_OVERRIDE).nullable().exactOptional(),
+  // The blocks of `include=sparkline,competitor_ranks,features,aio`: the mocks answer null for each
+  sparkline: z.null().exactOptional(),
+  competitor_ranks: z.null().exactOptional(),
+  features: z.null().exactOptional(),
+  aio: z.null().exactOptional(),
   state: TRACKED_KEYWORD_STATE,
 });
 

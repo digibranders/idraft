@@ -5,7 +5,19 @@
  */
 
 export type ColumnType =
-  'select' | 'keyword' | 'text' | 'count' | 'volume' | 'currency' | 'date' | 'badge' | 'status' | 'actions';
+  | 'select'
+  | 'keyword'
+  | 'text'
+  | 'count'
+  | 'volume'
+  | 'currency'
+  | 'date'
+  | 'badge'
+  | 'status'
+  | 'rank'
+  | 'rankDelta'
+  | 'url'
+  | 'actions';
 
 export interface ColumnTypeSpec {
   width: number;
@@ -29,6 +41,13 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   date: { width: 120, min: 104, max: 160, align: 'right', defaultDesc: true, flex: false },
   badge: { width: 120, min: 88, max: 180, align: 'left', defaultDesc: false, flex: false },
   status: { width: 120, min: 96, max: 180, align: 'left', defaultDesc: false, flex: false },
+  // Best (lowest) rank first, and the biggest improvement first (12-tables.md section 5)
+  rank: { width: 64, min: 56, max: 80, align: 'right', defaultDesc: false, flex: false },
+  // 12-tables.md gives 56 / 48 / 72. The header "Change" with its sort arrow needs 84 px, and the width resolver
+  // shrinks a column toward its minimum when the table is tight, so the minimum is 84 and the usual width 88
+  rankDelta: { width: 88, min: 84, max: 88, align: 'right', defaultDesc: true, flex: false },
+  // The identity place stays with the keyword column: a ranking URL is a plain column here
+  url: { width: 260, min: 180, max: 480, align: 'left', defaultDesc: false, flex: false },
   actions: { width: 40, min: 40, max: 40, align: 'right', defaultDesc: null, flex: false },
 };
 

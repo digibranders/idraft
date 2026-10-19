@@ -77,8 +77,8 @@ const SIGNED_IN: readonly SignedInPage[] = [
   { name: 'rankings-inspector', path: '/digibranders/fynix/seo/rankings', prepare: openFirstKeyword },
   { name: 'rankings-import-review', path: '/digibranders/fynix/seo/rankings/import', prepare: reviewImport },
   // Costs and Runs read the month of the fixed clock, September 2026, which is where the fixture runs are
-  { name: 'costs', path: '/digibranders/costs', as: ADMIN },
-  { name: 'runs', path: '/digibranders/ops/runs?project=fynix', as: ADMIN },
+  { name: 'costs', path: '/digibranders/fynix/costs', as: ADMIN },
+  { name: 'runs', path: '/digibranders/fynix/ops/runs', as: ADMIN },
 ];
 
 /** Waits until nothing on the page will still move: the content is there, the fonts are in, no request is out. */

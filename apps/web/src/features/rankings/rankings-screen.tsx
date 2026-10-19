@@ -91,10 +91,11 @@ export interface RankingsScreenProps extends ProjectScope {
 }
 
 /**
- * SEO > Rankings for step 5 part 1 (20-frontend-specification.md section 5.3, 24-page-templates.md
- * section 9.3): the project's tracked keywords with their Labs metrics, filtered by chips, searched,
- * sorted, and switched between active and archived keywords, with the keyword inspector and Add keywords.
- * Every choice lives in the URL. Rank columns and the metric strip arrive with rank collection.
+ * SEO > Rankings for step 5 (20-frontend-specification.md section 5.3, 24-page-templates.md section 9.3):
+ * the project's tracked keywords with their rank, its change, the URL that ranks and their Labs metrics,
+ * filtered by chips, searched, sorted, and switched between active and archived keywords, with the keyword
+ * inspector and Add keywords. Every choice lives in the URL. The metric strip, the sparkline and the other
+ * rank columns of the template wait for their own plans.
  */
 export function RankingsScreen({
   workspaceId,

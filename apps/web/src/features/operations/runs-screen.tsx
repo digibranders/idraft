@@ -27,7 +27,6 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
@@ -39,7 +38,7 @@ import { formatInteger, formatList } from '@/lib/format';
 import { currentMonth, monthLabel, recentMonths, type MonthKey } from '@/lib/format/month';
 import { formatInspectTarget } from '@/lib/inspector/placement';
 import { can, useCan, useMembership } from '@/lib/permissions';
-import { workspacePath } from '@/lib/routes/paths';
+import { projectPath, workspacePath } from '@/lib/routes/paths';
 import { useMe } from '@/lib/session/use-me';
 import {
   formatColumns,
@@ -64,13 +63,15 @@ export interface RunsProject {
 export interface RunsScreenProps {
   workspaceId: string;
   workspaceSlug: string;
-  /** The projects the member can open: Runs shows one of them at a time. */
-  projects: readonly RunsProject[];
+  /**
+   * The project whose runs are listed: the one the page is in. `null` only on the workspace's own page,
+   * for a member who can open no project, which then says there is nothing to show.
+   */
+  project: RunsProject | null;
 }
 
-/** The URL's keys besides the filters': the project, the month, and the table's state. */
+/** The URL's keys besides the filters': the month, and the table's state. */
 const VIEW_STATE = {
-  project: parseAsString,
   month: parseAsString,
   q: parseAsString.withDefault(''),
   sort: parseAsString,
@@ -83,13 +84,17 @@ const VIEW_STATE = {
 /**
  * Operations > Runs of one project (20-frontend-specification.md section 5.18): the project's collection
  * runs of a month, newest first, with their status, tasks and cost, a run inspector, and Cancel for the
- * runs the member may stop. The workspace-wide list is not in step 5 part 1, so the project is chosen on
- * the page; every choice lives in the URL.
+ * runs the member may stop. The project is the route (`/{workspace}/{project}/ops/runs`), so the page has
+ * no project choice; the month and the filters live in the URL.
  */
 export function RunsScreen(props: RunsScreenProps): ReactNode {
   const t = useTranslations('runs');
   const canRead = useCan('data:read');
-  const [first] = props.projects;
+  const { project } = props;
+  // Inside a project its root opens the first destination the role can open; the workspace's root is the way
+  // back only for the page outside any project
+  const backPath =
+    project === null ? workspacePath(props.workspaceSlug) : projectPath(props.workspaceSlug, project.slug);
   if (!canRead) {
     return (
       <div className={PAGE_CLASS}>
@@ -99,14 +104,12 @@ export function RunsScreen(props: RunsScreenProps): ReactNode {
           title={t('noAccessTitle')}
           reason={t('noAccessReason')}
           headingLevel={2}
-          secondaryAction={
-            <TextLink render={<Link href={workspacePath(props.workspaceSlug)} />}>{t('backToOverview')}</TextLink>
-          }
+          secondaryAction={<TextLink render={<Link href={backPath} />}>{t('backToOverview')}</TextLink>}
         />
       </div>
     );
   }
-  if (first === undefined) {
+  if (project === null) {
     return (
       <div className={PAGE_CLASS}>
         <PageHeader title={t('title')} />
@@ -122,10 +125,10 @@ export function RunsScreen(props: RunsScreenProps): ReactNode {
       </div>
     );
   }
-  return <RunsContent {...props} first={first} />;
+  return <RunsContent workspaceId={props.workspaceId} project={project} />;
 }
 
-function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first: RunsProject }): ReactNode {
+function RunsContent({ workspaceId, project }: Readonly<{ workspaceId: string; project: RunsProject }>): ReactNode {
   const t = useTranslations('runs');
   const common = useTranslations('common');
   const locale = useLocale();
@@ -139,7 +142,6 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
   const months = useMemo(() => recentMonths(now), [now]);
   const thisMonth = currentMonth(now);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
-  const project = projects.find((candidate) => candidate.slug === view.project) ?? first;
   const month: MonthKey = months.find((candidate) => candidate === view.month) ?? thisMonth;
   const label = monthLabel(month, locale);
   const scope = useMemo((): RunsScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
@@ -206,9 +208,9 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['workload']), [view.cols, columnIds]);
   const density = parseDensity(view.density);
 
-  // A choice of project or month leaves the run that was open: it belongs to the other list
-  const choose = (change: { project?: string | null; month?: string | null }): void => {
-    void setView({ ...change, inspect: null, itab: null });
+  // Another month leaves the run that was open: it belongs to the other list
+  const chooseMonth = (next: string | null): void => {
+    void setView({ month: next, inspect: null, itab: null });
   };
 
   // The inspector: opened from a row, stepping in the table's order
@@ -339,22 +341,12 @@ function RunsContent({ workspaceId, projects, first }: RunsScreenProps & { first
       <div className="flex h-page-body min-h-page-body-min flex-col gap-4 px-3 pt-5 pb-5 md:px-4 lg:px-5">
         <PageHeader title={t('title')} meta={meta} />
         <div className="flex flex-wrap items-start gap-3">
-          <div className="w-56">
-            <Select<string>
-              size="sm"
-              aria-label={t('project')}
-              placeholder={t('project')}
-              value={project.slug}
-              onValueChange={(next) => choose({ project: next === first.slug ? null : next })}
-              options={projects.map((candidate) => ({ value: candidate.slug, label: candidate.name }))}
-            />
-          </div>
           <div className="w-48">
             <MonthSelect
               months={months}
               value={month}
               label={t('month')}
-              onValueChange={(next) => choose({ month: next === thisMonth ? null : next })}
+              onValueChange={(next) => chooseMonth(next === thisMonth ? null : next)}
             />
           </div>
           <div className="min-w-0 flex-1">

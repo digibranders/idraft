@@ -61,6 +61,17 @@ export interface DataTableColumn<TRow> {
    * focus and is the cell's description for assistive technology.
    */
   cellTip?: ((row: TRow) => CellTip | undefined) | undefined;
+  /**
+   * A cell's accessible name, for a cell that holds controls: their names would otherwise become part of it,
+   * and the identity cell's name is what is read with every other cell of the row. Not given: the cell is
+   * named by its content, as always.
+   */
+  cellLabel?: ((row: TRow) => string) | undefined;
+  /**
+   * The column's cells hold controls marked with `CELL_CONTROL` (a copy button, a link), which F2 reaches. The
+   * table's hint mentions F2 only when a column shown has them, since on other tables the key does nothing.
+   */
+  hasControls?: boolean | undefined;
   priority: ColumnPriority;
   /** The screen's default width, between the type's minimum and maximum. */
   width?: number | undefined;

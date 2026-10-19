@@ -1,4 +1,5 @@
 import {
+  Activity,
   Compass,
   FileChartColumn,
   FileText,
@@ -10,6 +11,7 @@ import {
   MessageSquareText,
   Plug,
   Quote,
+  Receipt,
   Settings,
   Tag,
   Users,
@@ -19,13 +21,15 @@ import {
 import type { Route } from 'next';
 
 import type { Permission } from '@/lib/permissions/permissions';
-import { projectPath } from '@/lib/routes/paths';
+import { projectPath, withQuery } from '@/lib/routes/paths';
 
 /**
- * The destinations of a project (11-navigation.md section 1.1, 14 items in 3 sections), the one list the
- * sidebar, the breadcrumb and later the command palette read. A destination whose screen is not built yet
- * is `planned`: it is absent from navigation and its route is the 404 page (20-frontend-specification.md
- * section 3.10, where phase gating is this registry, not a flag list from the API).
+ * The destinations of a project (11-navigation.md section 1.1, 16 items in 3 sections), the one list the
+ * sidebar, the breadcrumb and later the command palette read. Runs and Costs are in it too: Runs is the
+ * project's own, and Costs shows the whole workspace's spend but is opened from the project, so the sidebar
+ * stays on screen. A destination whose screen is not built yet is `planned`: it is absent from navigation
+ * and its route is the 404 page (20-frontend-specification.md section 3.10, where phase gating is this
+ * registry, not a flag list from the API).
  */
 export type NavKey =
   | 'overview'
@@ -41,6 +45,8 @@ export type NavKey =
   | 'discover'
   | 'reports'
   | 'integrations'
+  | 'runs'
+  | 'costs'
   | 'settings';
 
 /** The labelled groups inside the first section. A group label is text, never a link. */
@@ -58,6 +64,12 @@ export interface NavDestination {
   /** What the role needs to open it; `null` for every member. */
   permission: Permission | null;
   status: 'live' | 'planned';
+  /**
+   * Another project opens on this destination with the page's query (the month, the tab, the filters). Only
+   * for a page whose query means the same in any project; Rankings' filters belong to one project, so it is
+   * not carried.
+   */
+  carriesQuery?: boolean;
 }
 
 export const NAVIGATION: readonly NavDestination[] = [
@@ -178,6 +190,26 @@ export const NAVIGATION: readonly NavDestination[] = [
     permission: 'data:read',
     status: 'planned',
   },
+  {
+    key: 'runs',
+    path: '/ops/runs',
+    icon: Activity,
+    section: 3,
+    group: null,
+    permission: 'data:read',
+    status: 'live',
+    carriesQuery: true,
+  },
+  {
+    key: 'costs',
+    path: '/costs',
+    icon: Receipt,
+    section: 3,
+    group: null,
+    permission: 'costs:read',
+    status: 'live',
+    carriesQuery: true,
+  },
   // Your account is in Settings, and every member has one
   { key: 'settings', path: '/settings', icon: Settings, section: 3, group: null, permission: null, status: 'live' },
 ];
@@ -219,6 +251,22 @@ export function visibleNavigation(registry: readonly NavDestination[], permissio
 /** Where a destination is for this project. */
 export const navHref = (item: NavDestination, workspace: string, project: string): Route =>
   projectPath(workspace, project, item.path);
+
+/** The keys of a page's query that name something of one project: an open inspector does not follow the person. */
+const PROJECT_BOUND_KEYS: readonly string[] = ['inspect', 'itab'];
+
+/**
+ * Where choosing another project goes from `item`: the same destination in `project`, with the query of the
+ * page (`search`, as `location.search` reads, with or without its `?`) when the destination carries it,
+ * minus the keys that belong to one project.
+ */
+export function switchHref(item: NavDestination, workspace: string, project: string, search: string): Route {
+  const href = navHref(item, workspace, project);
+  if (item.carriesQuery !== true) return href;
+  const query = new URLSearchParams(search);
+  for (const key of PROJECT_BOUND_KEYS) query.delete(key);
+  return withQuery(href, query.toString());
+}
 
 /**
  * The destination a path belongs to: the one whose route is the path or an ancestor of it, the longest

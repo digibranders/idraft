@@ -11,6 +11,10 @@
     "optional": "(optional)",
     "notifications": "Notifications",
     "clear": "Clear",
+    "copy": {
+      "copied": "Copied",
+      "failed": "Could not copy. Select the text and copy it yourself."
+    },
     "multiSelect": {
       "chipsHint": "{count, plural, one {# chosen. From the start of the field, press Left Arrow to reach it.} other {# chosen. From the start of the field, press Left Arrow to reach them.}}",
       "chipHint": "Press Backspace or Delete to remove"
@@ -287,18 +291,15 @@
       "discover": "Discover",
       "reports": "Reports",
       "integrations": "Integrations",
+      "runs": "Runs",
+      "costs": "Costs",
       "settings": "Settings"
     },
     "groups": {
       "seo": "SEO",
       "ai": "AI Visibility"
     },
-    "inGroup": "{group}: {item}",
-    "workspaceLinks": {
-      "label": "Workspace",
-      "costs": "Costs",
-      "runs": "Runs"
-    }
+    "inGroup": "{group}: {item}"
   },
   "status": {
     "error": {
@@ -560,14 +561,14 @@
         "providerMode": "Provider mode",
         "providerModes": {
           "standardQueue": "Standard queue",
-          "priorityQueue": "Priority queue",
-          "live": "Live"
+          "priorityQueue": "Priority queue"
         },
         "providerModeHints": {
           "standardQueue": "The provider's regular queue",
-          "priorityQueue": "Faster, and it costs more",
-          "live": "Answered at once, and it costs the most"
+          "priorityQueue": "Faster, and it costs more"
         },
+        "providerModeRetired": "Live (no longer available)",
+        "providerModeRetiredHint": "Rank schedules use a queue now. Choose one to change it.",
         "selector": "Keywords to collect",
         "selectorModes": {
           "stale": "Keywords with out-of-date metrics",
@@ -1369,6 +1370,7 @@
   },
   "dataTable": {
     "hint": "Use the arrow keys to move between cells. Enter opens the row and Space selects it. On a column header, Enter sorts and Alt plus Down Arrow opens the column options.",
+    "hintControls": "Use the arrow keys to move between cells. Enter opens the row and Space selects it. F2 moves into the buttons and links of a cell, Tab steps between them and Escape comes back to the cell. On a column header, Enter sorts and Alt plus Down Arrow opens the column options.",
     "count": "{count, plural, one {# {nounOne}} other {# {nounOther}}}",
     "search": "Search in table",
     "toolbar": "{caption} table actions",
@@ -1467,7 +1469,8 @@
   "costs": {
     "pageTitle": "Costs",
     "title": "Costs",
-    "meta": "{month}. Provider days in UTC. Up to an hour behind.",
+    "metaAll": "All projects in {workspace}, {month}. Provider days in UTC. Up to an hour behind.",
+    "metaProject": "{project}, {month}. Provider days in UTC. Up to an hour behind.",
     "month": "Month",
     "filters": {
       "project": "Project",
@@ -1544,7 +1547,6 @@
     "pageTitle": "Runs",
     "title": "Runs",
     "meta": "{project}, {month}. Times in {timeZone}.",
-    "project": "Project",
     "month": "Month",
     "filters": {
       "workload": "Workload",
@@ -1670,6 +1672,7 @@
       "unarchive": "Unarchive",
       "delete": "Delete",
       "failed": "The change was not made. Try again.",
+      "changed": "The keywords that match changed since you chose them: {count} now. Choose again.",
       "partial": "Part of the change was made before it stopped. Check the keywords, then try again for the rest.",
       "discardDescription": "Nothing has changed yet; your choices here will be lost.",
       "tooMany": "The filters match more than {limit} keywords. Narrow them, or choose the keywords.",
@@ -2137,6 +2140,8 @@
     "columns": {
       "keyword": "Keyword",
       "keywordDetail": "{location} · {device} · {engine} · {language}",
+      "copyKeyword": "Copy keyword {keyword}",
+      "keywordCopied": "Keyword copied",
       "rowName": "{keyword}, {device}, {location}",
       "rowNameLanguage": "{keyword}, {device}, {location}, {language}",
       "desktop": "Desktop",
@@ -2168,6 +2173,53 @@
       "pendingTooltip": "Metrics arrive within minutes of adding a keyword",
       "noData": "No data",
       "noDataTooltip": "DataForSEO Labs has no data for this keyword at this location"
+    },
+    "rank": {
+      "rank": "Rank",
+      "rankTooltip": "Organic rank at the latest check. A keyword beyond the depth that was checked shows the depth, such as >20.",
+      "change": "Change",
+      "changeTooltip": "How the rank moved since the previous check. Arrows show the direction. Color marks a move of more than 2 places, and New and Lost always.",
+      "rankingUrl": "Ranking URL",
+      "openUrl": "Open {path} in a new tab",
+      "copyUrl": "Copy ranking URL",
+      "urlCopied": "Ranking URL copied",
+      "bestRank": "Best rank",
+      "bestRankTooltip": "The best organic rank in the checks kept.",
+      "updated": "Updated",
+      "pending": "Pending",
+      "pendingTooltip": "The first check has not run yet.",
+      "failed": "Check failed",
+      "failedTooltip": "The last check failed. It will be tried again.",
+      "stale": "Stale",
+      "staleTooltip": "No recent successful check. The rank shown is from the last one that worked.",
+      "notRanking": "Not ranking",
+      "unavailable": "n/a",
+      "rankTip": "Rank {rank}, {date}, depth {depth}",
+      "beyondTip": "Not in the top {depth}, {date}",
+      "previousRank": "Previous rank {rank}.",
+      "lastGood": "Last successful check: {date}.",
+      "checked": "Checked {date}.",
+      "fromTo": "From {from} to {to}",
+      "new": "New",
+      "lost": "Lost",
+      "moreUrls": "{count, plural, one {and 1 more of your URLs ranks} other {and # more of your URLs rank}}",
+      "changeTip": {
+        "improved": "{count, plural, one {Improved # position} other {Improved # positions}}",
+        "declined": "{count, plural, one {Declined # position} other {Declined # positions}}"
+      },
+      "speech": {
+        "beyond": "not in top {depth}",
+        "stale": "stale",
+        "lastCheckFailed": "last check failed",
+        "improved": "{count, plural, one {improved # position} other {improved # positions}}",
+        "declined": "{count, plural, one {declined # position} other {declined # positions}}",
+        "noChange": "no change",
+        "entered": "entered the tracked depth",
+        "dropped": "dropped out of the tracked depth",
+        "firstCheck": "first check",
+        "stillBeyond": "still beyond tracked depth",
+        "withinDepth": "no change within the depth checked"
+      }
     },
     "filters": {
       "group": "Group",
@@ -2209,7 +2261,27 @@
       },
       "depth": "Depth profile",
       "volume": "Volume",
-      "difficulty": "KD"
+      "difficulty": "KD",
+      "rank": "Rank",
+      "rankBuckets": {
+        "top3": "Top 3",
+        "top10": "4 to 10",
+        "top20": "11 to 20",
+        "top50": "21 to 50",
+        "top100": "51 to 100",
+        "beyond": "Beyond depth"
+      },
+      "chg": "Change",
+      "changes": {
+        "improved": "Improved",
+        "declined": "Declined",
+        "entered": "Entered",
+        "lost": "Lost"
+      },
+      "stale": "Freshness",
+      "staleStates": {
+        "stale": "Stale"
+      }
     },
     "inspector": {
       "type": "Keyword",

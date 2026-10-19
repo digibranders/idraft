@@ -57,8 +57,9 @@ describe('SettingsFrame', () => {
       '/digibranders/fynix/settings/schedules',
       '/digibranders/fynix/settings/workspace',
       '/digibranders/fynix/settings/members',
-      '/digibranders/costs',
-      '/digibranders/ops/runs',
+      // Inside a project they open in that project's shell
+      '/digibranders/fynix/costs',
+      '/digibranders/fynix/ops/runs',
     ]);
     expect(within(nav).getByRole('link', { name: 'Members and roles' })).toHaveAttribute('aria-current', 'page');
     // Costs and Operations are pages of their own, never the section on screen
@@ -85,6 +86,7 @@ describe('SettingsFrame', () => {
       '/digibranders/settings/preferences',
       '/digibranders/settings/workspace',
       '/digibranders/settings/members',
+      // No project is open: the workspace's own routes, which pick a project when the member can open one
       '/digibranders/costs',
       '/digibranders/ops/runs',
     ]);

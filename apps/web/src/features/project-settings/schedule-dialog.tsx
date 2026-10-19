@@ -15,6 +15,7 @@ import {
   errorMessageKey,
   errorTarget,
   isClock,
+  isRetiredProviderMode,
   KEYWORD_PRIORITIES,
   MAX_NAME_LENGTH,
   MAX_STALE_DAYS,
@@ -31,6 +32,7 @@ import {
   WEEKDAYS,
   WINDOW_HOURS,
   wholeNumber,
+  WORKLOAD_PROVIDER_MODES,
   WORKLOAD_SELECTOR_MODES,
   type EditableSchedule,
   type ScheduleValues,
@@ -48,7 +50,7 @@ import { Input } from '@/components/ui/input';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { RadioGroup } from '@/components/ui/radio-group';
 import { ReadOnlyField, ReadOnlyList } from '@/components/ui/read-only-field';
-import { Select } from '@/components/ui/select';
+import { Select, type SelectOption } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import type { Schedule, ValidationItem } from '@/lib/api/types';
@@ -108,8 +110,8 @@ export interface ScheduleDialogProps {
 
 /**
  * Create or change a schedule (20 section 5.19.8, 16 section 4): its name, workload (fixed once made),
- * cadence with its day, time and window in a time zone, priority, provider mode (rank schedules only) and the
- * selector of the keywords it collects. A change sends only what differs, since any change of the rule moves
+ * cadence with its day, time and window in a time zone, priority, provider mode (rank schedules only, a queue:
+ * `live` is not available for a schedule) and the selector of the keywords it collects. A change sends only what differs, since any change of the rule moves
  * the next run.
  */
 export function ScheduleDialog({ schedule, ...props }: ScheduleDialogProps): ReactNode {
@@ -227,6 +229,25 @@ function ScheduleForm({
     label: t(`selectorModes.${mode}`),
     description: t(`selectorModeHints.${mode}`),
   }));
+
+  // A rank schedule that still holds the retired live mode shows it, disabled, so the field does not read as another mode
+  const providerOptions: SelectOption<ScheduleValues['provider_mode']>[] = [
+    ...(editing !== null && isRetiredProviderMode(editing)
+      ? [
+          {
+            value: editing.provider_mode,
+            label: t('providerModeRetired'),
+            description: t('providerModeRetiredHint'),
+            disabled: true,
+          },
+        ]
+      : []),
+    ...WORKLOAD_PROVIDER_MODES[workload].map((value) => ({
+      value,
+      label: t(`providerModes.${PROVIDER_MODE_KEYS[value]}`),
+      description: t(`providerModeHints.${PROVIDER_MODE_KEYS[value]}`),
+    })),
+  ];
 
   const finish = async (saved: Schedule, title: string): Promise<void> => {
     await refreshSchedules(queryClient, scope);
@@ -502,11 +523,7 @@ function ScheduleForm({
                     value={field.value}
                     onValueChange={field.onChange}
                     placeholder={t('providerMode')}
-                    options={PROVIDER_MODES.map((value) => ({
-                      value,
-                      label: t(`providerModes.${PROVIDER_MODE_KEYS[value]}`),
-                      description: t(`providerModeHints.${PROVIDER_MODE_KEYS[value]}`),
-                    }))}
+                    options={providerOptions}
                   />
                 )}
               />

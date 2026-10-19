@@ -5,7 +5,15 @@ import { at, bodyError, enumError, extraMembers, isOneOf, isRecord, queryError, 
 import { stateTime } from '../entities-codec';
 import { MOCK_LOCATIONS } from '../entity-fixtures';
 import { MOCK_WORKSPACE } from '../fixtures';
-import { canonicalUrl, decimalOfCents, groupAndBelow, readingOf, type Include } from '../factories/keyword';
+import {
+  canonicalUrl,
+  decimalOfCents,
+  groupAndBelow,
+  readingOf,
+  stateOf,
+  type Include,
+  type RankContext,
+} from '../factories/keyword';
 import {
   DEPTH_PROFILES,
   FREQUENCIES,
@@ -27,9 +35,11 @@ import {
   type StoredKeyword,
   type StoredTracked,
 } from '../keywords-state';
+import type { TrackedKeywordState } from '../rank-state';
 import { invalid, problem } from '../respond';
 import { projectList } from '../workspace-state';
 import type { Permission } from '@/lib/permissions/permissions';
+import type { components } from '@/lib/api/schema';
 import type { Problem, ValidationItem } from '@/lib/api/types';
 import {
   cleanKeyword,
@@ -39,6 +49,8 @@ import {
   type KeywordTextProblem,
 } from '@/lib/keywords/keyword-text';
 import { isPrintable } from '@/lib/keywords/query-text';
+
+type Schemas = components['schemas'];
 
 /** What the API says for each problem of a keyword's text. */
 export const KEYWORD_TEXT_MESSAGES: Readonly<Record<KeywordTextProblem, string>> = {
@@ -121,6 +133,15 @@ export const workspaceKeyword = (
 
 export const keywordsOfWorkspace = (world: KeywordWorld, workspaceId: string): StoredKeyword[] =>
   world.keywords.filter((row) => workspaceOfKeyword(row) === workspaceId);
+
+/**
+ * What the rank state of the project's keywords depends on in one request. The caller reads the mock clock
+ * (`Date.now()`, which Playwright's `page.clock` and Vitest's fake timers move) once and passes the context to
+ * the filter, the sort and the rows, so they all see the same moment.
+ */
+export function rankContext(caller: KeywordProjectCaller, now: number = Date.now()): RankContext {
+  return { now, domain: caller.project.primary_domain?.host ?? null };
+}
 
 /** The tracked keywords of a project that were not deleted. */
 export const liveTrackedOf = (world: KeywordWorld, projectId: string): StoredTracked[] =>
@@ -549,7 +570,40 @@ export interface TrackedFilter {
   depthProfileIn: DepthProfile[];
   searchVolumeGte: number | null;
   keywordDifficultyLte: number | null;
+  /** The filters on what the latest check says (backend `_rank_conditions`); they combine with AND. */
+  rankLte: number | null;
+  rankGte: number | null;
+  rankIsNull: boolean | null;
+  rankChangeLabelIn: RankChangeLabel[];
+  improved: boolean | null;
+  declined: boolean | null;
+  featurePresent: string | null;
+  featureOwned: string | null;
+  aioStateIn: AioStateName[];
+  rankingUrlId: number | null;
+  targetUrlMatch: boolean | null;
+  isStale: boolean | null;
 }
+
+type RankChangeLabel = Schemas['RankChange']['label'];
+type AioStateName = Schemas['AioStateInfo']['state'];
+const RANK_CHANGE_LABELS = [
+  'numeric',
+  'new',
+  'lost',
+  'unchanged_beyond',
+  'consistent_beyond',
+  'first_check',
+] as const satisfies readonly RankChangeLabel[];
+const AIO_STATES = [
+  'absent',
+  'present_not_cited',
+  'present_cited',
+  'not_loaded',
+  'unknown',
+] as const satisfies readonly AioStateName[];
+/** The deepest rank a check can hold. */
+const MAX_RANK = 700;
 
 export const FILTER_NAMES = [
   'q',
@@ -568,6 +622,18 @@ export const FILTER_NAMES = [
   'depth_profile_in',
   'search_volume_gte',
   'keyword_difficulty_lte',
+  'rank_lte',
+  'rank_gte',
+  'rank_is_null',
+  'rank_change_label_in',
+  'improved',
+  'declined',
+  'feature_present',
+  'feature_owned',
+  'aio_state',
+  'ranking_url_id',
+  'target_url_match',
+  'is_stale',
 ] as const;
 
 /**
@@ -669,13 +735,16 @@ function readFilter(source: FilterSource, defaultActive: boolean | null): Tracke
   if (group !== null && uuidError(group, 'group').length > 0) {
     errors.push(source.error('group', 'uuid_parsing', 'Input should be a valid UUID'));
   }
-  const activeRaw = source.text('is_active');
-  let isActive: boolean | null = defaultActive;
-  if (activeRaw !== undefined && activeRaw !== null) {
-    if (activeRaw === true || activeRaw === 'true') isActive = true;
-    else if (activeRaw === false || activeRaw === 'false') isActive = false;
-    else errors.push(source.error('is_active', 'bool_parsing', 'Input should be a valid boolean'));
-  }
+  /** A boolean: `true` or `false` (in a query also as text); `null` when not given. */
+  const boolean = (name: string): boolean | null => {
+    const raw = source.text(name);
+    if (raw === undefined || raw === null) return null;
+    if (raw === true || raw === 'true') return true;
+    if (raw === false || raw === 'false') return false;
+    errors.push(source.error(name, 'bool_parsing', 'Input should be a valid boolean'));
+    return null;
+  };
+  const isActive = boolean('is_active') ?? defaultActive;
   const filter: TrackedFilter = {
     // `QueryText`: 1 to 200 printable characters
     q: text('q', { printable: true }),
@@ -694,6 +763,18 @@ function readFilter(source: FilterSource, defaultActive: boolean | null): Tracke
     depthProfileIn: manyOf('depth_profile_in', DEPTH_PROFILES),
     searchVolumeGte: integer('search_volume_gte', 0),
     keywordDifficultyLte: integer('keyword_difficulty_lte', 0, 100),
+    rankLte: integer('rank_lte', 1, MAX_RANK),
+    rankGte: integer('rank_gte', 1, MAX_RANK),
+    rankIsNull: boolean('rank_is_null'),
+    rankChangeLabelIn: manyOf('rank_change_label_in', RANK_CHANGE_LABELS),
+    improved: boolean('improved'),
+    declined: boolean('declined'),
+    featurePresent: text('feature_present', { max: 100 }),
+    featureOwned: text('feature_owned', { max: 100 }),
+    aioStateIn: manyOf('aio_state', AIO_STATES),
+    rankingUrlId: integer('ranking_url_id', 1),
+    targetUrlMatch: boolean('target_url_match'),
+    isStale: boolean('is_stale'),
   };
   return errors.length > 0 ? errors : filter;
 }
@@ -754,9 +835,76 @@ function termAndBelow(caller: KeywordProjectCaller | KeywordWorkspaceCaller, ter
   return found;
 }
 
-/** The project's live tracked keywords the filter keeps. */
-export function filteredRows(caller: KeywordProjectCaller, filter: TrackedFilter): StoredTracked[] {
+/** The rank state of a tracked keyword, as of the moment of one request. */
+export type RankReader = (row: StoredTracked) => TrackedKeywordState;
+
+/**
+ * Reads the rank states of one request: the filter, the sort and the rows ask for the same keyword several times,
+ * and a state is a walk through the keyword's history, so each is made once.
+ */
+export function rankReader(rank: RankContext): RankReader {
+  const made = new Map<string, TrackedKeywordState>();
+  return (row) => {
+    const known = made.get(row.tracked_keyword_id);
+    if (known !== undefined) return known;
+    const state = stateOf(row, rank);
+    made.set(row.tracked_keyword_id, state);
+    return state;
+  };
+}
+
+const rankFilterGiven = (filter: TrackedFilter): boolean =>
+  filter.rankLte !== null ||
+  filter.rankGte !== null ||
+  filter.rankIsNull !== null ||
+  filter.rankChangeLabelIn.length > 0 ||
+  filter.improved !== null ||
+  filter.declined !== null ||
+  filter.featurePresent !== null ||
+  filter.featureOwned !== null ||
+  filter.aioStateIn.length > 0 ||
+  filter.rankingUrlId !== null ||
+  filter.targetUrlMatch !== null ||
+  filter.isStale !== null;
+
+/**
+ * Whether a keyword's rank state passes the rank filters, as `api/keywords/filters.py _rank_conditions` does. A
+ * keyword never checked has no rank, no features and no URL, so a filter on those does not match it; it has the
+ * change label `first_check`, the AI Overview `unknown`, no change (so it did not improve and did not decline) and
+ * is not stale. `rank_is_null=true` is "checked and beyond the depth", not "has no rank".
+ */
+function passesRankFilters(state: TrackedKeywordState, filter: TrackedFilter): boolean {
+  const { rank } = state.current;
+  const change = state.change.value ?? 0;
+  if (filter.rankLte !== null && (rank === null || rank > filter.rankLte)) return false;
+  if (filter.rankGte !== null && (rank === null || rank < filter.rankGte)) return false;
+  if (filter.rankIsNull === true && (state.last_observed_at === null || rank !== null)) return false;
+  if (filter.rankIsNull === false && rank === null) return false;
+  if (filter.rankChangeLabelIn.length > 0 && !filter.rankChangeLabelIn.includes(state.change.label)) return false;
+  // `false` is everything else: a keyword with no numeric change did not improve either
+  if (filter.improved !== null && filter.improved !== change > 0) return false;
+  if (filter.declined !== null && filter.declined !== change < 0) return false;
+  if (filter.featurePresent !== null && !state.feature_types_present.includes(filter.featurePresent)) return false;
+  if (filter.featureOwned !== null && !state.owned_feature_types.includes(filter.featureOwned)) return false;
+  if (filter.aioStateIn.length > 0 && !filter.aioStateIn.includes(state.aio.state)) return false;
+  if (filter.rankingUrlId !== null && Number(state.current.url?.url_id) !== filter.rankingUrlId) return false;
+  // Unknown (no target, or not ranking) is neither true nor false
+  if (filter.targetUrlMatch !== null && state.target_url_match !== filter.targetUrlMatch) return false;
+  if (filter.isStale !== null && state.is_stale !== filter.isStale) return false;
+  return true;
+}
+
+/**
+ * The project's live tracked keywords the filter keeps. `ranks` reads the rank states at the moment of the
+ * request; left out, the mock clock is read once here.
+ */
+export function filteredRows(
+  caller: KeywordProjectCaller,
+  filter: TrackedFilter,
+  ranks: RankReader = rankReader(rankContext(caller)),
+): StoredTracked[] {
   const world = caller.keywords;
+  const ranked = rankFilterGiven(filter);
   const keywordText = new Map(world.keywords.map((row) => [row.keyword_id, normalizeKeyword(row.text)]));
   const needle = filter.q === null ? null : normalizeKeyword(filter.q);
   const linksOf = (id: string): Set<string> =>
@@ -803,7 +951,7 @@ export function filteredRows(caller: KeywordProjectCaller, filter: TrackedFilter
       if (filter.searchVolumeGte !== null && reading.volume < filter.searchVolumeGte) return false;
       if (filter.keywordDifficultyLte !== null && reading.difficulty > filter.keywordDifficultyLte) return false;
     }
-    return true;
+    return !ranked || passesRankFilters(ranks(row), filter);
   });
 }
 
@@ -816,6 +964,11 @@ export const SORT_KEYS = [
   'cpc_usd',
   'priority',
   'created_at',
+  // The rank state: a keyword beyond the depth, or never checked, sorts last both ways
+  'current_rank',
+  'rank_change',
+  'best_rank',
+  'last_observed_at',
 ] as const;
 type SortKey = (typeof SORT_KEYS)[number];
 /** The sort when none is asked for. */
@@ -834,17 +987,30 @@ export function parseSort(raw: string | null): { key: SortKey; desc: boolean }[]
   return parsed.flatMap((part) => (isOneOf(part.key, SORT_KEYS) ? [{ key: part.key, desc: part.desc }] : []));
 }
 
-/** Rows in the asked order; a keyword without the metric sorts last both ways, the row id breaks ties. */
+/**
+ * Rows in the asked order; a keyword without the metric or the rank value sorts last both ways, the next key
+ * orders those that compare equal, and the row id breaks the last ties.
+ */
 export function sortRows(
   world: KeywordWorld,
   rows: readonly StoredTracked[],
   sort: readonly { key: SortKey; desc: boolean }[],
+  ranks: RankReader,
 ): StoredTracked[] {
   const texts = new Map(world.keywords.map((row) => [row.keyword_id, normalizeKeyword(row.text)]));
   const value = (row: StoredTracked, key: SortKey): string | number | null => {
     if (key === 'keyword') return texts.get(row.keyword_id) ?? '';
     if (key === 'priority') return row.priority;
     if (key === 'created_at') return row.created_at;
+    // The rank is set only when ranked and the change only when numeric, so a keyword beyond the depth, one
+    // that was never checked and a first check, `new` or `lost` have no value
+    if (key === 'current_rank') return ranks(row).current.rank;
+    if (key === 'rank_change') return ranks(row).change.value;
+    if (key === 'best_rank') return ranks(row).best_rank;
+    if (key === 'last_observed_at') {
+      const observed = ranks(row).last_observed_at;
+      return observed === null ? null : Date.parse(observed);
+    }
     const reading = readingOf(world, row.keyword_id, row.location_id, row.language_code)?.reading;
     if (reading === undefined) return null;
     if (key === 'search_volume') return reading.volume;
@@ -856,7 +1022,7 @@ export function sortRows(
       const left = value(a, key);
       const right = value(b, key);
       if (left === right) continue;
-      // Only a metric can be missing; it goes last whichever way the sort runs
+      // Only a metric or a rank value can be missing; it goes last whichever way the sort runs
       if (left === null || right === null) return left === null ? 1 : -1;
       const order = left < right ? -1 : 1;
       return desc ? -order : order;
@@ -868,7 +1034,18 @@ export function sortRows(
 /** `include`: a comma list or repeated parameters. */
 export function parseInclude(url: URL): Set<Include> | ValidationItem {
   const values = url.searchParams.getAll('include').flatMap((value) => value.split(','));
-  const allowed = ['metrics', 'groups', 'terms', 'competitors'] as const;
+  // The last four are blocks of the rank columns that the real API fills; this UI does not ask for them yet,
+  // so the mocks accept them and answer null (the row views)
+  const allowed = [
+    'metrics',
+    'groups',
+    'terms',
+    'competitors',
+    'sparkline',
+    'competitor_ranks',
+    'features',
+    'aio',
+  ] as const;
   const bad = values.filter((value) => !isOneOf(value, allowed));
   if (bad.length > 0) return queryError('include', 'enum', `Allowed: ${allowed.join(', ')}.`);
   return new Set(values.filter((value): value is Include => isOneOf(value, allowed)));

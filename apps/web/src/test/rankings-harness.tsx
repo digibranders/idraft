@@ -4,6 +4,7 @@ import { Suspense, type ReactElement } from 'react';
 import { expect, vi } from 'vitest';
 import { z } from 'zod';
 
+import messages from '../../messages/en.json';
 import { RankingsScreen, type RankingsScreenProps } from '@/features/rankings/rankings-screen';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
@@ -139,7 +140,14 @@ export function answerTrackedAsMany({
   server.use(
     http.get(mswPath(TRACKED), async ({ request }) => {
       const url = new URL(request.url);
-      if (url.searchParams.get('limit') === '1') return undefined;
+      if (url.searchParams.get('limit') === '1') {
+        // The count of the project's keywords (no filter) is the fixtures'; the count a bulk action reads
+        // just before it acts (the list's filters, one row) is the total these tests give the list
+        const filtered = [...url.searchParams.keys()].some((key) => key.startsWith('filter['));
+        return filtered
+          ? HttpResponse.json({ data: [], page: { limit: 1, next_cursor: null, has_more: total > 1, total } })
+          : undefined;
+      }
       asked.push(new URLSearchParams(url.searchParams));
       const cursor = url.searchParams.get('cursor');
       if (cursor !== null && slow()) await delay(300);
@@ -171,6 +179,60 @@ export function answerTrackedAsMany({
     }),
   );
   return asked;
+}
+
+/**
+ * The cells that say Pending because the keyword's Labs metrics have not come (the Volume, KD and CPC
+ * columns), not the Rank, Change and URL cells that say it because the first check has not run: the two
+ * are told apart by the description each cell carries.
+ */
+export function pendingMetricCells(grid: HTMLElement): HTMLElement[] {
+  return pendingCells(grid, messages.rankings.columns.pendingTooltip);
+}
+
+/** The cells that say Pending because the keyword's first rank check has not run (Rank, Change, URL). */
+export function pendingRankCells(grid: HTMLElement): HTMLElement[] {
+  return pendingCells(grid, messages.rankings.rank.pendingTooltip);
+}
+
+function pendingCells(grid: HTMLElement, tooltip: string): HTMLElement[] {
+  return within(grid)
+    .queryAllByRole('gridcell')
+    .filter((cell) => {
+      if (cell.textContent !== 'Pending') return false;
+      const described = cell.getAttribute('aria-describedby')?.split(' ') ?? [];
+      return described.some((id) => document.getElementById(id)?.textContent === tooltip);
+    });
+}
+
+/** The place of a column among the cells of a row, found by its header. */
+export function columnIndex(grid: HTMLElement, name: RegExp): number {
+  const header = within(grid).getByRole('columnheader', { name });
+  if (!(header instanceof HTMLTableCellElement)) throw new Error(`The header ${String(name)} is not a table cell`);
+  return header.cellIndex;
+}
+
+/** The cells of a column, row by row in the order of the grid, found by the column's header. */
+export function columnTexts(grid: HTMLElement, name: RegExp): string[] {
+  const index = columnIndex(grid, name);
+  return within(grid)
+    .getAllByRole('rowheader')
+    .map((header) => header.closest('tr')?.cells[index]?.textContent ?? '');
+}
+
+/** What a sighted person reads in a node: the text without the words that are only for a screen reader. */
+function visibleText(node: Node): string {
+  if (node instanceof Element && node.classList.contains('sr-only')) return '';
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+  return [...node.childNodes].map(visibleText).join('');
+}
+
+/** `columnTexts` without the hidden text: a rank cell reads "12" even when a screen reader also hears "stale". */
+export function visibleColumnTexts(grid: HTMLElement, name: RegExp): string[] {
+  const index = columnIndex(grid, name);
+  return within(grid)
+    .getAllByRole('rowheader')
+    .map((header) => visibleText(header.closest('tr')?.cells[index] ?? document.createTextNode('')));
 }
 
 /** The keywords as their cells show them; the cells' tooltips hold the location and device too. */

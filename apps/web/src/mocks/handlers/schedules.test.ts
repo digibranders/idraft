@@ -137,6 +137,52 @@ describe('schedules', () => {
     ).toMatchObject({ status: 403, code: 'forbidden' });
   });
 
+  it('refuses the live provider mode for rankings, on a create and on a change, and takes the two queues', async () => {
+    const editor = mockBrowser('editor');
+    const rank = {
+      name: 'Ranks',
+      workload: 'seo_rank',
+      cadence: 'daily',
+      window_start_local: '02:00',
+      timezone: 'UTC',
+      selector: { all: true },
+    };
+    expect(fieldCodes(await editor.call('POST', S, { ...rank, provider_mode: 'live' }))).toEqual([
+      'provider_mode:provider_mode_not_supported',
+    ]);
+    // The provider mode is checked before the selector, and after the workload and the cadence
+    expect(fieldCodes(await editor.call('POST', S, { ...rank, provider_mode: 'live', selector: {} }))).toEqual([
+      'provider_mode:provider_mode_not_supported',
+    ]);
+    expect(fieldCodes(await editor.call('POST', S, { ...rank, provider_mode: 'live', cadence: 'cron' }))).toEqual([
+      'cadence:cadence_not_supported',
+    ]);
+    for (const mode of ['standard_queue', 'priority_queue']) {
+      const made = await editor.call('POST', S, { ...rank, provider_mode: mode });
+      expect(made.status).toBe(201);
+      expect(dataOf(made, SCHEDULE)).toMatchObject({ provider_mode: mode });
+    }
+    const ranks = `${S}/${MOCK_SCHEDULE_IDS.dailyRanks}`;
+    expect(fieldCodes(await editor.call('PATCH', ranks, { provider_mode: 'live' }))).toEqual([
+      'provider_mode:provider_mode_not_supported',
+    ]);
+    expect(fieldCodes(await editor.call('PATCH', ranks, { provider_mode: 'live', selector: {} }))).toEqual([
+      'provider_mode:provider_mode_not_supported',
+    ]);
+    const changed = await editor.call('PATCH', ranks, { provider_mode: 'priority_queue' });
+    expect(dataOf(changed, SCHEDULE)).toMatchObject({ provider_mode: 'priority_queue' });
+    // Keyword metrics are called live and keep it, named or left out
+    const metrics = { ...rank, workload: 'keyword_metrics', selector: { stale_days: 25 } };
+    expect(dataOf(await editor.call('POST', S, { ...metrics, provider_mode: 'live' }), SCHEDULE)).toMatchObject({
+      provider_mode: 'live',
+    });
+    expect(
+      fieldCodes(
+        await editor.call('PATCH', `${S}/${MOCK_SCHEDULE_IDS.keywordMetrics}`, { provider_mode: 'priority_queue' }),
+      ),
+    ).toEqual(['provider_mode:provider_mode_not_supported']);
+  });
+
   it('takes the workload’s own provider mode when none is given, and a window start in hours and minutes', async () => {
     const editor = mockBrowser('editor');
     const base = { name: 'Defaults', cadence: 'daily', timezone: 'UTC' };

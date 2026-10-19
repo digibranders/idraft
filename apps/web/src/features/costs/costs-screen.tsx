@@ -31,13 +31,20 @@ import { enumValuesOf } from '@/lib/filters/filter-values';
 import { EMPTY_VALUE, formatCurrency, formatDateRange, formatInteger, formatList, formatPercent } from '@/lib/format';
 import { currentMonth, monthDays, monthLabel, recentMonths } from '@/lib/format/month';
 import { useCan } from '@/lib/permissions';
-import { workspacePath } from '@/lib/routes/paths';
+import { projectPath, workspacePath } from '@/lib/routes/paths';
 import { useWorkloadName } from '@/lib/workloads/use-workload-name';
 import { isCostWorkload } from '@/lib/workloads/workloads';
 
 export interface CostsScreenProps {
   workspaceId: string;
   workspaceSlug: string;
+  /** The workspace's name, which the header gives as the scope of the figures while no project is chosen. */
+  workspaceName: string;
+  /**
+   * The slug of the project whose shell the page is in, for the way back from the no-access state; `null` on
+   * the workspace's own page, which only a member who can open no project is left on.
+   */
+  projectSlug: string | null;
   /**
    * The projects the member can open, archived ones included (the cost routes count what they spent): the
    * names of the cost rows and the options of the Project filter.
@@ -52,13 +59,21 @@ const usd = (value: string): string => formatCurrency(money(value), { context: '
 
 /**
  * Workspace Costs (T1 with tables, 24-page-templates.md section 9.14): what the month's data collection
- * cost, where it went, and where the budgets stand. Without `costs:read` the page says so and asks for
- * nothing.
+ * cost, where it went, and where the budgets stand. The data is the whole workspace's, whichever project's
+ * shell the page is opened in (`/{workspace}/{project}/costs`), so the Project filter starts empty and the
+ * project in the route is no filter; the header names the scope: all projects of the workspace, or the
+ * project the filter holds. Without `costs:read` the page says so and asks for nothing.
  */
 export function CostsScreen(props: CostsScreenProps): ReactElement {
   const t = useTranslations('costs');
   const canRead = useCan('costs:read');
   if (canRead) return <CostsContent {...props} />;
+  // Inside a project the project's root opens the first destination the role can open; the workspace's
+  // root is the way back only for the page outside any project
+  const backPath =
+    props.projectSlug === null
+      ? workspacePath(props.workspaceSlug)
+      : projectPath(props.workspaceSlug, props.projectSlug);
   return (
     <div className={PAGE_CLASS}>
       <PageHeader title={t('title')} />
@@ -66,16 +81,14 @@ export function CostsScreen(props: CostsScreenProps): ReactElement {
         icon={Ban}
         title={t('noAccessTitle')}
         reason={t('noAccessReason')}
-        secondaryAction={
-          <TextLink render={<Link href={workspacePath(props.workspaceSlug)} />}>{t('backToOverview')}</TextLink>
-        }
+        secondaryAction={<TextLink render={<Link href={backPath} />}>{t('backToOverview')}</TextLink>}
         headingLevel={2}
       />
     </div>
   );
 }
 
-function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement {
+function CostsContent({ workspaceId, workspaceName, projects }: CostsScreenProps): ReactElement {
   const t = useTranslations('costs');
   const common = useTranslations('common');
   const locale = useLocale();
@@ -150,6 +163,12 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
     provider,
   };
   const filtered = Object.keys(values).length > 0;
+  // The figures are the workspace's unless the Project filter narrows them; the filter holds one project at most
+  const chosenProject = projects.find((project) => project.id === projectId);
+  const meta =
+    chosenProject === undefined
+      ? t('metaAll', { workspace: workspaceName, month: label })
+      : t('metaProject', { project: projectLabel(chosenProject), month: label });
   const emptyText = filtered ? t('emptyFiltered', { month: label }) : t('empty', { month: label });
 
   const total = useCosts(scope, [], now);
@@ -228,7 +247,7 @@ function CostsContent({ workspaceId, projects }: CostsScreenProps): ReactElement
 
   return (
     <div className={PAGE_CLASS}>
-      <PageHeader title={t('title')} meta={t('meta', { month: label })} />
+      <PageHeader title={t('title')} meta={meta} />
       <div className="flex flex-wrap items-start gap-3">
         <div className="w-48">
           <MonthSelect

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { batchSizeFor, bodyFilterOf, bulkTarget, groupsHeldBy, targetBatches } from './bulk-target';
+import { batchSizeFor, bodyFilterOf, bulkTarget, groupsHeldBy, matchCountQuery, targetBatches } from './bulk-target';
+import { keywordFilters } from '../rankings-queries';
+import type { FilterValues } from '@/components/app/filters/types';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 
 describe('bulk targets', () => {
@@ -14,10 +16,51 @@ describe('bulk targets', () => {
     expect(bodyFilterOf({}, '')).toEqual({ is_active: true });
   });
 
+  it('sends every rank filter of the list in the body, with the list’s own values, and no other', () => {
+    const chosen = (values: FilterValues): ReturnType<typeof bodyFilterOf> =>
+      bodyFilterOf(keywordFilters(values, false), '');
+    expect(chosen({ rank: { kind: 'enum', values: ['top10'] } })).toEqual({
+      is_active: true,
+      rank_gte: 4,
+      rank_lte: 10,
+    });
+    expect(chosen({ rank: { kind: 'enum', values: ['beyond'] } })).toEqual({ is_active: true, rank_is_null: true });
+    expect(chosen({ chg: { kind: 'enum', values: ['improved'] } })).toEqual({ is_active: true, improved: true });
+    expect(chosen({ chg: { kind: 'enum', values: ['declined'] } })).toEqual({ is_active: true, declined: true });
+    expect(chosen({ chg: { kind: 'enum', values: ['entered'] } })).toEqual({
+      is_active: true,
+      rank_change_label_in: ['new'],
+    });
+    expect(chosen({ chg: { kind: 'enum', values: ['lost'] } })).toEqual({
+      is_active: true,
+      rank_change_label_in: ['lost'],
+    });
+    expect(chosen({ stale: { kind: 'enum', values: ['stale'] } })).toEqual({ is_active: true, is_stale: true });
+    expect(
+      chosen({
+        rank: { kind: 'enum', values: ['top3'] },
+        chg: { kind: 'enum', values: ['declined'] },
+        stale: { kind: 'enum', values: ['stale'] },
+      }),
+    ).toEqual({ is_active: true, rank_gte: 1, rank_lte: 3, declined: true, is_stale: true });
+  });
+
   it('sends the search as the API takes it: printable and at most 200 characters, and none when nothing is left', () => {
     expect(bodyFilterOf({}, 'seo\tagency')).toEqual({ is_active: true, q: 'seo agency' });
     expect(bodyFilterOf({}, 'x'.repeat(300)).q).toHaveLength(200);
     expect(bodyFilterOf({}, '​ ')).toEqual({ is_active: true });
+  });
+
+  it('counts the matches with the list read the screen shows them by: its filters and search, one row', () => {
+    expect(matchCountQuery({ 'filter[is_active]': true, 'filter[rank_lte]': 3 }, ' crm ')).toEqual({
+      'filter[is_active]': true,
+      'filter[rank_lte]': 3,
+      'filter[q]': 'crm',
+      limit: 1,
+    });
+    // No search, no `filter[q]`; and the body filter of the same filters names the same keywords
+    expect(matchCountQuery({ 'filter[is_active]': false }, '')).toEqual({ 'filter[is_active]': false, limit: 1 });
+    expect(matchCountQuery({ 'filter[is_active]': true }, 'x'.repeat(300))['filter[q]']).toHaveLength(200);
   });
 
   it('chooses ids, or the filters for every match', () => {

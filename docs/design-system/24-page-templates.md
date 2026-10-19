@@ -353,7 +353,7 @@ The wireframes below define structure. For the finished visual quality of sectio
 
 | Region | Component | Notes |
 |---|---|---|
-| Sidebar | `Sidebar` (208 px, 56 px collapsed, `sidebar` fill, 1 px `border` right edge) | Workspace and project switcher at top (28 px monogram); 32 px items with 18 px icons; the active item in `surface-selected` with `primary-text` label and icon; 14 items in 3 sections ([11-navigation.md](11-navigation.md) sections 1 and 1.1; in the app, `src/lib/navigation/registry.ts`): Overview, Matrix, SEO (Rankings, Keywords, Pages), AI Visibility (Overview, Topics & Prompts, Citations, Sources); Competitors, Discover; Reports, Integrations, Settings; Discover count badge; collapse at the bottom (`[`), with the collection status line (`type-label`) above it |
+| Sidebar | `Sidebar` (208 px, 56 px collapsed, `sidebar` fill, 1 px `border` right edge) | Workspace and project switcher at top (28 px monogram); 32 px items with 18 px icons; the active item in `surface-selected` with `primary-text` label and icon; 16 items in 3 sections ([11-navigation.md](11-navigation.md) sections 1 and 1.1; in the app, `src/lib/navigation/registry.ts`): Overview, Matrix, SEO (Rankings, Keywords, Pages), AI Visibility (Overview, Topics & Prompts, Citations, Sources); Competitors, Discover; Reports, Integrations, Runs, Costs, Settings; Discover count badge; collapse at the bottom (`[`), with the collection status line (`type-label`) above it |
 | Top bar | `TopBar` (52 px, `surface`, bottom hairline) | Left: breadcrumb (16 px `House` icon in `foreground-tertiary` for the project root, 14 px `ChevronRight` separators in `foreground-muted`, ancestors in `foreground-tertiary`, current page in `foreground` 500) with the workspace and project menus. Right, 36 px controls 12 px apart: search field that opens the command palette (360 to 440 px, `⌘K` hint box); date range button; location button (both project-wide scope, hidden where they do not apply); notifications; theme menu (moves into the user menu below 1440 px); help menu; 32 px avatar for the user menu ([11-navigation.md](11-navigation.md) section 4, [19-responsive-behavior.md](19-responsive-behavior.md) section 3.2) |
 | Page header | `PageHeader` | T2 variant shown |
 | Content | Template region | Scroll model per template ([05-layout-grid.md](05-layout-grid.md) section 2.2) |
@@ -501,6 +501,8 @@ At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 
 | Toolbar | Table search, count, grouping, density, columns, export | Bulk bar replaces it on selection |
 | Table | `DataTable` with the columns above | Default sort Volume descending |
 | Footer | Count and freshness | Client mode up to 10,000 keywords |
+
+As built (2026-10-06, [20-frontend-specification.md](../20-frontend-specification.md) section 5.3): the table has Keyword, Rank, Change (headed "Change", not "Δ", so a screen reader and a narrow header both read it whole), Ranking URL, Volume, KD, CPC, Intent, Priority, Group, Tags, Best rank (chooser only), Updated and Added. Volume moved to tier 2 so that Rank, Change and Ranking URL come first. The sparkline, SERP features, AI Overview and competitor columns, the metric strip and Check now are not built yet. The Rank filter is a single choice (Top 3, 4 to 10, 11 to 20, 21 to 50, 51 to 100, Beyond depth) without bucket counts, with Change (`chg`: Improved, Declined, Entered, Lost) and Stale beside it.
 
 ### 9.4 Keyword Detail (T3)
 
@@ -995,7 +997,7 @@ Route `/settings/engines` (project settings, Engines).
 
 ### 9.14 Costs (T1 with tables)
 
-Route `/costs` (workspace).
+Route `/{workspace}/{project}/costs`: inside the project shell, sidebar item Costs, showing the whole workspace's spend whichever project it is opened in. The header meta names the scope: "All projects in {workspace}, {month}." while the Project filter is empty (it starts empty), and "{project}, {month}." once the filter holds a project. The old workspace route `/{workspace}/costs` redirects to the first project the member can open, and stays in the workspace shell only for a member who can open none.
 
 ```text
 | Costs                                                                         [Export CSV] [...]     |

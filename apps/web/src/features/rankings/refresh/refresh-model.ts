@@ -52,6 +52,39 @@ export const leftToday = (manual: ManualRuns): number => Math.max(manual.limit -
 export const isPendingMetrics = (row: { is_active: boolean; metrics?: unknown }): boolean =>
   row.is_active && (row.metrics === null || row.metrics === undefined);
 
+/**
+ * A keyword added within this long is expected to get its first rank check soon: the worker plans a new
+ * keyword within minutes. An older keyword that was never checked is in a project that is paused or blocked by
+ * its budget, or was imported long ago and waits in a queue: asking about it every 30 seconds for a quarter
+ * of an hour on every visit would only cost requests.
+ */
+export const FIRST_CHECK_WINDOW_MS = 60 * 60_000;
+
+/**
+ * A keyword that waits for its first rank check: active, added within the last hour (`now`, in ms) and not
+ * checked by the API yet. A check that ran and failed (`failed`) is a check, so the keyword stops waiting; the
+ * check is tried again by the worker. A creation time that is not a date is not waited for.
+ */
+export const waitsForFirstCheck = (
+  row: { is_active: boolean; created_at: string; state: { current: { state: string } } },
+  now: number,
+): boolean => {
+  if (!row.is_active || row.state.current.state !== 'not_checked') return false;
+  const created = Date.parse(row.created_at);
+  return Number.isFinite(created) && now - created <= FIRST_CHECK_WINDOW_MS;
+};
+
+/** A keyword the page still waits for: its metrics, or its first rank check. */
+export const isWaiting = (
+  row: {
+    is_active: boolean;
+    created_at: string;
+    metrics?: unknown;
+    state: { current: { state: string } };
+  },
+  now: number,
+): boolean => isPendingMetrics(row) || waitsForFirstCheck(row, now);
+
 /** What the screen has seen of a tracked keyword: which keyword it tracks, and whether it was active. */
 export interface SeenKeyword {
   keywordId: string;

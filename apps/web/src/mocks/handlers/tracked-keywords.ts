@@ -16,6 +16,8 @@ import {
   parseSort,
   queryFilter,
   quotaProblem,
+  rankContext,
+  rankReader,
   savedKeywords,
   selectedRows,
   selectionErrors,
@@ -92,7 +94,10 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     ) {
       return invalid(request, errors);
     }
-    const rows = sortRows(caller.keywords, filteredRows(caller, filter), sort);
+    // The clock is read once: the filter, the sort and the rows see the same moment
+    const rank = rankContext(caller);
+    const ranks = rankReader(rank);
+    const rows = sortRows(caller.keywords, filteredRows(caller, filter, ranks), sort, ranks);
     // The cursor holds what it was made for: the project, the filters and the sort, not `include` or `limit`
     const scope = new URLSearchParams(
       [...caller.url.searchParams.entries()].filter(
@@ -103,7 +108,7 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const page = cursorPage(rows, paging, `${caller.project.project_id}?${scope.toString()}`);
     if (page === null) return problem(request, 'invalid_cursor');
     return HttpResponse.json({
-      data: page.data.map((row) => trackedKeywordRowView(caller.keywords, caller.world, row, include)),
+      data: page.data.map((row) => trackedKeywordRowView(caller.keywords, caller.world, row, include, rank)),
       page: { ...page.page, total: rows.length },
     });
   }),
@@ -227,15 +232,19 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     const schedule = operations.schedules.find(
       (candidate) => candidate.schedule_id === row.schedule_id && candidate.deleted_at === null,
     );
+    // The clock is read once, so the schedule and the rank state see the same moment
+    const clock = Date.now();
     const scheduleRef =
       schedule === undefined
         ? null
         : {
             schedule_id: schedule.schedule_id,
             name: schedule.name,
-            next_run_at: currentNextRunAt(schedule, Date.now()),
+            next_run_at: currentNextRunAt(schedule, clock),
           };
-    return HttpResponse.json({ data: trackedKeywordDetailView(caller.keywords, caller.world, row, scheduleRef) });
+    return HttpResponse.json({
+      data: trackedKeywordDetailView(caller.keywords, caller.world, row, scheduleRef, rankContext(caller, clock)),
+    });
   }),
 
   mock('patch', `${P}/tracked-keywords/{tracked_keyword_id}`, async ({ request, cookies, params }) => {

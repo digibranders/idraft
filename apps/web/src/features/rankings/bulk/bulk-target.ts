@@ -1,4 +1,4 @@
-import type { KeywordFilters } from '../rankings-queries';
+import type { KeywordFilters, ListQuery } from '../rankings-queries';
 import type { ApiInit } from '@/lib/api/query';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { queryTextOf } from '@/lib/keywords/query-text';
@@ -38,8 +38,25 @@ export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilte
     ...given('priority_lte', filters['filter[priority_lte]']),
     ...given('search_volume_gte', filters['filter[search_volume_gte]']),
     ...given('keyword_difficulty_lte', filters['filter[keyword_difficulty_lte]']),
+    ...given('rank_gte', filters['filter[rank_gte]']),
+    ...given('rank_lte', filters['filter[rank_lte]']),
+    ...given('rank_is_null', filters['filter[rank_is_null]']),
+    ...given('rank_change_label_in', filters['filter[rank_change_label_in]']),
+    ...given('improved', filters['filter[improved]']),
+    ...given('declined', filters['filter[declined]']),
+    ...given('is_stale', filters['filter[is_stale]']),
     ...(q === '' ? {} : { q }),
   };
+}
+
+/**
+ * The list read that counts what a body filter will match: the list's filters and its search, one row. A rank
+ * filter matches what the latest check says, and a check runs every day, so what a person chose and what the
+ * API matches when the action arrives can differ: the screen counts again just before it acts.
+ */
+export function matchCountQuery(filters: KeywordFilters, search: string): ListQuery {
+  const q = queryTextOf(search);
+  return { ...filters, ...(q === '' ? {} : { 'filter[q]': q }), limit: 1 };
 }
 
 /** The API takes this many ids in one bulk request. */

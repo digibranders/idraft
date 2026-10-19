@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { moveFocus, rangeOf, type GridCell } from './grid-focus';
+import { CELL_CONTROL, moveFocus, rangeOf, stepControl, type GridCell } from './grid-focus';
 
 const SIZE = { rows: 50, columns: 6, pageRows: 11 };
 const move = (cell: GridCell, key: string, ctrl = false): GridCell | null => moveFocus(cell, key, SIZE, { ctrl });
@@ -49,5 +49,34 @@ describe('rangeOf', () => {
     expect(rangeOf(IDS, null, 'c')).toEqual(['c']);
     expect(rangeOf(IDS, 'zz', 'c')).toEqual(['c']);
     expect(rangeOf(IDS, 'a', 'zz')).toEqual([]);
+  });
+});
+
+describe('stepControl', () => {
+  it('goes on to the next control and wraps from the last to the first', () => {
+    expect(stepControl(3, 0, false)).toBe(1);
+    expect(stepControl(3, 2, false)).toBe(0);
+  });
+
+  it('goes back to the one before and wraps from the first to the last', () => {
+    expect(stepControl(3, 2, true)).toBe(1);
+    expect(stepControl(3, 0, true)).toBe(2);
+  });
+
+  it('stays on a cell with one control, and starts from the first or the last when focus is not on one', () => {
+    expect(stepControl(1, 0, false)).toBe(0);
+    expect(stepControl(1, 0, true)).toBe(0);
+    expect(stepControl(4, -1, false)).toBe(0);
+    expect(stepControl(4, -1, true)).toBe(3);
+  });
+
+  it('has nowhere to go without a control', () => {
+    expect(stepControl(0, -1, false)).toBe(-1);
+  });
+});
+
+describe('CELL_CONTROL', () => {
+  it('marks a control the table reaches through its cell, and keeps it out of the tab order', () => {
+    expect(CELL_CONTROL).toEqual({ 'data-cell-control': '', tabIndex: -1 });
   });
 });
