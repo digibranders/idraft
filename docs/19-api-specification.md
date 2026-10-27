@@ -1457,6 +1457,8 @@ A **connection** is one credential grant; an **integration** is one property on 
 | DELETE | `{P}/fp-imports/{import_id}` | `imports:write` | none | `202`; status `deleted`, rows removed, R2 evidence deleted | no | | 12 |
 | POST | `/api/v1/ingest/logs` | `fp:logs:write` (API key only) | `Content-Type: application/x-ndjson`, optionally `Content-Encoding: gzip`; header `X-Integration-Id`; max 10 MB per batch | `202 { file_import_id, lines_received }` | no | `413 payload_too_large` | V1.5 |
 
+The per-URL Search Console routes `{P}/page-performance/*` (watchlist, detail, series, breakdown, export) are specified in [32-page-performance.md](32-page-performance.md) section 8 and join this catalog when step 7b is planned.
+
 First-party metrics (doc 18 section 11.4). Every value is a `MetricValue` with `observation_class: 'first_party'`, `is_estimate: false`, `source`, `data_origin`, `data_state`, `coverage`. They are never combined with synthetic metrics in one value.
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |

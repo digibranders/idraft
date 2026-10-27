@@ -73,6 +73,7 @@ This section records engineering-relevant legal considerations. It is not legal 
 | Q-13 | How does GA4's AI Assistant channel treat `utm_source=chatgpt.com` without a medium? | AI referral attribution | S-14 | Phase 12 |
 | Q-14 | Is DataForSEO's Perplexity LLM Responses endpoint affected by Perplexity's Sonar deprecation (2026-09-27)? | Benchmark engines | S-13 | Phase 14 |
 | Q-15 | Does a local classifier (ONNX) reach the extraction quality targets at acceptable memory cost? | LLM adjudication cost at scale | Phase 14 evaluation | Phase 14 |
+| Q-16 | Page performance (per-URL Search Console health): spikes PP-S1 to PP-S3, health thresholds, watchlist scope and size, query history. Questions PP-Q1 to PP-Q5 and risks PP-R1 to PP-R5 are kept in [32-page-performance.md](32-page-performance.md) section 12 | Step 7b feasibility and cost | Spikes in step 7b | Step 7b |
 
 ## 4. Hypotheses we will test with data (not assumptions we rely on)
 

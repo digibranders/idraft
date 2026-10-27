@@ -2185,9 +2185,9 @@
   // Views: #/overview, #/rankings, #/settings/<section>. Rankings is shown when there is no route, so links that
   // carry ?inspect= keep working. Destinations that are not built say so instead of navigating.
 
-  const VIEWS = { overview: 'Overview', rankings: 'Rankings', prompts: 'Topics & Prompts', settings: 'Settings' };
+  const VIEWS = { overview: 'Overview', rankings: 'Rankings', pages: 'Pages', prompts: 'Topics & Prompts', settings: 'Settings' };
   // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer, #/prompts/panels, #/prompts/versions
-  const PAGE_TABS = { prompts: ['topics', 'explorer', 'panels', 'versions'] };
+  const PAGE_TABS = { pages: ['performance', 'landing'], prompts: ['topics', 'explorer', 'panels', 'versions'] };
   let route = { view: 'rankings', section: null };
 
   function parseRoute(hash) {
@@ -2218,7 +2218,7 @@
     $('[data-crumb-current]').textContent = label;
     $('[data-crumb-parent]').hidden = !settings;
     // Date range and location are hidden where they do not apply (11 section 4)
-    $$('[data-scope-control]').forEach((el) => (el.hidden = settings));
+    $$('[data-scope-control]').forEach((el) => (el.hidden = settings || next.view === 'pages'));
     document.title = `${settings ? `${label}, Settings` : label} · Design System Preview`;
     if (viewChanged) window.scrollTo(0, 0);
     // Pages built in their own script (prompts.js) show their tab from this

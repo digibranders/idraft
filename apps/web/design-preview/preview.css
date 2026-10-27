@@ -11,3 +11,12 @@
 @source "./prompts-cells.js";
 @source "./prompts-topics.js";
 @source "./prompts-topic-inspector.js";
+@source "./perf.js";
+@source "./perf-add.js";
+@source "./perf-calc.js";
+@source "./perf-chart.js";
+@source "./perf-data.js";
+@source "./perf-detail.js";
+@source "./perf-filters.js";
+@source "./perf-model.js";
+@source "./perf-ui.js";

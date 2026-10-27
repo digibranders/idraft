@@ -62,6 +62,7 @@ The product owner's rule: build what makes the product show data first, and move
 | 5 | Keywords, then rank collection | 3 and 4 | First real data |
 | 6 | Droplet, Compose stack, deploy workflow, nightly backups | 1 (infra) | Rank history only builds on a server that runs every day, so the deploy comes as soon as collection works |
 | 7 | SEO analytics | 5 | Internal alpha at the end of this step |
+| 7b | Page performance: the Search Console connection and the watched-page parts of Phase 12 ([32-page-performance.md](32-page-performance.md)) | 7 | Per-URL health and month-over-month comparison with every Search Console filter; proposed 2026-10-27, place and scope confirmed by the product owner before planning |
 | 8 | Prompts, AI collection, extraction, AI analytics | 6 to 9 | AI alpha at the end of this step |
 | 9 | The SEO and AI matrix | 10a | Joins both tracks |
 | 10 | Launch hardening: the deferred list below | 1 and launch | Optional while the users are the internal team |
@@ -282,7 +283,7 @@ Features: keyword candidate inbox (Labs ideas, suggestions, related, ranked keyw
 
 ### Phase 12: First-party integrations
 
-Features and design per [18-first-party-integrations.md](18-first-party-integrations.md): GSC OAuth, 16-month backfill, daily sync, query/page matching to keywords and URLs; GSC generative AI report import (CSV); Bing Webmaster API and AI Performance import; GA4 AI referrals (Google channel and our classifier side by side); Cloudflare AI crawler stats; optional server log upload; envelope encryption of tenant credentials (`ops.secrets`, doc 24 section 5.2), deferred from Phase 1 by ADR-022. Acceptance: GSC backfill for a 16-month property completes within quota; page intelligence shows GSC columns labeled as GSC; imported AI reports keep file provenance and filters. Risk: Google OAuth app verification for external customers (start the process in Phase 11).
+The Search Console connection, the property picker and the per-URL watchlist are pulled forward as build step 7b and specified in [32-page-performance.md](32-page-performance.md); the rest of this phase is unchanged. Features and design per [18-first-party-integrations.md](18-first-party-integrations.md): GSC OAuth, 16-month backfill, daily sync, query/page matching to keywords and URLs; GSC generative AI report import (CSV); Bing Webmaster API and AI Performance import; GA4 AI referrals (Google channel and our classifier side by side); Cloudflare AI crawler stats; optional server log upload; envelope encryption of tenant credentials (`ops.secrets`, doc 24 section 5.2), deferred from Phase 1 by ADR-022. Acceptance: GSC backfill for a 16-month property completes within quota; page intelligence shows GSC columns labeled as GSC; imported AI reports keep file provenance and filters. Risk: Google OAuth app verification for external customers (start the process in Phase 11).
 
 ### Phase 13: Source intelligence
 
