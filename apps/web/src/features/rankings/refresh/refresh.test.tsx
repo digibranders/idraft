@@ -992,7 +992,7 @@ describe('A refresh in the header', () => {
   });
 
   describe('that the member did not start', () => {
-    const SYSTEM = { actor_type: 'system', actor_id: 'system', label: 'Sightline' } as const;
+    const SYSTEM = { actor_type: 'system', actor_id: 'system', label: 'idraft.ai' } as const;
     const OTHER_MEMBER = { actor_type: 'user', actor_id: mockUser('admin').user_id, label: 'Another member' } as const;
 
     it('does not follow the manual run the system starts for new keywords, and quotes the day’s count as the API says', async () => {

@@ -8,17 +8,17 @@ from uuid import UUID
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import live
-from sightline.collectors.dispatcher import SubmitBatch
-from sightline.collectors.submission import SubmitReport, submit_batch
-from sightline.domain.retries import ProviderErrorKind
-from sightline.providers.contract import (
+from idraft.collectors import live
+from idraft.collectors.dispatcher import SubmitBatch
+from idraft.collectors.submission import SubmitReport, submit_batch
+from idraft.domain.retries import ProviderErrorKind
+from idraft.providers.contract import (
     CanonicalRequest,
     LiveResult,
     ProviderCallError,
     ProviderError,
 )
-from sightline.providers.dataforseo.serp import SERP_ORGANIC_LIVE
+from idraft.providers.dataforseo.serp import SERP_ORGANIC_LIVE
 from tests.api.auth.support import execute, fetch
 from tests.collectors.support import FakeProvider, make_tenant, seed_run, task_rows
 from tests.collectors.test_fetching import MemoryStore

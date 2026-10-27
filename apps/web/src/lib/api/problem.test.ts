@@ -6,7 +6,7 @@ const response = (status: number, headers: Record<string, string> = {}, statusTe
   new Response(null, { status, headers, statusText });
 
 const VALIDATION = {
-  type: 'https://sightline.test/api/problems/validation_failed',
+  type: 'https://idraft.ai/api/problems/validation_failed',
   title: 'Request validation failed',
   status: 422,
   detail: '2 fields are invalid.',

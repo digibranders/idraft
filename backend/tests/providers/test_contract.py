@@ -6,8 +6,8 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from sightline.domain.retries import ProviderErrorKind
-from sightline.providers.contract import (
+from idraft.domain.retries import ProviderErrorKind
+from idraft.providers.contract import (
     Echo,
     FetchResult,
     ProviderError,

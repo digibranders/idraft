@@ -14,13 +14,13 @@ from asgi_lifespan import LifespanManager
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.api.auth import passwords, repository
-from sightline.api.auth.passwords import hash_password
-from sightline.api.main import create_app
-from sightline.api.request_info import request_info
-from sightline.api.resources import Resources
-from sightline.config.logging import configure_logging
-from sightline.config.settings import Settings
+from idraft.api.auth import passwords, repository
+from idraft.api.auth.passwords import hash_password
+from idraft.api.main import create_app
+from idraft.api.request_info import request_info
+from idraft.api.resources import Resources
+from idraft.config.logging import configure_logging
+from idraft.config.settings import Settings
 from tests.api.auth.support import (
     COOKIE,
     PASSWORD,
@@ -113,7 +113,7 @@ async def test_an_unknown_email_costs_a_password_verification(
         calls.append("dummy")
         real()
 
-    monkeypatch.setattr("sightline.api.auth.service.dummy_verify", counted)
+    monkeypatch.setattr("idraft.api.auth.service.dummy_verify", counted)
     disabled = await make_user(migrated, disabled=True)
 
     await api.post(SIGN_IN, json=_credentials(new_email()))
@@ -486,7 +486,7 @@ async def test_a_user_deleted_between_verification_and_session_creation_is_refus
 async def test_sign_ins_from_one_address_are_limited(
     api: httpx.AsyncClient, migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sightline.api.auth.service.SIGN_INS_PER_HOUR_PER_IP", 3)
+    monkeypatch.setattr("idraft.api.auth.service.SIGN_INS_PER_HOUR_PER_IP", 3)
     user = await make_user(migrated)
     statuses = [
         (await api.post(SIGN_IN, json=_credentials(user.email))).status_code for _ in range(4)

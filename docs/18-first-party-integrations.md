@@ -96,6 +96,8 @@ All calls: `POST https://www.googleapis.com/webmasters/v3/sites/{siteUrl}/search
 | B (detail) | Query and page analysis | `[date, query, page, country, device]` | `auto` (resolves to by-page) | `startRow` 0, 25000, 50000, ... until a response returns 0 rows | `fp.gsc_search_analytics`, `fp.gsc_queries` |
 | C (page totals) | Honest page totals including anonymized-query traffic | `[date, page]` | `byPage` | `startRow` until empty | `fp.gsc_page_daily` |
 
+**Watched pages.** The per-URL feature of [32-page-performance.md](32-page-performance.md) adds shape D, `[date, country, device]` filtered to one watched page (stored in `fp.gsc_watched_page_daily`), and live shapes for queries. It needs only the connection of 4.1, shape A and the freshness rules of 4.4, so it ships before the full ingest below.
+
 Why three daily shapes:
 - Grouping by `page` or `query` "may drop some data"; accurate totals need a query without them (verified 2026-09-29). Shape A is the only source for site totals.
 - Property aggregation counts one impression per SERP even when two of the site's URLs appear; page aggregation counts each URL (verified 2026-09-29). So the sum of shape C rows is larger than shape A impressions. The UI never sums page rows to produce a site total.

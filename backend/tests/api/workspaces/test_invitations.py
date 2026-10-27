@@ -12,16 +12,16 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
-from sightline.api.auth.tokens import hash_token
-from sightline.api.permissions import Role
-from sightline.api.problems import ForbiddenError, NotFoundError
-from sightline.api.request_info import RequestInfo
-from sightline.api.resources import Resources
-from sightline.api.workspaces import invitations as invitation_rules
-from sightline.api.workspaces.access import WorkspaceAccess
-from sightline.config.logging import configure_logging
-from sightline.providers.email import EmailMessage
+from idraft.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
+from idraft.api.auth.tokens import hash_token
+from idraft.api.permissions import Role
+from idraft.api.problems import ForbiddenError, NotFoundError
+from idraft.api.request_info import RequestInfo
+from idraft.api.resources import Resources
+from idraft.api.workspaces import invitations as invitation_rules
+from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.config.logging import configure_logging
+from idraft.providers.email import EmailMessage
 from tests.api.auth.support import (
     PASSWORD,
     RecordingEmailSender,
@@ -139,7 +139,7 @@ async def test_an_invitation_is_emailed_as_a_link_and_stored_as_a_hash(
     # The first sentence is ours. What the inviter typed is reduced to plain words, quoted and
     # labelled, so it cannot put a link in the message or make it say something of its own.
     assert message.text.startswith(
-        "Hello,\n\nYou have been invited to a workspace on Sightline.\n\n"
+        "Hello,\n\nYou have been invited to a workspace on idraft.ai.\n\n"
         'Workspace: "Acme https evil example x"\n'
         f'Invited by: "Ann b" ({inviter.email})\n'
         f"Invited address: {email}\n"

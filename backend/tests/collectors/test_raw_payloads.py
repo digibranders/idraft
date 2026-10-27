@@ -12,8 +12,8 @@ import asyncpg
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors.raw_payloads import RawPayload, store_raw_payload
-from sightline.storage.raw import RawStorageError, RawStore, RetentionClass, decompress, digest
+from idraft.collectors.raw_payloads import RawPayload, store_raw_payload
+from idraft.storage.raw import RawStorageError, RawStore, RetentionClass, decompress, digest
 from tests.api.auth.support import execute, fetch
 from tests.conftest import ObjectServer, PostgresServer
 from tests.providers.dataforseo.support import fixture_bytes

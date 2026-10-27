@@ -14,11 +14,11 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from sightline.domain.retries import ProviderErrorKind as K
-from sightline.providers.contract import ProviderCallError
-from sightline.providers.dataforseo import client as client_module
-from sightline.providers.dataforseo.client import TURN_WAIT, DataForSeoClient
-from sightline.providers.dataforseo.errors import MESSAGE_MAX
+from idraft.domain.retries import ProviderErrorKind as K
+from idraft.providers.contract import ProviderCallError
+from idraft.providers.dataforseo import client as client_module
+from idraft.providers.dataforseo.client import TURN_WAIT, DataForSeoClient
+from idraft.providers.dataforseo.errors import MESSAGE_MAX
 from tests.providers.dataforseo.support import (
     LOGIN,
     ORIGIN,

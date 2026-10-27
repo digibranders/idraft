@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 import pytest
 
-from sightline.domain.keyword_metrics import (
+from idraft.domain.keyword_metrics import (
     MetricsReading,
     Month,
     is_material_change,

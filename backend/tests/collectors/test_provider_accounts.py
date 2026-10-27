@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 from redis.asyncio import Redis
 
-from sightline.collectors.provider_accounts import (
+from idraft.collectors.provider_accounts import (
     AccountSource,
     balance_key,
     check_balance,
@@ -20,7 +20,7 @@ from sightline.collectors.provider_accounts import (
     severity_for,
     spend_key,
 )
-from sightline.providers.dataforseo.provider import AccountState
+from idraft.providers.dataforseo.provider import AccountState
 from tests.api.auth.support import execute, fetch
 from tests.collectors.rank_support import Ledger
 from tests.conftest import PostgresServer

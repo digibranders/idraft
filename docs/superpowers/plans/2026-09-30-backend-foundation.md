@@ -4,7 +4,7 @@
 
 **Goal:** A Python backend project that boots a FastAPI app with validated settings, structured logs, request ids, RFC 9457 errors, health and readiness endpoints, a PostgreSQL connection with the tenant transaction helper, Alembic migrations, and a test suite that runs against real PostgreSQL 18 and Redis 8 containers.
 
-**Architecture:** One `uv` project in `backend/` with the package layout locked in ADR-022 (`sightline.{api, worker, domain, extraction, providers, collectors, db, storage, config}`). import-linter enforces the purity rules. The app is built by a factory (`create_app(settings)`) so tests inject settings and nothing is read from the environment at import time. Migrations are SQL inside Alembic revisions, with the version table in the `ops` schema.
+**Architecture:** One `uv` project in `backend/` with the package layout locked in ADR-022 (`idraft.{api, worker, domain, extraction, providers, collectors, db, storage, config}`). import-linter enforces the purity rules. The app is built by a factory (`create_app(settings)`) so tests inject settings and nothing is read from the environment at import time. Migrations are SQL inside Alembic revisions, with the version table in the `ops` schema.
 
 **Tech Stack:** Python 3.13, uv, FastAPI, Pydantic v2 and pydantic-settings, SQLAlchemy 2 (async, asyncpg), Alembic, redis-py (asyncio), structlog, Sentry SDK, pytest with pytest-asyncio, Testcontainers (`postgres:18`, `redis:8`), ruff, mypy (strict), import-linter.
 
@@ -19,7 +19,7 @@
 | Type checker | mypy, strict | First-class SQLAlchemy 2 and Pydantic plugins; closes open item L5 |
 | Request id | `req_` plus the 26-character Crockford base32 form of a UUIDv7 | Doc 19 shows `req_01J9...`, doc 25 says UUIDv7; this is both |
 | `/api/healthz` | Liveness only, `{"status":"ok"}`, no release, no database call | Doc 19 section 3.12 owns the route; doc 22 section 4.5 said otherwise |
-| uvicorn entry | `sightline.api.main:create_app --factory` | No settings read at import time |
+| uvicorn entry | `idraft.api.main:create_app --factory` | No settings read at import time |
 | RLS setting | Policies compare with `NULLIF(current_setting('app.workspace_id', true), '')::uuid` | After a transaction that used `set_config(..., true)`, PostgreSQL leaves the custom setting as an empty string on that connection, and `''::uuid` raises |
 | `pg_stat_statements` | Created by the infrastructure init script, not by a migration | It is not a trusted extension, and the `migrator` role is not a superuser |
 | Local ports | PostgreSQL on 54329, Redis on 63799 | This machine already runs Homebrew PostgreSQL 16 and Redis on the default ports |
@@ -47,7 +47,7 @@ backend/
   .env.example                         local development values (no secrets)
   README.md                            how to run, test and migrate
   openapi/v1.json                      committed OpenAPI document
-  src/sightline/
+  src/idraft/
     __init__.py                        __version__
     py.typed
     api/__init__.py
@@ -55,7 +55,7 @@ backend/
     api/request_id.py                  new_request_id(), RequestIdMiddleware
     api/problems.py                    ProblemError hierarchy, handlers
     api/health.py                      /api/healthz, /api/readyz
-    api/openapi.py                     build_openapi(), `python -m sightline.api.openapi`
+    api/openapi.py                     build_openapi(), `python -m idraft.api.openapi`
     config/__init__.py
     config/settings.py                 Settings, load_settings(), to_sqlalchemy_url()
     config/logging.py                  configure_logging(), redaction
@@ -144,7 +144,7 @@ The working tree is shared with the UI session. From here on, every commit in th
 ### Task 1: Project scaffold
 
 **Files:**
-- Create: `backend/.python-version`, `backend/pyproject.toml`, `backend/src/sightline/__init__.py`, `backend/src/sightline/py.typed`, the nine package `__init__.py` files, `backend/tests/test_package.py`
+- Create: `backend/.python-version`, `backend/pyproject.toml`, `backend/src/idraft/__init__.py`, `backend/src/idraft/py.typed`, the nine package `__init__.py` files, `backend/tests/test_package.py`
 
 - [x] **Step 1: Create the project files**
 
@@ -158,7 +158,7 @@ The working tree is shared with the UI session. From here on, every commit in th
 
 ```toml
 [project]
-name = "sightline"
+name = "idraft"
 version = "0.1.0"
 description = "SEO and AI search visibility platform: API and worker"
 requires-python = ">=3.13,<3.14"
@@ -169,7 +169,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sightline"]
+packages = ["src/idraft"]
 
 [tool.ruff]
 line-length = 100
@@ -180,7 +180,7 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "C4", "T20", "N"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["sightline"]
+known-first-party = ["idraft"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -197,60 +197,60 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-ra --strict-markers --cov=sightline --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=90"
+addopts = "-ra --strict-markers --cov=idraft --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=90"
 
 [tool.coverage.run]
-omit = ["src/sightline/db/migrations/*"]
+omit = ["src/idraft/db/migrations/*"]
 
 [tool.importlinter]
-root_package = "sightline"
+root_package = "idraft"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "domain is pure: no internal imports, no I/O libraries"
 type = "forbidden"
-source_modules = ["sightline.domain"]
+source_modules = ["idraft.domain"]
 forbidden_modules = [
-  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.providers",
-  "sightline.db", "sightline.storage", "sightline.config", "sightline.extraction",
+  "idraft.api", "idraft.worker", "idraft.collectors", "idraft.providers",
+  "idraft.db", "idraft.storage", "idraft.config", "idraft.extraction",
   "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
 ]
 
 [[tool.importlinter.contracts]]
 name = "extraction is pure: no internal imports, no I/O libraries"
 type = "forbidden"
-source_modules = ["sightline.extraction"]
+source_modules = ["idraft.extraction"]
 forbidden_modules = [
-  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.providers",
-  "sightline.db", "sightline.storage", "sightline.config", "sightline.domain",
+  "idraft.api", "idraft.worker", "idraft.collectors", "idraft.providers",
+  "idraft.db", "idraft.storage", "idraft.config", "idraft.domain",
   "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
 ]
 
 [[tool.importlinter.contracts]]
 name = "providers never touch the database"
 type = "forbidden"
-source_modules = ["sightline.providers"]
+source_modules = ["idraft.providers"]
 forbidden_modules = [
-  "sightline.db", "sightline.api", "sightline.worker", "sightline.collectors",
+  "idraft.db", "idraft.api", "idraft.worker", "idraft.collectors",
   "sqlalchemy", "asyncpg",
 ]
 
 [[tool.importlinter.contracts]]
 name = "lower layers never import the entrypoints"
 type = "forbidden"
-source_modules = ["sightline.collectors", "sightline.db", "sightline.storage", "sightline.config"]
-forbidden_modules = ["sightline.api", "sightline.worker"]
+source_modules = ["idraft.collectors", "idraft.db", "idraft.storage", "idraft.config"]
+forbidden_modules = ["idraft.api", "idraft.worker"]
 ```
 
-`backend/src/sightline/__init__.py`:
+`backend/src/idraft/__init__.py`:
 
 ```python
-"""Sightline: SEO and AI search visibility platform."""
+"""idraft.ai: SEO and AI search visibility platform."""
 
 __version__ = "0.1.0"
 ```
 
-`backend/src/sightline/py.typed`: empty file.
+`backend/src/idraft/py.typed`: empty file.
 
 Each of `api`, `worker`, `domain`, `extraction`, `providers`, `collectors`, `db`, `storage`, `config` gets an `__init__.py` holding only its one-line docstring:
 
@@ -281,11 +281,11 @@ Expected: `uv.lock` and `.venv/` created, no resolution errors.
 `backend/tests/test_package.py`:
 
 ```python
-import sightline
+import idraft
 
 
 def test_package_exposes_version() -> None:
-    assert sightline.__version__ == "0.1.0"
+    assert idraft.__version__ == "0.1.0"
 ```
 
 - [x] **Step 4: Run every check**
@@ -312,7 +312,7 @@ git commit -m "Scaffold the backend project with lint, types and import contract
 ### Task 2: Settings
 
 **Files:**
-- Create: `backend/src/sightline/config/settings.py`
+- Create: `backend/src/idraft/config/settings.py`
 - Test: `backend/tests/config/test_settings.py` (and empty `backend/tests/config/__init__.py`, `backend/tests/__init__.py`)
 
 - [x] **Step 1: Write the failing tests**
@@ -321,7 +321,7 @@ git commit -m "Scaffold the backend project with lint, types and import contract
 import pytest
 from pydantic import ValidationError
 
-from sightline.config.settings import Settings, load_settings, to_sqlalchemy_url
+from idraft.config.settings import Settings, load_settings, to_sqlalchemy_url
 
 BASE_ENV = {
     "APP_ORIGIN": "https://app.example.com",
@@ -416,7 +416,7 @@ def test_load_settings_reports_missing_variables(
 - [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/config/test_settings.py --no-cov -q`
-Expected: FAIL, `ModuleNotFoundError: No module named 'sightline.config.settings'`
+Expected: FAIL, `ModuleNotFoundError: No module named 'idraft.config.settings'`
 
 - [x] **Step 3: Implement**
 
@@ -535,7 +535,7 @@ git add backend && git commit -m "Add validated settings that fail fast without 
 ### Task 3: Structured logging with redaction
 
 **Files:**
-- Create: `backend/src/sightline/config/logging.py`
+- Create: `backend/src/idraft/config/logging.py`
 - Test: `backend/tests/config/test_logging.py`
 
 - [x] **Step 1: Write the failing tests**
@@ -546,7 +546,7 @@ import json
 
 import structlog
 
-from sightline.config.logging import REDACT_KEYS, configure_logging
+from idraft.config.logging import REDACT_KEYS, configure_logging
 
 
 def _capture(level: str = "info") -> io.StringIO:
@@ -730,7 +730,7 @@ git add backend && git commit -m "Add JSON logging with secret redaction"
 ### Task 4: Request ids
 
 **Files:**
-- Create: `backend/src/sightline/api/request_id.py`
+- Create: `backend/src/idraft/api/request_id.py`
 - Test: `backend/tests/api/test_request_id.py` (and empty `backend/tests/api/__init__.py`)
 
 - [x] **Step 1: Write the failing tests**
@@ -743,7 +743,7 @@ import httpx
 import structlog
 from fastapi import FastAPI, Request
 
-from sightline.api.request_id import REQUEST_ID_PATTERN, RequestIdMiddleware, new_request_id
+from idraft.api.request_id import REQUEST_ID_PATTERN, RequestIdMiddleware, new_request_id
 
 
 def test_request_id_shape() -> None:
@@ -883,7 +883,7 @@ git add backend && git commit -m "Add sortable request ids bound to the log cont
 ### Task 5: Problem responses (RFC 9457)
 
 **Files:**
-- Create: `backend/src/sightline/api/problems.py`
+- Create: `backend/src/idraft/api/problems.py`
 - Test: `backend/tests/api/test_problems.py`
 
 - [x] **Step 1: Write the failing tests**
@@ -894,8 +894,8 @@ import pytest
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from sightline.api.problems import ConflictError, NotFoundError, register_problem_handlers
-from sightline.api.request_id import REQUEST_ID_PATTERN, RequestIdMiddleware
+from idraft.api.problems import ConflictError, NotFoundError, register_problem_handlers
+from idraft.api.request_id import REQUEST_ID_PATTERN, RequestIdMiddleware
 
 ORIGIN = "https://app.example.com"
 
@@ -1020,7 +1020,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
-from sightline.api.request_id import HEADER, new_request_id
+from idraft.api.request_id import HEADER, new_request_id
 
 MEDIA_TYPE = "application/problem+json"
 _log = structlog.get_logger(__name__)
@@ -1182,7 +1182,7 @@ git add backend && git commit -m "Add RFC 9457 problem responses for every error
 ### Task 6: Database engine, tenant transaction and test containers
 
 **Files:**
-- Create: `backend/src/sightline/db/engine.py`, `backend/tests/conftest.py`
+- Create: `backend/src/idraft/db/engine.py`, `backend/tests/conftest.py`
 - Test: `backend/tests/db/test_engine.py` (and empty `backend/tests/db/__init__.py`)
 
 - [x] **Step 1: Write the container fixtures**
@@ -1201,8 +1201,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine
 
 POSTGRES_IMAGE = "postgres:18"
 REDIS_IMAGE = "redis:8"
@@ -1250,8 +1250,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory, workspace_transaction
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory, workspace_transaction
 
 WORKSPACE_SQL = text("SELECT NULLIF(current_setting('app.workspace_id', true), '')")
 
@@ -1267,7 +1267,7 @@ async def test_statement_timeout_and_application_name_are_set(engine: AsyncEngin
         timeout = (await connection.execute(text("SHOW statement_timeout"))).scalar_one()
         name = (await connection.execute(text("SHOW application_name"))).scalar_one()
     assert timeout == "15s"
-    assert name == "sightline-api"
+    assert name == "idraft-api"
 
 
 async def test_statement_timeout_cancels_slow_queries(settings: Settings) -> None:
@@ -1321,11 +1321,11 @@ export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
 uv run pytest tests/db/test_engine.py --no-cov -q
 ```
 
-Expected: FAIL, `No module named 'sightline.db.engine'`.
+Expected: FAIL, `No module named 'idraft.db.engine'`.
 
 - [x] **Step 4: Implement**
 
-`backend/src/sightline/db/engine.py`:
+`backend/src/idraft/db/engine.py`:
 
 ```python
 """Async engine, session factory and the per-transaction tenant setting.
@@ -1349,7 +1349,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from sightline.config.settings import Settings
+from idraft.config.settings import Settings
 
 _SET_WORKSPACE = text("SELECT set_config('app.workspace_id', :workspace_id, true)")
 
@@ -1363,7 +1363,7 @@ def create_engine(settings: Settings) -> AsyncEngine:
         connect_args={
             "server_settings": {
                 "statement_timeout": settings.db_statement_timeout,
-                "application_name": f"sightline-{settings.process_role}",
+                "application_name": f"idraft-{settings.process_role}",
             }
         },
     )
@@ -1396,7 +1396,7 @@ git add backend && git commit -m "Add the async engine and the tenant-scoped tra
 ### Task 7: Alembic baseline
 
 **Files:**
-- Create: `backend/src/sightline/db/migrate.py`, `backend/src/sightline/db/migrations/env.py`, `backend/src/sightline/db/migrations/script.py.mako`, `backend/src/sightline/db/migrations/versions/0001_baseline.py`, `backend/alembic.ini`
+- Create: `backend/src/idraft/db/migrate.py`, `backend/src/idraft/db/migrations/env.py`, `backend/src/idraft/db/migrations/script.py.mako`, `backend/src/idraft/db/migrations/versions/0001_baseline.py`, `backend/alembic.ini`
 - Test: `backend/tests/db/test_migrations.py`
 
 - [x] **Step 1: Write the failing tests**
@@ -1406,7 +1406,7 @@ import asyncio
 
 import asyncpg
 
-from sightline.db.migrate import head_revision, upgrade_to_head
+from idraft.db.migrate import head_revision, upgrade_to_head
 
 SCHEMAS = {"auth", "core", "seo", "ai", "fp", "ops"}
 EXTENSIONS = {"citext", "pg_trgm", "pgcrypto", "btree_gist"}
@@ -1465,11 +1465,11 @@ These tests are synchronous on purpose: Alembic's environment runs its own event
 - [x] **Step 2: Run to verify failure**
 
 Run: `uv run pytest tests/db/test_migrations.py --no-cov -q`
-Expected: FAIL, `No module named 'sightline.db.migrate'`.
+Expected: FAIL, `No module named 'idraft.db.migrate'`.
 
 - [x] **Step 3: Implement**
 
-`backend/src/sightline/db/migrate.py`:
+`backend/src/idraft/db/migrate.py`:
 
 ```python
 """Alembic entry points. The config is built in code so it works from an installed package."""
@@ -1485,7 +1485,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from sightline.config.settings import load_settings, to_sqlalchemy_url
+from idraft.config.settings import load_settings, to_sqlalchemy_url
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 VERSION_SCHEMA = "ops"
@@ -1521,7 +1521,7 @@ def upgrade_to_head(database_url: str) -> None:
 
 
 def main() -> None:
-    """`python -m sightline.db.migrate`: what the migrator container runs on deploy."""
+    """`python -m idraft.db.migrate`: what the migrator container runs on deploy."""
     upgrade_to_head(load_settings().database_url)
 
 
@@ -1529,7 +1529,7 @@ if __name__ == "__main__":
     main()
 ```
 
-`backend/src/sightline/db/migrations/env.py`:
+`backend/src/idraft/db/migrations/env.py`:
 
 ```python
 """Alembic environment: async engine, version table in the ops schema, SQL-first revisions."""
@@ -1544,8 +1544,8 @@ from sqlalchemy import pool, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from sightline.config.settings import to_sqlalchemy_url
-from sightline.db.migrate import VERSION_SCHEMA
+from idraft.config.settings import to_sqlalchemy_url
+from idraft.db.migrate import VERSION_SCHEMA
 
 config = context.config
 
@@ -1589,7 +1589,7 @@ if context.is_offline_mode():
 asyncio.run(_run_async())
 ```
 
-`backend/src/sightline/db/migrations/script.py.mako`:
+`backend/src/idraft/db/migrations/script.py.mako`:
 
 ```mako
 """${message}
@@ -1616,7 +1616,7 @@ def downgrade() -> None:
     op.execute("")
 ```
 
-`backend/src/sightline/db/migrations/versions/0001_baseline.py`:
+`backend/src/idraft/db/migrations/versions/0001_baseline.py`:
 
 ```python
 """Baseline: trusted extensions and the six schemas.
@@ -1658,7 +1658,7 @@ def downgrade() -> None:
 
 ```ini
 [alembic]
-script_location = src/sightline/db/migrations
+script_location = src/idraft/db/migrations
 file_template = %%(rev)s_%%(slug)s
 ```
 
@@ -1675,7 +1675,7 @@ git add backend && git commit -m "Add Alembic with the baseline migration"
 ### Task 8: Application factory, Sentry and health endpoints
 
 **Files:**
-- Create: `backend/src/sightline/config/sentry.py`, `backend/src/sightline/api/health.py`, `backend/src/sightline/api/main.py`
+- Create: `backend/src/idraft/config/sentry.py`, `backend/src/idraft/api/health.py`, `backend/src/idraft/api/main.py`
 - Modify: `backend/tests/conftest.py` (add `migrated_url`, `app`, `client`)
 - Test: `backend/tests/config/test_sentry.py`, `backend/tests/api/test_health.py`
 
@@ -1720,8 +1720,8 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
 `backend/tests/config/test_sentry.py`:
 
 ```python
-from sightline.config.sentry import init_sentry
-from sightline.config.settings import Settings
+from idraft.config.sentry import init_sentry
+from idraft.config.settings import Settings
 
 BASE = {
     "app_origin": "https://app.example.com",
@@ -1749,8 +1749,8 @@ import pytest
 from asgi_lifespan import LifespanManager
 from sqlalchemy import text
 
-from sightline.api.main import create_app
-from sightline.config.settings import Settings
+from idraft.api.main import create_app
+from idraft.config.settings import Settings
 
 
 async def test_healthz_is_alive_and_reveals_nothing(client: httpx.AsyncClient) -> None:
@@ -1848,7 +1848,7 @@ Expected: FAIL, modules not found.
 
 - [x] **Step 4: Implement**
 
-`backend/src/sightline/config/sentry.py`:
+`backend/src/idraft/config/sentry.py`:
 
 ```python
 """Error and performance reporting (ADR-022: Sentry, 10% performance sampling)."""
@@ -1857,7 +1857,7 @@ from __future__ import annotations
 
 import sentry_sdk
 
-from sightline.config.settings import Settings
+from idraft.config.settings import Settings
 
 TRACES_SAMPLE_RATE = 0.1
 
@@ -1876,7 +1876,7 @@ def init_sentry(settings: Settings) -> bool:
     return True
 ```
 
-`backend/src/sightline/api/health.py`:
+`backend/src/idraft/api/health.py`:
 
 ```python
 """Liveness and readiness (docs/19-api-specification.md section 3.12).
@@ -1897,7 +1897,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from sightline.db.migrate import current_revision
+from idraft.db.migrate import current_revision
 
 CHECK_TIMEOUT_SECONDS = 1.0
 router = APIRouter(prefix="/api", tags=["health"])
@@ -1954,10 +1954,10 @@ async def readyz(request: Request, response: Response) -> Readiness:
     return Readiness(status="ready" if ready else "not_ready", checks=checks)
 ```
 
-`backend/src/sightline/api/main.py`:
+`backend/src/idraft/api/main.py`:
 
 ```python
-"""Application factory. Run with `uvicorn sightline.api.main:create_app --factory`."""
+"""Application factory. Run with `uvicorn idraft.api.main:create_app --factory`."""
 
 from __future__ import annotations
 
@@ -1967,15 +1967,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from redis.asyncio import Redis
 
-from sightline import __version__
-from sightline.api.health import router as health_router
-from sightline.api.problems import register_problem_handlers
-from sightline.api.request_id import RequestIdMiddleware
-from sightline.config.logging import configure_logging
-from sightline.config.sentry import init_sentry
-from sightline.config.settings import Settings, load_settings
-from sightline.db.engine import create_engine, create_session_factory
-from sightline.db.migrate import head_revision
+from idraft import __version__
+from idraft.api.health import router as health_router
+from idraft.api.problems import register_problem_handlers
+from idraft.api.request_id import RequestIdMiddleware
+from idraft.config.logging import configure_logging
+from idraft.config.sentry import init_sentry
+from idraft.config.settings import Settings, load_settings
+from idraft.db.engine import create_engine, create_session_factory
+from idraft.db.migrate import head_revision
 
 OPENAPI_URL = "/api/v1/openapi.json"
 
@@ -2003,7 +2003,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     init_sentry(settings)
 
     app = FastAPI(
-        title="Sightline API",
+        title="idraft.ai API",
         version=__version__,
         openapi_url=OPENAPI_URL,
         docs_url=None,
@@ -2038,7 +2038,7 @@ git add backend && git commit -m "Add the app factory with liveness and readines
 ### Task 9: Committed OpenAPI document
 
 **Files:**
-- Create: `backend/src/sightline/api/openapi.py`, `backend/openapi/v1.json`
+- Create: `backend/src/idraft/api/openapi.py`, `backend/openapi/v1.json`
 - Test: `backend/tests/api/test_openapi.py`
 
 - [x] **Step 1: Write the failing test**
@@ -2047,7 +2047,7 @@ git add backend && git commit -m "Add the app factory with liveness and readines
 import json
 from pathlib import Path
 
-from sightline.api.openapi import build_openapi, render_openapi
+from idraft.api.openapi import build_openapi, render_openapi
 
 COMMITTED = Path(__file__).parents[2] / "openapi" / "v1.json"
 
@@ -2061,7 +2061,7 @@ def test_openapi_is_version_3_1_and_lists_the_health_routes() -> None:
 def test_committed_document_matches_the_code() -> None:
     assert COMMITTED.read_text() == render_openapi(), (
         "backend/openapi/v1.json is stale. Regenerate it with: "
-        "uv run python -m sightline.api.openapi > openapi/v1.json"
+        "uv run python -m idraft.api.openapi > openapi/v1.json"
     )
 
 
@@ -2077,12 +2077,12 @@ Expected: FAIL, module not found.
 
 - [x] **Step 3: Implement**
 
-`backend/src/sightline/api/openapi.py`:
+`backend/src/idraft/api/openapi.py`:
 
 ```python
 """The OpenAPI document that apps/web generates its client from.
 
-`python -m sightline.api.openapi > openapi/v1.json` regenerates the committed copy. Building the
+`python -m idraft.api.openapi > openapi/v1.json` regenerates the committed copy. Building the
 document opens no connection, so the settings here are placeholders.
 """
 
@@ -2092,8 +2092,8 @@ import json
 import sys
 from typing import Any
 
-from sightline.api.main import create_app
-from sightline.config.settings import Settings
+from idraft.api.main import create_app
+from idraft.config.settings import Settings
 
 _PLACEHOLDER = Settings(
     app_origin="https://app.example.com",
@@ -2118,7 +2118,7 @@ if __name__ == "__main__":
 - [x] **Step 4: Generate the document and run the tests**
 
 ```bash
-mkdir -p openapi && uv run python -m sightline.api.openapi > openapi/v1.json
+mkdir -p openapi && uv run python -m idraft.api.openapi > openapi/v1.json
 uv run pytest tests/api/test_openapi.py --no-cov -q
 ```
 
@@ -2215,7 +2215,7 @@ USER 10001:10001
 FROM runtime AS api
 ENV PROCESS_ROLE=api
 EXPOSE 8000
-CMD ["uvicorn", "sightline.api.main:create_app", "--factory", "--host=0.0.0.0", "--port=8000", "--proxy-headers", "--timeout-graceful-shutdown=25"]
+CMD ["uvicorn", "idraft.api.main:create_app", "--factory", "--host=0.0.0.0", "--port=8000", "--proxy-headers", "--timeout-graceful-shutdown=25"]
 ```
 
 `backend/.dockerignore`:
@@ -2235,7 +2235,7 @@ __pycache__
 `backend/README.md`:
 
 ````markdown
-# Sightline backend
+# idraft.ai backend
 
 FastAPI API and Taskiq worker. Architecture: `docs/adr/ADR-022-python-backend-simplified-platform.md`.
 
@@ -2254,11 +2254,11 @@ cp .env.example .env
 ```
 
 ```bash
-uv run --env-file .env python -m sightline.db.migrate
+uv run --env-file .env python -m idraft.db.migrate
 ```
 
 ```bash
-uv run --env-file .env uvicorn sightline.api.main:create_app --factory --reload --port 8000
+uv run --env-file .env uvicorn idraft.api.main:create_app --factory --reload --port 8000
 ```
 
 `http://127.0.0.1:8000/api/readyz` returns `200` when PostgreSQL, Redis and the schema are in place.
@@ -2271,7 +2271,7 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run lin
 
 ## Migrations
 
-Revisions live in `src/sightline/db/migrations/versions/` and are written as SQL in `op.execute(...)`. Create one with:
+Revisions live in `src/idraft/db/migrations/versions/` and are written as SQL in `op.execute(...)`. Create one with:
 
 ```bash
 uv run --env-file .env alembic revision -m "describe the change"
@@ -2282,7 +2282,7 @@ uv run --env-file .env alembic revision -m "describe the change"
 `openapi/v1.json` is generated from the code and committed; a test fails when it drifts. Regenerate with:
 
 ```bash
-uv run python -m sightline.api.openapi > openapi/v1.json
+uv run python -m idraft.api.openapi > openapi/v1.json
 ```
 ````
 
@@ -2293,14 +2293,14 @@ export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
 cd "/Users/a12345/Desktop/AI/SEO Tool"
 docker compose -f infra/compose/docker-compose.dev.yml up -d --wait
 cd backend && cp .env.example .env
-uv run --env-file .env python -m sightline.db.migrate
-docker build --target api -t sightline-api:dev .
-docker run --rm -d --name sightline-api-smoke --network sightline-dev_default \
+uv run --env-file .env python -m idraft.db.migrate
+docker build --target api -t idraft-api:dev .
+docker run --rm -d --name idraft-api-smoke --network sightline-dev_default \
   -e APP_ORIGIN=http://localhost:3000 \
   -e DATABASE_URL=postgresql://sightline:sightline@postgres:5432/sightline \
-  -e REDIS_URL=redis://redis:6379/0 -p 127.0.0.1:18000:8000 sightline-api:dev
+  -e REDIS_URL=redis://redis:6379/0 -p 127.0.0.1:18000:8000 idraft-api:dev
 sleep 3 && curl -sS -i http://127.0.0.1:18000/api/readyz
-docker rm -f sightline-api-smoke
+docker rm -f idraft-api-smoke
 ```
 
 Expected: `HTTP/1.1 200 OK` and `{"status":"ready","checks":{"postgres":true,"redis":true,"migrations":true}}`.
@@ -2357,7 +2357,7 @@ jobs:
       - run: uv run lint-imports
       - run: uv run pytest
       - name: Build the API image
-        run: docker build --target api -t sightline-api:ci .
+        run: docker build --target api -t idraft-api:ci .
 ```
 
 - [x] **Step 2: Commit**
@@ -2373,7 +2373,7 @@ git add .github && git commit -m "Add the backend CI workflow"
 **Files:**
 - Modify: `docs/22-infrastructure-devops.md` (health route text, uvicorn command), `docs/25-observability.md` (request id format), `docs/26-testing-quality.md` (type checker), `docs/04-data-model.md` section 13 (policy expression), `docs/review-log.md` (close L5, record this plan)
 
-- [x] **Step 1:** Doc 22: `/api/healthz` is liveness only and matches doc 19 section 3.12; the `api` command is `uvicorn sightline.api.main:create_app --factory`.
+- [x] **Step 1:** Doc 22: `/api/healthz` is liveness only and matches doc 19 section 3.12; the `api` command is `uvicorn idraft.api.main:create_app --factory`.
 - [x] **Step 2:** Doc 25 section 3.1: `request_id` is `req_` plus the base32 form of a UUIDv7.
 - [x] **Step 3:** Doc 26 section 2.2: types are checked by mypy in strict mode.
 - [x] **Step 4:** Doc 04 section 13: the policy compares with `NULLIF(current_setting('app.workspace_id', true), '')::uuid`, with the reason.

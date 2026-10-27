@@ -7,7 +7,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.domain.tasks import (
+from idraft.domain.tasks import (
     REPLICATE_SPACING,
     STAGGER_SHARE,
     idempotency_key,

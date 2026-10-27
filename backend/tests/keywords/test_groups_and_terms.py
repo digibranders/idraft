@@ -9,10 +9,10 @@ from collections.abc import Sequence
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.db.engine import workspace_transaction
-from sightline.keywords.groups import ensure_group_path, lock_groups, path_fits
-from sightline.keywords.links import add_members, add_terms, groups_of, terms_of
-from sightline.keywords.terms import (
+from idraft.db.engine import workspace_transaction
+from idraft.keywords.groups import ensure_group_path, lock_groups, path_fits
+from idraft.keywords.links import add_members, add_terms, groups_of, terms_of
+from idraft.keywords.terms import (
     ensure_term_path,
     fold,
     free_slug,

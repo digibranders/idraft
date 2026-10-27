@@ -4,7 +4,7 @@
 
 **Goal:** The worker can send tasks to DataForSEO, find out when they are ready, fetch their results and keep the exact bytes in R2, at the provider's rate and never paying twice; and the Phase 0 test runs can be made against the live API.
 
-**Architecture:** Step 3 of the build order (`docs/29-phase-roadmap.md` section 1.1), specified in `docs/05-provider-integrations.md` section 3, `docs/06-dataforseo-seo-integration.md` sections 1 to 4, 6 and 9, `docs/21-scheduler-workers.md` sections 7 and 8, and `docs/23-backup-disaster-recovery.md` section 9. The DataForSEO adapter lives in `sightline.providers` (no database, no Redis). The rate limiter and the jobs live in `sightline.worker`; the ledger steps and raw payload registry in `sightline.collectors`. Normalising a SERP and writing SEO facts is step 5.
+**Architecture:** Step 3 of the build order (`docs/29-phase-roadmap.md` section 1.1), specified in `docs/05-provider-integrations.md` section 3, `docs/06-dataforseo-seo-integration.md` sections 1 to 4, 6 and 9, `docs/21-scheduler-workers.md` sections 7 and 8, and `docs/23-backup-disaster-recovery.md` section 9. The DataForSEO adapter lives in `idraft.providers` (no database, no Redis). The rate limiter and the jobs live in `idraft.worker`; the ledger steps and raw payload registry in `idraft.collectors`. Normalising a SERP and writing SEO facts is step 5.
 
 **Tech stack:** httpx (one shared `AsyncClient` per provider), Redis Lua token buckets, `aiobotocore` for R2's S3 API, `zstandard` at level 6, and an S3 server in tests through Testcontainers. First planned as MinIO; MinIO no longer publishes container images, so the tests use versitygw (Apache 2.0), pinned, which checks request signatures as R2 does.
 
@@ -42,14 +42,14 @@ No workload is registered in production by this plan, so the deployed worker sti
 
 | File | Responsibility |
 |---|---|
-| `backend/src/sightline/config/settings.py` | `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`, `R2_RAW_ENDPOINT`, `R2_RAW_BUCKET`, `R2_RAW_ACCESS_KEY_ID`, `R2_RAW_SECRET_ACCESS_KEY` |
-| `backend/src/sightline/providers/contract.py` | `FetchResult`, `ReadyTask`, `SubmittedTask`, the new `Provider` methods |
-| `backend/src/sightline/providers/dataforseo/{errors,tags,client}.py` | Error classification, tags, the HTTP client with its turn under the limiter |
-| `backend/src/sightline/providers/dataforseo/{endpoint,serp,provider}.py` | A task endpoint's description, the SERP endpoint and its params, the adapter serving every endpoint |
-| `backend/src/sightline/storage/raw.py` | Compression, keys, the R2 client |
-| `backend/src/sightline/collectors/raw_payloads.py` | Registering payloads in `ops.raw_payloads` |
-| `backend/src/sightline/collectors/{ledger,fetching,reconciler}.py` | Ready and fetched transitions, `poll_ready` and `fetch_task`, the id sweeper and the `submit_unknown` resolver |
-| `backend/src/sightline/worker/{limiter,assembly}.py` | The Redis token buckets; wiring the provider, jobs and ticks |
+| `backend/src/idraft/config/settings.py` | `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`, `R2_RAW_ENDPOINT`, `R2_RAW_BUCKET`, `R2_RAW_ACCESS_KEY_ID`, `R2_RAW_SECRET_ACCESS_KEY` |
+| `backend/src/idraft/providers/contract.py` | `FetchResult`, `ReadyTask`, `SubmittedTask`, the new `Provider` methods |
+| `backend/src/idraft/providers/dataforseo/{errors,tags,client}.py` | Error classification, tags, the HTTP client with its turn under the limiter |
+| `backend/src/idraft/providers/dataforseo/{endpoint,serp,provider}.py` | A task endpoint's description, the SERP endpoint and its params, the adapter serving every endpoint |
+| `backend/src/idraft/storage/raw.py` | Compression, keys, the R2 client |
+| `backend/src/idraft/collectors/raw_payloads.py` | Registering payloads in `ops.raw_payloads` |
+| `backend/src/idraft/collectors/{ledger,fetching,reconciler}.py` | Ready and fetched transitions, `poll_ready` and `fetch_task`, the id sweeper and the `submit_unknown` resolver |
+| `backend/src/idraft/worker/{limiter,assembly}.py` | The Redis token buckets; wiring the provider, jobs and ticks |
 | `backend/spikes/` | The Phase 0 test runs |
 
 ## Tasks

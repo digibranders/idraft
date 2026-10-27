@@ -14,14 +14,14 @@ from uuid import UUID
 import pytest
 from redis.asyncio import Redis
 
-from sightline.collectors import reconciler
-from sightline.collectors.registry import Registry
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory
-from sightline.providers.contract import CanonicalRequest, SubmitResult
-from sightline.worker import assembly
-from sightline.worker.app import WorkerContext, run_worker
-from sightline.worker.queues import Queues
+from idraft.collectors import reconciler
+from idraft.collectors.registry import Registry
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory
+from idraft.providers.contract import CanonicalRequest, SubmitResult
+from idraft.worker import assembly
+from idraft.worker.app import WorkerContext, run_worker
+from idraft.worker.queues import Queues
 from tests.api.auth.support import fetch
 from tests.collectors.support import (
     FakeProvider,

@@ -4,7 +4,7 @@
 
 **Goal:** A signed-in user can work inside a workspace: create one, invite people, manage their roles, and create projects. Every route declares who may call it, and another workspace's data is never visible.
 
-**Architecture:** Step 1 of the build order (`docs/29-phase-roadmap.md` section 1.1). One dependency resolves the caller's membership for the workspace in the path and checks project scope and the route permission; handlers then work inside `workspace_transaction`, so row-level security backs every query. Each area is a small package (`repository`, `service`, `routes`) next to the existing `sightline.api.auth`. No migration: every grant and policy needed already exists (doc 04 section 13.1).
+**Architecture:** Step 1 of the build order (`docs/29-phase-roadmap.md` section 1.1). One dependency resolves the caller's membership for the workspace in the path and checks project scope and the route permission; handlers then work inside `workspace_transaction`, so row-level security backs every query. Each area is a small package (`repository`, `service`, `routes`) next to the existing `idraft.api.auth`. No migration: every grant and policy needed already exists (doc 04 section 13.1).
 
 **Tech stack:** FastAPI, Pydantic v2, SQLAlchemy 2 Core on asyncpg, PostgreSQL 18 row-level security, Redis (rate limits), pytest with Testcontainers.
 
@@ -53,19 +53,19 @@ Deferred to launch hardening or to the phase that needs it (added to doc 29 sect
 
 | File | Responsibility |
 |---|---|
-| `backend/src/sightline/api/access.py` | `AccessRule`, the `declare` marker, `public`, `route_access(route)` |
-| `backend/src/sightline/api/audit.py` | `record(db, ...)`: one workspace audit row |
-| `backend/src/sightline/api/pagination.py` | `OffsetParams`, `OffsetPageInfo`, `strict_query(*names)` |
-| `backend/src/sightline/api/slugs.py` | Slug pattern and the two reserved lists |
-| `backend/src/sightline/api/workspaces/access.py` | `WorkspaceAccess` |
-| `backend/src/sightline/api/workspaces/dependencies.py` | `workspace_member`, `require_permission` |
-| `backend/src/sightline/api/workspaces/repository.py` | SQL for workspaces, memberships, invitations |
-| `backend/src/sightline/api/workspaces/service.py` | Workspace and member rules |
-| `backend/src/sightline/api/workspaces/invitations.py` | Invitation rules and the invitation email |
-| `backend/src/sightline/api/workspaces/routes.py` | The workspace, member and invitation routes |
-| `backend/src/sightline/api/projects/{repository,service,routes}.py` | Projects |
-| `backend/src/sightline/api/schemas/{workspaces,projects}.py` | Request and response models |
-| `backend/src/sightline/db/tables.py` | Adds `core.projects`, `core.workspace_quotas`, `ops.audit_logs` |
+| `backend/src/idraft/api/access.py` | `AccessRule`, the `declare` marker, `public`, `route_access(route)` |
+| `backend/src/idraft/api/audit.py` | `record(db, ...)`: one workspace audit row |
+| `backend/src/idraft/api/pagination.py` | `OffsetParams`, `OffsetPageInfo`, `strict_query(*names)` |
+| `backend/src/idraft/api/slugs.py` | Slug pattern and the two reserved lists |
+| `backend/src/idraft/api/workspaces/access.py` | `WorkspaceAccess` |
+| `backend/src/idraft/api/workspaces/dependencies.py` | `workspace_member`, `require_permission` |
+| `backend/src/idraft/api/workspaces/repository.py` | SQL for workspaces, memberships, invitations |
+| `backend/src/idraft/api/workspaces/service.py` | Workspace and member rules |
+| `backend/src/idraft/api/workspaces/invitations.py` | Invitation rules and the invitation email |
+| `backend/src/idraft/api/workspaces/routes.py` | The workspace, member and invitation routes |
+| `backend/src/idraft/api/projects/{repository,service,routes}.py` | Projects |
+| `backend/src/idraft/api/schemas/{workspaces,projects}.py` | Request and response models |
+| `backend/src/idraft/db/tables.py` | Adds `core.projects`, `core.workspace_quotas`, `ops.audit_logs` |
 | `backend/tests/api/test_route_access.py` | The access table |
 | `backend/tests/api/workspaces/`, `backend/tests/api/projects/` | Route tests |
 | `backend/tests/security/test_cross_tenant.py` | XT-01 to XT-05 for every workspace route, from `app.routes` |

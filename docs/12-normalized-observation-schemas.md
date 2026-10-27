@@ -6,7 +6,7 @@ Related: [05-provider-integrations.md](05-provider-integrations.md) (adapter con
 
 Adapters turn provider bytes into the canonical objects defined here. Persistence code turns canonical objects into rows. Nothing downstream of the adapter reads provider-specific fields; if a feature needs a provider field, the field is added to the canonical schema (with `null` for providers that lack it) and the schema version increments.
 
-The source of truth for these schemas is Pydantic v2 models in `backend/src/sightline/domain/observations/` ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Python attributes are snake_case; the serialized form (JSON, the invariants below, the example in section 9) uses the camelCase aliases produced by `alias_generator=to_camel`. JSON Schema files are generated from the models (`model_json_schema()`) for documentation and fixture validation, and the API exposes these shapes through the FastAPI-generated OpenAPI document.
+The source of truth for these schemas is Pydantic v2 models in `backend/src/idraft/domain/observations/` ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Python attributes are snake_case; the serialized form (JSON, the invariants below, the example in section 9) uses the camelCase aliases produced by `alias_generator=to_camel`. JSON Schema files are generated from the models (`model_json_schema()`) for documentation and fixture validation, and the API exposes these shapes through the FastAPI-generated OpenAPI document.
 
 ## 1. Observation classes
 
@@ -24,7 +24,7 @@ The class is a required field on every canonical object and on every observation
 ## 2. Provenance envelope (shared by all canonical objects)
 
 ```python
-# backend/src/sightline/domain/observations/provenance.py
+# backend/src/idraft/domain/observations/provenance.py
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
@@ -68,9 +68,9 @@ class Provenance(Canonical):
 ## 3. NormalizedSerp
 
 ```python
-# backend/src/sightline/providers/dataforseo/serp_parse.py  (as built: `domain` may not import
+# backend/src/idraft/providers/dataforseo/serp_parse.py  (as built: `domain` may not import
 # `extraction`, so the SERP types and the parser live with the provider; the pure rank rules are
-# in backend/src/sightline/ranks/)
+# in backend/src/idraft/ranks/)
 class NormalizedUrl(Canonical):
     raw_url: str
     canonical_url: HttpUrl
@@ -156,7 +156,7 @@ Invariants (checked by the normalizer and by contract tests):
 ## 4. NormalizedAiAnswer
 
 ```python
-# backend/src/sightline/domain/observations/ai_answer.py
+# backend/src/idraft/domain/observations/ai_answer.py
 class Citation(Canonical):
     index: PosInt                              # first-appearance order, 1-based
     url: NormalizedUrl
@@ -281,7 +281,7 @@ Invariants:
 ## 5. NormalizedKeywordMetrics and NormalizedAiDemand
 
 ```python
-# backend/src/sightline/domain/observations/keyword_metrics.py
+# backend/src/idraft/domain/observations/keyword_metrics.py
 class MonthlySearches(Canonical):
     year: int
     month: int
@@ -328,7 +328,7 @@ class NormalizedAiDemand(Canonical):
 ## 6. FirstPartyMetricRow
 
 ```python
-# backend/src/sightline/domain/observations/first_party.py
+# backend/src/idraft/domain/observations/first_party.py
 class FirstPartyProvenance(Provenance):
     file_import_id: UUID | None
 

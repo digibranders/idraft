@@ -8,7 +8,7 @@ set -euo pipefail
 image="${1:?usage: smoke.sh <image>}"
 here="$(cd "$(dirname "$0")" && pwd)"
 initdb="$here/../infra/compose/postgres/initdb"
-network="sightline-smoke-$$"
+network="idraft-smoke-$$"
 host="smoke-postgres:5432/sightline"
 
 cleanup() {
@@ -35,7 +35,7 @@ done
 
 docker run --rm --network "$network" \
   -e DATABASE_URL="postgresql://migrator:migrator-smoke@$host" \
-  "$image" python -m sightline.db.migrate
+  "$image" python -m idraft.db.migrate
 
 docker run -d --name smoke-api --network "$network" -p 127.0.0.1:18080:8000 \
   -e APP_ORIGIN=http://localhost:3000 \
@@ -64,11 +64,11 @@ docker run -d --name smoke-worker --network "$network" \
   -e PROCESS_ROLE=worker -e APP_ORIGIN=http://localhost:3000 \
   -e DATABASE_URL="postgresql://app_worker:worker-smoke@$host" \
   -e REDIS_URL=redis://smoke-redis:6379/0 -e HEARTBEAT_FILE=/tmp/heartbeat \
-  "$image" python -m sightline.worker >/dev/null
+  "$image" python -m idraft.worker >/dev/null
 
 healthy=""
 for _ in $(seq 1 30); do
-  if docker exec smoke-worker python -m sightline.worker.healthcheck /tmp/heartbeat 30 2>/dev/null; then
+  if docker exec smoke-worker python -m idraft.worker.healthcheck /tmp/heartbeat 30 2>/dev/null; then
     healthy=yes
     break
   fi

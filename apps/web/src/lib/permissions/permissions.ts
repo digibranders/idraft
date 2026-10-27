@@ -1,5 +1,5 @@
 /**
- * The permission keys of the API (docs/24-security.md section 3.2, backend/src/sightline/api/permissions.py).
+ * The permission keys of the API (docs/24-security.md section 3.2, backend/src/idraft/api/permissions.py).
  * The OpenAPI document types a membership's permissions as plain strings, so the app names them here; the
  * mocks' role table is keyed by this list, and its test compares that table with the backend's.
  */

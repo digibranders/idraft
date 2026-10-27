@@ -9,8 +9,8 @@ from typing import Any
 
 import httpx
 
-from sightline.api.operations.runs import MANUAL_RUNS_PER_DAY
-from sightline.api.resources import Resources
+from idraft.api.operations.runs import MANUAL_RUNS_PER_DAY
+from idraft.api.resources import Resources
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import errors, keyword_project, project_url, tracked_id

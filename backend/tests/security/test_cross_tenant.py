@@ -18,11 +18,11 @@ import httpx
 import pytest
 from fastapi.routing import iter_route_contexts
 
-from sightline.api.auth.tokens import hash_token, new_token
-from sightline.api.main import create_app
-from sightline.api.openapi import placeholder_settings
-from sightline.api.resources import Resources
-from sightline.storage.raw import compress, digest
+from idraft.api.auth.tokens import hash_token, new_token
+from idraft.api.main import create_app
+from idraft.api.openapi import placeholder_settings
+from idraft.api.resources import Resources
+from idraft.storage.raw import compress, digest
 from tests.api.auth.support import (
     User,
     Workspace,

@@ -9,15 +9,15 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import ledger
-from sightline.collectors.dispatcher import (
+from idraft.collectors import ledger
+from idraft.collectors.dispatcher import (
     DispatchReport,
     SubmitBatch,
     TaskKey,
     dispatch,
 )
-from sightline.collectors.registry import Registry
-from sightline.domain.workloads import TaskWorkload
+from idraft.collectors.registry import Registry
+from idraft.domain.workloads import TaskWorkload
 from tests.api.auth.support import execute
 from tests.collectors.support import (
     NOW,

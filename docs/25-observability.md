@@ -74,7 +74,7 @@ No error budget machinery in V1. When an SLO misses its target for a month, the 
 
 ### 3.1 Fields
 
-Every process logs one JSON object per line to stdout, with string levels and `ts` in ISO 8601 UTC. The Python side configures this once in `sightline/config/logging.py`; the Next.js server uses the same field names.
+Every process logs one JSON object per line to stdout, with string levels and `ts` in ISO 8601 UTC. The Python side configures this once in `idraft/config/logging.py`; the Next.js server uses the same field names.
 
 | Field | Notes |
 |---|---|
@@ -91,7 +91,7 @@ Every process logs one JSON object per line to stdout, with string levels and `t
 | `err` | `type`, `message`, `stack`; provider bodies excluded |
 
 ```python
-# sightline/config/logging.py (sketch; the field contract above is what is fixed)
+# idraft/config/logging.py (sketch; the field contract above is what is fixed)
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,          # request, job, run, task, workspace ids
@@ -442,7 +442,7 @@ Later: when a second droplet or separate Postgres host arrives ([03](03-system-a
 
 ## 11. Runbooks
 
-Commands run as `deploy` in `/opt/seo-platform/src/infra/compose` ([22](22-infrastructure-devops.md) section 12) against database `seo`. `sightline` is the backend's admin CLI, run as `docker compose run --rm worker sightline <command>`.
+Commands run as `deploy` in `/opt/seo-platform/src/infra/compose` ([22](22-infrastructure-devops.md) section 12) against database `seo`. `idraft` is the backend's admin CLI, run as `docker compose run --rm worker idraft <command>`.
 
 <a id="rb-api-down"></a>
 ### 11.1 Site down, web container down, certificate expiry (alerts 1, 2, 38)
@@ -463,7 +463,7 @@ Commands run as `deploy` in `/opt/seo-platform/src/infra/compose` ([22](22-infra
 
 - **First checks:** `df -h /`; `docker system df`; `du -xh --max-depth=1 /var/lib | sort -h | tail`; `journalctl --disk-usage`; `du -sh /var/spool/seo`.
 - **Commands:** `SELECT relname, pg_size_pretty(pg_total_relation_size(relid)) FROM pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 15;` and `SELECT pg_size_pretty(sum(size)) FROM pg_ls_waldir();`
-- **Mitigation:** `docker image prune -a --filter "until=168h"`; `sightline maintenance-run retention_drop` if drops are overdue; `journalctl --vacuum-size=300M`. Never delete files in the Postgres volume by hand. A growing spool means R2 uploads are failing: go to [rb-provider](#rb-provider). Short term, resize or attach a Volume; above 10 GB of Postgres data the resize trigger in [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) applies.
+- **Mitigation:** `docker image prune -a --filter "until=168h"`; `idraft maintenance-run retention_drop` if drops are overdue; `journalctl --vacuum-size=300M`. Never delete files in the Postgres volume by hand. A growing spool means R2 uploads are failing: go to [rb-provider](#rb-provider). Short term, resize or attach a Volume; above 10 GB of Postgres data the resize trigger in [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) applies.
 
 <a id="rb-memory"></a>
 ### 11.4 Memory, swap, OOM, unhealthy or restarting containers (alerts 2, 5, 6)
@@ -481,13 +481,13 @@ Commands run as `deploy` in `/opt/seo-platform/src/infra/compose` ([22](22-infra
   SELECT pid, now() - xact_start AS age, state, application_name, left(query, 120)
   FROM pg_stat_activity WHERE xact_start < now() - interval '10 minutes' ORDER BY xact_start;
   ```
-- **Mitigation:** `SELECT pg_cancel_backend(pid)`, then `pg_terminate_backend(pid)` if needed. Many `idle in transaction` from one application means a session leak: restart that container. Falling cache hit after growth is a resize signal. Partition runway: `sightline maintenance-run ensure_partitions`, then re-ingest the failed tasks from R2 ([04](04-data-model.md) section 12.2).
+- **Mitigation:** `SELECT pg_cancel_backend(pid)`, then `pg_terminate_backend(pid)` if needed. Many `idle in transaction` from one application means a session leak: restart that container. Falling cache hit after growth is a resize signal. Partition runway: `idraft maintenance-run ensure_partitions`, then re-ingest the failed tasks from R2 ([04](04-data-model.md) section 12.2).
 
 <a id="rb-queue"></a>
 ### 11.6 Queues, Redis, rollup lag, alerting blind (alerts 11 to 13, 21, 39)
 
 - **First checks:** which queue and workload? Is the worker consuming (tasks moving out of `pending` and `ready` in the ledger)? Provider paused (alert 23)?
-- **Commands:** `sightline queue-counts`; `docker compose exec redis redis-cli --user admin --askpass INFO memory` (the default user is disabled, [22](22-infrastructure-devops.md) section 4.3); `docker compose logs --since 30m worker | grep '"level":"error"' | tail -50`.
+- **Commands:** `idraft queue-counts`; `docker compose exec redis redis-cli --user admin --askpass INFO memory` (the default user is disabled, [22](22-infrastructure-devops.md) section 4.3); `docker compose logs --since 30m worker | grep '"level":"error"' | tail -50`.
 - **Mitigation:** restart the worker; the reconciler re-enqueues lost work from the ledger. A burst from backfill or re-derivation: let it drain or pause its schedule. Redis above 80%: check that Taskiq results expire (`result_ex_time` on the result backend) and that no queue is growing; keep `noeviction`. After Redis loss the reconciler rebuilds in-flight work within 5 min. Alerting blind (the `ops-health` checks are late): `docker compose logs --since 30m worker | grep ops_health`, then the worker and Healthchecks status pages.
 
 <a id="rb-collection"></a>
@@ -498,13 +498,13 @@ Commands run as `deploy` in `/opt/seo-platform/src/infra/compose` ([22](22-infra
   SELECT status, count(*), min(scheduled_for), max(attempts) FROM ops.collection_tasks
   WHERE run_id = $1 AND created_at >= date_trunc('month', now()) - interval '1 month' GROUP BY 1;
   ```
-- **Mitigation:** restart the worker (always safe, [21](21-scheduler-workers.md) section 12). Group dead tasks by `last_error_code`: provider errors go to [rb-provider](#rb-provider), `schema_mismatch` to [rb-parser](#rb-parser). After the fix, requeue with `POST /api/v1/workspaces/{workspace_id}/tasks/{task_id}/requeue` ([19](19-api-specification.md) section 3.11.4) or `sightline tasks-requeue --run <id> --status dead`. Missed windows stay as visible gaps by design. A missed maintenance check: read the job's error in the worker log and run it by hand with `sightline maintenance-run <job>`.
+- **Mitigation:** restart the worker (always safe, [21](21-scheduler-workers.md) section 12). Group dead tasks by `last_error_code`: provider errors go to [rb-provider](#rb-provider), `schema_mismatch` to [rb-parser](#rb-parser). After the fix, requeue with `POST /api/v1/workspaces/{workspace_id}/tasks/{task_id}/requeue` ([19](19-api-specification.md) section 3.11.4) or `idraft tasks-requeue --run <id> --status dead`. Missed windows stay as visible gaps by design. A missed maintenance check: read the job's error in the worker log and run it by hand with `idraft maintenance-run <job>`.
 
 <a id="rb-provider"></a>
 ### 11.8 Provider errors, auth or payment, R2 (alerts 22, 23, 37)
 
 - **First checks:** which error kind and endpoint (Operations screen, Dead letters)? DataForSEO status page; balance and limits on the Operations screen; Cloudflare status for R2.
-- **Mitigation:** `rate_limited` recovers through the halved limiter; persistent 40202 means our limiter is too high. `auth` or `payment` pauses the provider: fix credentials (GitHub environment, redeploy) or top up, then `sightline provider-resume dataforseo`; pending tasks resume without duplicate spend. 50301 is DataForSEO's upstream; the last 20% of each window is reserved for retries. R2 failures stop fetches because raw is written first; check token expiry and bucket permissions.
+- **Mitigation:** `rate_limited` recovers through the halved limiter; persistent 40202 means our limiter is too high. `auth` or `payment` pauses the provider: fix credentials (GitHub environment, redeploy) or top up, then `idraft provider-resume dataforseo`; pending tasks resume without duplicate spend. 50301 is DataForSEO's upstream; the last 20% of each window is reserved for retries. R2 failures stop fetches because raw is written first; check token expiry and bucket permissions.
 
 <a id="rb-spend"></a>
 ### 11.9 Balance, spend anomaly, budgets, reconciliation, LLM budget (alerts 24 to 28, 34)
@@ -525,7 +525,7 @@ Removed. Readiness is polling only ([ADR-022](adr/ADR-022-python-backend-simplif
 ### 11.11 Schema mismatch and collection anomalies (alerts 29 to 33)
 
 - **First checks:** which component and version? DataForSEO changelog? Open 3 failing raw payloads from Dead letters and diff against fixtures.
-- **Mitigation:** fix the normalizer, bump its version in `ops.component_versions`, add the payload as a fixture, deploy, re-ingest from R2 (`sightline reingest --error schema_mismatch --since <date>`) at no provider cost. AIO drop across all projects: check sample `check_url`s by hand, then contact DataForSEO support, and note affected dates in `ops.component_versions`. New model string: confirm the boundary shows in charts.
+- **Mitigation:** fix the normalizer, bump its version in `ops.component_versions`, add the payload as a fixture, deploy, re-ingest from R2 (`idraft reingest --error schema_mismatch --since <date>`) at no provider cost. AIO drop across all projects: check sample `check_url`s by hand, then contact DataForSEO support, and note affected dates in `ops.component_versions`. New model string: confirm the boundary shows in charts.
 
 <a id="rb-backup"></a>
 ### 11.12 Backup missed or restore drill overdue or failed (alerts 35, 36)

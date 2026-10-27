@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from sightline.providers.email import (
+from idraft.providers.email import (
     ConsoleEmailSender,
     EmailMessage,
     EmailSendError,
@@ -20,7 +20,7 @@ API_KEY = "re_SECRET_KEY_123"
 def _sender(transport: httpx.MockTransport) -> tuple[ResendEmailSender, httpx.AsyncClient]:
     client = httpx.AsyncClient(transport=transport)
     return (
-        ResendEmailSender(client, api_key=API_KEY, sender="Sightline <login@mail.example.com>"),
+        ResendEmailSender(client, api_key=API_KEY, sender="idraft.ai <login@mail.example.com>"),
         client,
     )
 
@@ -42,7 +42,7 @@ async def test_resend_receives_one_authenticated_json_post() -> None:
     assert request.headers["Authorization"] == f"Bearer {API_KEY}"
     assert request.headers["Content-Type"] == "application/json"
     assert json.loads(request.content) == {
-        "from": "Sightline <login@mail.example.com>",
+        "from": "idraft.ai <login@mail.example.com>",
         "to": ["jane@client.example"],
         "subject": "Confirm your email",
         "text": "Open the link.\n",
@@ -174,7 +174,7 @@ async def test_the_sender_is_chosen_by_the_provider_name() -> None:
     async with httpx.AsyncClient() as client:
         console = build_email_sender(client, provider="console", api_key=None, sender="a@b.example")
         resend = build_email_sender(
-            client, provider="resend", api_key=f" {API_KEY}\n", sender="Sightline <a@b.example>"
+            client, provider="resend", api_key=f" {API_KEY}\n", sender="idraft.ai <a@b.example>"
         )
         for missing in (None, "", "   "):
             with pytest.raises(ValueError, match="needs an API key"):

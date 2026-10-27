@@ -7,8 +7,8 @@ import asyncpg
 import httpx
 import pytest
 
-from sightline.api.resources import Resources
-from sightline.db import engine
+from idraft.api.resources import Resources
+from idraft.db import engine
 from tests.api.auth.support import (
     User,
     Workspace,

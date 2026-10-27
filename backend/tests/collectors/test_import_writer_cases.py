@@ -6,8 +6,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import import_writer
-from sightline.collectors.import_writer import WriteReport, write_next
+from idraft.collectors import import_writer
+from idraft.collectors.import_writer import WriteReport, write_next
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.collectors.test_fetching import MemoryStore
 from tests.collectors.test_import_writer import (

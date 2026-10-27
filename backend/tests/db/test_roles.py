@@ -5,7 +5,7 @@ import asyncio
 import asyncpg
 import pytest
 
-from sightline.db.migrate import migration_state, upgrade_to_head
+from idraft.db.migrate import migration_state, upgrade_to_head
 from tests.conftest import PostgresServer
 
 # role: (superuser, bypassrls, createdb, createrole, login)

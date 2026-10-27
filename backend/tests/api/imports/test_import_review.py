@@ -7,9 +7,9 @@ import uuid
 
 import httpx
 
-from sightline.api.body_limit import UPLOAD_MAX_BYTES
-from sightline.api.imports.service import _filename
-from sightline.api.resources import Resources
+from idraft.api.body_limit import UPLOAD_MAX_BYTES
+from idraft.api.imports.service import _filename
+from idraft.api.resources import Resources
 from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.imports.support import (

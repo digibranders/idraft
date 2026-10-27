@@ -13,11 +13,11 @@ from asgi_lifespan import LifespanManager
 from fastapi import FastAPI, Response
 from pydantic import SecretStr
 
-from sightline.api.auth.dependencies import clear_session_cookie, set_session_cookie
-from sightline.api.main import create_app
-from sightline.api.resources import Resources
-from sightline.config.logging import configure_logging
-from sightline.config.settings import Settings
+from idraft.api.auth.dependencies import clear_session_cookie, set_session_cookie
+from idraft.api.main import create_app
+from idraft.api.resources import Resources
+from idraft.config.logging import configure_logging
+from idraft.config.settings import Settings
 from tests.api.auth.support import (
     cookie,
     execute,
@@ -667,7 +667,7 @@ async def test_a_rotated_session_cannot_outlive_the_policy(
 
 
 def test_a_session_state_the_code_does_not_know_is_an_error() -> None:
-    from sightline.api.auth.repository import _state
+    from idraft.api.auth.repository import _state
 
     assert (_state("active"), _state("pending_totp")) == ("active", "pending_totp")
     with pytest.raises(ValueError, match="unexpected session state"):

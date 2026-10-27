@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors.costs import roll_up_costs
+from idraft.collectors.costs import roll_up_costs
 from tests.api.auth.support import execute, fetch
 from tests.collectors.support import Project, another_project, empty_ledger, make_tenant
 from tests.conftest import PostgresServer

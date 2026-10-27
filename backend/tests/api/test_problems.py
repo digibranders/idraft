@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from sightline.api.problems import (
+from idraft.api.problems import (
     MAX_VALIDATION_ERRORS,
     BadRequestError,
     ConflictError,
@@ -20,8 +20,8 @@ from sightline.api.problems import (
     UnauthenticatedError,
     register_problem_handlers,
 )
-from sightline.api.request_id import RequestIdMiddleware, is_request_id
-from sightline.config.logging import configure_logging
+from idraft.api.request_id import RequestIdMiddleware, is_request_id
+from idraft.config.logging import configure_logging
 
 ORIGIN = "https://app.example.com"
 

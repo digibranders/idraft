@@ -23,19 +23,19 @@ from pydantic import SecretStr
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.collectors import reconciler, resolver
-from sightline.collectors.ledger import LedgerTask, TaskRef
-from sightline.collectors.registry import Plan, Registry, ScheduleWindow
-from sightline.config.settings import Settings
-from sightline.providers.contract import CanonicalRequest
-from sightline.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
-from sightline.providers.dataforseo.provider import DataForSeo
-from sightline.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
-from sightline.storage.raw import s3_client
-from sightline.worker import assembly
-from sightline.worker.app import WorkerContext, run_worker
-from sightline.worker.limiter import RedisCallGate
-from sightline.worker.ticks import Tick
+from idraft.collectors import reconciler, resolver
+from idraft.collectors.ledger import LedgerTask, TaskRef
+from idraft.collectors.registry import Plan, Registry, ScheduleWindow
+from idraft.config.settings import Settings
+from idraft.providers.contract import CanonicalRequest
+from idraft.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
+from idraft.providers.dataforseo.provider import DataForSeo
+from idraft.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
+from idraft.storage.raw import s3_client
+from idraft.worker import assembly
+from idraft.worker.app import WorkerContext, run_worker
+from idraft.worker.limiter import RedisCallGate
+from idraft.worker.ticks import Tick
 from tests.api.auth.support import fetch
 from tests.collectors.support import FakeWorkload, SerpParams
 from tests.conftest import ObjectServer, PostgresServer

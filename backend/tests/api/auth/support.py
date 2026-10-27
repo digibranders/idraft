@@ -10,12 +10,12 @@ from typing import Any
 import asyncpg
 from fastapi import APIRouter
 
-from sightline.api.auth.dependencies import CurrentSession, FreshSession, PendingOrActiveSession
-from sightline.api.auth.passwords import hash_password
-from sightline.api.auth.sessions import SessionContext
-from sightline.api.auth.tokens import hash_token, new_token
-from sightline.api.resources import Resources
-from sightline.providers.email import EmailMessage
+from idraft.api.auth.dependencies import CurrentSession, FreshSession, PendingOrActiveSession
+from idraft.api.auth.passwords import hash_password
+from idraft.api.auth.sessions import SessionContext
+from idraft.api.auth.tokens import hash_token, new_token
+from idraft.api.resources import Resources
+from idraft.providers.email import EmailMessage
 from tests.conftest import PostgresServer
 
 PASSWORD = "correct horse battery staple"

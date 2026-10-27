@@ -10,7 +10,7 @@ Other documents cite fixed section numbers here: section 4 (gold datasets), sect
 
 This product sells numbers. A wrong rank, a missed mention or a leaked tenant row is a failure even when every endpoint returns 200, so measurement correctness is tested as seriously as code correctness.
 
-1. **Pure cores carry most cases.** `sightline.domain` and `sightline.extraction` import nothing internal and do no I/O (enforced with import-linter, ADR-022), so vectors, property tests and gold sets run in milliseconds.
+1. **Pure cores carry most cases.** `idraft.domain` and `idraft.extraction` import nothing internal and do no I/O (enforced with import-linter, ADR-022), so vectors, property tests and gold sets run in milliseconds.
 2. **Real infrastructure for state.** Database, queue and reconciliation tests use PostgreSQL 18 and Redis 8 containers. No in-memory fakes.
 3. **No network in tests** except the weekly sandbox shape check (11.3). There is no nightly drift canary (3.3).
 4. **Metric changes are deliberate.** A frozen dataset pins every metric output; changing one requires a `method_version` bump (7.3).
@@ -71,7 +71,7 @@ Web (`apps/web/`, TypeScript, pnpm):
 | `api` | >= 75% | **100% of routes** in the permission matrix and cross-tenant suite |
 | `apps/web` | >= 70% | every component rendering collected content has XSS fixtures |
 
-Python packages are the `backend/src/sightline/*` packages of ADR-022. A ratchet fails a PR that lowers any package by more than 0.5 points, unless the PR only deletes code.
+Python packages are the `backend/src/idraft/*` packages of ADR-022. A ratchet fails a PR that lowers any package by more than 0.5 points, unless the PR only deletes code.
 
 ## 3. Provider fixtures and contract drift
 
@@ -79,7 +79,7 @@ Python packages are the `backend/src/sightline/*` packages of ADR-022. A ratchet
 
 Fixtures are exact provider response bodies captured in Phase 0 spikes (S-01 to S-06, S-15, S-16) and later from scrubbed production payloads, stored zstd-compressed in `data/fixtures/providers/<provider>/<endpoint>/<case-id>.json.zst`. Before Phase 4 exit the SERP set covers depths 10, 20 and 100, both devices, 8 locales, every feature type in doc 06 section 5.4 at least twice, AI Overview cached, async and absent, `google.com/goto` wrappers, autocorrected queries, and one error envelope per documented status code.
 
-Fixtures use our own prompts and keywords in public verticals, never customer projects. `uv run sightline fixtures-scrub` still replaces `data.tag` and provider task ids with deterministic fakes. A CI check scans fixtures for secret patterns (`sk_live_`, `DATAFORSEO_`, R2 key shapes, email addresses) and fails on any hit.
+Fixtures use our own prompts and keywords in public verticals, never customer projects. `uv run idraft fixtures-scrub` still replaces `data.tag` and provider task ids with deterministic fakes. A CI check scans fixtures for secret patterns (`sk_live_`, `DATAFORSEO_`, R2 key shapes, email addresses) and fails on any hit.
 
 ### 3.2 Fixture registry and schema hash
 
@@ -191,7 +191,7 @@ Loaders and Pydantic label schemas live in `backend/tests/gold/`. A released ver
 `uv run pytest -m gold` runs the parser and extraction stages 1 to 10 over all items (under 60 s), computes the 4.3 metrics with Wilson intervals, and attaches `gold-report.json` and a Markdown summary to the PR.
 
 - Any gating target missed on `test` fails the build.
-- A drop of more than 2 points on a gating metric versus `main` fails the build even above target, unless the PR has the `gold-regression-accepted` label approved by the methodology owner (CODEOWNERS on `backend/src/sightline/extraction`).
+- A drop of more than 2 points on a gating metric versus `main` fails the build even above target, unless the PR has the `gold-regression-accepted` label approved by the methodology owner (CODEOWNERS on `backend/src/idraft/extraction`).
 - Stage 11 (LLM adjudication) is evaluated nightly on recorded responses and monthly live on `dev`.
 
 ## 5. Test plans by area
@@ -477,7 +477,7 @@ A lint rule bans `dangerouslySetInnerHTML`; its allowlist is empty in V1.
 | SEC-AUTH-03 | `owner` or `admin` without TOTP enrolled; replayed TOTP code; password change | blocked from workspace routes until enrolled (arrives with the workspace routes); second use rejected, including two posts at the same moment and the code that confirmed enrolment; every other session revoked and its Redis cache key deleted (`tests/api/auth/test_totp_routes.py`, `test_password.py`) |
 | SEC-DEP-01 | `pip-audit` or `pnpm audit --prod` high or critical; monthly `nmap` of the droplet | build fails; only 80 and 443 open |
 | SEC-KEY-01 (with API keys, deferred) | API key creation | only prefix and `sha256(secret)` stored |
-| SEC-ENC-01 (Phase 12, with envelope encryption) | Ciphertext copied to another workspace row; `sightline secrets-rewrap --to 2` | decrypt fails (AAD); DEKs rewrapped, ciphertext unchanged |
+| SEC-ENC-01 (Phase 12, with envelope encryption) | Ciphertext copied to another workspace row; `idraft secrets-rewrap --to 2` | decrypt fails (AAD); DEKs rewrapped, ciphertext unchanged |
 
 ## 7. Statistical method tests and metric regression
 
@@ -530,7 +530,7 @@ Benjamini-Hochberg: the 15 p-values of the 1995 paper's example at q = 0.05 reje
 | Visibility | volumes 1,000 (rank 1) and 100 (beyond depth) | 90.91% volume-weighted; 50.00% equal-weight |
 | AIO citation rate | 10 checks, AIO on 4, own cited on 1 | 0.25, denominator 4 |
 
-**Change rule:** if an expected value changes, CI fails unless the PR (a) bumps that metric family's `method_version` in `backend/src/sightline/domain/metrics/versions.py` with the matching `ops.component_versions` row, (b) regenerates `expected/` with `uv run sightline metrics-rebaseline`, which writes a diff report, and (c) is approved by the methodology owner. A script checks that every changed expected file maps to a bumped family.
+**Change rule:** if an expected value changes, CI fails unless the PR (a) bumps that metric family's `method_version` in `backend/src/idraft/domain/metrics/versions.py` with the matching `ops.component_versions` row, (b) regenerates `expected/` with `uv run idraft metrics-rebaseline`, which writes a diff report, and (c) is approved by the methodology owner. A script checks that every changed expected file maps to a bumped family.
 
 ## 8. End-to-end, backup restore and load tests
 
@@ -684,7 +684,7 @@ Stages 4 to 7 run in parallel. Target p50 under 15 minutes; every stage is a req
 
 | Environment | Composition | Provider access | Data |
 |---|---|---|---|
-| Local | `infra/compose` dev profile: postgres:18, redis:8, s3mock, Mailpit, provider stub; `api` and `worker` with `uv run`, `web` with `pnpm dev` | stub; sandbox on request | factories, `uv run sightline db-seed --profile small` |
+| Local | `infra/compose` dev profile: postgres:18, redis:8, s3mock, Mailpit, provider stub; `api` and `worker` with `uv run`, `web` with `pnpm dev` | stub; sandbox on request | factories, `uv run idraft db-seed --profile small` |
 | CI | Testcontainers; compose for E2E | stub only; no live provider account | fixtures, gold sets, frozen dataset |
 | Staging (optional droplet) | production compose on its own domain (one origin, like production) | sandbox or a real account with a $10 monthly budget | V1-scale synthetic data only |
 

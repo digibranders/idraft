@@ -11,11 +11,11 @@ import httpx
 import pyotp
 import pytest
 
-from sightline.api.auth import repository
-from sightline.api.auth.tokens import derive_key
-from sightline.api.auth.totp import TotpCipher, hash_recovery_code
-from sightline.api.resources import Resources
-from sightline.config.logging import configure_logging
+from idraft.api.auth import repository
+from idraft.api.auth.tokens import derive_key
+from idraft.api.auth.totp import TotpCipher, hash_recovery_code
+from idraft.api.resources import Resources
+from idraft.config.logging import configure_logging
 from tests.api.auth.support import (
     COOKIE,
     PASSWORD,
@@ -107,7 +107,7 @@ async def test_setup_returns_a_secret_that_is_stored_encrypted_and_not_yet_enabl
     assert response.headers["cache-control"] == "no-store"
     body = response.json()
     assert re.fullmatch(r"[A-Z2-7]{32}", body["secret"])
-    assert body["otpauth_uri"].startswith("otpauth://totp/Sightline:")
+    assert body["otpauth_uri"].startswith("otpauth://totp/idraft.ai:")
     assert f"secret={body['secret']}" in body["otpauth_uri"]
     row = await fetchrow(migrated, "SELECT * FROM auth.totp_secrets WHERE user_id = $1", user.id)
     assert row["confirmed_at"] is None
@@ -818,7 +818,7 @@ async def test_re_authentication_is_limited_per_user(
     migrated: PostgresServer,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sightline.api.auth.service.REAUTHENTICATIONS_PER_HOUR", 2)
+    monkeypatch.setattr("idraft.api.auth.service.REAUTHENTICATIONS_PER_HOUR", 2)
     user = await make_user(migrated)
     token, _ = await open_session(resources, user)
     statuses = []

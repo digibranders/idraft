@@ -6,8 +6,8 @@ import json
 
 from pydantic import SecretStr
 
-from sightline.api.resources import Resources
-from sightline.storage.raw import RawStore, decompress
+from idraft.api.resources import Resources
+from idraft.storage.raw import RawStore, decompress
 from tests.api.auth.support import make_workspace
 from tests.api.conftest import AppFactory
 from tests.api.entities.support import member

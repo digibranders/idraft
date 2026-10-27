@@ -8,9 +8,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 
-from sightline.api.access_log import AccessLogMiddleware
-from sightline.api.request_id import RequestIdMiddleware
-from sightline.config.logging import configure_logging
+from idraft.api.access_log import AccessLogMiddleware
+from idraft.api.request_id import RequestIdMiddleware
+from idraft.config.logging import configure_logging
 
 
 def _app() -> FastAPI:

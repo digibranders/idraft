@@ -11,10 +11,10 @@ from typing import Any
 
 import pytest
 
-from sightline.collectors import ledger
-from sightline.collectors.ledger import LedgerTask, NewRun, TaskRef
-from sightline.collectors.registry import ScheduleWindow
-from sightline.collectors.seo_rank import (
+from idraft.collectors import ledger
+from idraft.collectors.ledger import LedgerTask, NewRun, TaskRef
+from idraft.collectors.registry import ScheduleWindow
+from idraft.collectors.seo_rank import (
     SeoRankWorkload,
     is_deep_day,
     local_day,
@@ -23,9 +23,9 @@ from sightline.collectors.seo_rank import (
     queue_of,
     subject_id,
 )
-from sightline.collectors.seo_rank_ingest import ingest
-from sightline.domain.workloads import TaskWorkload
-from sightline.providers.dataforseo.serp import SERP_ORGANIC, SERP_ORGANIC_LIVE, SerpOrganicParams
+from idraft.collectors.seo_rank_ingest import ingest
+from idraft.domain.workloads import TaskWorkload
+from idraft.providers.dataforseo.serp import SERP_ORGANIC, SERP_ORGANIC_LIVE, SerpOrganicParams
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.api.keywords.support import OTHER_LOCATION
 from tests.collectors.rank_support import Ledger, World, answer, fetched_task, make_world, track

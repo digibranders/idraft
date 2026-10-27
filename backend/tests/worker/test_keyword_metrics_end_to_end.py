@@ -20,16 +20,16 @@ import httpx
 import pytest
 from redis.asyncio import Redis
 
-from sightline.collectors.keyword_metrics import KeywordMetricsWorkload
-from sightline.collectors.registry import Registry
-from sightline.config.settings import Settings
-from sightline.providers.dataforseo import labs
-from sightline.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
-from sightline.providers.dataforseo.provider import DataForSeo
-from sightline.worker import assembly
-from sightline.worker.app import WorkerContext, run_worker
-from sightline.worker.limiter import RedisCallGate
-from sightline.worker.ticks import Tick
+from idraft.collectors.keyword_metrics import KeywordMetricsWorkload
+from idraft.collectors.registry import Registry
+from idraft.config.settings import Settings
+from idraft.providers.dataforseo import labs
+from idraft.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
+from idraft.providers.dataforseo.provider import DataForSeo
+from idraft.worker import assembly
+from idraft.worker.app import WorkerContext, run_worker
+from idraft.worker.limiter import RedisCallGate
+from idraft.worker.ticks import Tick
 from tests.api.auth.support import fetch
 from tests.collectors.support import empty_ledger, make_tenant
 from tests.collectors.test_keyword_metrics import _track

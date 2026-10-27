@@ -9,7 +9,7 @@ from decimal import Decimal
 
 import pytest
 
-from sightline.providers.contract import Limit
+from idraft.providers.contract import Limit
 from spikes.common import (
     Budget,
     LocalGate,

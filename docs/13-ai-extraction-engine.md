@@ -36,12 +36,12 @@ flowchart LR
     S2 & S7 & S9 & S10 & S11 --> OUT[entity_mentions<br/>observation_facts]
 ```
 
-Stages 1 to 10 are pure Python in `backend/src/sightline/extraction`, with no network or database access (import-linter enforces that `extraction` imports nothing internal and does no I/O; [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). They run as Taskiq tasks on the `process` queue at about 2 to 10 ms per observation. Stage 11 makes provider calls, so it runs on the `collect` queue.
+Stages 1 to 10 are pure Python in `backend/src/idraft/extraction`, with no network or database access (import-linter enforces that `extraction` imports nothing internal and does no I/O; [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). They run as Taskiq tasks on the `process` queue at about 2 to 10 ms per observation. Stage 11 makes provider calls, so it runs on the `collect` queue.
 
 ## 3. Inputs
 
 ```python
-# backend/src/sightline/extraction/inputs.py
+# backend/src/idraft/extraction/inputs.py
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -129,7 +129,7 @@ Canonicalization rules (full list and test vectors in [14-citation-intelligence.
 - Remove trailing slash on non-root paths.
 - `www.` is **kept** in `host` (some sites serve different content), but `registrable_domain` groups it.
 
-Output: `canonical_url`, `url_hash`, `host`, `registrable_domain` (via `publicsuffixlist` with a pinned, bundled Public Suffix List snapshot and no network fetch, private domains enabled so `user.github.io` is its own registrable domain). Built in `sightline/extraction/urls.py`; stage 2 is `sightline/extraction/domains.py`.
+Output: `canonical_url`, `url_hash`, `host`, `registrable_domain` (via `publicsuffixlist` with a pinned, bundled Public Suffix List snapshot and no network fetch, private domains enabled so `user.github.io` is its own registrable domain). Built in `idraft/extraction/urls.py`; stage 2 is `idraft/extraction/domains.py`.
 
 ### Stage 2: Domain role resolution
 
@@ -163,7 +163,7 @@ Answer engines return markdown or HTML-derived text with lists, headings, bold n
 - **Overlap resolution:** longest match wins (`Salesforce Marketing Cloud` beats `Salesforce` when both are aliases of different entities, for example a product and its parent brand). A product mention also counts toward its parent brand (`parent_entity_id`) with `match_method = 'via_product'`.
 - **Negative aliases** (`is_negative`): any positive span fully inside a negative span is dropped (`Apple pie`, `Monday morning`).
 
-As built (`sightline/extraction/text.py` and `aliases.py`, step 4):
+As built (`idraft/extraction/text.py` and `aliases.py`, step 4):
 
 - Each original character is normalized on its own (NFKD, case folded for the folded text), so every normalized character maps back to exactly the characters it came from. Only the Latin, Greek and Cyrillic accent blocks are dropped: other marks (Indic vowel signs and viramas, the kana voicing marks) tell letters apart and stay. Format characters (zero-width, soft hyphen, direction marks) are dropped, symbols and other numbers (`™`, a footnote `¹`) become a space so they cannot glue onto a name, and a lone surrogate becomes U+FFFD. Spans are offsets into the text as given, in code points.
 - `exact_case` is a word-boundary match on the original case; `case_sensitive` makes `word_boundary` and `substring` compare case too. Letters, digits and marks are word characters; anything else (`_` included) is a boundary, checked only on a side where the alias itself ends in a word character (`C++` matches `C++17`). The plurals `s` and `es` may stand before the closing boundary; a possessive needs nothing, since its apostrophe is a boundary. Scripts written without spaces need `substring` mode.

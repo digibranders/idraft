@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI
 
-from sightline.api.openapi import build_openapi, render_openapi
+from idraft.api.openapi import build_openapi, render_openapi
 from tests.api.auth.support import cookie, make_user, open_session
 from tests.conftest import PostgresServer
 
@@ -46,7 +46,7 @@ def test_the_problem_schema_is_the_only_error_schema() -> None:
 def test_committed_document_matches_the_code() -> None:
     assert COMMITTED.read_text() == render_openapi(), (
         "backend/openapi/v1.json is stale. Regenerate it with: "
-        "uv run python -m sightline.api.openapi > openapi/v1.json"
+        "uv run python -m idraft.api.openapi > openapi/v1.json"
     )
 
 

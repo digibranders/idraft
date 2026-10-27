@@ -54,7 +54,7 @@ CREATE TABLE ai.project_source_stats (
 
 ## 3. URL canonicalization (canonicalizer version 1)
 
-Canonicalization determines whether two citations point at "the same page". It is shared by SERP results, citations, first-party pages and owned-domain matching. All rules are in `backend/src/sightline/extraction/urls.py`, with the test vectors in `backend/tests/extraction/test_urls.py`.
+Canonicalization determines whether two citations point at "the same page". It is shared by SERP results, citations, first-party pages and owned-domain matching. All rules are in `backend/src/idraft/extraction/urls.py`, with the test vectors in `backend/tests/extraction/test_urls.py`.
 
 ### 3.1 Steps
 
@@ -97,7 +97,7 @@ Where section 3.1 leaves a detail open, version 1 settles it as follows. Changin
 - **`youtu.be/<id>`** keeps its other parameters (`t`, for one) and replaces any `v` already there; an `&` in the id is encoded so it cannot split the query.
 - **Hosts typed by people** (entity domains, a project's primary domain) go through `normalize_host`, which accepts a bare name or a URL and maps hosts the canonicalizer never produces (`en.m.wikipedia.org`, `youtu.be`) the way it maps them. Path prefixes go through `normalize_path_prefix`, the same normalization as canonical paths; the resolver refuses a prefix in any other form.
 - **The Public Suffix List** is the snapshot bundled with the pinned `publicsuffixlist` package, whose version ends in the snapshot date.
-- **Domain roles** (stage 2 of doc 13) are resolved by `sightline/extraction/domains.py`. A path prefix matches whole segments (`/acme` covers `/acme/sdk`, not `/acmecorp`), and the longest prefix wins. A watched entity's domain is named on the result (`role_entity_id`) but counts as `third_party`. A tie at the same specificity goes to own, then competitor, then watch, then the lower entity id, and is reported as a conflict.
+- **Domain roles** (stage 2 of doc 13) are resolved by `idraft/extraction/domains.py`. A path prefix matches whole segments (`/acme` covers `/acme/sdk`, not `/acmecorp`), and the longest prefix wins. A watched entity's domain is named on the result (`role_entity_id`) but counts as `third_party`. A tie at the same specificity goes to own, then competitor, then watch, then the lower entity id, and is reported as a conflict.
 
 ## 4. Domain categories
 

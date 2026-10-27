@@ -1,5 +1,5 @@
 [project]
-name = "sightline"
+name = "idraft"
 version = "0.1.0"
 description = "SEO and AI search visibility platform: API and worker"
 requires-python = ">=3.13,<3.14"
@@ -38,7 +38,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sightline"]
+packages = ["src/idraft"]
 
 [tool.ruff]
 line-length = 100
@@ -51,11 +51,11 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "C4", "T20", "N
 
 [tool.ruff.lint.per-file-ignores]
 # Revisions and tests build statements from constants in the same file, never from input.
-"src/sightline/db/migrations/versions/*" = ["S608"]
+"src/idraft/db/migrations/versions/*" = ["S608"]
 "tests/*" = ["S608"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["sightline", "spikes"]
+known-first-party = ["idraft", "spikes"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -89,54 +89,54 @@ filterwarnings = [
     # pipeline is collected, and says so. It happens once per receiver, as the process stops.
     "ignore:Unclosed client session <redis.asyncio.client.Pipeline:ResourceWarning",
 ]
-addopts = "-ra --strict-markers --cov=sightline --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=90"
+addopts = "-ra --strict-markers --cov=idraft --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=90"
 
 [tool.coverage.run]
-omit = ["src/sightline/db/migrations/*"]
+omit = ["src/idraft/db/migrations/*"]
 # SQLAlchemy's async layer runs on greenlets; without this, lines after an awaited query are
 # reported as missed.
 concurrency = ["greenlet", "thread"]
 
 [tool.importlinter]
-root_package = "sightline"
+root_package = "idraft"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "domain is pure: no internal imports, no I/O libraries"
 type = "forbidden"
-source_modules = ["sightline.domain"]
+source_modules = ["idraft.domain"]
 forbidden_modules = [
-  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.providers",
-  "sightline.db", "sightline.storage", "sightline.config", "sightline.extraction",
+  "idraft.api", "idraft.worker", "idraft.collectors", "idraft.providers",
+  "idraft.db", "idraft.storage", "idraft.config", "idraft.extraction",
   "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
 ]
 
 [[tool.importlinter.contracts]]
 name = "extraction is pure: no internal imports, no I/O libraries"
 type = "forbidden"
-source_modules = ["sightline.extraction"]
+source_modules = ["idraft.extraction"]
 forbidden_modules = [
-  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.providers",
-  "sightline.db", "sightline.storage", "sightline.config", "sightline.domain",
+  "idraft.api", "idraft.worker", "idraft.collectors", "idraft.providers",
+  "idraft.db", "idraft.storage", "idraft.config", "idraft.domain",
   "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
 ]
 
 [[tool.importlinter.contracts]]
 name = "ranks is pure: no database, workers, entrypoints or I/O libraries"
 type = "forbidden"
-source_modules = ["sightline.ranks"]
+source_modules = ["idraft.ranks"]
 forbidden_modules = [
-  "sightline.api", "sightline.worker", "sightline.collectors", "sightline.db",
-  "sightline.storage", "sightline.config", "sightline.domain",
+  "idraft.api", "idraft.worker", "idraft.collectors", "idraft.db",
+  "idraft.storage", "idraft.config", "idraft.domain",
   "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
 ]
 
 [[tool.importlinter.contracts]]
 name = "providers never touch the database"
 type = "forbidden"
-source_modules = ["sightline.providers"]
+source_modules = ["idraft.providers"]
 forbidden_modules = [
-  "sightline.db", "sightline.api", "sightline.worker", "sightline.collectors",
+  "idraft.db", "idraft.api", "idraft.worker", "idraft.collectors",
   "sqlalchemy", "asyncpg",
 ]
 
@@ -144,13 +144,13 @@ forbidden_modules = [
 name = "lower layers never import the entrypoints"
 type = "forbidden"
 source_modules = [
-  "sightline.collectors",
-  "sightline.db",
-  "sightline.keywords",
-  "sightline.storage",
-  "sightline.config",
+  "idraft.collectors",
+  "idraft.db",
+  "idraft.keywords",
+  "idraft.storage",
+  "idraft.config",
 ]
-forbidden_modules = ["sightline.api", "sightline.worker"]
+forbidden_modules = ["idraft.api", "idraft.worker"]
 
 [dependency-groups]
 dev = [

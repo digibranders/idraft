@@ -14,8 +14,8 @@ from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 
-from sightline.providers.contract import CanonicalRequest
-from sightline.providers.dataforseo.serp import ENDPOINT, SERP_ORGANIC, SerpOrganicParams, task_body
+from idraft.providers.contract import CanonicalRequest
+from idraft.providers.dataforseo.serp import ENDPOINT, SERP_ORGANIC, SerpOrganicParams, task_body
 from spikes.common import (
     Budget,
     Sent,

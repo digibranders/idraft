@@ -4,7 +4,7 @@ import { RANK_BUCKETS } from '@/lib/format';
 
 /**
  * The Rank, Change and Stale chips (13-filters-search.md sections 4 and 5, 24-page-templates.md section 9.3)
- * and the API parameters each choice stands for (`backend/src/sightline/api/keywords/filters.py`). The API
+ * and the API parameters each choice stands for (`backend/src/idraft/api/keywords/filters.py`). The API
  * filters by one range of places (`rank_gte` and `rank_lte`) and the filters join with AND, so each chip is a
  * single choice: several buckets at once cannot be asked for. A keyword never checked matches none of them.
  */

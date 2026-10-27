@@ -7,8 +7,8 @@ from datetime import timedelta
 import pytest
 from redis.asyncio import Redis
 
-from sightline.providers.contract import GateUnavailableError, Limit
-from sightline.worker.limiter import SLOW_FOR, RedisCallGate
+from idraft.providers.contract import GateUnavailableError, Limit
+from idraft.worker.limiter import SLOW_FOR, RedisCallGate
 
 NOW = timedelta(0)
 SECOND = timedelta(seconds=1)

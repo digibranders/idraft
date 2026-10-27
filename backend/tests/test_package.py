@@ -1,7 +1,7 @@
 from importlib import metadata
 
-import sightline
+import idraft
 
 
 def test_the_package_version_matches_its_metadata() -> None:
-    assert sightline.__version__ == metadata.version("sightline")
+    assert idraft.__version__ == metadata.version("idraft")

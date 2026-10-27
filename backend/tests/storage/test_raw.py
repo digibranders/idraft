@@ -12,8 +12,8 @@ from zoneinfo import ZoneInfo
 import pytest
 import zstandard
 
-from sightline.storage import raw
-from sightline.storage.raw import (
+from idraft.storage import raw
+from idraft.storage.raw import (
     RETENTION,
     RawStorageError,
     RawStore,

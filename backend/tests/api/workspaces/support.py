@@ -9,11 +9,11 @@ import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from sightline.api.access import public
-from sightline.api.pagination import Offset
-from sightline.api.permissions import Permission
-from sightline.api.workspaces.access import WorkspaceAccess
-from sightline.api.workspaces.dependencies import MemberAccess, require_permission
+from idraft.api.access import public
+from idraft.api.pagination import Offset
+from idraft.api.permissions import Permission
+from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.api.workspaces.dependencies import MemberAccess, require_permission
 from tests.api.auth.support import fetchrow
 from tests.conftest import PostgresServer
 

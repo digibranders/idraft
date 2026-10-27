@@ -5,10 +5,10 @@ import uuid
 import pytest
 from sqlalchemy.exc import DBAPIError
 
-from sightline.api import audit
-from sightline.api.request_info import RequestInfo
-from sightline.api.resources import Resources
-from sightline.db.engine import workspace_transaction
+from idraft.api import audit
+from idraft.api.request_info import RequestInfo
+from idraft.api.resources import Resources
+from idraft.db.engine import workspace_transaction
 from tests.api.auth.support import fetch, make_user, make_workspace
 from tests.conftest import PostgresServer
 

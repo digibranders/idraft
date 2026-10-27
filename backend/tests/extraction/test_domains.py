@@ -6,14 +6,14 @@ import uuid
 
 import pytest
 
-from sightline.extraction.domains import (
+from idraft.extraction.domains import (
     DomainConflict,
     DomainResolver,
     DomainRule,
     MatchScope,
     ProjectRole,
 )
-from sightline.extraction.urls import canonicalize, normalize_host, normalize_path_prefix
+from idraft.extraction.urls import canonicalize, normalize_host, normalize_path_prefix
 
 OWN = uuid.UUID(int=1)
 RIVAL = uuid.UUID(int=2)

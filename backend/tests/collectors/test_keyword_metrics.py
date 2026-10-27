@@ -12,23 +12,23 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import keyword_metrics, ledger
-from sightline.collectors.fetching import RETENTION_CLASS
-from sightline.collectors.ingest_waits import IngestReport
-from sightline.collectors.keyword_metrics import (
+from idraft.collectors import keyword_metrics, ledger
+from idraft.collectors.fetching import RETENTION_CLASS
+from idraft.collectors.ingest_waits import IngestReport
+from idraft.collectors.keyword_metrics import (
     KeywordMetricsWorkload,
     ingest,
     queue_new_keywords,
     subject_id,
 )
-from sightline.collectors.ledger import LedgerTask, TaskRef
-from sightline.collectors.planner import ManualReport, plan_manual_runs
-from sightline.collectors.raw_payloads import RawPayload, store_raw_payload
-from sightline.collectors.registry import Registry, ScheduleWindow
-from sightline.domain.workloads import TaskWorkload
-from sightline.providers.dataforseo import labs
-from sightline.providers.dataforseo.labs import KeywordOverviewParams
-from sightline.storage.raw import RawStorageError
+from idraft.collectors.ledger import LedgerTask, TaskRef
+from idraft.collectors.planner import ManualReport, plan_manual_runs
+from idraft.collectors.raw_payloads import RawPayload, store_raw_payload
+from idraft.collectors.registry import Registry, ScheduleWindow
+from idraft.domain.workloads import TaskWorkload
+from idraft.providers.dataforseo import labs
+from idraft.providers.dataforseo.labs import KeywordOverviewParams
+from idraft.storage.raw import RawStorageError
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.api.keywords.support import LOCATION, OTHER_LOCATION, ensure_locations
 from tests.collectors.support import (

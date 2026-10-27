@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.keywords.text import KEYWORD_MAX, KeywordRefusedError, check_keyword, normalize
+from idraft.keywords.text import KEYWORD_MAX, KeywordRefusedError, check_keyword, normalize
 
 
 @pytest.mark.parametrize(

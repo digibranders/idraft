@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from sightline.ranks.events import EventDraft, overtake_events, own_events
-from sightline.ranks.state import Check, KeywordState, apply_check
+from idraft.ranks.events import EventDraft, overtake_events, own_events
+from idraft.ranks.state import Check, KeywordState, apply_check
 from tests.ranks.support import OTHER_RIVAL, RIVAL, check
 
 

@@ -20,7 +20,7 @@ Two stack changes were made at the same time. The backend moves to Python, becau
 | Backend | Python 3.13, FastAPI, Pydantic v2, uvicorn. Package manager `uv` |
 | Frontend | Next.js (App Router), TypeScript, pnpm. Unchanged libraries: TanStack Query and Table, ECharts, shadcn/ui on Tailwind v4, the locked design system |
 | Repository | `apps/web/` (Next.js), `backend/` (one Python project, two entrypoints), `data/fixtures/`, `data/gold/`, `infra/`, `docs/`. No Turborepo |
-| Python layout | `backend/src/sightline/{api, worker, domain, extraction, providers, collectors, db, storage, config}` ("sightline" is the working package name) |
+| Python layout | `backend/src/idraft/{api, worker, domain, extraction, providers, collectors, db, storage, config}` |
 | Purity rules | Enforced with import-linter: `domain` and `extraction` import nothing internal and do no I/O; `providers` never imports `db`; `collectors` owns persistence |
 | Contracts | Pydantic models are the contract. FastAPI generates OpenAPI 3.1. `apps/web` uses a client generated from it (`openapi-typescript` plus `openapi-fetch`), regenerated in CI and committed |
 

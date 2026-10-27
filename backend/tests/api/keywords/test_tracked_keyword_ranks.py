@@ -13,10 +13,10 @@ import pytest
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.api.resources import Resources
-from sightline.collectors.seo_rank_ingest import ingest
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory
+from idraft.api.resources import Resources
+from idraft.collectors.seo_rank_ingest import ingest
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member
 from tests.api.keywords.support import errors, keyword_project, project_url, tracked_id

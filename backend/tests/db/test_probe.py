@@ -1,7 +1,7 @@
 import time
 
-from sightline.db.migrate import migration_state
-from sightline.db.probe import probe_database
+from idraft.db.migrate import migration_state
+from idraft.db.probe import probe_database
 from tests.conftest import PostgresServer
 
 

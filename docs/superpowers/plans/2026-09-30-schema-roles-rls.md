@@ -48,7 +48,7 @@ Both roles get `USAGE` on the six schemas. Neither gets `CREATE` anywhere, `TRUN
 
 - **Revision numbers.** The plan says `0002` (identity) and `0003` (operations). The build has `0002_runtime_role_access` (schema `USAGE`, `SELECT` on `ops.alembic_version`, and the check that the roles exist), `0003_identity_and_tenancy` and `0004_operations`. Read every `0002` below as `0003` and every `0003` as `0004`.
 - **Grant matrix.** The table above was the first draft. An independent review showed it was too wide, and it was replaced by table and column grants. The contract in force is `docs/04-data-model.md` section 13.1, checked by `backend/tests/db/test_grants.py` and `test_least_privilege.py`.
-- **Statement splitting.** asyncpg sends one statement per call, so `sightline.db.ddl.statements()` splits a script at blank lines. A revision script separates statements with an empty line and has none inside a function body.
+- **Statement splitting.** asyncpg sends one statement per call, so `idraft.db.ddl.statements()` splits a script at blank lines. A revision script separates statements with an empty line and has none inside a function body.
 - **Partition functions.** `ops.ensure_monthly_partitions` locks `ops.partitioned_tables` (a lock no runtime role can take), has `lock_timeout = '5s'` and builds names with `format('%I.%I')`; `ops.maintain_partitions` skips registry rows whose table is gone.
 - **Scoped transactions.** `workspace_transaction` and `user_transaction` write both settings in one statement, the unused one as an empty string.
 - **Lint.** ruff rule `S608` is on for application code.
@@ -66,10 +66,10 @@ infra/compose/docker-compose.dev.yml          mounts the script, passes the role
 backend/.env.example                          DATABASE_URL is the app_api role
 backend/smoke.sh                              migrates as migrator, serves as app_api
 backend/README.md                             migrate command with the migrator URL
-backend/src/sightline/db/ddl.py               SQL builders used by revisions: grants, tenant policies
-backend/src/sightline/db/engine.py            user_transaction(); workspace_transaction(user_id=)
-backend/src/sightline/db/migrations/versions/0002_identity_and_tenancy.py
-backend/src/sightline/db/migrations/versions/0003_operations.py
+backend/src/idraft/db/ddl.py               SQL builders used by revisions: grants, tenant policies
+backend/src/idraft/db/engine.py            user_transaction(); workspace_transaction(user_id=)
+backend/src/idraft/db/migrations/versions/0002_identity_and_tenancy.py
+backend/src/idraft/db/migrations/versions/0003_operations.py
 backend/tests/conftest.py                     PostgresServer fixture with role URLs and database factory
 backend/tests/db/seed.py                      one row per tenant table for a workspace
 backend/tests/db/test_roles.py                role attributes, migration as a non-superuser
@@ -171,7 +171,7 @@ async def test_runtime_roles_cannot_connect_as_each_other(pg) -> None: ...     #
 
 ### Task 2: SQL builders for grants and tenant policies
 
-**Files:** create `backend/src/sightline/db/ddl.py`, `backend/tests/db/test_ddl.py`.
+**Files:** create `backend/src/idraft/db/ddl.py`, `backend/tests/db/test_ddl.py`.
 
 - [ ] **Step 1: Failing tests**
 

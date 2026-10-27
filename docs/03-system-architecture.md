@@ -77,7 +77,7 @@ repo/
   apps/
     web/                    Next.js app (standalone, on the droplet), generated API client, the design system
   backend/                  one Python project (uv), two entrypoints: api and worker
-    src/sightline/          ("sightline" is the working package name)
+    src/idraft/
       api/                  FastAPI app: routers, auth, tenancy, problem+json errors, OpenAPI
       worker/               Taskiq broker and tasks, planner and dispatcher tick, maintenance schedule, ops CLI
       domain/               pure business logic: metrics, rank derivation, statistics, alert evaluation

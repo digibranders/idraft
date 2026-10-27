@@ -13,8 +13,8 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors.import_writer import WriteReport, write_next
-from sightline.collectors.imports import parse_next
+from idraft.collectors.import_writer import WriteReport, write_next
+from idraft.collectors.imports import parse_next
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.api.keywords.support import LOCATION, OTHER_LOCATION
 from tests.collectors.support import Project

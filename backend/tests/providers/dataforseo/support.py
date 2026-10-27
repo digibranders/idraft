@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 
-from sightline.providers.contract import GateUnavailableError
+from idraft.providers.contract import GateUnavailableError
 
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "dataforseo"
 ORIGIN = "https://api.dataforseo.test"

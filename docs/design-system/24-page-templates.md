@@ -1060,7 +1060,7 @@ Components first named in this document. Components introduced in [23-applicatio
 +-------------------------------------------------------------------------------------------+
 |                                     background                                            |
 |                                                                                           |
-|                                  Sightline (type-section-title)                           |
+|                                  idraft.ai (type-section-title)                           |
 |                     +-----------------------------------------------+                    |
 |                     | Sign in (type-page-title)                     |  400 px            |
 |                     | One sentence (type-body, foreground-secondary)|  surface, 1 px     |

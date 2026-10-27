@@ -32,10 +32,10 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 ### Repository and tooling
 
 - [ ] Layout: `apps/web/` (Next.js), `backend/` (one Python project, two entrypoints), `data/fixtures/`, `infra/`, `docs/`; no Turborepo ([03](03-system-architecture.md))
-- [ ] Backend package `backend/src/sightline/{api, worker, domain, extraction, providers, collectors, db, storage, config}`; Python 3.13, `uv` lockfile, ruff
+- [ ] Backend package `backend/src/idraft/{api, worker, domain, extraction, providers, collectors, db, storage, config}`; Python 3.13, `uv` lockfile, ruff
 - [ ] import-linter contracts in CI: `domain` and `extraction` import nothing internal and do no I/O; `providers` never imports `db`; `collectors` owns persistence
 - [ ] pytest, Testcontainers (`postgres:18`, `redis:8`), Hypothesis where it earns its keep ([26](26-testing-quality.md))
-- [ ] `sightline.config`: settings from the environment validated at start; process exits on invalid config
+- [ ] `idraft.config`: settings from the environment validated at start; process exits on invalid config
 - [ ] Structured JSON logs to stdout with the redaction list ([24](24-security.md) section 11), request ids, Sentry init (Python SDK, 10% performance sampling)
 - [ ] Web: pnpm, TypeScript strict (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), ESLint, Prettier, Vitest, Playwright scaffolding
 - [ ] Generated TypeScript client: `openapi-typescript` plus `openapi-fetch` from the FastAPI OpenAPI 3.1 document, regenerated in CI and committed; CI fails when the committed client differs
@@ -185,6 +185,22 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 - [ ] Link suggestions (cluster, semantic, fan-out); accept/reject
 - [ ] `core.xch_keyword_weekly`; SEO/AI matrix service and screen; AIO citation by rank bucket
 - [ ] Page intelligence (SEO + AI)
+
+## Step 7b: Page performance (Search Console per URL)
+
+Proposed 2026-10-27; specification in [32-page-performance.md](32-page-performance.md). Place in the build order to be confirmed by the product owner.
+
+- [ ] Spikes PP-S1 (watched-page pull against the Search Console UI), PP-S2 (live query latency), PP-S3 (URL Inspection scope and quota); FP-S3 and FP-S8 of [18](18-first-party-integrations.md)
+- [ ] Google Cloud project, consent screen and verification request on the production domain `idraft.ai`
+- [ ] Search Console connect, property picker, `fp.connections`, `fp.integrations`, Google quota buckets ([18](18-first-party-integrations.md) sections 3 and 4)
+- [ ] `core.watched_pages`, `core.page_groups`, `fp.gsc_watched_page_daily`, quota key `watched_pages`, permission `pages:write`
+- [ ] Watched-page backfill and daily sync with freshness tiers; property totals; URL form probe
+- [ ] `page_health_v1` and the verdict sentence builder, with a test per verdict and flag
+- [ ] Routes of [32](32-page-performance.md) section 8, cross-tenant suite, audit rows
+- [ ] Frontend: Performance tab, filter model in the URL, list, drawer and page, tiles, chart layouts, What changed (countries, devices), add dialog, states, export, mock world, end to end
+- [ ] Slice 2: queries and search appearance (live, cached), query filter, sitemap and CSV import, entry points on other screens
+- [ ] Slice 3: URL Inspection index status, alerts and digest, annotations
+- [ ] Slice 4: tracked keywords and AI citations panels, GA4 sessions
 
 ## Launch readiness (MVP)
 

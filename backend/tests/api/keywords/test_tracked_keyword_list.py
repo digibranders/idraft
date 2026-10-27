@@ -8,10 +8,10 @@ from typing import Any
 import httpx
 import pytest
 
-from sightline.api.keywords import filters
-from sightline.api.pagination import encode_cursor
-from sightline.api.resources import Resources
-from sightline.api.schemas.keywords import TrackedKeywordFilter
+from idraft.api.keywords import filters
+from idraft.api.pagination import encode_cursor
+from idraft.api.resources import Resources
+from idraft.api.schemas.keywords import TrackedKeywordFilter
 from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import (

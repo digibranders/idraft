@@ -12,29 +12,29 @@ import pytest
 from pydantic import SecretStr
 from redis.asyncio import Redis
 
-from sightline.collectors.fetching import FETCH_JOB, FetchTask
-from sightline.collectors.provider_accounts import (
+from idraft.collectors.fetching import FETCH_JOB, FetchTask
+from idraft.collectors.provider_accounts import (
     balance_key,
     reconciliation_key,
     spend_key,
 )
-from sightline.collectors.registry import Registry
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory
-from sightline.domain.workloads import TaskWorkload
-from sightline.providers.dataforseo.client import DataForSeoClient
-from sightline.providers.dataforseo.provider import DataForSeo
-from sightline.worker import assembly
-from sightline.worker.app import WorkerContext
-from sightline.worker.assembly import (
+from idraft.collectors.registry import Registry
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory
+from idraft.domain.workloads import TaskWorkload
+from idraft.providers.dataforseo.client import DataForSeoClient
+from idraft.providers.dataforseo.provider import DataForSeo
+from idraft.worker import assembly
+from idraft.worker.app import WorkerContext
+from idraft.worker.assembly import (
     assemble,
     fetch_handler,
     production_registry,
     run_balance_check,
     run_cost_reconcile,
 )
-from sightline.worker.queues import Queues
-from sightline.worker.ticks import Tick
+from idraft.worker.queues import Queues
+from idraft.worker.ticks import Tick
 from tests.api.auth.support import execute, fetch
 from tests.collectors.support import (
     FakeProvider,

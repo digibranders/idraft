@@ -14,20 +14,20 @@ from zoneinfo import ZoneInfo
 import httpx
 import pytest
 
-from sightline.domain.retries import ProviderErrorKind as K
-from sightline.providers.contract import (
+from idraft.domain.retries import ProviderErrorKind as K
+from idraft.providers.contract import (
     CanonicalRequest,
     Contract,
     Echo,
     ProviderCallError,
     SubmitResult,
 )
-from sightline.providers.dataforseo import provider as provider_module
-from sightline.providers.dataforseo.client import DataForSeoClient
-from sightline.providers.dataforseo.endpoint import TaskEndpoint
-from sightline.providers.dataforseo.provider import AccountState, DataForSeo
-from sightline.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
-from sightline.providers.dataforseo.tags import make_tag
+from idraft.providers.dataforseo import provider as provider_module
+from idraft.providers.dataforseo.client import DataForSeoClient
+from idraft.providers.dataforseo.endpoint import TaskEndpoint
+from idraft.providers.dataforseo.provider import AccountState, DataForSeo
+from idraft.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
+from idraft.providers.dataforseo.tags import make_tag
 from tests.providers.dataforseo.support import (
     LOGIN,
     ORIGIN,

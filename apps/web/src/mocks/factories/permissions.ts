@@ -3,7 +3,7 @@ import type { Permission } from '@/lib/permissions/permissions';
 
 /**
  * The permission keys each role holds, as the API grants them (docs/24-security.md section 3.2,
- * backend/src/sightline/api/permissions.py). Keyed by the app's list of permissions, so a key the app does
+ * backend/src/idraft/api/permissions.py). Keyed by the app's list of permissions, so a key the app does
  * not know fails to compile; permissions.test.ts compares the table with the backend's.
  */
 const MANAGERS: readonly Role[] = ['owner', 'admin'];

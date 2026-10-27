@@ -8,9 +8,9 @@ import pytest
 from asgi_lifespan import LifespanManager
 from fastapi import FastAPI
 
-from sightline.api.main import create_app
-from sightline.api.resources import Resources
-from sightline.config.settings import Settings
+from idraft.api.main import create_app
+from idraft.api.resources import Resources
+from idraft.config.settings import Settings
 from tests.api.auth.support import RecordingEmailSender, probes
 from tests.api.workspaces.support import workspace_probes
 from tests.collectors.test_fetching import MemoryStore

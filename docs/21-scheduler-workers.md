@@ -163,7 +163,7 @@ Why a dispatcher rather than 10,000 delayed queue messages: delayed messages wor
 
 ### 5.1 Taskiq settings
 
-The queue is Taskiq with the Redis stream broker (ADR-022). A Taskiq broker is bound to one queue, so the worker's own entrypoint (`python -m sightline.worker`) starts two Taskiq receivers in one asyncio process, one per broker, together with the planner and dispatcher ticks and Taskiq's scheduler (`run_scheduler_task`).
+The queue is Taskiq with the Redis stream broker (ADR-022). A Taskiq broker is bound to one queue, so the worker's own entrypoint (`python -m idraft.worker`) starts two Taskiq receivers in one asyncio process, one per broker, together with the planner and dispatcher ticks and Taskiq's scheduler (`run_scheduler_task`).
 
 How a stream is read is the worker's own (`worker/queues.py`), on top of the `taskiq-redis` stream broker, because four things the queue depends on are not what that broker does by default:
 

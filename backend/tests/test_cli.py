@@ -1,4 +1,4 @@
-"""`python -m sightline.cli create-operator`: the way the first account comes to exist."""
+"""`python -m idraft.cli create-operator`: the way the first account comes to exist."""
 
 import asyncio
 import io
@@ -9,8 +9,8 @@ import uuid
 import httpx
 import pytest
 
-from sightline import cli
-from sightline.api.auth.passwords import verify_password
+from idraft import cli
+from idraft.api.auth.passwords import verify_password
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.conftest import BASE_URL, PostgresServer
 
@@ -342,7 +342,7 @@ def test_the_stored_email_keeps_its_case_and_the_audit_row_has_no_workspace(
         (
             "unmigrated",
             "migrator",
-            "The schema is not migrated. Run python -m sightline.db.migrate first.\n",
+            "The schema is not migrated. Run python -m idraft.db.migrate first.\n",
         ),
     ],
 )
@@ -391,8 +391,7 @@ def test_help_exits_cleanly_and_an_unknown_command_does_not(
 
 def test_importing_the_cli_does_not_build_the_api() -> None:
     script = (
-        "import sys, sightline.cli; "
-        "print('fastapi' in sys.modules, 'sightline.api.main' in sys.modules)"
+        "import sys, idraft.cli; print('fastapi' in sys.modules, 'idraft.api.main' in sys.modules)"
     )
     result = subprocess.run(
         [sys.executable, "-c", script], capture_output=True, text=True, check=True, timeout=60

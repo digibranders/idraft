@@ -1,6 +1,6 @@
 """The matrix of docs/24-security.md section 3.2, typed out again so a change needs two edits."""
 
-from sightline.api.permissions import (
+from idraft.api.permissions import (
     ROLE_PERMISSIONS,
     TOTP_REQUIRED_ROLES,
     Permission,

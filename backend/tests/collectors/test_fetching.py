@@ -12,14 +12,14 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import ledger, reconciler
-from sightline.collectors.fetching import RETENTION_CLASS, FetchTask, fetch_task, poll_ready
-from sightline.collectors.ledger import TaskRef, database_time
-from sightline.collectors.reconciler import reconcile
-from sightline.domain.retries import ProviderErrorKind as K
-from sightline.domain.retries import RetryDecision
-from sightline.domain.workloads import TaskWorkload
-from sightline.providers.contract import (
+from idraft.collectors import ledger, reconciler
+from idraft.collectors.fetching import RETENTION_CLASS, FetchTask, fetch_task, poll_ready
+from idraft.collectors.ledger import TaskRef, database_time
+from idraft.collectors.reconciler import reconcile
+from idraft.domain.retries import ProviderErrorKind as K
+from idraft.domain.retries import RetryDecision
+from idraft.domain.workloads import TaskWorkload
+from idraft.providers.contract import (
     Echo,
     FetchResult,
     ProviderCallError,
@@ -27,7 +27,7 @@ from sightline.providers.contract import (
     ReadyTask,
     SubmittedTask,
 )
-from sightline.storage.raw import RawStorageError
+from idraft.storage.raw import RawStorageError
 from tests.api.auth.support import execute, fetch
 from tests.collectors.support import FakeProvider, task_rows
 from tests.collectors.test_submission import World, _one_batch

@@ -13,7 +13,7 @@ import csv
 from collections import defaultdict
 from datetime import datetime
 
-from sightline.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
+from idraft.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
 from spikes.common import (
     REPORTS,
     Budget,

@@ -1,4 +1,4 @@
-# Sightline backend
+# idraft.ai backend
 
 FastAPI API and Taskiq worker. Architecture: `docs/adr/ADR-022-python-backend-simplified-platform.md`.
 
@@ -25,13 +25,13 @@ cp .env.example .env && cp .env.migrator.example .env.migrator
 Apply the migrations:
 
 ```bash
-uv run --env-file .env.migrator python -m sightline.db.migrate
+uv run --env-file .env.migrator python -m idraft.db.migrate
 ```
 
 Start the API with reload:
 
 ```bash
-uv run --env-file .env uvicorn sightline.api.main:create_app --factory --reload --no-access-log --port 8000
+uv run --env-file .env uvicorn idraft.api.main:create_app --factory --reload --no-access-log --port 8000
 ```
 
 `http://127.0.0.1:8000/api/readyz` returns `200` when PostgreSQL, Redis and the schema are in place.
@@ -50,8 +50,8 @@ The dev stack also starts `objects`, an S3 API that stands in for R2 (port 17070
    R2_RAW_SECRET_ACCESS_KEY=dev-secret-key-for-raw-storage
    ```
 
-3. Load DataForSEO's location list once (free): `uv run --env-file .env.worker python -m sightline.worker.sync_locations`.
-4. Start the worker: `uv run --env-file .env.worker python -m sightline.worker`.
+3. Load DataForSEO's location list once (free): `uv run --env-file .env.worker python -m idraft.worker.sync_locations`.
+4. Start the worker: `uv run --env-file .env.worker python -m idraft.worker`.
 
 A new tracked keyword is then checked within a minute or two: its metrics (about $0.0005 a keyword) and its first rank check (about $0.0018 a keyword at depth 20). `APP_ORIGIN` must be the origin the web app is served from, or every `POST` is `403 origin_not_allowed`.
 
@@ -60,7 +60,7 @@ A new tracked keyword is then checked within a minute or two: its metrics (about
 Registration is by invitation (`REGISTRATION=invited`, the default), so the first account is made by hand. The command connects as `migrator` and asks for a password of at least 12 characters:
 
 ```bash
-uv run --env-file .env.migrator python -m sightline.cli create-operator --email you@example.com --name "Your Name"
+uv run --env-file .env.migrator python -m idraft.cli create-operator --email you@example.com --name "Your Name"
 ```
 
 That account is a verified platform operator and can sign in at `POST /api/v1/auth/sign-in`. The command checks the password's length but not the breached-password list (it makes no network calls), and it never changes an account that already exists. To let anyone register instead, start the API with `REGISTRATION=open`.
@@ -110,13 +110,13 @@ No test calls the real API: the adapter's tests answer from synthetic fixtures i
 The locations a project and its keywords can target come from DataForSEO's free list, synced by the worker on the 2nd of each month at 03:00 UTC. A location the list no longer has is deactivated, not deleted, and a list less than half as long as what is active deactivates nothing. Without credentials there is nothing to sync and the list stays empty. The command runs with the worker's settings (`cp .env.worker.example .env.worker`; it connects as `app_worker`). To sync once now from DataForSEO, which needs the credentials and the bucket in `.env.worker`:
 
 ```bash
-uv run --env-file .env.worker python -m sightline.worker.sync_locations
+uv run --env-file .env.worker python -m idraft.worker.sync_locations
 ```
 
 That calls the DataForSEO account. A local database can be filled without credentials or network from the synthetic sample (nine countries, regions and cities):
 
 ```bash
-uv run --env-file .env.worker python -m sightline.worker.sync_locations --from-file tests/fixtures/dataforseo/locations.json
+uv run --env-file .env.worker python -m idraft.worker.sync_locations --from-file tests/fixtures/dataforseo/locations.json
 ```
 
 ## The image
@@ -124,26 +124,26 @@ uv run --env-file .env.worker python -m sightline.worker.sync_locations --from-f
 `smoke.sh` runs a built image the way production does: it migrates a fresh PostgreSQL 18 with only `DATABASE_URL` set, starts the API and requires `/api/readyz` to answer 200 as uid 10001, then starts the worker as `app_worker`, requires its heartbeat to be fresh by the container's own healthcheck, and requires SIGTERM to stop it with exit code 0. CI runs it on every change.
 
 ```bash
-docker build --target api -t sightline-api:dev . && ./smoke.sh sightline-api:dev
+docker build --target api -t idraft-api:dev . && ./smoke.sh idraft-api:dev
 ```
 
 ## Layout
 
 | Package | Holds | Rule (enforced by import-linter) |
 |---|---|---|
-| `sightline.api` | FastAPI app, routers, error responses | entrypoint |
-| `sightline.worker` | Taskiq tasks and scheduler ticks | entrypoint |
-| `sightline.domain` | metrics, rank derivation, statistics | pure: no internal imports, no I/O |
-| `sightline.extraction` | canonicalizer, matchers, parsers | pure: no internal imports, no I/O |
-| `sightline.providers` | provider adapters | never imports the database layer |
-| `sightline.collectors` | planners, submitters, fetchers, ingesters | owns persistence |
-| `sightline.db` | engine, sessions, migrations | never imports the entrypoints |
-| `sightline.storage` | object storage, raw payloads | never imports the entrypoints |
-| `sightline.config` | settings, logging, Sentry | never imports the entrypoints |
+| `idraft.api` | FastAPI app, routers, error responses | entrypoint |
+| `idraft.worker` | Taskiq tasks and scheduler ticks | entrypoint |
+| `idraft.domain` | metrics, rank derivation, statistics | pure: no internal imports, no I/O |
+| `idraft.extraction` | canonicalizer, matchers, parsers | pure: no internal imports, no I/O |
+| `idraft.providers` | provider adapters | never imports the database layer |
+| `idraft.collectors` | planners, submitters, fetchers, ingesters | owns persistence |
+| `idraft.db` | engine, sessions, migrations | never imports the entrypoints |
+| `idraft.storage` | object storage, raw payloads | never imports the entrypoints |
+| `idraft.config` | settings, logging, Sentry | never imports the entrypoints |
 
 ## Migrations
 
-Revisions live in `src/sightline/db/migrations/versions/` and are written as SQL in `op.execute(...)`. Create one with:
+Revisions live in `src/idraft/db/migrations/versions/` and are written as SQL in `op.execute(...)`. Create one with:
 
 ```bash
 uv run --env-file .env.migrator alembic revision --rev-id 0005 -m "describe the change"
@@ -162,9 +162,9 @@ The version table is `ops.alembic_version`. `/api/readyz` reports `migrations: f
 | `app_worker` | the worker | Reads across workspaces; never reachable from a request |
 | `backup` | `pg_dump` | Read-only |
 
-Code that touches tenant data opens its transaction with `workspace_transaction(sessions, workspace_id)` from `sightline.db.engine`. A transaction that does not is shown no tenant rows. `user_transaction(sessions, user_id)` is for the few requests that run before a workspace is chosen: it shows a user their own memberships and workspaces, nothing else.
+Code that touches tenant data opens its transaction with `workspace_transaction(sessions, workspace_id)` from `idraft.db.engine`. A transaction that does not is shown no tenant rows. `user_transaction(sessions, user_id)` is for the few requests that run before a workspace is chosen: it shows a user their own memberships and workspaces, nothing else.
 
-A new table with a `workspace_id` column needs `tenant_isolation(...)` and `grants(...)` from `sightline.db.ddl` in its revision. Two tests fail until it has them: the catalog check in `tests/db/test_rls.py` and the grant matrix in `tests/db/test_grants.py`.
+A new table with a `workspace_id` column needs `tenant_isolation(...)` and `grants(...)` from `idraft.db.ddl` in its revision. Two tests fail until it has them: the catalog check in `tests/db/test_rls.py` and the grant matrix in `tests/db/test_grants.py`.
 
 Grants are least privilege. Give a role `UPDATE` on a whole table only when it may change every column; otherwise use `column_grant(...)` for the columns it changes. The worker bypasses row-level security, so it never gets `UPDATE` on `workspace_id`, `project_id` or an identity column. When a route or job needs a new privilege, add it in the same revision as the code, update the matrix in `tests/db/test_grants.py` and the table in `docs/04-data-model.md` section 13.1. Row-level security does not stop SQL injection (the workspace setting can be set by any SQL the API runs), so application code never builds SQL from strings; ruff rule `S608` fails the build on it.
 
@@ -173,10 +173,10 @@ Grants are least privilege. Give a role `UPDATE` on a whole table only when it m
 `openapi/v1.json` is generated from the code and committed; a test fails when it drifts. Regenerate it with:
 
 ```bash
-uv run python -m sightline.api.openapi > openapi/v1.json
+uv run python -m idraft.api.openapi > openapi/v1.json
 ```
 
-Request bodies under `/api/` are limited to 1 MB (`413 payload_too_large`), checked before they are parsed (`sightline.api.body_limit`). Put a reverse proxy's limit at least as high.
+Request bodies under `/api/` are limited to 1 MB (`413 payload_too_large`), checked before they are parsed (`idraft.api.body_limit`). Put a reverse proxy's limit at least as high.
 
 ## Logs
 

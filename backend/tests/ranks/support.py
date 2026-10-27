@@ -6,11 +6,11 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sightline.extraction.domains import DomainResolver, DomainRule, MatchScope, ProjectRole
-from sightline.extraction.urls import normalize_host
-from sightline.providers.dataforseo.serp_parse import NormalizedSerp, parse_serp
-from sightline.ranks.resolve import AioState
-from sightline.ranks.state import Check
+from idraft.extraction.domains import DomainResolver, DomainRule, MatchScope, ProjectRole
+from idraft.extraction.urls import normalize_host
+from idraft.providers.dataforseo.serp_parse import NormalizedSerp, parse_serp
+from idraft.ranks.resolve import AioState
+from idraft.ranks.state import Check
 
 START = datetime(2026, 10, 1, 2, 0, tzinfo=UTC)
 

@@ -5,7 +5,7 @@ from typing import Any
 
 import structlog
 
-from sightline.config.logging import configure_logging
+from idraft.config.logging import configure_logging
 
 
 def _capture(level: str = "info") -> io.StringIO:

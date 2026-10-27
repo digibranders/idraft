@@ -19,11 +19,11 @@ from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.redis import RedisContainer
 from testcontainers.core.container import DockerContainer
 
-from sightline.api.main import create_app
-from sightline.config.logging import reset_logging
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine
-from sightline.db.migrate import upgrade_to_head
+from idraft.api.main import create_app
+from idraft.config.logging import reset_logging
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine
+from idraft.db.migrate import upgrade_to_head
 
 BASE_URL = "https://app.example.com"
 

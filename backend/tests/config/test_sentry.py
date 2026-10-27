@@ -9,13 +9,13 @@ from fastapi.exceptions import ResponseValidationError
 from pydantic import SecretStr
 from sentry_sdk.types import Breadcrumb, Event
 
-from sightline.config.sentry import (
+from idraft.config.sentry import (
     TRACES_SAMPLE_RATE,
     init_sentry,
     scrub_breadcrumb,
     scrub_event,
 )
-from sightline.config.settings import Settings
+from idraft.config.settings import Settings
 
 
 def _settings(sentry_dsn: str | None = None) -> Settings:
@@ -111,8 +111,8 @@ def test_redis_commands_are_never_reported() -> None:
         "import sentry_sdk\n"
         "from pydantic import SecretStr\n"
         "from sentry_sdk.integrations.redis import RedisIntegration\n"
-        "from sightline.config.sentry import init_sentry\n"
-        "from sightline.config.settings import Settings\n"
+        "from idraft.config.sentry import init_sentry\n"
+        "from idraft.config.settings import Settings\n"
         "settings = Settings(app_origin='https://app.example.com', app_env='test',\n"
         "    database_url=SecretStr('postgresql://u:p@h/db'), redis_url=SecretStr('redis://h/0'),\n"
         "    process_role='worker', sentry_dsn=SecretStr('https://public@o0.ingest.sentry.io/0'))\n"

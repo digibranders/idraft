@@ -1,6 +1,6 @@
 /**
  * Request ids (25-observability.md section 3.3): `req_` plus a UUIDv7 in upper-case Crockford base32, the
- * format the API owns (backend/src/sightline/api/request_id.py). The API keeps an incoming `X-Request-Id`
+ * format the API owns (backend/src/idraft/api/request_id.py). The API keeps an incoming `X-Request-Id`
  * only in this exact format, so a page render and the API calls it makes share one id in both logs.
  * Ids sort by creation time; within one millisecond a counter keeps them increasing (RFC 9562 6.2).
  */

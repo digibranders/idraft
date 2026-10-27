@@ -8,10 +8,10 @@ from uuid import UUID
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import ledger, reconciler
-from sightline.collectors.reconciler import ReconcileReport, ensure_partitions, reconcile
-from sightline.collectors.registry import Registry
-from sightline.domain.tasks import partition_month
+from idraft.collectors import ledger, reconciler
+from idraft.collectors.reconciler import ReconcileReport, ensure_partitions, reconcile
+from idraft.collectors.registry import Registry
+from idraft.domain.tasks import partition_month
 from tests.api.auth.support import execute, fetch
 from tests.collectors.support import (
     NOW,

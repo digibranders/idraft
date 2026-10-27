@@ -635,7 +635,7 @@ describe('Runs', () => {
     // The newest fixture run failed: its tasks are failed
     expect(await within(panel).findByText('Failed', { selector: 'dt' })).toBeInTheDocument();
     expect(within(panel).getByText('Started by')).toBeInTheDocument();
-    expect(within(panel).getByText('Sightline')).toBeInTheDocument();
+    expect(within(panel).getByText('idraft.ai')).toBeInTheDocument();
   });
 
   it.each([

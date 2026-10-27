@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from sightline.api.auth.mail import (
+from idraft.api.auth.mail import (
     password_changed_email,
     password_reset_email,
     two_factor_changed_email,

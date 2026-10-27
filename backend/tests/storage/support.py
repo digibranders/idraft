@@ -6,7 +6,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from sightline.storage.raw import RawStore, open_raw_store, s3_client
+from idraft.storage.raw import RawStore, open_raw_store, s3_client
 from tests.conftest import ObjectServer
 
 

@@ -115,7 +115,7 @@ CREATE INDEX ON seo.rank_events (project_id, occurred_at DESC, event_type);
 
 Debounce rules for `new_ranking` and `lost_ranking` exist because single-check flips at the edge of the depth are common and would otherwise flood alerts.
 
-**As built (step 5, rank collection).** The rules are the pure functions of `backend/src/sightline/ranks/` (no database, no I/O; an import contract keeps them so), applied by the ingest. Where the text above leaves room, this is what they do:
+**As built (step 5, rank collection).** The rules are the pure functions of `backend/src/idraft/ranks/` (no database, no I/O; an import contract keeps them so), applied by the ingest. Where the text above leaves room, this is what they do:
 
 - **The own side is one.** A keyword's current rank is the best organic rank among all entities with role `own`, and its events are attributed to the primary own entity (a project without one writes no rank events). Each own and competitor entity still has its own `domain_rank_observations` row per check.
 - **The previous check is the last successful check**, held in the state (`previous_rank`, `previous_observed_at`, `previous_depth_requested`). A change is computed within the smaller depth of the two checks: both ranks beyond that depth count as beyond it. A numeric change is written as `rank_gain` or `rank_drop` for every change, with the ranks; thresholds belong to the alert rules.

@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 import httpx
 import pytest
 
-from sightline.api.resources import Resources
+from idraft.api.resources import Resources
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import (

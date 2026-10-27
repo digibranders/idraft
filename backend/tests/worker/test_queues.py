@@ -19,14 +19,14 @@ from taskiq import ScheduledTask
 from taskiq.exceptions import ScheduledTaskCancelledError, SendTaskError
 from taskiq_redis import RedisStreamBroker
 
-from sightline.config.logging import configure_logging
-from sightline.providers.contract import Limit
-from sightline.worker import queues as queues_module
-from sightline.worker import scheduler as scheduler_module
-from sightline.worker.limiter import RedisCallGate
-from sightline.worker.locks import RedisLock
-from sightline.worker.queues import CONSUMER_GROUP, Queues
-from sightline.worker.scheduler import run_scheduler
+from idraft.config.logging import configure_logging
+from idraft.providers.contract import Limit
+from idraft.worker import queues as queues_module
+from idraft.worker import scheduler as scheduler_module
+from idraft.worker.limiter import RedisCallGate
+from idraft.worker.locks import RedisLock
+from idraft.worker.queues import CONSUMER_GROUP, Queues
+from idraft.worker.scheduler import run_scheduler
 from tests.worker.conftest import eventually
 
 

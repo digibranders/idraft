@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from sightline.config.settings import (
+from idraft.config.settings import (
     MigratorSettings,
     Settings,
     load_migrator_settings,
@@ -20,7 +20,7 @@ BASE_ENV = {
     "TOTP_ENCRYPTION_KEY": TOTP_KEY,
     "EMAIL_PROVIDER": "resend",
     "EMAIL_API_KEY": "re_123",
-    "EMAIL_FROM": "Sightline <login@mail.example.com>",
+    "EMAIL_FROM": "idraft.ai <login@mail.example.com>",
 }
 # What a developer's machine has: a local origin and no email provider.
 LOCAL_ENV = {
@@ -50,7 +50,7 @@ def test_loads_required_values_and_defaults(monkeypatch: pytest.MonkeyPatch) -> 
     assert settings.registration == "invited"
     assert settings.email_provider == "console"
     assert settings.email_api_key is None
-    assert settings.email_from == "Sightline <no-reply@localhost>"
+    assert settings.email_from == "idraft.ai <no-reply@localhost>"
     assert settings.breached_password_check is True
     assert settings.totp_key == bytes(range(32))
 
@@ -251,7 +251,7 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
             "TOTP_ENCRYPTION_KEY": "TEVBSzRMRUFLNExFQUs0TEVBSzRMRUFLNExFQUs0TEU=",
             "EMAIL_PROVIDER": "resend",
             "EMAIL_API_KEY": "re_LEAK5",
-            "EMAIL_FROM": "Sightline <login@mail.example.com>",
+            "EMAIL_FROM": "idraft.ai <login@mail.example.com>",
         },
     )
     settings = Settings()
@@ -299,10 +299,10 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
         {"TOTP_ENCRYPTION_KEY": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gIQ=="},
         {"EMAIL_PROVIDER": "sendgrid"},
         {"EMAIL_API_KEY": ""},
-        {"EMAIL_FROM": "Sightline <no-reply@localhost>"},
+        {"EMAIL_FROM": "idraft.ai <no-reply@localhost>"},
         {"EMAIL_PROVIDER": "console"},
-        {"EMAIL_FROM": "Sightline"},
-        {"EMAIL_FROM": "Sightline <a@b.example>\r\nBcc: x@y.example"},
+        {"EMAIL_FROM": "idraft.ai"},
+        {"EMAIL_FROM": "idraft.ai <a@b.example>\r\nBcc: x@y.example"},
         {"APP_ENV": "production", "EMAIL_PROVIDER": "console"},
         {"BREACHED_PASSWORD_CHECK": "sometimes"},
     ],
@@ -397,7 +397,7 @@ def test_production_with_resend_is_accepted(monkeypatch: pytest.MonkeyPatch) -> 
             "APP_ENV": "production",
             "EMAIL_PROVIDER": "resend",
             "EMAIL_API_KEY": "re_123",
-            "EMAIL_FROM": "Sightline <login@mail.example.com>",
+            "EMAIL_FROM": "idraft.ai <login@mail.example.com>",
             "REGISTRATION": "open",
         },
     )
@@ -429,7 +429,7 @@ def test_the_worker_may_run_in_production_without_an_email_provider(
         "http://127.0.0.1:3000",
         "http://[::1]:3000",
         "http://app.localhost:3000",
-        "https://sightline.test",
+        "https://idraft.test",
     ],
 )
 def test_the_console_sender_is_allowed_for_a_local_origin(

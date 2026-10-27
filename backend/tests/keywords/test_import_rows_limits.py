@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from sightline.keywords.import_rows import (
+from idraft.keywords.import_rows import (
     CELL_MAX,
     COLUMNS_MAX,
     TAGS_MAX,

@@ -7,9 +7,9 @@ from typing import get_args
 
 import pytest
 
-from sightline.api.schemas.keywords import DepthProfile, FunnelStage, Intent
-from sightline.keywords import import_rows
-from sightline.keywords.import_rows import (
+from idraft.api.schemas.keywords import DepthProfile, FunnelStage, Intent
+from idraft.keywords import import_rows
+from idraft.keywords.import_rows import (
     CELL_MAX,
     IMPORT_ROWS_MAX,
     Defaults,
@@ -23,7 +23,7 @@ from sightline.keywords.import_rows import (
     read_paste,
     resolve_mapping,
 )
-from sightline.ranks.depth import UNAVAILABLE
+from idraft.ranks.depth import UNAVAILABLE
 
 LOCATIONS = Locations(
     active_ids=frozenset({2840, 2826, 1023191}),

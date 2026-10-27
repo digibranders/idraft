@@ -8,10 +8,10 @@ from uuid import UUID
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import budget, ledger
-from sightline.collectors.budget import BudgetVerdict, SpendMemo
-from sightline.domain.tasks import partition_month
-from sightline.domain.workloads import TaskWorkload
+from idraft.collectors import budget, ledger
+from idraft.collectors.budget import BudgetVerdict, SpendMemo
+from idraft.domain.tasks import partition_month
+from idraft.domain.workloads import TaskWorkload
 from tests.api.auth.support import execute, fetch
 from tests.collectors.support import (
     NOW,

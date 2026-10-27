@@ -7,8 +7,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.providers.contract import Echo
-from sightline.providers.dataforseo.tags import make_tag, read_tag
+from idraft.providers.contract import Echo
+from idraft.providers.dataforseo.tags import make_tag, read_tag
 
 RUN = uuid.UUID("0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11")
 

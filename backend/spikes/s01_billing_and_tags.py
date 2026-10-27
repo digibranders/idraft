@@ -19,9 +19,9 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sightline.providers.contract import CanonicalRequest
-from sightline.providers.dataforseo.serp import ENDPOINT, SERP_ORGANIC, SerpOrganicParams, task_body
-from sightline.providers.dataforseo.tags import make_tag
+from idraft.providers.contract import CanonicalRequest
+from idraft.providers.dataforseo.serp import ENDPOINT, SERP_ORGANIC, SerpOrganicParams, task_body
+from idraft.providers.dataforseo.tags import make_tag
 from spikes.common import (
     INSTALLATION,
     Budget,

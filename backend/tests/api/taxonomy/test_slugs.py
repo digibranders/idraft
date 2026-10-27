@@ -6,8 +6,8 @@ import re
 
 import pytest
 
-from sightline.api.schemas.taxonomy import SLUG_MAX, SLUG_PATTERN
-from sightline.api.taxonomy.slugs import FALLBACK_SLUG, free_slug, slugify
+from idraft.api.schemas.taxonomy import SLUG_MAX, SLUG_PATTERN
+from idraft.api.taxonomy.slugs import FALLBACK_SLUG, free_slug, slugify
 
 
 @pytest.mark.parametrize(

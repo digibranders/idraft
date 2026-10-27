@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 import pytest
 
-from sightline.api.resources import Resources
+from idraft.api.resources import Resources
 from tests.api.auth.support import Workspace, execute, fetchrow
 from tests.api.entities.support import Caller, member
 from tests.api.keywords.support import errors, keyword_project, project_url, tracked_id

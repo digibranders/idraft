@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from sightline.collectors.seo_rank_health import HealthReport, refresh_health
+from idraft.collectors.seo_rank_health import HealthReport, refresh_health
 from tests.api.auth.support import execute, fetch
 from tests.collectors.rank_support import Ledger, World, answer, fetched_task, make_world, track
 from tests.collectors.support import NOW

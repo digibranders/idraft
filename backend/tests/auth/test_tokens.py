@@ -1,7 +1,7 @@
 import hashlib
 import re
 
-from sightline.api.auth.tokens import hash_token, new_token
+from idraft.api.auth.tokens import hash_token, new_token
 
 
 def test_a_token_is_256_random_bits_in_url_safe_text() -> None:

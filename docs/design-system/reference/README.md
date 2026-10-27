@@ -11,7 +11,7 @@ Seven high-fidelity screens that define how the product looks. Design-system v2 
 
 - Generated with ChatGPT image generation on 2026-09-29, one screen per request, 1536 x 1024 px each.
 - The brief was written from the v1 tokens and rules of the time: canvas `#F9FAFB`, cobalt accent `#2763D7` and nothing else, Geist, 13 px base, hairline borders, a metric strip instead of KPI cards, neutral badges, and no shadows on panels ([generation-brief.md](generation-brief.md)).
-- Product name "Sightline" and domain "fieldnote.io" are placeholders. The data is illustrative only.
+- The product name "Sightline" and the domain "fieldnote.io" in the images are placeholders. The final name and domain are idraft.ai. The images are not regenerated. The data is illustrative only.
 - An earlier set (a product called "BrandLens") was studied and rejected. It had a saturated indigo accent, multicolored pills, KPI cards with tinted icon tiles, and a donut chart. Only its layout ideas carried over.
 
 ## 2. Screens
