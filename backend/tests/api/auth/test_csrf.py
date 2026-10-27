@@ -8,7 +8,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from sightline.config.logging import configure_logging
+from idraft.config.logging import configure_logging
 from tests.conftest import BASE_URL
 
 OPEN = "/api/v1/_probe/open"

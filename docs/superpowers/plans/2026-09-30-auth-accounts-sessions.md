@@ -4,7 +4,7 @@
 
 **Goal:** A person can register, verify their email, sign in with a password and TOTP, manage their sessions and password, and read `GET /api/v1/me`; every later route can depend on `current_session`.
 
-**Architecture:** The auth module is a package, `sightline.api.auth`, inside the FastAPI app (ADR-022). Pure pieces (password policy, token hashing, TOTP maths, the permission matrix) have no I/O and are unit-tested alone. A repository holds every SQL statement against the `auth` tables through SQLAlchemy Core table metadata; a session store adds the 60 s Redis read-through cache; a service composes them into use cases, each in one transaction that also writes the audit row. Routes are thin: parse, call the service, set or clear the cookie.
+**Architecture:** The auth module is a package, `idraft.api.auth`, inside the FastAPI app (ADR-022). Pure pieces (password policy, token hashing, TOTP maths, the permission matrix) have no I/O and are unit-tested alone. A repository holds every SQL statement against the `auth` tables through SQLAlchemy Core table metadata; a session store adds the 60 s Redis read-through cache; a service composes them into use cases, each in one transaction that also writes the audit row. Routes are thin: parse, call the service, set or clear the cookie.
 
 **Tech Stack:** FastAPI, SQLAlchemy 2 Core (asyncpg), Redis 8, `argon2-cffi`, `pyotp`, `cryptography` (AES-256-GCM), `httpx` (breached-password range API, email provider), pytest with Testcontainers.
 
@@ -19,7 +19,7 @@
 - **Re-authentication moved from Task 6 to Task 7**, because it shares its code path with the second factor. A user with two-factor on must re-authenticate with a code (not in the original plan; found in review).
 - **Task 5 order.** The invitation is checked before the password policy, so in `invited` mode nothing about a password is said to a caller without a valid token. The invitation is checked again inside the insert transaction.
 - **`totp_encryption_key`** is required for the api process only; the worker and the CLI do not need it. Two keys are derived from it with HKDF: one encrypts TOTP secrets, one authenticates cached sessions.
-- **`build_email_sender`** takes plain values, not `Settings`, so `sightline.providers` stays free of `sightline.config` (which imports SQLAlchemy).
+- **`build_email_sender`** takes plain values, not `Settings`, so `idraft.providers` stays free of `idraft.config` (which imports SQLAlchemy).
 - **Sessions are not named in logs**, only the user.
 - **Session cache.** Entries are authenticated and a revocation leaves a 120 s tombstone. Neither was in the plan; both came from review.
 - **Findings, fixes and carried items:** `docs/review-log.md`, "Auth: accounts, sessions and two-factor".
@@ -52,7 +52,7 @@ The specs leave these open or contradict each other. Each is written back to the
 ```
 backend/
   pyproject.toml                                   add argon2-cffi, pyotp, cryptography, httpx (runtime)
-  src/sightline/
+  src/idraft/
     config/settings.py                             new settings (Task 1)
     config/sentry.py                               Redis integration off (Task 4)
     providers/email.py                             EmailSender port, EmailMessage, ConsoleEmailSender, ResendEmailSender
@@ -74,7 +74,7 @@ backend/
         service.py                                 AuthService: the use cases
         dependencies.py                            current_session, pending_or_active_session, fresh_session, cookie helpers
         routes.py                                  /api/v1/auth/*, /api/v1/me
-    cli.py                                         `python -m sightline.cli create-operator`
+    cli.py                                         `python -m idraft.cli create-operator`
   tests/
     auth/test_passwords.py, test_tokens.py, test_totp.py, test_throttle.py, test_permissions.py
     providers/test_email.py
@@ -388,9 +388,9 @@ Tests: the full path (setup, confirm, sign out, sign in gives `totp_required`, v
 
 ### Task 8: Operator CLI, the OpenAPI route and the development stack
 
-**Files:** `src/sightline/cli.py`; `api/routes` for `GET /api/v1/openapi.json`; `backend/openapi/v1.json`; `infra/compose/docker-compose.dev.yml`; `backend/.env.example`; `backend/smoke.sh`; `backend/README.md`; tests `tests/test_cli.py`, `tests/api/test_openapi.py`.
+**Files:** `src/idraft/cli.py`; `api/routes` for `GET /api/v1/openapi.json`; `backend/openapi/v1.json`; `infra/compose/docker-compose.dev.yml`; `backend/.env.example`; `backend/smoke.sh`; `backend/README.md`; tests `tests/test_cli.py`, `tests/api/test_openapi.py`.
 
-- `python -m sightline.cli create-operator --email E --name N`: connects with `DATABASE_URL` as `migrator` (it refuses to run as any other role, by checking `current_user`), reads the password from a prompt without echo, or from stdin when not a terminal, applies the policy, inserts the user with `is_platform_operator = true` and `email_verified_at = now()`, and records `auth.operator_created` in the audit log. A second run for the same email changes nothing and exits 1 with a clear message.
+- `python -m idraft.cli create-operator --email E --name N`: connects with `DATABASE_URL` as `migrator` (it refuses to run as any other role, by checking `current_user`), reads the password from a prompt without echo, or from stdin when not a terminal, applies the policy, inserts the user with `is_platform_operator = true` and `email_verified_at = now()`, and records `auth.operator_created` in the audit log. A second run for the same email changes nothing and exits 1 with a clear message.
 - `GET /api/v1/openapi.json` needs an active session; the committed document is regenerated and the existing test keeps it equal to the generated one. Every auth route documents its error responses as `application/problem+json`.
 - The development stack and the smoke test pass `TOTP_ENCRYPTION_KEY`; `.env.example` shows how to generate one (`python -c "import base64, os; print(base64.b64encode(os.urandom(32)).decode())"`); the README gains "Signing in locally" (create an operator, where the console sender prints emails).
 

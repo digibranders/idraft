@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from sightline.providers.email import (
+from idraft.providers.email import (
     ConsoleEmailSender,
     EmailMessage,
     EmailSendError,

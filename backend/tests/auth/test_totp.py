@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import pyotp
 import pytest
 
-from sightline.api.auth.totp import (
+from idraft.api.auth.totp import (
     TotpCipher,
     TotpSecretError,
     hash_recovery_code,

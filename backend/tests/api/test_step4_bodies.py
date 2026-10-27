@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from sightline.api.schemas.entities import (
+from idraft.api.schemas.entities import (
     AliasInput,
     AliasTestRequest,
     AliasUpdate,
@@ -18,7 +18,7 @@ from sightline.api.schemas.entities import (
     ProjectEntityCreate,
     ProjectEntityUpdate,
 )
-from sightline.api.schemas.taxonomy import TermInput, TermUpdate, VocabularyCreate
+from idraft.api.schemas.taxonomy import TermInput, TermUpdate, VocabularyCreate
 
 
 def _codes(model: type[BaseModel], body: dict[str, Any]) -> list[str]:

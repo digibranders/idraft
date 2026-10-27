@@ -13,12 +13,12 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import ledger
-from sightline.collectors.fetching import RETENTION_CLASS
-from sightline.collectors.ledger import NewTask
-from sightline.collectors.raw_payloads import RawPayload, store_raw_payload
-from sightline.domain.workloads import TaskWorkload
-from sightline.providers.dataforseo import serp as serp_endpoint
+from idraft.collectors import ledger
+from idraft.collectors.fetching import RETENTION_CLASS
+from idraft.collectors.ledger import NewTask
+from idraft.collectors.raw_payloads import RawPayload, store_raw_payload
+from idraft.domain.workloads import TaskWorkload
+from idraft.providers.dataforseo import serp as serp_endpoint
 from tests.api.auth.support import execute, fetchrow
 from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.collectors.support import NOW, Project, make_tenant

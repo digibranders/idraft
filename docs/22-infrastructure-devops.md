@@ -228,7 +228,7 @@ services:
     container_name: seo-api
     command:
       - uvicorn
-      - sightline.api.main:create_app
+      - idraft.api.main:create_app
       - --factory                    # settings are read when the app is built, never at import
       - --no-access-log              # the API writes its own request line with the route template
       - --no-server-header
@@ -263,7 +263,7 @@ services:
     <<: *app
     image: ${WORKER_IMAGE:?set WORKER_IMAGE to ghcr.io/<org>/seo-worker@sha256:<digest>}
     container_name: seo-worker        # remove before running a second worker container (scaling step 3)
-    command: ["python", "-m", "sightline.worker"]
+    command: ["python", "-m", "idraft.worker"]
     depends_on: *backend-deps
     environment:
       RELEASE_SHA: ${RELEASE_SHA:?}
@@ -297,7 +297,7 @@ services:
     volumes:
       - spool:/var/spool/seo
     healthcheck:
-      test: ["CMD", "python", "-m", "sightline.worker.healthcheck", "/tmp/heartbeat", "60"]
+      test: ["CMD", "python", "-m", "idraft.worker.healthcheck", "/tmp/heartbeat", "60"]
       interval: 15s
       timeout: 3s
       retries: 4
@@ -312,7 +312,7 @@ services:
     image: ${API_IMAGE:?}             # the api image carries Alembic and the migrations
     profiles: ["tools"]               # never started by `up`; run with `docker compose run --rm migrator`
     restart: "no"
-    command: ["python", "-m", "sightline.db.migrate"]   # needs only DATABASE_URL; takes an advisory lock; logs JSON
+    command: ["python", "-m", "idraft.db.migrate"]   # needs only DATABASE_URL; takes an advisory lock; logs JSON
     depends_on: *backend-deps
     environment:
       RELEASE_SHA: ${RELEASE_SHA:?}
@@ -1037,7 +1037,7 @@ jobs:
       - name: Migration check (lock_timeout 2s against synthetic fixture, doc 04 section 14)
         run: uv run pytest -m migration_check
       - name: Export the OpenAPI document
-        run: uv run python -m sightline.api.openapi > ../apps/web/openapi.json
+        run: uv run python -m idraft.api.openapi > ../apps/web/openapi.json
       - uses: actions/upload-artifact@v4
         with: { name: openapi, path: apps/web/openapi.json }
       - name: Audit production dependencies
@@ -1457,7 +1457,7 @@ A contractual RPO below 24 hours is the trigger for PITR with pgBackRest and WAL
 
 ## 12. Runbooks
 
-All commands run as `deploy` in `/opt/seo-platform/src/infra/compose` with `C="sudo docker compose --env-file /etc/seo-platform/.env --env-file /opt/seo-platform/release.env --env-file profiles/4gb.env"`. Compose needs root because it reads `/etc/seo-platform/.env` for interpolation; an operator's sudo asks for the `deploy` password. `ops` below stands for the ops CLI in the worker container: `$C exec worker python -m sightline.worker.cli`.
+All commands run as `deploy` in `/opt/seo-platform/src/infra/compose` with `C="sudo docker compose --env-file /etc/seo-platform/.env --env-file /opt/seo-platform/release.env --env-file profiles/4gb.env"`. Compose needs root because it reads `/etc/seo-platform/.env` for interpolation; an operator's sudo asks for the `deploy` password. `ops` below stands for the ops CLI in the worker container: `$C exec worker python -m idraft.worker.cli`.
 
 ### 12.1 Restart a service
 

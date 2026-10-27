@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from sightline.providers.contract import CanonicalRequest, Contract
-from sightline.providers.dataforseo.serp import SerpOrganicParams, task_body
+from idraft.providers.contract import CanonicalRequest, Contract
+from idraft.providers.dataforseo.serp import SerpOrganicParams, task_body
 
 RUN = uuid.UUID("0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11")
 TAG = "i:test:t:z:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"

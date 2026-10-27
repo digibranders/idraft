@@ -4,7 +4,7 @@
 
 **Goal:** The shared vocabulary that SEO and AI both judge against: a project's own brand and competitors with their aliases and domains, the locations collection can target, and the taxonomy keywords and prompts will be filed under; with the URL canonicalizer, the domain role resolver and the alias matcher that later ingest and extraction use, and an alias test that shows today what extraction will count.
 
-**Architecture:** Step 4 of the build order (`docs/29-phase-roadmap.md` section 1.1, Phase 2), specified in `docs/04-data-model.md` sections 5.1 to 5.3 and 6, `docs/19-api-specification.md` sections 3.2.5, 3.3, 3.4 and 3.5, `docs/14-citation-intelligence.md` sections 3 and 4, and `docs/13-ai-extraction-engine.md` stages 1, 2, 4 and 5. The canonicalizer, resolver and matcher are pure code in `sightline.extraction` (no database, no I/O, enforced by import-linter). Routes follow the projects and workspaces packages: `routes.py`, `service.py`, `repository.py` per resource, every write in a workspace transaction under row-level security, every change in the audit log.
+**Architecture:** Step 4 of the build order (`docs/29-phase-roadmap.md` section 1.1, Phase 2), specified in `docs/04-data-model.md` sections 5.1 to 5.3 and 6, `docs/19-api-specification.md` sections 3.2.5, 3.3, 3.4 and 3.5, `docs/14-citation-intelligence.md` sections 3 and 4, and `docs/13-ai-extraction-engine.md` stages 1, 2, 4 and 5. The canonicalizer, resolver and matcher are pure code in `idraft.extraction` (no database, no I/O, enforced by import-linter). Routes follow the projects and workspaces packages: `routes.py`, `service.py`, `repository.py` per resource, every write in a workspace transaction under row-level security, every change in the audit log.
 
 **Tech stack:** `publicsuffixlist` with its bundled Public Suffix List and no network (private domains on, no dependencies), `idna` for hosts, `pyahocorasick` for the alias automaton, `google-re2` for user-entered patterns. All four were checked to install and run on Python 3.13. (`tldextract` also works but pulls in `requests`; `ada-url`, a WHATWG parser, aborts at import on macOS, so parsing is `urllib.parse` with the WHATWG rules doc 14 needs written out.)
 
@@ -35,25 +35,25 @@ Not here, and where it arrives:
 - **D5. Offsets are into the text as sent.** The alias test highlights the text the caller gave; markdown is matched as its source text (stage 3 block parsing arrives with extraction, step 8).
 - **D6. The alias test scores what text alone can tell.** Stage 5 signals available from text: a disambiguation hint within 40 tokens (+0.35), a capitalized span mid-sentence (+0.15), a lowercase span of a normally capitalized name (-0.25). Base 0.30 for ambiguous entities and aliases that require context, 0.95 otherwise; accepted at 0.70, uncertain from 0.40. The capital bonus applies to ambiguous entities only (doc 13's "for common-word names"), and overlaps are resolved among spans that count before discarded ones. The other signals arrive with extraction and are documented as such in the response.
 - **D7. A change to an entity bumps every project that uses it.** Any write to an entity, its aliases, its domains or a project role increments `core.projects.entity_config_version` for each project with the entity attached (removed roles included, since their history is read), in the same transaction.
-- **D8. Locations come from DataForSEO's free list.** `GET /v3/serp/google/locations` gives every location code with its parent, country and type; the sync upserts `core.locations` (id = location code, doc 04 section 5.2) and `core.provider_location_map` with `supports = {serp}`, deactivates codes no longer listed, and runs monthly and on demand (`python -m sightline.worker.sync_locations`). Without DataForSEO credentials there is nothing to sync and the list is empty.
+- **D8. Locations come from DataForSEO's free list.** `GET /v3/serp/google/locations` gives every location code with its parent, country and type; the sync upserts `core.locations` (id = location code, doc 04 section 5.2) and `core.provider_location_map` with `supports = {serp}`, deactivates codes no longer listed, and runs monthly and on demand (`python -m idraft.worker.sync_locations`). Without DataForSEO credentials there is nothing to sync and the list is empty.
 
 ## File structure
 
 | File | Responsibility |
 |---|---|
-| `backend/src/sightline/db/migrations/versions/0010_entities_taxonomy.py` | The tables, the view, seeds, policies and grants; foreign keys from `core.projects` |
-| `backend/src/sightline/db/tables.py` | Their metadata |
-| `backend/src/sightline/extraction/urls.py` | The canonicalizer v1 and host normalization |
-| `backend/src/sightline/extraction/domains.py` | Domain role resolution (stage 2) |
-| `backend/src/sightline/extraction/text.py` | Normalization for matching, with an offset map |
-| `backend/src/sightline/extraction/aliases.py` | The alias automaton, matching and disambiguation score |
-| `backend/src/sightline/api/entities/{routes,service,repository}.py` | Entities, aliases, entity domains; project entities, project domains, alias test |
-| `backend/src/sightline/api/taxonomy/{routes,service,repository}.py` | Vocabularies and terms |
-| `backend/src/sightline/api/registries.py` | Locations and domain categories |
-| `backend/src/sightline/api/schemas/{entities,taxonomy,registries}.py` | Request and response models |
-| `backend/src/sightline/providers/dataforseo/locations.py` | The locations call |
-| `backend/src/sightline/collectors/locations.py` | The sync |
-| `backend/src/sightline/worker/{assembly,sync_locations}.py` | The monthly job and the one-off command |
+| `backend/src/idraft/db/migrations/versions/0010_entities_taxonomy.py` | The tables, the view, seeds, policies and grants; foreign keys from `core.projects` |
+| `backend/src/idraft/db/tables.py` | Their metadata |
+| `backend/src/idraft/extraction/urls.py` | The canonicalizer v1 and host normalization |
+| `backend/src/idraft/extraction/domains.py` | Domain role resolution (stage 2) |
+| `backend/src/idraft/extraction/text.py` | Normalization for matching, with an offset map |
+| `backend/src/idraft/extraction/aliases.py` | The alias automaton, matching and disambiguation score |
+| `backend/src/idraft/api/entities/{routes,service,repository}.py` | Entities, aliases, entity domains; project entities, project domains, alias test |
+| `backend/src/idraft/api/taxonomy/{routes,service,repository}.py` | Vocabularies and terms |
+| `backend/src/idraft/api/registries.py` | Locations and domain categories |
+| `backend/src/idraft/api/schemas/{entities,taxonomy,registries}.py` | Request and response models |
+| `backend/src/idraft/providers/dataforseo/locations.py` | The locations call |
+| `backend/src/idraft/collectors/locations.py` | The sync |
+| `backend/src/idraft/worker/{assembly,sync_locations}.py` | The monthly job and the one-off command |
 
 ## Tasks
 

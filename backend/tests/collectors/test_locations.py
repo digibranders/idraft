@@ -6,8 +6,8 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors.locations import sync_locations
-from sightline.providers.dataforseo.locations import LocationList, ProviderLocation, read_locations
+from idraft.collectors.locations import sync_locations
+from idraft.providers.dataforseo.locations import LocationList, ProviderLocation, read_locations
 from tests.api.auth.support import clear_locations, execute, fetch
 from tests.conftest import PostgresServer
 from tests.providers.dataforseo.support import fixture_bytes

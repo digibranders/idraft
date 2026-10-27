@@ -4,7 +4,7 @@ import uuid
 
 import httpx
 
-from sightline.api.resources import Resources
+from idraft.api.resources import Resources
 from tests.api.auth.support import (
     add_member,
     cookie,

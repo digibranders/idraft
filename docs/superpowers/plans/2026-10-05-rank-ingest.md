@@ -4,7 +4,7 @@
 
 **Goal:** a `seo_rank_ingest` tick that turns every `fetched` rank task into a SERP snapshot, its features, the rank observations of the project's own and competitor entities, the keyword's state, the current top 20 and the rank events, once per task and in one transaction.
 
-**Architecture:** the tick mirrors `collectors/keyword_metrics.ingest` (claim `fetched` tasks, load the stored answer, parse, write per task in its own transaction, wait or fail on errors). Parsing is `providers/dataforseo/serp_parse.py`; rules are `sightline/ranks/`; the writer in `collectors/seo_rank_ingest.py` is the only code here that touches the database.
+**Architecture:** the tick mirrors `collectors/keyword_metrics.ingest` (claim `fetched` tasks, load the stored answer, parse, write per task in its own transaction, wait or fail on errors). Parsing is `providers/dataforseo/serp_parse.py`; rules are `idraft/ranks/`; the writer in `collectors/seo_rank_ingest.py` is the only code here that touches the database.
 
 **Tech stack:** SQLAlchemy 2 Core async, PostgreSQL 18, the existing ledger, R2 raw storage, pytest with Testcontainers.
 
@@ -22,8 +22,8 @@
 ## Files
 
 Create:
-- `backend/src/sightline/collectors/seo_rank_ingest.py`: the tick (`ingest`), `IngestReport`, `_keep`.
-- `backend/src/sightline/collectors/seo_rank_context.py`: loads the project's rank context (`RankContext`: resolver, entities, primary own entity, per-keyword competitors, target URL).
+- `backend/src/idraft/collectors/seo_rank_ingest.py`: the tick (`ingest`), `IngestReport`, `_keep`.
+- `backend/src/idraft/collectors/seo_rank_context.py`: loads the project's rank context (`RankContext`: resolver, entities, primary own entity, per-keyword competitors, target URL).
 - `backend/tests/collectors/test_seo_rank_ingest.py` and `backend/tests/collectors/rank_support.py`.
 
 Modify:

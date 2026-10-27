@@ -36,14 +36,14 @@ from typing import Any
 
 import pytest
 
-from sightline.collectors.dispatcher import SubmitBatch, dispatch
-from sightline.collectors.fetching import FetchTask, fetch_task, poll_ready
-from sightline.collectors.planner import plan_due
-from sightline.collectors.registry import Registry
-from sightline.collectors.seo_rank import SeoRankWorkload
-from sightline.collectors.seo_rank_ingest import ingest
-from sightline.collectors.submission import submit_batch
-from sightline.providers.contract import (
+from idraft.collectors.dispatcher import SubmitBatch, dispatch
+from idraft.collectors.fetching import FetchTask, fetch_task, poll_ready
+from idraft.collectors.planner import plan_due
+from idraft.collectors.registry import Registry
+from idraft.collectors.seo_rank import SeoRankWorkload
+from idraft.collectors.seo_rank_ingest import ingest
+from idraft.collectors.submission import submit_batch
+from idraft.providers.contract import (
     AcceptedTask,
     CanonicalRequest,
     Echo,
@@ -51,8 +51,8 @@ from sightline.providers.contract import (
     ReadyTask,
     SubmitResult,
 )
-from sightline.providers.dataforseo.serp import SerpOrganicParams
-from sightline.ranks.depth import pages
+from idraft.providers.dataforseo.serp import SerpOrganicParams
+from idraft.ranks.depth import pages
 from tests.api.auth.support import execute, fetch
 from tests.api.keywords.support import LOCATION
 from tests.collectors.rank_support import OWN_HOST, Ledger, answer, make_world

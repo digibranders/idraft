@@ -10,7 +10,7 @@ import pytest
 from alembic import command
 from alembic.script import ScriptDirectory
 
-from sightline.db.migrate import (
+from idraft.db.migrate import (
     MigrationState,
     alembic_config,
     main,
@@ -248,7 +248,7 @@ def test_concurrent_migrators_take_turns(pg: PostgresServer) -> None:
     """Four migrator processes against an empty database: the advisory lock makes them queue."""
     url = _fresh_database(pg, "migrate_race")
     environment = {**os.environ, "DATABASE_URL": url}
-    command = [sys.executable, "-m", "sightline.db.migrate"]
+    command = [sys.executable, "-m", "idraft.db.migrate"]
     processes = [
         subprocess.Popen(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         for _ in range(4)

@@ -8,9 +8,9 @@ import pytest
 from fastapi import Depends, FastAPI, Query
 from pydantic import BaseModel, Field
 
-from sightline.api.access import public
-from sightline.api.problems import register_problem_handlers
-from sightline.api.resources import Resources
+from idraft.api.access import public
+from idraft.api.problems import register_problem_handlers
+from idraft.api.resources import Resources
 from tests.api.auth.support import cookie, make_user, open_session
 from tests.conftest import PostgresServer
 

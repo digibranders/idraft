@@ -13,7 +13,7 @@ from typing import Literal
 
 import zstandard
 
-from sightline.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
+from idraft.providers.dataforseo.serp import SERP_ORGANIC, SerpOrganicParams
 from spikes.common import (
     Budget,
     Sent,

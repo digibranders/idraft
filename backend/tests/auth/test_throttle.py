@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 import pytest
 from redis.asyncio import Redis
 
-from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
+from idraft.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
 
 EMAIL = "jane@client.example"
 IP = "203.0.113.7"

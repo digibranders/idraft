@@ -11,7 +11,7 @@ import pytest
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 
-from sightline.api.body_limit import (
+from idraft.api.body_limit import (
     JSON_BODY_MAX_BYTES,
     UPLOAD_FRAMING_BYTES,
     UPLOAD_MAX_BYTES,
@@ -20,7 +20,7 @@ from sightline.api.body_limit import (
     LargerLimit,
     Limit,
 )
-from sightline.api.problems import register_problem_handlers
+from idraft.api.problems import register_problem_handlers
 from tests.conftest import BASE_URL
 
 LIMIT = 64

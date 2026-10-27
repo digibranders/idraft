@@ -9,9 +9,9 @@ from typing import Any
 
 import httpx
 
-from sightline.api.operations.runs import MANUAL_RUNS_PER_DAY
-from sightline.api.resources import Resources
-from sightline.providers.dataforseo.provider import CODE as DATAFORSEO
+from idraft.api.operations.runs import MANUAL_RUNS_PER_DAY
+from idraft.api.resources import Resources
+from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from tests.api.auth.support import Workspace, execute, fetch, make_workspace
 from tests.api.entities.support import Caller, member, problem
 from tests.api.keywords.support import errors, keyword_project, project_url, tracked_id

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from sightline.config.settings import (
+from idraft.config.settings import (
     MigratorSettings,
     Settings,
     load_migrator_settings,
@@ -429,7 +429,7 @@ def test_the_worker_may_run_in_production_without_an_email_provider(
         "http://127.0.0.1:3000",
         "http://[::1]:3000",
         "http://app.localhost:3000",
-        "https://sightline.test",
+        "https://idraft.test",
     ],
 )
 def test_the_console_sender_is_allowed_for_a_local_origin(

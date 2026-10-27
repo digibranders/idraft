@@ -11,10 +11,10 @@ from fastapi import FastAPI
 from pydantic import SecretStr
 from sqlalchemy import text
 
-from sightline.api.main import create_app
-from sightline.api.resources import Resources
-from sightline.config.logging import configure_logging
-from sightline.config.settings import Settings
+from idraft.api.main import create_app
+from idraft.api.resources import Resources
+from idraft.config.logging import configure_logging
+from idraft.config.settings import Settings
 from tests.conftest import BASE_URL, PostgresServer
 
 

@@ -13,11 +13,11 @@ from typing import Any
 import httpx
 import pytest
 
-from sightline.domain.retries import ProviderErrorKind as K
-from sightline.providers.contract import CanonicalRequest, Contract, ProviderCallError
-from sightline.providers.dataforseo.client import FAMILY_LIMITS, DataForSeoClient
-from sightline.providers.dataforseo.provider import DataForSeo
-from sightline.providers.dataforseo.serp import (
+from idraft.domain.retries import ProviderErrorKind as K
+from idraft.providers.contract import CanonicalRequest, Contract, ProviderCallError
+from idraft.providers.dataforseo.client import FAMILY_LIMITS, DataForSeoClient
+from idraft.providers.dataforseo.provider import DataForSeo
+from idraft.providers.dataforseo.serp import (
     LIVE_FAMILY,
     LIVE_PATH,
     SERP_ORGANIC,

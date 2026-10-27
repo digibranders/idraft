@@ -1,6 +1,6 @@
 import pytest
 
-from sightline.db.ddl import column_grant, grants, statements, tenant_isolation
+from idraft.db.ddl import column_grant, grants, statements, tenant_isolation
 
 
 def test_grant_statements_per_role() -> None:

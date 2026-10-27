@@ -9,8 +9,8 @@ from itertools import pairwise
 import pytest
 from redis.asyncio import Redis
 
-from sightline.config.logging import configure_logging
-from sightline.worker.ticks import Tick, run_tick
+from idraft.config.logging import configure_logging
+from idraft.worker.ticks import Tick, run_tick
 from tests.worker.conftest import eventually
 
 FAST = timedelta(milliseconds=60)

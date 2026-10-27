@@ -15,7 +15,7 @@ import asyncpg
 import pytest
 from alembic import command
 
-from sightline.db.migrate import alembic_config
+from idraft.db.migrate import alembic_config
 from tests.conftest import PostgresServer
 from tests.db.support import SEED_LOCATION, Tenant, connection, scoped, seed_tenant
 

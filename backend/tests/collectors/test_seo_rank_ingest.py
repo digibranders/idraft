@@ -12,10 +12,10 @@ from typing import Any
 import pytest
 from sqlalchemy.exc import DBAPIError
 
-from sightline.collectors import seo_rank_ingest
-from sightline.collectors.ingest_waits import IngestReport
-from sightline.collectors.seo_rank_ingest import ingest
-from sightline.storage.raw import RawStorageError
+from idraft.collectors import seo_rank_ingest
+from idraft.collectors.ingest_waits import IngestReport
+from idraft.collectors.seo_rank_ingest import ingest
+from idraft.storage.raw import RawStorageError
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.collectors.rank_support import (
     DAY,

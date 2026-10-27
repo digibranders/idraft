@@ -11,11 +11,11 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import import_writer, imports
-from sightline.collectors.import_writer import WriteReport, write_next
-from sightline.collectors.imports import ParseReport, parse_next
-from sightline.keywords import writer
-from sightline.storage.raw import RawStorageError
+from idraft.collectors import import_writer, imports
+from idraft.collectors.import_writer import WriteReport, write_next
+from idraft.collectors.imports import ParseReport, parse_next
+from idraft.keywords import writer
+from idraft.storage.raw import RawStorageError
 from tests.api.auth.support import execute
 from tests.collectors.test_fetching import MemoryStore
 from tests.collectors.test_import_writer import _confirmed, _results, _tracked

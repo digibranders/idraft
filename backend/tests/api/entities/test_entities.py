@@ -9,9 +9,9 @@ from typing import Any
 import httpx
 import pytest
 
-from sightline.api.entities.service import EntityFilters
-from sightline.api.pagination import encode_cursor
-from sightline.api.resources import Resources
+from idraft.api.entities.service import EntityFilters
+from idraft.api.pagination import encode_cursor
+from idraft.api.resources import Resources
 from tests.api.auth.support import fetch, make_workspace
 from tests.api.entities.support import (
     Caller,

@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.domain.retries import (
+from idraft.domain.retries import (
     JITTER_SHARE,
     Backoff,
     ProviderErrorKind,

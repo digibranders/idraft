@@ -20,7 +20,7 @@ Points S-01 checks against the real API before anything depends on them:
 - `locations.json`: nine of the locations `GET /v3/serp/google/locations` lists, with the
   documented fields (`location_code`, `location_name`, `location_code_parent`,
   `country_iso_code`, `location_type`). It also fills a local database without credentials:
-  `uv run --env-file .env.worker python -m sightline.worker.sync_locations --from-file tests/fixtures/dataforseo/locations.json`
+  `uv run --env-file .env.worker python -m idraft.worker.sync_locations --from-file tests/fixtures/dataforseo/locations.json`
   (see `backend/README.md`, "Locations").
 - `keyword_overview_live.json` (Labs, step 5): that items come back with the keyword in lower
   case (the adapter matches them without case and with spaces collapsed); that a keyword Labs

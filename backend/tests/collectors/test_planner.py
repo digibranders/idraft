@@ -12,12 +12,12 @@ import asyncpg
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import planner
-from sightline.collectors.planner import PlannerReport, plan_due
-from sightline.collectors.registry import Registry
-from sightline.config.logging import configure_logging
-from sightline.domain.schedules import Cadence, ScheduleRule, next_occurrence
-from sightline.domain.tasks import STAGGER_SHARE, partition_month
+from idraft.collectors import planner
+from idraft.collectors.planner import PlannerReport, plan_due
+from idraft.collectors.registry import Registry
+from idraft.config.logging import configure_logging
+from idraft.domain.schedules import Cadence, ScheduleRule, next_occurrence
+from idraft.domain.tasks import STAGGER_SHARE, partition_month
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.collectors.support import NOW as TODAY
 from tests.collectors.support import (

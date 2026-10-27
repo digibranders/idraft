@@ -5,8 +5,8 @@ from __future__ import annotations
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.ranks.events import TOP_BUCKETS, EventDraft, own_events
-from sightline.ranks.state import Check, KeywordState, apply_check, classify_change
+from idraft.ranks.events import TOP_BUCKETS, EventDraft, own_events
+from idraft.ranks.state import Check, KeywordState, apply_check, classify_change
 from tests.ranks.support import check
 
 depths = st.sampled_from([20, 100])

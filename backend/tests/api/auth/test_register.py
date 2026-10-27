@@ -11,10 +11,10 @@ from datetime import timedelta
 import httpx
 import pytest
 
-from sightline.api.auth import passwords
-from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
-from sightline.api.request_info import request_info
-from sightline.config.logging import configure_logging
+from idraft.api.auth import passwords
+from idraft.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
+from idraft.api.request_info import request_info
+from idraft.config.logging import configure_logging
 from tests.api.auth.support import (
     PASSWORD,
     RecordingEmailSender,
@@ -416,7 +416,7 @@ async def test_background_work_that_fails_is_logged_and_nothing_else(
     async def broken(*args: object, **kwargs: object) -> None:
         raise RuntimeError("the database went away with SECRET detail")
 
-    monkeypatch.setattr("sightline.api.auth.repository.find_user_by_email", broken)
+    monkeypatch.setattr("idraft.api.auth.repository.find_user_by_email", broken)
     async with client_for(registration="open") as api:
         configure_logging(service="api", version="test", level="info", stream=stream)
         response = await api.post(REQUEST, json={"email": user.email})
@@ -497,7 +497,7 @@ async def test_an_invitation_cancelled_while_the_password_was_hashed_is_not_hono
         )
         return encoded
 
-    monkeypatch.setattr("sightline.api.auth.service.hash_password", hash_after_cancelling)
+    monkeypatch.setattr("idraft.api.auth.service.hash_password", hash_after_cancelling)
     response = await api.post(REGISTER, json=_body(email, invitation_token=token))
 
     assert response.status_code == 403

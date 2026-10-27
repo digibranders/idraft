@@ -5,12 +5,12 @@ import uuid
 import httpx
 import pytest
 
-from sightline.api import timezones
-from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
-from sightline.api.openapi import build_openapi
-from sightline.api.resources import Resources
-from sightline.api.slugs import ReservedProjectSlug, ReservedWorkspaceSlug
-from sightline.api.workspaces import service as workspace_rules
+from idraft.api import timezones
+from idraft.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
+from idraft.api.openapi import build_openapi
+from idraft.api.resources import Resources
+from idraft.api.slugs import ReservedProjectSlug, ReservedWorkspaceSlug
+from idraft.api.workspaces import service as workspace_rules
 from tests.api.auth.support import (
     User,
     add_member,

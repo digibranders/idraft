@@ -12,11 +12,11 @@ from fastapi import Depends, FastAPI
 from fastapi.responses import PlainTextResponse
 from fastapi.routing import APIRoute, iter_route_contexts
 
-from sightline.api.access import AccessRule, declare, public, route_access
-from sightline.api.main import create_app
-from sightline.api.openapi import placeholder_settings
-from sightline.api.pagination import _query_names
-from sightline.api.permissions import Permission
+from idraft.api.access import AccessRule, declare, public, route_access
+from idraft.api.main import create_app
+from idraft.api.openapi import placeholder_settings
+from idraft.api.pagination import _query_names
+from idraft.api.permissions import Permission
 
 EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/healthz"): "public",

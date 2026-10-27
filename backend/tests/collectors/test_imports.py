@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors.imports import ParseReport, expire_imports, parse_next
-from sightline.storage.raw import RawStorageError, compress
+from idraft.collectors.imports import ParseReport, expire_imports, parse_next
+from idraft.storage.raw import RawStorageError, compress
 from tests.api.auth.support import execute, fetch, fetchrow, make_user
 from tests.api.keywords.support import LOCATION, OTHER_LOCATION, ensure_locations
 from tests.collectors.support import Project, make_tenant

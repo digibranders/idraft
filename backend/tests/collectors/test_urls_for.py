@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.db import dictionaries
-from sightline.extraction.urls import canonicalize
+from idraft.db import dictionaries
+from idraft.extraction.urls import canonicalize
 from tests.api.auth.support import fetchrow
 from tests.conftest import PostgresServer
 

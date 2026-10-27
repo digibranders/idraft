@@ -794,7 +794,7 @@ Redis holds the Taskiq queues (`collect`, `process`), rate-limit counters, locks
 | AOF corrupt at startup (Redis refuses to start) | queues unavailable | `docker compose run --rm --entrypoint redis-check-aof redis --fix /data/appendonlydir/<manifest>`; if that fails, move the AOF directory aside and start empty |
 | Volume lost, or new droplet after a disaster | empty Redis | start empty, then reconcile (below) |
 
-Reconciliation from the ledger, `sightline queue-reconcile` (also run automatically by the worker at startup when it finds the queues empty while PostgreSQL has non-terminal tasks). `sightline` is the backend's admin CLI, run as `docker compose run --rm worker sightline <command>`:
+Reconciliation from the ledger, `idraft queue-reconcile` (also run automatically by the worker at startup when it finds the queues empty while PostgreSQL has non-terminal tasks). `idraft` is the backend's admin CLI, run as `docker compose run --rm worker idraft <command>`:
 
 1. **Scheduled jobs.** Nothing to restore. The Taskiq scheduler reads its maintenance schedule from code at boot, and the planner tick re-acquires its Redis lock.
 2. **Tasks.** Select `ops.collection_tasks` rows in non-terminal states from the retained partitions:
@@ -832,8 +832,8 @@ Time estimates assume a dump of about 5 GB (PostgreSQL about 25 GB, doc 22 secti
 | 10 | Statistics | `docker exec -u postgres seo-postgres vacuumdb -d seo --analyze-in-stages --jobs=2` (planner statistics are not in a logical dump). | 15 min |
 | 11 | Verify the data | Run the manifest's checks SQL (base64 in the manifest) with its window; counts and checksums must equal the manifest (as in the monthly drill). | 5 min |
 | 12 | Migrate to the current release | `docker compose run --rm migrator` (runs `alembic upgrade head`; a no-op if the dump is already at the release's revision). | 2 min |
-| 13 | Replay the gap from R2 | Keep collection paused (`COLLECTION_PAUSED=true` in `/etc/seo-platform/.env`). Run `sightline raw-replay --since <manifest.created_at minus 1 h>`: lists `raw/v1/*/*/*/<yyyy>/<mm>/<dd>/` for each day since the dump, skips SHA-256 values already in `ops.raw_payloads`, re-registers the rest, and enqueues ingest. Workers write the task identity (idempotency key, workspace, project, subject) as R2 object metadata at upload time, so replay can attribute payloads without the lost `ops.collection_tasks` rows. Replayed payloads also repopulate `ops.fetch_cache` so today's runs do not buy the same SERPs twice. | 15 to 45 min |
-| 14 | Rebuild queues | `sightline queue-reconcile` (section 10). | 5 min |
+| 13 | Replay the gap from R2 | Keep collection paused (`COLLECTION_PAUSED=true` in `/etc/seo-platform/.env`). Run `idraft raw-replay --since <manifest.created_at minus 1 h>`: lists `raw/v1/*/*/*/<yyyy>/<mm>/<dd>/` for each day since the dump, skips SHA-256 values already in `ops.raw_payloads`, re-registers the rest, and enqueues ingest. Workers write the task identity (idempotency key, workspace, project, subject) as R2 object metadata at upload time, so replay can attribute payloads without the lost `ops.collection_tasks` rows. Replayed payloads also repopulate `ops.fetch_cache` so today's runs do not buy the same SERPs twice. | 15 to 45 min |
+| 14 | Rebuild queues | `idraft queue-reconcile` (section 10). | 5 min |
 | 15 | Start the application | `docker compose up -d caddy api worker web`; remove `COLLECTION_PAUSED` (GitHub environment, redeploy); all containers `healthy`. | 5 min |
 | 16 | Move traffic | Reassign the Reserved IP, or update the site's A record. There is one domain, so one record moves both the app and the API. Caddy obtains a certificate within 1 to 2 minutes of DNS pointing at the host. Readiness is polling only, so no provider callback depends on the address; tasks that completed during the outage are found by the `tasks_ready` poll and the id sweeper. | 5 to 15 min |
 | 17 | Validate | `https://<domain>/api/healthz` returns 200; log in (the `__Host-session` cookie is set); open a project and compare headline numbers with the last known values (screenshots in the incident channel); Better Stack green; `systemctl start seo-backup.service` and see the Healthchecks success ping; confirm `doctl compute droplet get <id> --format Features` lists `backups`. | 15 min |
@@ -1045,8 +1045,8 @@ Keys and access:
 Exercise (scenario "full droplet loss", the default every other quarter):
 - [ ] Follow section 11 on a throwaway droplet (`seo-gameday`, tag `seo-gameday` with its own firewall), against the real `seo-backups` bucket with the `restore-reader` token.
 - [ ] Use a test hostname (`gameday.<domain>`) for step 16 so production DNS is untouched.
-- [ ] Run `sightline raw-replay` for the last 24 hours in dry-run mode and check the count against production.
-- [ ] Run `sightline queue-reconcile` against the restored database with a scratch Redis; confirm queued message counts match non-terminal tasks.
+- [ ] Run `idraft raw-replay` for the last 24 hours in dry-run mode and check the count against production.
+- [ ] Run `idraft queue-reconcile` against the restored database with a scratch Redis; confirm queued message counts match non-terminal tasks.
 - [ ] Measure: time to first healthy `/api/healthz`, time to verified data (step 11), total.
 
 Configuration audit:

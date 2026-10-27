@@ -14,14 +14,14 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import DataError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import ledger, submission
-from sightline.collectors.dispatcher import SubmitBatch, dispatch
-from sightline.collectors.ledger import TaskRef
-from sightline.collectors.registry import Registry
-from sightline.collectors.submission import NOT_BUILT, SubmitReport, submit_batch
-from sightline.config.logging import configure_logging
-from sightline.domain.retries import ProviderErrorKind
-from sightline.providers.contract import (
+from idraft.collectors import ledger, submission
+from idraft.collectors.dispatcher import SubmitBatch, dispatch
+from idraft.collectors.ledger import TaskRef
+from idraft.collectors.registry import Registry
+from idraft.collectors.submission import NOT_BUILT, SubmitReport, submit_batch
+from idraft.config.logging import configure_logging
+from idraft.domain.retries import ProviderErrorKind
+from idraft.providers.contract import (
     AcceptedTask,
     CanonicalRequest,
     ProviderCallError,

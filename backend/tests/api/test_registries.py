@@ -8,8 +8,8 @@ from typing import Any
 import httpx
 import pytest
 
-from sightline.api.pagination import encode_cursor
-from sightline.api.resources import Resources
+from idraft.api.pagination import encode_cursor
+from idraft.api.resources import Resources
 from tests.api.auth.support import clear_locations, cookie, execute, make_user, open_session
 from tests.conftest import PostgresServer
 from tests.providers.dataforseo.support import FIXTURES

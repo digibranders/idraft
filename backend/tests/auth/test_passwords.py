@@ -4,8 +4,8 @@ import httpx
 import pytest
 from argon2 import PasswordHasher
 
-from sightline.api.auth import passwords
-from sightline.api.auth.passwords import (
+from idraft.api.auth import passwords
+from idraft.api.auth.passwords import (
     BreachedPasswords,
     WeakPasswordError,
     check_policy,

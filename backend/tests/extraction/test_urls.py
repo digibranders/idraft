@@ -10,7 +10,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from sightline.extraction.urls import (
+from idraft.extraction.urls import (
     CANONICALIZER_VERSION,
     UrlRejectedError,
     canonicalize,

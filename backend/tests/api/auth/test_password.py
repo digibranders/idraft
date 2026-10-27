@@ -9,10 +9,10 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.api.auth import repository
-from sightline.api.auth.passwords import hash_password, verify_password
-from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
-from sightline.api.resources import Resources
+from idraft.api.auth import repository
+from idraft.api.auth.passwords import hash_password, verify_password
+from idraft.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
+from idraft.api.resources import Resources
 from tests.api.auth.support import (
     PASSWORD,
     RecordingEmailSender,
@@ -545,7 +545,7 @@ async def test_a_user_disabled_while_the_new_password_was_hashed_keeps_the_old_o
         )
         return encoded
 
-    monkeypatch.setattr("sightline.api.auth.service.hash_password", hash_after_disabling)
+    monkeypatch.setattr("idraft.api.auth.service.hash_password", hash_after_disabling)
     response = await api.post(CONFIRM, json={"token": token, "new_password": NEW_PASSWORD})
 
     assert (response.status_code, response.json()["code"]) == (400, "invalid_token")

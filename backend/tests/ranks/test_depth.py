@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sightline.ranks.depth import depth_for, pages
+from idraft.ranks.depth import depth_for, pages
 
 
 @pytest.mark.parametrize(

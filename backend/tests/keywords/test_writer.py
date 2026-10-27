@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.db.engine import workspace_transaction
-from sightline.keywords.writer import (
+from idraft.db.engine import workspace_transaction
+from idraft.keywords.writer import (
     DEFAULT_TRACKED_KEYWORD_LIMIT,
     WRITE_MAX,
     Device,

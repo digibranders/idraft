@@ -7,8 +7,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, async_sessionmaker
 
-from sightline.config.settings import Settings
-from sightline.db.engine import (
+from idraft.config.settings import Settings
+from idraft.db.engine import (
     create_engine,
     create_session_factory,
     user_transaction,
@@ -34,7 +34,7 @@ async def test_statement_timeout_and_application_name_are_set(engine: AsyncEngin
         timeout = await _scalar(connection, "SHOW statement_timeout")
         name = await _scalar(connection, "SHOW application_name")
     assert timeout == "15s"
-    assert name == "sightline-api"
+    assert name == "idraft-api"
 
 
 async def test_statement_timeout_cancels_slow_queries(settings: Settings) -> None:

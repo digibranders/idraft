@@ -2,7 +2,7 @@
 
 import pytest
 
-from sightline.domain.workloads import (
+from idraft.domain.workloads import (
     BudgetGroup,
     CostWorkload,
     TaskWorkload,

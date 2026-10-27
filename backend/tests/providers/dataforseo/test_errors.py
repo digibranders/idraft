@@ -4,9 +4,9 @@ from datetime import timedelta
 
 import pytest
 
-from sightline.domain.retries import ProviderErrorKind
-from sightline.providers.contract import ProviderError
-from sightline.providers.dataforseo.errors import (
+from idraft.domain.retries import ProviderErrorKind
+from idraft.providers.contract import ProviderError
+from idraft.providers.dataforseo.errors import (
     MESSAGE_MAX,
     Answer,
     parse_retry_after,

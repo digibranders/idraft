@@ -6,11 +6,11 @@ import uuid
 import httpx
 import pytest
 
-from sightline.api.permissions import Role
-from sightline.api.problems import ForbiddenError, NotFoundError
-from sightline.api.request_info import RequestInfo
-from sightline.api.resources import Resources
-from sightline.api.workspaces.access import WorkspaceAccess
+from idraft.api.permissions import Role
+from idraft.api.problems import ForbiddenError, NotFoundError
+from idraft.api.request_info import RequestInfo
+from idraft.api.resources import Resources
+from idraft.api.workspaces.access import WorkspaceAccess
 from tests.api.auth.support import (
     User,
     Workspace,

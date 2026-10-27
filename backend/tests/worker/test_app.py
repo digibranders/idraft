@@ -14,16 +14,16 @@ from pydantic import BaseModel, SecretStr
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from sightline.config.logging import configure_logging
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory
-from sightline.storage.raw import RawStore
-from sightline.worker import __main__ as entrypoint
-from sightline.worker import app as worker_app
-from sightline.worker.app import WorkerContext, run_worker
-from sightline.worker.assembly import assemble
-from sightline.worker.queues import Queues
-from sightline.worker.ticks import Tick
+from idraft.config.logging import configure_logging
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory
+from idraft.storage.raw import RawStore
+from idraft.worker import __main__ as entrypoint
+from idraft.worker import app as worker_app
+from idraft.worker.app import WorkerContext, run_worker
+from idraft.worker.assembly import assemble
+from idraft.worker.queues import Queues
+from idraft.worker.ticks import Tick
 from tests.conftest import ObjectServer
 from tests.worker.conftest import eventually
 

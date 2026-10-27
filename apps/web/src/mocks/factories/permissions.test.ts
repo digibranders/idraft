@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PERMISSION_HOLDERS, permissionsFor } from './permissions';
 
-const BACKEND = path.join(import.meta.dirname, '../../../../../backend/src/sightline/api/permissions.py');
+const BACKEND = path.join(import.meta.dirname, '../../../../../backend/src/idraft/api/permissions.py');
 const source = readFileSync(BACKEND, 'utf8');
 
 /** The backend's table, read from its source: `Permission.X: holders,` lines and the role groups. */

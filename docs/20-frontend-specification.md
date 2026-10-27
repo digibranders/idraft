@@ -234,7 +234,7 @@ Permissions come from `/api/v1/me` as a flat list per workspace, drawn from the 
 
 ### 3.10 Feature flags and phase gating
 
-Flags come from the API in `/api/v1/me` (`features: string[]` per workspace), backed by the API's own configuration (`sightline.config`, platform defaults plus per-workspace overrides). There is no Vercel or edge flag service; server components read flags from the same `/api/v1/me` call as the rest of the shell. The frontend uses them for two purposes: phase gating (a screen whose API is not live yet is absent from navigation) and gradual rollout. Navigation items, routes and columns check flags; a route visited while its flag is off renders the 404 page. Flags are never used for authorization.
+Flags come from the API in `/api/v1/me` (`features: string[]` per workspace), backed by the API's own configuration (`idraft.config`, platform defaults plus per-workspace overrides). There is no Vercel or edge flag service; server components read flags from the same `/api/v1/me` call as the rest of the shell. The frontend uses them for two purposes: phase gating (a screen whose API is not live yet is absent from navigation) and gradual rollout. Navigation items, routes and columns check flags; a route visited while its flag is off renders the 404 page. Flags are never used for authorization.
 
 > Superseded (web app foundation, 2026-10-01): `/api/v1/me` has no `features` list, and the backend does not plan one. Phase gating is the navigation registry, `src/lib/navigation/registry.ts`: the destinations of [11-navigation.md](design-system/11-navigation.md) §1.1 (14 when this was written, 16 as built with Runs and Costs), each `live` or `planned`. Only Settings was live then; Rankings, Runs and Costs are live now. A planned destination is absent from the sidebar, the breadcrumb and the project switch, and its path renders the 404 page inside the shell. There is no flag context and no gradual rollout; if one is needed later, it comes from a new API field.
 
@@ -1105,7 +1105,7 @@ Route `[project]/settings/entities/[id]`. Permission `entities:write`; read-only
 
 - Alias fields: text, match mode (word boundary, exact case, regex), `case_sensitive`, `is_negative`, `requires_context`. Regex aliases are validated by the API with RE2 semantics; the form shows the API's error.
 - Domain rules: domain, match scope (registrable, host, path prefix) with the path prefix field when chosen. Conflicts with another entity's domain at the same specificity are shown as a warning ("own wins").
-- **Test tool:** extraction is Python on the server (`sightline.extraction`, doc 13), so the tool calls `POST {P}/alias-test` (debounced 300 ms) and renders the returned spans with the evidence viewer plus debug detail (score per span, dropped spans, disambiguation signals). Stages 3 to 7 are pure and take milliseconds, so the round trip stays interactive on the same origin. Testing unsaved aliases needs the request to carry the draft configuration (gap G13). "Run against last 50 observations" calls an API dry-run endpoint with the unsaved configuration and shows before and after mention counts per entity, so the server result is the authority.
+- **Test tool:** extraction is Python on the server (`idraft.extraction`, doc 13), so the tool calls `POST {P}/alias-test` (debounced 300 ms) and renders the returned spans with the evidence viewer plus debug detail (score per span, dropped spans, disambiguation signals). Stages 3 to 7 are pure and take milliseconds, so the round trip stays interactive on the same origin. Testing unsaved aliases needs the request to carry the draft configuration (gap G13). "Run against last 50 observations" calls an API dry-run endpoint with the unsaved configuration and shows before and after mention counts per entity, so the server result is the authority.
 - Save confirmation states the re-derivation scope and that charts will show a version boundary. Adding a competitor states the SOV effect (5.10).
 
 | Section | Content | Permission |
@@ -1365,7 +1365,7 @@ MVP in this document means Phases 0 to 9 plus Phase 10a, as defined in [29-phase
 | G4 | Resolved: doc 24 section 3.2 has `alerts:write`, `views:write`, `imports:write`, `api_keys:manage`, `taxonomy:write`; category overrides use `entities:write` | 24 section 3.2 | none |
 | G5 | Resolved: platform operator flag `auth.users.is_platform_operator` (doc 24 section 3.1, doc 04 section 4) | 24 | none |
 | G6 | Resolved: `ops:read` (owner, admin, editor) and `tasks:requeue` (owner, admin) in doc 24 section 3.2; run lists need `data:read` | 21, 24 | none |
-| G7 | Evidence mode needs block offsets; persistence is unspecified | 13 stage 3 | API computes blocks on request with `sightline.extraction`, or persists per derivation |
+| G7 | Evidence mode needs block offsets; persistence is unspecified | 13 stage 3 | API computes blocks on request with `idraft.extraction`, or persists per derivation |
 | G8 | Resolved: forecast is month-to-date actual plus planned runs ([27-cost-model.md](27-cost-model.md) section 10.3) | 21, 24 | none |
 | G9 | Alert rule backtest preview unspecified | 08, 11 | Add `POST .../alert-rules/preview` or drop the preview |
 | G10 | Resolved by ADR-022: no Vercel and no preview deployments; web and API share one origin | 24 section 2.1 | none |

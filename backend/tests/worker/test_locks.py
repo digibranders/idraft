@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from redis.asyncio import Redis
 
-from sightline.worker.locks import RedisLock
+from idraft.worker.locks import RedisLock
 
 TTL = timedelta(seconds=5)
 

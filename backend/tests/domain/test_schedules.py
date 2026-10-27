@@ -7,7 +7,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.domain.schedules import (
+from idraft.domain.schedules import (
     MONTH_DAY_MAX,
     Cadence,
     ScheduleRule,

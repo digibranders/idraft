@@ -9,7 +9,7 @@ import pytest
 from pydantic import SecretStr
 from redis.asyncio import Redis
 
-from sightline.config.settings import Settings
+from idraft.config.settings import Settings
 from tests.conftest import BASE_URL, PostgresServer
 
 

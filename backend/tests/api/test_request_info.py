@@ -1,6 +1,6 @@
 """What a request reports about where it came from."""
 
-from sightline.api.request_info import USER_AGENT_MAX, request_info
+from idraft.api.request_info import USER_AGENT_MAX, request_info
 
 
 def test_an_address_that_is_not_an_ip_is_dropped() -> None:

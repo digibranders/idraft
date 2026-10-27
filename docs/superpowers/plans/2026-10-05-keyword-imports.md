@@ -32,15 +32,15 @@
 - After each Part: full gates, commit, then an **Opus** review (Agent tool, `model: "opus"`, background), fix what it finds, gates again, a fix commit. The parent session does the review; the implementer stops after the Part's commit.
 
 **Patterns to copy (read these files before starting):**
-- API service and transaction: `src/sightline/api/operations/runs.py` (`workspace_transaction`, `_live_project`, cursor pages with `encode_cursor`/`decode_cursor`).
-- API routes and permissions: `src/sightline/api/operations/run_routes.py`, `schedule_routes.py`.
-- Worker claim with `FOR UPDATE SKIP LOCKED`: `_next_manual` in `src/sightline/collectors/planner.py`.
-- Worker ticks: `assemble` in `src/sightline/worker/assembly.py`.
+- API service and transaction: `src/idraft/api/operations/runs.py` (`workspace_transaction`, `_live_project`, cursor pages with `encode_cursor`/`decode_cursor`).
+- API routes and permissions: `src/idraft/api/operations/run_routes.py`, `schedule_routes.py`.
+- Worker claim with `FOR UPDATE SKIP LOCKED`: `_next_manual` in `src/idraft/collectors/planner.py`.
+- Worker ticks: `assemble` in `src/idraft/worker/assembly.py`.
 - Test helpers: `tests/api/keywords/support.py` (`keyword_project`, `project_url`, `errors`, `tracked_id`, `group`, `vocabulary`, `term`), `tests/api/entities/support.py` (`member`, `problem`), `tests/collectors/test_fetching.py` (`MemoryStore`), worker fixtures `worker_db` and `migrated`.
 
 ## 1. Decisions (settled; do not reopen)
 
-**I1. The contract is the frontend's draft.** `apps/web/openapi/step-5-draft.json` and `src/sightline/api/schemas/imports.py` (already written) are the contract. Routes, under `{P} = /api/v1/workspaces/{workspace_id}/projects/{project_id}`:
+**I1. The contract is the frontend's draft.** `apps/web/openapi/step-5-draft.json` and `src/idraft/api/schemas/imports.py` (already written) are the contract. Routes, under `{P} = /api/v1/workspaces/{workspace_id}/projects/{project_id}`:
 
 | Method | Path | Permission | Answer |
 |---|---|---|---|
@@ -70,7 +70,7 @@ Doc 19's `upload-url` (presigned) route is not built; doc 19 gets an as-built no
 - `api`: `rows`, each a header to cell map. Headers are the union of keys in row order of first appearance. `row_no` is the index in `rows`, 1-based.
 - `upload`: CSV, UTF-8 (a BOM is dropped). Delimiter sniffed among `,`, `;` and TAB from the first 4 KiB, comma otherwise. The first row is the header. `row_no` is the data row number (1-based, header excluded); a row whose cells are all blank makes no row but keeps its number. The part's `content_type` must be one of `text/csv`, `application/csv`, `text/plain`, `application/vnd.ms-excel`, or `application/octet-stream` with a filename ending `.csv`; otherwise `415 unsupported_media_type`. Size: up to 50 MB (`413 payload_too_large` above). `original_filename` is the part's filename cut to 255 characters (`None` when empty).
 - Every source: at most `IMPORT_ROWS_MAX = 10_000` rows; more is `failed` with `error_code = 'too_many_rows'`. Other unreadable sources fail with `not_utf8`, `no_header`, `duplicate_headers` (two headers equal without case after trimming).
-- The API generates the import id with `uuid.uuid4()`, builds the key `imports/v1/{workspace_id}/{import_id}/source`, stores the source with `store.put`, then inserts the import with that `id` and `upload_object_key` (the API's UPDATE grant does not cover `upload_object_key`, so the key is written by the insert). If `put` raises `RawStorageError`, nothing is inserted and the answer is `503 storage_unavailable`; an object stored by a request whose insert then fails is left for the bucket's lifecycle rule. Lists order by `(created_at, id)`, so a random id is fine. The body is `compress(json.dumps({"kind": "csv" | "paste" | "api", ...}).encode())` from `sightline.storage.raw`. Store layout:
+- The API generates the import id with `uuid.uuid4()`, builds the key `imports/v1/{workspace_id}/{import_id}/source`, stores the source with `store.put`, then inserts the import with that `id` and `upload_object_key` (the API's UPDATE grant does not cover `upload_object_key`, so the key is written by the insert). If `put` raises `RawStorageError`, nothing is inserted and the answer is `503 storage_unavailable`; an object stored by a request whose insert then fails is left for the bucket's lifecycle rule. Lists order by `(created_at, id)`, so a random id is fine. The body is `compress(json.dumps({"kind": "csv" | "paste" | "api", ...}).encode())` from `idraft.storage.raw`. Store layout:
   - CSV: `{"kind": "csv", "data": <base64 of the file bytes>}`.
   - paste: `{"kind": "paste", "text": ...}`.
   - api: `{"kind": "api", "rows": [...]}`.
@@ -78,7 +78,7 @@ Doc 19's `upload-url` (presigned) route is not built; doc 19 gets an as-built no
 
 **I4. Column mapping.** A header maps to the field whose name equals it without case, after trimming. `column_mapping` (header to field) overrides, matching headers without case. Two headers mapped to one field: `422` with `field_mapped_twice` at `column_mapping` (API, when given) or, from headers alone, the first one wins. Headers mapped to nothing are kept in `raw` and ignored. No header maps to `keyword`: `needs_mapping`, `error_code = 'keyword_column_missing'`, no rows. A header maps to `tags` (or a paste line has a TAB) and `defaults.tags_vocabulary_id` is not set: `needs_mapping`, `error_code = 'tags_vocabulary_missing'`, no rows. The same for `topic` with `topic_vocabulary_missing`.
 
-**I5. Field rules** (pure, `sightline/keywords/import_rows.py`). Empty or blank cell: the field takes its default. The first failing field decides the row's `reason_code`, in this order:
+**I5. Field rules** (pure, `idraft/keywords/import_rows.py`). Empty or blank cell: the field takes its default. The first failing field decides the row's `reason_code`, in this order:
 1. `keyword`: `check_keyword` (its `KeywordRefusedError.code`: `keyword_missing`, `keyword_invalid`, `keyword_too_long`, `search_operator_not_allowed`). Any cell over 2,000 characters: `cell_too_long`.
 2. Location: `location` cell, then `country`, then `defaults.location_id`, then the project's default location. `location`: digits are a location id that must be active; otherwise a name matched without case among active locations, unique, else `location_unknown`. `country`: two letters, the active location with that `country_iso` and `location_type = 'Country'`, else `location_unknown`. No location at all: `location_unknown`.
 3. `language`: two lowercase letters after lowercasing the cell; then `defaults.language_code`, then the project's default language. Otherwise `language_invalid`.
@@ -87,7 +87,7 @@ Doc 19's `upload-url` (presigned) route is not built; doc 19 gets an as-built no
 6. `depth_profile`: one of `DEPTH_PROFILES`; default `defaults.depth_profile`, then the project's `settings.seo.default_depth_profile`. Otherwise `depth_profile_invalid`.
 7. `intent`: one of `INTENTS` without case; default `unknown`. Otherwise `intent_invalid`.
 8. `funnel_stage`: one of `FUNNEL_STAGES` without case; default `unknown`. Otherwise `funnel_stage_invalid`.
-9. `target_url`: `canonicalize` from `sightline.extraction.urls`; any exception: `target_url_invalid`.
+9. `target_url`: `canonicalize` from `idraft.extraction.urls`; any exception: `target_url_invalid`.
 10. `group`: split on `/`, each segment trimmed, 1 to 100 characters, at most 10 segments, the joined path at most 2,048 bytes; default `defaults.group_path`. Otherwise `group_path_invalid`.
 11. `tags`: split on `|`, each trimmed, empty ones dropped, each 1 to 100 characters, duplicates without case dropped. Otherwise `tags_invalid`.
 12. `topic`: a path split on `/` like `group` (each 1 to 100 characters, at most 10 segments). Otherwise `topic_invalid`.
@@ -111,7 +111,7 @@ Doc 19's `upload-url` (presigned) route is not built; doc 19 gets an as-built no
 **I7. Confirm (Part B).** `duplicate_action = 'merge_terms'` turns every `duplicate` part with `reason_code = 'tracked'` and `action = 'skip'` into `merge`; `skip` changes nothing. Quota: `would_use > limit` is `422 quota_exceeded` with `limit`, `used`, `requested` (the keyword service's `_quota` message), nothing changed.
 
 **I8. Writing (Part B).** Pending parts are those with `result IS NULL`. A batch is at most 1,000 pending parts in `(row_no, part)` order, in one transaction:
-- Lock order, matching the API's: the import's advisory lock (`pg_try_advisory_xact_lock`, skip the import this tick if taken), then each vocabulary's advisory lock in id order (`sightline.keywords.terms.lock_vocabulary`), then the project's group lock (`sightline.keywords.groups.lock_groups`), then target URLs (`dictionaries.url_for`, host then hash order), then the quota lock (inside the writer, and `writer.lock_quota` for unarchiving), then rows (`links.lock_rows` for merge targets, id order).
+- Lock order, matching the API's: the import's advisory lock (`pg_try_advisory_xact_lock`, skip the import this tick if taken), then each vocabulary's advisory lock in id order (`idraft.keywords.terms.lock_vocabulary`), then the project's group lock (`idraft.keywords.groups.lock_groups`), then target URLs (`dictionaries.url_for`, host then hash order), then the quota lock (inside the writer, and `writer.lock_quota` for unarchiving), then rows (`links.lock_rows` for merge targets, id order).
 - `skip` parts: `result = 'skipped'`.
 - `create` parts: one `writer.write_tracked_keywords` call for the batch with `source` from the import (`upload` to `csv_import`, `paste` to `bulk_paste`, `api` to `api`) and `created_by` = the import's creator. `Created`: `result = 'created'`, `tracked_keyword_id`. `Existing` (added since the preview): `result = 'skipped'`, `tracked_keyword_id`. `QuotaExceededError`: every create part of the batch `result = 'failed'`, `write_error_code = 'quota_exceeded'`, the other parts of the batch go on. `ProjectGoneError`: the import becomes `failed` with `error_code = 'project_gone'`, `finished_at`; the batch's row changes are rolled back.
 - `merge` parts: `duplicate` merges add links to the tracked keyword; `conflict` merges unarchive it first (quota: `writer.lock_quota` then `writer.check_quota(limit, used, n)`; failing parts `failed` with `quota_exceeded`). The target gone or deleted since: `failed`, `tracked_keyword_gone`. Done: `result = 'merged'`, `tracked_keyword_id`.
@@ -131,13 +131,13 @@ Doc 19's `upload-url` (presigned) route is not built; doc 19 gets an as-built no
 ## 2. File structure
 
 Created:
-- `backend/src/sightline/keywords/links.py`: group and term links of tracked keywords (moved from the API repository).
-- `backend/src/sightline/keywords/groups.py`: the group lock, group limits, `ensure_group_path`.
-- `backend/src/sightline/keywords/terms.py`: slugs, `fold`, the vocabulary lock, `ensure_term_path`.
-- `backend/src/sightline/keywords/import_rows.py`: pure source readers, mapping and field rules.
-- `backend/src/sightline/collectors/imports.py`: worker parse, classify and expire (Part A).
-- `backend/src/sightline/collectors/import_writer.py`: worker batches and finish (Part B).
-- `backend/src/sightline/api/imports/__init__.py`, `repository.py`, `service.py`, `routes.py`: the API.
+- `backend/src/idraft/keywords/links.py`: group and term links of tracked keywords (moved from the API repository).
+- `backend/src/idraft/keywords/groups.py`: the group lock, group limits, `ensure_group_path`.
+- `backend/src/idraft/keywords/terms.py`: slugs, `fold`, the vocabulary lock, `ensure_term_path`.
+- `backend/src/idraft/keywords/import_rows.py`: pure source readers, mapping and field rules.
+- `backend/src/idraft/collectors/imports.py`: worker parse, classify and expire (Part A).
+- `backend/src/idraft/collectors/import_writer.py`: worker batches and finish (Part B).
+- `backend/src/idraft/api/imports/__init__.py`, `repository.py`, `service.py`, `routes.py`: the API.
 - Tests: `tests/keywords/test_import_rows.py`, `tests/keywords/test_groups_and_terms.py`, `tests/collectors/test_imports.py`, `tests/collectors/test_import_writer.py`, `tests/api/imports/__init__.py`, `tests/api/imports/support.py`, `tests/api/imports/test_imports.py`, `tests/api/imports/test_import_write.py`, `tests/worker/test_import_end_to_end.py`.
 
 Modified:
@@ -154,24 +154,24 @@ Modified:
 ### Task A1: Shared helpers below the API (no behaviour change)
 
 **Files:**
-- Create: `backend/src/sightline/keywords/links.py`, `backend/src/sightline/keywords/groups.py`, `backend/src/sightline/keywords/terms.py`
-- Modify: `backend/src/sightline/api/keywords/repository.py`, `api/keywords/group_repository.py`, `api/keywords/group_service.py`, `api/taxonomy/slugs.py`, `api/taxonomy/service.py`, `api/schemas/taxonomy.py`, `keywords/writer.py`
+- Create: `backend/src/idraft/keywords/links.py`, `backend/src/idraft/keywords/groups.py`, `backend/src/idraft/keywords/terms.py`
+- Modify: `backend/src/idraft/api/keywords/repository.py`, `api/keywords/group_repository.py`, `api/keywords/group_service.py`, `api/taxonomy/slugs.py`, `api/taxonomy/service.py`, `api/schemas/taxonomy.py`, `keywords/writer.py`
 - Test: `backend/tests/keywords/test_groups_and_terms.py`
 
-- [ ] **Step 1: Move the link helpers.** Cut `lock_rows`, `add_members`, `add_terms`, `groups_of`, `terms_of`, `remove_terms` (and the record types they return, `GroupRecord` for `groups_of` excepted if it is the group repository's: check `grep -n "def groups_of" -A30 src/sightline/api/keywords/repository.py` and move only what these functions need, including `TermRecord` and its `_term`/`_terms` builders if they are used only by these and `project_terms`) from `api/keywords/repository.py` into `sightline/keywords/links.py`, unchanged. In `api/keywords/repository.py`, re-export them so every caller keeps working, with the explicit re-export form strict mypy needs:
+- [ ] **Step 1: Move the link helpers.** Cut `lock_rows`, `add_members`, `add_terms`, `groups_of`, `terms_of`, `remove_terms` (and the record types they return, `GroupRecord` for `groups_of` excepted if it is the group repository's: check `grep -n "def groups_of" -A30 src/idraft/api/keywords/repository.py` and move only what these functions need, including `TermRecord` and its `_term`/`_terms` builders if they are used only by these and `project_terms`) from `api/keywords/repository.py` into `idraft/keywords/links.py`, unchanged. In `api/keywords/repository.py`, re-export them so every caller keeps working, with the explicit re-export form strict mypy needs:
 
 ```python
-from sightline.keywords.links import add_members as add_members
-from sightline.keywords.links import add_terms as add_terms
-from sightline.keywords.links import groups_of as groups_of
-from sightline.keywords.links import lock_rows as lock_rows
-from sightline.keywords.links import remove_terms as remove_terms
-from sightline.keywords.links import terms_of as terms_of
+from idraft.keywords.links import add_members as add_members
+from idraft.keywords.links import add_terms as add_terms
+from idraft.keywords.links import groups_of as groups_of
+from idraft.keywords.links import lock_rows as lock_rows
+from idraft.keywords.links import remove_terms as remove_terms
+from idraft.keywords.links import terms_of as terms_of
 ```
 
 `add_terms` already takes `assigned_by: str`; imports pass `"import"` (allowed by the column's check).
 
-- [ ] **Step 2: Groups module.** Create `sightline/keywords/groups.py`:
+- [ ] **Step 2: Groups module.** Create `idraft/keywords/groups.py`:
 
 ```python
 """Keyword groups as the API and the worker both change them (docs/19-api-specification.md
@@ -187,7 +187,7 @@ from uuid import UUID
 from sqlalchemy import func, insert, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sightline.db.tables import keyword_groups
+from idraft.db.tables import keyword_groups
 
 GROUP_DEPTH_MAX: Final = 10
 # The check on `seo.keyword_groups.path` in migration 0011.
@@ -256,9 +256,9 @@ async def ensure_group_path(
     return parent_id
 ```
 
-Check `keyword_groups` table columns first (`grep -n "^keyword_groups = Table" -A14 src/sightline/db/tables.py`); if the unique sibling index is `lower(name)`-based, the lookup above matches it. In `api/keywords/group_repository.py` replace `lock_groups` with `from sightline.keywords.groups import lock_groups as lock_groups`; in `group_service.py` import `GROUP_DEPTH_MAX` and `PATH_BYTES_MAX` from `sightline.keywords.groups` instead of defining them.
+Check `keyword_groups` table columns first (`grep -n "^keyword_groups = Table" -A14 src/idraft/db/tables.py`); if the unique sibling index is `lower(name)`-based, the lookup above matches it. In `api/keywords/group_repository.py` replace `lock_groups` with `from idraft.keywords.groups import lock_groups as lock_groups`; in `group_service.py` import `GROUP_DEPTH_MAX` and `PATH_BYTES_MAX` from `idraft.keywords.groups` instead of defining them.
 
-- [ ] **Step 3: Terms module.** Create `sightline/keywords/terms.py`. Move `slugify`, `free_slug`, `FALLBACK_SLUG` from `api/taxonomy/slugs.py` and `fold` from `api/taxonomy/service.py` (read both first). `SLUG_MAX` and the term name maximum come from `api/schemas/taxonomy.py`: move those two constants here and import them back into the schema module. Keep `api/taxonomy/slugs.py` as a module that re-exports (`from sightline.keywords.terms import free_slug as free_slug` and so on) so its importers keep working. Add:
+- [ ] **Step 3: Terms module.** Create `idraft/keywords/terms.py`. Move `slugify`, `free_slug`, `FALLBACK_SLUG` from `api/taxonomy/slugs.py` and `fold` from `api/taxonomy/service.py` (read both first). `SLUG_MAX` and the term name maximum come from `api/schemas/taxonomy.py`: move those two constants here and import them back into the schema module. Keep `api/taxonomy/slugs.py` as a module that re-exports (`from idraft.keywords.terms import free_slug as free_slug` and so on) so its importers keep working. Add:
 
 ```python
 async def lock_vocabulary(db: AsyncSession, vocabulary_id: UUID) -> None:
@@ -305,7 +305,7 @@ async def ensure_term_path(
     checks). The caller holds `lock_vocabulary`."""
 ```
 
-Implement `ensure_term_path` with `taxonomy_terms` directly (same insert values as `api/taxonomy/repository.insert_term`: `workspace_id`, `vocabulary_id`, `parent_id`, `name`, `slug`, `path` = slug path), reading each level's children (`parent_id` IS NULL or `=`), matching `fold(name)`, and `free_slug(slugify(name), sibling slugs)`. In `api/taxonomy/service.py`, call `await lock_vocabulary(db, vocabulary_id)` first thing in `_writable` and in the vocabulary update and delete paths (before their row lock), import `fold` from `sightline.keywords.terms`.
+Implement `ensure_term_path` with `taxonomy_terms` directly (same insert values as `api/taxonomy/repository.insert_term`: `workspace_id`, `vocabulary_id`, `parent_id`, `name`, `slug`, `path` = slug path), reading each level's children (`parent_id` IS NULL or `=`), matching `fold(name)`, and `free_slug(slugify(name), sibling slugs)`. In `api/taxonomy/service.py`, call `await lock_vocabulary(db, vocabulary_id)` first thing in `_writable` and in the vocabulary update and delete paths (before their row lock), import `fold` from `idraft.keywords.terms`.
 
 - [ ] **Step 4: Writer helpers.** In `keywords/writer.py`:
   - rename `_rows_of` to `rows_of` (keep its docstring; update the one internal caller);
@@ -404,13 +404,13 @@ async def test_a_term_path_is_found_or_made_with_free_slugs(
 ### Task A2: The pure row parser
 
 **Files:**
-- Create: `backend/src/sightline/keywords/import_rows.py`
+- Create: `backend/src/idraft/keywords/import_rows.py`
 - Test: `backend/tests/keywords/test_import_rows.py`
 
 - [ ] **Step 1: Write the failing tests.** Cover each item in I3, I4 and I5. The tests below are the minimum; write them all out:
 
 ```python
-from sightline.keywords.import_rows import (
+from idraft.keywords.import_rows import (
     Defaults, Locations, ParsedRow, RowError, SourceError, read_api_rows, read_csv, read_paste,
     resolve_mapping, parse_row, IMPORT_ROWS_MAX,
 )
@@ -510,8 +510,8 @@ def test_location_beats_country_beats_the_default() -> None:
 
 def test_the_value_sets_match_the_api_schemas() -> None:
     from typing import get_args
-    from sightline.api.schemas.keywords import DepthProfile, FunnelStage, Intent
-    from sightline.keywords import import_rows
+    from idraft.api.schemas.keywords import DepthProfile, FunnelStage, Intent
+    from idraft.keywords import import_rows
     assert import_rows.DEPTH_PROFILES == frozenset(get_args(DepthProfile))
     assert import_rows.INTENTS == frozenset(get_args(Intent))
     assert import_rows.FUNNEL_STAGES == frozenset(get_args(FunnelStage))
@@ -521,7 +521,7 @@ def test_the_value_sets_match_the_api_schemas() -> None:
 
 - [ ] **Step 2: Run** `uv run pytest tests/keywords/test_import_rows.py -q --no-cov -p no:cacheprovider`. Expected: import error (module missing).
 
-- [ ] **Step 3: Implement** `sightline/keywords/import_rows.py`. Public names: `IMPORT_ROWS_MAX`, `CELL_MAX`, `FIELDS`, `DEPTH_PROFILES`, `INTENTS`, `FUNNEL_STAGES`, `SourceRow`, `SourceError`, `read_csv`, `read_paste`, `read_api_rows`, `resolve_mapping`, `Defaults`, `Locations`, `ParsedRow`, `RowError`, `parse_row`. Shapes:
+- [ ] **Step 3: Implement** `idraft/keywords/import_rows.py`. Public names: `IMPORT_ROWS_MAX`, `CELL_MAX`, `FIELDS`, `DEPTH_PROFILES`, `INTENTS`, `FUNNEL_STAGES`, `SourceRow`, `SourceError`, `read_csv`, `read_paste`, `read_api_rows`, `resolve_mapping`, `Defaults`, `Locations`, `ParsedRow`, `RowError`, `parse_row`. Shapes:
 
 ```python
 IMPORT_ROWS_MAX: Final = 10_000
@@ -591,7 +591,7 @@ class RowError:
     message: str
 ```
 
-`read_csv`: decode with `data.decode("utf-8-sig")` (UnicodeDecodeError to `not_utf8`); sniff with `csv.Sniffer().sniff(sample, delimiters=",;\t")` inside `try` (falls back to `csv.excel`); `csv.reader(io.StringIO(text), dialect)`; header row missing or all blank to `no_header`; header cells trimmed; duplicates without case to `duplicate_headers`; data rows numbered from 1; a row of only blank cells skipped; short rows padded with `""`, extra cells ignored; more than `IMPORT_ROWS_MAX` non-blank rows to `too_many_rows` with message `f"An import has at most {IMPORT_ROWS_MAX} rows."`. `read_paste` and `read_api_rows` per I3 (`read_api_rows` returns `(headers, rows)` with headers in first-appearance order; values are already strings from the schema). `resolve_mapping(headers, given)`: returns header to field for headers that map, per I4, first one wins when two headers would map to one field by name; `given` keys and values are matched without case, and a given value not in `FIELDS` is ignored (the schema already restricts it). `parse_row` implements I5 in order and returns the first `RowError`. Use `check_keyword` and `normalize` from `sightline.keywords.text`, `canonicalize` from `sightline.extraction.urls`, `path_fits` and `NAME_MAX` from `sightline.keywords.groups`, and `Device` from `sightline.keywords.writer`. Messages are short sentences without dashes, for example `"No active location has this name or id."`.
+`read_csv`: decode with `data.decode("utf-8-sig")` (UnicodeDecodeError to `not_utf8`); sniff with `csv.Sniffer().sniff(sample, delimiters=",;\t")` inside `try` (falls back to `csv.excel`); `csv.reader(io.StringIO(text), dialect)`; header row missing or all blank to `no_header`; header cells trimmed; duplicates without case to `duplicate_headers`; data rows numbered from 1; a row of only blank cells skipped; short rows padded with `""`, extra cells ignored; more than `IMPORT_ROWS_MAX` non-blank rows to `too_many_rows` with message `f"An import has at most {IMPORT_ROWS_MAX} rows."`. `read_paste` and `read_api_rows` per I3 (`read_api_rows` returns `(headers, rows)` with headers in first-appearance order; values are already strings from the schema). `resolve_mapping(headers, given)`: returns header to field for headers that map, per I4, first one wins when two headers would map to one field by name; `given` keys and values are matched without case, and a given value not in `FIELDS` is ignored (the schema already restricts it). `parse_row` implements I5 in order and returns the first `RowError`. Use `check_keyword` and `normalize` from `idraft.keywords.text`, `canonicalize` from `idraft.extraction.urls`, `path_fits` and `NAME_MAX` from `idraft.keywords.groups`, and `Device` from `idraft.keywords.writer`. Messages are short sentences without dashes, for example `"No active location has this name or id."`.
 
 - [ ] **Step 4: Run the tests; expected PASS.** Then ruff and mypy.
 
@@ -634,8 +634,8 @@ Put both constants in `api/body_limit.py` to avoid an import cycle, with a comme
 ### Task A4: Worker parse, classify and expire
 
 **Files:**
-- Create: `backend/src/sightline/collectors/imports.py`
-- Modify: `backend/src/sightline/worker/assembly.py`, `tests/worker/test_assembly.py`
+- Create: `backend/src/idraft/collectors/imports.py`
+- Modify: `backend/src/idraft/worker/assembly.py`, `tests/worker/test_assembly.py`
 - Test: `backend/tests/collectors/test_imports.py`
 
 - [ ] **Step 1: Test helpers.** In `tests/collectors/test_imports.py` add a helper that records an import as the API would (as superuser via `execute`), storing the source in a `MemoryStore`:
@@ -703,7 +703,7 @@ async def expire_imports(sessions: async_sessionmaker[AsyncSession], *, now: dat
 
 Inside one parse transaction, in this order:
 1. Claim: `SELECT ... FROM seo.keyword_imports WHERE status = 'uploaded' ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED` (columns: id, workspace_id, project_id, source, upload_object_key, column_mapping, defaults).
-2. Read and decompress the source (`decompress` from `sightline.storage.raw`); `RawStorageError`: roll back, count `waiting`, continue with the next import.
+2. Read and decompress the source (`decompress` from `idraft.storage.raw`); `RawStorageError`: roll back, count `waiting`, continue with the next import.
 3. Read the rows with `import_rows` (`SourceError`: status `failed`, `error_code = code`, `finished_at = now()`, no rows).
 4. Resolve the mapping (paste: identity mapping `keyword`, `tags`). Apply I4: `needs_mapping` with the error code, delete any old rows, no new ones.
 5. Load `Defaults`: the import's `defaults` JSON merged over the project's `default_location_id`, `default_language_code` and `settings.seo` (`default_device`, `default_depth_profile`), `priority` 3. A deleted project: status `failed`, `error_code = 'project_gone'`.
@@ -712,7 +712,7 @@ Inside one parse transaction, in this order:
 8. Classify per I6: collect keyword keys, call `writer.keyword_texts`, then `writer.rows_of` for the identities whose keyword exists, then walk rows in order, tracking the first `row_no` of each identity.
 9. Replace rows: `DELETE FROM seo.keyword_import_rows WHERE workspace_id = :w AND import_id = :i`, then insert in chunks of 1,000 (`raw` as JSON of the source cells, `keyword_text` = the cleaned text, the other columns per I6).
 10. Update the import: `status = 'preview_ready'`, `counts`, `error_code = NULL`.
-Every statement names `workspace_id`. Use `sightline.db.tables` objects (`keyword_imports`, `keyword_import_rows`, `locations`, `projects`).
+Every statement names `workspace_id`. Use `idraft.db.tables` objects (`keyword_imports`, `keyword_import_rows`, `locations`, `projects`).
 
 - [ ] **Step 5: The tick.** In `worker/assembly.py`, add constants `IMPORTS_EVERY = timedelta(seconds=5)`, `IMPORTS_LOCK = timedelta(seconds=4)` and a tick named `keyword_imports` that, when `context.raw_store` is set, runs `expire_imports` then `parse_next` (Part B adds `write_next`), logging non-quiet reports like the other ticks. Update `tests/worker/test_assembly.py` to expect the tick's interval and lock.
 
@@ -721,7 +721,7 @@ Every statement names `workspace_id`. Use `sightline.db.tables` objects (`keywor
 ### Task A5: The API
 
 **Files:**
-- Create: `backend/src/sightline/api/imports/__init__.py`, `repository.py`, `service.py`, `routes.py`
+- Create: `backend/src/idraft/api/imports/__init__.py`, `repository.py`, `service.py`, `routes.py`
 - Modify: `api/resources.py`, `api/main.py`, `api/audit.py`, `tests/api/test_route_access.py`, `tests/security/test_cross_tenant.py`
 - Test: `backend/tests/api/imports/__init__.py`, `support.py`, `test_imports.py`
 
@@ -742,7 +742,7 @@ Every statement names `workspace_id`. Use `sightline.db.tables` objects (`keywor
 - [ ] **Step 4: Service** (`api/imports/service.py`): `ImportService` with `create`, `upload`, `page`, `get`, `rows`, `update`, `cancel`, `report` (Part B adds `confirm`). Rules from I2, I3, I4, I6, I10, I11, I12. `create` and `upload` validate defaults (I11) inside the transaction before storing, then `store.put` the compressed source, then insert the import and audit, in one transaction; if `put` raises `RawStorageError`, raise `StorageUnavailableError` and record nothing. `quota` on the view: only for `preview_ready`, from `writer.quota_usage` and `repository.pending_creates`.
 - [ ] **Step 5: Routes** (`api/imports/routes.py`) per I1, with descriptions that state the rules in a sentence or two each (they become the API document). The upload handler declares `file: Annotated[UploadFile, File(description="CSV, UTF-8 (a BOM is fine).")]` and `options: Annotated[str | None, Form(description="The JSON of `ImportOptions`.")] = None`, reads `await file.read()` (the body limit already bounds it), and validates `options` with `ImportOptions.model_validate_json` (a `ValidationError` becomes `RequestValidationError` at `("body", "options")`). The report returns `Response(content=..., media_type="text/csv; charset=utf-8", headers={"Content-Disposition": ...})` and declares `response_class=Response` with `responses={200: {"content": {"text/csv": {}}}}`.
 - [ ] **Step 6: Wire** `ImportService` into `Resources` (`imports`) and `main.py` (service and router). Add the audit actions. Add every route to `tests/api/test_route_access.py` (`import_id` to `PATH_PARAMETERS`) and to the cross-tenant suite: an import of each tenant (with a preview row) in `_tenant`, `import_id` in `ids()`, bodies for POST, PATCH and the upload (the suite sends JSON; give the upload route a body entry and accept that it answers `422` for A's own path: check how the suite treats routes whose own call is not a success and follow it, or skip the upload route in `test_a_list_holds_nothing...` only), `seo.keyword_imports` and `seo.keyword_import_rows` in `_TENANT_ROWS`.
-- [ ] **Step 7: Run** `uv run pytest tests/api/imports tests/api/test_route_access.py tests/security -q --no-cov -p no:cacheprovider`; expected PASS. Regenerate `openapi/v1.json` (`uv run python -m sightline.api.openapi > openapi/v1.json`) and run `tests/api/test_openapi.py`. Compare the import paths of `openapi/v1.json` with `apps/web/openapi/step-5-draft.json` (names, parameters, request and response schemas): they must match; report any difference to the parent session instead of changing the draft.
+- [ ] **Step 7: Run** `uv run pytest tests/api/imports tests/api/test_route_access.py tests/security -q --no-cov -p no:cacheprovider`; expected PASS. Regenerate `openapi/v1.json` (`uv run python -m idraft.api.openapi > openapi/v1.json`) and run `tests/api/test_openapi.py`. Compare the import paths of `openapi/v1.json` with `apps/web/openapi/step-5-draft.json` (names, parameters, request and response schemas): they must match; report any difference to the parent session instead of changing the draft.
 
 ### Task A6: Part A gates, docs and commit
 

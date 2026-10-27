@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import pytest
 
-from sightline.ranks.state import (
+from idraft.ranks.state import (
     MAX_CONSECUTIVE_BEYOND,
     Check,
     KeywordState,

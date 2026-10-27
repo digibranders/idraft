@@ -4,7 +4,7 @@
 
 **Goal:** A worker process that plans collection runs from schedules, checks the budget, and submits paid work to a provider exactly as the ledger in PostgreSQL says, so that losing Redis or the process loses nothing and spends nothing twice.
 
-**Architecture:** Step 2 of the build order (`docs/29-phase-roadmap.md` section 1.1), specified in `docs/21-scheduler-workers.md`. PostgreSQL is the ledger and Redis the transport: Taskiq messages carry task ids, and every handler reads the ledger row before acting. One process (`python -m sightline.worker`) runs two Taskiq receivers (`collect`, `process`), the planner and dispatcher ticks under Redis locks, and Taskiq's scheduler for maintenance jobs. Rules that need no I/O live in `sightline.domain`; everything that touches the ledger lives in `sightline.collectors`; the process and its messages live in `sightline.worker`.
+**Architecture:** Step 2 of the build order (`docs/29-phase-roadmap.md` section 1.1), specified in `docs/21-scheduler-workers.md`. PostgreSQL is the ledger and Redis the transport: Taskiq messages carry task ids, and every handler reads the ledger row before acting. One process (`python -m idraft.worker`) runs two Taskiq receivers (`collect`, `process`), the planner and dispatcher ticks under Redis locks, and Taskiq's scheduler for maintenance jobs. Rules that need no I/O live in `idraft.domain`; everything that touches the ledger lives in `idraft.collectors`; the process and its messages live in `idraft.worker`.
 
 **Tech stack:** Taskiq 0.13 with `taskiq-redis` (Redis streams), SQLAlchemy 2 Core on asyncpg as `app_worker`, Redis 8, pytest with Testcontainers, Hypothesis for the pure rules.
 
@@ -43,24 +43,24 @@ No workload and no provider is registered in production by this plan, so the dep
 
 | File | Responsibility |
 |---|---|
-| `backend/src/sightline/domain/workloads.py` | Task workloads, cost workloads, budget groups and their mapping (doc 04 section 11.4.1) |
-| `backend/src/sightline/domain/schedules.py` | Occurrences of a schedule: next window start, missed occurrences |
-| `backend/src/sightline/domain/tasks.py` | Idempotency key, partition month, stagger offset |
-| `backend/src/sightline/domain/retries.py` | Retry policy per error kind (doc 21 section 6) |
-| `backend/src/sightline/providers/contract.py` | The part of the adapter contract submission needs |
-| `backend/src/sightline/collectors/ledger.py` | Statements on runs and tasks: create, claim, transitions, completion |
-| `backend/src/sightline/collectors/budget.py` | Month-to-date spend and the budget verdict |
-| `backend/src/sightline/collectors/registry.py` | Workload and provider registries |
-| `backend/src/sightline/collectors/planner.py` | One planner tick |
-| `backend/src/sightline/collectors/dispatcher.py` | One dispatcher tick |
-| `backend/src/sightline/collectors/submission.py` | `submit_batch`: provider call and ledger outcome |
-| `backend/src/sightline/collectors/reconciler.py` | The reconciler's ledger steps and the partition job |
-| `backend/src/sightline/collectors/read_only.py` | The read-only savepoint workloads run in |
-| `backend/src/sightline/worker/queues.py` | The two queues: the stream read loop, sends with dedupe keys, scheduled jobs and their claims |
-| `backend/src/sightline/worker/{locks,ticks,scheduler,pauses}.py` | Redis locks, ticks under locks, the scheduler supervisor, provider pauses |
-| `backend/src/sightline/worker/{app,assembly,healthcheck,__main__}.py` | The process, what it is made of, its healthcheck, its entrypoint |
-| `backend/src/sightline/db/tables.py` | Adds the `ops` tables the worker reads and writes |
-| `backend/src/sightline/db/migrations/versions/0006` to `0008` | Run guard over scheduled runs, schedule days, the dispatcher's index, budget deletion |
+| `backend/src/idraft/domain/workloads.py` | Task workloads, cost workloads, budget groups and their mapping (doc 04 section 11.4.1) |
+| `backend/src/idraft/domain/schedules.py` | Occurrences of a schedule: next window start, missed occurrences |
+| `backend/src/idraft/domain/tasks.py` | Idempotency key, partition month, stagger offset |
+| `backend/src/idraft/domain/retries.py` | Retry policy per error kind (doc 21 section 6) |
+| `backend/src/idraft/providers/contract.py` | The part of the adapter contract submission needs |
+| `backend/src/idraft/collectors/ledger.py` | Statements on runs and tasks: create, claim, transitions, completion |
+| `backend/src/idraft/collectors/budget.py` | Month-to-date spend and the budget verdict |
+| `backend/src/idraft/collectors/registry.py` | Workload and provider registries |
+| `backend/src/idraft/collectors/planner.py` | One planner tick |
+| `backend/src/idraft/collectors/dispatcher.py` | One dispatcher tick |
+| `backend/src/idraft/collectors/submission.py` | `submit_batch`: provider call and ledger outcome |
+| `backend/src/idraft/collectors/reconciler.py` | The reconciler's ledger steps and the partition job |
+| `backend/src/idraft/collectors/read_only.py` | The read-only savepoint workloads run in |
+| `backend/src/idraft/worker/queues.py` | The two queues: the stream read loop, sends with dedupe keys, scheduled jobs and their claims |
+| `backend/src/idraft/worker/{locks,ticks,scheduler,pauses}.py` | Redis locks, ticks under locks, the scheduler supervisor, provider pauses |
+| `backend/src/idraft/worker/{app,assembly,healthcheck,__main__}.py` | The process, what it is made of, its healthcheck, its entrypoint |
+| `backend/src/idraft/db/tables.py` | Adds the `ops` tables the worker reads and writes |
+| `backend/src/idraft/db/migrations/versions/0006` to `0008` | Run guard over scheduled runs, schedule days, the dispatcher's index, budget deletion |
 
 As built, the file list differs from the one planned: messages live with the code that sends them (`collectors/dispatcher.py`), because `collectors` may not import `worker`; brokers, dedupe and jobs are one module (`worker/queues.py`), and the jobs are registered in `worker/assembly.py`.
 

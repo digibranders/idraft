@@ -8,8 +8,8 @@ import json
 
 import pytest
 
-from sightline.api.pagination import decode_cursor, encode_cursor
-from sightline.api.problems import BadRequestError
+from idraft.api.pagination import decode_cursor, encode_cursor
+from idraft.api.problems import BadRequestError
 
 SCOPE = {"sort": "name", "filter[entity_type]": "brand"}
 

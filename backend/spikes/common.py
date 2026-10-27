@@ -22,17 +22,17 @@ from typing import Any, Final
 
 import httpx
 
-from sightline.providers.contract import (
+from idraft.providers.contract import (
     CanonicalRequest,
     Contract,
     FetchResult,
     Limit,
     ProviderCallError,
 )
-from sightline.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
-from sightline.providers.dataforseo.endpoint import TaskEndpoint
-from sightline.providers.dataforseo.provider import DataForSeo
-from sightline.providers.dataforseo.serp import ENDPOINT, SERP_ORGANIC
+from idraft.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
+from idraft.providers.dataforseo.endpoint import TaskEndpoint
+from idraft.providers.dataforseo.provider import DataForSeo
+from idraft.providers.dataforseo.serp import ENDPOINT, SERP_ORGANIC
 
 REPOSITORY: Final = Path(__file__).resolve().parents[2]
 REPORTS: Final = REPOSITORY / "docs" / "spikes"
@@ -88,7 +88,7 @@ def each_costs(depth: int, *, async_overview: bool) -> Callable[[Sent], Decimal]
 
 
 class LocalGate:
-    """The call limits of `sightline.worker.limiter`, kept in this process: a run is the only
+    """The call limits of `idraft.worker.limiter`, kept in this process: a run is the only
     caller. One turn per `60 / per_minute` seconds for each scope a call names."""
 
     def __init__(self, all_calls: Limit, families: Mapping[str, Limit]) -> None:

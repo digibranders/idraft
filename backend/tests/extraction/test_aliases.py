@@ -10,7 +10,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.extraction.aliases import (
+from idraft.extraction.aliases import (
     MAX_HITS,
     AliasMatcher,
     AliasRule,
@@ -22,7 +22,7 @@ from sightline.extraction.aliases import (
     TooManyMatchesError,
     check_pattern,
 )
-from sightline.extraction.text import normalize
+from idraft.extraction.text import normalize
 
 ACME = uuid.UUID(int=1)
 HUBSPOT = uuid.UUID(int=2)

@@ -244,7 +244,7 @@ The list follows the grid keyboard model already built for the keyword table. In
 
 ## 6. Health model (`page_health_v1`)
 
-A pure function in `backend/src/sightline/domain/page_performance/health.py` (no database, no I/O), with its constants in one table below and a method version stored in `ops.component_versions` like other metric methods. It takes the current and previous totals of clicks and impressions (after the filters and provisional rules) and returns a verdict plus flags.
+A pure function in `backend/src/idraft/domain/page_performance/health.py` (no database, no I/O), with its constants in one table below and a method version stored in `ops.component_versions` like other metric methods. It takes the current and previous totals of clicks and impressions (after the filters and provisional rules) and returns a verdict plus flags.
 
 ### 6.1 Verdict
 

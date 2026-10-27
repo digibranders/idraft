@@ -9,11 +9,11 @@ from typing import get_args
 
 import pytest
 
-from sightline.collectors import ledger
-from sightline.collectors.ledger import CostSource, Priority, Trigger
-from sightline.domain.retries import RetryStatus
-from sightline.domain.schedules import Cadence
-from sightline.domain.workloads import BudgetGroup, CostChannel, CostWorkload, TaskWorkload
+from idraft.collectors import ledger
+from idraft.collectors.ledger import CostSource, Priority, Trigger
+from idraft.domain.retries import RetryStatus
+from idraft.domain.schedules import Cadence
+from idraft.domain.workloads import BudgetGroup, CostChannel, CostWorkload, TaskWorkload
 from tests.conftest import PostgresServer
 from tests.db.support import connection
 

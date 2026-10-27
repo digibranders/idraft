@@ -9,12 +9,12 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory
-from sightline.providers.dataforseo.client import DataForSeoClient
-from sightline.providers.dataforseo.locations import LOCATIONS_PATH
-from sightline.worker import sync_locations as command
-from sightline.worker.assembly import sync_dataforseo_locations
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory
+from idraft.providers.dataforseo.client import DataForSeoClient
+from idraft.providers.dataforseo.locations import LOCATIONS_PATH
+from idraft.worker import sync_locations as command
+from idraft.worker.assembly import sync_dataforseo_locations
 from tests.api.auth.support import clear_locations, fetch
 from tests.conftest import PostgresServer
 from tests.providers.dataforseo.support import (

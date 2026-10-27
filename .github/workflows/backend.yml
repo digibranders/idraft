@@ -37,6 +37,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build the API image
-        run: docker build --target api --build-arg RELEASE_SHA=${{ github.sha }} -t sightline-api:ci backend
+        run: docker build --target api --build-arg RELEASE_SHA=${{ github.sha }} -t idraft-api:ci backend
       - name: Migrate and start it against real PostgreSQL and Redis
-        run: backend/smoke.sh sightline-api:ci
+        run: backend/smoke.sh idraft-api:ci

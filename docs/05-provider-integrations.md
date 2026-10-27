@@ -37,12 +37,12 @@ What we do **not** build: a generic "any provider for anything" router with auto
 
 ## 3. Adapter contract
 
-Adapters live in `backend/src/sightline/providers` ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). They never touch PostgreSQL or Redis; import-linter enforces that `providers` never imports `db`. They turn canonical requests into provider calls and provider responses into canonical objects. Network calls go through one shared `httpx.AsyncClient` per provider (connection pooling, explicit timeouts, HTTP/2 off); provider responses are parsed into Pydantic v2 response models before normalization. Everything stateful (task ledger, retries, cost events, raw storage) is in `sightline.collectors`.
+Adapters live in `backend/src/idraft/providers` ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). They never touch PostgreSQL or Redis; import-linter enforces that `providers` never imports `db`. They turn canonical requests into provider calls and provider responses into canonical objects. Network calls go through one shared `httpx.AsyncClient` per provider (connection pooling, explicit timeouts, HTTP/2 off); provider responses are parsed into Pydantic v2 response models before normalization. Everything stateful (task ledger, retries, cost events, raw storage) is in `idraft.collectors`.
 
 ### 3.1 Core types
 
 ```python
-# backend/src/sightline/providers/contract.py
+# backend/src/idraft/providers/contract.py
 from decimal import Decimal
 from typing import Generic, Literal, TypeVar
 
@@ -159,7 +159,7 @@ class FetchResult(Contract):
 ### 3.2 Adapter interface
 
 ```python
-# backend/src/sightline/providers/contract.py (continued)
+# backend/src/idraft/providers/contract.py (continued)
 from typing import Protocol
 
 import httpx
@@ -208,7 +208,7 @@ Notes on the design choices:
 - `fingerprint` excludes our task id and priority, so identical SERP requests on the same day across projects are recognized (shared fetch, [04-data-model.md](04-data-model.md) section 11.3).
 - `classifyError` returns a retry decision rather than throwing provider-specific errors up the stack.
 
-**As built (step 3 of the build order).** `backend/src/sightline/providers/contract.py` holds the part of this contract that submitting and fetching need; normalizing arrives with the first workload that ingests. A `Provider` has `code`, `batch_size(endpoint)`, `result_lifetime(endpoint)`, `payload_slug(endpoint)` (the endpoint's name in raw payload keys), `submit` (a batch; a request left out of both lists has an unknown outcome), `list_ready`, `fetch` (the exact response bytes), `lists_submissions` and `find_submitted` (the tasks posted in a period, with their tags, complete or refused). Instead of a `CallContext`, the DataForSEO adapter is built with the process's one `httpx.AsyncClient` and a `CallGate` (the shared limiter, doc 21 section 7). Every request carries its task id, run id and the attempt submission stamps on it; the tag echoes all three, and an answer is matched by tag, never by position. A call that fails as a whole raises `ProviderCallError`; the kinds are those of section 3.3, with `not_sent` for a call that was never made (our limiter held it back, or no connection opened).
+**As built (step 3 of the build order).** `backend/src/idraft/providers/contract.py` holds the part of this contract that submitting and fetching need; normalizing arrives with the first workload that ingests. A `Provider` has `code`, `batch_size(endpoint)`, `result_lifetime(endpoint)`, `payload_slug(endpoint)` (the endpoint's name in raw payload keys), `submit` (a batch; a request left out of both lists has an unknown outcome), `list_ready`, `fetch` (the exact response bytes), `lists_submissions` and `find_submitted` (the tasks posted in a period, with their tags, complete or refused). Instead of a `CallContext`, the DataForSEO adapter is built with the process's one `httpx.AsyncClient` and a `CallGate` (the shared limiter, doc 21 section 7). Every request carries its task id, run id and the attempt submission stamps on it; the tag echoes all three, and an answer is matched by tag, never by position. A call that fails as a whole raises `ProviderCallError`; the kinds are those of section 3.3, with `not_sent` for a call that was never made (our limiter held it back, or no connection opened).
 
 ### 3.3 Error taxonomy
 
@@ -273,7 +273,7 @@ DEFAULT_ROUTING: Final[Mapping[Workload, ProviderCode]] = {
 
 Per-project override is stored in `ai.project_engines.provider_code` (AI) and `core.projects.settings.providers` (SEO). Changing a provider for a series is a **measurement change**: it is recorded as a version boundary on charts ([17-statistical-methodology.md](17-statistical-methodology.md) section 9).
 
-Credentials: platform accounts (our own DataForSEO account) in the platform secrets file `/etc/seo-platform/.env` (root-owned, mode 0600, written by the deploy workflow from GitHub Actions environment secrets; [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), doc 24 section 5.1, doc 22 section 7) and read once at startup by `sightline.config`; bring-your-own-key per workspace (post-MVP) in `ops.secrets` with `workspace_id`, envelope-encrypted when first-party integrations arrive in Phase 12.
+Credentials: platform accounts (our own DataForSEO account) in the platform secrets file `/etc/seo-platform/.env` (root-owned, mode 0600, written by the deploy workflow from GitHub Actions environment secrets; [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), doc 24 section 5.1, doc 22 section 7) and read once at startup by `idraft.config`; bring-your-own-key per workspace (post-MVP) in `ops.secrets` with `workspace_id`, envelope-encrypted when first-party integrations arrive in Phase 12.
 
 ## 5. Fallback providers (evaluation summary)
 

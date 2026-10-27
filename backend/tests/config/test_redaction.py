@@ -3,7 +3,7 @@ import dataclasses
 import pytest
 from pydantic import BaseModel
 
-from sightline.config.redaction import CENSOR, is_secret_key, redact
+from idraft.config.redaction import CENSOR, is_secret_key, redact
 
 
 class Login(BaseModel):

@@ -25,19 +25,19 @@ import httpx
 import pytest
 from redis.asyncio import Redis
 
-from sightline.api.resources import Resources
-from sightline.collectors.costs import roll_up_costs
-from sightline.collectors.keyword_metrics import KeywordMetricsWorkload
-from sightline.collectors.registry import Registry
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory
-from sightline.providers.dataforseo import labs
-from sightline.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
-from sightline.providers.dataforseo.provider import DataForSeo
-from sightline.worker import assembly
-from sightline.worker.app import WorkerContext, run_worker
-from sightline.worker.limiter import RedisCallGate
-from sightline.worker.ticks import Tick
+from idraft.api.resources import Resources
+from idraft.collectors.costs import roll_up_costs
+from idraft.collectors.keyword_metrics import KeywordMetricsWorkload
+from idraft.collectors.registry import Registry
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory
+from idraft.providers.dataforseo import labs
+from idraft.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
+from idraft.providers.dataforseo.provider import DataForSeo
+from idraft.worker import assembly
+from idraft.worker.app import WorkerContext, run_worker
+from idraft.worker.limiter import RedisCallGate
+from idraft.worker.ticks import Tick
 from tests.api.auth.support import execute, fetch, make_workspace
 from tests.api.conftest import AppFactory, auth_app, client_for, import_store, mailbox, resources
 from tests.api.entities.support import member

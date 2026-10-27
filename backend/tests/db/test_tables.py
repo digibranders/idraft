@@ -19,8 +19,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.schema import SchemaItem
 
-from sightline.config.settings import to_sqlalchemy_url
-from sightline.db import tables
+from idraft.config.settings import to_sqlalchemy_url
+from idraft.db import tables
 from tests.conftest import PostgresServer
 from tests.db.support import connection
 

@@ -12,9 +12,9 @@ from typing import Any
 
 import pytest
 
-from sightline.providers.dataforseo import serp_parse
-from sightline.providers.dataforseo.schema_hash import reads, schema_hash, schema_paths
-from sightline.providers.dataforseo.serp_parse import (
+from idraft.providers.dataforseo import serp_parse
+from idraft.providers.dataforseo.schema_hash import reads, schema_hash, schema_paths
+from idraft.providers.dataforseo.serp_parse import (
     FEATURE_TYPES,
     PAYLOAD_MAX_BYTES,
     READS_PATHS,
@@ -378,7 +378,7 @@ def test_feat_02_an_unknown_type_becomes_an_other_feature_and_ingest_goes_on() -
 
 
 def test_feat_03_every_mapped_code_is_in_the_registry_the_migration_seeds() -> None:
-    migration = importlib.import_module("sightline.db.migrations.versions.0013_rank_collection")
+    migration = importlib.import_module("idraft.db.migrations.versions.0013_rank_collection")
     seeded = {code for code, _label, _ownable in migration._FEATURE_TYPES}
 
     assert set(FEATURE_TYPES.values()) <= seeded

@@ -26,7 +26,7 @@ Engineering choices (from the digest, recommended there):
 - **R5. Ingest is a tick** (`seo_rank_ingest`, every 30 seconds, one transaction per task, `fetched` tasks claimed through `ledger.fetched_tasks`), not a `process` job. Docs 06 section 4.4 and 21 section 5.2 are corrected in the docs task.
 - **R6. One migration, 0013**, with seven tables: `seo.serp_feature_types` (seed), `seo.serp_snapshots`, `seo.serp_features`, `seo.domain_rank_observations`, `seo.tracked_keyword_state`, `seo.serp_current_results`, `seo.rank_events`. Every tenant table carries `workspace_id` and keys between tenant tables include it. `serp_current_results` and `tracked_keyword_state` gain `workspace_id` (doc 04 has none). `tracked_keyword_state` gains `consecutive_beyond smallint` for the two-check debounce of `new_ranking` and `lost_ranking`. One snapshot per task: `UNIQUE (collection_task_id, observed_at)`. Snapshots reference `seo.tracked_keywords` through `(tracked_keyword_id, workspace_id)`; children reference the snapshot.
 - **R7. The same migration** gives the worker SELECT on `core.entities`, `core.entity_domains`, `core.project_entities`, `core.project_domain_roles` and `seo.tracked_keyword_competitors`; seeds the SERP price book rows (standard $0.0006, priority $0.0012, live $0.002 a page, endpoint `serp/google/organic`); adds the definer function for the raw route (review log F8); and moves stale `seo_rank` schedules' `next_run_at` to now (F72), so the planner starts them at their next window instead of recording past ones as missed.
-- **R8. Code layout.** The normalized types and the parser live in `providers/dataforseo/serp_parse.py` (providers may import `extraction`); rank resolution, state and event rules are pure and live in a new package `sightline/ranks/` with its own import-linter contract; the workload and the ingest writer are in `collectors/`. Doc 12's path `domain/observations/serp.py` is corrected, because `domain` may not import `extraction`.
+- **R8. Code layout.** The normalized types and the parser live in `providers/dataforseo/serp_parse.py` (providers may import `extraction`); rank resolution, state and event rules are pure and live in a new package `idraft/ranks/` with its own import-linter contract; the workload and the ingest writer are in `collectors/`. Doc 12's path `domain/observations/serp.py` is corrected, because `domain` may not import `extraction`.
 - **R9. Overlapping schedules.** A keyword is planned at most once per project-local day across `seo_rank` schedules; a tracked keyword that names a schedule is left out of the `all` selector of the others.
 - **R10. `until_own_match_100` is refused** at the API with `422 validation_failed`, code `depth_profile_not_available`, on tracked keywords and schedules' keywords alike, until `stop_crawl_on_match` is sent by the adapter.
 - **R11. Async AI Overview cost:** one cost event per task as the ledger writes today; a daily reconcile reports the difference to `user_data`. A separate `ai_overview` event waits for spike S-01.
@@ -62,11 +62,11 @@ Rulings on the contradictions the digest found (docs are corrected in Task 11):
 ## File structure
 
 Created:
-- `backend/src/sightline/db/migrations/versions/0013_rank_collection.py`.
-- `backend/src/sightline/providers/dataforseo/serp_parse.py`: `NormalizedSerp` and the parser, version 1.
-- `backend/src/sightline/ranks/` (`resolve.py`, `state.py`, `events.py`): pure rules, with an import-linter contract in `backend/pyproject.toml`.
-- `backend/src/sightline/collectors/seo_rank.py` (workload and the new-keyword step), `collectors/seo_rank_ingest.py` (ingest tick).
-- `backend/src/sightline/api/ranks/` (`routes.py`, `service.py`, `repository.py`), `api/schemas/ranks.py`.
+- `backend/src/idraft/db/migrations/versions/0013_rank_collection.py`.
+- `backend/src/idraft/providers/dataforseo/serp_parse.py`: `NormalizedSerp` and the parser, version 1.
+- `backend/src/idraft/ranks/` (`resolve.py`, `state.py`, `events.py`): pure rules, with an import-linter contract in `backend/pyproject.toml`.
+- `backend/src/idraft/collectors/seo_rank.py` (workload and the new-keyword step), `collectors/seo_rank_ingest.py` (ingest tick).
+- `backend/src/idraft/api/ranks/` (`routes.py`, `service.py`, `repository.py`), `api/schemas/ranks.py`.
 - Tests under `backend/tests/` beside each, fixtures under `backend/tests/fixtures/dataforseo/serp/`, and `tests/worker/test_rank_end_to_end.py`, `tests/worker/test_rank_acceptance.py`.
 
 Modified: `db/tables.py`, `worker/assembly.py` (workload registration, ingest tick, order), `keywords/writer.py` (default schedule), `api/keywords/{repository,filters,service}.py` and `api/schemas/keywords.py` (state, filters, sorts, includes), `api/operations/` (check-now run results, depth profile refusal), `providers/dataforseo/{serp,provider}.py` (live SERP endpoint), `collectors/{live,ledger}.py` (live SERP, claim order), docs 04, 06, 09, 10, 12, 19, 21, 26, 27, 29, 31 and the review log.
@@ -91,7 +91,7 @@ Every task: tests first, `backend/check.sh` green, commit, then an independent r
 
 ### Task 3: Rank resolution, state and events (pure)
 
-- [ ] `sightline/ranks/`: resolve ranks of own and competitor entities with `DomainResolver` (organic and absolute rank, ranking URL, owned features, AI Overview citation), the state transition (current, previous per R4, best, worst, `consecutive_beyond`, `url_changed_at`, stale), the categorical change table (doc 09 section 4: numeric, new, lost, unchanged_beyond, consistent_beyond, first_check), and the event rules with the two-check debounce. Depth coverage: beyond depth is never imputed. Out-of-order checks do not move the state.
+- [ ] `idraft/ranks/`: resolve ranks of own and competitor entities with `DomainResolver` (organic and absolute rank, ranking URL, owned features, AI Overview citation), the state transition (current, previous per R4, best, worst, `consecutive_beyond`, `url_changed_at`, stale), the categorical change table (doc 09 section 4: numeric, new, lost, unchanged_beyond, consistent_beyond, first_check), and the event rules with the two-check debounce. Depth coverage: beyond depth is never imputed. Out-of-order checks do not move the state.
 - [ ] Tests: RANK-01 to 09, the change table, event conditions, depth coverage, Hypothesis properties. Import-linter contract: `ranks` imports nothing from `collectors`, `api` or the database.
 - [ ] Gates, Opus review (methodology), fixes, commit.
 

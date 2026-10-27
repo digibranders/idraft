@@ -7,7 +7,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from sightline.extraction.text import normalize, normalize_pattern
+from idraft.extraction.text import normalize, normalize_pattern
 
 SHARP_S = "\N{LATIN SMALL LETTER SHARP S}"
 APOSTROPHE = "\N{RIGHT SINGLE QUOTATION MARK}"

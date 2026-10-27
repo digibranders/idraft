@@ -8,8 +8,8 @@ from typing import Any
 import httpx
 import pytest
 
-from sightline.api.resources import Resources
-from sightline.config.logging import configure_logging
+from idraft.api.resources import Resources
+from idraft.config.logging import configure_logging
 from tests.api.auth.support import (
     Workspace,
     add_member,

@@ -32,10 +32,10 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 ### Repository and tooling
 
 - [ ] Layout: `apps/web/` (Next.js), `backend/` (one Python project, two entrypoints), `data/fixtures/`, `infra/`, `docs/`; no Turborepo ([03](03-system-architecture.md))
-- [ ] Backend package `backend/src/sightline/{api, worker, domain, extraction, providers, collectors, db, storage, config}`; Python 3.13, `uv` lockfile, ruff
+- [ ] Backend package `backend/src/idraft/{api, worker, domain, extraction, providers, collectors, db, storage, config}`; Python 3.13, `uv` lockfile, ruff
 - [ ] import-linter contracts in CI: `domain` and `extraction` import nothing internal and do no I/O; `providers` never imports `db`; `collectors` owns persistence
 - [ ] pytest, Testcontainers (`postgres:18`, `redis:8`), Hypothesis where it earns its keep ([26](26-testing-quality.md))
-- [ ] `sightline.config`: settings from the environment validated at start; process exits on invalid config
+- [ ] `idraft.config`: settings from the environment validated at start; process exits on invalid config
 - [ ] Structured JSON logs to stdout with the redaction list ([24](24-security.md) section 11), request ids, Sentry init (Python SDK, 10% performance sampling)
 - [ ] Web: pnpm, TypeScript strict (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), ESLint, Prettier, Vitest, Playwright scaffolding
 - [ ] Generated TypeScript client: `openapi-typescript` plus `openapi-fetch` from the FastAPI OpenAPI 3.1 document, regenerated in CI and committed; CI fails when the committed client differs

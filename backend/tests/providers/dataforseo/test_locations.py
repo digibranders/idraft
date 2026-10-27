@@ -8,9 +8,9 @@ from typing import Any
 import httpx
 import pytest
 
-from sightline.providers.contract import ProviderCallError
-from sightline.providers.dataforseo.client import DataForSeoClient
-from sightline.providers.dataforseo.locations import (
+from idraft.providers.contract import ProviderCallError
+from idraft.providers.dataforseo.client import DataForSeoClient
+from idraft.providers.dataforseo.locations import (
     LOCATIONS_PATH,
     LocationListError,
     ProviderLocation,

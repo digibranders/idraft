@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from sightline.extraction.urls import canonicalize
-from sightline.ranks.resolve import (
+from idraft.extraction.urls import canonicalize
+from idraft.ranks.resolve import (
     EntityRank,
     RankedEntity,
     ResolvedSerp,

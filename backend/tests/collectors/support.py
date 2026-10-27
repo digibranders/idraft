@@ -15,13 +15,13 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.collectors import ledger
-from sightline.collectors.ledger import LedgerTask, NewRun, NewTask, TaskRef, Trigger
-from sightline.collectors.registry import Plan, ScheduleWindow
-from sightline.domain.retries import ProviderErrorKind
-from sightline.domain.tasks import scheduled_for
-from sightline.domain.workloads import TaskWorkload
-from sightline.providers.contract import (
+from idraft.collectors import ledger
+from idraft.collectors.ledger import LedgerTask, NewRun, NewTask, TaskRef, Trigger
+from idraft.collectors.registry import Plan, ScheduleWindow
+from idraft.domain.retries import ProviderErrorKind
+from idraft.domain.tasks import scheduled_for
+from idraft.domain.workloads import TaskWorkload
+from idraft.providers.contract import (
     AcceptedTask,
     CanonicalRequest,
     Contract,

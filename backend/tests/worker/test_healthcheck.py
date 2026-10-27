@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sightline.worker.healthcheck import is_fresh, main
+from idraft.worker.healthcheck import is_fresh, main
 
 
 def test_a_file_touched_just_now_is_fresh(tmp_path: Path) -> None:

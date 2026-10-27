@@ -14,9 +14,9 @@ from dataclasses import replace
 import httpx
 import pytest
 
-from sightline.api.resources import Resources
-from sightline.collectors.registry import Registry
-from sightline.worker.app import WorkerContext
+from idraft.api.resources import Resources
+from idraft.collectors.registry import Registry
+from idraft.worker.app import WorkerContext
 from tests.api.auth.support import execute, make_workspace
 from tests.api.conftest import api, auth_app, import_store, mailbox, resources
 from tests.api.entities.support import member

@@ -7,7 +7,7 @@ from datetime import timedelta
 import pytest
 from redis.asyncio import Redis
 
-from sightline.providers.pauses import RedisPauses
+from idraft.providers.pauses import RedisPauses
 
 
 @pytest.fixture

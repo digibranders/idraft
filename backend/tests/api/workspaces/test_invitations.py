@@ -12,16 +12,16 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from sightline.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
-from sightline.api.auth.tokens import hash_token
-from sightline.api.permissions import Role
-from sightline.api.problems import ForbiddenError, NotFoundError
-from sightline.api.request_info import RequestInfo
-from sightline.api.resources import Resources
-from sightline.api.workspaces import invitations as invitation_rules
-from sightline.api.workspaces.access import WorkspaceAccess
-from sightline.config.logging import configure_logging
-from sightline.providers.email import EmailMessage
+from idraft.api.auth.throttle import LoginThrottle, ThrottleUnavailableError
+from idraft.api.auth.tokens import hash_token
+from idraft.api.permissions import Role
+from idraft.api.problems import ForbiddenError, NotFoundError
+from idraft.api.request_info import RequestInfo
+from idraft.api.resources import Resources
+from idraft.api.workspaces import invitations as invitation_rules
+from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.config.logging import configure_logging
+from idraft.providers.email import EmailMessage
 from tests.api.auth.support import (
     PASSWORD,
     RecordingEmailSender,

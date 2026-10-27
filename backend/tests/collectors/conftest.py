@@ -6,8 +6,8 @@ import pytest
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from sightline.config.settings import Settings
-from sightline.db.engine import create_engine, create_session_factory
+from idraft.config.settings import Settings
+from idraft.db.engine import create_engine, create_session_factory
 from tests.collectors.support import empty_ledger
 from tests.conftest import BASE_URL, PostgresServer
 

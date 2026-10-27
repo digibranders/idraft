@@ -8,7 +8,7 @@ from datetime import datetime
 
 import httpx
 
-from sightline.api.resources import Resources
+from idraft.api.resources import Resources
 from tests.api.auth.support import execute, fetchrow, make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.keywords.support import (

@@ -35,7 +35,7 @@ Every tenant route lives under `/api/v1/workspaces/{workspace_id}`. Project rout
 
 ### 1.3 OpenAPI generation
 
-- Every route is a FastAPI path operation whose path, query, header and body parameters and per-status responses (`response_model` and `responses=`) are Pydantic v2 models in `backend/src/sightline/api/schemas/`. FastAPI generates OpenAPI 3.1 from the same models it validates with, so the document cannot drift from validation ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)).
+- Every route is a FastAPI path operation whose path, query, header and body parameters and per-status responses (`response_model` and `responses=`) are Pydantic v2 models in `backend/src/idraft/api/schemas/`. FastAPI generates OpenAPI 3.1 from the same models it validates with, so the document cannot drift from validation ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)).
 - Each route also declares its permission (doc 24 section 3.2) through the `require_permission(...)` dependency and its phase through `openapi_extra`; both are emitted as vendor extensions `x-permission` and `x-phase`, which the route permission coverage test and section 7 use.
 - CI exports the document with `app.openapi()` to `backend/openapi/v1.json` (a committed artifact), fails if the committed file differs from the generated one, and runs `oasdiff breaking` against the last release tag. A breaking diff on `v1` fails the build.
 - The TypeScript client in `apps/web` is generated from that committed document (section 1.4) in the same CI job and is also committed. A change to a Pydantic model that the web app does not follow fails CI at client generation or type checking.
@@ -448,7 +448,7 @@ Polling guidance: `Retry-After` is set on 202 responses and on GETs of non-termi
 
 ### 2.13 Permissions notation
 
-The **Permission** column in the catalog names one key from `backend/src/sightline/api/permissions.py` (a `StrEnum`, emitted in OpenAPI and therefore present in the generated client). The keys and their roles are the doc 24 section 3.2 matrix, which is canonical; this specification uses no other keys:
+The **Permission** column in the catalog names one key from `backend/src/idraft/api/permissions.py` (a `StrEnum`, emitted in OpenAPI and therefore present in the generated client). The keys and their roles are the doc 24 section 3.2 matrix, which is canonical; this specification uses no other keys:
 
 `workspace:delete`, `workspace:update`, `members:manage`, `integrations:manage`, `providers:manage`, `budgets:manage`, `costs:read`, `projects:write`, `keywords:write`, `prompts:write`, `entities:write`, `taxonomy:write`, `panels:core:modify`, `schedules:write`, `runs:trigger`, `data:read`, `raw:read`, `exports:create`, `audit:read`, `alerts:write`, `views:write`, `imports:write`, `api_keys:manage`, `ops:read`, `tasks:requeue`, `fp:logs:write` (API-key-only scope for the log agent, doc 18 section 9.1; unused until API keys ship).
 
@@ -503,7 +503,7 @@ interface RankChange {
 
 ### 3.1 Auth and session (Phase 1)
 
-Authentication is our own module in the FastAPI app (`sightline.api.auth`, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)), replacing Better Auth (ADR-014, superseded). Passwords are hashed with argon2id (minimum 12 characters, breached-list check). Sessions are opaque random ids stored hashed in `auth.sessions` and cached in Redis for 60 s; the cookie is `__Host-session` (section 2.1). Email verification and password reset use single-use tokens stored hashed in `auth.verification_tokens`. TOTP (pyotp) lives in `auth.totp_secrets` and is required for `owner` and `admin` (rule 6 in section 2.1). Bodies are snake_case like every other route. Google sign-in (OIDC) is deferred; there is no social sign-in route in V1. Workspace membership, invitations and roles are ordinary routes in section 3.2.
+Authentication is our own module in the FastAPI app (`idraft.api.auth`, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)), replacing Better Auth (ADR-014, superseded). Passwords are hashed with argon2id (minimum 12 characters, breached-list check). Sessions are opaque random ids stored hashed in `auth.sessions` and cached in Redis for 60 s; the cookie is `__Host-session` (section 2.1). Email verification and password reset use single-use tokens stored hashed in `auth.verification_tokens`. TOTP (pyotp) lives in `auth.totp_secrets` and is required for `owner` and `admin` (rule 6 in section 2.1). Bodies are snake_case like every other route. Google sign-in (OIDC) is deferred; there is no social sign-in route in V1. Workspace membership, invitations and roles are ordinary routes in section 3.2.
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
@@ -611,7 +611,7 @@ interface AcceptedInvitation { workspace: { workspace_id: Uuid; name: string; sl
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
 |---|---|---|---|---|---|---|---|
-| GET | `/api/v1/roles` | authenticated | none | `{ data: Array<{ role, description, permissions: string[] }>, permission_keys: Array<{ key, description, api_key_scope: boolean }> }` generated from `sightline.api.permissions` | no | | deferred |
+| GET | `/api/v1/roles` | authenticated | none | `{ data: Array<{ role, description, permissions: string[] }>, permission_keys: Array<{ key, description, api_key_scope: boolean }> }` generated from `idraft.api.permissions` | no | | deferred |
 
 Roles are fixed in V1 (doc 24 section 3.1); there are no custom roles.
 
@@ -995,7 +995,7 @@ Previews expire after 7 days (`status = 'expired'`); the upload stays in R2 unde
 | GET | `{P}/seo/rank-events` | `data:read` | `from?`, `to?` (timestamps allowed), `filter[event_type_in]?`, `filter[tracked_keyword_id]?`, `filter[entity_id]?`, `filter[group]?`, `filter[term]?` | `Page<RankEvent>` sorted `-occurred_at` | cursor | | 4 |
 | POST | `{P}/seo/check-now` | `runs:trigger` | `{ tracked_keyword_ids: Uuid[] (1 to 100), depth?: 10 \| 20 \| 50 \| 100 }` (default: the keyword's daily depth); Idempotency-Key required | `202 One<Run>` (`trigger = 'manual'`, live mode, doc 21 section 11); `status = 'budget_blocked'` when a hard budget would be exceeded | no | `429 manual_run_limit`, `422 quota_exceeded` (`max_serp_checks_per_month`), `503 provider_paused` | 4 |
 
-**As built (step 5, rank collection).** Rank state on a tracked keyword row and detail, the history, the snapshots, the features, the AI Overview history, the rank events, the raw route and check now are built (`backend/src/sightline/api/ranks/`, `api/keywords/rank_*.py`, `api/operations/runs.py`). Differences and decisions:
+**As built (step 5, rank collection).** Rank state on a tracked keyword row and detail, the history, the snapshots, the features, the AI Overview history, the rank events, the raw route and check now are built (`backend/src/idraft/api/ranks/`, `api/keywords/rank_*.py`, `api/operations/runs.py`). Differences and decisions:
 
 - `state` is always present: a keyword with no state row, or none checked yet, has `current.state = 'not_checked'`, `change.label = 'first_check'` and nulls; `failed` shows only when no check ever succeeded and checks failed. `current.state` is `ranked` or `beyond_depth` from the stored rank and `current_depth_requested`. `change` is derived from the stored ranks and depths (a change is read within the smaller depth of the two checks), and the filter `rank_change_label_in` repeats the rule in SQL. The labels are `numeric`, `new`, `lost`, `unchanged_beyond`, `consistent_beyond` and `first_check` (the web calls `new` and `lost` `entered` and `dropped`). Beyond-depth and unchecked rows sort last in both directions for `current_rank`, `best_rank` and `rank_change`.
 - `include=competitors` still returns the keyword's competitor overrides; the competitors' ranks are `include=competitor_ranks`. `include=sparkline` is the last 30 checks of the own side, `features` the features of the last snapshot with `owned_by_project`, `aio` the URLs the last AI Overview cites. `date` (state as of a past date) and `cannibalization_class` are not built.
