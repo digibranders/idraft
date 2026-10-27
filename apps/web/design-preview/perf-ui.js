@@ -128,7 +128,8 @@ export function popover(trigger, build, { label } = {}) {
       return;
     }
     closeCurrent(false);
-    const panel = el('div', 'fixed z-(--z-dropdown) min-w-(--size-popover-min) max-w-(--size-popover-max) max-h-(--size-popover-max-h) overflow-auto rounded-lg border border-border bg-surface-elevated shadow-popover p-2 flex flex-col gap-1');
+    // Above the page drawer (--z-drawer), which is where most of these menus are opened.
+    const panel = el('div', 'fixed z-(--z-dialog) min-w-(--size-popover-min) max-w-(--size-popover-max) max-h-(--size-popover-max-h) overflow-auto rounded-lg border border-border bg-surface-elevated shadow-popover p-2 flex flex-col gap-1');
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-label', label ?? trigger.getAttribute('aria-label') ?? 'Options');
     build(panel, { close: () => closeCurrent() });
