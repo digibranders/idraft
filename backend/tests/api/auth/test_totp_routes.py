@@ -112,7 +112,7 @@ async def test_setup_returns_a_secret_that_is_stored_encrypted_and_not_yet_enabl
     row = await fetchrow(migrated, "SELECT * FROM auth.totp_secrets WHERE user_id = $1", user.id)
     assert row["confirmed_at"] is None
     assert body["secret"].encode() not in row["secret_encrypted"]
-    cipher = TotpCipher(derive_key(resources.settings.totp_key, b"sightline totp secrets v1"))
+    cipher = TotpCipher(derive_key(resources.settings.totp_key, b"idraft totp secrets v1"))
     assert cipher.decrypt(row["secret_encrypted"], user_id=user.id) == body["secret"]
     me = await api.get(ME, headers=cookie(token))
     assert me.json()["data"]["user"]["two_factor_enabled"] is False

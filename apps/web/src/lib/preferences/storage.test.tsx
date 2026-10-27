@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearPreferences, preferenceKey } from './storage';
 
-const THEME_KEY = 'sightline.theme';
+const THEME_KEY = 'idraft.theme';
 
 describe('preference storage', () => {
   afterEach(() => localStorage.removeItem(THEME_KEY));
 
   it('keys a preference by user', () => {
-    expect(preferenceKey('user-1', 'density')).toBe('sightline.pref.user-1.density');
+    expect(preferenceKey('user-1', 'density')).toBe('idraft.pref.user-1.density');
   });
 
   it('removes every preference of every user and leaves other keys', () => {
@@ -16,7 +16,7 @@ describe('preference storage', () => {
     localStorage.setItem(preferenceKey('user-2', 'shortcuts'), 'off');
     localStorage.setItem(THEME_KEY, 'dark');
     clearPreferences();
-    expect(Object.keys(localStorage).filter((key) => key.startsWith('sightline.'))).toEqual([THEME_KEY]);
+    expect(Object.keys(localStorage).filter((key) => key.startsWith('idraft.'))).toEqual([THEME_KEY]);
   });
 
   it('does nothing where storage is refused', () => {

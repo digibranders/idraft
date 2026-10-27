@@ -3,7 +3,7 @@
 #
 # The role script runs when the data volume is first created. After changing it, recreate the
 # volume: docker compose -f infra/compose/docker-compose.dev.yml down -v
-name: sightline-dev
+name: idraft-dev
 
 services:
   postgres:
@@ -12,7 +12,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres-dev
-      POSTGRES_DB: sightline
+      POSTGRES_DB: idraft
       # Development values only. Production reads these from /etc/seo-platform/.env.
       PG_MIGRATOR_PASSWORD: migrator-dev
       PG_API_PASSWORD: api-dev
@@ -23,7 +23,7 @@ services:
       - postgres-data:/var/lib/postgresql
       - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d sightline"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d idraft"]
       interval: 5s
       timeout: 3s
       retries: 10

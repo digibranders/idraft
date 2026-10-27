@@ -12,7 +12,7 @@
  */
 export type ApiFetch = (request: Request) => Promise<Response>;
 
-const OVERRIDE = Symbol.for('sightline.api-fetch');
+const OVERRIDE = Symbol.for('idraft.api-fetch');
 const shared = globalThis as typeof globalThis & { [OVERRIDE]?: ApiFetch | undefined };
 
 /** Sends every API request of this process through `fetcher` from now on. Called once, at start-up. */

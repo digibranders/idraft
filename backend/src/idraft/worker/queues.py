@@ -52,7 +52,7 @@ QueueName = Literal["collect", "process"]
 QUEUE_NAMES: tuple[QueueName, ...] = ("collect", "process")
 # Jobs the scheduler sends go to this queue: maintenance is `process` work.
 SCHEDULED_QUEUE: QueueName = "process"
-CONSUMER_GROUP = "sightline"
+CONSUMER_GROUP = "idraft"
 DEDUPE_PREFIX = "dedupe:"
 DEDUPE_TTL = timedelta(hours=1)
 # A message a consumer took and never acknowledged goes to another consumer after this long. It

@@ -108,7 +108,7 @@ describe('ProjectShell', () => {
     await screen.findByRole('heading', { name: 'Profile' });
     await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
     expect(document.documentElement.dataset.sidebar).toBe('collapsed');
-    expect(document.cookie).toContain('sightline-sidebar=collapsed');
+    expect(document.cookie).toContain('idraft-sidebar=collapsed');
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute('aria-expanded', 'false');
     await user.click(screen.getByRole('main'));
     // `[[` types one `[` (user-event reads a single one as the start of a key name)

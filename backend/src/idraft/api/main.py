@@ -72,8 +72,8 @@ REDIS_TIMEOUT_SECONDS = 1.0
 HTTP_TIMEOUT_SECONDS = 10.0
 # Connections to the bucket: an upload is one request, and few run at once.
 IMPORT_STORE_CONNECTIONS = 4
-SESSION_CACHE_KEY_LABEL = b"sightline session cache v1"
-TOTP_SECRET_KEY_LABEL = b"sightline totp secrets v1"
+SESSION_CACHE_KEY_LABEL = b"idraft session cache v1"
+TOTP_SECRET_KEY_LABEL = b"idraft totp secrets v1"
 HEALTH_PATHS = frozenset({"/api/healthz", "/api/readyz"})
 
 

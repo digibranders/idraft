@@ -256,7 +256,7 @@ async def test_no_heartbeat_is_written_when_the_database_does_not_answer(
     settings = worker_settings.model_copy(
         update={
             "heartbeat_file": heartbeat,
-            "database_url": SecretStr(f"postgresql://app_worker:x@{black_hole}/sightline"),
+            "database_url": SecretStr(f"postgresql://app_worker:x@{black_hole}/idraft"),
             "log_level": "info",
         }
     )

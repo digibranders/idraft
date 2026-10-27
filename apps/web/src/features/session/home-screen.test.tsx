@@ -79,7 +79,7 @@ describe('HomeScreen', () => {
     // Nothing on the page asks again with the ended session, so nothing sends the next person elsewhere
     expect(asked.slice(asked.indexOf('/api/v1/auth/sign-out') + 1)).toEqual([]);
     expect(navigation.hardNavigate).toHaveBeenCalledTimes(1);
-    expect(Object.keys(localStorage).filter((key) => key.startsWith('sightline.pref.'))).toEqual([]);
+    expect(Object.keys(localStorage).filter((key) => key.startsWith('idraft.pref.'))).toEqual([]);
     expect(document.cookie).not.toContain(SESSION_COOKIE);
     server.events.removeAllListeners();
   });
