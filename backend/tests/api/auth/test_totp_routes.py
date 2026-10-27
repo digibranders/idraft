@@ -107,7 +107,7 @@ async def test_setup_returns_a_secret_that_is_stored_encrypted_and_not_yet_enabl
     assert response.headers["cache-control"] == "no-store"
     body = response.json()
     assert re.fullmatch(r"[A-Z2-7]{32}", body["secret"])
-    assert body["otpauth_uri"].startswith("otpauth://totp/Sightline:")
+    assert body["otpauth_uri"].startswith("otpauth://totp/idraft.ai:")
     assert f"secret={body['secret']}" in body["otpauth_uri"]
     row = await fetchrow(migrated, "SELECT * FROM auth.totp_secrets WHERE user_id = $1", user.id)
     assert row["confirmed_at"] is None

@@ -163,7 +163,7 @@ Tokens from emails arrive in the URL fragment (`/verify-email#token=`, `/reset-p
 
 > Superseded by design system: sidebar groups and items (Overview, Matrix; SEO; AI Visibility; Competitors, Topics, Discover; Reports, Integrations, Settings) follow the navigation spec, the project switcher sits at the top of the sidebar and the workspace in the top bar breadcrumb, and `SetupChecklist` appears only on Overview (other pages name the missing step in their empty states), not as a banner on every project page. See [11-navigation.md](design-system/11-navigation.md) §1.1 and [23-application-patterns.md](design-system/23-application-patterns.md) §13.
 
-Metadata: the root layout sets the title template (`%s · Sightline`, the product name from the catalog) and `robots: noindex, nofollow` for every page, because everything sits behind sign-in and shows tenant data. The sign-in pages carry the same tag.
+Metadata: the root layout sets the title template (`%s · idraft.ai`, the product name from the catalog) and `robots: noindex, nofollow` for every page, because everything sits behind sign-in and shows tenant data. The sign-in pages carry the same tag.
 
 ### 3.4 Server and client component policy
 
@@ -703,6 +703,8 @@ Sections follow [15-seo-ai-correlation.md](15-seo-ai-correlation.md) section 6. 
 
 Data: `GET .../pages?filters`, `GET .../pages/{urlId}`, `.../pages/{urlId}/keywords`, `.../pages/{urlId}/citations`, `.../pages/{urlId}/trends`.
 
+**Performance tab (proposed 2026-10-27, build step 7b).** The Pages destination gains a second tab, Performance, at `seo/pages/performance` and `seo/pages/performance/[urlId]`: a watchlist of important pages with Search Console clicks, impressions, CTR and position, their change against the previous period, a health verdict and the full filter set, and a detail drawer or page with the comparison chart and a "What changed" breakdown. Page Intelligence mounts the same detail as a "Search performance" section. The specification is [32-page-performance.md](32-page-performance.md).
+
 ### 5.6 Prompt Explorer
 
 > Superseded by design system: the page is "Topics & Prompts" and opens on a Topics tab, with the prompts of each topic grouped under it and a topic drawer; the list below is its Prompts tab. See [24-page-templates.md](design-system/24-page-templates.md) section 9.5 and [ADR-DS-022](design-system/adr/ADR-DS-022-topics-and-prompts.md).
@@ -969,7 +971,7 @@ Each source has a header with connection status (connected, `reauth_required`, r
 
 | Source | Content |
 |---|---|
-| GSC | Clicks, impressions, CTR, GSC average position (low-data rule) by date, query, page, country, device; provisional days marked; hidden query share explained; query matching with "Add to keyword inbox" for unmatched |
+| GSC | Clicks, impressions, CTR, GSC average position (low-data rule) by date, query, page, country, device; provisional days marked; hidden query share explained; query matching with "Add to keyword inbox" for unmatched. Per-URL health and comparison for watched pages lives under Pages, Performance ([32-page-performance.md](32-page-performance.md)) |
 | GSC generative AI (import) | Imported impressions by date and breakdowns, each view naming its file and filter; "Impressions only; already inside Web totals"; Discover zeros as "0 or not reported" |
 | Bing | API traffic, query and page stats; AI Performance imports badged "Sampled by Bing", citation share as imported; never compared with GSC |
 | GA4 AI referrals | Sessions and key events, Google's AI Assistant channel and our classifier side by side, never summed; "Excludes Google AI Overviews and AI Mode; lower bound" |

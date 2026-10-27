@@ -133,7 +133,7 @@ export function problem(
   const requestId = requestIdOf(request);
   const body: Problem = {
     ...extensions,
-    type: `https://sightline.test/api/problems/${code}`,
+    type: `https://idraft.ai/api/problems/${code}`,
     title,
     status,
     code,

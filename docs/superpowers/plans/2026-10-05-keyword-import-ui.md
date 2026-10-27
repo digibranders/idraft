@@ -974,7 +974,7 @@ git commit -m "Rankings: an import route over the mounted screen"
     "casingDiffers": "Typed differently from a tracked keyword.",
     "archived": "Archived in this project."
   },
-  "confirmIntro": "When you confirm, Sightline writes the rows in the background. You can keep working; the header shows progress.",
+  "confirmIntro": "When you confirm, idraft.ai writes the rows in the background. You can keep working; the header shows progress.",
   "confirmCreate": "{count, plural, one {# keyword is} other {# keywords are}} tracked",
   "confirmMerge": "{count, plural, one {# tracked keyword gets} other {# tracked keywords get}} the file's groups and tags",
   "confirmUnarchive": "{count, plural, one {# archived keyword is} other {# archived keywords are}} unarchived",

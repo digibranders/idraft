@@ -27,7 +27,7 @@ describe('ResetPasswordScreen', () => {
     // The panel has no field any more, so focus moves to its heading and the change is read
     expect(await screen.findByRole('heading', { level: 1, name: 'Check your email' })).toHaveFocus();
     expect(screen.getByText(/If an account uses nobody@example.test/)).toBeInTheDocument();
-    expect(document.title).toBe('Check your email · Sightline');
+    expect(document.title).toBe('Check your email · idraft.ai');
   });
 
   it('says how long to wait when too many links were asked for', async () => {

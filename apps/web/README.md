@@ -1,6 +1,6 @@
 # Web app
 
-The Next.js application of Sightline: App Router, React 19, TypeScript, Tailwind CSS 4 and the design system in `docs/design-system`. The plan it is built from is `docs/superpowers/plans/2026-09-30-web-app-foundation.md`.
+The Next.js application of idraft.ai: App Router, React 19, TypeScript, Tailwind CSS 4 and the design system in `docs/design-system`. The plan it is built from is `docs/superpowers/plans/2026-09-30-web-app-foundation.md`.
 
 ## Commands
 

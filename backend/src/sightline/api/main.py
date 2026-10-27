@@ -193,7 +193,7 @@ def create_app(
             yield
 
     app = FastAPI(
-        title="Sightline API",
+        title="idraft.ai API",
         version=__version__,
         # The document is committed in backend/openapi/v1.json. Over HTTP it is served only to a
         # signed-in user, by sightline.api.document (docs/19-api-specification.md section 1.1).

@@ -230,7 +230,7 @@ const OPERATION_STATUS: Readonly<Record<RunStatus, Operation['status']>> = {
   budget_blocked: 'blocked',
 };
 
-const SYSTEM_ACTOR: Schemas['Actor'] = { actor_id: 'system', actor_type: 'system', label: 'Sightline' };
+const SYSTEM_ACTOR: Schemas['Actor'] = { actor_id: 'system', actor_type: 'system', label: 'idraft.ai' };
 
 function actorOf(userId: string | null): Schemas['Actor'] | null {
   if (userId === null) return SYSTEM_ACTOR;

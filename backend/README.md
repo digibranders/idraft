@@ -1,4 +1,4 @@
-# Sightline backend
+# idraft.ai backend
 
 FastAPI API and Taskiq worker. Architecture: `docs/adr/ADR-022-python-backend-simplified-platform.md`.
 

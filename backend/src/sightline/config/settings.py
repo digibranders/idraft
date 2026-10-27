@@ -23,7 +23,7 @@ LogLevel = Literal["debug", "info", "warning", "error", "critical"]
 
 TOTP_KEY_BYTES = 32
 # Good enough for the console sender. A real provider refuses it, so it is refused at start.
-DEFAULT_EMAIL_FROM = "Sightline <no-reply@localhost>"
+DEFAULT_EMAIL_FROM = "idraft.ai <no-reply@localhost>"
 _DEFAULT_PORTS = {"https": 443, "http": 80}
 _POSTGRES_SCHEMES = ("postgresql+asyncpg://", "postgresql://", "postgres://")
 _EMAIL_FROM_PATTERN = re.compile(r"[^\r\n<>]*<[^\s<>@]+@[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+")

@@ -19,7 +19,7 @@ import pyotp
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-ISSUER = "Sightline"
+ISSUER = "idraft.ai"
 STEP_SECONDS = 30
 RECOVERY_CODE_COUNT = 10
 _KEY_BYTES = 32

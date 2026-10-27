@@ -36,7 +36,7 @@ describe('VerifyEmailScreen', () => {
     const heading = await screen.findByRole('heading', { level: 1, name: 'Your email address is verified' });
     // The outcome replaced the waiting panel, so focus moves to its heading and it is read
     expect(heading).toHaveFocus();
-    expect(document.title).toBe('Your email address is verified · Sightline');
+    expect(document.title).toBe('Your email address is verified · idraft.ai');
     expect(screen.getByRole('link', { name: 'Continue' })).toHaveAttribute('href', '/');
     expect(calls).toBe(1);
     expect(await axe(container)).toHaveNoViolations();

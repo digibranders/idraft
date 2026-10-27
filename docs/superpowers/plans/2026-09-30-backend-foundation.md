@@ -245,7 +245,7 @@ forbidden_modules = ["sightline.api", "sightline.worker"]
 `backend/src/sightline/__init__.py`:
 
 ```python
-"""Sightline: SEO and AI search visibility platform."""
+"""idraft.ai: SEO and AI search visibility platform."""
 
 __version__ = "0.1.0"
 ```
@@ -2003,7 +2003,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     init_sentry(settings)
 
     app = FastAPI(
-        title="Sightline API",
+        title="idraft.ai API",
         version=__version__,
         openapi_url=OPENAPI_URL,
         docs_url=None,
@@ -2235,7 +2235,7 @@ __pycache__
 `backend/README.md`:
 
 ````markdown
-# Sightline backend
+# idraft.ai backend
 
 FastAPI API and Taskiq worker. Architecture: `docs/adr/ADR-022-python-backend-simplified-platform.md`.
 

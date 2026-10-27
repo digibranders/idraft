@@ -119,7 +119,7 @@ Settings added to `Settings` (all read from the environment, names upper-cased):
 | `totp_encryption_key` | `SecretStr` | required | base64 of exactly 32 bytes, else "must be 32 random bytes, base64 encoded" |
 | `email_provider` | `Literal["console", "resend"]` | `console` | `console` is rejected when `app_env` is `production` |
 | `email_api_key` | `SecretStr \| None` | `None` | required when `email_provider` is `resend` |
-| `email_from` | `str` | `Sightline <no-reply@localhost>` | must contain an address |
+| `email_from` | `str` | `idraft.ai <no-reply@localhost>` | must contain an address |
 | `breached_password_check` | `bool` | `True` | tests turn it off except where it is the subject |
 
 Interfaces:
@@ -150,7 +150,7 @@ class TotpCipher:
     def decrypt(self, blob: bytes, *, user_id: UUID) -> str: ...     # raises TotpSecretError on any failure
 
 def new_secret() -> str: ...                            # pyotp.random_base32(), 160 bits
-def provisioning_uri(secret: str, *, email: str) -> str: ...     # issuer "Sightline"
+def provisioning_uri(secret: str, *, email: str) -> str: ...     # issuer "idraft.ai"
 def matching_step(secret: str, code: str, *, at: datetime) -> int | None: ...   # the step (t-1, t, t+1) whose code matches, else None
 def new_recovery_codes() -> list[str]: ...              # 10 codes
 def hash_recovery_code(code: str) -> str: ...           # sha256 hex of the code with dashes and case removed

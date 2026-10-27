@@ -139,7 +139,7 @@ async def test_an_invitation_is_emailed_as_a_link_and_stored_as_a_hash(
     # The first sentence is ours. What the inviter typed is reduced to plain words, quoted and
     # labelled, so it cannot put a link in the message or make it say something of its own.
     assert message.text.startswith(
-        "Hello,\n\nYou have been invited to a workspace on Sightline.\n\n"
+        "Hello,\n\nYou have been invited to a workspace on idraft.ai.\n\n"
         'Workspace: "Acme https evil example x"\n'
         f'Invited by: "Ann b" ({inviter.email})\n'
         f"Invited address: {email}\n"

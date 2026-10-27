@@ -25,10 +25,10 @@ def invitation_email(
     inviter = plain_name(inviter_name) or "(no name)"
     return EmailMessage(
         to=to,
-        subject="You are invited to a Sightline workspace",
+        subject="You are invited to an idraft.ai workspace",
         text=(
             "Hello,\n\n"
-            "You have been invited to a workspace on Sightline.\n\n"
+            "You have been invited to a workspace on idraft.ai.\n\n"
             f'Workspace: "{workspace}"\n'
             f'Invited by: "{inviter}" ({inviter_email})\n'
             f"Invited address: {to}\n"

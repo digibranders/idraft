@@ -46,7 +46,7 @@ def verification_email(*, origin: str, to: str, name: str, token: str) -> EmailM
         subject="Confirm your email address",
         text=(
             f"{_greeting(name)}\n\n"
-            "Confirm this email address to finish setting up your Sightline account:\n\n"
+            "Confirm this email address to finish setting up your idraft.ai account:\n\n"
             f"{origin}/verify-email#token={token}\n\n"
             "The link works once and expires in 24 hours. "
             "If you did not create an account, ignore this message.\n"
@@ -78,7 +78,7 @@ def password_changed_email(
         subject="Your password was changed",
         text=(
             f"{_greeting(name)}\n\n"
-            f"The password of your Sightline account was just changed, and {sessions} was "
+            f"The password of your idraft.ai account was just changed, and {sessions} was "
             "signed out.\n\n"
             "If this was not you, reset your password now and tell your workspace owner:\n\n"
             f"{origin}/reset-password\n"
@@ -105,7 +105,7 @@ def two_factor_changed_email(
         subject=subject,
         text=(
             f"{_greeting(name)}\n\n"
-            f"{sentence} for your Sightline account.\n\n"
+            f"{sentence} for your idraft.ai account.\n\n"
             "If this was not you, reset your password now and tell your workspace owner:\n\n"
             f"{origin}/reset-password\n"
         ),

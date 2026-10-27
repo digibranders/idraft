@@ -8,7 +8,7 @@ The prompts that produced the screens in [README.md](README.md). Send the shared
 ## 1. Shared brief (first message)
 
 ```text
-I need high-fidelity UI design reference images for a premium B2B analytics web app called Sightline. It tracks Google rankings and AI answer visibility (ChatGPT, Gemini, Google AI Mode, Google AI Overview) for SEO teams. Engineers will build from these images, so render each one crisp, pixel-precise and realistic, like a real production screenshot of a shipped product, not a Dribbble shot. Generate ONE image per message, landscape 1536x1024, desktop at 1440px wide. Legible text is critical: keep labels short and real.
+I need high-fidelity UI design reference images for a premium B2B analytics web app called idraft.ai. It tracks Google rankings and AI answer visibility (ChatGPT, Gemini, Google AI Mode, Google AI Overview) for SEO teams. Engineers will build from these images, so render each one crisp, pixel-precise and realistic, like a real production screenshot of a shipped product, not a Dribbble shot. Generate ONE image per message, landscape 1536x1024, desktop at 1440px wide. Legible text is critical: keep labels short and real.
 
 VISUAL LANGUAGE (applies to every image in this chat): premium, instrument-grade product UI in the tier of Linear, Vercel, Stripe Dashboard and Mercury. Calm, precise, confident, expensive through restraint. Light theme. Canvas #F9FAFB. Panels and tables #FDFDFE. Left sidebar #F4F5F7. Hairline 1px borders: #E6E8EA inside panels, #DADCE0 around panels. No drop shadows on panels, no gradients, no glow, no glassmorphism, no illustrations, no emojis.
 

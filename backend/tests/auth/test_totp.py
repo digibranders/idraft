@@ -30,9 +30,9 @@ def test_a_secret_is_160_bits_of_base32() -> None:
 
 def test_the_provisioning_uri_names_the_issuer_and_the_account() -> None:
     uri = provisioning_uri("JBSWY3DPEHPK3PXP", email="jane@client.example")
-    assert uri.startswith("otpauth://totp/Sightline:jane%40client.example?")
+    assert uri.startswith("otpauth://totp/idraft.ai:jane%40client.example?")
     assert "secret=JBSWY3DPEHPK3PXP" in uri
-    assert "issuer=Sightline" in uri
+    assert "issuer=idraft.ai" in uri
 
 
 def test_encryption_round_trips_for_the_same_user() -> None:
