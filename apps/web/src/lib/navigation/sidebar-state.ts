@@ -4,7 +4,7 @@
  * data-sidebar>` with it and the sidebar never changes width after the page loads. It is a display
  * preference only; nothing reads it on the server but the root layout.
  */
-export const SIDEBAR_COOKIE = 'sightline-sidebar';
+export const SIDEBAR_COOKIE = 'idraft-sidebar';
 
 export type SidebarPreference = 'expanded' | 'collapsed';
 

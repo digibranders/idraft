@@ -5,7 +5,7 @@
  *
  * The theme is not among them: next-themes keeps it under its own key, for the device.
  */
-const PREFIX = 'sightline.pref.';
+const PREFIX = 'idraft.pref.';
 
 export function preferenceKey(userId: string, name: string): string {
   return `${PREFIX}${userId}.${name}`;

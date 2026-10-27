@@ -224,7 +224,7 @@ def test_an_unreachable_database_is_reported_without_the_password(
         monkeypatch,
         capsys,
         ["create-operator", "--email", _email(), "--name", "Asha"],
-        database_url=f"postgresql://migrator:SECRETPW@{black_hole}/sightline",
+        database_url=f"postgresql://migrator:SECRETPW@{black_hole}/idraft",
     )
     assert (code, out) == (1, "")
     assert err == "Could not connect to the database.\n"
@@ -338,7 +338,7 @@ def test_the_stored_email_keeps_its_case_and_the_audit_row_has_no_workspace(
 @pytest.mark.parametrize(
     ("database", "role", "message"),
     [
-        ("sightline_not_there", "migrator", "The database named in DATABASE_URL does not exist.\n"),
+        ("idraft_not_there", "migrator", "The database named in DATABASE_URL does not exist.\n"),
         (
             "unmigrated",
             "migrator",

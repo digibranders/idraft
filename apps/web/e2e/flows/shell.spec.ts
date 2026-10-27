@@ -101,7 +101,7 @@ test.describe('the application shell', () => {
 
   test('in the dark theme every page still passes the accessibility checks', async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('sightline.theme', 'dark');
+      localStorage.setItem('idraft.theme', 'dark');
     });
     await signIn(page, 'tomas@digibranders.test');
     for (const path of [

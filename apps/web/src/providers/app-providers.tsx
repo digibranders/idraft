@@ -14,7 +14,7 @@ import { MockGate } from './mock-gate';
 import { getQueryClient } from '@/lib/api/query-client';
 import { publicEnv } from '@/lib/env/public';
 
-const THEME_STORAGE_KEY = 'sightline.theme';
+const THEME_STORAGE_KEY = 'idraft.theme';
 const THEMES = ['light', 'dark'];
 /** Follow the operating system until the person chooses (01-foundations.md section 3). */
 const DEFAULT_THEME = 'system';

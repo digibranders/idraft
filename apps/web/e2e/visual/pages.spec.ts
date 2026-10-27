@@ -13,7 +13,7 @@ import { signIn, waitForContent } from '../support';
 /** Every date the pages show is relative to this moment, so "Last active" reads the same on each run. */
 const NOW = new Date('2026-09-29T12:00:00Z');
 const THEMES = ['light', 'dark'] as const;
-const THEME_STORAGE_KEY = 'sightline.theme';
+const THEME_STORAGE_KEY = 'idraft.theme';
 
 const SIGNED_OUT = [
   { name: 'login', path: '/login' },

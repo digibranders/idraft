@@ -15,7 +15,7 @@ from idraft.config.settings import (
 TOTP_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="  # bytes 0 to 31
 BASE_ENV = {
     "APP_ORIGIN": "https://app.example.com",
-    "DATABASE_URL": "postgresql://app_api:pw@postgres:5432/sightline",
+    "DATABASE_URL": "postgresql://app_api:pw@postgres:5432/idraft",
     "REDIS_URL": "redis://app:pw@redis:6379/0",
     "TOTP_ENCRYPTION_KEY": TOTP_KEY,
     "EMAIL_PROVIDER": "resend",
@@ -228,8 +228,8 @@ def test_empty_sentry_dsn_means_disabled(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_connection_urls_are_exposed_per_driver(monkeypatch: pytest.MonkeyPatch) -> None:
     _set(monkeypatch, BASE_ENV)
     settings = Settings()
-    assert settings.sqlalchemy_url == "postgresql+asyncpg://app_api:pw@postgres:5432/sightline"
-    assert settings.asyncpg_dsn == "postgresql://app_api:pw@postgres:5432/sightline"
+    assert settings.sqlalchemy_url == "postgresql+asyncpg://app_api:pw@postgres:5432/idraft"
+    assert settings.asyncpg_dsn == "postgresql://app_api:pw@postgres:5432/idraft"
 
 
 @pytest.mark.parametrize(
@@ -245,7 +245,7 @@ def test_secrets_never_appear_in_repr_or_str(monkeypatch: pytest.MonkeyPatch) ->
         monkeypatch,
         {
             "APP_ORIGIN": "https://app.example.com",
-            "DATABASE_URL": "postgresql://app_api:LEAK1@postgres/sightline",
+            "DATABASE_URL": "postgresql://app_api:LEAK1@postgres/idraft",
             "REDIS_URL": "redis://app:LEAK2@redis:6379/0",
             "SENTRY_DSN": "https://LEAK3@o0.ingest.sentry.io/0",
             "TOTP_ENCRYPTION_KEY": "TEVBSzRMRUFLNExFQUs0TEVBSzRMRUFLNExFQUs0TEU=",

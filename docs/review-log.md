@@ -356,7 +356,7 @@ Carried into later plans:
 | F6 | The purge and retention jobs need `DELETE` grants that do not exist yet (sessions, verification tokens, tasks, cost events, raw payload registry rows). Each grant ships with the job that uses it | maintenance plan |
 | F7 | `auth.users.email` and `disabled_at` are not writable by the API. The change-email and disable-user routes add their column grant, or a definer function, when they are built | 3 (auth) |
 | F8 | The raw payload routes need a definer function joining `ops.raw_payloads` to a row of the current workspace | Phases 4 and 7 |
-| F9 | Doc 22 uses the database name `seo` in `pg_hba.conf`; the development stack uses `sightline`. Pick one when the production Compose file is written | 6 (droplet) |
+| F9 | Doc 22 uses the database name `seo` in `pg_hba.conf`; the development stack uses `idraft`. Pick one when the production Compose file is written | 6 (droplet) |
 | F10 | `core.layouts` (04 section 11.6a, specified by the frontend session) has a `workspace_id`: its migration needs `tenant_isolation`, grants for `app_api` only, a row in 13.1, and a decision on how the per-user rows are kept private inside a workspace (application check or a policy on `auth.current_user_id()`) | the plan that builds layouts |
 | F11 | `vacuumlo` or a revoke of the large object functions in the init script | maintenance plan |
 

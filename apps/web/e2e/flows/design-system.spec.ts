@@ -3,7 +3,7 @@ import { test } from '@playwright/test';
 import { PREVIEW_SECTION_SLUGS } from '../../src/components/design-system/section-slugs';
 import { expectAccessible } from '../support';
 
-const THEME_STORAGE_KEY = 'sightline.theme';
+const THEME_STORAGE_KEY = 'idraft.theme';
 
 /**
  * Every section of the design-system gallery passes axe with the WCAG 2.2 AA rules in both themes: in a

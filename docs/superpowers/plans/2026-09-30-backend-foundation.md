@@ -325,7 +325,7 @@ from idraft.config.settings import Settings, load_settings, to_sqlalchemy_url
 
 BASE_ENV = {
     "APP_ORIGIN": "https://app.example.com",
-    "DATABASE_URL": "postgresql://app_api:pw@postgres:5432/sightline",
+    "DATABASE_URL": "postgresql://app_api:pw@postgres:5432/idraft",
     "REDIS_URL": "redis://app:pw@redis:6379/0",
 }
 
@@ -358,7 +358,7 @@ def test_app_origin_has_no_trailing_slash(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_sqlalchemy_url_uses_the_asyncpg_driver(monkeypatch: pytest.MonkeyPatch) -> None:
     _set(monkeypatch, BASE_ENV)
-    assert Settings().sqlalchemy_url == "postgresql+asyncpg://app_api:pw@postgres:5432/sightline"
+    assert Settings().sqlalchemy_url == "postgresql+asyncpg://app_api:pw@postgres:5432/idraft"
 
 
 @pytest.mark.parametrize(
@@ -2144,21 +2144,21 @@ git add backend && git commit -m "Commit the OpenAPI document and fail tests whe
 ```yaml
 # Local development only: PostgreSQL 18 and Redis 8 on loopback ports that do not collide with
 # a Homebrew PostgreSQL or Redis. Production is infra/compose/docker-compose.yml (plan 6).
-name: sightline-dev
+name: idraft-dev
 
 services:
   postgres:
     image: postgres:18
     environment:
-      POSTGRES_USER: sightline
-      POSTGRES_PASSWORD: sightline
-      POSTGRES_DB: sightline
+      POSTGRES_USER: idraft
+      POSTGRES_PASSWORD: idraft
+      POSTGRES_DB: idraft
     ports:
       - "127.0.0.1:54329:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sightline -d sightline"]
+      test: ["CMD-SHELL", "pg_isready -U idraft -d idraft"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -2188,7 +2188,7 @@ volumes:
 APP_ENV=local
 APP_ORIGIN=http://localhost:3000
 LOG_LEVEL=debug
-DATABASE_URL=postgresql://sightline:sightline@127.0.0.1:54329/sightline
+DATABASE_URL=postgresql://idraft:idraft@127.0.0.1:54329/idraft
 REDIS_URL=redis://127.0.0.1:63799/0
 ```
 
@@ -2295,9 +2295,9 @@ docker compose -f infra/compose/docker-compose.dev.yml up -d --wait
 cd backend && cp .env.example .env
 uv run --env-file .env python -m idraft.db.migrate
 docker build --target api -t idraft-api:dev .
-docker run --rm -d --name idraft-api-smoke --network sightline-dev_default \
+docker run --rm -d --name idraft-api-smoke --network idraft-dev_default \
   -e APP_ORIGIN=http://localhost:3000 \
-  -e DATABASE_URL=postgresql://sightline:sightline@postgres:5432/sightline \
+  -e DATABASE_URL=postgresql://idraft:idraft@postgres:5432/idraft \
   -e REDIS_URL=redis://redis:6379/0 -p 127.0.0.1:18000:8000 idraft-api:dev
 sleep 3 && curl -sS -i http://127.0.0.1:18000/api/readyz
 docker rm -f idraft-api-smoke

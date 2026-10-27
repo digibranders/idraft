@@ -9,7 +9,7 @@ image="${1:?usage: smoke.sh <image>}"
 here="$(cd "$(dirname "$0")" && pwd)"
 initdb="$here/../infra/compose/postgres/initdb"
 network="idraft-smoke-$$"
-host="smoke-postgres:5432/sightline"
+host="smoke-postgres:5432/idraft"
 
 cleanup() {
   docker rm -f smoke-api smoke-worker smoke-postgres smoke-redis >/dev/null 2>&1 || true
@@ -19,7 +19,7 @@ trap cleanup EXIT
 
 docker network create "$network" >/dev/null
 docker run -d --name smoke-postgres --network "$network" \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres-smoke -e POSTGRES_DB=sightline \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres-smoke -e POSTGRES_DB=idraft \
   -e PG_MIGRATOR_PASSWORD=migrator-smoke -e PG_API_PASSWORD=api-smoke \
   -e PG_WORKER_PASSWORD=worker-smoke \
   -v "$initdb:/docker-entrypoint-initdb.d:ro" \
@@ -29,7 +29,7 @@ docker run -d --name smoke-redis --network "$network" redis:8 >/dev/null
 # The role script has finished once app_api can log in.
 for _ in $(seq 1 60); do
   docker exec -e PGPASSWORD=api-smoke smoke-postgres \
-    psql -h 127.0.0.1 -U app_api -d sightline -c 'SELECT 1' >/dev/null 2>&1 && break
+    psql -h 127.0.0.1 -U app_api -d idraft -c 'SELECT 1' >/dev/null 2>&1 && break
   sleep 1
 done
 
