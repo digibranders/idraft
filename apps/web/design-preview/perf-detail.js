@@ -6,7 +6,7 @@
  * `createDetail` returns `{ root, update, dispose }`. `update` redraws everything from the shared state.
  */
 import {
-  CORE_METRICS, HEALTH, HEALTH_VERSION, METRICS, PROVISIONAL_DAYS, SOURCES, FINAL_THROUGH, compareName, formatDay, formatInt, formatMetric, rangeText, signed,
+  CORE_METRICS, HEALTH, METRICS, PROVISIONAL_DAYS, SOURCES, FINAL_THROUGH, formatDay, formatInt, formatMetric, signed,
 } from './perf-calc.js';
 import { appearanceRows, breakdownOf, countryName, deviceName, getPage, hasType, queryRows, urlOf } from './perf-data.js';
 import { build as buildFilters } from './perf-filters.js';
@@ -64,10 +64,13 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
 
   // --- Body
   const body = el('div', 'flex-1 min-h-0 overflow-auto px-4 py-4 flex flex-col gap-4');
-  const verdictCard = el('section', 'rounded-lg border border-border bg-surface p-4 flex flex-col gap-2');
+  // One card: the verdict, then the index status under it
+  const verdictCard = el('section', 'rounded-lg border border-border bg-surface flex flex-col');
   verdictCard.setAttribute('aria-label', 'Health');
-  const indexRow = el('section', 'rounded-lg border border-border bg-surface px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2');
+  const verdictBody = el('div', 'p-4 flex flex-col gap-2');
+  const indexRow = el('div', 'px-4 py-2.5 border-t border-border-subtle flex flex-wrap items-center gap-x-3 gap-y-2');
   indexRow.setAttribute('aria-label', 'Indexing');
+  verdictCard.append(verdictBody, indexRow);
   filters = buildFilters({ get, set, scope: 'detail' });
   const notices = el('div', 'flex flex-col gap-2');
   const tiles = el('section', 'flex flex-col gap-2');
@@ -80,26 +83,25 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
   const changed = el('section', 'flex flex-col gap-2');
   changed.setAttribute('aria-label', 'What changed');
   const footnote = el('p', 'type-meta pb-4');
-  body.append(verdictCard, indexRow, filters.root, notices, tiles, chartBlock, changed, footnote);
+  body.append(verdictCard, filters.root, notices, tiles, chartBlock, changed, footnote);
   root.append(header, body);
 
   // -------------------------------------------------------------------------------------------------
   // Pieces
 
   function renderVerdict(model) {
-    verdictCard.replaceChildren();
-    const top = el('div', 'flex flex-wrap items-center gap-2');
-    top.append(healthBadge(model.verdict.verdict), el('span', 'type-meta', `${HEALTH_VERSION}`));
-    verdictCard.append(top, el('p', 'type-body-strong text-foreground', model.verdict.headline));
-    const flags = model.verdict.flags.filter((flag) => flag.code !== 'provisional_excluded');
+    verdictBody.replaceChildren();
+    verdictBody.append(healthBadge(model.verdict.verdict), el('p', 'type-body-strong text-foreground', model.verdict.headline));
+    // Position and the provisional days are already on the tiles and under the chart
+    const flags = model.verdict.flags.filter((flag) => flag.code !== 'provisional_excluded' && !flag.code.startsWith('position_'));
     if (flags.length > 0) {
       const list = el('ul', 'flex flex-col gap-1');
       flags.forEach((flag) => {
         const item = el('li', 'flex items-start gap-2 type-body text-foreground-secondary');
-        item.append(icon(flag.code.includes('improved') ? 'trending-up' : flag.code === 'index_status_changed' || flag.code === 'url_form_changed' ? 'triangle-alert' : 'info', 'size-icon-sm mt-1 shrink-0 text-foreground-tertiary'), el('span', '', flag.text));
+        item.append(icon(flag.code === 'index_status_changed' || flag.code === 'url_form_changed' ? 'triangle-alert' : 'info', 'size-icon-sm mt-1 shrink-0 text-foreground-tertiary'), el('span', '', flag.text));
         list.append(item);
       });
-      verdictCard.append(list);
+      verdictBody.append(list);
     }
   }
 
@@ -107,9 +109,10 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     indexRow.replaceChildren();
     const info = model.index;
     const [label, tone] = INDEX_LABEL[info.state];
-    indexRow.append(el('span', 'type-label text-foreground-tertiary', 'Indexing'), badge(label, tone), el('span', 'type-body text-foreground', info.detail));
-    const facts = [`Last crawl ${formatDay(info.lastCrawl)}`, info.changedOn ? `Changed ${formatDay(info.changedOn)}` : null, `Checked ${info.checkedAt}`].filter(Boolean);
-    indexRow.append(el('span', 'type-meta', facts.join(', ')));
+    const detail = el('span', 'type-body text-foreground', info.detail);
+    // The dates are for the curious: a tooltip, not a line of their own
+    detail.dataset.tip = [`Last crawl ${formatDay(info.lastCrawl)}`, info.changedOn ? `Changed ${formatDay(info.changedOn)}` : null, `Checked ${info.checkedAt}`].filter(Boolean).join(', ');
+    indexRow.append(el('span', 'type-label text-foreground-tertiary', 'Indexing'), badge(label, tone), detail);
     if (info.canonical) indexRow.append(el('span', 'type-meta truncate max-w-80', `Google picked ${info.canonical.replace('https://', '')}`));
     const recheck = button('Check now', { className: `${BUTTON_SM} ml-auto`, iconName: 'refresh-cw' });
     recheck.addEventListener('click', () => {
@@ -127,17 +130,14 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
 
   function renderNotices(ranges, state) {
     notices.replaceChildren();
-    // Warnings are boxed because they change what the numbers mean; the rest is a quiet line (principle S6)
-    const note = (text, tone = 'info') => {
-      const warn = tone === 'warning';
-      const row = el('div', warn ? 'rounded-md px-3 py-2 flex items-start gap-2 type-body border border-warning-border bg-warning-subtle text-foreground' : 'flex items-start gap-1.5 type-meta');
-      row.append(icon(warn ? 'triangle-alert' : 'info', `size-icon-sm mt-1 shrink-0 ${warn ? 'text-warning-text' : 'text-foreground-tertiary'}`), el('span', '', text));
+    // Only what changes the meaning of the numbers is boxed; the quiet notes sit under the chart
+    const note = (text) => {
+      const row = el('div', 'rounded-md px-3 py-2 flex items-start gap-2 type-body border border-warning-border bg-warning-subtle text-foreground');
+      row.append(icon('triangle-alert', 'size-icon-sm mt-1 shrink-0 text-warning-text'), el('span', '', text));
       notices.append(row);
     };
-    if (ranges.compare?.unavailable) note(`The comparison range starts before our history (earliest day ${formatDay('2025-06-27', true)}). Pick a later range or no comparison.`, 'warning');
-    if (!state.provisional) note(`${PROVISIONAL_DAYS.length} days (${formatDay(PROVISIONAL_DAYS[0])} to ${formatDay(PROVISIONAL_DAYS[1])}) are provisional and left out, so a half-finished day cannot look like a drop. Switch them on in the period menu.`);
-    if (ranges.compare && !ranges.compare.unavailable && ranges.current.days !== ranges.compare.days) note(`The two ranges have ${ranges.current.days} and ${ranges.compare.days} days, so clicks and impressions are compared per day.`);
-    if (!hasType(getPage(pageId), state.type)) note(`This page has no ${state.type} search data.`, 'warning');
+    if (ranges.compare?.unavailable) note(`The comparison range starts before our history (earliest day ${formatDay('2025-06-27', true)}). Pick a later range or no comparison.`);
+    if (!hasType(getPage(pageId), state.type)) note(`This page has no ${state.type} search data.`);
   }
 
   function tileNode(key, tile, state, picked) {
@@ -218,10 +218,8 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     const picked = state.metrics.map((key, index) => ({ key, color: SERIES_COLORS[index], tile: models.find(([name]) => name === key)?.[1] })).filter((item) => item.tile);
     chartBar.append(el('h3', 'type-subsection-title', 'Over time'));
     if (picked.length === 0) return;
-    const layout = picked.length === 1 ? 'single' : picked.length === 2 ? state.layout : 'stack';
+    const layout = picked.length === 1 ? 'single' : 'stack';
     const granularity = granularityFor(ranges.current.days);
-    if (picked.length === 2) chartBar.append(segmented([['stack', 'Stacked'], ['overlay', 'Overlay']], state.layout, (value) => set({ layout: value }), 'Chart layout'));
-    chartBar.append(el('span', 'type-meta', `By ${granularity}`));
     const toggle = segmented([['chart', 'Chart'], ['table', 'Table']], state.view, (value) => set({ view: value }), 'View');
     toggle.classList.add('ml-auto');
     chartBar.append(toggle);
@@ -233,6 +231,11 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     legend.append(el('span', '', `Solid: ${ranges.current.label}`));
     if (ranges.compare && !ranges.compare.unavailable) legend.append(el('span', '', `Dashed: ${ranges.compare.label}, lined up by day number`));
     chartHost.append(legend);
+    // The two things that explain a number, in one quiet line
+    const notes = [];
+    if (!state.provisional) notes.push(`The last ${PROVISIONAL_DAYS.length} days are provisional and left out (switch them on in the period menu).`);
+    if (ranges.compare && !ranges.compare.unavailable && ranges.current.days !== ranges.compare.days) notes.push(`The ranges have ${ranges.current.days} and ${ranges.compare.days} days, so clicks and impressions are compared per day.`);
+    if (notes.length > 0) chartHost.append(el('p', 'type-meta', notes.join(' ')));
   }
 
   // --- What changed
@@ -460,7 +463,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
       if (!models) return;
       renderChart(state, ranges, models);
       renderChanged(state, ranges);
-      footnote.textContent = `${SOURCES.gsc}. Dates are Pacific Time. Final data through ${formatDay(FINAL_THROUGH, true)}. ${state.provisional ? `${PROVISIONAL_DAYS.length} provisional days are included and hatched.` : `${PROVISIONAL_DAYS.length} provisional days are excluded.`} ${compareName(state.compare, ranges.current)}${ranges.compare ? `: ${rangeText(ranges.compare)}` : ''}. Health method ${HEALTH_VERSION}.`;
+      footnote.textContent = `${SOURCES.gsc}. Dates are Pacific Time. Final data through ${formatDay(FINAL_THROUGH, true)}.`;
     };
     if (waiting) {
       const token = renderToken;

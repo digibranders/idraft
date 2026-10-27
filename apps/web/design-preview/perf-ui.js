@@ -1,4 +1,4 @@
-/* global document, window, navigator, URL, Blob, setTimeout */
+/* global document, window, navigator, localStorage, URL, Blob, setTimeout */
 /**
  * Small controls the Page Performance screens share: badges, popovers, selects, segmented controls, the toast
  * and the two ways data leaves the page (copy and CSV).
@@ -159,6 +159,89 @@ export function popover(trigger, build, { label } = {}) {
     trigger.setAttribute('aria-expanded', 'true');
     panel.querySelector('input, button, select, [tabindex]')?.focus();
   });
+}
+
+/**
+ * The window splitter on a drawer's left edge (16-drawers-dialogs-popovers.md section 2.2): drag it, or press
+ * Left and Right (16 px, 64 px with Shift), Home and End; Enter or a double click go back to the default. The
+ * width snaps to 8 px and is remembered. Below the md breakpoint the drawer is full width and the handle is gone.
+ * Put the returned node last in the panel, and give the panel the classes `w-(--drawer-w) max-md:w-full`.
+ */
+export function resizeHandle(panel, { min, fallback, gutter, key }) {
+  const maxOf = () => Math.max(min, window.innerWidth - gutter);
+  const fit = (width) => Math.min(Math.max(Math.round(width / 8) * 8, min), maxOf());
+  const read = () => {
+    try {
+      const stored = Number(localStorage.getItem(key));
+      return stored > 0 ? stored : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const save = (width) => {
+    try {
+      localStorage.setItem(key, String(width));
+    } catch {
+      // The width is a convenience: a browser that refuses storage keeps it for this drawer only.
+    }
+  };
+  panel.style.maxWidth = `calc(100vw - ${gutter}px)`;
+
+  const handle = el('div', 'group/resize hidden md:block absolute inset-y-0 -left-1 w-2 cursor-col-resize touch-none outline-none focus-visible:focus-ring');
+  const line = el('span', 'absolute inset-y-0 left-0.5 w-0.5 bg-border-strong opacity-0 group-hover/resize:opacity-100');
+  line.setAttribute('aria-hidden', 'true');
+  handle.append(line);
+  handle.tabIndex = 0;
+  handle.setAttribute('role', 'separator');
+  handle.setAttribute('aria-orientation', 'vertical');
+  handle.setAttribute('aria-label', 'Resize the drawer');
+  handle.setAttribute('aria-valuemin', String(min));
+
+  let width = fit(read());
+  const show = (next) => {
+    panel.style.setProperty('--drawer-w', `${next}px`);
+    handle.setAttribute('aria-valuenow', String(next));
+    handle.setAttribute('aria-valuemax', String(maxOf()));
+    handle.setAttribute('aria-valuetext', `${next} pixels wide`);
+  };
+  const commit = (next) => {
+    width = fit(next);
+    show(width);
+    save(width);
+  };
+  show(width);
+
+  handle.addEventListener('keydown', (event) => {
+    const step = event.shiftKey ? 64 : 16;
+    const next = { ArrowLeft: width + step, ArrowRight: width - step, Home: min, End: maxOf() }[event.key];
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commit(fallback);
+    } else if (next !== undefined) {
+      event.preventDefault();
+      commit(next);
+    }
+  });
+  handle.addEventListener('dblclick', () => commit(fallback));
+  handle.addEventListener('pointerdown', (down) => {
+    if (down.button !== 0) return;
+    handle.setPointerCapture(down.pointerId);
+    line.classList.add('opacity-100');
+    const startX = down.clientX;
+    const startWidth = width;
+    const move = (event) => show(fit(startWidth + startX - event.clientX));
+    const end = (event) => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      line.classList.remove('opacity-100');
+      commit(startWidth + startX - event.clientX);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  });
+  return handle;
 }
 
 /** A labelled checkbox row for popovers and lists. */

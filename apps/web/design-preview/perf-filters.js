@@ -153,7 +153,21 @@ export function build({ get, set, scope }) {
 
   const type = selectField(SEARCH_TYPES.map((item) => [item.code, item.code === 'discover' ? 'Discover' : `${item.name} search`]), 'web', (value) => set({ type: value }), 'Search type');
   updaters.push((state) => (type.value = state.type));
-  bar.append(period, compare, country, device, type);
+
+  // The rarely used filters live behind one button; it shows how many are on. The controls are made once and
+  // moved into the panel each time it opens, so a half-typed query survives.
+  const extra = el('div', 'flex flex-col gap-3 p-2');
+  const typeField = el('label', 'flex flex-col gap-1');
+  typeField.append(el('span', 'type-label text-foreground-tertiary', 'Search type'), type);
+  extra.append(typeField);
+  const more = triggerButton('More filters');
+  more.setAttribute('aria-label', 'More filters');
+  popover(more, (panel) => panel.append(extra));
+  updaters.push((state) => {
+    const count = (state.type !== 'web' ? 1 : 0) + (state.query ? 1 : 0);
+    more.text.textContent = count > 0 ? `More filters (${count})` : 'More filters';
+  });
+  bar.append(period, compare, country, device, more);
 
   if (scope === 'list') {
     const group = selectField([['', 'All groups'], ...GROUP_NAMES.map((name) => [name, name])], '', (value) => set({ group: value }), 'Group');
@@ -170,9 +184,9 @@ export function build({ get, set, scope }) {
 
   // Query filter: live (detail only)
   if (scope === 'detail') {
-    const line = el('div', 'flex items-center gap-2 flex-wrap');
+    const line = el('div', 'flex flex-col gap-1');
     const op = selectField(QUERY_OPS, 'contains', () => commit(), 'Query condition');
-    const input = el('input', `${FIELD} w-48 min-w-0`);
+    const input = el('input', `${FIELD} w-full min-w-0`);
     input.type = 'search';
     input.placeholder = 'Filter by query';
     input.setAttribute('aria-label', 'Query text');
@@ -193,7 +207,7 @@ export function build({ get, set, scope }) {
     input.addEventListener('keydown', (event) => { if (event.key === 'Enter') commit(); });
     input.addEventListener('blur', commit);
     line.append(el('span', 'type-label text-foreground-tertiary', 'Query'), op, input, live, error);
-    root.append(line);
+    extra.append(line);
     updaters.push((state) => {
       if (document.activeElement !== input) input.value = state.query?.value ?? '';
       op.value = state.query?.op ?? op.value;

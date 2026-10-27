@@ -22,7 +22,6 @@
     --ease-standard: var(--ease-standard);
     --ease-exit: var(--ease-exit);
     --container-dialog-md: 35rem;
-    --container-dialog-lg: 45rem;
   }
 }
 @layer base {
@@ -224,6 +223,9 @@
   .inset-x-0 {
     inset-inline: 0px;
   }
+  .inset-y-0 {
+    inset-block: 0px;
+  }
   .top-0 {
     top: 0px;
   }
@@ -272,8 +274,14 @@
   .bottom-5 {
     bottom: calc(var(--spacing) * 5);
   }
+  .-left-1 {
+    left: calc(var(--spacing) * -1);
+  }
   .left-0 {
     left: 0px;
+  }
+  .left-0\.5 {
+    left: calc(var(--spacing) * 0.5);
   }
   .left-0\.75 {
     left: calc(var(--spacing) * 0.75);
@@ -697,6 +705,12 @@
   .min-h-save-bar {
     min-height: var(--size-save-bar);
   }
+  .w-\(--drawer-w\) {
+    width: var(--drawer-w);
+  }
+  .w-0\.5 {
+    width: calc(var(--spacing) * 0.5);
+  }
   .w-1\/2 {
     width: calc(1 / 2 * 100%);
   }
@@ -711,6 +725,9 @@
   }
   .w-1\/10 {
     width: calc(1 / 10 * 100%);
+  }
+  .w-2 {
+    width: calc(var(--spacing) * 2);
   }
   .w-2\/3 {
     width: calc(2 / 3 * 100%);
@@ -819,9 +836,6 @@
   }
   .w-sidebar {
     width: var(--size-sidebar);
-  }
-  .max-w-\(--container-dialog-lg\) {
-    max-width: var(--container-dialog-lg);
   }
   .max-w-\(--container-dialog-md\) {
     max-width: var(--container-dialog-md);
@@ -953,6 +967,9 @@
   }
   .animate-spin {
     animation: spin 800ms linear infinite;
+  }
+  .cursor-col-resize {
+    cursor: col-resize;
   }
   .cursor-grab {
     cursor: grab;
@@ -1380,6 +1397,9 @@
   .py-2 {
     padding-block: calc(var(--spacing) * 2);
   }
+  .py-2\.5 {
+    padding-block: calc(var(--spacing) * 2.5);
+  }
   .py-3 {
     padding-block: calc(var(--spacing) * 3);
   }
@@ -1675,6 +1695,9 @@
   .opacity-50 {
     opacity: 50%;
   }
+  .opacity-100 {
+    opacity: 100%;
+  }
   .shadow-dialog {
     --tw-shadow: var(--shadow-dialog);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -1762,6 +1785,9 @@
       background-color: var(--surface-hover);
     }
     .group-hover\:opacity-100:is(:where(.group):hover *) {
+      opacity: 100%;
+    }
+    .group-hover\/resize\:opacity-100:is(:where(.group\/resize):hover *) {
       opacity: 100%;
     }
   }
@@ -1953,6 +1979,11 @@
   .data-open\:shadow-dialog[data-open] {
     --tw-shadow: var(--shadow-dialog);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  @media (width < 48rem) {
+    .max-md\:w-full {
+      width: 100%;
+    }
   }
   @media (width >= 40rem) {
     .sm\:left-auto {

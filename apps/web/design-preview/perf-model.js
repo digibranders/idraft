@@ -23,7 +23,6 @@ export const DEFAULT_STATE = {
   query: null, // { op: 'contains' | 'excludes' | 'equals' | 'regex', value }
   metrics: ['clicks', 'impressions'],
   extras: new Set(), // optional metrics shown as tiles
-  layout: 'stack',
   view: 'chart',
   sort: 'attention',
   page: null,
@@ -52,7 +51,6 @@ export function readState(search) {
     query: queryValue ? { op: params.get('qop') ?? 'contains', value: queryValue } : null,
     metrics: metrics.length > 0 ? metrics.slice(0, 4) : [...DEFAULT_STATE.metrics],
     extras: new Set(list(params.get('more')).filter((key) => METRICS[key]?.optional)),
-    layout: params.get('layout') === 'overlay' ? 'overlay' : 'stack',
     view: params.get('view') === 'table' ? 'table' : 'chart',
     sort: params.get('sort') ?? DEFAULT_STATE.sort,
     page: params.get('page') ? Number(params.get('page')) : null,
@@ -83,7 +81,6 @@ export function writeState(state) {
   }
   if (state.metrics.join() !== DEFAULT_STATE.metrics.join()) params.set('metrics', state.metrics.join(','));
   if (state.extras.size > 0) params.set('more', [...state.extras].join(','));
-  put('layout', state.layout, DEFAULT_STATE.layout);
   put('view', state.view, DEFAULT_STATE.view);
   put('sort', state.sort, DEFAULT_STATE.sort);
   if (state.page) params.set('page', String(state.page));

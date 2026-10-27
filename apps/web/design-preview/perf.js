@@ -13,7 +13,7 @@ import { openAddDialog, WATCH_LIMIT } from './perf-add.js';
 import { sparkline } from './perf-chart.js';
 import { GROUP_NAMES, HOST_NAME, listPages, removePages, setGroup } from './perf-data.js';
 import { pageModel, readState, rangesOf, sparkOf, writeState } from './perf-model.js';
-import { BUTTON, BUTTON_PRIMARY, BUTTON_SM, badge, button, closePopovers, downloadCsv, icon, popoverOpen, selectField, toast } from './perf-ui.js';
+import { BUTTON, BUTTON_PRIMARY, BUTTON_SM, badge, button, closePopovers, downloadCsv, icon, popoverOpen, resizeHandle, selectField, toast } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 
 const view = document.querySelector('[data-view="pages"]');
@@ -303,9 +303,10 @@ function mountDetail() {
     drawerHost = el('div', 'fixed inset-0 z-(--z-drawer) flex justify-end');
     const scrim = el('div', 'absolute inset-0 bg-(--scrim) md:bg-transparent');
     scrim.addEventListener('click', closeDetail);
-    const panel = el('aside', 'relative w-full max-w-(--container-dialog-lg) h-full bg-background border-l border-border shadow-inspector flex flex-col');
+    const panel = el('aside', 'relative w-(--drawer-w) max-md:w-full h-full bg-background border-l border-border shadow-inspector flex flex-col');
     panel.setAttribute('aria-labelledby', 'perf-detail-title-drawer');
-    panel.append(detail.root);
+    // Wide by default, because the charts and the What changed tables want room; the width is remembered
+    panel.append(detail.root, resizeHandle(panel, { min: 480, fallback: 720, gutter: 56, key: 'preview.pages.drawer-width' }));
     drawerHost.append(scrim, panel);
     document.body.append(drawerHost);
     detail.focusTitle();

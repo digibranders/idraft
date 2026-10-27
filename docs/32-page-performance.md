@@ -141,8 +141,8 @@ Phase gating follows doc 20 section 3.10: the Performance tab is hidden until Se
 Parts in order:
 
 1. **Header.** Path, host, open and copy actions, and previous and next arrows that move through the list in its current sort **without losing any filter** (also `j` and `k`). This is what makes the monthly review fast.
-2. **Verdict card.** The health chip and one to three sentences produced by deterministic rules (section 6.3). No language model is involved, so the text is testable and free.
-3. **Filters.** The same state as the list (S3). Date, comparison, country, device and search type are stored filters (instant). Query and search appearance are live filters, marked "live from Google" because each change calls Google (section 7.5).
+2. **Verdict card.** The health chip and one to three sentences produced by deterministic rules (section 6.3). No language model is involved, so the text is testable and free. The index status is the card's second row (state, reason, "Check now"); the crawl and check dates are a tooltip. The method version is not shown on screen. A position flag is not repeated here, because the tile shows it.
+3. **Filters.** The same state as the list (S3). Period, comparison, country and device are always visible. Search type and the query condition sit behind one "More filters" button that shows how many are on (D-PP-10). Date, comparison, country, device and search type are stored filters (instant). Query and search appearance are live filters, marked "live from Google" because each change calls Google (section 7.5).
 4. **Metric tiles.** Four tiles in the style of Search Console, each a checkbox: label, current value, previous value, change. The checked tiles drive the chart, up to four at once, each with its own series color. Default checked: Clicks and Impressions. **More metrics** (D-PP-9) adds optional tiles, each labeled with its source and off by default: Share of site clicks (Search Console, page clicks over the property's clicks), Tracked keyword rank (our rank tracking, average of the tracked keywords whose ranking URL is this page), AI citations (our AI tracking), and Sessions and Conversions (Google Analytics 4, once that connection exists). Rank and AI metrics are not split by country or device, and the tile says so; a page with no tracked keywords or no AI citations shows "No data" with the reason.
 5. **Chart** (section 5.7).
 6. **What changed** (section 5.8).
@@ -192,8 +192,7 @@ Colors follow the color semantics of doc 20 section 4.7, with "detectable" decid
 Built from the existing chart frame and ECharts wrapper with the design system rules of doc 15 section 4.
 
 - **One metric:** one chart, current solid in `chart-1`, previous dashed in `chart-reference`, 240 px.
-- **Two metrics:** a toggle chooses **Stacked** (two small multiples, 140 px each, synced crosshair through `echarts.connect`, the default) or **Overlay** (one chart, left and right axes, the two units named on the axes).
-- **Three or four metrics:** small multiples only. Overlays of more than two axes are not offered; this is the answer to the unreadable four-metric overlay in Search Console.
+- **Two to four metrics:** small multiples (140 px each, synced crosshair through `echarts.connect`). There is no overlay: two units on one chart with two axes are the unreadable part of Search Console (D-PP-10).
 - **Granularity:** day for ranges up to 31 days, week up to 16 weeks, month beyond; a segmented control overrides it. A week is a block of 7 days counted from the start of the range, labeled by its first day, so both periods are cut the same way.
 - **Position chart** has an inverted axis so improvement rises.
 - Provisional days are hatched with the tooltip "Provisional: Google may still revise this day" (doc 18 section 4.4).
@@ -464,3 +463,4 @@ Estimates (INFERRED, to be revised after the spikes): slice 1 backend about 3 en
 | D-PP-7 | The period control opens on the last complete month against the month before; a range menu is one click away (product owner, 2026-10-27) | 5.4, 5.5 |
 | D-PP-8 | "Health" means the search trend plus the index status of the page (product owner, 2026-10-27); page speed is not part of it | 5.3, 6, 10 |
 | D-PP-9 | Extra metrics (share of site, tracked keyword rank, AI citations, GA4 sessions and conversions) are selectable and off by default (product owner, 2026-10-27) | 5.3 |
+| D-PP-10 | The detail is cut to what decides something: one verdict card with the index status inside, search type and query behind "More filters", no overlay chart, the provisional-days and unequal-length notes as one quiet line under the chart. The page drawer is 720 px wide by default and can be resized (480 px up to the window less 56 px, remembered), as the inspector of doc 16 section 2.2 (product owner, 2026-10-27) | 5.3, 5.4, 5.7 |
