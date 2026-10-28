@@ -1,11 +1,11 @@
-/* global document, window, echarts, history, location, matchMedia, getComputedStyle, requestAnimationFrame, setTimeout, clearTimeout, ResizeObserver, URL */
+/* global document, window, history, location, matchMedia, getComputedStyle, requestAnimationFrame, setTimeout, clearTimeout, URL */
 /**
- * Interactive behavior for the static design-system preview: menus, popovers, filter editors and chips,
- * tooltips, toasts, the keyword inspector, table sorting and row menus, the Add keywords dialog with its
- * discard confirmation, the command palette, switches and count tabs.
+ * Interactive behavior for the static design-system preview: menus, popovers, tooltips, toasts, the inspector shell
+ * (each page registers its record types through PreviewUI), the discard confirmation, the command palette, switches
+ * and the date range picker. Rankings is built by kw*.js and has its own filters, table, inspector and dialogs.
  *
  * Specs: docs/design-system/16-drawers-dialogs-popovers.md (overlays, inspector, palette),
- * 13-filters-search.md (filter editors and chips), 18-notifications-alerts.md (toasts, notification panel),
+ * 18-notifications-alerts.md (toasts, notification panel),
  * 09-buttons-controls.md (controls), 21-motion.md (durations come from the motion tokens, so reduced motion
  * turns every transition off). In the app these are Base UI primitives; this file only demonstrates behavior.
  */
@@ -14,8 +14,9 @@
 
   const root = document.documentElement;
   const charts = window.PreviewCharts;
-  const $ = (selector, scope = document) => scope.querySelector(selector);
-  const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
+  // A missing element (or a missing scope element) gives null or an empty list, so optional parts of a page are skipped
+  const $ = (selector, scope = document) => scope?.querySelector(selector) ?? null;
+  const $$ = (selector, scope = document) => (scope ? [...scope.querySelectorAll(selector)] : []);
 
   // ---------------------------------------------------------------------------------------------
   // Motion from tokens (0 ms under reduced motion)
@@ -85,7 +86,6 @@
 
   function openPopup(panel, trigger, options = {}) {
     closePopup({ restoreFocus: false });
-    if (panel.hasAttribute('data-editor')) syncEditor(panel);
     // A popup opened from a higher layer (the overlay inspector) takes that layer's z-index. Popups follow the
     // inspector in the document, so at the same z-index they paint above it.
     const layer = trigger?.closest('#inspector');
@@ -123,15 +123,7 @@
       event.preventDefault();
       const panel = document.getElementById(trigger.dataset.popup);
       if (current?.panel === panel) return closePopup();
-      const options = { align: trigger.dataset.align };
-      if (panel.hasAttribute('data-editor')) {
-        options.focus = panel.querySelector('[data-editor-search]') ?? panel.querySelector('input[type="checkbox"]');
-      }
-      if (trigger.dataset.popup === 'menu-row') {
-        setRowMenuTarget(inspectorId);
-        setInspectorOnlyItems(true);
-      }
-      return openPopup(panel, trigger, options);
+      return openPopup(panel, trigger, { align: trigger.dataset.align });
     }
     // A click on the popup's own anchor (a combobox field, a select trigger) is handled by that control. The event
     // path is used because a popup may re-render the clicked element (calendar days) before this runs.
@@ -166,11 +158,6 @@
       (event.key === 'Home' ? items[0] : items[items.length - 1])?.focus();
     } else if (event.key === 'Tab' && isMenu && panel.getAttribute('role') === 'menu') {
       closePopup();
-    } else if (event.key === 'Enter' && panel.hasAttribute('data-editor') && !document.activeElement?.matches('button')) {
-      // Multi-choice editors apply with the Apply button or Enter; closing any other way discards (13 section 3)
-      event.preventDefault();
-      applyEditor(panel);
-      closePopup();
     }
   }, true);
 
@@ -193,7 +180,10 @@
       $('[data-branded-chip]').hidden = value === 'Included';
       $('[data-open-menu="menu-branded"]').hidden = value !== 'Included';
     },
-    device: (value) => ($('[data-device-label]').textContent = value),
+    device: (value) => {
+      const label = $('[data-device-label]');
+      if (label) label.textContent = value;
+    },
     // The menu closes first so the reveal starts from a clean screen.
     theme: (value) => setTimeout(() => changeTheme(value, themeOrigin()), duration('base')),
     project: (value) => {
@@ -290,147 +280,6 @@
   systemDark.addEventListener('change', () => themeMode === 'system' && applyTheme('system'));
   new window.MutationObserver(syncThemeControls).observe(root, { attributes: true, attributeFilter: ['class'] });
   syncThemeControls();
-
-  // ---------------------------------------------------------------------------------------------
-  // Filters: state, chips and editors (13 sections 2 and 3)
-
-  const RANK_BUCKETS = [
-    ['1 to 3', 1, 3],
-    ['4 to 10', 4, 10],
-    ['11 to 20', 11, 20],
-    ['21 to 50', 21, 50],
-    ['51 to 100', 51, 100],
-  ];
-  const filters = { tag: ['crm'], intent: [], rank: ['1 to 3', '4 to 10', '11 to 20'] };
-  const FIELD = {
-    tag: { title: 'Tag', editor: 'ed-tag' },
-    intent: { title: 'Intent', editor: 'ed-intent' },
-    rank: { title: 'Rank', editor: 'ed-rank' },
-  };
-
-  function chipLabel(field) {
-    const values = filters[field];
-    if (field === 'rank') {
-      const idx = values.map((v) => RANK_BUCKETS.findIndex((b) => b[0] === v)).sort((a, b) => a - b);
-      const contiguous = idx.every((v) => v >= 0) && idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
-      if (contiguous && idx.length) return `Rank: ${RANK_BUCKETS[idx[0]][1]} to ${RANK_BUCKETS[idx[idx.length - 1]][2]}`;
-    }
-    if (values.length <= 2) return `${FIELD[field].title}: ${values.join(', ')}`;
-    return `${FIELD[field].title}: ${values.length} selected`;
-  }
-
-  function renderChips() {
-    const host = $('#chips');
-    host.replaceChildren();
-    let count = 0;
-    for (const field of Object.keys(FIELD)) {
-      if (!filters[field].length) continue;
-      count += 1;
-      const label = chipLabel(field);
-      const chip = document.createElement('span');
-      chip.className = 'flex h-control max-w-60 pl-1 pr-1 rounded-md bg-neutral-subtle items-center gap-0.5 type-body text-foreground';
-      const edit = document.createElement('button');
-      edit.className = 'h-7 min-w-0 px-2 rounded-sm truncate hover:bg-surface-hover';
-      edit.textContent = label;
-      edit.dataset.popup = FIELD[field].editor;
-      edit.setAttribute('aria-haspopup', 'dialog');
-      edit.dataset.tip = `Edit filter ${label}`;
-      const remove = document.createElement('button');
-      remove.className = 'size-7 shrink-0 rounded-sm flex items-center justify-center text-foreground-tertiary hover:bg-surface-hover hover:text-foreground';
-      remove.setAttribute('aria-label', `Remove filter ${label}`);
-      remove.dataset.tip = 'Remove filter';
-      remove.append(icon('x', 'size-icon-sm'));
-      remove.addEventListener('click', (event) => {
-        event.stopPropagation();
-        filters[field] = [];
-        renderChips();
-        $('#add-filter')?.focus();
-      });
-      chip.append(edit, remove);
-      host.append(chip);
-    }
-    $$('[data-filter-count]').forEach((el) => {
-      el.textContent = String(count);
-      el.hidden = count === 0;
-    });
-    const clear = $('#clear-filters');
-    if (clear) clear.hidden = count === 0;
-    const active = $('#filter-sheet .type-subsection-title');
-    if (active) active.textContent = `Active (${count})`;
-  }
-
-  function editorField(panel) {
-    return Object.keys(FIELD).find((k) => FIELD[k].editor === panel.id);
-  }
-
-  const editorSelection = (panel) => $$('input[type="checkbox"]', panel).filter((b) => b.checked).map((b) => b.dataset.value);
-
-  /** Apply is enabled only when the ticked set differs from the applied filter; Clear only when something is ticked. */
-  function updateEditorFooter(panel) {
-    const applied = new Set(filters[editorField(panel)]);
-    const selected = editorSelection(panel);
-    const changed = selected.length !== applied.size || selected.some((v) => !applied.has(v));
-    $('[data-apply]', panel).disabled = !changed;
-    $('[data-clear]', panel).disabled = selected.length === 0;
-  }
-
-  function syncEditor(panel) {
-    const field = editorField(panel);
-    $$('input[type="checkbox"]', panel).forEach((box) => (box.checked = filters[field].includes(box.dataset.value)));
-    const search = $('[data-editor-search]', panel);
-    if (search) {
-      search.value = '';
-      $$('[data-options] label', panel).forEach((row) => (row.hidden = false));
-    }
-    updateEditorFooter(panel);
-  }
-
-  function applyEditor(panel) {
-    const field = editorField(panel);
-    filters[field] = editorSelection(panel);
-    renderChips();
-  }
-
-  $$('[data-editor]').forEach((panel) => {
-    $('[data-select-all]', panel)?.addEventListener('click', () => {
-      $$('[data-options] label:not([hidden]) input', panel).forEach((b) => (b.checked = true));
-      updateEditorFooter(panel);
-    });
-    $('[data-clear]', panel)?.addEventListener('click', () => {
-      $$('input[type="checkbox"]', panel).forEach((b) => (b.checked = false));
-      updateEditorFooter(panel);
-      $('[data-apply]', panel).focus();
-    });
-    $('[data-options]', panel)?.addEventListener('change', () => updateEditorFooter(panel));
-    $('[data-apply]', panel)?.addEventListener('click', () => {
-      applyEditor(panel);
-      closePopup();
-    });
-    $('[data-editor-search]', panel)?.addEventListener('input', (event) => {
-      const q = event.target.value.trim().toLowerCase();
-      $$('[data-options] label', panel).forEach((row) => (row.hidden = q !== '' && !row.textContent.toLowerCase().includes(q)));
-    });
-  });
-
-  // "+ Filter": choosing a field opens its editor anchored to the "+ Filter" button
-  document.addEventListener('click', (event) => {
-    const choice = event.target.closest('[data-open-editor]');
-    if (!choice) return;
-    event.stopPropagation();
-    const editor = document.getElementById(choice.dataset.openEditor);
-    const anchor = $('#add-filter');
-    closePopup({ restoreFocus: false });
-    const focus = editor.querySelector('[data-editor-search]') ?? editor.querySelector('input[type="checkbox"]');
-    openPopup(editor, anchor, { focus });
-  }, true);
-
-  $('#clear-filters')?.addEventListener('click', () => {
-    Object.keys(filters).forEach((k) => (filters[k] = []));
-    renderChips();
-    toast({ title: 'Filters cleared', tone: 'info', action: { label: 'Undo', run: () => location.reload() } });
-  });
-
-  renderChips();
 
   // ---------------------------------------------------------------------------------------------
   // Toasts (18 section 3): 360 px, bottom right, at most 3, newest at the bottom
@@ -551,7 +400,7 @@
   });
 
   // ---------------------------------------------------------------------------------------------
-  // Switches and count tabs
+  // Switches
 
   document.addEventListener('click', (event) => {
     const sw = event.target.closest('[role="switch"]');
@@ -568,48 +417,6 @@
     if (sw.hasAttribute('data-pref-motion')) root.toggleAttribute('data-motion', on);
     if (sw.hasAttribute('data-pref-motion') && on) root.dataset.motion = 'reduced';
     if (sw.hasAttribute('data-pref-keys')) root.dataset.singleKeys = on ? 'on' : 'off';
-  });
-
-  const PRESSED = ['border-primary', 'bg-primary', 'text-primary-foreground', 'type-body-strong'];
-  const UNPRESSED = ['border-border', 'bg-surface', 'text-foreground', 'type-body', 'hover:bg-surface-hover'];
-  function setPressed(button, on) {
-    button.setAttribute('aria-pressed', String(on));
-    button.classList.remove(...(on ? UNPRESSED : PRESSED));
-    button.classList.add(...(on ? PRESSED : UNPRESSED));
-    const badge = button.querySelector('span');
-    badge.classList.toggle('bg-primary-hover', on);
-    badge.classList.toggle('bg-neutral-subtle', !on);
-    badge.classList.toggle('text-neutral-text', !on);
-  }
-  $$('[data-count-tabs]').forEach((bar) => {
-    const buttons = $$('button', bar);
-    const all = buttons[0];
-    buttons.forEach((button) =>
-      button.addEventListener('click', () => {
-        if (button === all) return buttons.forEach((b) => setPressed(b, b === all));
-        setPressed(button, button.getAttribute('aria-pressed') !== 'true');
-        const any = buttons.slice(1).some((b) => b.getAttribute('aria-pressed') === 'true');
-        setPressed(all, !any);
-      }),
-    );
-  });
-
-  // Show intervals toggles the confidence band; the chart legend toggles series (15 section 2)
-  $('#toggle-ci')?.addEventListener('change', (event) => charts.setCiVisible(event.target.checked));
-  $$('[data-legend-value]').forEach((value) => {
-    const item = value.closest('li');
-    const name = item.textContent.replace(value.textContent, '').trim();
-    item.setAttribute('role', 'button');
-    item.setAttribute('tabindex', '0');
-    item.setAttribute('aria-pressed', 'true');
-    item.classList.add('cursor-pointer', 'rounded-sm', 'hover:text-foreground');
-    const toggle = () => {
-      const visible = charts.toggleSeries(name);
-      item.setAttribute('aria-pressed', String(visible));
-      item.classList.toggle('opacity-40', !visible);
-    };
-    item.addEventListener('click', toggle);
-    item.addEventListener('keydown', (event) => (event.key === 'Enter' || event.key === ' ') && (event.preventDefault(), toggle()));
   });
 
   // Notifications: mark all read, unread filter
@@ -629,18 +436,6 @@
   );
 
   // ---------------------------------------------------------------------------------------------
-  // Keyword data for the inspector and palette
-
-  const KEYWORDS = {
-    k1: { kw: 'crm for small business', rank: 4, change: '↑3', tone: 'positive-text', best: 3, avg: 5.6, vol: '9,900', url: '/crm/small-business', aio: 'Cited #2', spark: [9, 9, 8, 8, 7, 7, 6, 6, 6, 5, 5, 5, 4, 4, 4] },
-    k2: { kw: 'best crm for startups', rank: 3, change: '↑2', tone: 'positive-text', best: 2, avg: 4.8, vol: '8,100', url: '/crm/startups', aio: 'Cited #1', spark: [9, 8, 8, 7, 7, 6, 5, 5, 4, 4, 4, 3, 3, 3, 3] },
-    k3: { kw: 'sales pipeline software', rank: 8, change: '0', tone: 'foreground-secondary', best: 7, avg: 7.9, vol: '6,600', url: '/features/pipeline', aio: 'Present', spark: [7, 8, 8, 7, 8, 9, 8, 8, 7, 8, 8, 8, 7, 8, 8] },
-    k4: { kw: 'crm tools for startups', rank: 5, change: '↓2', tone: 'negative-text', best: 3, avg: 4.1, vol: '4,400', url: '/blog/crm-tools-for-startups', aio: 'Absent', spark: [3, 3, 4, 3, 4, 4, 3, 4, 4, 5, 4, 5, 5, 4, 5] },
-    k5: { kw: 'startup crm', rank: null, change: 'Lost', tone: 'negative-text', best: 12, avg: 16.4, vol: '5,400', url: null, aio: 'Absent', spark: [12, 13, 13, 14, 15, 16, 17, 18, 18, 19, 19, 20, null, null, null] },
-    k6: { kw: 'best sales crm', rank: 11, change: 'New', tone: 'positive-text', best: 11, avg: 14.2, vol: '8,100', url: '/crm', aio: 'Present', spark: [null, null, null, null, null, 19, 18, 16, 15, 14, 13, 12, 12, 11, 11] },
-  };
-  const ORDER = Object.keys(KEYWORDS);
-  const ENGINE_NAMES = ['ChatGPT', 'Gemini', 'AI Mode', 'AI Overview'];
   // EngineLogo (07 section 5): a 16 px mark beside the engine's name. Decorative, because the name is always there.
   // Both Google surfaces use the Google mark; the monochrome OpenAI mark is inverted in the dark theme.
   const ENGINE_LOGOS = { ChatGPT: 'chatgpt', Gemini: 'gemini', 'AI Mode': 'google', 'AI Overview': 'google' };
@@ -653,29 +448,6 @@
     img.className = `size-icon shrink-0${ENGINE_LOGOS[name] === 'chatgpt' ? ' dark:invert' : ''}`;
     return img;
   }
-  const AI_MENTIONS = {
-    k1: [[8, 12], [3, 4], [5, 12], [9, 14]],
-    k2: [[10, 12], [3, 4], [7, 12], [12, 14]],
-    k3: [[4, 12], [1, 4], [3, 12], [5, 14]],
-    k4: [[6, 12], [2, 4], [2, 12], [0, 14]],
-    k5: [[1, 12], [0, 4], [0, 12], [0, 0]],
-    k6: [[5, 12], [2, 4], [4, 12], [6, 14]],
-  };
-  const COMPETITORS = [
-    ['hubspot.com', 1, '0'],
-    ['pipedrive.com', 5, '↑1'],
-    ['attio.com', 9, '↓2'],
-    ['zoho.com', 12, '↑3'],
-    ['folk.app', 17, '0'],
-  ];
-  const SERP = [
-    ['hubspot.com', 'The best CRM software in 2026'],
-    ['zoho.com', 'Best CRM for startups'],
-    ['northwind.com', 'Northwind: CRM for startups'],
-    ['pipedrive.com', 'Pipedrive CRM review'],
-    ['attio.com', 'Attio: the CRM for modern teams'],
-  ];
-
   // ---------------------------------------------------------------------------------------------
   // Inspector (16 section 2): a floating card 12 px from the window edges. It docks when the viewport leaves 360 px
   // beside a 720 px main column and the margin, overlays from 768 px, and is a full-screen sheet below 768 px.
@@ -683,25 +455,14 @@
   const inspector = $('#inspector');
   const scrim = $('#inspector-scrim');
   let inspectorId = null;
-  let inspectorType = 'keyword';
-  let inspectorChart = null;
+  let inspectorType = null;
   let lastOpener = null;
   /**
    * What the inspector can show. A type names its records, fills the panel, and knows the order of the records
-   * on screen for stepping. Parts of the panel that belong to one type carry data-inspector-type. Other
-   * scripts add types through PreviewUI.registerInspectorType (prompts.js adds "prompt").
+   * on screen for stepping. Parts of the panel that belong to one type carry data-inspector-type. Each page adds
+   * its types through PreviewUI.registerInspectorType (prompts-inspector.js adds "prompt", prompts-topic-inspector.js "topic").
    */
-  const INSPECTOR_TYPES = {
-    keyword: {
-      noun: 'keyword',
-      back: 'Rankings',
-      width: 400,
-      defaultTab: 'overview',
-      has: (id) => Object.hasOwn(KEYWORDS, id),
-      fill: (id) => fillInspector(id),
-      order: () => $$('#rank-rows tr').filter((row) => !row.hidden).map((row) => row.dataset.id),
-    },
-  };
+  const INSPECTOR_TYPES = {};
   const inspectorDef = () => INSPECTOR_TYPES[inspectorType];
   const MODES = {
     docked: ['sticky', 'my-3', 'mr-3', 'shrink-0', 'w-inspector', 'z-(--z-inspector)', 'rounded-xl', 'shadow-inspector'],
@@ -741,7 +502,6 @@
     inspector.dataset.mode = mode;
     scrim.hidden = mode !== 'sheet';
     inspector.setAttribute('aria-modal', String(mode === 'sheet'));
-    inspectorChart?.resize();
   }
 
   function badge(text, variant = 'neutral') {
@@ -754,164 +514,6 @@
     return el;
   }
 
-  /** One metric card: label, value, then a delta or a short context line. */
-  function metricCard(label, value, ...notes) {
-    const card = document.createElement('div');
-    card.className = 'rounded-lg border border-border bg-surface p-3 min-w-0';
-    const dt = document.createElement('dt');
-    dt.className = 'type-label truncate';
-    dt.textContent = label;
-    const dd = document.createElement('dd');
-    dd.className = 'mt-1 flex flex-col min-w-0';
-    const v = document.createElement('span');
-    v.className = 'type-metric-sm num truncate';
-    v.textContent = value;
-    const line = document.createElement('span');
-    line.className = 'mt-0.5 flex items-baseline gap-1.5 min-w-0 type-meta num';
-    line.append(...notes);
-    dd.append(v, line);
-    card.append(dt, dd);
-    return card;
-  }
-  function note(text, className = 'truncate') {
-    const el = document.createElement('span');
-    el.className = className;
-    el.textContent = text;
-    return el;
-  }
-
-  /** One engine row: name, share bar on a track, percent, and the counts behind it. */
-  function engineRow(name, [mentions, responses]) {
-    const row = document.createElement('li');
-    row.className = 'h-9 flex items-center gap-3';
-    const share = responses === 0 ? null : Math.round((mentions / responses) * 100);
-    const label = document.createElement('span');
-    label.className = 'w-28 shrink-0 flex items-center gap-2 min-w-0 type-body text-foreground';
-    const text = document.createElement('span');
-    text.className = 'truncate';
-    text.textContent = name;
-    label.append(engineLogo(name), text);
-    const track = document.createElement('span');
-    track.className = 'flex-1 h-2 rounded-full bg-neutral-subtle overflow-hidden';
-    track.setAttribute('aria-hidden', 'true');
-    const fill = document.createElement('span');
-    fill.className = 'block h-full rounded-full bg-primary';
-    fill.style.width = `${share ?? 0}%`;
-    track.append(fill);
-    const value = document.createElement('span');
-    value.className = `w-10 shrink-0 text-right type-table num${share === null ? ' text-foreground-tertiary' : ''}`;
-    value.textContent = share === null ? 'n/a' : `${share}%`;
-    const counts = document.createElement('span');
-    counts.className = 'w-14 shrink-0 text-right type-meta num';
-    counts.textContent = share === null ? 'no data' : `${mentions} of ${responses}`;
-    row.append(label, track, value, counts);
-    return row;
-  }
-
-  function fillInspector(id) {
-    const k = KEYWORDS[id];
-    $('#inspector-title').textContent = k.kw;
-    const badges = $('[data-inspector-badges]');
-    badges.replaceChildren(badge('US · Desktop'), badge('Depth 20'), ...(k.aio.startsWith('Cited') ? [badge(k.aio, 'positive')] : []));
-    $('[data-inspector-context]').textContent = `Keyword · ${ORDER.indexOf(id) + 1} of ${ORDER.length} · Updated 12m ago`;
-    $('[data-inspector-kv]').replaceChildren(
-      metricCard('Rank', k.rank === null ? '>20' : String(k.rank), note(k.change, `shrink-0 type-body-strong text-${k.tone}`), note(`best ${k.best}`)),
-      metricCard('Average rank', String(k.avg), note('30 days')),
-      metricCard('Volume', k.vol, note('per month')),
-    );
-    $('[data-inspector-engines]').replaceChildren(...ENGINE_NAMES.map((name, i) => engineRow(name, AI_MENTIONS[id][i])));
-    $('[data-inspector-competitors]').replaceChildren(
-      ...COMPETITORS.map(([domain, rank, delta]) => {
-        const tr = document.createElement('tr');
-        tr.className = 'h-row-compact border-t border-border-subtle';
-        const tone = delta.startsWith('↑') ? 'text-positive-text' : delta.startsWith('↓') ? 'text-negative-text' : 'text-foreground-secondary';
-        tr.innerHTML = `<td class="pl-4 truncate">${domain}</td><td class="text-right num">${rank}</td><td class="pr-4 text-right num ${tone}">${delta}</td>`;
-        return tr;
-      }),
-    );
-    $('[data-inspector-serp]').replaceChildren(
-      ...SERP.map(([domain, title], i) => {
-        const tr = document.createElement('tr');
-        const own = domain === 'northwind.com';
-        tr.className = `h-row-compact border-t border-border-subtle${own ? ' bg-surface-selected' : ''}`;
-        tr.innerHTML = `<td class="pl-4 num">${i + 1}</td><td class="truncate${own ? ' text-primary-text' : ''}">${domain}</td><td class="pr-4 truncate max-w-40${own ? ' text-primary-text' : ''}">${title}</td>`;
-        return tr;
-      }),
-    );
-    const aio = $('[data-inspector-aio]');
-    aio.replaceChildren(k.aio.startsWith('Cited') ? badge(k.aio, 'positive') : badge(k.aio));
-    renderInspectorChart(k);
-  }
-
-  // Rank history: one check every two days, ending Sep 29. The 30-day series is the fixture; the 60 days
-  // before it and the two competitor lines are generated the same way every time.
-  const clampRank = (value) => Math.min(20, Math.max(1, Math.round(value)));
-  function rankSeries(spark, points) {
-    const extra = points - spark.length;
-    const first = spark.find((v) => v !== null);
-    const earlier = Array.from({ length: extra }, (_, i) =>
-      spark[0] === null ? null : clampRank(first + (extra - i) * 0.12 + Math.sin(i * 1.3) * 0.9),
-    );
-    return [...earlier, ...spark];
-  }
-  const competitorSeries = (rank, phase, points) =>
-    Array.from({ length: points }, (_, i) => clampRank(rank + Math.sin(i * 0.8 + phase) * (0.6 + phase * 0.4)));
-  function rankLabels(points) {
-    const end = Date.UTC(2026, 8, 29);
-    const format = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    return Array.from({ length: points }, (_, i) => format.format(new Date(end - (points - 1 - i) * 2 * 86400000)));
-  }
-
-  function renderInspectorChart(k) {
-    const el = $('#chart-inspector');
-    if (!el || !charts || el.clientWidth === 0) return;
-    inspectorChart ??= echarts.init(el, null, { renderer: 'canvas' });
-    const axes = charts.axisTheme();
-    const points = Number($('#inspector-window').dataset.value) / 2;
-    const labels = rankLabels(points);
-    const line = (name, token, symbol, data, width) => ({
-      name,
-      type: 'line',
-      data,
-      connectNulls: false,
-      color: charts.token(token),
-      lineStyle: { width, join: 'round' },
-      symbol,
-      symbolSize: 5,
-      showSymbol: false,
-      emphasis: { disabled: true },
-    });
-    inspectorChart.setOption(
-      {
-        animation: false,
-        grid: { ...charts.GRID, right: 48 },
-        xAxis: { type: 'category', data: labels, boundaryGap: false, ...axes.x, axisLabel: { ...axes.x.axisLabel, interval: Math.ceil(points / 4) - 1 } },
-        yAxis: { type: 'value', inverse: true, min: 1, max: 20, ...axes.y, splitLine: { show: false }, axisLabel: { ...axes.y.axisLabel, customValues: [1, 10, 20] } },
-        tooltip: charts.tooltipTheme((list) =>
-          list.map((p) => ({ color: p.color, name: p.seriesName, value: p.value === null || p.value === undefined ? 'Not in top 20' : `#${p.value}` })),
-        ),
-        series: [
-          {
-            ...line('northwind.com', 'chart-1', 'circle', rankSeries(k.spark, points), 2),
-            markLine: {
-              silent: true,
-              symbol: 'none',
-              lineStyle: { color: charts.token('chart-axis'), type: 'dashed', width: 1 },
-              label: { color: charts.token('chart-label'), fontFamily: charts.fontFamily(), fontSize: 12, position: 'end', distance: 6 },
-              data: [{ yAxis: 3, label: { formatter: 'Top 3' } }, { yAxis: 10, label: { formatter: 'Top 10' } }],
-            },
-          },
-          line('hubspot.com', 'chart-2', 'rect', competitorSeries(2, 0.4, points), 1.5),
-          line('pipedrive.com', 'chart-3', 'triangle', competitorSeries(6, 1.7, points), 1.5),
-        ],
-      },
-      true,
-    );
-    inspectorChart.resize();
-  }
-  $('#inspector-window')?.addEventListener('change', () => inspectorId && renderInspectorChart(KEYWORDS[inspectorId]));
-  $('[data-inspector-goto]')?.addEventListener('click', (event) => selectTab(event.currentTarget.dataset.inspectorGoto));
-
   function setActiveRow(id) {
     $$('[data-selectable] tbody tr').forEach((row) => {
       if (row.dataset.id === id) row.setAttribute('data-active', 'true');
@@ -921,15 +523,10 @@
       cell.classList.toggle('relative', row.dataset.id === id);
       edge.slice(1).forEach((c) => cell.classList.toggle(c, row.dataset.id === id));
     });
-    $$('[data-open-id]').forEach((a) => {
-      const on = a.dataset.openId === id;
-      a.classList.toggle('bg-surface-selected', on);
-      a.querySelector('.type-body-strong')?.classList.toggle('text-primary-text', on);
-    });
     charts?.syncRows();
   }
 
-  function openInspector(id, opener, type = 'keyword') {
+  function openInspector(id, opener, type) {
     const def = INSPECTOR_TYPES[type];
     if (!def?.has(id)) return;
     const wasHidden = inspector.hidden;
@@ -1032,7 +629,6 @@
       tab.tabIndex = on ? 0 : -1;
     });
     $$('#inspector [role="tabpanel"]').forEach((panel) => (panel.hidden = panel.dataset.panel !== name));
-    if (name === 'overview') requestAnimationFrame(() => inspectorChart?.resize());
     inspector.dispatchEvent(new window.CustomEvent('inspector-tab', { detail: { tab: name } }));
   }
 
@@ -1053,99 +649,6 @@
   $('[data-inspector-next]')?.addEventListener('click', () => step(1));
   scrim?.addEventListener('click', closeInspector);
   window.addEventListener('resize', layoutInspector);
-  if (window.ResizeObserver && $('#chart-inspector')) new ResizeObserver(() => inspectorChart?.resize()).observe($('#chart-inspector'));
-
-  // Rows open the inspector; checkboxes and buttons inside rows keep their own behavior
-  $('[data-selectable] tbody')?.addEventListener('click', (event) => {
-    if (event.target.closest('input, button, a')) return;
-    const row = event.target.closest('tr');
-    if (row) openInspector(row.dataset.id, row);
-  });
-  $$('#rank-list [data-open-id]').forEach((a) =>
-    a.addEventListener('click', (event) => {
-      event.preventDefault();
-      openInspector(a.dataset.openId, a);
-    }),
-  );
-
-  // Row menus: the More button and right-click (16 section 5.4)
-  let rowMenuId = null;
-  // "Customize cards" belongs to the drawer's More menu, not to a table row's menu
-  function setInspectorOnlyItems(fromInspector) {
-    $$('#menu-row [data-inspector-only]').forEach((el) => (el.hidden = !fromInspector));
-  }
-  function setRowMenuTarget(id) {
-    rowMenuId = id;
-    const label = $('[data-row-menu-label]');
-    if (label && KEYWORDS[id]) label.textContent = KEYWORDS[id].kw;
-  }
-  document.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-row-menu]');
-    if (!button) return;
-    event.stopPropagation();
-    const row = button.closest('tr');
-    setRowMenuTarget(row.dataset.id);
-    setInspectorOnlyItems(false);
-    openPopup($('#menu-row'), button, { align: 'end' });
-  }, true);
-  $('[data-selectable] tbody')?.addEventListener('contextmenu', (event) => {
-    if (event.shiftKey) return;
-    const row = event.target.closest('tr');
-    if (!row) return;
-    event.preventDefault();
-    setRowMenuTarget(row.dataset.id);
-    setInspectorOnlyItems(false);
-    openPopup($('#menu-row'), row, { point: { x: event.clientX, y: event.clientY } });
-  });
-  $('[data-row-open]')?.addEventListener('click', () => {
-    closePopup({ restoreFocus: false });
-    if (rowMenuId) openInspector(rowMenuId);
-  });
-  // Archive hides the keyword's table row and mobile list row; Undo in the toast brings both back.
-  $('[data-row-archive]')?.addEventListener('click', () => {
-    closePopup({ restoreFocus: false });
-    const id = rowMenuId;
-    if (!id) return;
-    const rows = [...$$(`tr[data-id="${id}"]`), ...$$(`[data-open-id="${id}"]`).map((a) => a.closest('li') ?? a)];
-    const archive = () => {
-      rows.forEach((el) => (el.hidden = true));
-      toast({
-        title: 'Keyword archived',
-        description: 'Its history is kept for 90 days.',
-        action: { label: 'Undo', run: () => { rows.forEach((el) => (el.hidden = false)); toast({ title: 'Keyword restored' }); } },
-      });
-    };
-    // The keyword open in the inspector is archived only once the inspector has closed: with unsaved card
-    // changes the person is asked first, and "Keep editing" archives nothing
-    if (inspectorId === id && !inspector.hidden) closeInspector(false, archive);
-    else archive();
-  });
-
-  // ---------------------------------------------------------------------------------------------
-  // Sorting (12 section 7): click toggles ascending and descending; aria-sort on the header cell
-
-  const sortState = { key: 'rank', dir: 'ascending' };
-  function sortRows(key) {
-    sortState.dir = sortState.key === key && sortState.dir === 'ascending' ? 'descending' : 'ascending';
-    sortState.key = key;
-    const tbody = $('[data-selectable] tbody');
-    const rows = $$('tr', tbody);
-    rows.sort((a, b) => {
-      const diff = Number(a.dataset[key]) - Number(b.dataset[key]);
-      return sortState.dir === 'ascending' ? diff : -diff;
-    });
-    tbody.append(...rows);
-    $$('[data-sort]').forEach((button) => {
-      const th = button.closest('th');
-      const active = button.dataset.sort === key;
-      th.setAttribute('aria-sort', active ? sortState.dir : 'none');
-      const old = button.querySelector('svg');
-      const name = !active ? 'arrow-up-down' : sortState.dir === 'ascending' ? 'arrow-up-narrow-wide' : 'arrow-down-wide-narrow';
-      old.replaceWith(icon(name, `size-icon-xs${active ? '' : ' text-foreground-muted'}`));
-      button.classList.toggle('text-foreground', active);
-    });
-  }
-  $$('[data-sort]').forEach((button) => button.addEventListener('click', () => sortRows(button.dataset.sort)));
 
   // ---------------------------------------------------------------------------------------------
   // Modal helpers: position at 12vh (minimum 48 px), trap focus, return focus
@@ -1245,166 +748,8 @@
     if (current?.panel !== selectListbox(trigger)) openSelect(trigger);
   });
 
-  const languageTrigger = $('#kw-language');
-  const setLanguage = (value) => setSelectValue(languageTrigger, value);
-
-  // Location: Combobox. Typing filters; choosing a location sets the default language; text that matches no
-  // location reverts to the last valid value when the list closes.
-  const LANGUAGE_BY_COUNTRY = { Germany: 'German', France: 'French', Spain: 'Spanish', Netherlands: 'Dutch' };
-  const locationInput = $('#kw-location');
-  const locationList = $('#lb-location');
-  const locationAnchor = $('[data-combobox-anchor]');
-  const locationEmpty = $('[data-listbox-empty]', locationList);
-
-  function filterLocations(query) {
-    const q = query.trim().toLowerCase();
-    let shown = 0;
-    $$('[role="group"]', locationList).forEach((group) => {
-      let groupShown = 0;
-      $$('[role="option"]', group).forEach((option) => {
-        option.hidden = q !== '' && !option.dataset.value.toLowerCase().includes(q);
-        if (!option.hidden) groupShown += 1;
-      });
-      group.hidden = groupShown === 0;
-      group.previousElementSibling.hidden = groupShown === 0;
-      shown += groupShown;
-    });
-    locationEmpty.hidden = shown > 0;
-    locationEmpty.textContent = shown > 0 ? '' : `No locations match “${query.trim()}”`;
-  }
-  function openLocations() {
-    if (current?.panel === locationList) return;
-    openListbox(locationList, locationInput, locationAnchor, locationInput);
-  }
-  function setLocation(value) {
-    locationInput.value = value;
-    locationInput.dataset.value = value;
-    selectOption(locationList, value);
-    const country = value.includes(', ') ? value.split(', ').pop() : value;
-    setLanguage(LANGUAGE_BY_COUNTRY[country] ?? 'English');
-  }
-  locationInput?.addEventListener('focus', () => filterLocations(''));
-  locationInput?.addEventListener('input', () => {
-    filterLocations(locationInput.value);
-    openLocations();
-  });
-  locationInput?.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowDown' && current?.panel !== locationList) {
-      event.preventDefault();
-      filterLocations('');
-      openLocations();
-    } else if (event.key === 'Enter') {
-      // Enter chooses the first match instead of submitting the form
-      event.preventDefault();
-      const first = $('[role="option"]:not([hidden])', locationList);
-      if (current?.panel === locationList && first && !first.closest('[hidden]')) {
-        setLocation(first.dataset.value);
-        closePopup();
-      }
-    }
-  });
-  $('[data-combobox-toggle]')?.addEventListener('click', () => {
-    if (current?.panel === locationList) return closePopup();
-    filterLocations('');
-    locationInput.focus();
-    openLocations();
-  });
-  locationList?.addEventListener('click', (event) => {
-    const option = event.target.closest('[role="option"]');
-    if (!option) return;
-    setLocation(option.dataset.value);
-    closePopup();
-  });
-  locationList?.addEventListener('listbox-close', () => {
-    if (locationInput.value !== locationInput.dataset.value) locationInput.value = locationInput.dataset.value;
-  });
-
-  // Add keywords dialog (16 section 4, 10 section 25.1) with the discard confirmation for a dirty form
-  const addDialog = $('#dlg-add');
+  // "Discard unsaved changes?" (10 section 13.2): shared by the settings forms and layout customization
   const discard = $('#dlg-discard');
-  const input = $('#kw-input');
-  const submit = $('[data-add-submit]');
-  const TRACKED = new Set(Object.values(KEYWORDS).map((k) => k.kw.toLowerCase()));
-  const QUOTA = { used: 1000, limit: 2000 };
-  const number = new Intl.NumberFormat('en-US');
-  let addOpener = null;
-
-  const keywordLines = () => [...new Set(input.value.split('\n').map((l) => l.trim().toLowerCase()).filter(Boolean))];
-  const keywordCount = () => keywordLines().length;
-  const device = () => $('[data-kw-device] [aria-checked="true"]')?.dataset.value ?? 'desktop';
-
-  function refreshAdd() {
-    const lines = keywordLines();
-    const tracked = lines.filter((l) => TRACKED.has(l)).length;
-    const fresh = lines.length - tracked;
-    const perKeyword = device() === 'both' ? 2 : 1;
-    const adding = fresh * perKeyword;
-    const plural = (n, word) => `${number.format(n)} ${word}${n === 1 ? '' : 's'}`;
-    let help = 'One keyword per line.';
-    if (lines.length > 0) help = tracked > 0 ? `${plural(lines.length, 'keyword')}, ${number.format(tracked)} already tracked.` : `${plural(lines.length, 'keyword')}.`;
-    if (lines.length > 0 && perKeyword === 2) help += ' Both adds two tracked keywords for each keyword.';
-    $('[data-kw-help]').textContent = help;
-    $('[data-kw-quota]').textContent = `${number.format(QUOTA.used + adding)} of ${number.format(QUOTA.limit)} keywords used`;
-    submit.disabled = adding === 0;
-    submit.textContent = adding === 0 ? 'Add keywords' : `Add ${plural(adding, 'keyword')}`;
-    return adding;
-  }
-  function openAdd(trigger) {
-    addOpener = trigger;
-    closePopup({ restoreFocus: false });
-    openModal(addDialog);
-    input.focus();
-  }
-  function resetAdd() {
-    input.value = '';
-    refreshAdd();
-  }
-  function requestCloseAdd() {
-    closePopup({ restoreFocus: false });
-    if (keywordCount() > 0) {
-      askDiscard('The keywords you pasted will be lost.', {
-        onKeep: () => input.focus(),
-        onDiscard: () => {
-          closeModal(addDialog, () => addOpener?.focus());
-          resetAdd();
-        },
-      });
-      return;
-    }
-    closeModal(addDialog, () => addOpener?.focus());
-  }
-  document.addEventListener('click', (event) => {
-    const trigger = event.target.closest('[data-dialog="dlg-add"]');
-    if (trigger) openAdd(trigger);
-  });
-  input?.addEventListener('input', refreshAdd);
-  // Cmd or Ctrl plus Enter submits from the keyword list (10 section 5)
-  input?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !submit.disabled) {
-      event.preventDefault();
-      $('form', addDialog).requestSubmit();
-    }
-  });
-  $('[data-kw-device]')?.addEventListener('click', refreshAdd);
-  $$('[data-dialog-close]', addDialog).forEach((b) => b.addEventListener('click', requestCloseAdd));
-  $('[data-scrim]', addDialog)?.addEventListener('click', () => keywordCount() === 0 && requestCloseAdd());
-  addDialog?.addEventListener('keydown', (event) => {
-    trapFocus(addDialog, event);
-    if (event.key === 'Escape' && discard.hidden) {
-      event.preventDefault();
-      requestCloseAdd();
-    }
-  });
-  $('form', addDialog)?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const n = refreshAdd();
-    if (n === 0) return;
-    closeModal(addDialog, () => addOpener?.focus());
-    resetAdd();
-    toast({ title: `${number.format(n)} keyword${n === 1 ? '' : 's'} added`, description: 'First checks finish in about 10 minutes.', action: { label: 'Undo', run: () => toast({ title: 'Keywords removed', tone: 'info' }) } });
-  });
-  // "Discard unsaved changes?" (10 section 13.2): shared by the Add keywords dialog, the settings forms and
-  // layout customization
   let discardRequest = null;
   function askDiscard(message, request) {
     // `request.owner` lets whoever asked withdraw the question (dismissDiscard) when its subject goes away
@@ -1750,15 +1095,17 @@
   let paletteOpener = null;
   let highlighted = 0;
   const ENTRIES = [
-    ...ORDER.map((id) => ({ group: 'Keywords', label: KEYWORDS[id].kw, context: 'Keyword · US desktop', icon: 'tag', run: () => openInspector(id) })),
-    ...['Rankings', 'Keywords', 'Prompts', 'Citations', 'Competitors'].map((page) => ({
+    ...['Keywords', 'Prompts', 'Citations', 'Competitors'].map((page) => ({
       group: 'Pages',
       label: page,
-      context: ['Rankings', 'Keywords'].includes(page) ? 'SEO' : page === 'Competitors' ? 'Project' : 'AI Visibility',
+      context: ['Keywords'].includes(page) ? 'SEO' : page === 'Competitors' ? 'Project' : 'AI Visibility',
       icon: 'file-text',
       run: () => toast({ title: `Opens ${page}`, description: 'Navigation is not part of this preview.', tone: 'info' }),
     })),
-    { group: 'Actions', label: 'Add keywords', context: '', icon: 'plus', run: () => openAdd(paletteOpener) },
+    { group: 'Actions', label: 'Add keywords', context: '', icon: 'plus', run: () => {
+      location.hash = '#/rankings';
+      window.dispatchEvent(new window.CustomEvent('kw-add'));
+    } },
     { group: 'Actions', label: 'Export CSV', context: '', icon: 'download', run: () => toast(TOASTS.export) },
     { group: 'Actions', label: 'Switch theme', context: '', icon: 'sun-moon', run: () => setTimeout(() => changeTheme(root.classList.contains('dark') ? 'light' : 'dark', themeOrigin()), duration('base')) },
   ];
@@ -2185,7 +1532,7 @@
   // Views: #/overview, #/rankings, #/settings/<section>. Rankings is shown when there is no route, so links that
   // carry ?inspect= keep working. Destinations that are not built say so instead of navigating.
 
-  const VIEWS = { overview: 'Overview', rankings: 'Rankings', pages: 'Pages', prompts: 'Topics & Prompts', settings: 'Settings' };
+  const VIEWS = { overview: 'Overview', rankings: 'Keywords', pages: 'Pages', prompts: 'Topics & Prompts', settings: 'Settings' };
   // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer, #/prompts/panels, #/prompts/versions
   const PAGE_TABS = { pages: ['performance', 'landing'], prompts: ['topics', 'explorer', 'panels', 'versions'] };
   let route = { view: 'rankings', section: null };
@@ -2205,6 +1552,7 @@
 
   function showRoute(next) {
     const viewChanged = next.view !== route.view;
+    const leaving = route.view;
     route = next;
     closePopup({ restoreFocus: false });
     // Route guards have already asked about unsaved work, so the inspector closes without asking again
@@ -2222,6 +1570,8 @@
     document.title = `${settings ? `${label}, Settings` : label} · Design System Preview`;
     if (viewChanged) window.scrollTo(0, 0);
     // Pages built in their own script (prompts.js) show their tab from this
+    // A page lets go of its address first (preview-leave), so the page that opens next never reads its query
+    if (viewChanged) window.dispatchEvent(new window.CustomEvent('preview-leave', { detail: { from: leaving } }));
     window.dispatchEvent(new window.CustomEvent('preview-route', { detail: next }));
   }
 
@@ -2253,7 +1603,7 @@
   );
 
   function previewNote(name) {
-    toast({ title: `${name} is not in this preview`, description: 'Overview, Rankings, Topics & Prompts and Settings are built so far.', tone: 'info' });
+    toast({ title: `${name} is not in this preview`, description: 'Overview, Keywords, Topics & Prompts and Settings are built so far.', tone: 'info' });
   }
   document.addEventListener('click', (event) => {
     const missing = event.target.closest('[data-nav-missing], [data-preview-note]');
@@ -2287,10 +1637,6 @@
     }
   });
 
-  // Restore an inspector from the URL (?inspect=keyword:k2), as a shared link would. Types added by other
-  // scripts restore their own records once they have registered.
-  const fromUrl = new URL(location.href).searchParams.get('inspect');
-  if (fromUrl?.startsWith('keyword:') && route.view === 'rankings') openInspector(fromUrl.slice(8));
 
   /** Helpers shared with customize.js (layout customization), which is a separate ES module. */
   window.PreviewUI = {
@@ -2321,6 +1667,5 @@
     currentRoute: () => route,
     dismissDiscard,
     selectInspectorTab: selectTab,
-    refreshInspectorChart: () => inspectorId && renderInspectorChart(KEYWORDS[inspectorId]),
   };
 })();

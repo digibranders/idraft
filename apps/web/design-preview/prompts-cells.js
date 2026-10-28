@@ -187,7 +187,6 @@ export function rowMenuCell(kind, name) {
   const cell = el('td', 'w-10 pr-2 text-right');
   const more = el('button', 'size-6 rounded-md inline-flex items-center justify-center text-foreground-tertiary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 hover:bg-surface-hover hover:text-foreground');
   more.type = 'button';
-  // Not data-row-menu: that attribute opens the keyword menu of the Rankings table
   more.dataset.recordMenu = kind;
   more.dataset.tip = 'More actions';
   more.setAttribute('aria-label', `More actions for ${name}`);

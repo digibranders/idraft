@@ -451,7 +451,7 @@ const customizers = new Map();
 let active = null;
 let menuTarget = null; // { customizer, zone, id }: what the shared Move menu, Options popover and number catalog act on
 // Where focus goes when customize mode is left: the control that started it
-const ENTRY_FOCUS = { overview: '[data-customize="overview"]', 'inspector.keyword': '#inspector [data-popup="menu-row"]' };
+const ENTRY_FOCUS = { overview: '[data-customize="overview"]' };
 
 function createCustomizer(screen) {
   const definition = SCREENS[screen];
@@ -646,7 +646,6 @@ function createCustomizer(screen) {
       if (items.length < LIMITS.cards) cardsZone.append(addSlot());
     }
     charts.refresh();
-    ui.refreshInspectorChart();
   }
 
   // --- headline numbers ---------------------------------------------------------------------------
@@ -1147,8 +1146,6 @@ function createCustomizer(screen) {
     state.baseline = structuredClone(state.saved.document);
     state.draft = structuredClone(state.saved.document);
     state.grabbed = null;
-    // The drawer's cards are on its Overview tab, which may not be the one showing
-    if (screen === 'inspector.keyword') ui.selectInspectorTab('overview');
     setChrome();
     render();
     announce(`Customizing ${definition.title}. Drag cards to reorder, or use each card's Move menu`);
@@ -1265,7 +1262,7 @@ function createCustomizer(screen) {
 // -------------------------------------------------------------------------------------------------
 // Wiring shared by both screens
 
-for (const screen of Object.keys(SCREENS)) {
+for (const screen of Object.keys(SCREENS).filter((key) => $(`[data-layout-save-bar="${key}"]`))) {
   const customizer = createCustomizer(screen);
   customizers.set(screen, customizer);
   customizer.load();
@@ -1317,13 +1314,12 @@ document.addEventListener('keydown', (event) => {
 
 // Leaving with unsaved changes asks first, however the person leaves: a link, Back and Forward, or closing
 // the drawer by its button, its scrim or Escape. The router and the inspector ask these guards (interactions.js).
-ui.addLeaveGuard((kind) => (kind === 'inspector' ? customizers.get('inspector.keyword').leaveGuard() : (active?.leaveGuard() ?? null)));
+ui.addLeaveGuard((kind) => (kind === 'inspector' ? null : (active?.leaveGuard() ?? null)));
 // Without unsaved changes the mode is left quietly. A dirty draft is never dropped here: the guards above
 // have either kept the person on the page or already discarded it.
 window.addEventListener('hashchange', () => {
   if (active && !active.dirty()) active.exit();
 });
-window.addEventListener('inspector-close', () => customizers.get('inspector.keyword').exit());
 
 // Customize mode needs 768 px (spec section 5.1). A window narrowed below that leaves the mode, unless
 // there are unsaved changes: those stay, with the save bar, until the person saves or cancels.
