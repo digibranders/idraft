@@ -18,6 +18,8 @@ if [ ! -f "$staged/deploy.sh" ]; then
 fi
 
 # Symbolic links are not copied (no -l), and ownership and modes are set here, never taken from the stage.
+# Every script is executable: the Postgres entrypoint only runs initdb/*.sh that have the bit, and
+# sources the others. A file is a script by its name or its place (*.sh, infra/host/*), not by the staged mode.
 rsync -rt --delete --no-links --chown=root:root --chmod=D755,F644 "$staged/" "$target/"
-chmod 0755 "$target/deploy.sh"
+find "$target" -type f \( -name '*.sh' -o -path "$target/host/*" \) -exec chmod 0755 {} +
 echo "Installed $target."

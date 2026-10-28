@@ -297,6 +297,13 @@ restore_release() {
   done
   wait_for_health && probe_edge
 }
+
+# The Caddyfile is mounted as a directory, so a deploy that installed a new one has it on disk but
+# Caddy keeps running the old one. Reloading is graceful, and does nothing when the config is identical.
+reload_caddy() {
+  dc exec -T caddy caddy reload --config /etc/caddy/Caddyfile >&2
+}
+
 log_history() {
   echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") $*" >> "$history_log"
 }
@@ -405,6 +412,8 @@ for svc in api worker web caddy; do
   dc up -d "$svc" || fail_deploy "Failed to start $svc."
   wait_for_service "$svc" 60 || fail_deploy "Service $svc failed its health check."
 done
+
+reload_caddy || fail_deploy "Caddy did not accept its configuration."
 
 probe_edge || fail_deploy "The edge check through Caddy failed."
 

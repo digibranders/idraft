@@ -16,9 +16,18 @@ The production runtime is a single host running Ubuntu 24.04 LTS with Docker Eng
 
 Containers have no fixed names, IPs or subnets. Compose names them `<project>-<service>-1`; scripts find them with `docker compose ps -q <service>`. Host ports and the two network subnets are variables (`HTTP_PORT`, `HTTPS_PORT`, `EDGE_SUBNET`, `BACKEND_SUBNET`), so a second project can run beside the first with its own `COMPOSE_PROJECT_NAME`.
 
+### Configuration files are mounted as directories
+
+`compose/caddy/`, `compose/postgres/conf/` and `compose/redis/conf/` are each mounted read-only as a whole directory (`/etc/caddy`, `/etc/postgresql`, `/etc/redis`). The infra tree is installed by `rsync`, which replaces a file with a new inode, and a single-file bind mount would keep showing the deleted old file until the container is recreated. What a changed file does after a deploy:
+
+* **Caddyfile:** `deploy.sh` runs `caddy reload` after the services are healthy, so a change is served at once, without a restart (and `caddy reload` does nothing when the config is identical). A rejected Caddyfile fails the deploy and restores the previous release's containers; the invalid file stays on disk, and the running Caddy keeps its last good config.
+* **`postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `redis.conf`:** read at the next start of that container. `deploy.sh` does not restart the databases for a config edit. Apply one by hand when you want it: `SELECT pg_reload_conf();` for the settings Postgres can reload, otherwise restart the service in a maintenance window.
+
+Rollback restores container images and the env, not these files: they always come from the commit that was last installed.
+
 ### Public readiness endpoint
 
-`/api/readyz` is reachable from the internet through Caddy, and nothing else under `/api/internal` is. The decision rests on the handler in `backend/src/idraft/api/health.py`: it returns `{"status": ..., "checks": {"postgres": bool, "redis": bool, "migrations": bool}}`, never a version, hostname or error text. The external uptime check planned for WP6 needs it. The cost is that anyone can learn whether the stack is up. If that is not acceptable, put `/api/readyz` back into the `@internal` matcher in `compose/Caddyfile` and point the uptime check at a Caddy health route instead.
+`/api/readyz` is reachable from the internet through Caddy, and nothing else under `/api/internal` is. The decision rests on the handler in `backend/src/idraft/api/health.py`: it returns `{"status": ..., "checks": {"postgres": bool, "redis": bool, "migrations": bool}}`, never a version, hostname or error text. The external uptime check planned for WP6 needs it. The cost is that anyone can learn whether the stack is up. If that is not acceptable, put `/api/readyz` back into the `@internal` matcher in `compose/caddy/Caddyfile` and point the uptime check at a Caddy health route instead.
 
 ## Host Bootstrap
 
@@ -276,6 +285,8 @@ Both need Docker and the `idraft-api:local`, `idraft-worker:local` and `idraft-w
 bash infra/test/deploy-dryrun.sh      # failed first deploy, v1, v2, bad pull, failing health gate, failing migration, bad env change, rollback with its env
 bash infra/test/parallel-stack.sh     # two full stacks side by side on different ports and subnets
 ```
+
+`bash infra/test/install-infra.sh` runs the real `idraft-install-infra` as root in an Ubuntu 24.04 container and checks the installed tree: scripts such as `compose/postgres/initdb/10-roles.sh` keep their exec bit even when the stage lost it, everything else is 0644, all root-owned. The dry run also replaces the Caddyfile in place and checks that the running Caddy serves the change.
 
 `bash infra/test/resolve-release.sh` needs only bash, jq and awk: it tests the release resolution logic against fixtures, without Docker or network.
 

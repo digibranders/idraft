@@ -43,7 +43,9 @@ services:
       DOMAIN: ${DOMAIN:-app.idraft.ai}
       ACME_EMAIL: ${ACME_EMAIL:-admin@idraft.ai}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Directories, not files, for every config below: infra is installed by rsync, which replaces a file
+      # with a new inode, and a single-file bind mount keeps showing the deleted old one.
+      - ./caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
     cap_drop: [ALL]
@@ -207,9 +209,7 @@ services:
       PG_MIGRATOR_PASSWORD: ${PG_MIGRATOR_PASSWORD:?}
     volumes:
       - pgdata:/var/lib/postgresql
-      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-      - ./postgres/pg_ident.conf:/etc/postgresql/pg_ident.conf:ro
+      - ./postgres/conf:/etc/postgresql:ro
       - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}", "-d", "${POSTGRES_DB:-idraft}"]
@@ -226,13 +226,13 @@ services:
   redis:
     image: ${REDIS_IMAGE:-redis:8}
     restart: unless-stopped
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    command: ["redis-server", "/etc/redis/redis.conf"]
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD_HEALTHCHECK:?}
     volumes:
       - redisdata:/data
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-      # A directory, not a file: deploy.sh replaces users.acl by rename, which a single-file bind mount would not follow.
+      - ./redis/conf:/etc/redis:ro
+      # Also a directory: deploy.sh replaces users.acl by rename.
       - ${REDIS_ACL_DIR:?set REDIS_ACL_DIR to the host directory deploy.sh renders users.acl into}:/usr/local/etc/redis/acl:ro
     healthcheck:
       test: ["CMD-SHELL", "redis-cli --no-auth-warning --user healthcheck ping | grep -q PONG"]

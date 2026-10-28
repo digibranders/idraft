@@ -14,6 +14,11 @@ test_dir="$(make_test_dir)"
 env_file="$test_dir/env.test"
 acl_dir="$test_dir/redis"
 export_test_deploy_env "$test_dir"
+# The stack runs from a copy of infra/, the way production runs from /srv/idraft/infra: the Caddyfile case
+# below replaces a config file in place, and the repository must stay untouched.
+cp -R "$infra_dir" "$test_dir/infra"
+compose_file="$test_dir/infra/compose/docker-compose.yml"
+deploy_sh="$test_dir/infra/deploy.sh"
 write_test_env "$env_file" "$acl_dir" 18080 "$https_port" 172.30.20.0/24 172.30.10.0/24
 
 dc() {
@@ -170,6 +175,21 @@ assert_eq "$(ids)" "$before_ids" "container ids after a failed migration"
 assert_eq "$(snapshot)" "$before" "state after a failed migration"
 assert_eq "$(image_of api)" idraft-api:v2 "api image after a failed migration"
 assert_serving "after the failed migration"
+
+echo "=== 7b. A Caddyfile replaced on disk (a new inode, as rsync does) reaches the running Caddy ==="
+caddyfile="$test_dir/infra/compose/caddy/Caddyfile"
+edge_headers() {
+  curl -ks -D - -o /dev/null --max-time 5 --resolve "localhost:$https_port:127.0.0.1" "https://localhost:$https_port/api/readyz"
+}
+! edge_headers | grep -qi '^x-dryrun-marker:' || fail "the marker header was served before the change"
+caddy_id="$(container_id caddy)"
+awk '{ print } /import security_headers/ { print "\theader X-Dryrun-Marker yes" }' "$caddyfile" > "$caddyfile.new"
+mv "$caddyfile.new" "$caddyfile"
+run_deploy "$env_file" "$test_dir/v2.json"
+assert_eq "$last_rc" 0 "deploy with a changed Caddyfile"
+edge_headers | grep -qi '^x-dryrun-marker: yes' || fail "the running Caddy does not serve the changed Caddyfile"
+assert_eq "$(container_id caddy)" "$caddy_id" "Caddy was reloaded in place, not recreated"
+assert_serving "after the Caddyfile change"
 
 echo "=== 8. A bad env change: the health gate fails, and the previous env, ACL and images come back ==="
 # The env rotates the Redis app password (the ACL is rewritten before the migration) and breaks the

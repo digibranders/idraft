@@ -31,7 +31,7 @@ jobs:
       - name: Caddyfile is valid
         run: |
           image="$(grep '^CADDY_IMAGE=' infra/compose/.env.example | cut -d= -f2-)"
-          docker run --rm -e DOMAIN=app.idraft.ai -v "$PWD/infra/compose/Caddyfile:/etc/caddy/Caddyfile:ro" "$image" \
+          docker run --rm -e DOMAIN=app.idraft.ai -v "$PWD/infra/compose/caddy:/etc/caddy:ro" "$image" \
             caddy validate --config /etc/caddy/Caddyfile
       - name: actionlint
         # Pinned by digest (1.7.12). Embedded shell is checked by the shellcheck step above for scripts,
