@@ -164,207 +164,6 @@
   }
 
   // ---------------------------------------------------------------------------------------------
-  // Chart 1: mention rate by engine, 90 days, with the ChatGPT 95% interval band
-
-  const ENGINES = [
-    { name: 'ChatGPT', token: 'chart-1', start: 31, end: 47.2 },
-    { name: 'Gemini', token: 'chart-2', start: 24, end: 38.9 },
-    { name: 'AI Mode', token: 'chart-3', start: 17, end: 29.4 },
-    { name: 'AI Overview', token: 'chart-4', start: 9, end: 16.1 },
-  ];
-  const mentionDays = days(90);
-  const mentionRandom = seeded(7);
-  const mentionSeries = ENGINES.map((e) => walk(mentionRandom, 90, e.start, e.end, 3.2));
-  mentionSeries.forEach((s, i) => {
-    s[s.length - 1] = ENGINES[i].end;
-  });
-  const ciHalfWidth = mentionDays.map(() => 4 + mentionRandom() * 1.5);
-
-  let ciVisible = true;
-  const hiddenSeries = new Set();
-
-  function mentionOption() {
-    const axes = axisTheme();
-    const dates = mentionDays.map(shortDate);
-    const band = token('chart-1', 0.12);
-    return {
-      animation: false,
-      grid: GRID,
-      xAxis: { type: 'category', data: dates, boundaryGap: false, ...axes.x, axisLabel: { ...axes.x.axisLabel, interval: labelInterval('chart-mention', dates.length) } },
-      yAxis: { type: 'value', min: 0, max: 60, interval: 15, ...axes.y, axisLabel: { ...axes.y.axisLabel, formatter: (v) => `${v}%` } },
-      tooltip: tooltipTheme((list) =>
-        list
-          .filter((p) => !p.seriesId.startsWith('ci') && !hiddenSeries.has(p.seriesName))
-          .map((p) => ({ color: p.color, name: p.seriesName, value: percent(p.value) })),
-      ),
-      series: [
-        ...(ciVisible ? [] : [{ id: 'ci-low', type: 'line', data: [], silent: true }, { id: 'ci-band', type: 'line', data: [], silent: true }]),
-        ...(!ciVisible ? [] : [{ id: 'ci-low', type: 'line', stack: 'ci', data: mentionSeries[0].map((v, i) => v - ciHalfWidth[i]), lineStyle: { opacity: 0 }, symbol: 'none', silent: true, tooltip: { show: false } },
-        { id: 'ci-band', type: 'line', stack: 'ci', data: ciHalfWidth.map((w) => w * 2), lineStyle: { opacity: 0 }, areaStyle: { color: band }, symbol: 'none', silent: true, tooltip: { show: false } }]),
-        ...ENGINES.map((e, i) => ({
-          id: e.name,
-          name: e.name,
-          type: 'line',
-          // A hidden series keeps its color slot (15 section 2): its data is emptied, not re-colored.
-          data: hiddenSeries.has(e.name) ? [] : mentionSeries[i],
-          color: token(e.token),
-          lineStyle: { width: 2, join: 'round' },
-          symbol: 'circle',
-          symbolSize: 6,
-          showSymbol: false,
-          emphasis: { disabled: true },
-        })),
-      ],
-    };
-  }
-
-  // ---------------------------------------------------------------------------------------------
-  // Chart 2: ranking history, 30 days, inverted axis, guides, depth band, marker shapes (15 section 7)
-
-  const RANK_DEPTH = 20;
-  const RANK_AXIS_MAX = 24;
-  const BEYOND = 22; // where beyond-depth checks are drawn, inside the band
-  const rankDays = days(30);
-  const rankRandom = seeded(23);
-  const rankEntities = [
-    { name: 'northwind.com (you)', token: 'chart-1', symbol: 'circle', start: 9, end: 3 },
-    { name: 'hubspot.com', token: 'chart-2', symbol: 'rect', start: 2, end: 1 },
-    { name: 'pipedrive.com', token: 'chart-3', symbol: 'triangle', start: 5, end: 6 },
-    { name: 'attio.com', token: 'chart-4', symbol: 'diamond', start: 17, end: 12 },
-  ].map((e) => ({
-    ...e,
-    ranks: walk(rankRandom, 30, e.start, e.end, 2.2).map((v) => Math.min(RANK_DEPTH, Math.max(1, Math.round(v)))),
-  }));
-  // Two attio.com checks fell beyond the tracked depth (not in top 20).
-  rankEntities[3].ranks[6] = null;
-  rankEntities[3].ranks[7] = null;
-
-  function rankOption() {
-    const axes = axisTheme();
-    const dates = rankDays.map(shortDate);
-    const guide = { color: token('chart-axis'), type: 'dashed', width: 1 };
-    const guideLabel = { color: token('chart-label'), fontFamily: fontFamily(), fontSize: 12, fontWeight: 400, position: 'end', distance: 6 };
-    return {
-      animation: false,
-      grid: { ...GRID, right: 52 },
-      xAxis: { type: 'category', data: dates, boundaryGap: false, ...axes.x, axisLabel: { ...axes.x.axisLabel, interval: labelInterval('chart-rank', dates.length, GRID.left + 52) } },
-      yAxis: {
-        type: 'value',
-        inverse: true,
-        min: 1,
-        max: RANK_AXIS_MAX,
-        ...axes.y,
-        splitLine: { show: false },
-        // Below 200 px of plot height, 1 and 3 are too close to label both; the Top 3 guide still marks rank 3.
-        axisLabel: { ...axes.y.axisLabel, customValues: (document.getElementById('chart-rank')?.clientHeight ?? 240) < 200 ? [1, 10, 20] : [1, 3, 10, 20] },
-      },
-      tooltip: tooltipTheme((list) =>
-        list
-          .filter((p) => p.seriesType === 'line')
-          .map((p) => ({ color: p.color, name: p.seriesName, value: p.value === null || p.value === undefined ? 'Not in top 20' : `#${p.value}` })),
-      ),
-      series: [
-        ...rankEntities.map((e, i) => ({
-          name: e.name,
-          type: 'line',
-          data: e.ranks,
-          connectNulls: false,
-          color: token(e.token),
-          lineStyle: { width: 2, join: 'round' },
-          symbol: e.symbol,
-          symbolSize: e.symbol === 'circle' ? 6 : 7,
-          showSymbol: true,
-          z: 10 - i,
-          emphasis: { disabled: true },
-          markLine:
-            i === 0
-              ? {
-                  silent: true,
-                  symbol: 'none',
-                  lineStyle: guide,
-                  label: guideLabel,
-                  data: [
-                    { yAxis: 3, label: { formatter: 'Top 3' } },
-                    { yAxis: 10, label: { formatter: 'Top 10' } },
-                    { yAxis: 20, label: { formatter: 'Top 20' } },
-                  ],
-                }
-              : undefined,
-          markArea:
-            i === 0
-              ? {
-                  silent: true,
-                  itemStyle: { color: hatch() },
-                  label: { show: true, position: 'inside', formatter: 'Not in top 20', color: token('chart-label'), fontFamily: fontFamily(), fontSize: 12 },
-                  data: [[{ yAxis: RANK_DEPTH + 0.5 }, { yAxis: RANK_AXIS_MAX }]],
-                }
-              : undefined,
-        })),
-        {
-          name: 'attio.com beyond depth',
-          type: 'scatter',
-          data: rankEntities[3].ranks.map((v, i) => (v === null ? [i, BEYOND] : null)).filter(Boolean),
-          symbol: 'emptyDiamond',
-          symbolSize: 10,
-          itemStyle: { color: token('surface'), borderColor: token('chart-4'), borderWidth: 2 },
-          tooltip: { show: false },
-          z: 12,
-        },
-      ],
-    };
-  }
-
-  // ---------------------------------------------------------------------------------------------
-  // Chart 3: rank distribution per week, stacked rank bands, unranked hatched on top (15 section 5)
-
-  const BANDS = [
-    { name: 'Rank 1 to 3', token: 'rank-band-1' },
-    { name: 'Rank 4 to 10', token: 'rank-band-2' },
-    { name: 'Rank 11 to 20', token: 'rank-band-3' },
-    { name: 'Rank 21 to 50', token: 'rank-band-4' },
-    { name: 'Rank 51 to 100', token: 'rank-band-5' },
-    { name: 'Not ranked', token: 'rank-band-none' },
-  ];
-  const weeks = days(8 * 7).filter((_, i) => i % 7 === 6);
-  const distribution = [
-    [72, 188, 260, 210, 150, 120],
-    [76, 192, 262, 206, 146, 118],
-    [80, 198, 258, 204, 142, 118],
-    [84, 205, 256, 200, 140, 115],
-    [86, 214, 252, 198, 136, 114],
-    [90, 220, 250, 196, 132, 112],
-    [93, 226, 248, 194, 130, 109],
-    [96, 232, 246, 192, 128, 106],
-  ];
-
-  function distributionOption() {
-    const axes = axisTheme();
-    const surface = token('surface');
-    return {
-      animation: false,
-      grid: { ...GRID, left: 44 },
-      xAxis: { type: 'category', data: weeks.map(shortDate), ...axes.x, axisLabel: { ...axes.x.axisLabel, interval: labelInterval('chart-distribution', weeks.length, 60) } },
-      yAxis: { type: 'value', ...axes.y, max: 1000, interval: 250 },
-      tooltip: tooltipTheme((list) => [...list].reverse().map((p) => ({ color: p.color, name: p.seriesName, value: String(p.value) }))),
-      series: BANDS.map((band, b) => ({
-        name: band.name,
-        type: 'bar',
-        stack: 'bands',
-        barMaxWidth: 24,
-        data: distribution.map((week) => week[b]),
-        color: token(band.token),
-        itemStyle: {
-          color: band.token === 'rank-band-none' ? hatch() : token(band.token),
-          borderColor: surface,
-          borderWidth: 1,
-          borderRadius: b === BANDS.length - 1 ? [2, 2, 0, 0] : 0,
-        },
-        emphasis: { disabled: true },
-      })),
-    };
-  }
-
-  // ---------------------------------------------------------------------------------------------
   // Overview small multiples (24 section 9.2, S2): SEO visibility, then one row per engine with its 95% interval.
   // The four plots share one x axis (labels on the last visible row) and one axis pointer; the value beside each
   // row follows the hovered day, so no tooltip covers the neighbouring rows.
@@ -467,9 +266,6 @@
   // Mounting and theme changes
 
   const charts = [
-    { id: 'chart-mention', option: mentionOption },
-    { id: 'chart-rank', option: rankOption },
-    { id: 'chart-distribution', option: distributionOption },
     ...MULTIPLES.map((m) => ({ id: m.id, option: () => multipleOption(m), group: OVERVIEW_GROUP })),
   ];
 
@@ -497,7 +293,7 @@
     }
   }
 
-  /** Legend swatches and values rendered in HTML (15 section 2: the legend is not drawn by ECharts). */
+  /** Legend swatches rendered in HTML (15 section 2: the legend is not drawn by ECharts). */
   function renderLegends() {
     document.querySelectorAll('[data-legend-token]').forEach((swatch) => {
       const color = token(swatch.dataset.legendToken);
@@ -510,11 +306,6 @@
       } else {
         swatch.style.backgroundColor = color;
       }
-    });
-    const lastValues = document.querySelectorAll('[data-legend-value]');
-    lastValues.forEach((node) => {
-      const index = Number(node.dataset.legendValue);
-      node.textContent = percent(mentionSeries[index][mentionSeries[index].length - 1]);
     });
   }
 
@@ -628,22 +419,26 @@
     if (!table) return;
     const rows = [...table.querySelectorAll('tbody tr')];
     const all = table.querySelector('thead input[type="checkbox"]');
+    // Prompts tables are built later with their own selection; this one only wires a table that has select-all.
+    if (!all) return;
+    // Rows without a checkbox (a topic's "Show all" row) are not selectable, so select-all counts only the others.
+    const boxed = rows.filter((row) => row.querySelector('input'));
     const syncAll = () => {
-      const checked = rows.filter((r) => r.querySelector('input').checked).length;
-      all.checked = checked === rows.length;
-      all.indeterminate = checked > 0 && checked < rows.length;
+      const checked = boxed.filter((row) => row.querySelector('input').checked).length;
+      all.checked = checked === boxed.length;
+      all.indeterminate = checked > 0 && checked < boxed.length;
       const count = document.getElementById('selection-count');
       if (count) count.textContent = checked ? `${checked} selected` : '';
     };
-    rows.forEach((row) => {
+    boxed.forEach((row) => {
       row.querySelector('input').addEventListener('change', () => {
         syncRow(row);
         syncAll();
       });
-      syncRow(row);
     });
+    rows.forEach((row) => syncRow(row));
     all.addEventListener('change', () => {
-      rows.forEach((row) => {
+      boxed.forEach((row) => {
         row.querySelector('input').checked = all.checked;
         syncRow(row);
       });
@@ -661,7 +456,7 @@
   renderAll();
   echarts.connect(OVERVIEW_GROUP);
 
-  /** Shared with interactions.js (inspector chart, legend and interval toggles, selection sync). */
+  /** Shared with interactions.js (overview series toggles). */
   // Mention rate trend cards (layout customization): one chart per card instance, mounted when the card is
   // placed and disposed when it is hidden. Each engine reuses its series from the small multiples.
   const TREND_SERIES = {
@@ -725,16 +520,6 @@
       renderCharts();
       return true;
     },
-    setCiVisible: (visible) => {
-      ciVisible = visible;
-      renderCharts();
-    },
-    toggleSeries: (name) => {
-      if (hiddenSeries.has(name)) hiddenSeries.delete(name);
-      else hiddenSeries.add(name);
-      renderCharts();
-      return !hiddenSeries.has(name);
-    },
   };
   new MutationObserver(renderAll).observe(root, { attributes: true, attributeFilter: ['class'] });
 
@@ -756,7 +541,7 @@
   document.querySelectorAll('[data-segment-token]').forEach((segment) => observer.observe(segment));
 
   // -------------------------------------------------------------------------------------------
-  // Shell interactions: segmented controls, account menu, navigation drawer (below 1024 px), filter sheet (below 1024 px)
+  // Shell interactions: segmented controls, account menu, navigation drawer (below 1024 px)
 
   // Segmented controls: each segment has its own border and corner radius (outer corners rounded, inner square);
   // the selected segment is positioned so its primary-border outline paints above the neighbouring borders.
@@ -864,15 +649,6 @@
     toggleSidebar();
   });
 
-  const sheet = document.getElementById('filter-sheet');
-  document.querySelectorAll('[data-sheet-open]').forEach((button) =>
-    button.addEventListener('click', () => {
-      sheet.hidden = false;
-      sheet.querySelector('button')?.focus();
-    }),
-  );
-  sheet?.querySelectorAll('[data-sheet-close]').forEach((button) => button.addEventListener('click', () => (sheet.hidden = true)));
-
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     if (sidebar.hasAttribute('data-open')) setNav(false);
@@ -880,6 +656,5 @@
       setPeek(false);
       sidebarToggle?.focus();
     }
-    if (sheet && !sheet.hidden) sheet.hidden = true;
   });
 })();

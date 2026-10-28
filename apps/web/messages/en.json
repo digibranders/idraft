@@ -280,7 +280,7 @@
     "items": {
       "overview": "Overview",
       "matrix": "Matrix",
-      "rankings": "Rankings",
+      "rankings": "Keywords",
       "keywords": "Keywords",
       "pages": "Pages",
       "aiOverview": "Overview",
@@ -1661,7 +1661,7 @@
     }
   },
   "rankings": {
-    "title": "Rankings",
+    "title": "Keywords",
     "bulk": {
       "count": "{count, plural, one {# keyword} other {# keywords}}",
       "tags": "Add tags",
@@ -1730,7 +1730,7 @@
       "undo": "Undo",
       "deleteConfirm": {
         "title": "Delete {count}?",
-        "description": "Their rank checks stop and they leave Rankings. Their history is kept: adding one again brings it back with its settings.",
+        "description": "Their rank checks stop and they leave Keywords. Their history is kept: adding one again brings it back with its settings.",
         "confirm": "Delete {count}"
       },
       "deleted": "{count} deleted"
@@ -2286,7 +2286,7 @@
     "inspector": {
       "type": "Keyword",
       "noun": "keyword",
-      "back": "Back to Rankings",
+      "back": "Back to Keywords",
       "position": "{index} of {count}",
       "tabs": "Keyword sections",
       "overview": "Overview",

@@ -274,7 +274,7 @@ describe('Rankings', () => {
     );
     const { user } = renderWithProviders(as('viewer'));
     expect(await screen.findByText('The keywords did not load')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1, name: 'Rankings' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Keywords' })).toBeInTheDocument();
     fail = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await loadedGrid()).toBeInTheDocument();

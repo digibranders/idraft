@@ -150,13 +150,13 @@ describe('ProjectShell', () => {
     // Both open inside the project the member is in, so the sidebar stays on screen
     expect(listed).toEqual({
       editor: [
-        'Rankings /digibranders/fynix/seo/rankings',
+        'Keywords /digibranders/fynix/seo/rankings',
         'Runs /digibranders/fynix/ops/runs',
         'Costs /digibranders/fynix/costs',
         'Settings /digibranders/fynix/settings',
       ],
       viewer: [
-        'Rankings /digibranders/fynix/seo/rankings',
+        'Keywords /digibranders/fynix/seo/rankings',
         'Runs /digibranders/fynix/ops/runs',
         'Settings /digibranders/fynix/settings',
       ],

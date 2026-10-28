@@ -487,6 +487,8 @@ function show(section) {
 function hide() {
   unmountDetail();
   closePopovers();
+  // The Pages query stays with Pages. The next page to open must not read its sort, page or filters.
+  if (location.search !== '') history.replaceState(null, '', `${location.pathname}${location.hash}`);
 }
 
 window.addEventListener('preview-route', (event) => {

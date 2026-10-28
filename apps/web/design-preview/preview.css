@@ -20,3 +20,14 @@
 @source "./perf-filters.js";
 @source "./perf-model.js";
 @source "./perf-ui.js";
+@source "./kw.js";
+@source "./kw-add.js";
+@source "./kw-bulk.js";
+@source "./kw-data.js";
+@source "./kw-dialog.js";
+@source "./kw-filters.js";
+@source "./kw-groups.js";
+@source "./kw-import.js";
+@source "./kw-inspector.js";
+@source "./kw-model.js";
+@source "./kw-table.js";

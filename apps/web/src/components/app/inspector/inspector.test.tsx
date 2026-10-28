@@ -39,7 +39,7 @@ function Harness({
       inspector={
         <Inspector
           type="keyword"
-          backLabel="Back to Rankings"
+          backLabel="Back to Keywords"
           onClose={onClose}
           onStep={onStep}
           header={{
@@ -123,7 +123,7 @@ describe('Inspector', () => {
     const { user } = renderWithProviders(<Harness />);
     expect(await screen.findByRole('dialog', { name: 'best crm for startups' })).toBeInTheDocument();
     expect(screen.queryByRole('separator')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Back to Rankings' }));
+    await user.click(screen.getByRole('button', { name: 'Back to Keywords' }));
     expect(onClose).toHaveBeenCalled();
   });
 
