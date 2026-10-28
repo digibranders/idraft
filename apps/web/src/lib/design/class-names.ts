@@ -65,6 +65,14 @@ export const NAMED_CONTAINERS = ['reading', 'form', 'dialog-sm', 'dialog-md', 'd
 export const NAMED_RADII = ['2xs', 'xs', 'sm', 'md', 'lg', 'xl', 'full'] as const;
 export const NAMED_SHADOWS = ['popover', 'switch-knob', 'dialog', 'drag', 'inspector'] as const;
 export const NAMED_EASINGS = ['standard', 'exit'] as const;
-export const NAMED_ANIMATIONS = ['spin', 'skeleton-pulse', 'row-new', 'live-pulse'] as const;
+// The two auth showcase entries are the approved additions in 21-motion.md section 14.
+export const NAMED_ANIMATIONS = [
+  'spin',
+  'skeleton-pulse',
+  'row-new',
+  'live-pulse',
+  'showcase-in',
+  'showcase-rise',
+] as const;
 /** The two focus rings (08-interaction-states.md section 2): the default one and the one for dense containers. */
 export const FOCUS_RINGS = ['focus-ring', 'focus-ring-inset'] as const;

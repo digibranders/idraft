@@ -5,7 +5,7 @@ import { isApiProblem } from '@/lib/api/problem';
  * invitation, reset, and the change in Settings > Security. A shorter one is `422 weak_password` with the
  * reason `too_short`.
  */
-export const MIN_PASSWORD_LENGTH = 12;
+export const MIN_PASSWORD_LENGTH = 8;
 
 /** The catalog keys (namespace `auth`) for the reasons of a `422 weak_password`. */
 export type WeakPasswordKey =
