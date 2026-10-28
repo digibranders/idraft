@@ -1,0 +1,280 @@
+name: idraft
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+    compress: "true"
+
+x-logging-app: &logging-app
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "8"
+    compress: "true"
+
+x-app: &app
+  restart: unless-stopped
+  init: true
+  user: "10001:10001"
+  read_only: true
+  tmpfs:
+    - /tmp:size=256m,mode=1777
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 512
+  logging: *logging-app
+
+x-backend-deps: &backend-deps
+  postgres: { condition: service_healthy }
+  redis: { condition: service_healthy }
+
+services:
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2}
+    container_name: idraft-caddy
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+      - "0.0.0.0:443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-app.idraft.ai}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@idraft.ai}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: ${CADDY_MEM:-128m}
+    oom_score_adj: -200
+    networks:
+      edge:
+        ipv4_address: 172.30.20.10
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80 || exit 0"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    logging: *logging
+
+  web:
+    <<: *app
+    image: ${WEB_IMAGE:?set WEB_IMAGE to ghcr.io/<org>/idraft-web@sha256:<digest>}
+    container_name: idraft-web
+    user: "1000:1000"
+    command: ["node", "apps/web/server.js"]
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+      - /app/apps/web/.next/cache:size=128m,uid=1000,gid=1000
+    environment:
+      RELEASE_SHA: ${RELEASE_SHA:-dev}
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      API_INTERNAL_ORIGIN: http://api:8000
+      SENTRY_DSN: ${SENTRY_DSN_WEB:-}
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 20s
+    mem_limit: ${WEB_MEM:-384m}
+    oom_score_adj: 100
+    networks:
+      edge:
+        ipv4_address: 172.30.20.11
+
+  api:
+    <<: *app
+    image: ${API_IMAGE:?set API_IMAGE to ghcr.io/<org>/idraft-api@sha256:<digest>}
+    container_name: idraft-api
+    command:
+      - uvicorn
+      - idraft.api.main:create_app
+      - --factory
+      - --no-access-log
+      - --no-server-header
+      - --host=0.0.0.0
+      - --port=8000
+      - --proxy-headers
+      - --forwarded-allow-ips=172.30.20.10,172.30.20.11
+      - --timeout-graceful-shutdown=25
+    depends_on: *backend-deps
+    environment:
+      RELEASE_SHA: ${RELEASE_SHA:-dev}
+      PROCESS_ROLE: api
+      APP_ENV: ${APP_ENV:-production}
+      APP_ORIGIN: ${APP_ORIGIN:-https://app.idraft.ai}
+      DATABASE_URL: ${DATABASE_URL_API:?}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      DB_STATEMENT_TIMEOUT: ${DB_STATEMENT_TIMEOUT:-15s}
+      REDIS_URL: ${REDIS_URL_APP:?}
+      SENTRY_DSN: ${SENTRY_DSN_BACKEND:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-brevo}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-hello@idraft.ai}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?}
+      REGISTRATION: ${REGISTRATION:-invited}
+      BREACHED_PASSWORD_CHECK: ${BREACHED_PASSWORD_CHECK:-true}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/readyz', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 30s
+    mem_limit: ${API_MEM:-384m}
+    oom_score_adj: 0
+    networks: [edge, backend, egress]
+
+  worker:
+    <<: *app
+    image: ${WORKER_IMAGE:?set WORKER_IMAGE to ghcr.io/<org>/idraft-worker@sha256:<digest>}
+    container_name: idraft-worker
+    command: ["python", "-m", "idraft.worker"]
+    depends_on: *backend-deps
+    environment:
+      RELEASE_SHA: ${RELEASE_SHA:-dev}
+      PROCESS_ROLE: worker
+      APP_ENV: ${APP_ENV:-production}
+      APP_ORIGIN: ${APP_ORIGIN:-https://app.idraft.ai}
+      COLLECT_CONCURRENCY: ${COLLECT_CONCURRENCY:-8}
+      PROCESS_CONCURRENCY: ${PROCESS_CONCURRENCY:-4}
+      DATABASE_URL: ${DATABASE_URL_WORKER:?}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-8}
+      DB_STATEMENT_TIMEOUT: ${DB_STATEMENT_TIMEOUT:-120s}
+      REDIS_URL: ${REDIS_URL_APP:?}
+      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:-}
+      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:-}
+      R2_RAW_ENDPOINT: ${R2_RAW_ENDPOINT:-}
+      R2_RAW_BUCKET: ${R2_RAW_BUCKET:-seo-raw}
+      R2_RAW_ACCESS_KEY_ID: ${R2_RAW_ACCESS_KEY_ID:-}
+      R2_RAW_SECRET_ACCESS_KEY: ${R2_RAW_SECRET_ACCESS_KEY:-}
+      RESOLVE_UNKNOWN_SUBMISSIONS: ${RESOLVE_UNKNOWN_SUBMISSIONS:-false}
+      INSTALLATION_ID: ${INSTALLATION_ID:-prod}
+      SENTRY_DSN: ${SENTRY_DSN_BACKEND:-}
+      HEARTBEAT_FILE: /tmp/heartbeat
+    healthcheck:
+      test: ["CMD", "python", "-m", "idraft.worker.healthcheck", "/tmp/heartbeat", "60"]
+      interval: 15s
+      timeout: 3s
+      retries: 4
+      start_period: 30s
+    stop_grace_period: 150s
+    mem_limit: ${WORKER_MEM:-512m}
+    oom_score_adj: 300
+    networks: [backend, egress]
+
+  migrator:
+    <<: *app
+    image: ${API_IMAGE:?set API_IMAGE to ghcr.io/<org>/idraft-api@sha256:<digest>}
+    container_name: idraft-migrator
+    restart: "no"
+    command: ["python", "-m", "idraft.db.migrate"]
+    depends_on: *backend-deps
+    environment:
+      RELEASE_SHA: ${RELEASE_SHA:-dev}
+      PROCESS_ROLE: migrator
+      DATABASE_URL: ${DATABASE_URL_MIGRATOR:?}
+    networks: [backend]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18}
+    container_name: idraft-postgres
+    restart: unless-stopped
+    shm_size: 1gb
+    stop_signal: SIGINT
+    stop_grace_period: 120s
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - ident_file=/etc/postgresql/pg_ident.conf
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-idraft}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_SUPERUSER_PASSWORD:?}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+      PG_API_PASSWORD: ${PG_API_PASSWORD:?}
+      PG_WORKER_PASSWORD: ${PG_WORKER_PASSWORD:?}
+      PG_MIGRATOR_PASSWORD: ${PG_MIGRATOR_PASSWORD:?}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./postgres/pg_ident.conf:/etc/postgresql/pg_ident.conf:ro
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}", "-d", "${POSTGRES_DB:-idraft}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    mem_limit: ${PG_MEM:-3500m}
+    oom_score_adj: -500
+    security_opt: ["no-new-privileges:true"]
+    networks:
+      backend:
+        ipv4_address: 172.30.10.10
+    logging: *logging
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:8}
+    container_name: idraft-redis
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD_HEALTHCHECK:?}
+    volumes:
+      - redisdata:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ${REDIS_ACL_FILE:-./redis/users.acl}:/usr/local/etc/redis/users.acl:ro
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning --user healthcheck ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    stop_grace_period: 30s
+    mem_limit: ${REDIS_MEM:-768m}
+    oom_score_adj: -300
+    security_opt: ["no-new-privileges:true"]
+    networks:
+      backend:
+        ipv4_address: 172.30.10.11
+    logging: *logging
+
+networks:
+  edge:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.20.0/24
+  egress:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  caddy_data: {}
+  caddy_config: {}

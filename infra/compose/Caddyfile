@@ -1,0 +1,82 @@
+{
+	email {$ACME_EMAIL:admin@idraft.ai}
+	admin localhost:2019
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 30s
+			write 90s
+			idle 120s
+		}
+		max_header_size 32KB
+		protocols h1 h2 h3
+	}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+		-Server
+		-X-Powered-By
+	}
+}
+
+(proxy_retry) {
+	lb_try_duration 10s
+	lb_try_interval 250ms
+	transport http {
+		dial_timeout 2s
+		response_header_timeout 60s
+	}
+}
+
+{$DOMAIN:app.idraft.ai} {
+	import security_headers
+	encode zstd gzip
+
+	log {
+		output stdout
+		format json
+	}
+
+	# Internal endpoints are never served publicly.
+	@internal path /api/readyz /api/internal/*
+	handle @internal {
+		respond 404
+	}
+
+	# Bulk imports (CSV of keywords or prompts): larger bodies allowed.
+	@imports path_regexp imports ^/api/v1/workspaces/[^/]+/(imports|keywords/import|prompts/import)(/|$)
+	handle @imports {
+		request_body {
+			max_size 60MB
+		}
+		reverse_proxy api:8000 {
+			import proxy_retry
+		}
+	}
+
+	# The API: JSON with a 1 MB body cap. The path is passed through unchanged.
+	@api path /api/*
+	handle @api {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy api:8000 {
+			import proxy_retry
+		}
+	}
+
+	# Everything else: the Next.js app.
+	handle {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy web:3000 {
+			import proxy_retry
+		}
+	}
+}
