@@ -26,7 +26,7 @@ USER 10001:10001
 FROM runtime AS api
 ENV PROCESS_ROLE=api
 EXPOSE 8000
-# Compose adds --forwarded-allow-ips with the addresses of caddy and web.
+# Compose adds --forwarded-allow-ips with the subnet of the edge network (caddy and web).
 CMD ["uvicorn", "idraft.api.main:create_app", "--factory", "--host=0.0.0.0", "--port=8000", "--proxy-headers", "--no-access-log", "--no-server-header", "--timeout-graceful-shutdown=25"]
 
 FROM runtime AS worker

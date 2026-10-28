@@ -1,0 +1,7 @@
+# Format reference only. Nothing loads this file.
+# infra/deploy.sh renders the real users.acl into $REDIS_ACL_DIR (/etc/idraft/redis on the host) from
+# REDIS_PASSWORD_APP, REDIS_PASSWORD_HEALTHCHECK and REDIS_PASSWORD_ADMIN, storing only SHA-256 hashes.
+user default off
+user app on #<sha256 of REDIS_PASSWORD_APP> resetkeys ~collect ~process ~taskiq:* ~dedupe:* ~cache:* ~rl:* ~lock:* ~sess:* ~oauth:* resetchannels +@all -@dangerous +info +client|setname +client|getname
+user healthcheck on #<sha256 of REDIS_PASSWORD_HEALTHCHECK> resetkeys resetchannels -@all +ping
+user admin on #<sha256 of REDIS_PASSWORD_ADMIN> ~* &* +@all

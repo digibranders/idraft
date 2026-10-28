@@ -42,17 +42,22 @@
 		format json
 	}
 
-	# Internal endpoints are never served publicly.
-	@internal path /api/readyz /api/internal/*
+	# Internal endpoints are never served publicly. /api/readyz is not one of them: it returns
+	# three booleans and nothing else, and the external uptime check needs it.
+	@internal path /api/internal/*
 	handle @internal {
 		respond 404
 	}
 
-	# Bulk imports (CSV of keywords or prompts): larger bodies allowed.
-	@imports path_regexp imports ^/api/v1/workspaces/[^/]+/(imports|keywords/import|prompts/import)(/|$)
-	handle @imports {
+	# The keyword import upload is the only route that takes a file. The limit is the backend's
+	# (backend/src/idraft/api/body_limit.py): 50 MiB of file plus 1 MiB of multipart framing.
+	@upload {
+		method POST
+		path_regexp ^/api/v1/workspaces/[^/]+/projects/[^/]+/keyword-imports/upload$
+	}
+	handle @upload {
 		request_body {
-			max_size 60MB
+			max_size 51MiB
 		}
 		reverse_proxy api:8000 {
 			import proxy_retry

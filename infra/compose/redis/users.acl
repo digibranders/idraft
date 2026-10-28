@@ -1,4 +1,0 @@
-user default off
-user app on #be6ff37f494764099eafbac21d28f94778ae4907bac63a7bc815f111a4e25f3c resetkeys ~collect ~process ~taskiq:* ~dedupe:* ~cache:* ~rl:* ~lock:* ~sess:* ~oauth:* resetchannels +@all -@dangerous +info +client|setname +client|getname
-user healthcheck on #71e4870f570f5c02654009236182f1cec02e9d077ddc124053bb140741e4ba3f resetkeys resetchannels -@all +ping
-user admin on #d7d7ff2c9ea2c8c93dc81059e3f6d32079b026ea4eb6ffdfbc5e9a4a93623516 ~* &* +@all

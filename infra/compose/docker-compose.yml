@@ -33,12 +33,12 @@ x-backend-deps: &backend-deps
 services:
   caddy:
     image: ${CADDY_IMAGE:-caddy:2}
-    container_name: idraft-caddy
     restart: unless-stopped
+    # Host ports are variables so a second project (a staging copy, a test run) can sit beside this one.
     ports:
-      - "0.0.0.0:80:80"
-      - "0.0.0.0:443:443"
-      - "0.0.0.0:443:443/udp"
+      - "0.0.0.0:${HTTP_PORT:-80}:80"
+      - "0.0.0.0:${HTTPS_PORT:-443}:443"
+      - "0.0.0.0:${HTTPS_PORT:-443}:443/udp"
     environment:
       DOMAIN: ${DOMAIN:-app.idraft.ai}
       ACME_EMAIL: ${ACME_EMAIL:-admin@idraft.ai}
@@ -51,11 +51,10 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: ${CADDY_MEM:-128m}
     oom_score_adj: -200
-    networks:
-      edge:
-        ipv4_address: 172.30.20.10
+    networks: [edge]
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80 || exit 0"]
+      # The admin API answers only once Caddy has loaded its configuration.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:2019/config/"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -64,7 +63,6 @@ services:
   web:
     <<: *app
     image: ${WEB_IMAGE:?set WEB_IMAGE to ghcr.io/<org>/idraft-web@sha256:<digest>}
-    container_name: idraft-web
     user: "1000:1000"
     command: ["node", "apps/web/server.js"]
     tmpfs:
@@ -88,14 +86,11 @@ services:
     stop_grace_period: 20s
     mem_limit: ${WEB_MEM:-384m}
     oom_score_adj: 100
-    networks:
-      edge:
-        ipv4_address: 172.30.20.11
+    networks: [edge]
 
   api:
     <<: *app
     image: ${API_IMAGE:?set API_IMAGE to ghcr.io/<org>/idraft-api@sha256:<digest>}
-    container_name: idraft-api
     command:
       - uvicorn
       - idraft.api.main:create_app
@@ -105,7 +100,8 @@ services:
       - --host=0.0.0.0
       - --port=8000
       - --proxy-headers
-      - --forwarded-allow-ips=172.30.20.10,172.30.20.11
+      # Caddy and web are the only containers on the edge network, so its subnet is the trusted proxy set.
+      - --forwarded-allow-ips=${EDGE_SUBNET:-172.30.20.0/24}
       - --timeout-graceful-shutdown=25
     depends_on: *backend-deps
     environment:
@@ -138,7 +134,6 @@ services:
   worker:
     <<: *app
     image: ${WORKER_IMAGE:?set WORKER_IMAGE to ghcr.io/<org>/idraft-worker@sha256:<digest>}
-    container_name: idraft-worker
     command: ["python", "-m", "idraft.worker"]
     depends_on: *backend-deps
     environment:
@@ -176,7 +171,6 @@ services:
   migrator:
     <<: *app
     image: ${API_IMAGE:?set API_IMAGE to ghcr.io/<org>/idraft-api@sha256:<digest>}
-    container_name: idraft-migrator
     restart: "no"
     command: ["python", "-m", "idraft.db.migrate"]
     depends_on: *backend-deps
@@ -191,7 +185,6 @@ services:
 
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:18}
-    container_name: idraft-postgres
     restart: unless-stopped
     shm_size: 1gb
     stop_signal: SIGINT
@@ -227,14 +220,11 @@ services:
     mem_limit: ${PG_MEM:-3500m}
     oom_score_adj: -500
     security_opt: ["no-new-privileges:true"]
-    networks:
-      backend:
-        ipv4_address: 172.30.10.10
+    networks: [backend]
     logging: *logging
 
   redis:
     image: ${REDIS_IMAGE:-redis:8}
-    container_name: idraft-redis
     restart: unless-stopped
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     environment:
@@ -242,7 +232,8 @@ services:
     volumes:
       - redisdata:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-      - ${REDIS_ACL_FILE:-./redis/users.acl}:/usr/local/etc/redis/users.acl:ro
+      # A directory, not a file: deploy.sh replaces users.acl by rename, which a single-file bind mount would not follow.
+      - ${REDIS_ACL_DIR:?set REDIS_ACL_DIR to the host directory deploy.sh renders users.acl into}:/usr/local/etc/redis/acl:ro
     healthcheck:
       test: ["CMD-SHELL", "redis-cli --no-auth-warning --user healthcheck ping | grep -q PONG"]
       interval: 10s
@@ -253,17 +244,16 @@ services:
     mem_limit: ${REDIS_MEM:-768m}
     oom_score_adj: -300
     security_opt: ["no-new-privileges:true"]
-    networks:
-      backend:
-        ipv4_address: 172.30.10.11
+    networks: [backend]
     logging: *logging
 
+# Subnets are variables because Docker refuses two networks with overlapping pools.
 networks:
   edge:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.30.20.0/24
+        - subnet: ${EDGE_SUBNET:-172.30.20.0/24}
   egress:
     driver: bridge
   backend:
@@ -271,7 +261,7 @@ networks:
     internal: true
     ipam:
       config:
-        - subnet: 172.30.10.0/24
+        - subnet: ${BACKEND_SUBNET:-172.30.10.0/24}
 
 volumes:
   pgdata: {}
