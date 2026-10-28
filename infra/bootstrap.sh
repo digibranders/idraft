@@ -37,7 +37,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-for helper in idraft-install-env idraft-install-infra; do
+for helper in idraft-install-env idraft-install-infra idraft-ghcr-login; do
   [ -f "$here/host/$helper" ] || die "$here/host/$helper is missing; run this from a copy of the whole infra/ directory."
 done
 
@@ -85,6 +85,7 @@ install -d -m 0700 -o root -g root /etc/idraft
 install -d -m 0711 -o root -g root /etc/idraft/redis
 install -m 0755 -o root -g root "$here/host/idraft-install-env" /usr/local/sbin/idraft-install-env
 install -m 0755 -o root -g root "$here/host/idraft-install-infra" /usr/local/sbin/idraft-install-infra
+install -m 0755 -o root -g root "$here/host/idraft-ghcr-login" /usr/local/sbin/idraft-ghcr-login
 
 # "" means no arguments: the helpers take none, and deploy.sh may only run in the two forms CI uses.
 sudoers_tmp="$(mktemp)"
@@ -94,6 +95,7 @@ cat > "$sudoers_tmp" <<'SUDOERS'
 Defaults:deploy env_reset
 deploy ALL=(root) NOPASSWD: /usr/local/sbin/idraft-install-env "", \
     /usr/local/sbin/idraft-install-infra "", \
+    /usr/local/sbin/idraft-ghcr-login "", \
     /srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json, \
     /srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env
 SUDOERS

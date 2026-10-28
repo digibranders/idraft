@@ -27,6 +27,11 @@ allow_tags="${IDRAFT_ALLOW_TAGS:-0}"
 acl_owner="${IDRAFT_ACL_OWNER-999:999}"
 acl_mode="${IDRAFT_ACL_MODE:-0600}"
 
+# idraft-ghcr-login stores the registry login here, and sudo does not promise a HOME.
+if [ "$(id -u)" -eq 0 ]; then
+  export DOCKER_CONFIG=/root/.docker
+fi
+
 env_file=""   # the env file Compose and env_get read right now
 live_env=""   # env of the serving release
 next_env=""   # staged candidate

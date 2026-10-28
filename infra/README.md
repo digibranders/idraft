@@ -56,7 +56,8 @@ Re-running the script with the same arguments changes nothing and restarts nothi
 
 * **Docker Engine & Compose:** Installs official Docker CE and Compose plugin from Docker apt repository. `/etc/docker/daemon.json` is rewritten, and Docker restarted, only when its content changes.
 * **Deploy user:** Creates unprivileged `deploy` with the CI public key as its only authorized key, and membership in the `docker` group.
-* **Sudo:** `/etc/sudoers.d/idraft-deploy` (mode 0440, checked with `visudo -cf` before install) lets `deploy` run exactly four commands as root, without a password:
+* **Sudo:** `/etc/sudoers.d/idraft-deploy` (mode 0440, checked with `visudo -cf` before install) lets `deploy` run exactly five commands as root, without a password:
+  * `/usr/local/sbin/idraft-ghcr-login` (no arguments): reads a GitHub user name and a token from stdin and runs `docker login ghcr.io --password-stdin` for root.
   * `/usr/local/sbin/idraft-install-env` (no arguments): stages `/etc/idraft/.env.next` from stdin (root, 0600). `deploy.sh` promotes it to `.env` only after the release serves.
   * `/usr/local/sbin/idraft-install-infra` (no arguments): copies the staged infra files into `/srv/idraft/infra`.
   * `/srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`
@@ -101,7 +102,17 @@ A manual run needs all three image references as inputs (the runner logs in to G
 | `DEPLOY_USER` | `deploy` (the default when unset). |
 | `DEPLOY_SSH_KEY` | Private Ed25519 key whose public half was passed to `bootstrap.sh --deploy-key`. |
 | `DEPLOY_KNOWN_HOSTS` | The host's public key line(s) in `known_hosts` format. The job fails if it is empty and uses `StrictHostKeyChecking=yes`, so it never trusts a first connection. |
+| `GHCR_PULL_USER` | The GitHub user the pull token belongs to. |
+| `GHCR_PULL_TOKEN` | A token that lets the host pull the private `idraft-*` images. See "Registry login" below. |
 | `ENV_FILE` | The full contents of the next `/etc/idraft/.env`. It is deployed as a candidate and becomes the live `.env` only after the release serves. |
+
+#### Registry login
+
+The images in GHCR are private, and nothing else logs the host in, so the workflow does it on every deploy, before `deploy.sh` runs: it pipes `GHCR_PULL_USER` and `GHCR_PULL_TOKEN` over SSH to `sudo /usr/local/sbin/idraft-ghcr-login`, which runs `docker login ghcr.io --username <user> --password-stdin` for root (credentials in `/root/.docker/config.json`, mode 0600). The token is never on a command line.
+
+* Create it as a **read-only** token: a classic personal access token with only the `read:packages` scope (or a fine-grained token with only package read access to this repository's packages), owned by a machine or service user that has read access to the `idraft-*` packages. It must not be able to push, and it must not be the `DEPLOY_SSH_KEY`'s owner's everyday token.
+* It **expires**. Give it an expiry (for example 90 days) and put the date in the team calendar. An expired token makes the login step fail with `unauthorized`, before the host is changed; rotate it by updating the `GHCR_PULL_TOKEN` secret and re-running the deploy.
+* `/root/.docker/config.json` keeps the last token until the next login; delete it with `sudo docker logout ghcr.io` when retiring the host.
 
 Produce `DEPLOY_KNOWN_HOSTS` once, from your own machine, and compare the fingerprint with the provider console or with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` run on the host:
 
@@ -227,6 +238,8 @@ All production secrets must be stored in the GitHub Actions `production` Environ
 | `DEPLOY_USER` | GitHub Actions | Deploy username (`deploy`). |
 | `DEPLOY_SSH_KEY` | GitHub Actions | Private Ed25519 SSH key authorized on the production host. |
 | `DEPLOY_KNOWN_HOSTS` | GitHub Actions | Pinned SSH host key line(s) of the production host. |
+| `GHCR_PULL_USER` | GitHub Actions | GitHub user that owns the pull token. |
+| `GHCR_PULL_TOKEN` | GitHub Actions | Read-only (`read:packages`) token with an expiry; sent to the host on stdin. |
 | `ENV_FILE` | `/etc/idraft/.env` | Complete multi-line environment configuration containing all stack secrets. |
 | `PG_SUPERUSER_PASSWORD` | PostgreSQL | Initial password for the `postgres` administrative role. |
 | `PG_API_PASSWORD` | PostgreSQL / API | Password for `app_api` role. Subject to row-level security. |

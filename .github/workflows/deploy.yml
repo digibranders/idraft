@@ -123,6 +123,17 @@ jobs:
         # The secret travels on stdin and is never part of a command line or a script body.
         run: printf '%s\n' "$ENV_FILE" | ssh idraft-prod 'sudo /usr/local/sbin/idraft-install-env'
 
+      - name: Log the host in to GHCR
+        if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
+        env:
+          GHCR_PULL_USER: ${{ secrets.GHCR_PULL_USER }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        # The host pulls private images as root. User and token travel on stdin, never on a command line;
+        # the token is read-only (read:packages) and expires, so an expired one fails here, before any change.
+        run: |
+          [ -n "$GHCR_PULL_USER" ] && [ -n "$GHCR_PULL_TOKEN" ] || { echo "GHCR_PULL_USER and GHCR_PULL_TOKEN must be set in the production environment." >&2; exit 1; }
+          printf '%s\n%s\n' "$GHCR_PULL_USER" "$GHCR_PULL_TOKEN" | ssh idraft-prod 'sudo /usr/local/sbin/idraft-ghcr-login'
+
       - name: Stage infra on the host and install it as root
         if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
         run: |
