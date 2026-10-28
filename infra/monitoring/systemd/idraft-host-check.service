@@ -1,0 +1,16 @@
+[Unit]
+Description=Host resource and container health check
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/srv/idraft/infra/monitoring/host-check.sh
+TimeoutStartSec=2min
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run /tmp
+PrivateTmp=yes
