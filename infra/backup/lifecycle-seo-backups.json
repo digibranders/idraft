@@ -1,0 +1,22 @@
+{
+  "Rules": [
+    {
+      "ID": "staging-2d",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "staging/" },
+      "Expiration": { "Days": 2 }
+    },
+    {
+      "ID": "daily-30d",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "daily/" },
+      "Expiration": { "Days": 30 }
+    },
+    {
+      "ID": "abort-mpu-1d",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "" },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 }
+    }
+  ]
+}

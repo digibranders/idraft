@@ -1,0 +1,19 @@
+[Unit]
+Description=Monthly PostgreSQL backup restore drill
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/srv/idraft/infra/backup/pg-restore-drill.sh
+RuntimeDirectory=idraft-restore-drill
+RuntimeDirectoryMode=0700
+TimeoutStartSec=2h
+Nice=10
+MemoryMax=1024M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run /tmp
+PrivateTmp=yes

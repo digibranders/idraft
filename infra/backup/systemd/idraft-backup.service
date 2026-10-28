@@ -1,0 +1,24 @@
+[Unit]
+Description=Nightly PostgreSQL logical backup to Cloudflare R2
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/srv/idraft/infra/backup/pg-backup.sh
+RuntimeDirectory=idraft-backup
+RuntimeDirectoryMode=0700
+Environment=HOME=/run/idraft-backup XDG_CACHE_HOME=/run/idraft-backup/cache
+TimeoutStartSec=3h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+MemoryMax=512M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run /tmp
+PrivateTmp=yes
+# Exit status 5 represents a size anomaly (reported to Healthchecks; unit considered successful)
+SuccessExitStatus=5
