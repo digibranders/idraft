@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Installs the platform environment file from stdin as /etc/idraft/.env (root:root, 0600).
+# Installed by bootstrap.sh as /usr/local/sbin/idraft-install-env and the only way the deploy user
+# writes that file (a sudoers rule allows exactly this command). It never prints the contents.
+set -euo pipefail
+
+target="/etc/idraft/.env"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "idraft-install-env must run as root (through sudo)." >&2
+  exit 1
+fi
+
+umask 077
+tmp="$(mktemp /etc/idraft/.env.XXXXXX)"
+trap 'rm -f "$tmp"' EXIT
+
+# The same directory as the target, so the final mv is a rename and never a half-written file.
+cat > "$tmp"
+if [ ! -s "$tmp" ]; then
+  echo "Refusing an empty environment file." >&2
+  exit 1
+fi
+chown root:root "$tmp"
+chmod 0600 "$tmp"
+mv -f "$tmp" "$target"
+echo "Installed $target."

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Copies the staged infra tree into /srv/idraft/infra as root-owned files.
+# Installed by bootstrap.sh as /usr/local/sbin/idraft-install-infra. The deploy user may stage files
+# in /srv/idraft/incoming but may not write /srv/idraft/infra, so the scripts that sudo runs as root
+# cannot be edited by the account that runs sudo.
+set -euo pipefail
+
+staged="/srv/idraft/incoming/infra"
+target="/srv/idraft/infra"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "idraft-install-infra must run as root (through sudo)." >&2
+  exit 1
+fi
+if [ ! -f "$staged/deploy.sh" ]; then
+  echo "Nothing staged: $staged/deploy.sh is missing." >&2
+  exit 1
+fi
+
+# Symbolic links are not copied (no -l), and ownership and modes are set here, never taken from the stage.
+rsync -rt --delete --no-links --chown=root:root --chmod=D755,F644 "$staged/" "$target/"
+chmod 0755 "$target/deploy.sh"
+echo "Installed $target."
