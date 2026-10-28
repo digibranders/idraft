@@ -18,8 +18,9 @@ cleanup() {
 trap cleanup EXIT
 
 echo "=== 1. Preparing test environment ==="
-cat > "$test_dir/env.test" <<ENV
-WEB_IMAGE=idraft-web:local
+python3 -c "
+import sys
+env_content = '''WEB_IMAGE=idraft-web:local
 API_IMAGE=idraft-api:local
 WORKER_IMAGE=idraft-worker:local
 CADDY_IMAGE=caddy:2
@@ -47,7 +48,7 @@ REDIS_PASSWORD_APP=redis-app-local
 REDIS_PASSWORD_HEALTHCHECK=redis-healthcheck-local
 REDIS_PASSWORD_ADMIN=redis-admin-local
 REDIS_URL_APP=redis://app:redis-app-local@redis:6379/0
-REDIS_ACL_FILE=$infra_dir/compose/redis/users.acl
+REDIS_ACL_FILE=''' + sys.argv[2] + '''/compose/redis/users.acl
 
 TOTP_ENCRYPTION_KEY=c29tZS0zMi1ieXRlLXJhbmRvbS1rZXktZm9yLXRvdHA=
 REGISTRATION=invited
@@ -69,15 +70,16 @@ RESOLVE_UNKNOWN_SUBMISSIONS=false
 INSTALLATION_ID=local
 SENTRY_DSN_BACKEND=
 SENTRY_DSN_WEB=
-ENV
+'''
+with open(sys.argv[1], 'w') as f:
+    f.write(env_content)
+" "$test_dir/env.test" "$infra_dir"
 
-cat > "$test_dir/digests-v1.json" <<DIGESTS
-{
-  "api": "idraft-api:local",
-  "worker": "idraft-worker:local",
-  "web": "idraft-web:local"
-}
-DIGESTS
+python3 -c '
+import json, sys
+with open(sys.argv[1], "w") as f:
+    json.dump({"api": "idraft-api:local", "worker": "idraft-worker:local", "web": "idraft-web:local"}, f, indent=2)
+' "$test_dir/digests-v1.json"
 
 echo "=== 2. Starting database infrastructure ==="
 docker compose -f "$compose_file" --env-file "$test_dir/env.test" up -d postgres redis >/dev/null
@@ -101,13 +103,11 @@ fi
 echo "Initial deployment (v1) succeeded."
 
 echo "=== 3b. Testing second deployment (v2) to establish previous release history ==="
-cat > "$test_dir/digests-v2.json" <<DIGESTS_V2
-{
-  "api": "idraft-api:local",
-  "worker": "idraft-worker:local",
-  "web": "idraft-web:local"
-}
-DIGESTS_V2
+python3 -c '
+import json, sys
+with open(sys.argv[1], "w") as f:
+    json.dump({"api": "idraft-api:local", "worker": "idraft-worker:local", "web": "idraft-web:local"}, f, indent=2)
+' "$test_dir/digests-v2.json"
 "$infra_dir/deploy.sh" "$test_dir/env.test" "$test_dir/digests-v2.json"
 
 if [ ! -f "$IDRAFT_RELEASES_DIR/previous.json" ]; then
@@ -117,13 +117,15 @@ fi
 echo "Second deployment (v2) succeeded and recorded previous.json."
 
 echo "=== 4. Testing forced failure with bad image digest ==="
-cat > "$test_dir/digests-bad.json" <<BAD_DIGESTS
-{
-  "api": "idraft-api:local",
-  "worker": "idraft-worker:local",
-  "web": "ghcr.io/digibranders/idraft-web-nonexistent@sha256:0000000000000000000000000000000000000000000000000000000000000000"
-}
-BAD_DIGESTS
+python3 -c '
+import json, sys
+with open(sys.argv[1], "w") as f:
+    json.dump({
+        "api": "idraft-api:local",
+        "worker": "idraft-worker:local",
+        "web": "ghcr.io/digibranders/idraft-web-nonexistent@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    }, f, indent=2)
+' "$test_dir/digests-bad.json"
 
 set +e
 "$infra_dir/deploy.sh" "$test_dir/env.test" "$test_dir/digests-bad.json"
