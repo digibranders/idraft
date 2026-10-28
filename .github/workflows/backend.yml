@@ -31,12 +31,82 @@ jobs:
       - name: Lint, types, import contracts and tests
         run: ./check.sh
 
-  image:
+  images:
+    needs: checks
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Build the API image
-        run: docker build --target api --build-arg RELEASE_SHA=${{ github.sha }} -t idraft-api:ci backend
-      - name: Migrate and start it against real PostgreSQL and Redis
-        run: backend/smoke.sh idraft-api:ci
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+      - name: Build API image locally
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: backend
+          target: api
+          build-args: RELEASE_SHA=${{ github.sha }}
+          tags: idraft-api:ci
+          load: true
+      - name: Build worker image locally
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: backend
+          target: worker
+          build-args: RELEASE_SHA=${{ github.sha }}
+          tags: idraft-worker:ci
+          load: true
+      - name: Build migrator image locally
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: backend
+          target: migrator
+          build-args: RELEASE_SHA=${{ github.sha }}
+          tags: idraft-migrator:ci
+          load: true
+      - name: Smoke test all targets against real PostgreSQL and Redis
+        run: backend/smoke.sh idraft-api:ci idraft-worker:ci idraft-migrator:ci
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push API image to GHCR
+        id: push-api
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: backend
+          target: api
+          build-args: RELEASE_SHA=${{ github.sha }}
+          tags: ghcr.io/${{ github.repository_owner }}/idraft-api:${{ github.sha }}
+          push: true
+      - name: Push worker image to GHCR
+        id: push-worker
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: backend
+          target: worker
+          build-args: RELEASE_SHA=${{ github.sha }}
+          tags: ghcr.io/${{ github.repository_owner }}/idraft-worker:${{ github.sha }}
+          push: true
+      - name: Record digests and upload artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p /tmp/digests
+          api_ref="ghcr.io/${{ github.repository_owner }}/idraft-api@${{ steps.push-api.outputs.digest }}"
+          worker_ref="ghcr.io/${{ github.repository_owner }}/idraft-worker@${{ steps.push-worker.outputs.digest }}"
+          echo "API image: $api_ref" >> "$GITHUB_STEP_SUMMARY"
+          echo "Worker image: $worker_ref" >> "$GITHUB_STEP_SUMMARY"
+          printf '{"api":"%s","worker":"%s"}\n' "$api_ref" "$worker_ref" > /tmp/digests/backend-digests.json
+      - name: Upload backend digests artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: backend-digests
+          path: /tmp/digests/backend-digests.json
