@@ -32,6 +32,13 @@ Values in this section are fixed by [ADR-022](adr/ADR-022-python-backend-simplif
 
 Monthly run cost for this document's scope (ADR-022): $24 droplet + $4.80 DigitalOcean backups + R2 about $1 + $0 for Sentry, Healthchecks and Better Stack on free tiers = **about $30 per month**.
 
+> [!NOTE]
+> **Production Runtime Amendments (Step 6, 2026-10-28):**
+> 1. **Domain (D2):** The production web application and API are served on `https://app.idraft.ai`. The apex `idraft.ai` is reserved for the live marketing site.
+> 2. **Host OS and Sizing (D9):** Operating system is Ubuntu 24.04 LTS on a 4 vCPU, 15 GB RAM, 193 GB disk VPS. PostgreSQL 18 memory parameters are tuned for this host: `shared_buffers = 3GB`, `effective_cache_size = 9GB`, `work_mem = 16MB`, `maintenance_work_mem = 512MB`, `max_connections = 100`, `shm_size: 1gb`. Redis 8 is tuned with `maxmemory 512mb`, `noeviction`, AOF `everysec`. Container memory limits leave at least 3 GB free for OS and page cache.
+> 3. **Email Provider (D5):** Brevo is utilized for transactional emails (`EMAIL_PROVIDER=brevo`, sender `hello@idraft.ai`), carrying the same delivery guarantees as Resend.
+> 4. **Image Delivery (D4):** Images are published to GHCR as `ghcr.io/digibranders/idraft-api`, `idraft-worker`, and `idraft-web`, referenced strictly by immutable SHA-256 digest in deployments.
+
 ## 2. Deployment diagram
 
 ```mermaid

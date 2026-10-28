@@ -143,7 +143,7 @@ Worker code paths take `workspace_id` from the task row, never from provider dat
 
 ### 5.1 Platform secrets (ours)
 
-Examples: `DATABASE_URL`, `REDIS_URL`, `R2_ACCESS_KEY_ID`/`SECRET`, `DATAFORSEO_LOGIN`/`PASSWORD`, `TOTP_ENCRYPTION_KEY`, `SENTRY_DSN`, email provider key.
+Examples: `DATABASE_URL`, `REDIS_URL`, `R2_ACCESS_KEY_ID`/`SECRET`, `DATAFORSEO_LOGIN`/`PASSWORD`, `TOTP_ENCRYPTION_KEY`, `SENTRY_DSN`, `EMAIL_API_KEY` (`EMAIL_PROVIDER=brevo`, sender `hello@idraft.ai`). Per decision D5, transactional email uses Brevo; the `api` container alone receives `EMAIL_API_KEY`, while background `worker` containers do not receive email credentials.
 
 - The source of truth is the GitHub Actions environment `production` (environment secrets, deployment restricted to `main`). No secret is committed to the repository, encrypted or not: no SOPS and no age for secrets ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)).
 - The deploy workflow writes `/etc/seo-platform/.env` on the droplet over SSH: owned by root, mode 0600, rewritten on every deploy, never printed in the job log. Compose reads it for the `api`, `worker`, `web` and `migrator` services. The backup unit's settings and R2 token live in separate root-only files written by the same workflow, so the application containers never receive the backup-writer token ([23-backup-disaster-recovery.md](23-backup-disaster-recovery.md) section 6.1).

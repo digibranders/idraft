@@ -111,3 +111,13 @@ Two stack changes were made at the same time. The backend moves to Python, becau
 ## Revisit trigger
 
 The tool is offered to outside companies; the collection window overruns twice in a month; Taskiq fails its smoke test; a Python-only or a Node-only capability becomes central to a phase.
+
+## Amendment (2026-10-28): Production Runtime Adjustments (Step 6)
+
+The following operational adjustments were locked during the production runtime implementation (plan `docs/superpowers/plans/2026-10-28-production-runtime.md`):
+
+1. **Domain (D2):** The application is served on `app.idraft.ai` (Caddy routes traffic for this subdomain). The apex `idraft.ai` remains reserved for the public marketing site.
+2. **Email Provider (D5):** Brevo is utilized for transactional emails (`EMAIL_PROVIDER=brevo`, sender `hello@idraft.ai`), matching the provider merged into `backend/src/idraft/providers/email.py`.
+3. **Host Sizing and Tuning (D9):** Sizing is updated for the 15 GB RAM Ubuntu 24.04 VPS (`shared_buffers=3GB`, `effective_cache_size=9GB`, `work_mem=16MB`, `maintenance_work_mem=512MB`, `max_connections=100`, `shm_size: 1gb`). Redis configured for `maxmemory 512mb`, `noeviction`, AOF `everysec`.
+4. **Deployments and Rollback (D4):** Images (`ghcr.io/digibranders/idraft-api`, `idraft-worker`, `idraft-web`) are pinned strictly by digest, with automated rollback to `/srv/idraft/releases/previous.json` on healthcheck failure.
+

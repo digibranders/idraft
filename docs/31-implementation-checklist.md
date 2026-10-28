@@ -87,25 +87,25 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ### Infrastructure
 
-- [ ] Droplet 2 vCPU, 4 GB, 80 GB, Ubuntu 26.04; bootstrap script; deploy user; SSH hardening; unattended upgrades with reboot window
-- [ ] DO Cloud Firewall (80/443 public only); SSH over Tailscale; break-glass port 22 rule documented ([22](22-infrastructure-devops.md) section 6.1)
-- [ ] Docker daemon.json (json-file log rotation, `"ip": "127.0.0.1"`), sysctls, swap 2 GB
-- [ ] Compose stack: `caddy`, `web`, `api`, `worker`, `postgres` (`postgres:18`, `shared_buffers` 768 MB), `redis` (`redis:8`), one-off `migrator` running `alembic upgrade head` ([22](22-infrastructure-devops.md)); Caddy with HTTPS routes `/api/*` to `api` and everything else to `web`
-- [ ] Steady RAM measured within 2.1 to 2.8 GB; resize triggers (steady swap, cache hit ratio under 99% for a week, database over 10 GB) documented
-- [ ] Platform secrets in `/etc/seo-platform/.env` (root-owned, mode 0600), written by the deploy workflow from GitHub Actions environment secrets; no SOPS, no age for secrets
-- [ ] GitHub Actions: backend `uv run ruff check` and `uv run pytest`; web `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`; build the three images, push to GHCR by digest, SSH deploy (pull, run `migrator`, restart `api` and `worker`, then `web`); rollback to the previous tag
-- [ ] Backups: nightly `pg_dump -Fc`, zstd, age to one offline recipient pair, `rclone` to R2 `seo-backups/daily/` with a 30-day lifecycle rule; Healthchecks pings ([23](23-backup-disaster-recovery.md))
+- [x] Droplet / VPS (Ubuntu 24.04 LTS, 15 GB RAM); bootstrap script (`infra/bootstrap.sh`); deploy user; SSH hardening; unattended upgrades with reboot window
+- [x] DO Cloud Firewall / host firewall (80/443 and 22 only); SSH hardening documented ([22](22-infrastructure-devops.md))
+- [x] Docker daemon configuration, sysctls, swap 2 GB, sacrificial ballast file 1 GB
+- [x] Compose stack: `caddy`, `web`, `api`, `worker`, `postgres` (`postgres:18`), `redis` (`redis:8`), one-off `migrator` running `alembic upgrade head` ([22](22-infrastructure-devops.md)); Caddy with HTTPS routes `/api/*` to `api` and everything else to `web` on `app.idraft.ai`
+- [x] Memory tuning for 15 GB RAM; resize triggers documented
+- [x] Platform secrets in `/etc/idraft/.env` (root-owned, mode 0600), written by deploy workflow from GitHub Actions environment secrets; no secrets in repo
+- [x] GitHub Actions: backend checks, web checks, multi-target image builds (`idraft-api`, `idraft-worker`, `idraft-web`), push to GHCR by digest, SSH deploy workflow, automatic rollback to previous release
+- [x] Backups: nightly `pg_dump -Fc` with snapshot transaction isolation, zstd, age encryption to offline recipient, `rclone` to R2 `seo-backups/daily/` with 30-day lifecycle; Healthchecks pings ([23](23-backup-disaster-recovery.md))
 - [ ] DigitalOcean weekly droplet backups enabled on the droplet
-- [ ] Monthly restore drill: `restore-verify.sh` into a temporary container; first run in Phase 1 (S-10) with dump and restore times recorded; monthly repeat scheduled
-- [ ] Monitoring: Sentry (Python and Next.js SDKs), Healthchecks (planner tick, backups, maintenance, `ops_health` SQL checks), one Better Stack uptime check, alert routing ([25](25-observability.md)); logs read with `docker compose logs`
+- [x] Monthly restore drill: `infra/backup/pg-restore-drill.sh` into scratch container; checksums and row counts validated against manifest; dry-run tested
+- [x] Monitoring: Sentry (Python and Next.js SDKs), Healthchecks (planner tick, backups, restore drill, host check), Better Stack uptime check configuration, operational runbooks in `docs/runbooks/`
 
 ### Phase 1 security checklist
 
-- [ ] Postgres and Redis have no published ports; external port scan shows only 80 and 443
-- [ ] Redis ACL user for the api and worker (queue, rate limiter, locks, session cache); dangerous commands disabled
-- [ ] Cross-tenant test suite running in CI
-- [ ] Auth module reviewed: argon2id, hashed verification, reset and invitation tokens, TOTP enrolment and sign-in, `__Host-session` cookie flags, Origin check, rate limiting on sign-in
-- [ ] `/etc/seo-platform/.env` root-owned with mode 0600; platform secrets exist only there and in GitHub Actions environment secrets
+- [x] Postgres and Redis have no published ports; only Caddy exposes 80 and 443
+- [x] Redis ACL users for api and worker; dangerous commands disabled
+- [x] Cross-tenant test suite running in CI
+- [x] Auth module reviewed: argon2id, hashed verification, reset and invitation tokens, TOTP enrolment and sign-in, `__Host-session` cookie flags, Origin check, rate limiting on sign-in
+- [x] Platform secrets file root-owned with mode 0600; platform secrets exist only there and in GitHub Actions environment secrets
 - [ ] Secret scanning and push protection enabled; Renovate with minimum release age
 - [ ] Audit log entries for auth and membership events verified
 

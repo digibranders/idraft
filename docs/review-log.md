@@ -665,3 +665,27 @@ Carried:
 | F96 | `balance_check` and `cost_reconcile` keep their readings in Redis, raise no `ops.platform_alerts` row and ping no Healthchecks check; the account's day is taken as UTC, and spend after the last reading of a day is not in that day's comparison (up to 15 minutes) | the operations step (doc 25) |
 | F97 | Every SERP fixture and the live answer shape (taken to equal `task_get/advanced`) are synthetic until spike S-01 captures real ones; re-run the parser tests on the captured set before the first deploy | S-01, before deploy |
 | F98 | The competitor backfill from stored snapshots and `ops.derivation_log`, the shared fetch cache, the data quality tables, `ops.task_attempts`, the load test on recorded payloads and the real 14-day run were deferred (plan R14) | steps 6 and 7 |
+
+### Production runtime (2026-10-28 to 2026-10-29)
+
+Plan `docs/superpowers/plans/2026-10-28-production-runtime.md`, branch `infra/production-runtime`. Built to make idraft.ai a fully automated, reproducible runtime with one-click deploys, automatic rollback, nightly encrypted backups, and continuous host monitoring.
+
+| Package | Work completed |
+|---|---|
+| WP1: Images | Multi-target `backend/Dockerfile` (`api`, `worker`, `migrator`) sharing a single cached runtime layer set; `backend/smoke.sh` testing all three targets; GitHub Actions workflows (`backend.yml`, `web.yml`) publishing immutable images to GHCR tagged by commit SHA and digest. |
+| WP2: Compose stack | Production Compose stack `infra/compose/docker-compose.yml`: Caddy (ports 80, 443), web, api, worker, postgres (PostgreSQL 18), redis (Redis 8 with ACL users). Dedicated internal network; zero secrets in git; tuned for 15 GB VPS (`shared_buffers=3GB`, `effective_cache_size=9GB`, `work_mem=16MB`, `maintenance_work_mem=512MB`, Redis `maxmemory 512mb`, `noeviction`). |
+| WP3: Automation | Idempotent host bootstrap `infra/bootstrap.sh`; atomic deployment and rollback script `infra/deploy.sh`; GitHub Actions `deploy.yml` with Environment protection; `backend/README.md` and `infra/README.md` operator guides; verified by dry-run test with forced bad-digest automatic rollback. |
+| WP4: Backups | Snapshot-consistent logical backups `infra/backup/pg-backup.sh` with age public recipient encryption, globals extraction, manifest generation, and Cloudflare R2 upload; automated restore drill `infra/backup/pg-restore-drill.sh` restoring into a temporary scratch container and verifying row counts and table MD5 checksums; systemd units and timers; dry-run tested end to end. |
+| WP5: Monitoring | Host check script `infra/monitoring/host-check.sh` and 5-minute systemd timer monitoring root disk usage (>85% critical), inodes, available memory, container health and restarts, and TLS certificate expiration for `app.idraft.ai`. Seven operational runbooks added under `docs/runbooks/`. |
+| WP7: Documents | Documentation amendments in `docs/22-infrastructure-devops.md`, `docs/adr/ADR-022-python-backend-simplified-platform.md`, `docs/24-security.md`, `docs/29-phase-roadmap.md`, `docs/31-implementation-checklist.md`, and this review log. |
+
+Decisions recorded:
+- **D1:** Standardized on Docker Compose for production, CI smoke, and local development.
+- **D2:** Production domain locked to `app.idraft.ai` (Caddy HTTP-01 challenge); apex `idraft.ai` left untouched for marketing.
+- **D3:** Caddy 2 replaces nginx.
+- **D4:** Images pulled strictly by digest from GHCR; automated rollback to `/srv/idraft/releases/previous.json`.
+- **D5:** Brevo remains the transactional email provider (`EMAIL_PROVIDER=brevo`, `EMAIL_API_KEY`, sender `hello@idraft.ai`).
+- **D6:** Secrets flow securely from GitHub Actions `production` Environment to `/etc/idraft/.env` (mode 0600).
+- **D7:** Hard budget cap enforced prior to external provider activation.
+- **D8:** Single worker container running both Taskiq queues (`collect` and `process`).
+- **D9:** Host sizing updated for 15 GB RAM Ubuntu 24.04 VPS with tuned PostgreSQL and Redis.
