@@ -174,6 +174,9 @@
   --animate-skeleton-pulse: skeleton-pulse 1.5s ease-in-out infinite;
   --animate-row-new: row-new 1500ms var(--ease-exit) 1;
   --animate-live-pulse: live-pulse 2s linear infinite;
+  /* The auth showcase panel's one-time entry (the T7 split layout). */
+  --animate-showcase-in: showcase-in 600ms var(--ease-exit) 1 both;
+  --animate-showcase-rise: showcase-rise 900ms var(--ease-exit) 1 both;
 
   /* Tailwind's plain transition utilities follow the motion tokens (and therefore reduced motion). */
   --default-transition-duration: var(--duration-fast);
@@ -237,10 +240,16 @@
 @keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 @keyframes row-new { 0%, 86.7% { background-color: var(--surface-selected); } 100% { background-color: transparent; } }
 @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-@media (prefers-reduced-motion: reduce) {
-  .animate-spin, .animate-skeleton-pulse, .animate-row-new, .animate-live-pulse { animation: none; }
+@keyframes showcase-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes showcase-rise { from { opacity: 0; transform: translateY(0.75rem); } to { opacity: 1; transform: translateY(0); } }
+@utility showcase-grid {
+  background-image: linear-gradient(to right, var(--border-subtle) 1px, transparent 1px), linear-gradient(to bottom, var(--border-subtle) 1px, transparent 1px);
+  background-size: 2.5rem 2.5rem;
 }
-:root[data-motion="reduced"] :is(.animate-spin, .animate-skeleton-pulse, .animate-row-new, .animate-live-pulse) {
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin, .animate-skeleton-pulse, .animate-row-new, .animate-live-pulse, .animate-showcase-in, .animate-showcase-rise { animation: none; }
+}
+:root[data-motion="reduced"] :is(.animate-spin, .animate-skeleton-pulse, .animate-row-new, .animate-live-pulse, .animate-showcase-in, .animate-showcase-rise) {
   animation: none;
 }
 

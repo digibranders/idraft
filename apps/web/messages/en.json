@@ -177,6 +177,18 @@
       "signInToAccept": "Sign in to accept",
       "missingTitle": "This invitation link is not complete",
       "missingDescription": "Open the link in your invitation email again, or ask for a new invitation."
+    },
+    "showcase": {
+      "statement": "Know where you stand, in search and in AI answers.",
+      "tagline": "idraft.ai tracks your keyword positions and brand mentions every day.",
+      "compactTagline": "Track keyword positions and brand mentions every day.",
+      "keywords": {
+        "one": "best crm for startups",
+        "two": "crm pricing comparison",
+        "three": "how to migrate a crm",
+        "four": "crm for small teams",
+        "five": "crm software reviews"
+      }
     }
   },
   "errors": {
@@ -1739,7 +1751,12 @@
       "pageTitle": "Import keywords",
       "open": "Import",
       "title": "Import keywords",
-      "steps": { "upload": "Upload", "map": "Map columns", "review": "Review", "confirm": "Confirm" },
+      "steps": {
+        "upload": "Upload",
+        "map": "Map columns",
+        "review": "Review",
+        "confirm": "Confirm"
+      },
       "stepsLabel": "Import steps",
       "back": "Back",
       "continue": "Continue",
