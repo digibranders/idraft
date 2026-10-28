@@ -1,165 +1,174 @@
 #!/usr/bin/env bash
-# Tests deploy.sh locally against Docker Compose, including automatic rollback on forced failure.
+# Runs infra/deploy.sh against a real Compose stack on this machine, in its own Compose project and on
+# non-default ports, and checks what a failed deploy leaves behind. Needs the idraft-{api,worker,web}:local
+# images (build them with backend/smoke.sh and the web Dockerfile) and throws everything else away.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-infra_dir="$(cd "$here/.." && pwd)"
-compose_file="$infra_dir/compose/docker-compose.yml"
+# shellcheck source=infra/test/lib.sh
+source "$here/lib.sh"
 
-test_dir="$(mktemp -d)"
-export IDRAFT_RELEASES_DIR="$test_dir/releases"
-mkdir -p "$IDRAFT_RELEASES_DIR"
+export COMPOSE_PROJECT_NAME=idraft-dryrun
+https_port=18443
+test_dir="$(make_test_dir)"
+env_file="$test_dir/env.test"
+acl_dir="$test_dir/redis"
+export_test_deploy_env "$test_dir"
+write_test_env "$env_file" "$acl_dir" 18080 "$https_port" 172.30.20.0/24 172.30.10.0/24
+
+dc() {
+  docker compose -f "$compose_file" --env-file "$env_file" "$@"
+}
 
 cleanup() {
-  echo "Cleaning up dryrun test containers and files..."
-  docker compose -f "$compose_file" --env-file "$test_dir/env.test" down -v --remove-orphans >/dev/null 2>&1 || true
+  echo "Cleaning up the dry-run stack and files..."
+  dc down -v --remove-orphans >/dev/null 2>&1 || true
+  remove_variant_images
   rm -rf "$test_dir"
 }
 trap cleanup EXIT
 
-echo "=== 1. Preparing test environment ==="
-python3 -c "
-import sys
-env_content = '''WEB_IMAGE=idraft-web:local
-API_IMAGE=idraft-api:local
-WORKER_IMAGE=idraft-worker:local
-CADDY_IMAGE=caddy:2
-POSTGRES_IMAGE=postgres:18
-REDIS_IMAGE=redis:8
-RELEASE_SHA=test-v1
+last_rc=0
+# run_deploy <args...>: runs deploy.sh, shows its output, keeps it in $test_dir/last.log, sets last_rc.
+run_deploy() {
+  set +e
+  "$deploy_sh" "$@" > "$test_dir/last.log" 2>&1
+  last_rc=$?
+  set -e
+  cat "$test_dir/last.log"
+}
 
-DOMAIN=localhost
-ACME_EMAIL=admin@localhost
-APP_ENV=local
-APP_ORIGIN=https://localhost
+container_id() { dc ps -q "$1"; }
+image_of() { docker inspect -f '{{.Config.Image}}' "$(container_id "$1")"; }
+state_of() { docker inspect -f '{{.State.Status}}|{{.State.Health.Status}}' "$(container_id "$1")"; }
+ids() { for s in api worker web caddy; do container_id "$s"; done; }
+# A fingerprint of the working tree under the paths the run could write to. A run must not change it.
+repo_state() { { git -C "$repo_dir" status --porcelain -- infra backend .github; git -C "$repo_dir" diff -- infra backend .github; } | shasum -a 256; }
+repo_before="$(repo_state)"
 
-POSTGRES_DB=idraft
-POSTGRES_USER=postgres
-PG_SUPERUSER_PASSWORD=postgres-test-pass
-PG_API_PASSWORD=api-test-pass
-PG_WORKER_PASSWORD=worker-test-pass
-PG_MIGRATOR_PASSWORD=migrator-test-pass
+assert_serving() {
+  assert_eq "$(edge_status "$https_port" /api/v1/me)" 401 "$1: /api/v1/me through Caddy"
+  assert_eq "$(edge_status "$https_port" /api/readyz)" 200 "$1: /api/readyz through Caddy"
+  assert_eq "$(edge_status "$https_port" /api/internal/x)" 404 "$1: /api/internal is not public"
+  for s in api worker web caddy; do
+    assert_eq "$(state_of "$s")" "running|healthy" "$1: $s state"
+  done
+}
 
-DATABASE_URL_API=postgresql://app_api:api-test-pass@postgres:5432/idraft
-DATABASE_URL_WORKER=postgresql://app_worker:worker-test-pass@postgres:5432/idraft
-DATABASE_URL_MIGRATOR=postgresql://migrator:migrator-test-pass@postgres:5432/idraft
+# Everything a failed deploy must leave alone.
+snapshot() {
+  { ids; cat "$IDRAFT_RELEASES_DIR/current.json" "$IDRAFT_RELEASES_DIR/previous.json" 2>/dev/null || true; } | shasum -a 256
+}
 
-REDIS_PASSWORD_APP=redis-app-local
-REDIS_PASSWORD_HEALTHCHECK=redis-healthcheck-local
-REDIS_PASSWORD_ADMIN=redis-admin-local
-REDIS_URL_APP=redis://app:redis-app-local@redis:6379/0
-REDIS_ACL_FILE=''' + sys.argv[2] + '''/compose/redis/users.acl
+sha_v2=1234567890abcdef1234567890abcdef12345678
 
-TOTP_ENCRYPTION_KEY=c29tZS0zMi1ieXRlLXJhbmRvbS1rZXktZm9yLXRvdHA=
-REGISTRATION=invited
-BREACHED_PASSWORD_CHECK=false
+echo "=== 1. Building the v2 and the deliberately broken images ==="
+build_variant_images
+write_digests "$test_dir/v1.json" idraft-api:local idraft-worker:local idraft-web:local
+write_digests "$test_dir/v2.json" idraft-api:v2 idraft-worker:v2 idraft-web:v2 "$sha_v2"
 
-EMAIL_PROVIDER=console
-EMAIL_API_KEY=
-EMAIL_FROM=hello@localhost
+echo "=== 2. First deploy (v1, no commit recorded, so the release id is derived) ==="
+run_deploy "$env_file" "$test_dir/v1.json"
+assert_eq "$last_rc" 0 "v1 deploy exit code"
+assert_eq "$(image_of api)" idraft-api:local "v1 api image"
+assert_eq "$(image_of worker)" idraft-worker:local "v1 worker image"
+assert_eq "$(image_of web)" idraft-web:local "v1 web image"
+[ -f "$IDRAFT_RELEASES_DIR/current.json" ] || fail "current.json was not written"
+[ ! -f "$IDRAFT_RELEASES_DIR/previous.json" ] || fail "previous.json exists after the first deploy"
+v1_sha="$(jq -r .sha "$IDRAFT_RELEASES_DIR/current.json")"
+[[ "$v1_sha" =~ ^[0-9a-f]{12}$ ]] || fail "derived release id is '$v1_sha'"
+assert_serving "v1"
 
-COLLECT_CONCURRENCY=8
-PROCESS_CONCURRENCY=4
-DATAFORSEO_LOGIN=
-DATAFORSEO_PASSWORD=
-R2_RAW_ENDPOINT=
-R2_RAW_BUCKET=seo-raw
-R2_RAW_ACCESS_KEY_ID=
-R2_RAW_SECRET_ACCESS_KEY=
-RESOLVE_UNKNOWN_SUBMISSIONS=false
-INSTALLATION_ID=local
-SENTRY_DSN_BACKEND=
-SENTRY_DSN_WEB=
-'''
-with open(sys.argv[1], 'w') as f:
-    f.write(env_content)
-" "$test_dir/env.test" "$infra_dir"
+echo "=== 3. Second deploy (v2 differs from v1, records previous, reloads the Redis ACL) ==="
+run_deploy "$env_file" "$test_dir/v2.json"
+assert_eq "$last_rc" 0 "v2 deploy exit code"
+grep -q "Reloading the Redis ACL" "$test_dir/last.log" || fail "a running Redis was not told to reload its ACL"
+assert_eq "$(image_of api)" idraft-api:v2 "v2 api image"
+assert_eq "$(image_of worker)" idraft-worker:v2 "v2 worker image"
+assert_eq "$(image_of web)" idraft-web:v2 "v2 web image"
+assert_eq "$(jq -r .api "$IDRAFT_RELEASES_DIR/previous.json")" idraft-api:local "previous.json api"
+assert_eq "$(jq -r .api "$IDRAFT_RELEASES_DIR/current.json")" idraft-api:v2 "current.json api"
+assert_eq "$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(container_id api)" | grep '^RELEASE_SHA=')" \
+  "RELEASE_SHA=$sha_v2" "RELEASE_SHA reaches the api container"
+assert_serving "v2"
 
-python3 -c '
-import json, sys
-with open(sys.argv[1], "w") as f:
-    json.dump({"api": "idraft-api:local", "worker": "idraft-worker:local", "web": "idraft-web:local"}, f, indent=2)
-' "$test_dir/digests-v1.json"
-
-echo "=== 2. Starting database infrastructure ==="
-docker compose -f "$compose_file" --env-file "$test_dir/env.test" up -d postgres redis >/dev/null
-
-echo "Waiting for postgres and redis..."
-for _ in $(seq 1 40); do
-  if [ "$(docker inspect -f '{{.State.Health.Status}}' idraft-postgres 2>/dev/null)" = "healthy" ] && \
-     [ "$(docker inspect -f '{{.State.Health.Status}}' idraft-redis 2>/dev/null)" = "healthy" ]; then
-    break
-  fi
-  sleep 1
-done
-
-echo "=== 3. Testing successful initial deployment (v1) ==="
-"$infra_dir/deploy.sh" "$test_dir/env.test" "$test_dir/digests-v1.json"
-
-if [ ! -f "$IDRAFT_RELEASES_DIR/current.json" ]; then
-  echo "Expected current.json to be created after successful deploy." >&2
-  exit 1
+echo "=== 4. The rendered Redis ACL holds hashes only and the repository is untouched ==="
+grep -q '^user default off$' "$acl_dir/users.acl" || fail "users.acl does not disable the default user"
+if grep -qE 'redis-(app|healthcheck|admin)-local' "$acl_dir/users.acl"; then
+  fail "users.acl contains a plaintext password"
 fi
-echo "Initial deployment (v1) succeeded."
+assert_eq "$(repo_state)" "$repo_before" "repository working tree after the deploys"
 
-echo "=== 3b. Testing second deployment (v2) to establish previous release history ==="
-python3 -c '
-import json, sys
-with open(sys.argv[1], "w") as f:
-    json.dump({"api": "idraft-api:local", "worker": "idraft-worker:local", "web": "idraft-web:local"}, f, indent=2)
-' "$test_dir/digests-v2.json"
-"$infra_dir/deploy.sh" "$test_dir/env.test" "$test_dir/digests-v2.json"
+echo "=== 5. Refusals that must change nothing ==="
+before="$(snapshot)"
 
-if [ ! -f "$IDRAFT_RELEASES_DIR/previous.json" ]; then
-  echo "Expected previous.json to be recorded after second deploy." >&2
-  exit 1
-fi
-echo "Second deployment (v2) succeeded and recorded previous.json."
+echo "--- a tag is refused unless IDRAFT_ALLOW_TAGS=1 ---"
+IDRAFT_ALLOW_TAGS=0 run_deploy "$env_file" "$test_dir/v1.json"
+[ "$last_rc" -ne 0 ] || fail "a tag reference was accepted without IDRAFT_ALLOW_TAGS"
+grep -q "must match" "$test_dir/last.log" || fail "the refusal does not say why"
+assert_eq "$(snapshot)" "$before" "state after a refused tag"
 
-echo "=== 4. Testing forced failure with bad image digest ==="
-python3 -c '
-import json, sys
-with open(sys.argv[1], "w") as f:
-    json.dump({
-        "api": "idraft-api:local",
-        "worker": "idraft-worker:local",
-        "web": "ghcr.io/digibranders/idraft-web-nonexistent@sha256:0000000000000000000000000000000000000000000000000000000000000000"
-    }, f, indent=2)
-' "$test_dir/digests-bad.json"
+echo "--- a quoted value in the env file is refused ---"
+sed 's/^DOMAIN=.*/DOMAIN="localhost"/' "$env_file" > "$test_dir/env.quoted"
+run_deploy "$test_dir/env.quoted" "$test_dir/v1.json"
+[ "$last_rc" -ne 0 ] || fail "a quoted env value was accepted"
+assert_eq "$(snapshot)" "$before" "state after a quoted env"
 
-set +e
-"$infra_dir/deploy.sh" "$test_dir/env.test" "$test_dir/digests-bad.json"
-bad_exit=$?
-set -e
+echo "--- a missing Redis password fails the deploy, it does not skip the ACL ---"
+grep -v '^REDIS_PASSWORD_ADMIN=' "$env_file" > "$test_dir/env.noadmin"
+run_deploy "$test_dir/env.noadmin" "$test_dir/v1.json"
+[ "$last_rc" -ne 0 ] || fail "a deploy ran without REDIS_PASSWORD_ADMIN"
+grep -q "REDIS_PASSWORD_ADMIN is not set" "$test_dir/last.log" || fail "the missing password is not named"
+assert_eq "$(snapshot)" "$before" "state after a missing password"
 
-if [ "$bad_exit" -eq 0 ]; then
-  echo "Expected deploy of bad digest to fail, but it exited with 0!" >&2
-  exit 1
-fi
-echo "Bad digest deploy failed as expected (exit code: $bad_exit)."
+echo "--- a digest that does not exist: the pull fails before anything is touched ---"
+write_digests "$test_dir/nopull.json" idraft-api:v2 idraft-worker:v2 \
+  "ghcr.io/digibranders/idraft-web@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+run_deploy "$env_file" "$test_dir/nopull.json"
+[ "$last_rc" -ne 0 ] || fail "a deploy of a missing digest exited 0"
+assert_eq "$(snapshot)" "$before" "state after a failed pull"
+assert_serving "after the failed pull"
 
-echo "=== 5. Verifying automatic rollback to previous release ==="
-# Check that idraft-web is still running idraft-web:local
-active_web="$(docker inspect -f '{{.Config.Image}}' idraft-web 2>/dev/null || true)"
-if [ "$active_web" != "idraft-web:local" ]; then
-  echo "Automatic rollback failed: active web image is $active_web, expected idraft-web:local" >&2
-  exit 1
-fi
+echo "=== 6. The new api container fails its health gate: the serving release is restored ==="
+write_digests "$test_dir/badcmd.json" idraft-api:badcmd idraft-worker:v2 idraft-web:v2
+before="$(snapshot)"
+cp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before"
+cp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before"
+run_deploy "$env_file" "$test_dir/badcmd.json"
+[ "$last_rc" -ne 0 ] || fail "a deploy whose api exits returned 0"
+grep -q "Restoring the release that was serving" "$test_dir/last.log" || fail "no restore was attempted"
+assert_eq "$(image_of api)" idraft-api:v2 "api image after the failed health gate"
+assert_eq "$(image_of worker)" idraft-worker:v2 "worker image after the failed health gate"
+assert_eq "$(image_of web)" idraft-web:v2 "web image after the failed health gate"
+cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before" || fail "current.json changed"
+cmp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before" || fail "previous.json changed"
+assert_serving "after the failed health gate"
+tail -n 1 "$IDRAFT_RELEASES_DIR/history.log" | grep -q DEPLOY_FAILED || fail "the failure is not in history.log"
 
-# Verify the previous release is still serving traffic
-status="$(curl -k -s -o /dev/null -w "%{http_code}" https://localhost/api/v1/me || true)"
-if [ "$status" != "401" ]; then
-  echo "Automatic rollback failed: /api/v1/me returned $status instead of 401" >&2
-  exit 1
-fi
-echo "Automatic rollback verified: stack remains healthy and serves traffic."
+echo "=== 7. The migration fails: no application container is touched ==="
+write_digests "$test_dir/badmig.json" idraft-api:badmig idraft-worker:v2 idraft-web:v2
+before_ids="$(ids)"
+before="$(snapshot)"
+run_deploy "$env_file" "$test_dir/badmig.json"
+[ "$last_rc" -ne 0 ] || fail "a deploy whose migration fails returned 0"
+grep -q "Database migration failed" "$test_dir/last.log" || fail "the migration failure is not reported"
+assert_eq "$(ids)" "$before_ids" "container ids after a failed migration"
+assert_eq "$(snapshot)" "$before" "state after a failed migration"
+assert_eq "$(image_of api)" idraft-api:v2 "api image after a failed migration"
+assert_serving "after the failed migration"
 
-echo "=== 6. Testing manual rollback command ==="
-"$infra_dir/deploy.sh" --rollback "$test_dir/env.test"
-status="$(curl -k -s -o /dev/null -w "%{http_code}" https://localhost/api/v1/me || true)"
-if [ "$status" != "401" ]; then
-  echo "Manual rollback failed: /api/v1/me returned $status instead of 401" >&2
-  exit 1
-fi
+echo "=== 8. Manual rollback ==="
+run_deploy --rollback
+[ "$last_rc" -ne 0 ] || fail "--rollback without an env file succeeded"
+run_deploy --rollback "$test_dir/missing.env"
+[ "$last_rc" -ne 0 ] || fail "--rollback with a missing env file succeeded"
+run_deploy --rollback "$env_file"
+assert_eq "$last_rc" 0 "rollback exit code"
+assert_eq "$(image_of api)" idraft-api:local "api image after rollback"
+assert_eq "$(image_of worker)" idraft-worker:local "worker image after rollback"
+assert_eq "$(image_of web)" idraft-web:local "web image after rollback"
+assert_eq "$(jq -r .api "$IDRAFT_RELEASES_DIR/current.json")" idraft-api:local "current.json after rollback"
+assert_serving "after rollback"
 
+assert_eq "$(repo_state)" "$repo_before" "repository working tree at the end"
 echo "Deploy dry-run tests passed successfully."

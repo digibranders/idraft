@@ -6,13 +6,19 @@ This directory contains the production Docker Compose stack, configuration files
 
 The production runtime is a single host running Ubuntu 24.04 LTS with Docker Engine and the Compose plugin:
 
-* **Edge Gateway (`caddy`):** Caddy 2 reverse proxy. Handles automatic TLS certificates for `app.idraft.ai` via Let's Encrypt / ZeroSSL. The only container exposing public ports (80 and 443). Internal endpoints such as `/api/readyz` are blocked from public access.
+* **Edge Gateway (`caddy`):** Caddy 2 reverse proxy. Handles automatic TLS certificates for `app.idraft.ai` via Let's Encrypt / ZeroSSL. The only container publishing ports (80 and 443, both variables, see below). `/api/internal/*` is answered with 404. `/api/readyz` is public on purpose, see "Public readiness endpoint".
 * **Frontend (`web`):** Next.js standalone application running on Node 24 slim under uid 1000:1000. Proxied at `/` by Caddy. Communicates internally with `api:8000` via `API_INTERNAL_ORIGIN`.
-* **API Backend (`api`):** FastAPI application on Python 3.13 running under uid 10001:10001 with Uvicorn. Proxied at `/api/*` by Caddy. Connects to PostgreSQL as `app_api` and Redis as `app`.
+* **API Backend (`api`):** FastAPI application on Python 3.13 running under uid 10001:10001 with Uvicorn. Proxied at `/api/*` by Caddy. Trusts `X-Forwarded-*` headers only from the edge network subnet. Connects to PostgreSQL as `app_api` and Redis as `app`.
 * **Background Worker (`worker`):** Taskiq worker on Python 3.13 running under uid 10001:10001. Handles scheduled collection, DataForSEO sync, and raw payload storage in Cloudflare R2. Connects to PostgreSQL as `app_worker` and Redis as `app`.
 * **Database (`postgres`):** PostgreSQL 18. Tuned for a 15 GB RAM host (`shared_buffers=3GB`, `effective_cache_size=9GB`, `work_mem=16MB`, `maintenance_work_mem=512MB`). Internal network only; publishes no ports to the host.
 * **Cache and Message Broker (`redis`):** Redis 8 with append-only file (AOF) persistence and ACL enforcement (`app`, `healthcheck`, `admin` users). Sized to 512 MB `maxmemory` with `noeviction`. Internal network only; publishes no ports.
-* **Database Migrator (`migrator`):** Short-lived one-off container running Alembic migrations as role `migrator` before updated application containers are started.
+* **Database Migrator (`migrator`):** Short-lived one-off container running the migrations as role `migrator` before updated application containers are started.
+
+Containers have no fixed names, IPs or subnets. Compose names them `<project>-<service>-1`; scripts find them with `docker compose ps -q <service>`. Host ports and the two network subnets are variables (`HTTP_PORT`, `HTTPS_PORT`, `EDGE_SUBNET`, `BACKEND_SUBNET`), so a second project can run beside the first with its own `COMPOSE_PROJECT_NAME`.
+
+### Public readiness endpoint
+
+`/api/readyz` is reachable from the internet through Caddy, and nothing else under `/api/internal` is. The decision rests on the handler in `backend/src/idraft/api/health.py`: it returns `{"status": ..., "checks": {"postgres": bool, "redis": bool, "migrations": bool}}`, never a version, hostname or error text. The external uptime check planned for WP6 needs it. The cost is that anyone can learn whether the stack is up. If that is not acceptable, put `/api/readyz` back into the `@internal` matcher in `compose/Caddyfile` and point the uptime check at a Caddy health route instead.
 
 ## Host Bootstrap
 
@@ -21,33 +27,49 @@ The host bootstrap script configures a fresh Ubuntu 24.04 server into an operati
 ### Prerequisites
 
 * Clean Ubuntu 24.04 LTS VPS with at least 8 GB RAM (15 GB recommended).
-* Root access via SSH.
+* Root access via SSH, with your own public key already in `/root/.ssh/authorized_keys`.
 * Public IPv4 pointing to the host's DNS name (`app.idraft.ai`).
+* A dedicated Ed25519 key pair for CI (`ssh-keygen -t ed25519 -f idraft-deploy -C idraft-deploy`). The public half goes to the host, the private half becomes the `DEPLOY_SSH_KEY` secret.
 
 ### Running the Bootstrap Script
 
-1. Copy `infra/bootstrap.sh` to the server:
+The script installs helper programs from `infra/host/`, so copy the whole directory:
+
+1. Copy `infra/` and the CI public key to the server:
    ```bash
-   scp infra/bootstrap.sh root@<SERVER_IP>:/tmp/bootstrap.sh
+   scp -r infra idraft-deploy.pub root@<SERVER_IP>:/root/
    ```
-2. Run the script as root:
+2. Run the script as root, first without hardening:
    ```bash
-   ssh root@<SERVER_IP> "bash /tmp/bootstrap.sh"
+   ssh root@<SERVER_IP> "bash /root/infra/bootstrap.sh --deploy-key /root/idraft-deploy.pub"
    ```
+3. Check that both logins work with keys: `ssh root@<SERVER_IP>` and `ssh -i idraft-deploy deploy@<SERVER_IP>`.
+4. Then harden SSH (key-only login, no root password):
+   ```bash
+   ssh root@<SERVER_IP> "bash /root/infra/bootstrap.sh --deploy-key /root/idraft-deploy.pub --harden-ssh"
+   ```
+   The script refuses to harden unless both `/root/.ssh/authorized_keys` and the deploy user's `authorized_keys` hold a key.
+
+Re-running the script with the same arguments changes nothing and restarts nothing. Re-run it after changing `infra/host/*`, because those two helpers are installed once into `/usr/local/sbin`, not by the deploy pipeline.
 
 ### What Bootstrap Configures
 
-* **Docker Engine & Compose:** Installs official Docker CE and Compose plugin from Docker apt repository.
-* **System user:** Creates unprivileged `deploy` user with key-based authentication and membership in the `docker` group.
-* **Directory structure:** Prepares `/srv/idraft`, `/srv/idraft/releases`, `/srv/idraft/infra`, and `/etc/idraft`.
+* **Docker Engine & Compose:** Installs official Docker CE and Compose plugin from Docker apt repository. `/etc/docker/daemon.json` is rewritten, and Docker restarted, only when its content changes.
+* **Deploy user:** Creates unprivileged `deploy` with the CI public key as its only authorized key, and membership in the `docker` group.
+* **Sudo:** `/etc/sudoers.d/idraft-deploy` (mode 0440, checked with `visudo -cf` before install) lets `deploy` run exactly four commands as root, without a password:
+  * `/usr/local/sbin/idraft-install-env` (no arguments): writes `/etc/idraft/.env` from stdin.
+  * `/usr/local/sbin/idraft-install-infra` (no arguments): copies the staged infra files into `/srv/idraft/infra`.
+  * `/srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`
+  * `/srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env`
+* **Directory structure:** `/srv/idraft`, `releases`, `infra` and `shared` are root-owned; the deploy user cannot edit anything sudo may run. `/srv/idraft/incoming` is the only place `deploy` can write (mode 0700), used to stage uploads. `/etc/idraft` is root-only (0700).
 * **Swap space:** Allocates 2 GB swap file at `/swapfile` with `vm.swappiness=10`.
-* **System limits:** Configures `fs.file-max=2097152` and `vm.max_map_count=262144`.
-* **Firewall (UFW):** Restricts ingress traffic to ports 22 (SSH), 80 (HTTP), and 443 (HTTPS) only.
+* **Kernel settings:** `vm.overcommit_memory=1` for Redis and socket backlog limits, in `/etc/sysctl.d/60-idraft.conf`.
+* **Firewall (UFW):** Denies inbound traffic except 80, 443 (TCP and UDP) and the port `sshd -T` reports. A non-default SSH port is read from the running configuration, not assumed.
 * **Intrusion prevention:** Enables `fail2ban` for SSH brute force mitigation.
-* **Automatic security updates:** Configures `unattended-upgrades` with automatic reboot window at 04:00 UTC if required.
-* **SSH hardening:** Disables root password login and enforces key-only authentication.
+* **Automatic security updates:** Configures `unattended-upgrades` with automatic reboot at 04:30 if required.
+* **SSH hardening (only with `--harden-ssh`):** key-only authentication, `PermitRootLogin prohibit-password`, no forwarding.
 
-The bootstrap script is idempotent. Running it multiple times will not overwrite existing state or disrupt running services.
+Security note: membership of the `docker` group is equivalent to root on the host, because the deploy user can start a privileged container. The root-owned scripts and the narrow sudoers rule keep the intended path honest and the audit trail clear; they do not turn a compromised deploy key into a low-privilege one. Protect `DEPLOY_SSH_KEY` accordingly (environment secret with a required reviewer, rotate on any doubt).
 
 ## Deployment
 
@@ -55,19 +77,38 @@ Deployments are automated through GitHub Actions or can be executed directly on 
 
 ### Automated Deployment (GitHub Actions)
 
-The workflow `.github/workflows/deploy.yml` runs on push to `main` (after `backend.yml` and `web.yml` pass) or can be triggered manually via `workflow_dispatch`.
+The workflow `.github/workflows/deploy.yml` runs after the `backend` or `web` workflow succeeds on a push to `main` in this repository (never for a pull request or a fork), or manually via `workflow_dispatch`.
 
 1. The job enters the `production` GitHub Environment, which requires manual approval from an authorized reviewer.
-2. The workflow downloads the image digest artifacts (`backend-digests.json` and `web-digests.json`) produced by CI.
-3. Over SSH, the workflow writes `/etc/idraft/.env` atomically with mode 0600 from GitHub Environment secrets.
-4. The workflow rsyncs `infra/` to `/srv/idraft/infra/` and copies `digests.json`.
-5. The host executes `/srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/digests.json`.
+2. It checks out the commit that was built (`workflow_run.head_sha`) without persisted credentials.
+3. `infra/ci/resolve-release.sh` downloads the digest artifact of the triggering run by run id, and the other workflow's digests for the same commit. If a path filter kept the other workflow from running for that commit, its newest successful run on `main` is used, but only when that commit is an ancestor. If the other workflow is still running, the job ends without deploying and that workflow's completion triggers the deploy. The record is built with `jq` and every image must match `ghcr.io/digibranders/idraft-(api|worker|web)@sha256:<64 hex>`.
+4. Over SSH with a pinned host key, the workflow streams `ENV_FILE` to `sudo /usr/local/sbin/idraft-install-env`, stages `infra/` in `/srv/idraft/incoming/infra`, runs `sudo /usr/local/sbin/idraft-install-infra`, uploads `digests.json` to `/srv/idraft/incoming/` and runs `sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`.
+
+A manual run needs all three image references as inputs. Tick `rollback` to run the rollback command instead.
+
+#### Environment secrets used by the workflow
+
+| Secret | Content |
+|---|---|
+| `DEPLOY_HOST` | Public IP or DNS name of the host. |
+| `DEPLOY_USER` | `deploy` (the default when unset). |
+| `DEPLOY_SSH_KEY` | Private Ed25519 key whose public half was passed to `bootstrap.sh --deploy-key`. |
+| `DEPLOY_KNOWN_HOSTS` | The host's public key line(s) in `known_hosts` format. The job fails if it is empty and uses `StrictHostKeyChecking=yes`, so it never trusts a first connection. |
+| `ENV_FILE` | The full contents of `/etc/idraft/.env`. |
+
+Produce `DEPLOY_KNOWN_HOSTS` once, from your own machine, and compare the fingerprint with the provider console or with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` run on the host:
+
+```bash
+ssh-keyscan -t ed25519 <SERVER_IP_OR_NAME>
+```
+
+Paste the output line into the secret. Use the same name as `DEPLOY_HOST`. After a host rebuild the key changes, and the secret must be updated.
 
 ### Manual Deployment on the Host
 
 To deploy manually using specific image digests:
 
-1. Create a `digests.json` file:
+1. Create a `digests.json` file (a `sha` field with the 40 character commit is optional; without it a short hash of the three references becomes `RELEASE_SHA`):
    ```json
    {
      "api": "ghcr.io/digibranders/idraft-api@sha256:<digest>",
@@ -75,27 +116,32 @@ To deploy manually using specific image digests:
      "web": "ghcr.io/digibranders/idraft-web@sha256:<digest>"
    }
    ```
-2. Run the deploy script:
+2. Run the deploy script as root:
    ```bash
    sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /path/to/digests.json
    ```
 
+Tags such as `idraft-api:latest` are refused. Only the local tests set `IDRAFT_ALLOW_TAGS=1`, and `sudo` strips that variable.
+
+### Rules for `/etc/idraft/.env`
+
+Both Compose and `deploy.sh` read this file, and the first-operator command below sources it with a shell. Write one `KEY=value` per line, with no quotes, no inline comments and no spaces around `=`. `deploy.sh` refuses a quoted value or an inline comment rather than guess. Generate secrets with `openssl rand -hex 24` so they hold no shell metacharacters.
+
 ### Deployment Step Sequence
 
 The deploy script executes the following stages in strict order:
-1. Pulls all three container images by digest from GHCR.
-2. Computes SHA-256 password hashes from `/etc/idraft/.env` and renders the Redis ACL file.
-3. Runs the database migrator container (`alembic upgrade head`) to completion.
-4. Records the current active release in `/srv/idraft/releases/previous.json`.
-5. Starts application services in order: `api`, `worker`, `web`, `caddy`.
-6. Waits for each service healthcheck to report healthy.
-7. Verifies internal readiness via `/api/readyz`.
-8. On success, records release metadata in `/srv/idraft/releases/history.log`.
-9. On any failure, automatically triggers rollback to the previous release recorded in `previous.json`.
+1. Takes the deploy lock (`flock` on `/run/idraft-deploy.lock`; it fails if `flock` is missing) and validates the env file and the three image references.
+2. Pulls all three container images by digest from GHCR. A failure here changes nothing.
+3. Renders the Redis ACL (SHA-256 hashes only) into `/etc/idraft/redis/users.acl`, owned by uid 999 (the Redis image user) with mode 0600, and runs `ACL LOAD` on a running Redis. A missing Redis password fails the deploy. If `ACL LOAD` is refused (a password rotation), Redis is restarted to read the file.
+4. Runs the database migrator to completion. A failure stops the deploy before any application container is touched.
+5. Starts application services in order: `api`, `worker`, `web`, `caddy`, waiting for each to be running and healthy. A container that exits or restarts counts as failed at once.
+6. Checks the stack through Caddy with `curl --resolve`: `/api/v1/me` must answer 401 and `/api/readyz` 200.
+7. Only now rotates the records: the old `current.json` becomes `previous.json`, the new release becomes `current.json`, and a line is appended to `/srv/idraft/releases/history.log`.
+8. On a failure after step 4, the release recorded in `current.json` is restored and the failure is logged as `DEPLOY_FAILED`. On the very first deploy there is nothing to restore.
 
 ## Rollback
 
-Rollback is a single command that immediately redeploys the previous release without touching the database schema.
+Rollback is a single command that redeploys the previous release without touching the database schema.
 
 ### Manual Rollback Command
 
@@ -103,7 +149,7 @@ Rollback is a single command that immediately redeploys the previous release wit
 sudo /srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env
 ```
 
-You can also trigger rollback via GitHub Actions by running `deploy.yml` with `workflow_dispatch` and setting `rollback: true`.
+The env file argument is required; there is no default. You can also trigger rollback via GitHub Actions by running `deploy.yml` with `workflow_dispatch` and setting `rollback: true`.
 
 ### Forward-Only Migrations Rule
 
@@ -115,17 +161,35 @@ Database migrations are strictly forward-only. Rollback redeploys the previous c
 
 Never rename columns, drop active columns, or introduce restrictive NOT NULL constraints in a single release.
 
+## Running Compose by Hand
+
+Compose needs the three image references to render the file. Load them from the current release before any manual `docker compose` command:
+
+```bash
+cd /srv/idraft/infra/compose
+sudo sh -c '
+  rel=/srv/idraft/releases/current.json
+  export API_IMAGE="$(jq -r .api $rel)" WORKER_IMAGE="$(jq -r .worker $rel)" WEB_IMAGE="$(jq -r .web $rel)"
+  exec docker compose --env-file /etc/idraft/.env ps
+'
+```
+
 ## Creating the First Platform Operator
 
 New installations run with `REGISTRATION=invited` by default. The initial administrative operator account must be created from the command line on the host.
 
-Run the following command on the server using the migrator credentials:
+Run the following command on the server. The shell that runs `docker compose` reads `/etc/idraft/.env` itself, so `DATABASE_URL_MIGRATOR` is expanded as root, where it is set:
 
 ```bash
 cd /srv/idraft/infra/compose
-sudo docker compose --env-file /etc/idraft/.env run --rm \
-  -e DATABASE_URL="${DATABASE_URL_MIGRATOR}" \
-  api python -m idraft.cli create-operator --email operator@idraft.ai --name "Platform Admin"
+sudo sh -c '
+  set -a; . /etc/idraft/.env; set +a
+  rel=/srv/idraft/releases/current.json
+  export API_IMAGE="$(jq -r .api $rel)" WORKER_IMAGE="$(jq -r .worker $rel)" WEB_IMAGE="$(jq -r .web $rel)"
+  exec docker compose --env-file /etc/idraft/.env run --rm \
+    -e DATABASE_URL="$DATABASE_URL_MIGRATOR" \
+    api python -m idraft.cli create-operator --email operator@idraft.ai --name "Platform Admin"
+'
 ```
 
 The command prompts interactively for a secure password (minimum 12 characters). It connects as role `migrator` and creates a verified user with platform operator privileges.
@@ -142,21 +206,23 @@ All production secrets must be stored in the GitHub Actions `production` Environ
 
 | Secret Name | Destination / Usage | Source / Description |
 |---|---|---|
-| `DEPLOY_HOST` | GitHub Actions | Public IP or DNS hostname of the production Droplet. |
+| `DEPLOY_HOST` | GitHub Actions | Public IP or DNS hostname of the production host. |
 | `DEPLOY_USER` | GitHub Actions | Deploy username (`deploy`). |
 | `DEPLOY_SSH_KEY` | GitHub Actions | Private Ed25519 SSH key authorized on the production host. |
+| `DEPLOY_KNOWN_HOSTS` | GitHub Actions | Pinned SSH host key line(s) of the production host. |
 | `ENV_FILE` | `/etc/idraft/.env` | Complete multi-line environment configuration containing all stack secrets. |
 | `PG_SUPERUSER_PASSWORD` | PostgreSQL | Initial password for the `postgres` administrative role. |
 | `PG_API_PASSWORD` | PostgreSQL / API | Password for `app_api` role. Subject to row-level security. |
 | `PG_WORKER_PASSWORD` | PostgreSQL / Worker | Password for `app_worker` role. Cross-tenant worker access. |
-| `PG_MIGRATOR_PASSWORD` | PostgreSQL / Migrator | Password for `migrator` role. Schema owner for Alembic. |
+| `PG_MIGRATOR_PASSWORD` | PostgreSQL / Migrator | Password for `migrator` role. Schema owner for the migrations. |
 | `DATABASE_URL_API` | `/etc/idraft/.env` | `postgresql://app_api:<pass>@postgres:5432/idraft` |
 | `DATABASE_URL_WORKER` | `/etc/idraft/.env` | `postgresql://app_worker:<pass>@postgres:5432/idraft` |
 | `DATABASE_URL_MIGRATOR` | `/etc/idraft/.env` | `postgresql://migrator:<pass>@postgres:5432/idraft` |
-| `REDIS_PASSWORD_APP` | Redis / API / Worker | Password for `app` user in Redis ACL. |
-| `REDIS_PASSWORD_HEALTHCHECK` | Redis / Healthcheck | Password for `healthcheck` user (ping only) in Redis ACL. |
-| `REDIS_PASSWORD_ADMIN` | Redis / Admin | Password for `admin` user in Redis ACL. |
+| `REDIS_PASSWORD_APP` | Redis / API / Worker | Password for `app` user in Redis ACL. Required; the deploy fails without it. |
+| `REDIS_PASSWORD_HEALTHCHECK` | Redis / Healthcheck | Password for `healthcheck` user (ping only) in Redis ACL. Required. |
+| `REDIS_PASSWORD_ADMIN` | Redis / Admin | Password for `admin` user in Redis ACL. Required; `deploy.sh` uses it for `ACL LOAD`. |
 | `REDIS_URL_APP` | `/etc/idraft/.env` | `redis://app:<pass>@redis:6379/0` |
+| `REDIS_ACL_DIR` | `/etc/idraft/.env` | Host directory for the rendered `users.acl` (`/etc/idraft/redis`). |
 | `TOTP_ENCRYPTION_KEY` | Backend API / Worker | Base64-encoded 32-byte secret for encrypting MFA keys at rest. Must NEVER be changed or regenerated once users exist, or all stored TOTP secrets will be corrupted. |
 | `EMAIL_PROVIDER` | Backend API | Transactional email provider (`brevo`, `resend`, or `console`). |
 | `EMAIL_API_KEY` | Backend API | API key for Brevo transactional email delivery. |
@@ -170,21 +236,33 @@ All production secrets must be stored in the GitHub Actions `production` Environ
 | `SENTRY_DSN_BACKEND` | Backend API / Worker | Sentry error tracking DSN for Python applications. |
 | `SENTRY_DSN_WEB` | Web Frontend | Sentry error tracking DSN for Next.js web application. |
 
+Not secrets, but set in the same file: `HTTP_PORT`, `HTTPS_PORT`, `EDGE_SUBNET`, `BACKEND_SUBNET`, and the pinned `CADDY_IMAGE`, `POSTGRES_IMAGE`, `REDIS_IMAGE` (see `compose/.env.example`).
+
+## Local Tests
+
+Both need Docker and the `idraft-api:local`, `idraft-worker:local` and `idraft-web:local` images, and use throwaway secrets, their own Compose project names and non-default ports:
+
+```bash
+bash infra/test/deploy-dryrun.sh      # deploy v1, v2, bad pull, failing health gate, failing migration, rollback
+bash infra/test/parallel-stack.sh     # two full stacks side by side on different ports and subnets
+```
+
+The dry run asserts that a failed deploy leaves the serving release, `current.json`, `previous.json` and the repository unchanged. It runs under the bash 3.2 of macOS, where `flock` is missing, so a no-op `flock` shim stands in there; the lock itself only runs on Linux.
+
 ## Routine Maintenance
 
 ### Checking Stack Status
 
-```bash
-cd /srv/idraft/infra/compose
-sudo docker compose --env-file /etc/idraft/.env ps
-```
+Use the snippet in "Running Compose by Hand", ending in `docker compose --env-file /etc/idraft/.env ps`.
 
 ### Inspecting Container Logs
 
+Same snippet, ending in one of:
+
 ```bash
-sudo docker compose --env-file /etc/idraft/.env logs -f --tail=100 api
-sudo docker compose --env-file /etc/idraft/.env logs -f --tail=100 worker
-sudo docker compose --env-file /etc/idraft/.env logs -f --tail=100 caddy
+exec docker compose --env-file /etc/idraft/.env logs -f --tail=100 api
+exec docker compose --env-file /etc/idraft/.env logs -f --tail=100 worker
+exec docker compose --env-file /etc/idraft/.env logs -f --tail=100 caddy
 ```
 
 ### Pruning Unused Images
