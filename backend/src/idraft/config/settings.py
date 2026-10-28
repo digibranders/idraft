@@ -121,7 +121,7 @@ class Settings(_DatabaseSettings):
     registration: Literal["invited", "open"] = "invited"
     # base64 of 32 random bytes. Encrypts TOTP secrets at rest; only the api process needs it.
     totp_encryption_key: SecretStr | None = None
-    email_provider: Literal["console", "resend"] = "console"
+    email_provider: Literal["console", "resend", "brevo"] = "console"
     email_api_key: SecretStr | None = None
     email_from: str = DEFAULT_EMAIL_FROM
     breached_password_check: bool = True
@@ -249,11 +249,14 @@ class Settings(_DatabaseSettings):
     def _the_api_can_run_auth(self) -> Self:
         if self.process_role == "api" and self.totp_encryption_key is None:
             raise ValueError("TOTP_ENCRYPTION_KEY is required for the api process")
-        if self.email_provider == "resend" and self.email_api_key is None:
-            raise ValueError("EMAIL_API_KEY is required when EMAIL_PROVIDER is resend")
-        if self.email_provider == "resend" and self.email_from == DEFAULT_EMAIL_FROM:
+        if self.email_provider in ("resend", "brevo") and self.email_api_key is None:
             raise ValueError(
-                "EMAIL_FROM must be a sender on your domain when EMAIL_PROVIDER is resend"
+                f"EMAIL_API_KEY is required when EMAIL_PROVIDER is {self.email_provider}"
+            )
+        if self.email_provider in ("resend", "brevo") and self.email_from == DEFAULT_EMAIL_FROM:
+            raise ValueError(
+                "EMAIL_FROM must be a sender on your domain when EMAIL_PROVIDER is "
+                f"{self.email_provider}"
             )
         # Only the api sends mail so far. The console sender prints tokens, so it is for a local
         # origin only. The origin is checked as well as APP_ENV, so a host that forgot to set
