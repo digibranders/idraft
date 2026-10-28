@@ -57,8 +57,10 @@ assert_serving() {
 
 # Everything a failed deploy must leave alone.
 snapshot() {
-  { ids; cat "$IDRAFT_RELEASES_DIR/current.json" "$IDRAFT_RELEASES_DIR/previous.json" 2>/dev/null || true; } | shasum -a 256
+  { ids; cat "$env_file" "$IDRAFT_RELEASES_DIR/current.json" "$IDRAFT_RELEASES_DIR/previous.json" 2>/dev/null || true; } | shasum -a 256
 }
+container_env() { docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(container_id "$1")"; }
+running_services() { dc ps --status running --services | sort | tr '\n' ' '; }
 
 sha_v2=1234567890abcdef1234567890abcdef12345678
 
@@ -66,6 +68,17 @@ echo "=== 1. Building the v2 and the deliberately broken images ==="
 build_variant_images
 write_digests "$test_dir/v1.json" idraft-api:local idraft-worker:local idraft-web:local
 write_digests "$test_dir/v2.json" idraft-api:v2 idraft-worker:v2 idraft-web:v2 "$sha_v2"
+write_digests "$test_dir/badcmd.json" idraft-api:badcmd idraft-worker:v2 idraft-web:v2
+
+echo "=== 1b. A first deploy that fails leaves no application container running ==="
+run_deploy "$env_file" "$test_dir/badcmd.json"
+[ "$last_rc" -ne 0 ] || fail "a first deploy whose api exits returned 0"
+grep -q "First deploy failed and there is no earlier release" "$test_dir/last.log" || fail "the first-deploy failure is not explained"
+assert_eq "$(running_services)" "postgres redis " "services still running after a failed first deploy"
+[ ! -f "$IDRAFT_RELEASES_DIR/current.json" ] || fail "a failed first deploy wrote current.json"
+IDRAFT_RELEASES_DIR="$test_dir/none" run_deploy --rollback "$env_file"
+[ "$last_rc" -ne 0 ] || fail "--rollback with no recorded release succeeded"
+grep -q "Nothing to roll back" "$test_dir/last.log" || fail "--rollback does not say there is nothing to roll back"
 
 echo "=== 2. First deploy (v1, no commit recorded, so the release id is derived) ==="
 run_deploy "$env_file" "$test_dir/v1.json"
@@ -83,6 +96,8 @@ echo "=== 3. Second deploy (v2 differs from v1, records previous, reloads the Re
 run_deploy "$env_file" "$test_dir/v2.json"
 assert_eq "$last_rc" 0 "v2 deploy exit code"
 grep -q "Reloading the Redis ACL" "$test_dir/last.log" || fail "a running Redis was not told to reload its ACL"
+! grep -q "ACL LOAD was refused" "$test_dir/last.log" || fail "ACL LOAD did not authenticate with the admin password from the environment"
+cmp "$env_file" "$env_file.previous" || fail ".env.previous is not the env that served v1"
 assert_eq "$(image_of api)" idraft-api:v2 "v2 api image"
 assert_eq "$(image_of worker)" idraft-worker:v2 "v2 worker image"
 assert_eq "$(image_of web)" idraft-web:v2 "v2 web image"
@@ -130,7 +145,6 @@ assert_eq "$(snapshot)" "$before" "state after a failed pull"
 assert_serving "after the failed pull"
 
 echo "=== 6. The new api container fails its health gate: the serving release is restored ==="
-write_digests "$test_dir/badcmd.json" idraft-api:badcmd idraft-worker:v2 idraft-web:v2
 before="$(snapshot)"
 cp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before"
 cp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before"
@@ -157,17 +171,49 @@ assert_eq "$(snapshot)" "$before" "state after a failed migration"
 assert_eq "$(image_of api)" idraft-api:v2 "api image after a failed migration"
 assert_serving "after the failed migration"
 
-echo "=== 8. Manual rollback ==="
+echo "=== 8. A bad env change: the health gate fails, and the previous env, ACL and images come back ==="
+# The env rotates the Redis app password (the ACL is rewritten before the migration) and breaks the
+# api's database login (the health gate fails). Restoring must put back both.
+cp "$env_file" "$test_dir/env.before"
+cp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before"
+cp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before"
+{
+  grep -vE '^(DATABASE_URL_API|REDIS_PASSWORD_APP|REDIS_URL_APP)=' "$env_file"
+  echo "DATABASE_URL_API=postgresql://app_api:wrong-password@postgres:5432/idraft"
+  echo "REDIS_PASSWORD_APP=rotated-app-password"
+  echo "REDIS_URL_APP=redis://app:rotated-app-password@redis:6379/0"
+} > "$env_file.next"
+run_deploy "$env_file" "$test_dir/v2.json"
+[ "$last_rc" -ne 0 ] || fail "a deploy with a broken DATABASE_URL_API returned 0"
+grep -q "Restoring the release that was serving" "$test_dir/last.log" || fail "no restore was attempted after the bad env"
+cmp "$env_file" "$test_dir/env.before" || fail "the live env file changed after a failed deploy"
+[ ! -f "$env_file.next" ] || fail "the rejected staged env was left behind"
+cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before" || fail "current.json changed"
+cmp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before" || fail "previous.json changed"
+container_env api | grep -q '^DATABASE_URL=.*api-test-pass' || fail "the api container does not run on the previous env"
+assert_eq "$(image_of api)" idraft-api:v2 "api image after the bad env"
+assert_serving "after the bad env"
+
+echo "=== 9. Manual rollback restores the previous release together with its env ==="
+{ grep -v '^COLLECT_CONCURRENCY=' "$env_file"; echo COLLECT_CONCURRENCY=3; } > "$env_file.next"
+run_deploy "$env_file" "$test_dir/v1.json"
+assert_eq "$last_rc" 0 "deploy with a changed env"
+container_env worker | grep -qx 'COLLECT_CONCURRENCY=3' || fail "the new env did not reach the worker"
+grep -qx 'COLLECT_CONCURRENCY=3' "$env_file" || fail "the staged env was not promoted"
+grep -qx 'COLLECT_CONCURRENCY=8' "$env_file.previous" || fail ".env.previous is not the env of the replaced release"
+[ ! -f "$env_file.next" ] || fail "the promoted staged env was left behind"
 run_deploy --rollback
 [ "$last_rc" -ne 0 ] || fail "--rollback without an env file succeeded"
 run_deploy --rollback "$test_dir/missing.env"
 [ "$last_rc" -ne 0 ] || fail "--rollback with a missing env file succeeded"
 run_deploy --rollback "$env_file"
 assert_eq "$last_rc" 0 "rollback exit code"
-assert_eq "$(image_of api)" idraft-api:local "api image after rollback"
-assert_eq "$(image_of worker)" idraft-worker:local "worker image after rollback"
-assert_eq "$(image_of web)" idraft-web:local "web image after rollback"
-assert_eq "$(jq -r .api "$IDRAFT_RELEASES_DIR/current.json")" idraft-api:local "current.json after rollback"
+assert_eq "$(image_of api)" idraft-api:v2 "api image after rollback"
+assert_eq "$(image_of worker)" idraft-worker:v2 "worker image after rollback"
+assert_eq "$(image_of web)" idraft-web:v2 "web image after rollback"
+container_env worker | grep -qx 'COLLECT_CONCURRENCY=8' || fail "rollback did not restore the previous env"
+grep -qx 'COLLECT_CONCURRENCY=8' "$env_file" || fail "rollback did not promote the previous env"
+assert_eq "$(jq -r .api "$IDRAFT_RELEASES_DIR/current.json")" idraft-api:v2 "current.json after rollback"
 assert_serving "after rollback"
 
 assert_eq "$(repo_state)" "$repo_before" "repository working tree at the end"

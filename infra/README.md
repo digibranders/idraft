@@ -57,7 +57,7 @@ Re-running the script with the same arguments changes nothing and restarts nothi
 * **Docker Engine & Compose:** Installs official Docker CE and Compose plugin from Docker apt repository. `/etc/docker/daemon.json` is rewritten, and Docker restarted, only when its content changes.
 * **Deploy user:** Creates unprivileged `deploy` with the CI public key as its only authorized key, and membership in the `docker` group.
 * **Sudo:** `/etc/sudoers.d/idraft-deploy` (mode 0440, checked with `visudo -cf` before install) lets `deploy` run exactly four commands as root, without a password:
-  * `/usr/local/sbin/idraft-install-env` (no arguments): writes `/etc/idraft/.env` from stdin.
+  * `/usr/local/sbin/idraft-install-env` (no arguments): stages `/etc/idraft/.env.next` from stdin (root, 0600). `deploy.sh` promotes it to `.env` only after the release serves.
   * `/usr/local/sbin/idraft-install-infra` (no arguments): copies the staged infra files into `/srv/idraft/infra`.
   * `/srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`
   * `/srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env`
@@ -82,7 +82,7 @@ The workflow `.github/workflows/deploy.yml` runs after the `backend` or `web` wo
 1. The job enters the `production` GitHub Environment, which requires manual approval from an authorized reviewer.
 2. It checks out the commit that was built (`workflow_run.head_sha`) without persisted credentials.
 3. `infra/ci/resolve-release.sh` downloads the digest artifact of the triggering run by run id, and the other workflow's digests for the same commit. If a path filter kept the other workflow from running for that commit, its newest successful run on `main` is used, but only when that commit is an ancestor. If the other workflow is still running, the job ends without deploying and that workflow's completion triggers the deploy. The record is built with `jq` and every image must match `ghcr.io/digibranders/idraft-(api|worker|web)@sha256:<64 hex>`.
-4. Over SSH with a pinned host key, the workflow streams `ENV_FILE` to `sudo /usr/local/sbin/idraft-install-env`, stages `infra/` in `/srv/idraft/incoming/infra`, runs `sudo /usr/local/sbin/idraft-install-infra`, uploads `digests.json` to `/srv/idraft/incoming/` and runs `sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`.
+4. Over SSH with a pinned host key, the workflow streams `ENV_FILE` to `sudo /usr/local/sbin/idraft-install-env` (it lands as `/etc/idraft/.env.next`, never over the live `.env`), stages `infra/` in `/srv/idraft/incoming/infra`, runs `sudo /usr/local/sbin/idraft-install-infra`, uploads `digests.json` to `/srv/idraft/incoming/` and runs `sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`.
 
 A manual run needs all three image references as inputs. Tick `rollback` to run the rollback command instead.
 
@@ -94,7 +94,7 @@ A manual run needs all three image references as inputs. Tick `rollback` to run 
 | `DEPLOY_USER` | `deploy` (the default when unset). |
 | `DEPLOY_SSH_KEY` | Private Ed25519 key whose public half was passed to `bootstrap.sh --deploy-key`. |
 | `DEPLOY_KNOWN_HOSTS` | The host's public key line(s) in `known_hosts` format. The job fails if it is empty and uses `StrictHostKeyChecking=yes`, so it never trusts a first connection. |
-| `ENV_FILE` | The full contents of `/etc/idraft/.env`. |
+| `ENV_FILE` | The full contents of the next `/etc/idraft/.env`. It is deployed as a candidate and becomes the live `.env` only after the release serves. |
 
 Produce `DEPLOY_KNOWN_HOSTS` once, from your own machine, and compare the fingerprint with the provider console or with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` run on the host:
 
@@ -121,23 +121,33 @@ To deploy manually using specific image digests:
    sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /path/to/digests.json
    ```
 
-Tags such as `idraft-api:latest` are refused. Only the local tests set `IDRAFT_ALLOW_TAGS=1`, and `sudo` strips that variable.
+If `/etc/idraft/.env.next` exists, the script deploys with it (and says so); delete it first to redeploy on the live `.env`. Tags such as `idraft-api:latest` are refused. Only the local tests set `IDRAFT_ALLOW_TAGS=1`, and `sudo` strips that variable.
 
 ### Rules for `/etc/idraft/.env`
 
-Both Compose and `deploy.sh` read this file, and the first-operator command below sources it with a shell. Write one `KEY=value` per line, with no quotes, no inline comments and no spaces around `=`. `deploy.sh` refuses a quoted value or an inline comment rather than guess. Generate secrets with `openssl rand -hex 24` so they hold no shell metacharacters.
+Both Compose and `deploy.sh` read this file, and the first-operator command below sources it with a shell. Write one `KEY=value` per line, with no quotes, no inline comments and no spaces around `=`. `deploy.sh` refuses a quoted value, an inline comment, or a value containing `$` (Compose would interpolate it, and the Redis ACL hashes deploy.sh computes would no longer match the password the services use). Secrets must be alphanumeric or URL-safe: generate them with `openssl rand -hex 24`.
+
+Three files belong together under `/etc/idraft`:
+
+| File | Content |
+|---|---|
+| `.env` | The environment of the release that is serving. |
+| `.env.next` | A candidate staged by CI. `deploy.sh` validates it, deploys with it, and renames it to `.env` only once the release serves. A failed deploy deletes it. |
+| `.env.previous` | The environment the previous release ran on. Written on every successful deploy, from the `.env` being replaced, together with `previous.json`. |
+
+A failed deploy therefore restores the old images on the old environment, and re-renders the Redis ACL from it. `--rollback` restores the previous images on `.env.previous` and then makes it the live `.env`. The `ENV_FILE` secret stays whatever you last stored in GitHub: after a rollback, fix the secret before the next deploy or the next deploy reapplies the environment you rolled back from.
 
 ### Deployment Step Sequence
 
 The deploy script executes the following stages in strict order:
-1. Takes the deploy lock (`flock` on `/run/idraft-deploy.lock`; it fails if `flock` is missing) and validates the env file and the three image references.
+1. Takes the deploy lock (`flock` on `/run/idraft-deploy.lock`; it fails if `flock` is missing), picks the candidate env (`.env.next` when present, else `.env`) and validates it and the three image references. The candidate must also render the Compose file.
 2. Pulls all three container images by digest from GHCR. A failure here changes nothing.
-3. Renders the Redis ACL (SHA-256 hashes only) into `/etc/idraft/redis/users.acl`, owned by uid 999 (the Redis image user) with mode 0600, and runs `ACL LOAD` on a running Redis. A missing Redis password fails the deploy. If `ACL LOAD` is refused (a password rotation), Redis is restarted to read the file.
-4. Runs the database migrator to completion. A failure stops the deploy before any application container is touched.
+3. Renders the Redis ACL from the candidate env (SHA-256 hashes only) into `/etc/idraft/redis/users.acl`, owned by uid 999 (the Redis image user) with mode 0600, and runs `ACL LOAD` on a running Redis. A missing Redis password fails the deploy. If `ACL LOAD` is refused (a password rotation), Redis is recreated to read the file.
+4. Runs the database migrator to completion. A failure stops the deploy before any application container is touched, drops `.env.next` and re-renders the ACL from the serving release's `.env`.
 5. Starts application services in order: `api`, `worker`, `web`, `caddy`, waiting for each to be running and healthy. A container that exits or restarts counts as failed at once.
 6. Checks the stack through Caddy with `curl --resolve`: `/api/v1/me` must answer 401 and `/api/readyz` 200.
-7. Only now rotates the records: the old `current.json` becomes `previous.json`, the new release becomes `current.json`, and a line is appended to `/srv/idraft/releases/history.log`.
-8. On a failure after step 4, the release recorded in `current.json` is restored and the failure is logged as `DEPLOY_FAILED`. On the very first deploy there is nothing to restore.
+7. Only now rotates the records: the old `current.json` becomes `previous.json`, the `.env` being replaced becomes `.env.previous`, `.env.next` becomes `.env`, the new release becomes `current.json`, and a line is appended to `/srv/idraft/releases/history.log`.
+8. On a failure after step 4, `.env.next` is deleted, the release recorded in `current.json` is restored on the unchanged `.env` (the ACL is re-rendered from it first) and the failure is logged as `DEPLOY_FAILED`. On the very first deploy there is nothing to restore: the application containers are stopped (postgres and redis stay up) and the script exits non-zero with a message.
 
 ## Rollback
 
@@ -149,7 +159,7 @@ Rollback is a single command that redeploys the previous release without touchin
 sudo /srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env
 ```
 
-The env file argument is required; there is no default. You can also trigger rollback via GitHub Actions by running `deploy.yml` with `workflow_dispatch` and setting `rollback: true`.
+The env file argument is required; there is no default. Rollback needs both `previous.json` and `.env.previous`; without them it says there is nothing to roll back and changes nothing. You can also trigger rollback via GitHub Actions by running `deploy.yml` with `workflow_dispatch` and setting `rollback: true`.
 
 ### Forward-Only Migrations Rule
 
@@ -243,11 +253,11 @@ Not secrets, but set in the same file: `HTTP_PORT`, `HTTPS_PORT`, `EDGE_SUBNET`,
 Both need Docker and the `idraft-api:local`, `idraft-worker:local` and `idraft-web:local` images, and use throwaway secrets, their own Compose project names and non-default ports:
 
 ```bash
-bash infra/test/deploy-dryrun.sh      # deploy v1, v2, bad pull, failing health gate, failing migration, rollback
+bash infra/test/deploy-dryrun.sh      # failed first deploy, v1, v2, bad pull, failing health gate, failing migration, bad env change, rollback with its env
 bash infra/test/parallel-stack.sh     # two full stacks side by side on different ports and subnets
 ```
 
-The dry run asserts that a failed deploy leaves the serving release, `current.json`, `previous.json` and the repository unchanged. It runs under the bash 3.2 of macOS, where `flock` is missing, so a no-op `flock` shim stands in there; the lock itself only runs on Linux.
+The dry run asserts that a failed deploy leaves the serving release, the live env file, `current.json`, `previous.json` and the repository unchanged. It runs under the bash 3.2 of macOS, where `flock` is missing, so a no-op `flock` shim stands in there; the lock itself only runs on Linux.
 
 ## Routine Maintenance
 

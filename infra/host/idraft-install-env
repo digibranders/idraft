@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Installs the platform environment file from stdin as /etc/idraft/.env (root:root, 0600).
+# Stages the platform environment file from stdin as /etc/idraft/.env.next (root:root, 0600).
 # Installed by bootstrap.sh as /usr/local/sbin/idraft-install-env and the only way the deploy user
-# writes that file (a sudoers rule allows exactly this command). It never prints the contents.
+# writes env files (a sudoers rule allows exactly this command). It never prints the contents.
+# deploy.sh validates .env.next, deploys with it and promotes it to .env only once the release serves,
+# so a bad env can never replace the one the serving release runs on.
 set -euo pipefail
 
-target="/etc/idraft/.env"
+target="/etc/idraft/.env.next"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "idraft-install-env must run as root (through sudo)." >&2
@@ -12,7 +14,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 umask 077
-tmp="$(mktemp /etc/idraft/.env.XXXXXX)"
+tmp="$(mktemp /etc/idraft/.env.next.XXXXXX)"
 trap 'rm -f "$tmp"' EXIT
 
 # The same directory as the target, so the final mv is a rename and never a half-written file.
@@ -24,4 +26,4 @@ fi
 chown root:root "$tmp"
 chmod 0600 "$tmp"
 mv -f "$tmp" "$target"
-echo "Installed $target."
+echo "Staged $target."

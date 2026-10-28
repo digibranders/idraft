@@ -4,6 +4,12 @@
 #   infra/deploy.sh <env-file> <digests.json>
 #   infra/deploy.sh --rollback <env-file>
 #
+# <env-file> is the live environment of the serving release (/etc/idraft/.env). A release is deployed
+# with <env-file>.next when that file exists (written by idraft-install-env), otherwise with <env-file>.
+# The candidate becomes <env-file> only after the release serves, and the env that served the old
+# release is kept as <env-file>.previous, so a failed deploy and --rollback both restore an image
+# set together with the env it was running on.
+#
 # Environment (all optional; production leaves them unset, tests set them):
 #   IDRAFT_RELEASES_DIR  release records           default /srv/idraft/releases
 #   IDRAFT_LOCK_FILE     deploy lock               default /run/idraft-deploy.lock
@@ -21,7 +27,11 @@ allow_tags="${IDRAFT_ALLOW_TAGS:-0}"
 acl_owner="${IDRAFT_ACL_OWNER-999:999}"
 acl_mode="${IDRAFT_ACL_MODE:-0600}"
 
-env_file=""
+env_file=""   # the env file Compose and env_get read right now
+live_env=""   # env of the serving release
+next_env=""   # staged candidate
+prev_env=""   # env of the previous release
+acl_rendered=0
 api_image=""
 worker_image=""
 web_image=""
@@ -61,6 +71,26 @@ check_env_file() {
   fi
   if grep -nE "^[A-Za-z_][A-Za-z0-9_]*=.* #" "$env_file" >/dev/null; then
     die "$env_file has an inline comment. Put comments on their own line."
+  fi
+  # Compose interpolates $ in an env file, but the ACL hashes below use the raw value: they would differ.
+  if grep -nE '^[A-Za-z_][A-Za-z0-9_]*=.*\$' "$env_file" >/dev/null; then
+    die "$env_file has a value containing '\$'. Use alphanumeric or URL-safe secrets (openssl rand -hex 24)."
+  fi
+}
+
+# copy_private <src> <dst>: an atomic 0600 copy, for env files.
+copy_private() {
+  local tmp
+  tmp="$(umask 077 && mktemp "$2.XXXXXX")"
+  cat "$1" > "$tmp"
+  mv -f "$tmp" "$2"
+}
+
+# A staged env that was not promoted must not linger: a later manual deploy would silently pick it up.
+discard_next_env() {
+  if [ -f "$next_env" ]; then
+    rm -f "$next_env"
+    echo "Discarded the staged environment $next_env." >&2
   fi
 }
 
@@ -118,39 +148,45 @@ require_env() {
 # The directory is mounted into the container, so the rename below is visible there.
 render_redis_acl() {
   local acl_dir app_pass health_pass admin_pass app_hash health_hash admin_hash tmp
-  acl_dir="$(require_env REDIS_ACL_DIR)"
-  app_pass="$(require_env REDIS_PASSWORD_APP)"
-  health_pass="$(require_env REDIS_PASSWORD_HEALTHCHECK)"
-  admin_pass="$(require_env REDIS_PASSWORD_ADMIN)"
+  # Callers run this in an || list, where set -e is off: every step reports failure itself.
+  acl_dir="$(require_env REDIS_ACL_DIR)" || return 1
+  app_pass="$(require_env REDIS_PASSWORD_APP)" || return 1
+  health_pass="$(require_env REDIS_PASSWORD_HEALTHCHECK)" || return 1
+  admin_pass="$(require_env REDIS_PASSWORD_ADMIN)" || return 1
   app_hash="$(printf '%s' "$app_pass" | sha256sum | cut -d' ' -f1)"
   health_hash="$(printf '%s' "$health_pass" | sha256sum | cut -d' ' -f1)"
   admin_hash="$(printf '%s' "$admin_pass" | sha256sum | cut -d' ' -f1)"
 
-  mkdir -p "$acl_dir"
+  mkdir -p "$acl_dir" || return 1
   # Traversable, because the mount shows this mode inside the container; the file is what is private.
-  chmod 0711 "$acl_dir"
-  tmp="$(umask 077 && mktemp "$acl_dir/.users.acl.XXXXXX")"
+  chmod 0711 "$acl_dir" || return 1
+  tmp="$(umask 077 && mktemp "$acl_dir/.users.acl.XXXXXX")" || return 1
   printf '%s\n' \
     "user default off" \
     "user app on #${app_hash} resetkeys ~collect ~process ~taskiq:* ~dedupe:* ~cache:* ~rl:* ~lock:* ~sess:* ~oauth:* resetchannels +@all -@dangerous +info +client|setname +client|getname" \
     "user healthcheck on #${health_hash} resetkeys resetchannels -@all +ping" \
-    "user admin on #${admin_hash} ~* &* +@all" > "$tmp"
-  chmod "$acl_mode" "$tmp"
+    "user admin on #${admin_hash} ~* &* +@all" > "$tmp" || return 1
+  chmod "$acl_mode" "$tmp" || return 1
   if [ -n "$acl_owner" ]; then
-    chown "$acl_owner" "$tmp"
+    chown "$acl_owner" "$tmp" || return 1
   fi
-  mv -f "$tmp" "$acl_dir/users.acl"
+  mv -f "$tmp" "$acl_dir/users.acl" || return 1
+  acl_rendered=1
 
   local redis_cid
   redis_cid="$(dc ps -q redis || true)"
   if [ -n "$redis_cid" ] && [ "$(docker inspect -f '{{.State.Running}}' "$redis_cid")" = "true" ]; then
     echo "Reloading the Redis ACL..."
-    if ! dc exec -T -e REDISCLI_AUTH="$admin_pass" redis redis-cli --no-auth-warning --user admin ACL LOAD | grep -qx OK; then
-      # The running Redis may still hold the old admin password (a rotation), so read the file on restart.
-      echo "ACL LOAD was refused; restarting Redis to read the new file." >&2
-      dc restart redis >/dev/null
-      wait_for_service redis 90 || die "Redis did not become healthy after restart."
+    # The password reaches docker through the environment, never as an argument.
+    if REDISCLI_AUTH="$admin_pass" dc exec -T -e REDISCLI_AUTH redis redis-cli --no-auth-warning --user admin ACL LOAD | grep -qx OK; then
+      # Recreates Redis only if its own settings changed (the healthcheck password is part of them).
+      dc up -d redis >/dev/null || return 1
+    else
+      # The running Redis may still hold the old admin password (a rotation), so read the file on a fresh start.
+      echo "ACL LOAD was refused; recreating Redis to read the new file." >&2
+      dc up -d --force-recreate redis >/dev/null || return 1
     fi
+    wait_for_service redis 90 || return 1
   fi
 }
 
@@ -238,58 +274,103 @@ probe_edge() {
   expect_status /api/v1/me 401 && expect_status /api/readyz 200
 }
 
-# Brings the services back on the images of a release record, and checks they serve.
+# Brings the services back on a release record and the env file that release ran on, and checks they
+# serve. Returns 1 on any failure.
 restore_release() {
-  local file="$1" svc
+  local file="$1" envf="$2" svc
+  if [ ! -f "$envf" ]; then
+    echo "The environment file of that release is missing: $envf" >&2
+    return 1
+  fi
+  env_file="$envf"
+  check_env_file
   read_release "$file"
   export_release
+  render_redis_acl >&2 || return 1
   for svc in api worker web caddy; do
-    dc up -d "$svc" >&2
+    dc up -d "$svc" >&2 || return 1
   done
   wait_for_health && probe_edge
 }
-
 log_history() {
   echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") $*" >> "$history_log"
 }
 
-# The failed release is never recorded; the release that was serving (current.json) is restored.
+# A deploy that failed before it touched an application container. The candidate env is dropped, and
+# the Redis ACL, which may already be rendered from it, goes back to the serving release's env.
+abort_deploy() {
+  local failed="api=$api_image worker=$worker_image web=$web_image"
+  echo "$1" >&2
+  discard_next_env
+  if [ "$acl_rendered" = 1 ] && [ -f "$current_file" ] && [ -f "$live_env" ]; then
+    echo "Restoring the Redis ACL of the release that is serving." >&2
+    env_file="$live_env"
+    render_redis_acl >&2 || echo "The previous Redis ACL could not be restored. Intervene on the host." >&2
+  fi
+  log_history "DEPLOY_FAILED $failed"
+  exit 1
+}
+
+# A deploy that failed after application containers were replaced. The failed release is never
+# recorded; the release that was serving (current.json) comes back on its own env.
 fail_deploy() {
   local failed="api=$api_image worker=$worker_image web=$web_image"
   echo "$1" >&2
+  discard_next_env
   if [ -f "$current_file" ]; then
     echo "Restoring the release that was serving:" >&2
-    if ! restore_release "$current_file"; then
+    if ! restore_release "$current_file" "$live_env"; then
       echo "RECOVERY FAILED: the previous release did not come back healthy. Intervene on the host." >&2
     fi
   else
-    echo "There is no earlier release to restore (first deploy)." >&2
+    # Nothing to go back to: do not leave a half-started release answering. Postgres and Redis stay up.
+    dc stop api worker web caddy >&2 || true
+    echo "First deploy failed and there is no earlier release. The application containers were stopped; postgres and redis were left running. Fix the cause and deploy again." >&2
   fi
   log_history "DEPLOY_FAILED $failed"
   exit 1
 }
 
 run_rollback() {
-  [ -f "$previous_file" ] || die "No previous release recorded at $previous_file to roll back to."
-  echo "Rolling back to the previous release..."
-  restore_release "$previous_file" || die "Rollback failed its health checks."
+  [ -f "$previous_file" ] || die "Nothing to roll back: no previous release is recorded at $previous_file."
+  [ -f "$prev_env" ] || die "Nothing to roll back: the environment of the previous release ($prev_env) is missing."
+  echo "Rolling back to the previous release and its environment..."
+  discard_next_env
+  if ! restore_release "$previous_file" "$prev_env"; then
+    echo "The previous release did not come back healthy. Restoring the release that was serving." >&2
+    if [ -f "$current_file" ] && restore_release "$current_file" "$live_env"; then
+      die "Rollback failed its health checks; the release that was serving was restored."
+    fi
+    die "RECOVERY FAILED: neither release came back healthy. Intervene on the host."
+  fi
   cp "$previous_file" "$current_file.tmp"
   mv -f "$current_file.tmp" "$current_file"
+  copy_private "$prev_env" "$live_env"
   log_history "ROLLBACK api=$api_image worker=$worker_image web=$web_image"
   echo "Rollback completed successfully."
 }
 
 if [ "${1:-}" = "--rollback" ]; then
   [ "$#" -eq 2 ] || die "Usage: $0 --rollback <env-file> (the env file is required, there is no default)"
-  env_file="$2"
-  check_env_file
+  live_env="$2"
+  next_env="$live_env.next"
+  prev_env="$live_env.previous"
   run_rollback
   exit 0
 fi
 
 [ "$#" -eq 2 ] || die "Usage: $0 <env-file> <digests.json>
        $0 --rollback <env-file>"
-env_file="$1"
+live_env="$1"
+next_env="$live_env.next"
+prev_env="$live_env.previous"
+if [ -f "$next_env" ]; then
+  env_file="$next_env"
+  echo "Deploying with the staged environment $next_env."
+else
+  env_file="$live_env"
+  echo "No staged environment; deploying with $live_env."
+fi
 check_env_file
 read_release "$2"
 
@@ -298,17 +379,20 @@ echo "  API:    $api_image"
 echo "  Worker: $worker_image"
 echo "  Web:    $web_image"
 
+export_release
+# Catches a missing required variable before anything running is touched.
+dc config -q || die "The environment does not render the Compose file. Nothing was changed."
+
 # Nothing running has been touched yet, so a failure up to the migration needs no recovery.
 echo "Pulling images..."
 for img in "$api_image" "$worker_image" "$web_image"; do
-  pull_image "$img" || die "Failed to pull $img. Nothing was changed."
+  pull_image "$img" || abort_deploy "Failed to pull $img. Nothing was changed."
 done
 
-export_release
-render_redis_acl
+render_redis_acl || abort_deploy "Could not load the new Redis ACL."
 
 echo "Running database migrations..."
-dc run --rm migrator || die "Database migration failed. The application services were not touched."
+dc run --rm migrator || abort_deploy "Database migration failed. The application services were not touched."
 
 echo "Deploying application containers in order..."
 for svc in api worker web caddy; do
@@ -322,6 +406,13 @@ probe_edge || fail_deploy "The edge check through Caddy failed."
 # Record the release only now that it serves; the old one becomes the rollback target.
 if [ -f "$current_file" ]; then
   cp "$current_file" "$previous_file"
+  # The env the old release ran on belongs to the rollback target.
+  if [ -f "$live_env" ]; then
+    copy_private "$live_env" "$prev_env"
+  fi
+fi
+if [ "$env_file" = "$next_env" ]; then
+  mv -f "$next_env" "$live_env"
 fi
 # Rewritten from the validated values, not copied from the staged file.
 jq -n --arg api "$api_image" --arg worker "$worker_image" --arg web "$web_image" --arg sha "$release_sha" \

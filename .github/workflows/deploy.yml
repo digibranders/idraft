@@ -101,10 +101,11 @@ jobs:
           INPUT_WEB: ${{ inputs.web_image }}
         run: bash infra/ci/resolve-release.sh
 
-      - name: Install the environment file on the host
+      - name: Stage the environment file on the host
         if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}
+        # Lands as /etc/idraft/.env.next; deploy.sh promotes it only after the release serves.
         # The secret travels on stdin and is never part of a command line or a script body.
         run: printf '%s\n' "$ENV_FILE" | ssh idraft-prod 'sudo /usr/local/sbin/idraft-install-env'
 
