@@ -72,15 +72,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
-      - name: Log in to GitHub Container Registry
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push web image
-        id: web
+      - name: Build web image locally
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: .
@@ -90,18 +82,51 @@ jobs:
             NEXT_PUBLIC_APP_ENV=production
             NEXT_PUBLIC_API_MOCKING=off
             NEXT_PUBLIC_RELEASE=${{ github.sha }}
-          tags: ghcr.io/${{ github.repository_owner }}/idraft-web:${{ github.sha }}
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-      - name: Record digest and upload artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+          tags: idraft-web:ci
+          load: true
+      - name: Health probe of the web image
+        # The sign-in page is what Compose probes in production. It renders without the API, and the
+        # image must run as the non-root user the Compose file expects.
         run: |
-          mkdir -p /tmp/digests
-          web_ref="ghcr.io/${{ github.repository_owner }}/idraft-web@${{ steps.web.outputs.digest }}"
-          echo "Web image: $web_ref" >> "$GITHUB_STEP_SUMMARY"
-          printf '{"web":"%s"}\n' "$web_ref" > /tmp/digests/web-digests.json
+          trap 'docker rm -f web-probe >/dev/null 2>&1 || true' EXIT
+          docker run -d --name web-probe -p 127.0.0.1:13000:3000 \
+            -e API_INTERNAL_ORIGIN=http://127.0.0.1:8000 idraft-web:ci >/dev/null
+          for _ in $(seq 1 30); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:13000/login)" = 200 ]; then
+              [ "$(docker exec web-probe id -u)" = 1000 ] || { echo "The web image does not run as uid 1000." >&2; exit 1; }
+              echo "web: /login answered 200 as uid 1000"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "The web image never served /login." >&2
+          docker logs web-probe >&2 || true
+          exit 1
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # The image that passed the probe is the one pushed: nothing is rebuilt between the two.
+      - name: Push the tested web image and record its digest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          OWNER: ${{ github.repository_owner }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          repo="ghcr.io/${OWNER,,}/idraft-web"
+          mkdir -p "$RUNNER_TEMP/digests"
+          docker tag idraft-web:ci "$repo:$COMMIT"
+          docker push "$repo:$COMMIT"
+          ref="$(docker image inspect "$repo:$COMMIT" --format '{{range .RepoDigests}}{{println .}}{{end}}' | grep "^$repo@sha256:" | head -n 1)"
+          [ -n "$ref" ] || { echo "No registry digest for $repo:$COMMIT after the push." >&2; exit 1; }
+          echo "web image: $ref" >> "$GITHUB_STEP_SUMMARY"
+          jq -n --arg web "$ref" '{web: $web}' > "$RUNNER_TEMP/digests/web-digests.json"
       - name: Upload web digest artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: web-digests
-          path: /tmp/digests/web-digests.json
+          path: ${{ runner.temp }}/digests/web-digests.json

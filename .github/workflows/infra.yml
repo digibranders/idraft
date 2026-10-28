@@ -1,0 +1,40 @@
+name: infra
+
+on:
+  push:
+    branches: [main]
+    paths: ["infra/**", "backend/smoke.sh", ".github/workflows/**"]
+  pull_request:
+    paths: ["infra/**", "backend/smoke.sh", ".github/workflows/**"]
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: shellcheck -x infra/*.sh infra/ci/*.sh infra/host/* infra/test/*.sh backend/smoke.sh
+      - name: Compose file renders against the example environment
+        run: docker compose -f infra/compose/docker-compose.yml --env-file infra/compose/.env.example config -q
+      - name: Caddyfile is valid
+        run: |
+          image="$(grep '^CADDY_IMAGE=' infra/compose/.env.example | cut -d= -f2-)"
+          docker run --rm -e DOMAIN=app.idraft.ai -v "$PWD/infra/compose/Caddyfile:/etc/caddy/Caddyfile:ro" "$image" \
+            caddy validate --config /etc/caddy/Caddyfile
+      - name: actionlint
+        # Pinned by digest (1.7.12). Embedded shell is checked by the shellcheck step above for scripts,
+        # and by review for the short inline steps.
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -shellcheck= -pyflakes=

@@ -9,15 +9,15 @@ on:
         type: boolean
         default: false
       api_image:
-        description: "API image digest (e.g. ghcr.io/owner/idraft-api@sha256:...)"
+        description: "API image digest (ghcr.io/digibranders/idraft-api@sha256:...)"
         required: false
         type: string
       worker_image:
-        description: "Worker image digest (e.g. ghcr.io/owner/idraft-worker@sha256:...)"
+        description: "Worker image digest (ghcr.io/digibranders/idraft-worker@sha256:...)"
         required: false
         type: string
       web_image:
-        description: "Web image digest (e.g. ghcr.io/owner/idraft-web@sha256:...)"
+        description: "Web image digest (ghcr.io/digibranders/idraft-web@sha256:...)"
         required: false
         type: string
   workflow_run:
@@ -39,104 +39,85 @@ jobs:
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 20
-    # On workflow_run, only run if the triggering workflow succeeded on main
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    # A workflow_run deploys only a successful push to main in this repository, never a fork or a pull request.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    env:
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'deploy' }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      # The commit being released: the one the triggering workflow built, or the selected ref for a manual run.
+      RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
-      - name: Checkout repository
+      - name: Checkout the release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_COMMIT }}
+          persist-credentials: false
 
-      - name: Configure SSH
+      - name: Configure SSH with a pinned host key
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          chmod 0700 ~/.ssh
-          echo "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 0600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          chmod 0600 ~/.ssh/known_hosts
+          [ -n "$DEPLOY_KNOWN_HOSTS" ] || { echo "DEPLOY_KNOWN_HOSTS is not set in the production environment." >&2; exit 1; }
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          # Every ssh, scp and rsync below goes through this alias, so none can fall back to trust on first use.
+          {
+            echo "Host idraft-prod"
+            echo "  HostName $DEPLOY_HOST"
+            echo "  User $DEPLOY_USER"
+            echo "  IdentityFile ~/.ssh/id_ed25519"
+            echo "  IdentitiesOnly yes"
+            echo "  BatchMode yes"
+            echo "  StrictHostKeyChecking yes"
+            echo "  UserKnownHostsFile ~/.ssh/known_hosts"
+          } > ~/.ssh/config
+          chmod 0600 ~/.ssh/config
 
-      - name: Handle manual rollback
+      - name: Roll back to the previous release
         if: ${{ inputs.rollback == true }}
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'deploy' }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: |
-          echo "Triggering rollback on production host..."
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "sudo /srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env"
+        run: ssh idraft-prod "sudo /srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env"
 
       - name: Resolve release digests
+        id: resolve
         if: ${{ !inputs.rollback }}
         env:
           GH_TOKEN: ${{ github.token }}
+          OUT: ${{ runner.temp }}/digests.json
+          REPO: ${{ github.repository }}
+          SHA: ${{ env.RELEASE_COMMIT }}
+          MODE: ${{ github.event_name == 'workflow_run' && 'run' || 'dispatch' }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
           INPUT_API: ${{ inputs.api_image }}
           INPUT_WORKER: ${{ inputs.worker_image }}
           INPUT_WEB: ${{ inputs.web_image }}
-        run: |
-          mkdir -p /tmp/digests
-          api="$INPUT_API"
-          worker="$INPUT_WORKER"
-          web="$INPUT_WEB"
+        run: bash infra/ci/resolve-release.sh
 
-          if [ -z "$api" ] || [ -z "$worker" ]; then
-            echo "Attempting to download backend-digests artifact..."
-            gh run download --repo "${{ github.repository }}" --name backend-digests --dir /tmp/digests 2>/dev/null || true
-            if [ -f /tmp/digests/backend-digests.json ]; then
-              api="$(jq -r '.api // empty' /tmp/digests/backend-digests.json)"
-              worker="$(jq -r '.worker // empty' /tmp/digests/backend-digests.json)"
-            fi
-          fi
-
-          if [ -z "$web" ]; then
-            echo "Attempting to download web-digests artifact..."
-            gh run download --repo "${{ github.repository }}" --name web-digests --dir /tmp/digests 2>/dev/null || true
-            if [ -f /tmp/digests/web-digests.json ]; then
-              web="$(jq -r '.web // empty' /tmp/digests/web-digests.json)"
-            fi
-          fi
-
-          if [ -z "$api" ] || [ -z "$worker" ] || [ -z "$web" ]; then
-            echo "Failed to resolve all required image digests." >&2
-            echo "Resolved: api=$api, worker=$worker, web=$web" >&2
-            exit 1
-          fi
-
-          cat > /tmp/digests.json <<DIGESTS
-          {
-            "api": "$api",
-            "worker": "$worker",
-            "web": "$web"
-          }
-          DIGESTS
-          echo "Prepared release digests:"
-          cat /tmp/digests.json
-
-      - name: Write platform environment file atomically over SSH
-        if: ${{ !inputs.rollback }}
+      - name: Install the environment file on the host
+        if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
         env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'deploy' }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: |
-          # Write environment file to a temporary location and atomically move to /etc/idraft/.env with 0600 permissions
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'cat > /tmp/idraft.env.tmp && chmod 0600 /tmp/idraft.env.tmp && sudo mkdir -p /etc/idraft && sudo mv /tmp/idraft.env.tmp /etc/idraft/.env && sudo chown root:root /etc/idraft/.env && sudo chmod 0600 /etc/idraft/.env' << 'ENV_EOF'
-          ${{ secrets.ENV_FILE }}
-          ENV_EOF
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        # The secret travels on stdin and is never part of a command line or a script body.
+        run: printf '%s\n' "$ENV_FILE" | ssh idraft-prod 'sudo /usr/local/sbin/idraft-install-env'
 
-      - name: Sync infra directory to host
-        if: ${{ !inputs.rollback }}
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'deploy' }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      - name: Stage infra on the host and install it as root
+        if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
         run: |
-          rsync -avz -e ssh --delete infra/ "$DEPLOY_USER@$DEPLOY_HOST:/srv/idraft/infra/"
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "chmod +x /srv/idraft/infra/*.sh"
+          rsync -rt --delete --no-links -e ssh infra/ idraft-prod:/srv/idraft/incoming/infra/
+          ssh idraft-prod 'sudo /usr/local/sbin/idraft-install-infra'
 
-      - name: Execute deployment on host
-        if: ${{ !inputs.rollback }}
+      - name: Deploy
+        if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
         env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'deploy' }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DIGESTS: ${{ runner.temp }}/digests.json
         run: |
-          scp /tmp/digests.json "$DEPLOY_USER@$DEPLOY_HOST:/srv/idraft/digests.json"
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/digests.json"
+          scp "$DIGESTS" idraft-prod:/srv/idraft/incoming/digests.json
+          ssh idraft-prod 'sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json'
