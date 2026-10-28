@@ -81,10 +81,17 @@ The workflow `.github/workflows/deploy.yml` runs after the `backend` or `web` wo
 
 1. The job enters the `production` GitHub Environment, which requires manual approval from an authorized reviewer.
 2. It checks out the commit that was built (`workflow_run.head_sha`) without persisted credentials.
-3. `infra/ci/resolve-release.sh` downloads the digest artifact of the triggering run by run id, and the other workflow's digests for the same commit. If a path filter kept the other workflow from running for that commit, its newest successful run on `main` is used, but only when that commit is an ancestor. If the other workflow is still running, the job ends without deploying and that workflow's completion triggers the deploy. The record is built with `jq` and every image must match `ghcr.io/digibranders/idraft-(api|worker|web)@sha256:<64 hex>`.
+3. `infra/ci/resolve-release.sh` builds the release record:
+   * It first asks for the tip of `main`. If the tip is not the commit that was built and a file changed since then that one of the two image workflows watches (their `on.push.paths`), this run would be a step backwards: the job ends without deploying, and the newer commit's own workflows deploy. A newer commit that changes only docs or `infra/` does not block the deploy.
+   * It downloads the digest artifact of the triggering run by run id, and the other workflow's digests for the same commit. If a path filter kept the other workflow from running for that commit, its newest successful run on `main` is used, but only when that commit is an ancestor **and** no file that workflow watches changed between the two commits (the compare API's file list is checked against its path filters; otherwise the job fails, because the images would not match the code).
+   * If the other workflow is still running for the commit, or was cancelled (a newer push cancelled it), the job ends without deploying; the completion of that workflow, or of the newer run, triggers the deploy. If it failed, the job fails.
+   * An expired or missing artifact fails with a message that says to re-run the workflow or deploy by hand.
+   * Every image must match `ghcr.io/digibranders/idraft-(api|worker|web)@sha256:<64 hex>`. The `sha` in the record is the pushed commit for a `workflow_run`; for a manual run it is read from the `org.opencontainers.image.revision` label of the three images (set by `backend.yml` and `web.yml`; images older than that change cannot be deployed manually until rebuilt). If the three labels name different commits, the newest is recorded when all the others are its ancestors, otherwise the run fails.
+
+   The decision logic is exercised offline by `bash infra/test/resolve-release.sh` (fake `gh` and `docker` answering from fixtures shaped like the API responses; it also runs in the `infra` workflow). The real `gh`, the registry and GitHub's exact path glob rules are not covered: the script treats `*` as also matching `/`, which can only skip or fail more often, never deploy a stale release.
 4. Over SSH with a pinned host key, the workflow streams `ENV_FILE` to `sudo /usr/local/sbin/idraft-install-env` (it lands as `/etc/idraft/.env.next`, never over the live `.env`), stages `infra/` in `/srv/idraft/incoming/infra`, runs `sudo /usr/local/sbin/idraft-install-infra`, uploads `digests.json` to `/srv/idraft/incoming/` and runs `sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`.
 
-A manual run needs all three image references as inputs. Tick `rollback` to run the rollback command instead.
+A manual run needs all three image references as inputs (the runner logs in to GHCR with its own token to read their labels). Tick `rollback` to run the rollback command instead.
 
 #### Environment secrets used by the workflow
 
@@ -256,6 +263,8 @@ Both need Docker and the `idraft-api:local`, `idraft-worker:local` and `idraft-w
 bash infra/test/deploy-dryrun.sh      # failed first deploy, v1, v2, bad pull, failing health gate, failing migration, bad env change, rollback with its env
 bash infra/test/parallel-stack.sh     # two full stacks side by side on different ports and subnets
 ```
+
+`bash infra/test/resolve-release.sh` needs only bash, jq and awk: it tests the release resolution logic against fixtures, without Docker or network.
 
 The dry run asserts that a failed deploy leaves the serving release, the live env file, `current.json`, `previous.json` and the repository unchanged. It runs under the bash 3.2 of macOS, where `flock` is missing, so a no-op `flock` shim stands in there; the lock itself only runs on Linux.
 

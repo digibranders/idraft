@@ -39,6 +39,11 @@ jobs:
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 20
+    # packages: read lets a manual run read the revision label of the images it is asked to deploy.
+    permissions:
+      contents: read
+      actions: read
+      packages: read
     # A workflow_run deploys only a successful push to main in this repository, never a fork or a pull request.
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -49,7 +54,8 @@ jobs:
     env:
       DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'deploy' }}
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      # The commit being released: the one the triggering workflow built, or the selected ref for a manual run.
+      # The commit whose infra/ is installed: the one the triggering workflow built, or the selected ref for a
+      # manual run. The commit recorded for a manual run is the one the images were built from (their label).
       RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: Checkout the release commit
@@ -84,6 +90,14 @@ jobs:
       - name: Roll back to the previous release
         if: ${{ inputs.rollback == true }}
         run: ssh idraft-prod "sudo /srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env"
+
+      - name: Log the runner in to GHCR to read image labels
+        if: ${{ !inputs.rollback && github.event_name == 'workflow_dispatch' }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
       - name: Resolve release digests
         id: resolve

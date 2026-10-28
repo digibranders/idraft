@@ -23,7 +23,9 @@ jobs:
         with:
           persist-credentials: false
       - name: shellcheck
-        run: shellcheck -x infra/*.sh infra/ci/*.sh infra/host/* infra/test/*.sh backend/smoke.sh
+        run: shellcheck -x infra/*.sh infra/ci/*.sh infra/host/* infra/test/*.sh infra/test/fake/* backend/smoke.sh
+      - name: Release resolution logic (offline, recorded API shapes)
+        run: bash infra/test/resolve-release.sh
       - name: Compose file renders against the example environment
         run: docker compose -f infra/compose/docker-compose.yml --env-file infra/compose/.env.example config -q
       - name: Caddyfile is valid

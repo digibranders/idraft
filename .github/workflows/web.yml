@@ -83,6 +83,8 @@ jobs:
             NEXT_PUBLIC_API_MOCKING=off
             NEXT_PUBLIC_RELEASE=${{ github.sha }}
           tags: idraft-web:ci
+          # A manual deploy reads the release commit from this label (infra/ci/resolve-release.sh).
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           load: true
       - name: Health probe of the web image
         # The sign-in page is what Compose probes in production. It renders without the API, and the
