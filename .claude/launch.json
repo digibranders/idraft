@@ -6,6 +6,45 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--dir", "apps/web", "dev"],
       "port": 3000
+    },
+    {
+      "name": "web-3002",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/web", "dev", "--port", "3002"],
+      "port": 3002
+    },
+    {
+      "name": "api-real",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd backend && exec /Users/a12345/.local/bin/uv run --env-file .env.api-real uvicorn idraft.api.main:create_app --factory --no-access-log --port 8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "web-real",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["NEXT_PUBLIC_API_MOCKING=off", "API_PROXY_TARGET=http://127.0.0.1:8000", "pnpm", "--dir", "apps/web", "dev", "--port", "3002"],
+      "port": 3002
+    },
+    {
+      "name": "web-api",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["NEXT_PUBLIC_API_MOCKING=off", "API_PROXY_TARGET=http://127.0.0.1:8000", "pnpm", "--dir", "apps/web", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "design-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4178", "--bind", "localhost", "--directory", "apps/web/design-preview"],
+      "port": 4178
+    },
+    {
+      "name": "pricing-report",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4391", "--bind", "localhost", "--directory", "research/11-seo-tools-pricing"],
+      "port": 4391
     }
   ]
 }
