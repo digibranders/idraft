@@ -54,7 +54,7 @@ services:
     networks: [edge]
     healthcheck:
       # The admin API answers only once Caddy has loaded its configuration.
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:2019/config/"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/"]
       interval: 10s
       timeout: 3s
       retries: 3
