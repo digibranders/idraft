@@ -14,6 +14,11 @@ from typing import Literal, Protocol
 import httpx
 
 RESEND_URL = "https://api.resend.com/emails"
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+# "Name <address>" as the settings write it; a bare address is accepted too.
+SENDER_PATTERN = re.compile(
+    r"\s*(?:(?P<name>[^<>]*?)\s*<(?P<bracketed>[^<>]+)>|(?P<bare>[^<>\s]+))\s*"
+)
 SEND_TIMEOUT_SECONDS = 10.0
 ADDRESS_MAX = 254
 ADDRESS_PATTERN = re.compile(r"[^\s<>@,;\x00-\x1f\x7f]+@[^\s<>@,;\x00-\x1f\x7f]+")
@@ -87,20 +92,59 @@ class ResendEmailSender:
             raise EmailSendError(f"the email provider answered {response.status_code}")
 
 
+class BrevoEmailSender:
+    """Sends through Brevo's transactional API. The key travels in the `api-key` header only."""
+
+    def __init__(self, client: httpx.AsyncClient, *, api_key: str, sender: str) -> None:
+        match = SENDER_PATTERN.fullmatch(sender)
+        if match is None:
+            raise ValueError(
+                "the sender must be an address, or a name and an address in angle brackets"
+            )
+        self._client = client
+        self._api_key = api_key
+        self._sender: dict[str, str] = {"email": match["bracketed"] or match["bare"]}
+        if match["name"]:
+            self._sender["name"] = match["name"]
+
+    async def send(self, message: EmailMessage) -> None:
+        try:
+            response = await self._client.post(
+                BREVO_URL,
+                headers={"api-key": self._api_key, "accept": "application/json"},
+                json={
+                    "sender": self._sender,
+                    "to": [{"email": message.to}],
+                    "subject": message.subject,
+                    "textContent": message.text,
+                },
+                timeout=SEND_TIMEOUT_SECONDS,
+                follow_redirects=False,
+            )
+        except httpx.HTTPError as error:
+            raise EmailSendError(
+                f"the email provider could not be reached: {type(error).__name__}"
+            ) from None
+        if not response.is_success:
+            raise EmailSendError(f"the email provider answered {response.status_code}")
+
+
 def build_email_sender(
     client: httpx.AsyncClient,
     *,
-    provider: Literal["console", "resend"],
+    provider: Literal["console", "resend", "brevo"],
     api_key: str | None,
     sender: str,
 ) -> EmailSender:
     """The sender for a process. Takes plain values so this package stays free of settings."""
     if provider == "console":
         return ConsoleEmailSender()
-    if provider == "resend":
+    if provider in ("resend", "brevo"):
         key = (api_key or "").strip()
         if not key:
-            raise ValueError("the resend email provider needs an API key")
+            raise ValueError(f"the {provider} email provider needs an API key")
+        if provider == "brevo":
+            return BrevoEmailSender(client, api_key=key, sender=sender)
         return ResendEmailSender(client, api_key=key, sender=sender)
     # Reached only if a provider is added to the settings and not here.
     raise ValueError("unknown email provider")

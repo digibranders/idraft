@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from idraft.providers.email import (
+    BrevoEmailSender,
     ConsoleEmailSender,
     EmailMessage,
     EmailSendError,
@@ -188,3 +189,66 @@ async def test_the_sender_is_chosen_by_the_provider_name() -> None:
             )
     assert isinstance(console, ConsoleEmailSender)
     assert isinstance(resend, ResendEmailSender)
+
+
+BREVO_KEY = "xkeysib-SECRET_KEY_123"
+
+
+async def test_brevo_receives_one_json_post_with_the_key_in_the_header() -> None:
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(201, json={"messageId": "<m@brevo>"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    sender = BrevoEmailSender(client, api_key=BREVO_KEY, sender="idraft.ai <no-reply@idraft.ai>")
+    await sender.send(MESSAGE)
+    await client.aclose()
+
+    assert len(seen) == 1
+    request = seen[0]
+    assert (request.method, str(request.url)) == ("POST", "https://api.brevo.com/v3/smtp/email")
+    assert request.headers["api-key"] == BREVO_KEY
+    assert BREVO_KEY.encode() not in request.url.raw_path
+    assert json.loads(request.content) == {
+        "sender": {"email": "no-reply@idraft.ai", "name": "idraft.ai"},
+        "to": [{"email": "jane@client.example"}],
+        "subject": "Confirm your email",
+        "textContent": "Open the link.\n",
+    }
+
+
+async def test_a_bare_sender_address_has_no_name() -> None:
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(201)))
+    sender = BrevoEmailSender(client, api_key=BREVO_KEY, sender="no-reply@idraft.ai")
+    assert sender._sender == {"email": "no-reply@idraft.ai"}
+    await client.aclose()
+
+
+def test_a_malformed_brevo_sender_is_refused_at_start() -> None:
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(201)))
+    with pytest.raises(ValueError, match="sender must be an address"):
+        BrevoEmailSender(client, api_key=BREVO_KEY, sender="not an address")
+
+
+async def test_a_brevo_refusal_raises_with_the_status_and_nothing_secret() -> None:
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(401)))
+    sender = BrevoEmailSender(client, api_key=BREVO_KEY, sender="no-reply@idraft.ai")
+    with pytest.raises(EmailSendError) as raised:
+        await sender.send(MESSAGE)
+    await client.aclose()
+    assert "401" in str(raised.value)
+    assert BREVO_KEY not in str(raised.value)
+    assert "jane@client.example" not in str(raised.value)
+
+
+async def test_the_sender_is_chosen_for_brevo() -> None:
+    client = httpx.AsyncClient()
+    sender = build_email_sender(
+        client, provider="brevo", api_key=f" {BREVO_KEY}\n", sender="idraft.ai <a@b.example>"
+    )
+    assert isinstance(sender, BrevoEmailSender)
+    with pytest.raises(ValueError, match="brevo email provider needs an API key"):
+        build_email_sender(client, provider="brevo", api_key=" ", sender="a@b.example")
+    await client.aclose()
