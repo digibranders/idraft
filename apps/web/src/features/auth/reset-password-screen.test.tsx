@@ -75,7 +75,7 @@ describe('ResetPasswordScreen', () => {
     const field = await screen.findByLabelText('New password');
     await user.type(field, 'short');
     await user.tab();
-    expect(await screen.findByText('Use at least 12 characters.')).toBeInTheDocument();
+    expect(await screen.findByText('Use at least 8 characters.')).toBeInTheDocument();
   });
 
   it('shows the reason the API refuses a password on the field, keeping what was typed', async () => {

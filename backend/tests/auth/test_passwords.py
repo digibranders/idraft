@@ -64,7 +64,7 @@ def test_the_dummy_verification_costs_a_real_verification(monkeypatch: pytest.Mo
 @pytest.mark.parametrize(
     ("password", "reason"),
     [
-        ("a" * 11, "too_short"),
+        ("a" * 7, "too_short"),
         ("a" * 129, "too_long"),
         ("my Jane.Doe password", "contains_email"),
         ("xxJANE.DOExxxxxx", "contains_email"),

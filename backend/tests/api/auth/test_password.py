@@ -181,7 +181,8 @@ async def test_every_unusable_reset_token_gets_the_same_answer(
 
 
 @pytest.mark.parametrize(
-    ("password", "reason"), [("tiny pw", "too_short"), ("x" * 129, "too_long")]
+    ("password", "reason"),
+    [("tiny pw", "too_short"), ("1234567", "too_short"), ("x" * 129, "too_long")],
 )
 async def test_a_weak_new_password_is_refused_and_the_token_stays_usable(
     api: httpx.AsyncClient,

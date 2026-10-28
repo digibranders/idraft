@@ -251,7 +251,7 @@ export function FormsSection(): ReactNode {
           <Field width="medium" invalid>
             <FieldLabel>New password</FieldLabel>
             <PasswordInput autoComplete="new-password" showLabel="Show password" hideLabel="Hide password" size="lg" />
-            <FieldError message="Use at least 12 characters" />
+            <FieldError message="Use at least 8 characters" />
           </Field>
         </SpecimenRow>
         <SpecimenRow label="Textarea, counter over the limit">

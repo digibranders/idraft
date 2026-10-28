@@ -462,4 +462,5 @@ Components never call `matchMedia` for motion themselves.
 | `tokens.css` | Add the `:root[data-motion="reduced"]` override (section 11.2) |
 | `globals.css` | Set `--default-transition-duration` and `--default-transition-timing-function` to tokens (section 2.2); add keyframes `skeleton-pulse`, `spin`, `row-new`, `live-pulse` and matching `--animate-*` theme entries |
 | `lib/design/motion.ts` | Add `useReducedMotion()` (section 11.3) |
+| `globals.css`, auth screens (added 2026-10-28) | Two keyframes for the one-time entry of the sign-in brand panel: `showcase-in` (fade, 600 ms) and `showcase-rise` (fade and an 0.75 rem rise, 900 ms), both on `--ease-exit`. They run once on load, confirm nothing the user did, and are off under `prefers-reduced-motion` and `data-motion="reduced"`. Changing either needs this section updated |
 | [20-frontend-specification.md](../20-frontend-specification.md) section 4.6 item 10 | Replace with "Chart animation is off for all charts (21-motion.md)" |

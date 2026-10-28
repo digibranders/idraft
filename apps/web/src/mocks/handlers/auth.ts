@@ -31,7 +31,7 @@ import type { Problem } from '@/lib/api/types';
 
 const LOCK_AFTER_FAILURES = 5;
 const LOCK_SECONDS = 15 * 60;
-const MIN_PASSWORD_LENGTH = 12;
+const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
 /** The API matches the local part of the address in a password from 4 characters on. */
 const MIN_LOCAL_PART_MATCH = 4;

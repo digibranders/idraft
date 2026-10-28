@@ -12,7 +12,7 @@ import structlog
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerificationError
 
-PASSWORD_MIN = 12
+PASSWORD_MIN = 8
 PASSWORD_MAX = 128
 # The shortest email local part worth looking for inside a password. "jo" or "al" would match by
 # accident far more often than on purpose.

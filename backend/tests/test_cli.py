@@ -144,10 +144,10 @@ def test_it_refuses_to_run_as_any_role_but_migrator(
 @pytest.mark.parametrize(
     ("typed", "reason"),
     [
-        ("short\n", "at least 12 characters"),
+        ("short\n", "at least 8 characters"),
         ("x" * 129 + "\n", "at most 128 characters"),
-        ("\n", "at least 12 characters"),
-        ("", "at least 12 characters"),
+        ("\n", "at least 8 characters"),
+        ("", "at least 8 characters"),
     ],
 )
 def test_a_weak_password_is_refused_with_its_reason_and_not_echoed(
