@@ -31,7 +31,7 @@ test.describe('costs and runs', () => {
     await signIn(page, ADMIN);
     await page.goto('/digibranders/fynix/seo/rankings');
     const sidebar = page.getByRole('navigation', { name: 'Primary' });
-    await expect(sidebar.getByRole('link', { name: 'Rankings' })).toHaveAttribute('aria-current', 'page');
+    await expect(sidebar.getByRole('link', { name: 'Keywords' })).toHaveAttribute('aria-current', 'page');
 
     await sidebar.getByRole('link', { name: 'Runs' }).click();
     await expect(page).toHaveURL(/\/digibranders\/fynix\/ops\/runs$/);
@@ -48,10 +48,10 @@ test.describe('costs and runs', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Costs' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Costs' })).toHaveAttribute('aria-current', 'page');
 
-    await sidebar.getByRole('link', { name: 'Rankings' }).click();
+    await sidebar.getByRole('link', { name: 'Keywords' }).click();
     await expect(page).toHaveURL(/\/digibranders\/fynix\/seo\/rankings$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Rankings' })).toBeVisible();
-    await expect(sidebar.getByRole('link', { name: 'Rankings' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('heading', { level: 1, name: 'Keywords' })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Keywords' })).toHaveAttribute('aria-current', 'page');
   });
 
   test('the old routes of Costs and Runs end at the project version, with the sidebar and what the link held', async ({
