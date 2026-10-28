@@ -31,4 +31,18 @@ for f in "$t/compose/docker-compose.yml" "$t/compose/caddy/Caddyfile" "$t/compos
   [ "$(stat -c %a "$f")" = 644 ] || fail "$f is mode $(stat -c %a "$f"), not 644"
 done
 [ "$(stat -c %U:%G "$roles")" = root:root ] || fail "the role script is not owned by root"
+[ "$(stat -c %a "$t")" = 755 ] || fail "$t is mode $(stat -c %a "$t"), not 755"
+[ -z "$(find /srv/idraft -maxdepth 1 -name '.infra-snapshot.*')" ] || fail "the snapshot directory was left behind"
+
+# A staged path that is a symbolic link is refused, and nothing it points at is copied.
+rm -rf /srv/idraft/incoming /srv/idraft/infra
+mkdir -p /srv/idraft/incoming /srv/idraft/infra /srv/secret
+echo secret > /srv/secret/value
+cp /src/deploy.sh /srv/secret/deploy.sh
+ln -s /srv/secret /srv/idraft/incoming/infra
+if /src/host/idraft-install-infra 2> /tmp/refusal; then
+  fail "a symbolic link as the stage was accepted"
+fi
+grep -q "symbolic link" /tmp/refusal || fail "the refusal does not say why: $(cat /tmp/refusal)"
+[ -z "$(ls -A /srv/idraft/infra)" ] || fail "something was copied from behind the link"
 echo "install-infra checks passed"

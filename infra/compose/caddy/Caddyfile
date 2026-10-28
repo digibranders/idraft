@@ -64,11 +64,11 @@
 		}
 	}
 
-	# The API: JSON with a 1 MB body cap. The path is passed through unchanged.
+	# The API: JSON with a 1 MiB body cap. The path is passed through unchanged.
 	@api path /api/*
 	handle @api {
 		request_body {
-			max_size 1MB
+			max_size 1MiB
 		}
 		reverse_proxy api:8000 {
 			import proxy_retry
@@ -78,7 +78,7 @@
 	# Everything else: the Next.js app.
 	handle {
 		request_body {
-			max_size 1MB
+			max_size 1MiB
 		}
 		reverse_proxy web:3000 {
 			import proxy_retry

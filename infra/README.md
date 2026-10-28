@@ -59,12 +59,12 @@ The script installs helper programs from `infra/host/`, so copy the whole direct
    ```
    The script refuses to harden unless both `/root/.ssh/authorized_keys` and the deploy user's `authorized_keys` hold a key.
 
-Re-running the script with the same arguments changes nothing and restarts nothing. Re-run it after changing `infra/host/*`, because those two helpers are installed once into `/usr/local/sbin`, not by the deploy pipeline.
+Re-running the script with the same arguments changes nothing and restarts nothing. Re-run it after changing `infra/host/*`, because those three helpers are installed once into `/usr/local/sbin`, not by the deploy pipeline. It creates `/srv/idraft` and `/etc/idraft` and their subdirectories only when missing, with the intended owner and mode, and prints "Left alone" for each one that exists, so it can be run on a live host without re-owning or re-moding a directory the stack uses.
 
 ### What Bootstrap Configures
 
 * **Docker Engine & Compose:** Installs official Docker CE and Compose plugin from Docker apt repository. `/etc/docker/daemon.json` is rewritten, and Docker restarted, only when its content changes.
-* **Deploy user:** Creates unprivileged `deploy` with the CI public key as its only authorized key, and membership in the `docker` group.
+* **Deploy user:** Creates unprivileged `deploy` with the CI public key as its only authorized key. It is not in the `docker` group (bootstrap removes it if an earlier run added it): every Docker call goes through the root-owned scripts it may run with `sudo`.
 * **Sudo:** `/etc/sudoers.d/idraft-deploy` (mode 0440, checked with `visudo -cf` before install) lets `deploy` run exactly five commands as root, without a password:
   * `/usr/local/sbin/idraft-ghcr-login` (no arguments): reads a GitHub user name and a token from stdin and runs `docker login ghcr.io --password-stdin` for root.
   * `/usr/local/sbin/idraft-install-env` (no arguments): stages `/etc/idraft/.env.next` from stdin (root, 0600). `deploy.sh` promotes it to `.env` only after the release serves.
@@ -79,7 +79,11 @@ Re-running the script with the same arguments changes nothing and restarts nothi
 * **Automatic security updates:** Configures `unattended-upgrades` with automatic reboot at 04:30 if required.
 * **SSH hardening (only with `--harden-ssh`):** key-only authentication, `PermitRootLogin prohibit-password`, no forwarding.
 
-Security note: membership of the `docker` group is equivalent to root on the host, because the deploy user can start a privileged container. The root-owned scripts and the narrow sudoers rule keep the intended path honest and the audit trail clear; they do not turn a compromised deploy key into a low-privilege one. Protect `DEPLOY_SSH_KEY` accordingly (environment secret with a required reviewer, rotate on any doubt).
+Security note: the deploy user has no Docker access of its own, and can run only the five sudo commands above, all root-owned and not writable by it. That is a narrower blast radius than `docker` group membership (which is root), but not a small one: a compromised deploy key can still stage an env file and infra files that root-run scripts then use, so it can run its own code as root through the next deploy. The narrow rule keeps the intended path honest and the audit trail clear; it does not make the key low-privilege. Protect `DEPLOY_SSH_KEY` accordingly (environment secret with a required reviewer, rotate on any doubt).
+
+The `production` GitHub Environment must restrict **deployment branches to `main`** (Settings, Environments, production, Deployment branches and tags, Selected branches: `main`) and keep a required reviewer. Without the branch rule, a workflow run on any branch that can edit `deploy.yml` could read the environment's secrets once a reviewer approves.
+
+Caddy publishes on `0.0.0.0` only (see `ports` in `compose/docker-compose.yml`): nothing listens on IPv6. Do not publish an `AAAA` record for the domain until the stack is changed to bind `[::]` too; a client that prefers IPv6 would otherwise time out before falling back to IPv4.
 
 ## Deployment
 
@@ -119,7 +123,7 @@ A manual run needs all three image references as inputs (the runner logs in to G
 
 The images in GHCR are private, and nothing else logs the host in, so the workflow does it on every deploy, before `deploy.sh` runs: it pipes `GHCR_PULL_USER` and `GHCR_PULL_TOKEN` over SSH to `sudo /usr/local/sbin/idraft-ghcr-login`, which runs `docker login ghcr.io --username <user> --password-stdin` for root (credentials in `/root/.docker/config.json`, mode 0600). The token is never on a command line.
 
-* Create it as a **read-only** token: a classic personal access token with only the `read:packages` scope (or a fine-grained token with only package read access to this repository's packages), owned by a machine or service user that has read access to the `idraft-*` packages. It must not be able to push, and it must not be the `DEPLOY_SSH_KEY`'s owner's everyday token.
+* Create it as a **read-only** token: a classic personal access token with only the `read:packages` scope (or a fine-grained token with only package read access to this repository's packages), owned by a machine or service user that has read access to the `idraft-*` packages. It must not be able to push, and it must not be anyone's everyday personal token.
 * It **expires**. Give it an expiry (for example 90 days) and put the date in the team calendar. An expired token makes the login step fail with `unauthorized`, before the host is changed; rotate it by updating the `GHCR_PULL_TOKEN` secret and re-running the deploy.
 * `/root/.docker/config.json` keeps the last token until the next login; delete it with `sudo docker logout ghcr.io` when retiring the host.
 
@@ -215,7 +219,7 @@ sudo sh -c '
 
 New installations run with `REGISTRATION=invited` by default. The initial administrative operator account must be created from the command line on the host.
 
-Run the following command on the server. The shell that runs `docker compose` reads `/etc/idraft/.env` itself, so `DATABASE_URL_MIGRATOR` is expanded as root, where it is set:
+Run the following command on the server. The shell that runs `docker compose` reads `/etc/idraft/.env` itself, and the migrator URL reaches the container through the environment (`-e DATABASE_URL` with no value), so the password is never an argument visible in `ps`:
 
 ```bash
 cd /srv/idraft/infra/compose
@@ -223,8 +227,9 @@ sudo sh -c '
   set -a; . /etc/idraft/.env; set +a
   rel=/srv/idraft/releases/current.json
   export API_IMAGE="$(jq -r .api $rel)" WORKER_IMAGE="$(jq -r .worker $rel)" WEB_IMAGE="$(jq -r .web $rel)"
+  export DATABASE_URL="$DATABASE_URL_MIGRATOR"
   exec docker compose --env-file /etc/idraft/.env run --rm \
-    -e DATABASE_URL="$DATABASE_URL_MIGRATOR" \
+    -e DATABASE_URL \
     api python -m idraft.cli create-operator --email operator@idraft.ai --name "Platform Admin"
 '
 ```

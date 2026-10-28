@@ -12,14 +12,28 @@ if [ "$(id -u)" -ne 0 ]; then
   echo "idraft-install-infra must run as root (through sudo)." >&2
   exit 1
 fi
+# The deploy user owns the stage and could point it at a directory root can read, such as /etc/idraft,
+# to have its content copied somewhere the deploy user can read. A link anywhere in the path is refused.
+if [ -L "$staged" ] || [ "$(realpath -- "$staged" 2>/dev/null || true)" != "$staged" ]; then
+  echo "Refusing $staged: it is a symbolic link or has one in its path." >&2
+  exit 1
+fi
 if [ ! -f "$staged/deploy.sh" ]; then
   echo "Nothing staged: $staged/deploy.sh is missing." >&2
   exit 1
 fi
 
+# Root takes one snapshot of the stage into a directory only root can write; everything after that
+# (modes, the copy into place) works on that snapshot, so the deploy user cannot change a file in between.
+snapshot="$(mktemp -d /srv/idraft/.infra-snapshot.XXXXXX)"
+trap 'rm -rf "$snapshot"' EXIT
+
 # Symbolic links are not copied (no -l), and ownership and modes are set here, never taken from the stage.
+rsync -rt --no-links --chown=root:root --chmod=D755,F644 "$staged/" "$snapshot/"
 # Every script is executable: the Postgres entrypoint only runs initdb/*.sh that have the bit, and
 # sources the others. A file is a script by its name or its place (*.sh, infra/host/*), not by the staged mode.
-rsync -rt --delete --no-links --chown=root:root --chmod=D755,F644 "$staged/" "$target/"
-find "$target" -type f \( -name '*.sh' -o -path "$target/host/*" \) -exec chmod 0755 {} +
+find "$snapshot" -type f \( -name '*.sh' -o -path "$snapshot/host/*" \) -exec chmod 0755 {} +
+# mktemp made the snapshot root 0700, and rsync -p would copy that onto the target directory.
+chmod 0755 "$snapshot"
+rsync -rtp --delete --no-links --chown=root:root "$snapshot/" "$target/"
 echo "Installed $target."

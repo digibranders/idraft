@@ -51,6 +51,7 @@ apt-get install -y --no-install-recommends \
   jq \
   unattended-upgrades \
   fail2ban \
+  python3-systemd \
   zstd \
   rsync \
   sudo \
@@ -79,10 +80,24 @@ fi
 
 # Everything sudo may run is root-owned and out of the deploy user's reach. Deploy stages files in
 # /srv/idraft/incoming and root-run installers copy them into place.
-install -d -m 0755 -o root -g root /srv/idraft /srv/idraft/releases /srv/idraft/infra /srv/idraft/shared
-install -d -m 0700 -o deploy -g deploy /srv/idraft/incoming
-install -d -m 0700 -o root -g root /etc/idraft
-install -d -m 0711 -o root -g root /etc/idraft/redis
+# ensure_dir <mode> <owner> <group> <path>...: creates a missing directory with the intended mode and
+# owner, and leaves an existing one alone, so re-running on a live host never re-owns or re-modes
+# a directory the running stack depends on (for example /etc/idraft/redis, owned and read by Redis).
+ensure_dir() {
+  local mode="$1" owner="$2" group="$3" path
+  shift 3
+  for path in "$@"; do
+    if [ -e "$path" ]; then
+      echo "Left alone (exists): $path ($(stat -c '%a %U:%G' "$path"))"
+    else
+      install -d -m "$mode" -o "$owner" -g "$group" "$path"
+    fi
+  done
+}
+ensure_dir 0755 root root /srv/idraft /srv/idraft/releases /srv/idraft/infra /srv/idraft/shared
+ensure_dir 0700 deploy deploy /srv/idraft/incoming
+ensure_dir 0700 root root /etc/idraft
+ensure_dir 0711 root root /etc/idraft/redis
 install -m 0755 -o root -g root "$here/host/idraft-install-env" /usr/local/sbin/idraft-install-env
 install -m 0755 -o root -g root "$here/host/idraft-install-infra" /usr/local/sbin/idraft-install-infra
 install -m 0755 -o root -g root "$here/host/idraft-ghcr-login" /usr/local/sbin/idraft-ghcr-login
@@ -144,8 +159,11 @@ apt-get install -y --no-install-recommends \
   docker-buildx-plugin \
   docker-compose-plugin
 
-# Ensure deploy user is in the docker group.
-usermod -aG docker deploy
+# The deploy user stays out of the docker group (membership is root on the host). Every docker call
+# goes through the sudo-allowed, root-owned scripts; an earlier run may have added it, so remove it.
+if id -nG deploy | tr ' ' '\n' | grep -qx docker; then
+  gpasswd -d deploy docker
+fi
 
 # Docker daemon defaults. Rewritten, and Docker restarted, only when the content differs.
 mkdir -p /etc/docker
