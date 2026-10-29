@@ -51,8 +51,8 @@ function rankCell(kw) {
   const { slot, tip } = changeSlot(kw);
   if (rank.kind === 'ranked' || rank.kind === 'beyond') {
     const ranked = rank.kind === 'ranked';
-    line.append(cellText(ranked ? String(rank.value) : '>20', `num ${ranked ? 'type-body-strong text-foreground' : 'type-body text-foreground-tertiary'}`), slot);
-    const checked = ranked ? `Checked ${relativeTime(kw.checkedAt)}` : `Not in the top 20, checked ${relativeTime(kw.checkedAt)}`;
+    line.append(cellText(ranked ? String(rank.value) : '>100', `num ${ranked ? 'type-body-strong text-foreground' : 'type-body text-foreground-tertiary'}`), slot);
+    const checked = ranked ? `Checked ${relativeTime(kw.checkedAt)}` : `Not in the top 100, checked ${relativeTime(kw.checkedAt)}`;
     td.dataset.tip = tip ? `${checked}. ${tip}` : checked;
   } else if (rank.kind === 'failed') {
     line.append(icon('triangle-alert', 'size-icon-sm text-warning-text'), cellText('Check failed', 'type-meta text-warning-text'), slot);

@@ -33,7 +33,7 @@ export const RANK_OPTIONS = [
   ['11-20', '11 to 20'],
   ['21-50', '21 to 50'],
   ['51-100', '51 to 100'],
-  ['beyond', 'Beyond depth'],
+  ['beyond', 'Over 100'],
 ];
 export const CHANGE_OPTIONS = [
   ['improved', 'Improved'],
