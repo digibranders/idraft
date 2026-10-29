@@ -146,18 +146,18 @@ export function Journey() {
       // The steps rise as the character reaches them: only the first is up at the start.
       steps.forEach((step, i) => gsap.set(step, { scaleY: i === 0 ? 1 : 0.0001, transformOrigin: '50% 100%' }));
 
-      const timeline = gsap.timeline({
-        defaults: { ease: 'none' },
-        scrollTrigger: {
-          trigger: scope,
-          start: 'top top',
-          end: '+=4200',
-          pin: true,
-          scrub: 0.7,
-          anticipatePin: 1,
-          onUpdate: () => {
-            counter.textContent = `#${rankAtTime(timeline.time())}`;
-          },
+      // The timeline is driven by a proxy so the first scene is short: scrolling starts at 0.55s, just before
+      // the first caption change, and the pin is about 2800px instead of 4200px.
+      const timeline = gsap.timeline({ paused: true, defaults: { ease: 'none' } });
+      const START_AT = 0.55;
+      const proxy = { t: START_AT };
+      gsap.to(proxy, {
+        t: 4,
+        ease: 'none',
+        scrollTrigger: { trigger: scope, start: 'top top', end: '+=2800', pin: true, scrub: 0.6, anticipatePin: 1 },
+        onUpdate: () => {
+          timeline.time(proxy.t);
+          counter.textContent = `#${rankAtTime(proxy.t)}`;
         },
       });
 
@@ -203,6 +203,7 @@ export function Journey() {
       timeline.to(flag, { opacity: 1, y: 0, duration: 0.2, ease: 'back.out(2)' }, 3.78);
       timeline.to(confetti, { opacity: 1, y: 0, stagger: 0.015, duration: 0.25, ease: 'power2.out' }, 3.82);
       timeline.to({}, { duration: 0.2 }, 4);
+      timeline.time(START_AT);
     }, scope);
 
     return () => mm.revert();
@@ -210,7 +211,7 @@ export function Journey() {
 
   return (
     <section ref={section} aria-label="Climb from rank 14 to rank 1" className="relative overflow-hidden bg-amber-wash">
-      <div data-bg className="bg-amber-wash lg:flex lg:min-h-[78dvh] lg:items-center">
+      <div data-bg className="bg-amber-wash lg:flex lg:min-h-[100dvh] lg:items-center">
         <div className="mx-auto grid w-full max-w-[1320px] items-center gap-10 px-5 py-20 md:px-8 lg:grid-cols-12 lg:gap-6 lg:py-14">
           <div className="relative lg:col-span-5 lg:h-[26rem]">
             {CAPTIONS.map((caption) => (
