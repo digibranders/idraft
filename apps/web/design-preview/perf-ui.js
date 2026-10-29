@@ -290,7 +290,7 @@ export function downloadCsv(filename, rows) {
 export function skeletonRows(count, columns) {
   const frag = document.createDocumentFragment();
   for (let i = 0; i < count; i += 1) {
-    const row = el('tr', 'h-row border-t border-border-subtle');
+    const row = el('tr', 'h-row-compact border-t border-border-subtle');
     for (let c = 0; c < columns; c += 1) {
       const cell = el('td', 'px-3');
       cell.append(el('span', `block h-3 rounded-sm bg-surface-hover animate-skeleton-pulse ${c === 0 ? 'w-32' : 'w-12'}`));

@@ -145,13 +145,13 @@ function promptCells(prompt, withChange) {
   text.type = 'button';
   text.dataset.tip = prompt.text;
   name.append(text);
-  const mention = el('td', 'px-2 text-right num');
+  const mention = el('td', 'px-2 num');
   mention.append(rateText(averageFor(prompt, scope, 'mention').value));
-  const citation = el('td', `${withChange ? 'px-2' : 'pl-2 pr-4'} text-right num`);
+  const citation = el('td', `${withChange ? 'px-2' : 'pl-2 pr-4'} num`);
   citation.append(rateText(averageFor(prompt, scope, 'citation').value));
   const cells = [name, mention, citation];
   if (withChange) {
-    const change = el('td', 'pl-2 pr-4 text-right');
+    const change = el('td', 'pl-2 pr-4');
     change.append(deltaNode(changeFor(prompt, scope, 'mention')) ?? el('span', 'text-foreground-tertiary', 'n/a'));
     cells.push(change);
   }
@@ -202,7 +202,7 @@ function fillCompetitors(topic) {
   const engines = scopeEngines();
   const headRow = el('tr', 'text-left border-t border-border-subtle bg-surface-subtle');
   headRow.append(el('th', 'pl-4 h-row-compact type-label whitespace-nowrap', 'Entity'));
-  engines.forEach((engine, i) => headRow.append(el('th', `${i === engines.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap text-right`, engine.name)));
+  engines.forEach((engine, i) => headRow.append(el('th', `${i === engines.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.name)));
   $('[data-topic-entities-head]', inspector).replaceChildren(headRow);
   // One set of entities per engine, so each column is that engine's own rate
   const perEngine = engines.map((engine) => groupEntities(topic.prompts, [engine.code]));
@@ -218,7 +218,7 @@ function fillCompetitors(topic) {
       return row([
         name,
         ...engines.map((_, i) => {
-          const cell = el('td', `${i === engines.length - 1 ? 'pr-4 ' : ''}text-right num`);
+          const cell = el('td', `${i === engines.length - 1 ? 'pr-4 ' : ''}num`);
           cell.append(rateText(perEngine[i][e].rate));
           return cell;
         }),
@@ -240,7 +240,7 @@ function fillRelated(topic) {
           const open = el('button', 'block w-full truncate text-left text-foreground hover:underline', other.name);
           open.type = 'button';
           name.append(open);
-          const tr = row([name, el('td', 'px-2 text-right num', formatInteger(other.prompts.length)), el('td', 'pl-2 pr-4 text-right num')], ' hover:bg-surface-hover cursor-pointer');
+          const tr = row([name, el('td', 'px-2 num', formatInteger(other.prompts.length)), el('td', 'pl-2 pr-4 num')], ' hover:bg-surface-hover cursor-pointer');
           tr.lastElementChild.append(rateText(other.mention.value));
           tr.dataset.topicRelated = other.id;
           return tr;

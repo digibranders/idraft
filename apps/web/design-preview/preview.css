@@ -32,15 +32,20 @@
 @source "./kw-model.js";
 @source "./kw-table.js";
 
-/* Rankings table: all data at 12 px and header labels in capitals (owner decision for the keyword table).
-   Unlayered on purpose: it wins over the type-* utilities that the cells carry. */
-[data-view="keywords"] table tbody td,
-[data-view="keywords"] table tbody td * {
+/* Every table: all data at 12 px / 16 px and header labels in capitals (owner decisions of 2026-10-29).
+   Unlayered on purpose: it wins over the type-* utilities that the mock-up cells carry. The app does this
+   with the type-table and type-table-header tokens; the preview's hand-written markup is too varied for that. */
+table tbody td,
+table tbody td *,
+table tbody th,
+table tbody th * {
   font-size: 0.75rem;
   line-height: 1rem;
 }
-[data-view="keywords"] table thead th,
-[data-view="keywords"] table thead th * {
+table thead th,
+table thead th * {
+  font-size: 0.75rem;
+  line-height: 1rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }

@@ -245,7 +245,7 @@
     if (!body) return;
     const rows = [6, 13, 20, 27].map((index) => {
       const row = document.createElement('tr');
-      row.className = 'h-row border-t border-border-subtle';
+      row.className = 'h-row-compact border-t border-border-subtle';
       const head = document.createElement('th');
       head.scope = 'row';
       head.className = 'px-3 text-left type-table font-normal text-foreground whitespace-nowrap';
@@ -253,7 +253,7 @@
       row.append(head);
       MULTIPLES.forEach((m) => {
         const cell = document.createElement('td');
-        cell.className = 'px-3 text-right type-table num';
+        cell.className = 'px-3 type-table num';
         cell.textContent = percent(m.values[index]);
         row.append(cell);
       });

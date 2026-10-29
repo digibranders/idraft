@@ -1591,8 +1591,8 @@
     letter-spacing: 0;
   }
   .type-table {
-    font-size: 0.8125rem;
-    line-height: 1.25rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
     font-weight: 400;
     letter-spacing: 0;
   }
@@ -2781,11 +2781,13 @@
     }
   }
 }
-[data-view="keywords"] table tbody td, [data-view="keywords"] table tbody td * {
+table tbody td, table tbody td *, table tbody th, table tbody th * {
   font-size: 0.75rem;
   line-height: 1rem;
 }
-[data-view="keywords"] table thead th, [data-view="keywords"] table thead th * {
+table thead th, table thead th * {
+  font-size: 0.75rem;
+  line-height: 1rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
