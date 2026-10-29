@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Logs root's Docker in to ghcr.io so deploy.sh can pull the private idraft images.
+# Installed by bootstrap.sh as /usr/local/sbin/idraft-ghcr-login. CI sends two lines on stdin, the
+# GitHub user the token belongs to and the token (a read-only token with read:packages, which expires),
+# so neither ever appears on a command line. Nothing is printed except docker's own result.
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "idraft-ghcr-login must run as root (through sudo)." >&2
+  exit 1
+fi
+
+# deploy.sh pulls as root with this same config, whatever HOME sudo hands to a process.
+export DOCKER_CONFIG=/root/.docker
+
+IFS= read -r user || true
+IFS= read -r token || true
+if [[ ! "$user" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$ ]]; then
+  echo "The first line of stdin must be a GitHub user name." >&2
+  exit 1
+fi
+if [ -z "$token" ]; then
+  echo "The second line of stdin must be the token." >&2
+  exit 1
+fi
+
+printf '%s' "$token" | docker login ghcr.io --username "$user" --password-stdin

@@ -23,9 +23,17 @@ WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 USER 10001:10001
 
-# The migrator runs this same image with: python -m idraft.db.migrate
 FROM runtime AS api
 ENV PROCESS_ROLE=api
 EXPOSE 8000
-# Compose adds --forwarded-allow-ips with the addresses of caddy and web.
+# Compose adds --forwarded-allow-ips with the subnet of the edge network (caddy and web).
 CMD ["uvicorn", "idraft.api.main:create_app", "--factory", "--host=0.0.0.0", "--port=8000", "--proxy-headers", "--no-access-log", "--no-server-header", "--timeout-graceful-shutdown=25"]
+
+FROM runtime AS worker
+ENV PROCESS_ROLE=worker
+CMD ["python", "-m", "idraft.worker"]
+
+FROM runtime AS migrator
+ENV PROCESS_ROLE=migrator
+CMD ["python", "-m", "idraft.db.migrate"]
+

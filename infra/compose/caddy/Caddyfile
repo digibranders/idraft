@@ -1,0 +1,87 @@
+{
+	email {$ACME_EMAIL:admin@idraft.ai}
+	admin localhost:2019
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 30s
+			write 90s
+			idle 120s
+		}
+		max_header_size 32KB
+		protocols h1 h2 h3
+	}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+		-Server
+		-X-Powered-By
+	}
+}
+
+(proxy_retry) {
+	lb_try_duration 10s
+	lb_try_interval 250ms
+	transport http {
+		dial_timeout 2s
+		response_header_timeout 60s
+	}
+}
+
+{$DOMAIN:app.idraft.ai} {
+	import security_headers
+	encode zstd gzip
+
+	log {
+		output stdout
+		format json
+	}
+
+	# Internal endpoints are never served publicly. /api/readyz is not one of them: it returns
+	# three booleans and nothing else, and the external uptime check needs it.
+	@internal path /api/internal/*
+	handle @internal {
+		respond 404
+	}
+
+	# The keyword import upload is the only route that takes a file. The limit is the backend's
+	# (backend/src/idraft/api/body_limit.py): 50 MiB of file plus 1 MiB of multipart framing.
+	@upload {
+		method POST
+		path_regexp ^/api/v1/workspaces/[^/]+/projects/[^/]+/keyword-imports/upload$
+	}
+	handle @upload {
+		request_body {
+			max_size 51MiB
+		}
+		reverse_proxy api:8000 {
+			import proxy_retry
+		}
+	}
+
+	# The API: JSON with a 1 MiB body cap. The path is passed through unchanged.
+	@api path /api/*
+	handle @api {
+		request_body {
+			max_size 1MiB
+		}
+		reverse_proxy api:8000 {
+			import proxy_retry
+		}
+	}
+
+	# Everything else: the Next.js app.
+	handle {
+		request_body {
+			max_size 1MiB
+		}
+		reverse_proxy web:3000 {
+			import proxy_retry
+		}
+	}
+}

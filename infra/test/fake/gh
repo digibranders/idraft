@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Offline stand-in for the gh commands infra/ci/resolve-release.sh uses. It answers from files under
+# $FIXTURES (JSON shaped like the real API responses) and fails like gh does when a file is missing,
+# so a request the test did not expect ends the script under test. Used only by infra/test/resolve-release.sh.
+set -euo pipefail
+
+: "${FIXTURES:?}"
+jq_expr=""
+workflow=""
+by_commit=0
+by_status=0
+positional=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --jq)
+      jq_expr="$2"
+      shift 2
+      ;;
+    --workflow)
+      workflow="$2"
+      shift 2
+      ;;
+    --commit)
+      by_commit=1
+      shift 2
+      ;;
+    --status)
+      by_status=1
+      shift 2
+      ;;
+    --repo | --branch | --event | --json | --limit | --name | --dir)
+      positional+=("$1" "$2")
+      shift 2
+      ;;
+    --paginate) shift ;;
+    *)
+      positional+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# answer <file>: prints the fixture, through the --jq expression when there is one.
+answer() {
+  [ -f "$1" ] || {
+    echo "gh: fixture $1 not found (HTTP 404)" >&2
+    exit 1
+  }
+  if [ -n "$jq_expr" ]; then
+    jq -r "$jq_expr" "$1"
+  else
+    cat "$1"
+  fi
+}
+
+case "${positional[0]} ${positional[1]}" in
+  "api "*)
+    answer "$FIXTURES/api/$(printf '%s' "${positional[1]}" | tr '/' '_').json"
+    ;;
+  "run list")
+    if [ "$by_commit" = 1 ]; then
+      answer "$FIXTURES/runs/$workflow-commit.json"
+    elif [ "$by_status" = 1 ]; then
+      answer "$FIXTURES/runs/$workflow-latest.json"
+    else
+      echo "gh: unexpected run list" >&2
+      exit 1
+    fi
+    ;;
+  "run download")
+    run="${positional[2]}"
+    name="" dir=""
+    for ((i = 3; i < ${#positional[@]}; i++)); do
+      case "${positional[$i]}" in
+        --name) name="${positional[$((i + 1))]}" ;;
+        --dir) dir="${positional[$((i + 1))]}" ;;
+      esac
+    done
+    [ -d "$FIXTURES/artifacts/$run-$name" ] || {
+      echo "gh: no artifact $name for run $run" >&2
+      exit 1
+    }
+    cp "$FIXTURES/artifacts/$run-$name"/* "$dir/"
+    ;;
+  *)
+    echo "gh: unexpected command: ${positional[*]}" >&2
+    exit 1
+    ;;
+esac

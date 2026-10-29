@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Copies the staged infra tree into /srv/idraft/infra as root-owned files.
+# Installed by bootstrap.sh as /usr/local/sbin/idraft-install-infra. The deploy user may stage files
+# in /srv/idraft/incoming but may not write /srv/idraft/infra, so the scripts that sudo runs as root
+# cannot be edited by the account that runs sudo.
+set -euo pipefail
+
+incoming="/srv/idraft/incoming"
+staged="$incoming/infra"
+target="/srv/idraft/infra"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "idraft-install-infra must run as root (through sudo)." >&2
+  exit 1
+fi
+
+# Root never reads the stage. Its owner can swap it, or anything in it, for a link to a directory only
+# root can read (/etc/idraft) at any moment, so a check followed by a root read is always a race.
+# Instead rsync's sender runs as the stage owner (bootstrap.sh creates /srv/idraft/incoming for the
+# deploy user, inside root-owned /srv/idraft), and can only send what that account could read anyway.
+stage_owner="$(stat -c %U "$incoming")"
+if [ "$(stat -c %u "$incoming")" -eq 0 ]; then
+  echo "Refusing $incoming: it must belong to the deploy user, not root." >&2
+  exit 1
+fi
+
+# Root receives into a snapshot only it can write; everything after that (modes, the copy into place)
+# works on that snapshot, so the deploy user cannot change a file in between.
+snapshot="$(mktemp -d /srv/idraft/.infra-snapshot.XXXXXX)"
+trap 'rm -rf "$snapshot"' EXIT
+cd /
+
+# "env" stands in for the remote host: rsync runs "<-e command> env rsync --server --sender ...", so
+# the sender is a local "runuser -u <owner> -- env rsync ...". Symbolic links are not copied (no -l),
+# and ownership and modes are set here, never taken from the stage.
+if ! rsync -rt --no-links --chown=root:root --chmod=D755,F644 \
+  -e "runuser -u $stage_owner --" "env:$staged/" "$snapshot/"; then
+  echo "Could not read $staged as $stage_owner. Nothing was installed." >&2
+  exit 1
+fi
+if [ ! -f "$snapshot/deploy.sh" ]; then
+  echo "Nothing staged: $staged/deploy.sh is missing." >&2
+  exit 1
+fi
+# Every script is executable: the Postgres entrypoint only runs initdb/*.sh that have the bit, and
+# sources the others. A file is a script by its name or its place (*.sh, infra/host/*), not by the staged mode.
+find "$snapshot" -type f \( -name '*.sh' -o -path "$snapshot/host/*" \) -exec chmod 0755 {} +
+# mktemp made the snapshot root 0700, and rsync -p would copy that onto the target directory.
+chmod 0755 "$snapshot"
+rsync -rtp --delete --no-links --chown=root:root "$snapshot/" "$target/"
+echo "Installed $target."
