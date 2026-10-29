@@ -248,5 +248,54 @@ grep -qx 'COLLECT_CONCURRENCY=8' "$env_file" || fail "rollback did not promote t
 assert_eq "$(jq -r .api "$IDRAFT_RELEASES_DIR/current.json")" idraft-api:v2 "current.json after rollback"
 assert_serving "after rollback"
 
+# wait_for_line <text> <file>: until deploy.sh, running in the background, has printed <text>.
+wait_for_line() {
+  local waited=0
+  until grep -q "$1" "$2" 2>/dev/null; do
+    [ "$waited" -lt 300 ] || fail "deploy.sh never printed '$1'"
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
+echo "=== 10. A dropped session (SIGHUP, nobody reading the output) does not stop the deploy ==="
+mkfifo "$test_dir/out.fifo"
+"$deploy_sh" "$env_file" "$test_dir/v1.json" > "$test_dir/out.fifo" 2>&1 &
+deploy_pid=$!
+# Stands in for ssh: reads until application containers are being replaced, then goes away.
+grep -m 1 -q "Waiting for api to become healthy" < "$test_dir/out.fifo" || fail "the deploy never reached the api"
+kill -HUP "$deploy_pid"
+set +e
+wait "$deploy_pid"
+last_rc=$?
+set -e
+assert_eq "$last_rc" 0 "deploy exit code after SIGHUP with its reader gone"
+tail -n 1 "$IDRAFT_RELEASES_DIR/deploy.log" | grep -qx "Deploy completed successfully." || fail "deploy.log does not end with the completed deploy"
+assert_eq "$(jq -r .api "$IDRAFT_RELEASES_DIR/current.json")" idraft-api:local "current.json after the dropped session"
+assert_eq "$(image_of api)" idraft-api:local "api image after the dropped session"
+assert_serving "after the dropped session"
+
+echo "=== 11. SIGTERM after containers changed: the serving release comes back ==="
+cp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before"
+cp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before"
+"$deploy_sh" "$env_file" "$test_dir/v2.json" > "$test_dir/last.log" 2>&1 &
+deploy_pid=$!
+wait_for_line "Waiting for api to become healthy" "$test_dir/last.log"
+kill -TERM "$deploy_pid"
+set +e
+wait "$deploy_pid"
+last_rc=$?
+set -e
+cat "$test_dir/last.log"
+assert_eq "$last_rc" 143 "deploy exit code after SIGTERM"
+grep -q "The deploy stopped (exit 143)" "$test_dir/last.log" || fail "the interruption is not reported"
+grep -q "Restoring the release that was serving" "$test_dir/last.log" || fail "no restore after SIGTERM"
+cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before" || fail "current.json changed after SIGTERM"
+cmp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before" || fail "previous.json changed after SIGTERM"
+assert_eq "$(image_of api)" idraft-api:local "api image after SIGTERM"
+assert_eq "$(image_of worker)" idraft-worker:local "worker image after SIGTERM"
+tail -n 1 "$IDRAFT_RELEASES_DIR/history.log" | grep -q "DEPLOY_FAILED api=idraft-api:v2" || fail "the interrupted deploy is not in history.log"
+assert_serving "after SIGTERM"
+
 assert_eq "$(repo_state)" "$repo_before" "repository working tree at the end"
 echo "Deploy dry-run tests passed successfully."

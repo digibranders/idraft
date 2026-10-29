@@ -180,6 +180,8 @@ The deploy script executes the following stages in strict order:
 7. Only now rotates the records: the old `current.json` becomes `previous.json`, the `.env` being replaced becomes `.env.previous`, `.env.next` becomes `.env`, the new release becomes `current.json`, and a line is appended to `/srv/idraft/releases/history.log`.
 8. On a failure after step 4, `.env.next` is deleted, the release recorded in `current.json` is restored on the unchanged `.env` (the ACL is re-rendered from it first) and the failure is logged as `DEPLOY_FAILED`. On the very first deploy there is nothing to restore: the application containers are stopped (postgres and redis stay up) and the script exits non-zero with a message.
 
+From step 1 on, the script ignores `HUP` and `PIPE`, so a cancelled job or a dropped SSH session cannot stop it half way. All its output goes through a FIFO to a copier that appends it to `/srv/idraft/releases/deploy.log` and passes it on to the caller while anyone reads it; a write therefore never fails, even after the connection is gone. When the deploy outlives its session, read the outcome there and in `history.log`. A `TERM` or `INT`, or any unexpected exit, before the release is recorded undoes what was done: once step 5 has started it restores the serving release exactly as step 8 does, before that it re-renders the Redis ACL from `.env`; either way it is logged as `DEPLOY_FAILED`. Step 7 itself ignores `TERM` and `INT`, so the records are never left half rotated.
+
 ## Rollback
 
 Rollback is a single command that redeploys the previous release without touching the database schema.
@@ -287,7 +289,7 @@ Not secrets, but set in the same file: `HTTP_PORT`, `HTTPS_PORT`, `EDGE_SUBNET`,
 Both need Docker and the `idraft-api:local`, `idraft-worker:local` and `idraft-web:local` images, and use throwaway secrets, their own Compose project names and non-default ports:
 
 ```bash
-bash infra/test/deploy-dryrun.sh      # failed first deploy, v1, v2, bad pull, failing health gate, failing migration, bad env change, rollback with its env
+bash infra/test/deploy-dryrun.sh      # failed first deploy, v1, v2, bad pull, failing health gate, failing migration, bad env change, rollback with its env, SIGHUP with the reader gone, SIGTERM mid-deploy
 bash infra/test/parallel-stack.sh     # two full stacks side by side on different ports and subnets
 ```
 

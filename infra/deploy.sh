@@ -60,6 +60,63 @@ command -v flock >/dev/null 2>&1 || die "flock is required (apt install util-lin
 exec 9>"$lock_file" || die "Cannot open the lock file $lock_file."
 flock -n 9 || die "Another deploy is currently running."
 
+# A cancelled job or a dropped SSH session sends HUP, and writes to the closed connection would raise
+# PIPE: either could stop the script between replacing containers and recording the release. Both are
+# ignored from here on. With PIPE ignored a write to a closed stdout fails instead, which set -e would
+# turn into an abort, so the script writes only to a FIFO. copy_output appends every line to
+# deploy.log and copies it to the original stdout while anyone reads it, ignoring failures there.
+trap '' HUP PIPE
+deploy_log="$releases_dir/deploy.log"
+output_fifo="$releases_dir/.deploy-output.$$"
+# Opened here first: if copy_output could not open it, the exec below would wait for a reader forever.
+: >> "$deploy_log" || die "Cannot write $deploy_log."
+rm -f "$output_fifo"
+mkfifo -m 0600 "$output_fifo" || die "Cannot create $output_fifo."
+copy_output() {
+  local line
+  # It ends when the script and its children close the FIFO, so the last lines are never lost.
+  trap '' INT TERM
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf '%s\n' "$line" >&4 2>/dev/null || true
+    printf '%s\n' "$line" 2>/dev/null || true
+  done
+}
+copy_output < "$output_fifo" 4>> "$deploy_log" 9>&- &
+output_pid=$!
+exec > "$output_fifo" 2>&1
+rm -f "$output_fifo"
+echo "=== $(date -u +"%Y-%m-%dT%H:%M:%SZ") deploy.sh $* ==="
+
+# What an unexpected exit (a signal, a set -e abort) has to undo before the release is recorded:
+# "" nothing, "acl" the Redis ACL rendered from the candidate, "apps" the application containers.
+# abort_deploy and fail_deploy clear it, because they undo the same things themselves.
+undo=""
+on_exit() {
+  local rc=$?
+  # The restore below must not be interrupted in turn.
+  trap '' INT TERM
+  if [ "$rc" -ne 0 ] && [ -n "$undo" ]; then
+    # Taken first: restoring loads the serving release into these variables.
+    local failed="api=$api_image worker=$worker_image web=$web_image"
+    echo "The deploy stopped (exit $rc) before the release was recorded." >&2
+    discard_next_env
+    if [ "$undo" = apps ]; then
+      restore_serving
+    else
+      restore_acl
+    fi
+    undo=""
+    log_history "DEPLOY_FAILED $failed"
+  fi
+  # Closing both ends lets copy_output drain and finish before the script exits.
+  exec >&- 2>&-
+  wait "$output_pid" || true
+  exit "$rc"
+}
+trap on_exit EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+
 dc() {
   docker compose -f "$compose_file" --env-file "$env_file" "$@"
 }
@@ -308,23 +365,35 @@ log_history() {
 # the Redis ACL, which may already be rendered from it, goes back to the serving release's env.
 abort_deploy() {
   local failed="api=$api_image worker=$worker_image web=$web_image"
+  undo=""
   echo "$1" >&2
   discard_next_env
+  restore_acl
+  log_history "DEPLOY_FAILED $failed"
+  exit 1
+}
+
+restore_acl() {
   if [ "$acl_rendered" = 1 ] && [ -f "$current_file" ] && [ -f "$live_env" ]; then
     echo "Restoring the Redis ACL of the release that is serving." >&2
     env_file="$live_env"
     render_redis_acl >&2 || echo "The previous Redis ACL could not be restored. Intervene on the host." >&2
   fi
-  log_history "DEPLOY_FAILED $failed"
-  exit 1
 }
 
 # A deploy that failed after application containers were replaced. The failed release is never
 # recorded; the release that was serving (current.json) comes back on its own env.
 fail_deploy() {
   local failed="api=$api_image worker=$worker_image web=$web_image"
+  undo=""
   echo "$1" >&2
   discard_next_env
+  restore_serving
+  log_history "DEPLOY_FAILED $failed"
+  exit 1
+}
+
+restore_serving() {
   if [ -f "$current_file" ]; then
     echo "Restoring the release that was serving:" >&2
     if ! restore_release "$current_file" "$live_env"; then
@@ -335,8 +404,6 @@ fail_deploy() {
     dc stop api worker web caddy >&2 || true
     echo "First deploy failed and there is no earlier release. The application containers were stopped; postgres and redis were left running. Fix the cause and deploy again." >&2
   fi
-  log_history "DEPLOY_FAILED $failed"
-  exit 1
 }
 
 run_rollback() {
@@ -397,12 +464,14 @@ for img in "$api_image" "$worker_image" "$web_image"; do
   pull_image "$img" || abort_deploy "Failed to pull $img. Nothing was changed."
 done
 
+undo=acl
 render_redis_acl || abort_deploy "Could not load the new Redis ACL."
 
 echo "Running database migrations..."
 dc run --rm migrator || abort_deploy "Database migration failed. The application services were not touched."
 
 echo "Deploying application containers in order..."
+undo=apps
 for svc in api worker web caddy; do
   echo "Starting service $svc..."
   dc up -d "$svc" || fail_deploy "Failed to start $svc."
@@ -413,7 +482,10 @@ reload_caddy || fail_deploy "Caddy did not accept its configuration."
 
 probe_edge || fail_deploy "The edge check through Caddy failed."
 
-# Record the release only now that it serves; the old one becomes the rollback target.
+# Record the release only now that it serves; the old one becomes the rollback target. The records
+# are rotated without interruption: a TERM here would leave them half moved, so it is ignored.
+trap '' INT TERM
+undo=""
 if [ -f "$current_file" ]; then
   cp "$current_file" "$previous_file"
   # The env the old release ran on belongs to the rollback target.
