@@ -5,10 +5,13 @@ import Image from 'next/image';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
-import { AnswerCard } from './mock/fragments';
+import { Crop } from './mock/crop';
 import { Wave } from './wave';
 
 gsap.registerPlugin(ScrollTrigger);
+
+// Each engine looks at its own card in the mention-rate strip of the Topics screen.
+const FOCI = ['96% 20%', '68% 20%', '38% 20%', '46% 20%'] as const;
 
 const PANELS = [
   { name: 'Google AI Overviews', body: 'The summary above the results, with the sources it links to and the brands it names.', logo: '/logos/google.svg', width: 77 },
@@ -59,8 +62,8 @@ export function HorizontalEngines() {
                   <p className="mt-3 max-w-[30ch] leading-relaxed text-ink-2">{panel.body}</p>
                 </div>
               </div>
-              <div className="hidden items-center bg-paper p-5 sm:flex">
-                <AnswerCard index={index} className="w-full shadow-lift" />
+              <div className="hidden bg-paper p-5 sm:block">
+                <Crop src="/screens/p-prompts.png" alt={`${panel.name} in the Topics and Prompts screen.`} focus={FOCI[index] ?? '50% 20%'} zoom={2.4} className="h-full" />
               </div>
             </article>
           ))}

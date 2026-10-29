@@ -5,23 +5,22 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { AnimatePresence, motion } from 'motion/react';
 
-import type { MockView } from './mock/app-frame';
-import { Dashboard } from './mock/dashboard';
 import { ScreenFrame } from './mock/screen-frame';
 
 gsap.registerPlugin(ScrollTrigger);
 
-type Step =
-  | { kind: 'real'; pill: string; title: string; body: string; src: string; alt: string }
-  | { kind: 'preview'; pill: string; title: string; body: string; view: MockView };
+type Step = { pill: string; title: string; body: string; src: string; alt: string; label: string };
 
-// Real screens are screenshots of the app as it is today. Previews are screens still being built.
+const TODAY = 'A screen from the app today, with sample data.';
+const BUILDING = 'A designed screen in build, with sample data.';
+
+// Screens marked "today" are screenshots of the running app. The rest are the design previews of screens still being built.
 const STEPS: readonly [Step, ...Step[]] = [
-  { kind: 'real', pill: 'Keywords', title: 'Every keyword, checked every day.', body: 'Position, change since the last check, the page that ranks and the volume, difficulty and cost behind each one.', src: '/screens/keywords.png', alt: 'The Keywords screen of the idraft app: a table of tracked keywords with rank, change, ranking URL, volume, difficulty, CPC, intent, priority and group.' },
-  { kind: 'real', pill: 'Detail', title: 'Open a row for the whole story.', body: 'Search volume by month, difficulty, cost per click, groups and topics, and the checks behind the rank.', src: '/screens/keyword-inspector.png', alt: 'The Keywords screen with one keyword open in the inspector: volume by month as a bar chart, difficulty, cost per click, groups and topics.' },
-  { kind: 'preview', pill: 'AI answers', title: 'Every prompt, read in every engine.', body: 'Who is named, in what position, and which sources the answer cites, with your brand picked out.', view: 'ai' },
-  { kind: 'preview', pill: 'Matrix', title: 'Rank and answer, side by side.', body: 'Each topic with its Google rank and its mention rate, so a gap between the two is obvious.', view: 'matrix' },
-  { kind: 'preview', pill: 'Sources', title: 'Who the AI trusts, ranked.', body: 'The domains answers cite for your topics, by type and by how often, with you in the list.', view: 'sources' },
+  { pill: 'Overview', title: 'The whole picture, on one page.', body: 'SEO visibility and the mention rate in every AI engine, with how they moved and the checks behind each number.', src: '/screens/p-overview.png', alt: 'The Overview screen: SEO visibility, top 10 keywords, AI Overview citation rate and the mention rate in ChatGPT, Gemini and AI Mode, with a trend chart and the rank distribution.', label: BUILDING },
+  { pill: 'Keywords', title: 'Every keyword, checked every day.', body: 'Position, change since the last check, the page that ranks and the volume, difficulty and cost behind each one.', src: '/screens/keywords.png', alt: 'The Keywords screen of the idraft app: a table of tracked keywords with rank, change, ranking URL, volume, difficulty, CPC, intent, priority and group.', label: TODAY },
+  { pill: 'Detail', title: 'Open a row for the whole story.', body: 'Search volume by month, difficulty, cost per click, groups and topics, and the checks behind the rank.', src: '/screens/keyword-inspector.png', alt: 'The Keywords screen with one keyword open in the inspector: volume by month as a bar chart, difficulty, cost per click, groups and topics.', label: TODAY },
+  { pill: 'AI answers', title: 'Every topic, read in every engine.', body: 'Mention rate and citation rate per engine for each topic, with the number of checks behind them.', src: '/screens/p-prompts.png', alt: 'The Topics and Prompts screen: mention rate in ChatGPT, Gemini, AI Mode and AI Overview, and a table of topics with mention rate, citation rate, top engine and trend.', label: BUILDING },
+  { pill: 'Pages', title: 'See which pages gain and which slip.', body: 'Clicks, impressions, CTR and position for each URL from Search Console, compared month over month.', src: '/screens/p-pages.png', alt: 'The Pages screen: a table of pages with health, indexing, clicks, impressions, CTR, position and a trend line.', label: BUILDING },
 ];
 
 /**
@@ -98,7 +97,7 @@ export function ProductTour() {
         </div>
 
         <div className="lg:col-span-6">
-          <div role="tablist" aria-label="Product views" className="flex flex-wrap gap-2 lg:justify-end">
+          <div role="tablist" aria-label="Product screens" className="flex flex-wrap gap-2 lg:justify-end">
             {STEPS.map((item, index) => (
               <button
                 key={item.pill}
@@ -121,14 +120,10 @@ export function ProductTour() {
       <div className="mt-6">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={step} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}>
-            {current.kind === 'real' ? (
-              <ScreenFrame src={current.src} alt={current.alt} heightClass="h-[26rem] sm:h-[28rem] lg:h-[27rem]" />
-            ) : (
-              <Dashboard view={current.view} onViewChange={(view) => choose(Math.max(0, STEPS.findIndex((item) => item.kind === 'preview' && item.view === view)))} heightClass="h-[26rem] sm:h-[28rem] lg:h-[27rem]" />
-            )}
+            <ScreenFrame src={current.src} alt={current.alt} heightClass="h-[26rem] sm:h-[28rem] lg:h-[27rem]" />
           </motion.div>
         </AnimatePresence>
-        <p className="mt-3 text-center font-mono text-[11px] text-ink-3">{current.kind === 'real' ? 'A screen from the app today, with sample data.' : 'A preview of a screen in build, with sample data.'}</p>
+        <p className="mt-3 text-center font-mono text-[11px] text-ink-3">{current.label}</p>
       </div>
     </section>
   );

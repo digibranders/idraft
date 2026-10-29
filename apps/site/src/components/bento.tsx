@@ -1,4 +1,4 @@
-import { AnswerCard, MiniRanks, MiniSources } from './mock/fragments';
+import { Crop } from './mock/crop';
 
 import { Reveal } from './reveal';
 import { SpotlightCell } from './spotlight-cell';
@@ -29,11 +29,7 @@ export function Bento() {
     <section id="product" className="mx-auto max-w-[1320px] px-5 py-24 md:px-8 lg:py-32">
       <Reveal>
         <h2 className="max-w-[22ch] text-[clamp(2.2rem,4.2vw,3.8rem)] leading-[1.1] font-semibold tracking-[-0.045em]">
-          Every rank
-          <span aria-hidden="true" className="mx-3 inline-block h-[0.78em] w-[1.7em] rounded-full bg-cover bg-center align-middle shadow-lift ring-1 ring-ink/10" style={{ backgroundImage: 'url(/images/bars.png)' }} />
-          and every answer
-          <span aria-hidden="true" className="mx-3 inline-block h-[0.78em] w-[1.7em] rounded-full bg-cover bg-center align-middle shadow-lift ring-1 ring-ink/10" style={{ backgroundImage: 'url(/images/orb.png)' }} />
-          on one record.
+          Every rank and every answer on one record.
         </h2>
         <p className="mt-5 max-w-[52ch] text-lg leading-relaxed text-ink-2">Rankings, AI answers, sources and history, kept together so each question has one place to look.</p>
       </Reveal>
@@ -47,9 +43,7 @@ export function Bento() {
                 <h3 className={H3}>Daily rankings that stay honest</h3>
                 <p className={`${P} text-ink-2`}>Position, change since the last check, the ranking URL and SERP features for every keyword. A missing check is shown as missing.</p>
               </div>
-              <div className="relative mt-10 sm:max-w-md">
-                <MiniRanks />
-              </div>
+              <Crop src="/screens/keywords.png" alt="Part of the Keywords screen: rank, change and ranking URL for several keywords." focus="30% 30%" zoom={1.5} className="mt-10 h-56 sm:max-w-lg" />
             </div>
           </SpotlightCell>
         </Reveal>
@@ -61,9 +55,7 @@ export function Bento() {
                 <h3 className={H3}>Be the answer, not only the result</h3>
                 <p className={`${P} text-ink-2`}>Mentions, position in the answer and tone across ChatGPT, Gemini and Google AI.</p>
               </div>
-              <div className="relative mt-8 flex flex-1 items-end">
-                <AnswerCard index={2} className="w-full shadow-lift" />
-              </div>
+              <Crop src="/screens/p-prompts.png" alt="Part of the Topics and Prompts screen: mention rate in each AI engine." focus="70% 18%" zoom={1.7} className="mt-8 h-44 flex-none" />
             </div>
           </SpotlightCell>
         </Reveal>
@@ -72,7 +64,7 @@ export function Bento() {
           <SpotlightCell className="h-full">
             <div className="flex min-h-[24rem] flex-col">
               <div className="p-5 pb-0">
-                <MiniSources />
+                <Crop src="/screens/p-overview.png" alt="Part of the Overview screen: the rank distribution." focus="95% 45%" zoom={2.2} className="h-40" />
               </div>
               <div className="p-7">
                 <h3 className="text-xl font-semibold leading-tight tracking-[-0.03em]">See who the AI trusts</h3>

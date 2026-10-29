@@ -5,7 +5,7 @@ import { ChatText, Crosshair, MagnifyingGlass, Quotes, Scales, Users } from '@ph
 import { CapabilityList } from '@/components/capability-list';
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
-import { Dashboard } from '@/components/mock/dashboard';
+import { ScreenFrame } from '@/components/mock/screen-frame';
 import { Reveal } from '@/components/reveal';
 import { TextReveal } from '@/components/text-reveal';
 
@@ -36,8 +36,7 @@ export default function AiVisibilityPage() {
         eyebrow="AI visibility"
         title="Be the answer, not only a result."
         lead="See what AI says about your topics: who is named, in what order, and which sources it trusts."
-        visual={<Dashboard only="ai" />}
-        backdrop="/images/orb.png"
+        visual={<ScreenFrame src="/screens/p-prompts.png" alt="The Topics and Prompts screen: mention rate in each AI engine and a table of topics with mention rate, citation rate, top engine and trend." />}
       />
 
       <section className="mx-auto max-w-[1320px] px-5 py-12 md:px-8 lg:py-20">
