@@ -112,7 +112,7 @@ export function PlainTable<TRow>({
                     <th
                       key={column.id}
                       scope="row"
-                      className={cn('px-4 py-2 type-table font-normal text-foreground', alignClass(column.actions))}
+                      className={cn('px-4 type-table font-normal text-foreground', alignClass(column.actions))}
                     >
                       {column.cell(row)}
                     </th>
@@ -120,8 +120,9 @@ export function PlainTable<TRow>({
                     <td
                       key={column.id}
                       className={cn(
-                        'px-3 py-2 num type-table text-foreground-secondary last:px-4',
-                        column.wrap !== true && 'whitespace-nowrap',
+                        'px-3 num type-table text-foreground-secondary last:px-4',
+                        // A cell that wraps keeps 4 px from the dividers; a one or two line cell fills its 32 px row
+                        column.wrap === true ? 'py-1' : 'whitespace-nowrap',
                         alignClass(column.actions),
                       )}
                     >

@@ -10,8 +10,10 @@ import { preferenceKey } from './storage';
  */
 export interface Preferences {
   /**
-   * The row height new tables start at: 32 px (compact, the default since the owner decision of 2026-10-29),
-   * or 40 px. Kept now; the data tables of later plans read it, and nothing does yet.
+   * The row height the person chose for tables: 32 px (compact, the default since the owner decision of
+   * 2026-10-29) or 40 px (comfortable). Only an explicit choice of 40 px is stored (under `tableDensity`), so a
+   * record that merely holds other settings, or an older `density` key, means compact. The data tables do not
+   * read it yet: each opens compact and keeps its own choice in its link.
    */
   density: 'default' | 'compact';
   /**
@@ -45,7 +47,8 @@ function parse(raw: string | null): Preferences {
     if (typeof value !== 'object' || value === null) return DEFAULT_PREFERENCES;
     const record = value as Record<string, unknown>;
     return {
-      density: record.density === 'default' ? 'default' : DEFAULT_PREFERENCES.density,
+      // The older `density` key is ignored: it was written with every other setting, chosen or not
+      density: record.tableDensity === 'default' ? 'default' : DEFAULT_PREFERENCES.density,
       locale: PREFERENCE_LOCALES.find((locale) => locale === record.locale) ?? DEFAULT_PREFERENCES.locale,
       reduceMotion: record.reduceMotion === true,
       singleKeys: record.singleKeys !== false,
@@ -75,7 +78,8 @@ function read(userId: string): string | null {
 }
 
 function write(userId: string, preferences: Preferences): void {
-  const text = JSON.stringify(preferences);
+  const { density, ...others } = preferences;
+  const text = JSON.stringify(density === 'default' ? { ...others, tableDensity: density } : others);
   try {
     localStorage.setItem(preferenceKey(userId, NAME), text);
     unsaved.delete(userId);

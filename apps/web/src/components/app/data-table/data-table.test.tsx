@@ -671,7 +671,7 @@ describe('DataTable rank, change and URL columns', () => {
     const wide = col.rank<Row>('rank', () => 1, { header: 'Rank', width: 500, cell: () => null });
     const narrow = col.url<Row>('url', () => null, { header: 'URL', width: 50, cell: () => null });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
-    expect(wide.width).toBe(80);
+    expect(wide.width).toBe(112);
     expect(narrow.width).toBe(180);
   });
 

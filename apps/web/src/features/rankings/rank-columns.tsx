@@ -51,7 +51,7 @@ export function useRankColumns(timeZone: string): RankColumns {
           header: t('rank'),
           headerTooltip: t('rankTooltip'),
           priority: 1,
-          width: 72,
+          width: 80,
           cell: (row) => <RankCellView display={display(row)} />,
           cellTip: (row) => tips.rank(display(row), row.state.change.previous_rank),
         },
@@ -80,7 +80,8 @@ export function useRankColumns(timeZone: string): RankColumns {
         header: t('bestRank'),
         headerTooltip: t('bestRankTooltip'),
         priority: 3,
-        width: 80,
+        // "BEST RANK" with its sort arrow needs 112 px
+        width: 112,
         defaultVisible: false,
         cell: (row) => <BestRankView best={row.state.best_rank} state={row.state.current.state} />,
         cellTip: (row) => (row.state.best_rank === null ? tips.best(row.state.current.state) : undefined),

@@ -163,7 +163,7 @@ export function MembersScreen(): ReactNode {
                   ))
                 : members.data.data.map((member) => (
                     <tr key={member.user.user_id} className="h-row-compact border-t border-border-subtle">
-                      <th scope="row" className="px-4 py-2 text-left font-normal">
+                      <th scope="row" className="px-4 text-left font-normal">
                         <span className="flex flex-col">
                           <span className="flex items-center gap-2 text-foreground">
                             {member.user.name}

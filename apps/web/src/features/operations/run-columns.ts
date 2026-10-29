@@ -77,10 +77,16 @@ export function useRunColumns(timeZone: string): RunColumns {
         },
         { header: t('columns.tasks'), priority: 2, width: 200, sortable: false },
       ),
-      col.currency<Run>('actual', (row) => cost(row.actual_cost_usd), { header: t('columns.actual'), priority: 2 }),
+      col.currency<Run>('actual', (row) => cost(row.actual_cost_usd), {
+        header: t('columns.actual'),
+        priority: 2,
+        // "ACTUAL (USD)" with its sort arrow needs 128 px, "ESTIMATE (USD)" 139
+        width: 128,
+      }),
       col.currency<Run>('estimate', (row) => cost(row.estimated_cost_usd), {
         header: t('columns.estimate'),
         priority: 3,
+        width: 144,
       }),
       col.text<Run>(
         'window',
