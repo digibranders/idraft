@@ -10,18 +10,21 @@ gsap.registerPlugin(ScrollTrigger);
 const ROLES = [
   {
     id: 'seo',
+    tint: 'bg-wash',
     label: 'SEO lead',
     question: 'Why did we lose that keyword, and did AI notice?',
     points: ['See the ranking page, the change and the SERP features on one row', 'Spot where AI Overviews answer a keyword you used to own', 'Prove a drop or a gain with dated checks'],
   },
   {
     id: 'agency',
+    tint: 'bg-amber-wash',
     label: 'Agency',
     question: 'What do I show the client on Monday?',
     points: ['One project per client, with its own competitors and locations', 'Rankings and AI answers in the same report, with evidence behind each number', 'A history that shows progress as real data'],
   },
   {
     id: 'content',
+    tint: 'bg-mint-wash',
     label: 'Content team',
     question: 'Which pages should we write or fix next?',
     points: ['See which sources AI cites for your topics, and who earns the mention', 'Find prompts where a rival is named and you are not', 'Link every finding back to the keyword and the page'],
@@ -121,7 +124,7 @@ export function Roles() {
               transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
               className="rounded-[2rem] bg-ink/[0.04] p-1.5 ring-1 ring-ink/[0.06]"
             >
-              <div className="rounded-[calc(2rem-0.375rem)] bg-surface p-8 sm:p-12">
+              <div className={`rounded-[calc(2rem-0.375rem)] p-8 transition-colors duration-500 sm:p-12 ${role.tint}`}>
                 <p className="text-[clamp(1.6rem,2.8vw,2.4rem)] leading-tight font-semibold tracking-[-0.04em] text-balance">{role.question}</p>
                 <ul className="mt-8 flex flex-col gap-4">
                   {role.points.map((point) => (

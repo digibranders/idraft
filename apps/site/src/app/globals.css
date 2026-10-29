@@ -19,6 +19,16 @@
   --color-cobalt-deep: #175ad0;
   --color-line: #e1e5eb;
 
+  /* Illustration colors. The UI keeps one cobalt accent; these live only in artwork and section tints. */
+  --color-violet: #7c5cff;
+  --color-coral: #ff6b4a;
+  --color-amber: #ffb020;
+  --color-mint: #18b57f;
+  --color-violet-wash: #efeaff;
+  --color-coral-wash: #ffece6;
+  --color-amber-wash: #fff3d6;
+  --color-mint-wash: #def6ec;
+
   --ease-heavy: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -74,6 +84,44 @@ body {
       opacity: 1;
       transform: none;
       filter: blur(0);
+    }
+  }
+}
+
+/* Slow float for illustration pieces. Gated so reduced-motion readers get still artwork. */
+@media (prefers-reduced-motion: no-preference) {
+  .float-a {
+    animation: float-a 7s ease-in-out infinite;
+  }
+  .float-b {
+    animation: float-a 9s ease-in-out -3s infinite;
+  }
+  @keyframes float-a {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-7px);
+    }
+  }
+  .dot-bounce > span {
+    animation: dot 1.2s ease-in-out infinite;
+  }
+  .dot-bounce > span:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .dot-bounce > span:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  @keyframes dot {
+    0%,
+    80%,
+    100% {
+      opacity: 0.3;
+    }
+    40% {
+      opacity: 1;
     }
   }
 }
