@@ -14,6 +14,9 @@ export type Density = 'default' | 'compact';
 
 export const DENSITIES: readonly Density[] = ['default', 'compact'];
 
+/** Compact is the density every table opens in (owner decision of 2026-10-29); it is not written to the URL. */
+export const DEFAULT_DENSITY: Density = 'compact';
+
 /** A table sorts by at most this many keys (12-tables.md section 8). */
 export const MAX_SORT_KEYS = 2;
 
@@ -84,5 +87,6 @@ export function parseColumns(
 
 export const formatColumns = (ids: readonly string[]): string => ids.join(',');
 
+/** A person's explicit choice (`default` or `compact`) is kept; anything else is the default density. */
 export const parseDensity = (value: string | null | undefined): Density =>
-  value === 'compact' ? 'compact' : 'default';
+  value === 'default' ? 'default' : DEFAULT_DENSITY;

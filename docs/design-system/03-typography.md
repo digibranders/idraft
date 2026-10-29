@@ -17,7 +17,7 @@ Weights: **400** (regular text and labels), **500** (badges, emphasized values, 
 
 ## 2. Type scale
 
-Every text element uses exactly one composite utility. Composites set size, line height, weight and letter spacing together, so they cannot drift apart. There are 15 composites, and one more for a single case: `type-input-touch` (16 / 24 px, 400) is the text of fields and one-time code cells below 768 px, so iOS Safari does not zoom the page on focus ([19-responsive-behavior.md](19-responsive-behavior.md) section 10). The base body size is 14 px (`body` in `globals.css` is 14 / 20). Table cells stay at 13 / 20 (`type-table`) so dense tables keep their column capacity. Values follow [reference/visual-spec.md](reference/visual-spec.md) section 3.
+Every text element uses exactly one composite utility. Composites set size, line height, weight and letter spacing together, so they cannot drift apart. There are 15 composites, and one more for a single case: `type-input-touch` (16 / 24 px, 400) is the text of fields and one-time code cells below 768 px, so iOS Safari does not zoom the page on focus ([19-responsive-behavior.md](19-responsive-behavior.md) section 10). The base body size is 14 px (`body` in `globals.css` is 14 / 20). Table cells are 12 / 16 (`type-table`) so dense tables keep their column capacity (owner decision of 2026-10-29; they were 13 / 20). `type-table-header` (12 / 16, capitals, 0.04em) names the column headers and `type-table-strong` keeps weight 500 at the table size. Values follow [reference/visual-spec.md](reference/visual-spec.md) section 3.
 
 | Utility | Size / line height | Weight | Tracking | Default color | Use |
 |---|---|---|---|---|---|
@@ -29,13 +29,15 @@ Every text element uses exactly one composite utility. Composites set size, line
 | `type-body-strong` | 14 / 20 px | 500 | 0 | inherits | Button labels, active tab, active nav item, emphasized inline values, entity names in feeds |
 | `type-inline-strong` | inherits | 500 | inherits | inherits | A span inside running text that must keep the size and line height of its text: the own brand's mention highlight in answers ([23-application-patterns.md](23-application-patterns.md) section 5.3) |
 | `type-prose` | 14 / 22 px | 400 | 0 | inherits | AI answer text in inspectors, methodology text, help articles, empty-state explanations longer than two lines |
-| `type-table` | 13 / 20 px | 400 | 0 | inherits | Table body cells |
+| `type-table` | 12 / 16 px | 400 | 0 | inherits | Table body cells (every table, owner decision of 2026-10-29) |
+| `type-table-strong` | 12 / 16 px | 500 | 0 | inherits | A strong table cell, such as a total row |
+| `type-table-header` | 12 / 16 px | 400 | 0.04em, UPPERCASE | `foreground-tertiary` | Table column header labels |
 | `type-meta` | 13 / 20 px | 400 | 0 | `foreground-tertiary` | Meta line under titles, timestamps ("6h ago"), metric strip labels, descriptions, helper text, values after bar-list bars |
-| `type-label` | 12 / 16 px | 400 | 0 | `foreground-tertiary` | Table header text, key-value labels, legends, axis labels, sidebar group labels, form field labels |
+| `type-label` | 12 / 16 px | 400 | 0 | `foreground-tertiary` | Key-value labels, a secondary line in a table cell, legends, axis labels, sidebar group labels, form field labels |
 | `type-micro` | 12 / 16 px | 500 | 0 | inherits | Badges (22 px) and count badges. Filter chips use `type-body` ([13-filters-search.md](13-filters-search.md) section 2); keyboard hints use `type-kbd` |
 | `type-metric` | 24 / 32 px | 600 | -0.02em | `foreground` | Metric strip values, tabular |
 | `type-metric-sm` | 18 / 24 px | 600 | -0.01em | `foreground` | Inspector key-value grid values, tabular |
-| `type-mono` | 13 / 20 px | 400 | 0 | inherits | Geist Mono values: URLs and domains in tables, IDs, code |
+| `type-mono` | 13 / 20 px | 400 | 0 | inherits | Geist Mono values: IDs, code, URLs outside tables. Inside a table the mono family (`font-mono`) is used at the table size (12 / 16) |
 | `type-kbd` | 11 / 16 px | 500 | 0 | inherits | Keyboard shortcut glyphs ("⌘K"), in Geist Sans |
 
 Two sizes on the reference screens fall between utilities and are mapped to one: the project name in the sidebar switcher (about 15 px on the screens) and the chart tooltip date (13 px on the screens) both use `type-subsection-title` (14 / 20 px, 600), which is within the 2 px tolerance and keeps the scale at 15 utilities ([reference/visual-spec.md](reference/visual-spec.md) section 6; [11-navigation.md](11-navigation.md) section 2, [15-data-visualization.md](15-data-visualization.md) section 10). Percentage labels inside 100% stacked bars are 12 px, white or `foreground` by contrast ([15-data-visualization.md](15-data-visualization.md) section 5.2).
@@ -43,7 +45,7 @@ Two sizes on the reference screens fall between utilities and are mapped to one:
 Rules:
 - Nothing is smaller than 12 px, except the 11 px keyboard hint (`type-kbd`). Nothing in the application shell is larger than 24 px.
 - Heading levels are semantic (`h1` for the page title, `h2` for sections, `h3` for panels) independent of the visual utility. Every page has exactly one `h1`.
-- Uppercase text is not used for labels, headers or badges. Sentence case everywhere ([22-content-formatting.md](22-content-formatting.md) section 1).
+- Uppercase text is not used for labels or badges. Sentence case everywhere ([22-content-formatting.md](22-content-formatting.md) section 1), with one exception: table column headers are written in capitals by `type-table-header` (owner decision of 2026-10-29). The strings stay in sentence case in the source and in the accessible name.
 - Letter spacing is never set outside the composites.
 - Line length for prose is capped at 720 px (`max-w-reading`). Analytics content is not width-capped.
 
@@ -62,7 +64,7 @@ Within a table row, the identity column (keyword, prompt, domain) uses `foregrou
 ## 4. Numbers
 
 1. **Tabular figures everywhere numbers are compared**: table numeric cells, metric values, deltas, ranks, percentages, currency, counts, axis labels, timestamps in tables. Apply the `num` utility (sets `font-variant-numeric: tabular-nums` and `tnum`). `type-metric` and `type-metric-sm` include it.
-2. **Right-align numeric columns** so digits line up; left-align text; center nothing except the checkbox column ([12-tables.md](12-tables.md) section 4).
+2. **Left-align every table column, numeric ones included**, in tabular figures (`num`); center nothing except the checkbox column, and right-align only the row-actions column (owner decision of 2026-10-29, [12-tables.md](12-tables.md) section 4).
 3. Proportional figures remain in running prose ("Rank improved from #8 to #4 on Sep 29").
 4. The minus sign is the typographic minus (U+2212), which has the same advance width as the plus sign in tabular figures. `@/lib/format` inserts it; never type a hyphen as a minus in UI text.
 5. Units follow values with a space where the unit is a word (`14 pts`, `1,240 keywords`) and without a space for symbols (`47.2%`, `$24.18`).

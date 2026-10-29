@@ -37,19 +37,24 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   keyword: { width: 280, min: 200, max: 480, align: 'left', defaultDesc: false, flex: true },
   // Short text such as a group path or tags; not in section 5's list, sized like a badge
   text: { width: 160, min: 104, max: 240, align: 'left', defaultDesc: false, flex: false },
-  count: { width: 88, min: 72, max: 120, align: 'right', defaultDesc: true, flex: false },
-  volume: { width: 88, min: 72, max: 120, align: 'right', defaultDesc: true, flex: false },
-  currency: { width: 96, min: 80, max: 128, align: 'right', defaultDesc: true, flex: false },
-  date: { width: 120, min: 104, max: 160, align: 'right', defaultDesc: true, flex: false },
+  // Minimums are what the sorted header needs in capitals (type-table-header, 0.04em) with its 14 px arrow, 4 px gap
+  // and 12 px padding each side, measured in Chrome on 2026-10-29 (e2e/flows/table-style.spec.ts): "KD" 60,
+  // "Volume" 95, "CPC (USD)" 106, "Rank" 78, "Change" 95, "Updated" 99. A longer label ("Priority" 100, "Estimate
+  // (USD)" 139, "Best rank" 112) sets its own width, and its own `minWidth` where it must not be squeezed
+  count: { width: 88, min: 72, max: 120, align: 'left', defaultDesc: true, flex: false },
+  volume: { width: 96, min: 96, max: 120, align: 'left', defaultDesc: true, flex: false },
+  currency: { width: 128, min: 112, max: 144, align: 'left', defaultDesc: true, flex: false },
+  date: { width: 120, min: 104, max: 160, align: 'left', defaultDesc: true, flex: false },
   badge: { width: 120, min: 88, max: 180, align: 'left', defaultDesc: false, flex: false },
   status: { width: 120, min: 96, max: 180, align: 'left', defaultDesc: false, flex: false },
   // Best (lowest) rank first, and the biggest improvement first (12-tables.md section 5)
-  rank: { width: 64, min: 56, max: 80, align: 'right', defaultDesc: false, flex: false },
-  // 12-tables.md gives 56 / 48 / 72. The header "Change" with its sort arrow needs 84 px, and the width resolver
-  // shrinks a column toward its minimum when the table is tight, so the minimum is 84 and the usual width 88
-  rankDelta: { width: 88, min: 84, max: 88, align: 'right', defaultDesc: true, flex: false },
+  rank: { width: 80, min: 80, max: 112, align: 'left', defaultDesc: false, flex: false },
+  // 12-tables.md gave 56 / 48 / 72. The header "CHANGE" with its sort arrow needs 95 px (84 in sentence case), and
+  // the width resolver shrinks a column toward its minimum when the table is tight, so the minimum is 96
+  rankDelta: { width: 96, min: 96, max: 96, align: 'left', defaultDesc: true, flex: false },
   // The identity place stays with the keyword column: a ranking URL is a plain column here
-  url: { width: 260, min: 180, max: 480, align: 'left', defaultDesc: false, flex: false },
+  // 160 px holds the 127 px capital header "RANKING URL" with its arrow; the path shows middle-truncated
+  url: { width: 260, min: 160, max: 480, align: 'left', defaultDesc: false, flex: false },
   features: { width: 140, min: 112, max: 220, align: 'left', defaultDesc: true, flex: false },
   aiOverview: { width: 112, min: 96, max: 140, align: 'left', defaultDesc: false, flex: false },
   actions: { width: 40, min: 40, max: 40, align: 'right', defaultDesc: null, flex: false },

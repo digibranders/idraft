@@ -278,7 +278,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
   function tableShell(columns) {
     const table = el('table', 'w-full border-collapse type-table');
     const head = el('tr', 'h-row-header text-left bg-surface-subtle');
-    columns.forEach(([text, align]) => head.append(el('th', `px-3 type-label whitespace-nowrap ${align === 'right' ? 'text-right' : ''}`, text)));
+    columns.forEach(([text]) => head.append(el('th', 'px-3 type-label whitespace-nowrap', text)));
     const thead = el('thead');
     thead.append(head);
     const tbody = el('tbody');
@@ -289,13 +289,13 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
   }
 
   function shareBar(share) {
-    const wrap = el('div', 'flex items-center gap-2 justify-end');
+    const wrap = el('div', 'flex items-center gap-2');
     const track = el('span', 'relative block h-2 w-24 shrink-0');
     const fill = el('span', `absolute top-0 h-2 rounded-2xs ${share < 0 ? 'right-1/2 bg-negative-solid' : 'left-1/2 bg-positive-solid'}`);
     fill.style.width = `${Math.min(50, Math.abs(share) * 50)}%`;
     const axis = el('span', 'absolute left-1/2 top-0 h-2 w-px bg-border-strong');
     track.append(axis, fill);
-    wrap.append(track, el('span', 'w-10 text-right type-meta num', `${Math.round(Math.abs(share) * 100)}%`));
+    wrap.append(track, el('span', 'w-10 type-label num', `${Math.round(Math.abs(share) * 100)}%`));
     return wrap;
   }
 
@@ -317,7 +317,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     });
     rows.sort((a, b) => (additive ? Math.abs(b.delta) - Math.abs(a.delta) : (b.cur ?? 0) - (a.cur ?? 0)));
     const net = rows.reduce((sum, row) => sum + row.delta, 0);
-    const { wrap, tbody } = tableShell([[state.tab === 'countries' ? 'Country' : 'Device'], [`${METRICS[metric].label} now`, 'right'], ['Before', 'right'], ['Change', 'right'], [additive ? 'Share of the change' : '', 'right']]);
+    const { wrap, tbody } = tableShell([[state.tab === 'countries' ? 'Country' : 'Device'], [`${METRICS[metric].label} now`], ['Before'], ['Change'], [additive ? 'Share of the change' : '']]);
     const visible = rows.filter((row) => row.cur !== null || row.prev !== null).slice(0, 12);
     if (visible.length === 0) content.append(el('p', 'type-body text-foreground-secondary py-4', 'No data for these filters.'));
     visible.forEach((row) => {
@@ -337,8 +337,8 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
         : before && row.cur !== null && row.prev !== null
           ? { text: metric === 'position' ? `${row.delta < 0 ? 'improved' : 'slipped'} ${Math.abs(row.delta).toFixed(1)}` : signed(row.delta, `${Math.abs(row.delta * 100).toFixed(1)} pts`), tone: Math.abs(row.delta) < 0.001 ? 'neutral' : (metric === 'position' ? row.delta < 0 : row.delta > 0) ? 'positive' : 'negative' }
           : null;
-      const cells = [first, el('td', 'px-3 text-right num', row.cur === null ? 'No data' : formatMetric(metric, row.cur)), el('td', 'px-3 text-right num text-foreground-secondary', row.prev === null ? '' : formatMetric(metric, row.prev))];
-      const changeCell = el('td', 'px-3 text-right');
+      const cells = [first, el('td', 'px-3 num', row.cur === null ? 'No data' : formatMetric(metric, row.cur)), el('td', 'px-3 num text-foreground-secondary', row.prev === null ? '' : formatMetric(metric, row.prev))];
+      const changeCell = el('td', 'px-3');
       if (change) changeCell.append(changeSpan({ ...change, note: null }));
       const shareCell = el('td', 'px-3');
       if (additive && net !== 0 && before) shareCell.append(shareBar(row.delta / Math.abs(net)));
@@ -364,7 +364,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
     const cached = liveCache.get(key);
     let result = cached?.result;
     if (!result) {
-      const skeleton = tableShell([['Query'], ['Clicks now', 'right'], ['Before', 'right'], ['Change', 'right'], ['Position', 'right']]);
+      const skeleton = tableShell([['Query'], ['Clicks now'], ['Before'], ['Change'], ['Position']]);
       skeleton.tbody.append(skeletonRows(6, 5));
       content.append(skeleton.wrap, el('p', 'type-meta', 'Asking Google for this page and these filters...'));
       const f = filtersOf(state);
@@ -385,7 +385,7 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
       .filter((row) => (mode === 'losers' ? row.delta < 0 && row.before : mode === 'gainers' ? row.delta > 0 && row.before : mode === 'new' ? row.now.clicks > 0 && (!row.before || row.before.clicks === 0) : mode === 'lost' ? row.now.clicks === 0 && row.before?.clicks > 0 : true))
       .sort((a, b) => (mode === 'gainers' ? b.delta - a.delta : mode === 'losers' ? a.delta - b.delta : mode === 'all' ? b.now.clicks - a.now.clicks : Math.abs(b.delta) - Math.abs(a.delta)))
       .slice(0, 15);
-    const { wrap, tbody } = tableShell([[isQueries ? 'Query' : 'Appearance'], ['Clicks now', 'right'], ['Before', 'right'], ['Change', 'right'], [isQueries ? 'Position' : 'Impressions', 'right']]);
+    const { wrap, tbody } = tableShell([[isQueries ? 'Query' : 'Appearance'], ['Clicks now'], ['Before'], ['Change'], [isQueries ? 'Position' : 'Impressions']]);
     if (filtered.length === 0) content.append(el('p', 'type-body text-foreground-secondary py-4', hasBefore ? 'Nothing in this group for these filters.' : 'No rows for these filters.'));
     filtered.forEach((row) => {
       const tr = el('tr', 'h-row-compact border-t border-border-subtle hover:bg-surface-hover');
@@ -398,9 +398,9 @@ export function createDetail({ get, set, shell, pageId, onClose, onStep, canStep
         first.append(pick);
       } else first.append(el('span', 'type-body', row.text));
       const change = !hasBefore ? null : !row.before || row.before.clicks === 0 ? (row.now.clicks > 0 ? { text: 'New', tone: 'positive' } : null) : row.now.clicks === 0 ? { text: 'Lost', tone: 'negative' } : { text: signed(row.delta, `${Math.abs((row.now.clicks / ranges.current.days / (row.before.clicks / ranges.compare.days) - 1) * 100).toFixed(0)}%`), tone: row.delta > 0 ? 'positive' : row.delta < 0 ? 'negative' : 'neutral' };
-      const changeCell = el('td', 'px-3 text-right');
+      const changeCell = el('td', 'px-3');
       if (change) changeCell.append(changeSpan({ ...change, note: null }));
-      tr.append(first, el('td', 'px-3 text-right num', formatInt(row.now.clicks)), el('td', 'px-3 text-right num text-foreground-secondary', row.before ? formatInt(row.before.clicks) : ''), changeCell, el('td', 'px-3 text-right num', isQueries ? (row.now.position ? row.now.position.toFixed(1) : '') : formatInt(row.now.impressions)));
+      tr.append(first, el('td', 'px-3 num', formatInt(row.now.clicks)), el('td', 'px-3 num text-foreground-secondary', row.before ? formatInt(row.before.clicks) : ''), changeCell, el('td', 'px-3 num', isQueries ? (row.now.position ? row.now.position.toFixed(1) : '') : formatInt(row.now.impressions)));
       tbody.append(tr);
     });
     if (filtered.length > 0) content.append(wrap);

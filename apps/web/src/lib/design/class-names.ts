@@ -14,6 +14,8 @@ export const TYPE_STYLES = [
   'inline-strong',
   'prose',
   'table',
+  'table-strong',
+  'table-header',
   'meta',
   'label',
   'micro',

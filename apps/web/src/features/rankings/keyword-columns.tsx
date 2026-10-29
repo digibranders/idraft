@@ -104,7 +104,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         header: t('volume'),
         headerTooltip: t('volumeTooltip'),
         priority: 2,
-        width: 88,
+        width: 96,
         unknown: missing,
       }),
       col.count<TrackedKeywordRow>('keyword_difficulty', (row) => metrics(row)?.keyword_difficulty ?? null, {
@@ -120,7 +120,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           const cpc = metrics(row)?.cpc_usd ?? null;
           return cpc === null ? null : Number(cpc);
         },
-        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 96, unknown: missing },
+        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 112, unknown: missing },
       ),
       col.badge<TrackedKeywordRow>(
         'intent',
@@ -145,7 +145,9 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         header: t('priority'),
         headerTooltip: t('priorityTooltip'),
         priority: 3,
-        width: 72,
+        // "PRIORITY" with its sort arrow needs 100 px, which is more than a count column holds
+        width: 100,
+        minWidth: 100,
       }),
       col.text<TrackedKeywordRow>(
         'group',

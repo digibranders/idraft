@@ -10,9 +10,9 @@ Implementation: [`apps/web/src/styles/tokens.css`](../../apps/web/src/styles/tok
 | Foundation | Decision | Document |
 |---|---|---|
 | Color | Neutral-first OKLCH tokens, one vivid cobalt accent, four semantic families, separate chart palette | [02](02-color-system.md) |
-| Typography | Geist Sans (UI), Geist Mono (technical values), 14 px base (table cells 13 px), 15 composite type utilities, tabular numbers for all figures | [03](03-typography.md) |
+| Typography | Geist Sans (UI), Geist Mono (technical values), 14 px base (table cells 12 px), composite type utilities, tabular numbers for all figures | [03](03-typography.md) |
 | Spacing | 4 px base; 12 allowed steps | [04](04-spacing-density.md) |
-| Density | Default (40 px rows) and Compact (32 px rows); 36 px controls; embedded tables always 32 px | [04](04-spacing-density.md) |
+| Density | Compact (32 px rows, the default since 2026-10-29) and Comfortable (40 px rows); 36 px controls; embedded tables always 32 px | [04](04-spacing-density.md) |
 | Layout | Sidebar 208 px (56 px collapsed), top bar 52 px, 20 px gutters, 16 px between page blocks, full-width analytics | [05](05-layout-grid.md) |
 | Surfaces | Tonal layers and 1 px hairline borders; shadows only for overlays; radius 2 to 10 px (panels 8, controls 6, badges 4; 2 px only for bar-list bars and engine presence squares) | [06](06-surfaces-borders-radius.md) |
 | Icons | Lucide, 16 px default (18 px in the sidebar), stroke 1.75 | [07](07-icons.md) |

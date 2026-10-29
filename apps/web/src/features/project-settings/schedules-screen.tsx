@@ -195,31 +195,28 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
     {
       id: 'schedule',
       header: t('columns.schedule'),
-      align: 'left',
       wrap: true,
       cell: (schedule) => (
         <span className="flex flex-col">
-          <span className="type-body text-foreground">{schedule.name}</span>
-          <span className="type-meta">{workloadName(schedule.workload)}</span>
+          <span className="text-foreground">{schedule.name}</span>
+          <span className="type-label">{workloadName(schedule.workload)}</span>
         </span>
       ),
     },
     {
       id: 'collects',
       header: t('columns.collects'),
-      align: 'left',
       wrap: true,
       cell: (schedule) => words.collects(schedule.selector, names),
     },
     {
       id: 'when',
       header: t('columns.when'),
-      align: 'left',
       wrap: true,
       cell: (schedule) => (
         <>
           {words.when(schedule)}
-          {schedule.timezone === timeZone ? null : <span className="block type-meta">{schedule.timezone}</span>}
+          {schedule.timezone === timeZone ? null : <span className="block type-label">{schedule.timezone}</span>}
         </>
       ),
     },
@@ -228,18 +225,17 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
       header: t('columns.next'),
       // 22-content-formatting.md section 4: a column of times says which zone they are in
       description: t('columns.nextZone', { timeZone }),
-      align: 'left',
       cell: (schedule) => (
         <>
           {schedule.is_active ? (
-            <span className="block num type-body whitespace-nowrap text-foreground-secondary">
+            <span className="block num whitespace-nowrap text-foreground-secondary">
               {formatTableDateTime(schedule.next_run_at, schedule.timezone)}
             </span>
           ) : (
             <Badge tone="warning">{t('pausedBadge')}</Badge>
           )}
           {/* The API names the last run by its id only, so Runs is where its time is */}
-          <span className="block type-meta">
+          <span className="block type-label">
             {schedule.last_run_id === null ? (
               t('neverRun')
             ) : (
@@ -255,7 +251,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
             id: 'actions',
             header: t('columns.actions'),
             hideHeader: true,
-            align: 'right',
+            actions: true,
             cell: (schedule: Schedule) => (
               <Menu
                 align="end"

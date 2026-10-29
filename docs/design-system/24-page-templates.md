@@ -118,11 +118,11 @@ Rules: at most 5 major sections (S1 to S5). Sections and side-by-side panels are
 | Page header | `PageHeader` with `SavedViewMenu`, optional tabs; the filter bar follows the strip when there is one | Top bar to first block: 92 px (strip first), 144 px (filter bar first), 196 px with tabs ([23-application-patterns.md](23-application-patterns.md) section 3.2) | Fixed; does not scroll |
 | Metric strip | `MetricStrip` `md` | 76 px plus the 16 px block gap | Optional; summarizes the filtered scope (not the page); sits between the header and the filter bar; fixed above the table |
 | Table toolbar | `DataTable` toolbar: the title row of the table panel, 32 px `sm` controls; replaced by the bulk bar when rows are selected | 48 px | Table search, row count, density, columns, export |
-| Table | `DataTable` inside a panel (1 px `border`, 8 px radius): 40 px header row on `surface-subtle` with 1 px dividers between header cells, 40 px rows (32 px in Compact density) | Fills remaining height | Body is the scroll container; header sticks; identity column pinned |
+| Table | `DataTable` inside a panel (1 px `border`, 8 px radius): 40 px header row on `surface-subtle` with 1 px dividers between header cells, 32 px rows (Compact, the default; 40 px in Default density) | Fills remaining height | Body is the scroll container; header sticks; identity column pinned |
 | Footer | `TableFooter`: count and freshness; range text ("1 to 200 of 12,480") with 32 px previous and next buttons only in server mode, no page numbers ([12-tables.md](12-tables.md) section 12) | 48 px | Sticky at the bottom of the table region |
 | Inspector | `Inspector` (400 px) with `InspectorHeader` (44 px underline tabs at its bottom), `MetricStrip` `sm` as the first section, `InspectorSection`; footer in edit mode only ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.1) | Full height below the top bar | Docks when the main column keeps at least 720 px, else overlays ([05-layout-grid.md](05-layout-grid.md) section 6) |
 
-Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title block 56, strip 76, filter bar 36, three 16 px gaps, table toolbar 48, table header 40 and footer 48 leave 476 px, which is 11 rows at 40 px (Default density) or 14 rows at 32 px (Compact).
+Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title block 56, strip 76, filter bar 36, three 16 px gaps, table toolbar 48, table header 40 and footer 48 leave 476 px, which is 14 rows at 32 px (Compact, the default) or 11 rows at 40 px (Default density).
 
 **Components used:** `PageHeader`, `SavedViewMenu`, `FilterBar`, `FilterChip`, `MetricStrip`, `DataTable` with cells from [12-tables.md](12-tables.md) section 6, `TableFooter`, `Pagination` (server mode), `Inspector`, `InspectorHeader`, `InspectorSection`, `SimpleTable`, `ChartFrame` (inspector variant), `TriageToast` for reversible bulk actions.
 
@@ -292,7 +292,7 @@ Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title 
 |                  +----------------------------------------------------------+----------------------------------------+
 |                  | Header row                                               | Evidence sections                      |
 |                  +----------------------------------------------------------+ (source detail, SERP or answer         |
-|                  | Row 40 (Default density): candidate, source chips,       | examples, near duplicates)             |
+|                  | Row 40 (Comfortable density): candidate, source chips,       | examples, near duplicates)             |
 |                  |   evidence line in type-meta                             |                                        |
 |                  | Row 40                                                   +----------------------------------------+
 |                  | ...                                                      | Footer: [Reject] [Snooze] [Accept]     |
@@ -302,7 +302,7 @@ Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title 
 |---|---|---|---|
 | Header | `PageHeader` with count tabs | 196 px to the first block | Primary action is "Generate" on Prompts (opens the generator), none on Keywords |
 | Status control | `SegmentedControl` `sm` in the table toolbar: New, Accepted, Snoozed, Rejected (counts on New only) | 32 px | Writes `status=`; each status is its own list |
-| Table | `DataTable` in Default density (40 px rows; the second line carries the evidence summary, [04-spacing-density.md](04-spacing-density.md) section 3) | Fills | Single-key triage `a`, `r`, `s` on the focused row ([23-application-patterns.md](23-application-patterns.md) section 10) |
+| Table | `DataTable` in Comfortable density (40 px rows, set by the screen because it needs two lines; the second line carries the evidence summary, [04-spacing-density.md](04-spacing-density.md) section 3) | Fills | Single-key triage `a`, `r`, `s` on the focused row ([23-application-patterns.md](23-application-patterns.md) section 10) |
 | Evidence panel | `Inspector` with candidate header, `MetricStrip` `sm`, evidence sections | Full height | Footer holds Reject (`ghost`), Snooze (`secondary`), Accept (`primary`) |
 | Bulk bar | Replaces the toolbar on selection | 48 px | Accept, Snooze, Reject, then Assign group, Tags, Topic, then "Promote to tracked" (opens a dialog with quota and cost) |
 
@@ -437,19 +437,21 @@ Route `/seo/rankings`. Default state with the inspector closed:
 +----------------+----------------+----------------+----------------+----------------+-----------------+
 | [Search keywords /]   1,000 keywords                 [Group: none v] [Density v] [Columns] [Export]  |
 +------------------------------------------------------------------------------------------------------+
-| [ ] Keyword              Rank    Δ  Ranking URL       Volume  Intent   Features AIO       Trend      |
+| [ ] KEYWORD               RANK  Δ     RANKING URL       VOLUME  INTENT   FEATURES AIO        TREND |
 +------------------------------------------------------------------------------------------------------+
-| [ ] best crm for startups   3   ↑5  /blog/best-crm..  12,400  Commerc. [][][]+2 Cited #2  /\/-       |
-| [ ] crm software for sm..   7   ↓1  /pricing          33,100  Commerc. [][]     Not cited --\_       |
-| [ ] hubspot alternatives   14   ↓6  /compare/hubspot   8,100  Commerc. [][][]   No AIO    \__/       |
-| [ ] crm pricing           >20 Lost  (none)               880  Transac. [][]     Not cited __..       |
-| [ ] free crm for startups      New  /blog/free-crm     5,400  Informa. []       Pending   ....       |
+| [ ] best crm for startups 3     ↑5    /blog/best-crm..  12,400  Commerc. [][][]+2 Cited #2   /\/-  |
+| [ ] crm software for sm.. 7     ↓1    /pricing          33,100  Commerc. [][]     Not cited  --\_  |
+| [ ] hubspot alternatives  14    ↓6    /compare/hubspot  8,100   Commerc. [][][]   No AIO     \__/  |
+| [ ] crm pricing           >20   Lost  (none)            880     Transac. [][]     Not cited  __..  |
+| [ ] free crm for startups New         /blog/free-crm    5,400   Informa. []       Pending    ....  |
 | [ ] ...                                                                                              |
 +------------------------------------------------------------------------------------------------------+
 | 1,000 keywords · Updated 12m ago                                                                     |
 ```
 
 In the drawing, `[]` stands for a SERP feature icon slot, intent badges are shortened to fit the sketch (the UI shows "Commercial"), and the Competitor and Updated columns (priority 4) are hidden at 1440 px (see below).
+
+**Table style (owner decisions of 2026-10-29, [12-tables.md](12-tables.md) sections 3 and 4).** Every table on every screen shown in this section, this table included, uses one house style: body text 12 / 16 px, header labels in capitals (0.04em, tertiary), compact 32 px rows as the default density, and every column left aligned, numbers included (tabular figures). Only the row-actions column is right aligned. The drawings above and below show the sentence-case labels of the source strings; the capitals come from the header style.
 
 **Columns.**
 
@@ -480,7 +482,7 @@ Column chooser extras (not in the default set): Previous rank, Best rank, Target
 | 1440 | 1,192 px | All except Competitor and Updated (1,176 px) |
 | 1440, inspector docked | 792 px | Same set as 1440; the table scrolls horizontally with Keyword pinned |
 | 1280 | 1,032 px | Keyword, Rank, Δ, Ranking URL, Volume, AI Overview, Trend (960 px) |
-| 1024 (sidebar collapsed) | 928 px | Keyword, Rank, Δ; Default density adds the secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6) |
+| 1024 (sidebar collapsed) | 928 px | Keyword, Rank, Δ; Comfortable density adds the secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6) |
 | 768 | 736 px | Keyword, Rank, Δ, as at 1024 |
 
 At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 400, below the 720 px minimum, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6), so the table keeps its 1,032 px set.
@@ -489,7 +491,7 @@ At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 
 
 **Bulk actions.** Add tags, Move to group, Set target URL, Set priority, Check now (shows remaining manual quota), Create prompts, Export, then after a separator Archive (reversible, `TriageToast` undo; over 100 rows it first confirms with the count, [20-accessibility.md](20-accessibility.md) section 2, WCAG 3.3.4) and Delete (confirmation with exact count).
 
-**Density.** At desktop widths both densities keep one line per row, as the reference screens show: Default (40 px rows, 11 visible at 1440 x 900) and Compact (32 px rows, 14 visible). Location and device are in the keyword tooltip and the previous rank in the rank tooltip. Below 1280 px, Default density adds a secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6).
+**Density.** Compact is the default (owner decision of 2026-10-29). At desktop widths both densities keep one line per row, as the reference screens show: Compact (32 px rows, 14 visible at 1440 x 900) and Default (40 px rows, 11 visible), which a person can choose. Location and device are in the keyword tooltip and the previous rank in the rank tooltip. Below 1280 px, Default density adds a secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6).
 
 **Inspector.** Keyword inspector per [23-application-patterns.md](23-application-patterns.md) section 4.2 (Overview, SERP, AI, Timeline). `j` and `k` step through rows in the current sort.
 
@@ -915,7 +917,7 @@ Route `/discover/keywords`.
 |---|---|---|
 | Header | `PageHeader` with count tabs Keywords, Prompts, Opportunities | Prompts tab adds primary "Generate prompts" |
 | Status | `SegmentedControl` in the toolbar, next to the result count | `status=new` default |
-| Table | `DataTable`, Default density (40 px rows); second line is the evidence summary in `type-meta` | Keyword columns: Candidate, Sources (neutral chips, max 2 then "+1"), Volume (Estimate), KD, CPC (chooser), Intent, AI demand (Estimate, chooser), GSC impressions (28 days), Competitor best rank (chooser), Opportunity score (chooser, with factor popover), Data as of |
+| Table | `DataTable`, Comfortable density (40 px rows, set by the screen for its two-line rows; every other table opens in Compact); second line is the evidence summary in `type-meta` | Keyword columns: Candidate, Sources (neutral chips, max 2 then "+1"), Volume (Estimate), KD, CPC (chooser), Intent, AI demand (Estimate, chooser), GSC impressions (28 days), Competitor best rank (chooser), Opportunity score (chooser, with factor popover), Data as of |
 | Evidence panel | `Inspector` 400 px (no "Open page": candidates have no full page): strip with volume, KD, modeled AI demand (Estimate), GSC impressions; source detail per source; near duplicates; triage footer (the one inspector footer outside edit mode) with `Kbd` hints | Prompt candidates show "Generated phrasing, not an observed user prompt" or "Bing grounding phrase, not a user prompt" at the top; no volume column |
 | Bulk bar | Accept, Snooze, Reject, Assign group, Tags, Topic, Intent, Priority, then "Promote to tracked" | Promote dialog: location, device (both creates two), depth profile, group, quota impact, daily cost estimate |
 

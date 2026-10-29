@@ -284,7 +284,7 @@ function runImport(reviewed, choices) {
 // The dialog
 
 /**
- * Opens the stepper. The route is #/rankings/import while it is open, so a reload drops an unconfirmed preview.
+ * Opens the stepper. The route is #/keywords/import while it is open, so a reload drops an unconfirmed preview.
  * @param {{onClose: () => void, onKeep?: () => void}} options onClose runs however the dialog closes. onKeep runs
  * when the person answers "Keep importing" to the Stop question, so the caller can put the address back.
  */

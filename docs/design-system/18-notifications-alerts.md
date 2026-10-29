@@ -266,8 +266,8 @@ Route `alerts/events` ([20-frontend-specification.md](../20-frontend-specificati
 | Event | Catalogue phrase plus inline values ("Rank dropped 7 positions", "#4 → #11"); values follow the delta colour rules | flexible, min 240 px |
 | Entity | Type glyph 14 px and label (keyword, prompt, domain, page, run) as a link that opens its inspector on this screen | flexible, min 200 px |
 | Project | Project name. Shown only in workspace-wide views; hidden on the project-scoped screen | 160 px |
-| Time | `occurred_at` in the project timezone; relative under 24 h, then date and time; absolute in the tooltip; default sort descending | 112 px, right-aligned, `num` |
-| Status | New, Acknowledged (with "by Dana Kim" as a second line in `type-label` in Default density, tooltip in Compact density), Held (anomaly hold), Muted (flapping, with "until Oct 6") | 128 px |
+| Time | `occurred_at` in the project timezone; relative under 24 h, then date and time; absolute in the tooltip; default sort descending | 112 px, left-aligned, `num` |
+| Status | New, Acknowledged (with "by Dana Kim" as a second line in `type-label` in Comfortable density, tooltip in Compact density, the default), Held (anomaly hold), Muted (flapping, with "until Oct 6") | 128 px |
 | Action | "Acknowledge" 32 px (`sm`) secondary button for `alerts:write` on New rows; More menu: Open entity, Open rule, Copy link | 120 px |
 
 Rules:

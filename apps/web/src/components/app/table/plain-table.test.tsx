@@ -17,12 +17,11 @@ const ROWS: Row[] = [
 ];
 
 const COLUMNS: PlainColumn<Row>[] = [
-  { id: 'name', header: 'Schedule', align: 'left', cell: (row) => row.name },
+  { id: 'name', header: 'Schedule', cell: (row) => row.name },
   {
     id: 'next',
     header: 'Next run',
     description: 'Times in Europe/Berlin (project time zone)',
-    align: 'left',
     wrap: true,
     cell: (row) => row.next,
   },
@@ -30,7 +29,7 @@ const COLUMNS: PlainColumn<Row>[] = [
     id: 'actions',
     header: 'Actions',
     hideHeader: true,
-    align: 'right',
+    actions: true,
     cell: () => <button type="button">Open</button>,
   },
 ];

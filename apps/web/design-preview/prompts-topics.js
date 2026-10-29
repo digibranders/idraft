@@ -129,19 +129,19 @@ function renderHead() {
   const actions = el('th', 'w-10');
   actions.append(el('span', 'sr-only', 'Row actions'));
   const cells = {
-    prompts: () => sortHeader('prompts', 'Prompts', `${COLUMN.prompts} w-24 px-1 text-right border-r border-border-subtle`),
-    citation: () => sortHeader('citation', 'Citation rate', `${COLUMN.citation} w-32 px-1 text-right border-r border-border-subtle`, { note }),
+    prompts: () => sortHeader('prompts', 'Prompts', `${COLUMN.prompts} w-24 px-1 border-r border-border-subtle`),
+    citation: () => sortHeader('citation', 'Citation rate', `${COLUMN.citation} w-32 px-1 border-r border-border-subtle`, { note }),
     engine: () => plainHeader('Top engine', `${COLUMN.engine} w-40`),
     trend: () => plainHeader('Trend', `${COLUMN.trend} w-24`),
-    seo: () => sortHeader('seo', 'SEO visibility', `${COLUMN.seo} w-32 px-1 text-right border-r border-border-subtle`, { note: 'volume-weighted' }),
-    top10: () => sortHeader('top10', 'Top 10', `${COLUMN.top10} w-28 px-1 text-right border-r border-border-subtle`, { note: 'keywords' }),
-    updated: () => sortHeader('updated', 'Updated', `${COLUMN.updated} w-36 px-1 border-r border-border-subtle`, { align: 'justify-start' }),
+    seo: () => sortHeader('seo', 'SEO visibility', `${COLUMN.seo} w-32 px-1 border-r border-border-subtle`, { note: 'volume-weighted' }),
+    top10: () => sortHeader('top10', 'Top 10', `${COLUMN.top10} w-28 px-1 border-r border-border-subtle`, { note: 'keywords' }),
+    updated: () => sortHeader('updated', 'Updated', `${COLUMN.updated} w-36 px-1 border-r border-border-subtle`),
   };
   row.append(
     select,
-    sortHeader('topic', 'Topic', 'sticky left-0 z-(--z-pinned-cell) bg-surface-subtle min-w-60 px-1 text-left border-r border-border-subtle', { align: 'justify-start' }),
+    sortHeader('topic', 'Topic', 'sticky left-0 z-(--z-pinned-cell) bg-surface-subtle min-w-60 px-1 text-left border-r border-border-subtle'),
     ...(shows('prompts') ? [cells.prompts()] : []),
-    sortHeader('mention', 'Mention rate', 'w-32 px-1 text-right border-r border-border-subtle', { note }),
+    sortHeader('mention', 'Mention rate', 'w-32 px-1 border-r border-border-subtle', { note }),
     ...['citation', 'engine', 'trend', 'seo', 'top10', 'updated'].filter(shows).map((key) => cells[key]()),
     actions,
   );
@@ -216,7 +216,7 @@ function topicRow(topic) {
   row.append(
     select,
     name,
-    ...(shows('prompts') ? [el('td', `${COLUMN.prompts} px-3 text-right num`, formatInteger(topic.prompts.length))] : []),
+    ...(shows('prompts') ? [el('td', `${COLUMN.prompts} px-3 num`, formatInteger(topic.prompts.length))] : []),
     topicRateCell(topic, 'mention'),
     ...OPTIONAL_AFTER_MENTION.filter(shows).map((key) => cells[key]()),
     rowMenuCell('topic', topic.name),
@@ -227,7 +227,7 @@ function topicRow(topic) {
 /** A prompt grouped under its topic: the same columns, indented, on the subtle surface. */
 function childRow(prompt, topic) {
   // The aria-selected variant outranks the subtle fill when this prompt is the one open in the drawer
-  const row = el('tr', 'group h-row border-t border-border-subtle bg-surface-subtle aria-selected:bg-surface-selected hover:bg-surface-hover cursor-pointer');
+  const row = el('tr', 'group h-row-compact border-t border-border-subtle bg-surface-subtle aria-selected:bg-surface-selected hover:bg-surface-hover cursor-pointer');
   row.dataset.id = prompt.id;
   row.dataset.childOf = topic.id;
   const name = el('th', 'sticky left-0 z-(--z-pinned-cell) bg-surface-subtle group-hover:bg-surface-hover group-aria-selected:bg-surface-selected w-full min-w-60 max-w-0 pl-11 pr-3 py-1.5 text-left font-normal');
@@ -259,7 +259,7 @@ function childRow(prompt, topic) {
 }
 
 function moreRow(topic, shown) {
-  const row = el('tr', 'h-row border-t border-border-subtle bg-surface-subtle');
+  const row = el('tr', 'h-row-compact border-t border-border-subtle bg-surface-subtle');
   row.dataset.moreOf = topic.id;
   const cell = el('td', 'pl-21 pr-3');
   // Select, Topic, Mention rate and the actions, plus the optional columns that are on

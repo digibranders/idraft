@@ -189,30 +189,30 @@ function Workspaces({ memberships }: { memberships: readonly MeMembership[] }): 
       <h3 className="type-subsection-title">{t('workspaces')}</h3>
       <p className="mt-1 mb-3 type-meta">{t('workspacesDescription')}</p>
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        <table className="w-full">
+        <table className="w-full type-table">
           <thead className="bg-surface-subtle">
             <tr>
-              <th scope="col" className="h-row-header px-4 text-left type-label">
+              <th scope="col" className="h-row-header px-4 text-left type-table-header">
                 {t('workspace')}
               </th>
-              <th scope="col" className="h-row-header px-3 text-left type-label">
+              <th scope="col" className="h-row-header px-3 text-left type-table-header">
                 {t('role')}
               </th>
-              <th scope="col" className="h-row-header px-4 text-left type-label">
+              <th scope="col" className="h-row-header px-4 text-left type-table-header">
                 {t('access')}
               </th>
             </tr>
           </thead>
           <tbody>
             {open.map((membership) => (
-              <tr key={membership.workspace.workspace_id} className="h-12 border-t border-border-subtle">
-                <th scope="row" className="px-4 text-left type-body font-normal whitespace-nowrap text-foreground">
+              <tr key={membership.workspace.workspace_id} className="h-row-compact border-t border-border-subtle">
+                <th scope="row" className="px-4 text-left font-normal whitespace-nowrap text-foreground">
                   {membership.workspace.name}
                 </th>
                 <td className="px-3">
                   <Badge>{roles(membership.role)}</Badge>
                 </td>
-                <td className="px-4 type-body text-foreground-secondary">
+                <td className="px-4 text-foreground-secondary">
                   {membership.project_ids === null
                     ? t('allProjects')
                     : t('someProjects', { count: membership.project_ids.length })}

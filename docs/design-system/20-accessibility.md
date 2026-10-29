@@ -647,7 +647,7 @@ Windows forced colors replaces author colors with system colors and removes `box
 
 The UI must lose no content when users apply line height 1.5, paragraph spacing 2x, letter spacing 0.12em and word spacing 0.16em.
 
-1. Line heights are absolute `rem` values (20 px for 13 px and 14 px text). A 1.5 override gives 19.5 px for 13 px table text, which fits the same boxes, and 21 px for 14 px body text, which grows single-line controls, rows and sidebar items by 1 px through `min-height` (rule 2). Prose (14 px) goes from 22 to 21 px.
+1. Line heights are absolute `rem` values (20 px for 13 px and 14 px text, 16 px for 12 px table text). A 1.5 override gives 18 px for 12 px table text, which fits a 32 px row, and 19.5 px for 13 px text, which fits the same boxes, and 21 px for 14 px body text, which grows single-line controls, rows and sidebar items by 1 px through `min-height` (rule 2). Prose (14 px) goes from 22 to 21 px.
 2. Controls, badges, chips and rows set `min-height`, never `height` with `overflow: hidden` on text. Where a component token uses `h-*`, the text inside is a single line that may widen, never a clipped block.
 3. Widths are never fixed on text containers (labels, buttons, chips, badges). Letter spacing makes them wider; layouts tolerate that (30% longer strings, [03-typography.md](03-typography.md)).
 4. Single-line truncation is the designed state for table cells, not a spacing failure: the full value is always available in the tooltip (on hover and focus) and in the inspector. Elements that truncate carry `data-truncate` so the test can exclude them.

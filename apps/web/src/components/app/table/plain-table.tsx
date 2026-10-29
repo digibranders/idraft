@@ -16,7 +16,8 @@ export interface PlainColumn<TRow> {
    * cell's description for assistive technology and its tooltip on hover.
    */
   description?: string | undefined;
-  align: 'left' | 'right';
+  /** The row-actions column (a menu button): the only column that is right aligned. Every other column is left aligned. */
+  actions?: boolean | undefined;
   /** Lets a long value wrap onto more lines, where a value of one line stays on it. */
   wrap?: boolean | undefined;
   cell: (row: TRow) => ReactNode;
@@ -39,12 +40,11 @@ export interface PlainTableProps<TRow> {
   skeletonRows?: number | undefined;
 }
 
-const alignClass = (align: PlainColumn<unknown>['align']): string =>
-  align === 'right' ? 'text-right tabular-nums' : 'text-left';
+const alignClass = (actions: boolean | undefined): string => (actions === true ? 'text-right' : 'text-left');
 
 /**
- * The plain table of a short, fixed list (a dozen rows at most): the markup of the members table, with money
- * and counts right-aligned in tabular figures (12-tables.md). Costs and the project's schedules use it.
+ * The plain table of a short, fixed list (a dozen rows at most): the markup of the members table, with every
+ * column left aligned but the row actions, and numbers in tabular figures (12-tables.md). Costs and the project's schedules use it.
  * Longer or sortable lists use `DataTable`.
  */
 export function PlainTable<TRow>({
@@ -92,27 +92,27 @@ export function PlainTable<TRow>({
         <tbody aria-busy={status === 'loading'}>
           {status === 'loading' ? (
             Array.from({ length: skeletonRows }, (_, row) => (
-              <tr key={row} className="h-row border-t border-border-subtle">
+              <tr key={row} className="h-row-compact border-t border-border-subtle">
                 <td colSpan={columns.length} className="px-4">
-                  <Skeleton shape="text-14" widthPct={56} />
+                  <Skeleton shape="text-12" widthPct={56} />
                 </td>
               </tr>
             ))
           ) : rows.length === 0 ? (
-            <tr className="h-row border-t border-border-subtle">
-              <td colSpan={columns.length} className="px-4 type-body text-foreground-secondary">
+            <tr className="h-row-compact border-t border-border-subtle">
+              <td colSpan={columns.length} className="px-4 type-table text-foreground-secondary">
                 {emptyText}
               </td>
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={rowKey(row)} className="h-row border-t border-border-subtle">
+              <tr key={rowKey(row)} className="h-row-compact border-t border-border-subtle">
                 {columns.map((column, index) =>
                   index === 0 ? (
                     <th
                       key={column.id}
                       scope="row"
-                      className={cn('px-4 py-2 type-body font-normal text-foreground', alignClass(column.align))}
+                      className={cn('px-4 type-table font-normal text-foreground', alignClass(column.actions))}
                     >
                       {column.cell(row)}
                     </th>
@@ -120,9 +120,10 @@ export function PlainTable<TRow>({
                     <td
                       key={column.id}
                       className={cn(
-                        'px-3 py-2 type-body text-foreground-secondary last:px-4',
-                        column.wrap !== true && 'whitespace-nowrap',
-                        alignClass(column.align),
+                        'px-3 num type-table text-foreground-secondary last:px-4',
+                        // A cell that wraps keeps 4 px from the dividers; a one or two line cell fills its 32 px row
+                        column.wrap === true ? 'py-1' : 'whitespace-nowrap',
+                        alignClass(column.actions),
                       )}
                     >
                       {column.cell(row)}
@@ -135,11 +136,14 @@ export function PlainTable<TRow>({
         </tbody>
         {status === 'ready' && rows.length > 0 && footer !== undefined ? (
           <tfoot>
-            <tr className="h-row border-t border-border bg-surface-subtle">
+            <tr className="h-row-compact border-t border-border bg-surface-subtle">
               {columns.map((column, index) => (
                 <td
                   key={column.id}
-                  className={cn('px-3 type-body-strong text-foreground first:px-4 last:px-4', alignClass(column.align))}
+                  className={cn(
+                    'px-3 num type-table-strong text-foreground first:px-4 last:px-4',
+                    alignClass(column.actions),
+                  )}
                 >
                   {footer[index]}
                 </td>
@@ -159,7 +163,10 @@ function HeaderCell<TRow>({ column }: { column: PlainColumn<TRow> }): ReactEleme
     <th
       scope="col"
       aria-describedby={column.description === undefined ? undefined : descriptionId}
-      className={cn('h-row-header px-3 type-label whitespace-nowrap first:px-4 last:px-4', alignClass(column.align))}
+      className={cn(
+        'h-row-header px-3 type-table-header whitespace-nowrap first:px-4 last:px-4',
+        alignClass(column.actions),
+      )}
     >
       {column.hideHeader === true ? <span className="sr-only">{column.header}</span> : column.header}
       {column.description === undefined ? null : (

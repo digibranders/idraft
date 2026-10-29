@@ -10,7 +10,7 @@ import type { PageSize, RecordAction, TableStatus } from '@/components/app/data-
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { formatInteger } from '@/lib/format';
-import type { Density, SortKey } from '@/lib/tables/table-state';
+import { DEFAULT_DENSITY, type Density, type SortKey } from '@/lib/tables/table-state';
 
 interface SampleRow {
   id: string;
@@ -94,7 +94,7 @@ function SampleTable({
   server?: boolean;
 }): ReactNode {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
-  const [density, setDensity] = useState<Density>('default');
+  const [density, setDensity] = useState<Density>(DEFAULT_DENSITY);
   const [visible, setVisible] = useState<readonly string[] | null>(null);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -183,7 +183,7 @@ export function TablesSection(): ReactNode {
     <>
       <SpecimenGroup
         title="DataTable, client mode"
-        note="12. 300 rows: rows near the view render, the rest keep their space. Sort from a header, select with the checkboxes or Space, open a row with Enter. Missing metrics read Pending and sort last both ways."
+        note="12. Compact rows, 12 px text, capital headers and left aligned columns are the defaults (owner decisions of 2026-10-29). 300 rows: rows near the view render, the rest keep their space. Sort from a header, select with the checkboxes or Space, open a row with Enter. Missing metrics read Pending and sort last both ways."
       >
         <SampleTable caption="Keywords, client mode" rows={SAMPLE} status="ready" />
       </SpecimenGroup>

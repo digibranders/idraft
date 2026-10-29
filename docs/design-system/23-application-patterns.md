@@ -26,7 +26,7 @@ Rules:
 1. **Tooltips are never the only path.** Everything in an L2 tooltip is also in the L3 inspector. Tooltips open on keyboard focus as well as hover and follow WCAG 1.4.13 ([08-interaction-states.md](08-interaction-states.md) section 3).
 2. **The inspector never requires the full page** for the question the list answers. If a user opens the full page from the inspector for more than 20% of records in a usability session, content moves from L4 to L3.
 3. **Values do not change meaning across levels.** The rank in the row, the tooltip, the inspector and the page come from the same API field and the same formatter.
-4. **L1 carries the denominator only when it fits.** Rates in Compact density rows (32 px) show the value; `k of n` appears as a second line in Default density (40 px), in the tooltip, and always in the inspector ([12-tables.md](12-tables.md) section 6, `MetricCell`).
+4. **L1 carries the denominator only when it fits.** Rates in Compact density rows (32 px, the default) show the value; `k of n` appears as a second line in Comfortable density (40 px), in the tooltip, and always in the inspector ([12-tables.md](12-tables.md) section 6, `MetricCell`).
 5. **Links go up one level at a time.** A row opens L3; L3 offers "Open page" (L4). A row never jumps straight to L4 on a plain click.
 
 ### 1.2 Assignment by object type
@@ -297,8 +297,8 @@ The parts that appear inside inspector sections, as the reference screens show t
 | Part | Spec |
 |---|---|
 | Key-value grid | `MetricStrip` `size="sm"` (section 2.2): 1 px `border-subtle` between cells and around the grid, `rounded-lg` (8 px) outside, 12 px cell padding, label (`type-label`) above value (`type-metric-sm`). Text values such as a ranking URL use `type-body` in `link` color |
-| Mini table | `SimpleTable` ([25-component-inventory.md](25-component-inventory.md) section 7.11): 32 px rows (`h-row-compact`), header labels in `type-label` without a header fill, `border-subtle` row dividers, numbers right-aligned `num`. The own row (own domain, own brand) is `surface-selected` with its key text in `primary-text` |
-| `QuoteBox` | An excerpt of collected text (AI Overview, answer snippet): `surface-subtle` fill, 1 px `border-subtle`, `rounded-md` (6 px), 12 px padding, `type-table` (13 / 20 px) in typographic quotes, clamped to 4 lines with an ellipsis. Escaped text only (section 5.6). A positive "Cited · source 2 of 5" badge with a check icon sits right-aligned on the section title row when the own domain is cited |
+| Mini table | `SimpleTable` ([25-component-inventory.md](25-component-inventory.md) section 7.11): 32 px rows (`h-row-compact`), header labels in `type-table-header` (12 px, capitals) without a header fill, `border-subtle` row dividers, numbers left aligned `num` (every table column is left aligned, owner decision of 2026-10-29). The own row (own domain, own brand) is `surface-selected` with its key text in `primary-text` |
+| `QuoteBox` | An excerpt of collected text (AI Overview, answer snippet): `surface-subtle` fill, 1 px `border-subtle`, `rounded-md` (6 px), 12 px padding, text at 13 / 20 px (not `type-table`, which is 12 / 16 px and for tables only) in typographic quotes, clamped to 4 lines with an ellipsis. Escaped text only (section 5.6). A positive "Cited · source 2 of 5" badge with a check icon sits right-aligned on the section title row when the own domain is cited |
 | `DomainChip` | Cited sources under a quote or answer: neutral badge style (22 px, `neutral-subtle`, `neutral-text`, `rounded-sm`, 8 px horizontal padding), registrable domain as text, 8 px apart. At most 3 chips, then a "+2" overflow chip in the same style that opens the full list. Each chip is a link to the domain inspector |
 
 ## 5. Evidence viewer
@@ -573,12 +573,12 @@ Bar form:         |------====●=====-------------------|      scale 0% to 60% (
 | Point | 6 px circle, `foreground`, at the estimate |
 | Scale | Shared per column or per chart (0% to a nice ceiling of the largest upper bound), so rows are comparable. The scale is stated in the column header tooltip |
 | Insufficient | No bar; `InsufficientData` instead |
-| Where | Inspector rate tables, Prompt Detail rate table, statistics panel, Default density rate columns when the user enables "Show intervals" in the column menu. Not in Compact density rows |
+| Where | Inspector rate tables, Prompt Detail rate table, statistics panel, Comfortable density rate columns when the user enables "Show intervals" in the column menu. Not in Compact density rows |
 | Accessible name | "95% interval 31% to 37%" |
 
 ### 8.3 SampleCount
 
-`SampleCount` renders `formatSampleCount` in `type-meta num`: "612 of 1,296 obs", "28 of 28 checks", "250 prompts". It is the context line of rate items in the strip, the second line of `MetricCell` in Default density (40 px rows), and a column in inspector rate tables. The noun is always present ("obs", "checks", "prompts", "keywords").
+`SampleCount` renders `formatSampleCount` in `type-meta num`: "612 of 1,296 obs", "28 of 28 checks", "250 prompts". It is the context line of rate items in the strip, the second line of `MetricCell` in Comfortable density (40 px rows), and a column in inspector rate tables. The noun is always present ("obs", "checks", "prompts", "keywords").
 
 ### 8.4 InsufficientData
 

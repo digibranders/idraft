@@ -209,8 +209,12 @@ function create(fields) {
 }
 
 let nextId = 1;
+/** Ranks are tracked to position 100: about half of the fixtures that sit past the top 20 get a stable position from 21 to 98, the rest stay beyond 100. */
+const placed = (rank, salt) => (rank === 'b' && salt % 2 === 0 ? 21 + ((salt * 37) % 78) : rank);
 const keywords = FIXTURE.map(([keyword, location, device, language, volume, kd, cpc, intent, priority, group, tags, cur, prev, best, extra = {}]) => {
   const pending = volume === null;
+  const rankNow = placed(cur, nextId);
+  const rankBefore = placed(prev, nextId + 1);
   const urlPath = extra.url ?? `/blog/${keyword.replace(/\s+/g, '-')}`;
   const record = create({
     id: nextId,
@@ -226,10 +230,10 @@ const keywords = FIXTURE.map(([keyword, location, device, language, volume, kd, 
     group,
     tags,
     target: extra.target ?? null,
-    urls: pending || cur === 'f' ? [] : extra.urls ?? [urlPath],
-    cur,
-    prev,
-    best,
+    urls: pending || cur === 'f' || rankNow === 'b' ? [] : extra.urls ?? [urlPath],
+    cur: rankNow,
+    prev: rankBefore,
+    best: typeof rankNow === 'number' ? Math.min(best ?? rankNow, rankNow, typeof rankBefore === 'number' ? rankBefore : rankNow) : best,
     checkedAt: Date.now() - (nextId % 9 + 1) * 3600000,
     stage: extra.stage ?? 'mofu',
     source: extra.src ?? 'csv_import',

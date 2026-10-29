@@ -341,16 +341,28 @@ describe('Preferences', () => {
 
   it('saves each change at once in this browser, under the person, and keeps it across a reload', async () => {
     const { user, unmount } = renderWithProviders(page(<PreferencesScreen />));
-    await user.click(await screen.findByRole('radio', { name: 'Compact' }));
+    await user.click(await screen.findByRole('radio', { name: 'Comfortable' }));
     await user.click(screen.getByRole('switch', { name: 'Single-key shortcuts' }));
     expect(JSON.parse(localStorage.getItem(preferenceKey(EDITOR.user_id, 'settings')) ?? '{}')).toMatchObject({
-      density: 'compact',
+      tableDensity: 'default',
       singleKeys: false,
     });
     unmount();
     renderWithProviders(page(<PreferencesScreen />));
-    expect(await screen.findByRole('radio', { name: 'Compact' })).toBeChecked();
+    expect(await screen.findByRole('radio', { name: 'Comfortable' })).toBeChecked();
     expect(screen.getByRole('switch', { name: 'Single-key shortcuts' })).not.toBeChecked();
+  });
+
+  it('starts on Compact, the default, and keeps it there for a person whose older settings hold density "default"', async () => {
+    const { unmount } = renderWithProviders(page(<PreferencesScreen />));
+    expect(await screen.findByRole('radio', { name: 'Compact (default)' })).toBeChecked();
+    unmount();
+    localStorage.setItem(
+      preferenceKey(EDITOR.user_id, 'settings'),
+      JSON.stringify({ density: 'default', locale: 'en-GB', reduceMotion: false, singleKeys: true }),
+    );
+    renderWithProviders(page(<PreferencesScreen />));
+    expect(await screen.findByRole('radio', { name: 'Compact (default)' })).toBeChecked();
   });
 
   it('shows an example of the chosen number and date format', async () => {

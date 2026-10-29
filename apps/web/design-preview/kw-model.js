@@ -6,11 +6,11 @@
  */
 import { DAY, DEPTHS, DEVICES, INTENTS, LANGUAGES, LOCATIONS, PAGE_SIZE, SOURCES, STAGES, allTags, groupList, labelOf } from './kw-data.js';
 
-export const DEFAULT_COLUMNS = ['rank', 'change', 'url', 'volume', 'kd', 'cpc', 'intent', 'priority', 'group', 'tags', 'updated', 'added'];
+/** Rank carries the change since the previous check; the ranking URL is the arrow beside the keyword, and its column is opt-in. */
+export const DEFAULT_COLUMNS = ['rank', 'volume', 'kd', 'cpc', 'intent', 'group', 'tags', 'updated', 'added'];
 /** Columns the chooser offers (the keyword column is always shown and pinned). */
 export const COLUMNS = [
   ['rank', 'Rank', 'rank'],
-  ['change', 'Change', 'change'],
   ['url', 'Ranking URL', null],
   ['volume', 'Volume', 'volume'],
   ['kd', 'KD', 'kd'],
@@ -33,7 +33,7 @@ export const RANK_OPTIONS = [
   ['11-20', '11 to 20'],
   ['21-50', '21 to 50'],
   ['51-100', '51 to 100'],
-  ['beyond', 'Beyond depth'],
+  ['beyond', 'Over 100'],
 ];
 export const CHANGE_OPTIONS = [
   ['improved', 'Improved'],
@@ -65,7 +65,7 @@ export const FILTERS = {
 };
 const EMPTY_FILTERS = { grp: '', tag: [], rank: '', chg: '', dev: '', loc: '', lang: '', intent: [], stage: [], prio: '', src: [], depth: [], vol: '', kd: '', stale: '' };
 
-export const DEFAULT_STATE = { q: '', sort: DEFAULT_SORT, cols: DEFAULT_COLUMNS, density: 'default', archived: false, inspect: null, page: 1, filters: EMPTY_FILTERS };
+export const DEFAULT_STATE = { q: '', sort: DEFAULT_SORT, cols: DEFAULT_COLUMNS, density: 'compact', archived: false, inspect: null, page: 1, filters: EMPTY_FILTERS };
 
 const multiOptions = {
   intent: INTENTS.map(([code]) => code),
@@ -137,7 +137,7 @@ export function readState(search) {
       q: (params.get('q') ?? '').slice(0, 200),
       sort: SORT_KEYS.has(sortKey) ? sort : DEFAULT_SORT,
       cols: cols.length > 0 ? cols : DEFAULT_COLUMNS,
-      density: params.get('density') === 'compact' ? 'compact' : 'default',
+      density: params.get('density') === 'default' ? 'default' : 'compact',
       archived: params.get('archived') === 'true',
       inspect,
       page: Number.isInteger(page) && page >= 1 ? page : 1,
@@ -152,7 +152,7 @@ export function writeState(state) {
   if (state.q) params.set('q', state.q);
   if (state.sort !== DEFAULT_SORT) params.set('sort', state.sort);
   if (state.cols.join(',') !== DEFAULT_COLUMNS.join(',')) params.set('cols', state.cols.join(','));
-  if (state.density === 'compact') params.set('density', 'compact');
+  if (state.density === 'default') params.set('density', 'default');
   if (state.archived) params.set('archived', 'true');
   if (state.inspect) params.set('inspect', `keyword:${state.inspect}`);
   if (state.page > 1) params.set('page', String(state.page));
@@ -271,12 +271,6 @@ function sortValue(kw, key) {
     const rank = rankOf(kw);
     if (rank.kind === 'ranked') return rank.value;
     return rank.kind === 'beyond' ? 1000 : null;
-  }
-  if (key === 'change') {
-    const change = changeOf(kw);
-    if (!change) return null;
-    if (change.kind === 'delta') return change.value;
-    return change.kind === 'entered' ? 1000 : -1000;
   }
   if (key === 'updated') return kw.metricsAt;
   if (key === 'added') return kw.added;

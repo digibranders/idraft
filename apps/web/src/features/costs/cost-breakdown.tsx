@@ -109,11 +109,11 @@ function ProviderPanel({
   const query = useCosts(scope, ['provider'], now);
   const total = query.data?.meta.total_cost_usd ?? '0';
   const columns: PlainColumn<CostRow>[] = [
-    { id: 'provider', header: t('provider'), align: 'left', cell: (row) => row.keys.provider ?? '' },
-    { id: 'requests', header: t('requests'), align: 'right', cell: (row) => formatInteger(row.request_count) },
-    { id: 'subjects', header: t('subjects'), align: 'right', cell: (row) => formatInteger(row.subjects) },
-    { id: 'cost', header: t('cost'), align: 'right', cell: (row) => usd(row.cost_usd) },
-    { id: 'share', header: t('share'), align: 'right', cell: (row) => share(row.cost_usd, total) },
+    { id: 'provider', header: t('provider'), cell: (row) => row.keys.provider ?? '' },
+    { id: 'requests', header: t('requests'), cell: (row) => formatInteger(row.request_count) },
+    { id: 'subjects', header: t('subjects'), cell: (row) => formatInteger(row.subjects) },
+    { id: 'cost', header: t('cost'), cell: (row) => usd(row.cost_usd) },
+    { id: 'share', header: t('share'), cell: (row) => share(row.cost_usd, total) },
   ];
   return (
     <PlainTable
@@ -153,15 +153,14 @@ function ProjectPanel({
     return known === undefined ? t('deletedProject') : projectLabel(known);
   };
   const columns: PlainColumn<CostRow>[] = [
-    { id: 'project', header: t('project'), align: 'left', cell: nameOf },
-    { id: 'cost', header: t('cost'), align: 'right', cell: (row) => usd(row.cost_usd) },
-    { id: 'share', header: t('share'), align: 'right', cell: (row) => share(row.cost_usd, total) },
+    { id: 'project', header: t('project'), cell: nameOf },
+    { id: 'cost', header: t('cost'), cell: (row) => usd(row.cost_usd) },
+    { id: 'share', header: t('share'), cell: (row) => share(row.cost_usd, total) },
     ...(showBudgets
       ? [
           {
             id: 'used',
             header: t('used'),
-            align: 'left',
             cell: (row: CostRow): ReactElement | null => {
               const status = budgetOf(row);
               return status === null ? null : <BudgetUse status={status} showWorkload />;
@@ -170,7 +169,6 @@ function ProjectPanel({
           {
             id: 'status',
             header: t('status'),
-            align: 'left',
             cell: (row: CostRow): ReactElement | null => {
               const status = budgetOf(row);
               return status === null ? null : <BudgetStatusBadge state={status.state} />;
@@ -213,7 +211,7 @@ function BudgetUse({ status, showWorkload = false }: { status: BudgetStatus; sho
       />
       <span className="num">{formatPercent(status.pct_used / 100, { decimals: 1 })}</span>
       {showWorkload && status.budget.workload !== 'all' ? (
-        <span className="type-meta whitespace-nowrap text-foreground-tertiary">
+        <span className="type-label whitespace-nowrap">
           {t('workloadBudget', { workload: workloadName(status.budget.workload) })}
         </span>
       ) : null}
@@ -225,17 +223,16 @@ function UnitsPanel({ scope, month, now }: Pick<CostBreakdownProps, 'scope' | 'm
   const t = useTranslations('costs');
   const query = usePriceBook(scope.workspaceId, month, now);
   const columns: PlainColumn<Price>[] = [
-    { id: 'provider', header: t('provider'), align: 'left', cell: (row) => row.provider_code },
-    { id: 'endpoint', header: t('endpoint'), align: 'left', cell: (row) => row.endpoint },
-    { id: 'unit', header: t('unit'), align: 'left', cell: (row) => row.price_unit },
+    { id: 'provider', header: t('provider'), cell: (row) => row.provider_code },
+    { id: 'endpoint', header: t('endpoint'), cell: (row) => row.endpoint },
+    { id: 'unit', header: t('unit'), cell: (row) => row.price_unit },
     {
       id: 'price',
       header: t('unitPrice'),
-      align: 'right',
       cell: (row) => formatUnitPrice(money(row.unit_price_usd)),
     },
-    { id: 'from', header: t('validFrom'), align: 'right', cell: (row) => formatBusinessDate(row.valid_from) },
-    { id: 'verified', header: t('verified'), align: 'right', cell: (row) => formatBusinessDate(row.verified_at) },
+    { id: 'from', header: t('validFrom'), cell: (row) => formatBusinessDate(row.valid_from) },
+    { id: 'verified', header: t('verified'), cell: (row) => formatBusinessDate(row.verified_at) },
   ];
   return (
     <div className="flex flex-col gap-3">
@@ -264,7 +261,6 @@ function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects'
     {
       id: 'scope',
       header: t('scope'),
-      align: 'left',
       cell: (row) => {
         if (row.budget.project_id === null) return t('workspaceScope');
         const known = projects.find((project) => project.id === row.budget.project_id);
@@ -274,14 +270,13 @@ function BudgetsPanel({ projects, budgets }: Pick<CostBreakdownProps, 'projects'
     {
       id: 'workload',
       header: t('workload'),
-      align: 'left',
       cell: (row) => (row.budget.workload === 'all' ? t('allWorkloads') : workloadName(row.budget.workload)),
     },
-    { id: 'limit', header: t('limit'), align: 'right', cell: (row) => usd(row.budget.limit_usd) },
-    { id: 'spent', header: t('spent'), align: 'right', cell: (row) => usd(row.spent_usd) },
-    { id: 'committed', header: t('committed'), align: 'right', cell: (row) => usd(row.committed_estimate_usd) },
-    { id: 'used', header: t('used'), align: 'left', cell: (row) => <BudgetUse status={row} /> },
-    { id: 'status', header: t('status'), align: 'left', cell: (row) => <BudgetStatusBadge state={row.state} /> },
+    { id: 'limit', header: t('limit'), cell: (row) => usd(row.budget.limit_usd) },
+    { id: 'spent', header: t('spent'), cell: (row) => usd(row.spent_usd) },
+    { id: 'committed', header: t('committed'), cell: (row) => usd(row.committed_estimate_usd) },
+    { id: 'used', header: t('used'), cell: (row) => <BudgetUse status={row} /> },
+    { id: 'status', header: t('status'), cell: (row) => <BudgetStatusBadge state={row.state} /> },
   ];
   return (
     <PlainTable

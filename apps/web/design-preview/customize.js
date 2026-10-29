@@ -131,15 +131,15 @@ function cardName(item) {
 // Fixtures for headline numbers and for cards whose body depends on their options
 
 const NUMBER_DATA = {
-  'seo.keywords_tracked': { value: '1,000', context: '986 checked', href: '#/rankings' },
-  'seo.visibility_volume': { value: '31.4%', delta: '+1.2 pts', tone: 'pos', context: 'volume-weighted', href: '#/rankings' },
-  'seo.visibility_equal': { value: '28.9%', delta: '+0.7 pts', tone: 'neutral', context: 'equal-weight, 986 keywords', href: '#/rankings' },
-  'seo.top3_count': { value: '88', delta: '+6', tone: 'pos', context: 'of 986 checked', href: '#/rankings' },
-  'seo.top10_count': { value: '301', delta: '+14', tone: 'pos', context: 'of 986 checked', href: '#/rankings' },
-  'seo.top20_count': { value: '488', delta: '+9', tone: 'neutral', context: 'of 986 checked', href: '#/rankings' },
-  'seo.average_rank': { value: '9.1', delta: '↑0.4', tone: 'neutral', context: '612 ranked', href: '#/rankings' },
-  'seo.est_clicks': { value: '18.4K', delta: '+3.1%', tone: 'neutral', context: 'estimate, per month', href: '#/rankings' },
-  'seo.aio_citation_rate': { value: '38.2%', delta: '+0.4 pts', tone: 'neutral', context: '157 of 411 checks', href: '#/rankings' },
+  'seo.keywords_tracked': { value: '1,000', context: '986 checked', href: '#/keywords' },
+  'seo.visibility_volume': { value: '31.4%', delta: '+1.2 pts', tone: 'pos', context: 'volume-weighted', href: '#/keywords' },
+  'seo.visibility_equal': { value: '28.9%', delta: '+0.7 pts', tone: 'neutral', context: 'equal-weight, 986 keywords', href: '#/keywords' },
+  'seo.top3_count': { value: '88', delta: '+6', tone: 'pos', context: 'of 986 checked', href: '#/keywords' },
+  'seo.top10_count': { value: '301', delta: '+14', tone: 'pos', context: 'of 986 checked', href: '#/keywords' },
+  'seo.top20_count': { value: '488', delta: '+9', tone: 'neutral', context: 'of 986 checked', href: '#/keywords' },
+  'seo.average_rank': { value: '9.1', delta: '↑0.4', tone: 'neutral', context: '612 ranked', href: '#/keywords' },
+  'seo.est_clicks': { value: '18.4K', delta: '+3.1%', tone: 'neutral', context: 'estimate, per month', href: '#/keywords' },
+  'seo.aio_citation_rate': { value: '38.2%', delta: '+0.4 pts', tone: 'neutral', context: '157 of 411 checks', href: '#/keywords' },
   'seo.share_of_voice': { value: '18.2%', delta: '+0.6 pts', tone: 'neutral', context: 'among 5 tracked entities', href: '#/competitors' },
   'ai.mention_rate|chatgpt_web': { value: '34%', delta: '+2.1 pts', tone: 'neutral', context: '612 of 1,800 responses', href: '#/prompts' },
   'ai.mention_rate|gemini_web': { value: '29%', delta: '−0.8 pts', tone: 'neutral', context: '376 of 1,296 responses', href: '#/prompts' },
@@ -225,12 +225,12 @@ const CARD_BODIES = {
     $('[data-card-meta]', node).textContent = direction === 'all' ? 'last 28 days' : `${direction} in the last 28 days`;
     $('[data-card-body]', node).replaceChildren(
       ...list.map((m) => {
-        const tr = el('tr', 'h-row border-t border-border-subtle');
+        const tr = el('tr', 'h-row-compact border-t border-border-subtle');
         const name = el('th', 'px-4 text-left type-table font-normal text-foreground', m.keyword);
         name.scope = 'row';
-        const rank = el('td', 'px-3 text-right type-table num', m.rank === null ? '>20' : String(m.rank));
+        const rank = el('td', 'px-3 type-table num', m.rank === null ? '>20' : String(m.rank));
         const up = m.change > 0;
-        const change = el('td', `px-3 pr-4 text-right type-table num ${up ? 'text-positive-text' : 'text-negative-text'}`, `${up ? '↑' : '↓'}${Math.abs(m.change)}`);
+        const change = el('td', `px-3 pr-4 type-table num ${up ? 'text-positive-text' : 'text-negative-text'}`, `${up ? '↑' : '↓'}${Math.abs(m.change)}`);
         tr.append(name, rank, change);
         return tr;
       }),
@@ -251,7 +251,7 @@ const CARD_BODIES = {
         bar.setAttribute('aria-hidden', 'true');
         bar.style.width = `${Math.round((share / max) * 100)}%`;
         barCell.append(bar);
-        const value = el('td', 'w-16 pr-4 text-right type-meta num', `${share % 1 === 0 ? share : share.toFixed(1)}%`);
+        const value = el('td', 'w-16 pr-4 type-label num', `${share % 1 === 0 ? share : share.toFixed(1)}%`);
         tr.append(label, barCell, value);
         return tr;
       }),

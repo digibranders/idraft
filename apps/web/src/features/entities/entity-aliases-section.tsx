@@ -98,20 +98,20 @@ export function EntityAliasesSection({ scope, entity, canWrite }: EntityAliasesS
         <p className="type-body text-foreground-secondary">{t('empty')}</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-          <table className="w-full" aria-labelledby="entity-aliases-title">
+          <table className="w-full type-table" aria-labelledby="entity-aliases-title">
             <thead className="bg-surface-subtle">
               <tr>
-                <th scope="col" className="h-row-header px-4 text-left type-label">
+                <th scope="col" className="h-row-header px-4 text-left type-table-header">
                   {t('columns.alias')}
                 </th>
-                <th scope="col" className="h-row-header px-3 text-left type-label">
+                <th scope="col" className="h-row-header px-3 text-left type-table-header">
                   {t('columns.mode')}
                 </th>
-                <th scope="col" className="hidden h-row-header px-3 text-left type-label md:table-cell">
+                <th scope="col" className="hidden h-row-header px-3 text-left type-table-header md:table-cell">
                   {t('columns.options')}
                 </th>
                 {canWrite ? (
-                  <th scope="col" className="h-row-header px-4">
+                  <th scope="col" className="h-row-header px-4 text-right">
                     <span className="sr-only">{t('columns.actions')}</span>
                   </th>
                 ) : null}
@@ -119,18 +119,18 @@ export function EntityAliasesSection({ scope, entity, canWrite }: EntityAliasesS
             </thead>
             <tbody>
               {entity.aliases.map((alias) => (
-                <tr key={alias.alias_id} className="h-row border-t border-border-subtle">
+                <tr key={alias.alias_id} className="h-row-compact border-t border-border-subtle">
                   <th
                     scope="row"
                     className={
                       alias.match_mode === 'regex'
-                        ? 'px-4 py-2 text-left type-mono font-normal'
-                        : 'px-4 py-2 text-left type-body font-normal'
+                        ? 'px-4 py-2 text-left font-mono font-normal'
+                        : 'px-4 py-2 text-left font-normal'
                     }
                   >
                     {alias.alias}
                   </th>
-                  <td className="px-3 type-body whitespace-nowrap text-foreground-secondary">
+                  <td className="px-3 whitespace-nowrap text-foreground-secondary">
                     {t(`modes.${MODE_KEY[alias.match_mode]}`)}
                   </td>
                   <td className="hidden px-3 md:table-cell">

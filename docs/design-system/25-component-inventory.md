@@ -84,7 +84,7 @@ export type {
   DisplayUrl, NumberContext, MetricValue, MetricComparison, MetricSeries, MetricPoint, MetricCellValue,
 };
 
-/** Table and list density ([04-spacing-density.md](04-spacing-density.md) §3): Default 40 px rows (`h-row`), Compact 32 px rows (`h-row-compact`). Default is 'default'. */
+/** Table and list density ([04-spacing-density.md](04-spacing-density.md) §3): 'default' is 40 px rows (`h-row`, labelled Comfortable), 'compact' is 32 px rows (`h-row-compact`). The default is 'compact' (`DEFAULT_DENSITY`). */
 export type Density = 'default' | 'compact';
 
 /** Engine codes as returned by the API (`engine_code`). The contracts package is the source of truth. */
@@ -2548,7 +2548,7 @@ interface DataTableProps<TRow> {
 }
 ```
 
-- **Variants:** `density` (Default 40 px `h-row`, Compact 32 px `h-row-compact`). No other visual variants. The table sits inside a panel (1 px `border`, radius 8). Header row 40 px (`h-row-header`) on `surface-subtle`, labels `type-label` (12 px tertiary, weight 400), 1 px `border-subtle` vertical dividers between header cells only; body rows `type-table` (13/20) with `border-subtle` horizontal dividers only; numbers right-aligned `num`; URLs `type-mono` (13/20) truncated with an ellipsis.
+- **Variants:** `density` (Compact 32 px `h-row-compact`, the default since 2026-10-29; Default 40 px `h-row`). No other visual variants. The table sits inside a panel (1 px `border`, radius 8). Header row 40 px (`h-row-header`) on `surface-subtle`, labels `type-table-header` (12 / 16 px, capitals, 0.04em, tertiary, weight 400), 1 px `border-subtle` vertical dividers between header cells only; body rows `type-table` (12/16) with `border-subtle` horizontal dividers only; every column, numbers included, left aligned with `num`, except the row-actions column, which is right aligned; URLs in the mono family at the table size, truncated with an ellipsis.
 - **States:** loading (real header, 12 skeleton rows), ready, refetching (previous rows at full opacity, `aria-busy`, `RefetchBar` under the header, "Updating" after 400 ms), partial load ("Loading 1,200 of 4,812 rows", client sort and export disabled with that reason), empty, filtered empty (header stays), error (`TableErrorRow`), row hover, selected (`surface-selected`, key text in `primary-text`), active (inset 2 px `primary` edge), focused cell, group rows, expanded children, new rows, below 768 px the `DataTableList`.
 - **A11y:** native table with explicit roles, `role="grid"` (`treegrid` when grouped); one roving tab stop; keyboard map 20 §6.3 (Enter opens, Space selects, Shift+Space ranges, Ctrl or Cmd+A, Shift+F10 row menu, Enter or F2 widget mode, Escape never clears selection); `aria-rowcount` includes header rows, `aria-rowindex` on every rendered row, focused row always rendered; `aria-sort` on the primary sort `th`; sort summary text for multi-sort; identity cell is `th role="rowheader"`; hint paragraph describes keys.
 - **Use:** any list users compare, sort, filter or act on in bulk; more than 6 records of one type.
@@ -2627,7 +2627,7 @@ interface ColumnHeaderMenuProps {
 ### 7.6 DensityToggle
 `app/data-table/density-toggle.tsx` · V1 · [04 §3](04-spacing-density.md)
 
-Purpose: Default (40 px rows) or Compact (32 px rows), persisted per user per table in the saved view state (`density`: `default` or `compact`, default `default`). Labels "Default" and "Compact".
+Purpose: Compact (32 px rows, the default) or Comfortable (40 px rows), persisted per table in the saved view state (`density`: `default` or `compact`, default `compact`, left out of the URL). Labels "Compact (default)" and "Comfortable".
 
 ```ts
 interface DensityToggleProps { value: Density; onValueChange: (density: Density) => void }
@@ -2714,7 +2714,7 @@ interface SimpleTableProps<TRow> {
 }
 ```
 
-- **Variants:** none (32 px rows and header, `h-row-compact`, always; `type-table`; header labels `type-label` (12 px tertiary) on `surface-subtle`; in a ranked mini table the own row is `surface-selected` with its text in `primary-text`). **States:** rows, empty (one sentence row), scrolls horizontally inside panels when wide.
+- **Variants:** none (32 px rows and header, `h-row-compact`, always; `type-table` (12 / 16 px); header labels `type-table-header` (12 px, capitals, tertiary) on `surface-subtle`; every column left aligned; in a ranked mini table the own row is `surface-selected` with its text in `primary-text`). **States:** rows, empty (one sentence row), scrolls horizontally inside panels when wide.
 - **A11y:** native `table`, `th scope="col"` and `scope="row"`; no roving focus; inner links are Tab stops. **Use:** fewer than 50 rows, no selection, at most one link per row. **Not for:** anything sortable, selectable or large (`DataTable`).
 
 ### 7.12 KeyValueTable
@@ -2781,7 +2781,7 @@ interface KeywordCellProps {
   flags?: { targetMismatch?: TargetURLIndicatorProps; cannibalization?: CannibalizationIndicatorProps };
   branded?: boolean;                // micro badge only in prompt-linked views
   isNew?: boolean;                  // "New" info-subtle badge after an add or import
-  secondaryLine?: string | null;    // Default density: "US · Desktop · /pricing · 2.4K"
+  secondaryLine?: string | null;    // Comfortable density: "US · Desktop · /pricing · 2.4K"
   hoverActions?: ReadonlyArray<RecordAction<string>>;   // up to 2 icon-xs actions
 }
 ```
@@ -2864,14 +2864,14 @@ interface DeltaCellProps {
 ### 8.6 MetricCell
 `app/cells/metric-cell.tsx` · V1 · [12 §6](12-tables.md), [23 §1.1](23-application-patterns.md)
 
-Purpose: a rate with its denominator: `47.2%`; Default density (40 px rows) adds `612 of 1,296 obs` below in `type-label`; Compact density and embedded tables show the rate only. Formerly called `RateCell` in 19 and 20 (section 23, item 48).
+Purpose: a rate with its denominator: `47.2%`; Comfortable density (40 px rows) adds `612 of 1,296 obs` below in `type-label`; Compact density, the default, and embedded tables show the rate only (the sample is in the tooltip). Formerly called `RateCell` in 19 and 20 (section 23, item 48).
 
 ```ts
 interface MetricCellProps {
   value: MetricCellValue;           // contract MetricCell: value, numerator, denominator, n_observations, ci, suppressed_reason
   noun: SampleNoun;
   decimals?: 0 | 1;                 // 0 when the interval half-width is at least 2 points
-  intervalDisplay?: 'none' | 'bar'; // 'bar' only when "Show intervals" is on in Default density
+  intervalDisplay?: 'none' | 'bar'; // 'bar' only when "Show intervals" is on in Comfortable density
   density: Density;
 }
 ```
@@ -2932,7 +2932,7 @@ interface URLCellProps {
 ### 8.10 SparklineCell
 `app/sparkline/sparkline-cell.tsx` · V1 · [12 §6](12-tables.md), [15 §9](15-data-visualization.md)
 
-Purpose: a 64 x 20 px (Default density) or 64 x 16 px (Compact density and embedded tables) canvas trend drawn by the shared renderer: 1.5 px, gray, with the own row in cobalt.
+Purpose: a 64 x 16 px (Compact density, the default, and embedded tables) or 64 x 20 px (Comfortable density) canvas trend drawn by the shared renderer: 1.5 px, gray, with the own row in cobalt.
 
 ```ts
 interface SparklineCellProps {
@@ -3123,7 +3123,7 @@ interface ConfidenceIndicatorProps {
 - **Variants:** none (bar: 1 px `border-strong` axis, 2 px `foreground-secondary` interval, 6 px `foreground` point; no filled track).
 - **States:** interval, insufficient, missing (`n/a`).
 - **A11y:** accessible name "95% interval 31% to 37%"; bar `aria-hidden` when text is present.
-- **Use:** inspector rate tables, Prompt Detail rate table, statistics panel, Default-density rate columns with "Show intervals". **Not for:** Compact rows by default; SEO rank metrics (no interval exists).
+- **Use:** inspector rate tables, Prompt Detail rate table, statistics panel, Comfortable-density rate columns with "Show intervals". **Not for:** Compact rows by default; SEO rank metrics (no interval exists).
 
 ### 9.6 SampleCount
 `app/metric/sample-count.tsx` · V1 · [23 §8.3](23-application-patterns.md)
@@ -4058,7 +4058,7 @@ Purpose: neutral badge for prompt type (Question, Recommendation, Comparison, ..
 interface PromptTypeBadgeProps { type: string; label: string }   // type key from the contracts enum
 ```
 
-- **Variants:** none (neutral subtle). **A11y:** text. **Use:** `PromptCell` (Default density), inspector header meta. **Not for:** panels (neutral `Badge` "Core", "Discovery").
+- **Variants:** none (neutral subtle). **A11y:** text. **Use:** `PromptCell` (Comfortable density), inspector header meta. **Not for:** panels (neutral `Badge` "Core", "Discovery").
 
 ### 15.6 MentionRate
 `app/ai/mention-rate.tsx` · V1 · [23 §2](23-application-patterns.md), [24 §9.5](24-page-templates.md)
@@ -4344,7 +4344,7 @@ interface QuoteBoxProps {
 }
 ```
 
-- **Variants:** none. `surface-subtle` fill, 1 px `border-subtle`, `rounded-md` (6 px), 12 px padding (`p-3`), text in `type-table` (13 px) inside typographic quotes; source line in `type-meta` below.
+- **Variants:** none. `surface-subtle` fill, 1 px `border-subtle`, `rounded-md` (6 px), 12 px padding (`p-3`), text at 13 / 20 px (the former `type-table` size; `type-table` is 12 / 16 since 2026-10-29 and is for tables only) inside typographic quotes; source line in `type-meta` below.
 - **States:** default; long text wraps (no clamp inside the inspector section).
 - **A11y:** `blockquote` with the source as `cite` text; `lang` on the quote; untrusted content rules of 23 §5.6 apply (React text only).
 - **Use:** the sentence that mentions the brand, the citation context, a short answer excerpt in prompt, citation and answer inspectors.

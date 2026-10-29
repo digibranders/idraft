@@ -1103,7 +1103,7 @@
       run: () => toast({ title: `Opens ${page}`, description: 'Navigation is not part of this preview.', tone: 'info' }),
     })),
     { group: 'Actions', label: 'Add keywords', context: '', icon: 'plus', run: () => {
-      location.hash = '#/rankings';
+      location.hash = '#/keywords';
       window.dispatchEvent(new window.CustomEvent('kw-add'));
     } },
     { group: 'Actions', label: 'Export CSV', context: '', icon: 'download', run: () => toast(TOASTS.export) },
@@ -1529,16 +1529,18 @@
   });
 
   // ---------------------------------------------------------------------------------------------
-  // Views: #/overview, #/rankings, #/settings/<section>. Rankings is shown when there is no route, so links that
-  // carry ?inspect= keep working. Destinations that are not built say so instead of navigating.
+  // Views: #/overview, #/keywords, #/settings/<section>. Keywords is shown when there is no route, so links that
+  // carry ?inspect= keep working. The old #/rankings address still opens it. Destinations that are not built say so
+  // instead of navigating.
 
-  const VIEWS = { overview: 'Overview', rankings: 'Keywords', pages: 'Pages', prompts: 'Topics & Prompts', settings: 'Settings' };
+  const VIEWS = { overview: 'Overview', keywords: 'Keywords', pages: 'Pages', prompts: 'Topics & Prompts', settings: 'Settings' };
   // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer, #/prompts/panels, #/prompts/versions
   const PAGE_TABS = { pages: ['performance', 'landing'], prompts: ['topics', 'explorer', 'panels', 'versions'] };
-  let route = { view: 'rankings', section: null };
+  let route = { view: 'keywords', section: null };
 
   function parseRoute(hash) {
-    const [, view, section] = /^#\/([a-z-]+)(?:\/([a-z-]+))?$/.exec(hash) ?? [];
+    const [, address, section] = /^#\/([a-z-]+)(?:\/([a-z-]+))?$/.exec(hash) ?? [];
+    const view = address === 'rankings' ? 'keywords' : address;
     if (!(view in VIEWS)) return null;
     if (view in PAGE_TABS) return { view, section: PAGE_TABS[view].includes(section) ? section : PAGE_TABS[view][0] };
     if (view !== 'settings') return { view, section: null };
