@@ -132,8 +132,14 @@ env_get() {
 # The same rules idraft-install-env applies (format, image allowlist, fixed host paths), so an env that
 # reached /etc/idraft some other way, or before that check existed, cannot pick what runs as root either.
 check_env_file() {
-  [ -f "$env_file" ] || die "Environment file not found: $env_file"
-  bash "$here/host/idraft-check-env" "$env_file" "$expected_acl_dir" "$allow_tags" || die "$env_file was refused; nothing was changed."
+  if [ ! -f "$env_file" ]; then
+    echo "Environment file not found: $env_file" >&2
+    return 1
+  fi
+  bash "$here/host/idraft-check-env" "$env_file" "$expected_acl_dir" "$allow_tags" || {
+    echo "$env_file was refused." >&2
+    return 1
+  }
 }
 
 # copy_private <src> <dst>: an atomic 0600 copy, for env files.
@@ -341,7 +347,8 @@ restore_release() {
     return 1
   fi
   env_file="$envf"
-  check_env_file
+  # Not die: recovery has to report RECOVERY FAILED, or fall back to the serving release, not just exit.
+  check_env_file || return 1
   read_release "$file"
   export_release
   render_redis_acl >&2 || return 1
@@ -453,7 +460,7 @@ else
   echo "No staged environment; deploying with $live_env."
 fi
 read_release "$2"
-check_env_file
+check_env_file || die "Nothing was changed."
 
 echo "Starting deployment of release $release_sha:"
 echo "  API:    $api_image"

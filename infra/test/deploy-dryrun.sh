@@ -333,5 +333,39 @@ cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/previous.before" || fail "cur
 assert_eq "$(image_of api)" idraft-api:v2 "api image after rollback with SIGTERM"
 assert_serving "after rollback with SIGTERM"
 
+# An env the checker refuses at any time, as one from before the checker existed would be.
+refused_env() { { cat "$1"; echo "EXTRA_IMAGE=busybox"; } > "$2"; }
+
+echo "=== 14. A failed deploy whose live env is now refused: RECOVERY FAILED is reported, not a silent exit ==="
+cp "$env_file" "$test_dir/env.good"
+cp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before"
+refused_env "$test_dir/env.good" "$env_file"
+cp "$test_dir/env.good" "$env_file.next"
+run_deploy "$env_file" "$test_dir/badcmd.json"
+[ "$last_rc" -ne 0 ] || fail "a failed deploy with a refused live env returned 0"
+grep -q "is not an image the Compose file uses" "$test_dir/last.log" || fail "the refusal of the live env is not shown"
+grep -q "RECOVERY FAILED" "$test_dir/last.log" || fail "the failed recovery is not reported"
+tail -n 1 "$IDRAFT_RELEASES_DIR/history.log" | grep -q "DEPLOY_FAILED api=idraft-api:badcmd" || fail "the failed deploy is not in history.log"
+[ ! -f "$env_file.next" ] || fail "the staged env was left behind"
+cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before" || fail "current.json changed"
+# Put the stack right again with a valid env.
+cp "$test_dir/env.good" "$env_file"
+run_deploy "$env_file" "$IDRAFT_RELEASES_DIR/current.json"
+assert_eq "$last_rc" 0 "redeploy of the serving release on a valid env"
+assert_serving "after the redeploy"
+
+echo "=== 15. --rollback with a refused .env.previous falls back to the serving release ==="
+cp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before"
+cp "$env_file.previous" "$test_dir/env.previous.good"
+refused_env "$test_dir/env.previous.good" "$env_file.previous"
+run_deploy --rollback "$env_file"
+[ "$last_rc" -ne 0 ] || fail "--rollback with a refused .env.previous succeeded"
+grep -q "is not an image the Compose file uses" "$test_dir/last.log" || fail "the refusal of .env.previous is not shown"
+grep -q "the release that was serving was restored" "$test_dir/last.log" || fail "--rollback did not fall back to the serving release"
+! grep -q "RECOVERY FAILED" "$test_dir/last.log" || fail "the fallback to the serving release failed"
+cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before" || fail "current.json changed"
+assert_serving "after the refused rollback"
+cp "$test_dir/env.previous.good" "$env_file.previous"
+
 assert_eq "$(repo_state)" "$repo_before" "repository working tree at the end"
 echo "Deploy dry-run tests passed successfully."
