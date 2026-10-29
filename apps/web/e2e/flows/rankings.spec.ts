@@ -132,7 +132,8 @@ test.describe('rankings', () => {
     const RANK = ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)'];
     for (const [width, columns, room, updated] of [
       [1280, RANK, 320, false],
-      [1440, [...RANK, 'Intent', 'Priority', 'Group'], 280, false],
+      // Capital headers need wider columns (12-tables.md section 5), so the Keyword column is at its 200 px minimum here
+      [1440, [...RANK, 'Intent', 'Priority', 'Group'], 200, false],
       // Every column of the set shows: the Keyword column is at its 200 px minimum, and the others give up width
       [1680, [...RANK, 'Intent', 'Priority', 'Group', 'Tags', 'Updated', 'Added'], 200, true],
     ] as const) {
@@ -149,13 +150,13 @@ test.describe('rankings', () => {
       const keyword = await headerOf(grid, 'Keyword').boundingBox();
       if (keyword === null) throw new Error('The Keyword header has no box');
       expect(keyword.width).toBeGreaterThanOrEqual(room);
-      // The header of each rank column shows its whole name, not cut short, and Change keeps 84 px at any width
+      // The header of each rank column shows its whole name, not cut short, and Change keeps 96 px at any width
       for (const name of ['Rank', 'Change', 'Ranking URL']) {
         const label = headerOf(grid, name).locator('.truncate').first();
         expect(await label.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
       }
       const change = await headerOf(grid, 'Change').boundingBox();
-      expect(change?.width ?? 0).toBeGreaterThanOrEqual(84);
+      expect(change?.width ?? 0).toBeGreaterThanOrEqual(96);
     }
   });
 

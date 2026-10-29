@@ -11,7 +11,7 @@ const COLUMNS: SizedColumn[] = [
   sized('kd', 'count'),
   sized('added', 'date'),
 ];
-const FIXED = 40 + 96 + 100 + 120;
+const FIXED = 40 + 96 + 88 + 120;
 
 describe('rank, change and URL column types (12-tables.md section 5)', () => {
   it('gives a rank 64 px, left aligned, best (lowest) first', () => {
@@ -55,7 +55,7 @@ describe('rank, change and URL column types (12-tables.md section 5)', () => {
   it('gives a URL 260 px, left aligned, A to Z, without taking the identity column place', () => {
     expect(COLUMN_TYPES.url).toEqual({
       width: 260,
-      min: 180,
+      min: 160,
       max: 480,
       align: 'left',
       defaultDesc: false,
@@ -79,13 +79,14 @@ describe('resolveWidths', () => {
   it('then shrinks the others toward their minimums in proportion, and no further', () => {
     const narrow = resolveWidths(COLUMNS, FIXED + 200 - 8);
     expect(narrow.get('keyword')).toBe(200);
-    // 8 px over, from 16 px of room (only the date column has any: volume and KD are at their minimums): it gives half
+    // 8 px over, from 32 px of room (16 px in KD and in the date column; volume is at its minimum): each gives a quarter
     expect(narrow.get('volume')).toBe(96);
-    expect(narrow.get('kd')).toBe(100);
-    expect(narrow.get('added')).toBe(112);
+    expect(narrow.get('kd')).toBe(84);
+    expect(narrow.get('added')).toBe(116);
     expect(narrow.get('select')).toBe(40);
     const tiny = resolveWidths(COLUMNS, 300);
     expect(tiny.get('volume')).toBe(96);
+    expect(tiny.get('kd')).toBe(72);
     expect(tiny.get('added')).toBe(104);
     // What still does not fit scrolls sideways
     expect([...tiny.values()].reduce((sum, width) => sum + width, 0)).toBeGreaterThan(300);
@@ -110,7 +111,6 @@ const MEASURED_HEADER_NEED: readonly [type: keyof typeof COLUMN_TYPES, label: st
   ['keyword', 'Keyword', 105],
   ['text', 'Group', 87],
   ['count', 'KD', 60],
-  ['count', 'Priority', 100],
   ['volume', 'Volume', 95],
   ['currency', 'CPC (USD)', 106],
   ['date', 'Finished', 101],
@@ -122,6 +122,12 @@ const MEASURED_HEADER_NEED: readonly [type: keyof typeof COLUMN_TYPES, label: st
 ];
 
 describe('minimum widths hold the capital header labels (owner decision of 2026-10-29)', () => {
+  it('lets a column with a longer header name its own minimum, which the width resolver then respects', () => {
+    const priority: SizedColumn = { id: 'priority', ...COLUMN_TYPES.count, width: 100, min: 100 };
+    const widths = resolveWidths([sized('keyword', 'keyword'), priority], 300);
+    expect(widths.get('priority')).toBe(100);
+  });
+
   it.each(MEASURED_HEADER_NEED)('%s keeps %s whole at its minimum', (type, _label, need) => {
     expect(COLUMN_TYPES[type].min).toBeGreaterThanOrEqual(need);
     expect(COLUMN_TYPES[type].width).toBeGreaterThanOrEqual(COLUMN_TYPES[type].min);

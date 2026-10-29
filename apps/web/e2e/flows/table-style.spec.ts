@@ -55,7 +55,6 @@ test.describe('the table house style', () => {
     ['keyword', 'Keyword'],
     ['text', 'Group'],
     ['count', 'KD'],
-    ['count', 'Priority'],
     ['volume', 'Volume'],
     ['currency', 'CPC (USD)'],
     ['date', 'Finished'],

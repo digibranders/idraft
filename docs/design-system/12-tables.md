@@ -114,10 +114,10 @@ Every column declares its type through column meta. Types fix width, alignment, 
 | `keyword` | 280 / 200 / 480, flex | left | A to Z | `KeywordCell` |
 | `prompt` | 360 / 240 / 640, flex | left | A to Z | `PromptCell` |
 | `domain` | 220 / 160 / 360 | left | A to Z | `DomainCell` |
-| `url` | 260 / 180 / 480 | left | A to Z | `URLCell` |
+| `url` | 260 / 160 / 480 | left | A to Z | `URLCell` |
 | `rank` | 80 / 80 / 112 | left | best first (ascending) | `RankCell` |
 | `rankDelta` | 96 / 96 / 96 (the header "CHANGE" with its sort arrow needs 95 px; the first draft was 56 / 48 / 72) | left | biggest improvement first | `RankDeltaCell` |
-| `count` | 100 / 100 / 120 | left | high to low | `NumberCell` |
+| `count` | 88 / 72 / 120 | left | high to low | `NumberCell` |
 | `volume` | 96 / 96 / 120 | left | high to low | `NumberCell` |
 | `rate` | 80 / 72 / 120 | left | high to low | `MetricCell` |
 | `rateDelta` | 80 / 64 / 96 | left | largest detectable change | `DeltaCell` |
@@ -132,7 +132,7 @@ Every column declares its type through column meta. Types fix width, alignment, 
 | `competitor` | 160 / 120 / 240 | left | best rank or rate | `CompetitorCell` |
 | `actions` | 40 / 40 / 40 | right (the only right-aligned type) | not sortable | row "More" menu |
 
-Capital header labels with 0.04em tracking are wider than sentence case, so the minimum widths of the numeric and rank types were raised to what the sorted header needs (label, 14 px arrow, 4 px gap, 12 px padding each side), measured in Chrome on 2026-10-29: Priority 100, Volume 95, CPC (USD) 106, Rank 78, Change 95, Finished 101, Ranking URL 127; a longer label sets its own width (Actual (USD) 128, Estimate (USD) 139, Best rank 112). `lib/tables/column-types.test.ts` pins them and `e2e/flows/table-style.spec.ts` measures them.
+Capital header labels with 0.04em tracking are wider than sentence case, so the minimum widths of the numeric and rank types were raised to what the sorted header needs (label, 14 px arrow, 4 px gap, 12 px padding each side), measured in Chrome on 2026-10-29: KD 60, Volume 95, CPC (USD) 106, Rank 78, Change 95, Finished 101, Ranking URL 127. A column whose label is longer than its type holds sets its own width and, where it must not be squeezed, its own `minWidth` (Priority 100 in a count column, Actual (USD) 128, Estimate (USD) 139, Best rank 112). At 1440 px the Rank Tracker set now leaves the Keyword column at its 200 px minimum instead of 280 px. `lib/tables/column-types.test.ts` pins them and `e2e/flows/table-style.spec.ts` measures them.
 
 Identity columns (`keyword`, `prompt`, `domain`, `url`) take remaining width (flex) and are pinned left. At most one flex column per table.
 

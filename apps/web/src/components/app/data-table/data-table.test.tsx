@@ -672,7 +672,11 @@ describe('DataTable rank, change and URL columns', () => {
     const narrow = col.url<Row>('url', () => null, { header: 'URL', width: 50, cell: () => null });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
     expect(wide.width).toBe(112);
-    expect(narrow.width).toBe(180);
+    expect(narrow.width).toBe(160);
+    // A header that needs more than its type's minimum names its own, and the width follows it
+    const priority = col.count<Row>('priority', () => 1, { header: 'Priority', width: 50, minWidth: 100 });
+    expect(priority.minWidth).toBe(100);
+    expect(priority.width).toBe(100);
   });
 
   it('shows the cell the screen gives and sorts rank best first, with unknown ranks last both ways', async () => {

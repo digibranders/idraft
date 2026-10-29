@@ -36,10 +36,10 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   // Short text such as a group path or tags; not in section 5's list, sized like a badge
   text: { width: 160, min: 104, max: 240, align: 'left', defaultDesc: false, flex: false },
   // Minimums are what the sorted header needs in capitals (type-table-header, 0.04em) with its 14 px arrow, 4 px gap
-  // and 12 px padding each side, measured in Chrome on 2026-10-29 (e2e/flows/table-style.spec.ts): "Priority" 100,
-  // "Volume" 95, "CPC (USD)" 106, "Rank" 78, "Change" 95, "Updated" 99. A longer label ("Estimate (USD)" 139,
-  // "Best rank" 112) sets its own width up to the maximum
-  count: { width: 100, min: 100, max: 120, align: 'left', defaultDesc: true, flex: false },
+  // and 12 px padding each side, measured in Chrome on 2026-10-29 (e2e/flows/table-style.spec.ts): "KD" 60,
+  // "Volume" 95, "CPC (USD)" 106, "Rank" 78, "Change" 95, "Updated" 99. A longer label ("Priority" 100, "Estimate
+  // (USD)" 139, "Best rank" 112) sets its own width, and its own `minWidth` where it must not be squeezed
+  count: { width: 88, min: 72, max: 120, align: 'left', defaultDesc: true, flex: false },
   volume: { width: 96, min: 96, max: 120, align: 'left', defaultDesc: true, flex: false },
   currency: { width: 128, min: 112, max: 144, align: 'left', defaultDesc: true, flex: false },
   date: { width: 120, min: 104, max: 160, align: 'left', defaultDesc: true, flex: false },
@@ -51,7 +51,8 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   // the width resolver shrinks a column toward its minimum when the table is tight, so the minimum is 96
   rankDelta: { width: 96, min: 96, max: 96, align: 'left', defaultDesc: true, flex: false },
   // The identity place stays with the keyword column: a ranking URL is a plain column here
-  url: { width: 260, min: 180, max: 480, align: 'left', defaultDesc: false, flex: false },
+  // 160 px holds the 127 px capital header "RANKING URL" with its arrow; the path shows middle-truncated
+  url: { width: 260, min: 160, max: 480, align: 'left', defaultDesc: false, flex: false },
   actions: { width: 40, min: 40, max: 40, align: 'right', defaultDesc: null, flex: false },
 };
 

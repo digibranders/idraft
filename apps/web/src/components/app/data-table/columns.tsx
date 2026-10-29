@@ -26,6 +26,11 @@ interface Options {
   priority?: ColumnPriority | undefined;
   /** The screen's default width, kept between the type's minimum and maximum. */
   width?: number | undefined;
+  /**
+   * The narrowest the column may be squeezed to, where its header needs more than its type's minimum: a long
+   * capital label ("PRIORITY" in a count column, which also holds the 60 px "KD").
+   */
+  minWidth?: number | undefined;
   defaultVisible?: boolean | undefined;
   /** Whether the column sorts; on by default for the types that sort. */
   sortable?: boolean | undefined;
@@ -33,10 +38,10 @@ interface Options {
   hasControls?: boolean | undefined;
 }
 
-const clampWidth = (type: ColumnType, width: number | undefined): number | undefined => {
+const clampWidth = (type: ColumnType, width: number | undefined, minWidth: number | undefined): number | undefined => {
   if (width === undefined) return undefined;
   const spec = COLUMN_TYPES[type];
-  return Math.min(spec.max, Math.max(spec.min, width));
+  return Math.min(spec.max, Math.max(minWidth ?? spec.min, width));
 };
 
 function base<TRow>(
@@ -55,7 +60,8 @@ function base<TRow>(
     cellTip,
     hasControls: options.hasControls,
     priority: options.priority ?? 1,
-    width: clampWidth(type, options.width),
+    width: clampWidth(type, options.width, options.minWidth),
+    minWidth: options.minWidth,
     defaultVisible: options.defaultVisible ?? true,
     sortValue: options.sortable === false ? undefined : sortValue,
     cell,

@@ -99,7 +99,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         header: t('difficulty'),
         headerTooltip: t('difficultyTooltip'),
         priority: 2,
-        width: 100,
+        width: 72,
         unknown: missing,
       }),
       col.currency<TrackedKeywordRow>(
@@ -131,7 +131,9 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         header: t('priority'),
         headerTooltip: t('priorityTooltip'),
         priority: 3,
+        // "PRIORITY" with its sort arrow needs 100 px, which is more than a count column holds
         width: 100,
+        minWidth: 100,
       }),
       col.text<TrackedKeywordRow>(
         'group',

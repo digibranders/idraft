@@ -238,6 +238,7 @@ export function DataTable<TRow extends RowData>({
     return {
       id: column.column.id,
       ...spec,
+      min: column.column.minWidth ?? spec.min,
       width: column.column.width ?? spec.width,
       flex: column.column.identity === true,
     };
