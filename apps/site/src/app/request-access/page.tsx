@@ -29,9 +29,9 @@ export default function RequestAccessPage() {
                 ['bg-violet', 'We read your note', 'A person looks at what you track and why.'],
                 ['bg-coral', 'We reply with next steps', 'Usually within two working days.'],
                 ['bg-mint', 'You add your first topics', 'A site, a few keywords and a few prompts are enough to start.'],
-              ].map(([tone, title, body], index) => (
+              ].map(([, title, body], index) => (
                 <li key={title} className="flex gap-4">
-                  <span className={`grid size-9 shrink-0 place-items-center rounded-full font-mono text-sm font-semibold text-white ${tone}`}>{index + 1}</span>
+                  <span className="w-6 shrink-0 font-mono text-lg font-semibold text-ink-3">{`0${index + 1}`}</span>
                   <div>
                     <p className="font-semibold">{title}</p>
                     <p className="mt-1 leading-relaxed text-ink-2">{body}</p>

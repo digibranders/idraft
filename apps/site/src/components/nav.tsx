@@ -125,9 +125,7 @@ export function Nav() {
                     return (
                       <li key={item.href}>
                         <Link href={item.href} className="group flex h-full flex-col gap-3 rounded-[1.5rem] p-5 transition duration-500 ease-heavy hover:bg-wash">
-                          <span className="grid size-10 place-items-center rounded-full bg-wash text-cobalt-deep transition duration-500 ease-heavy group-hover:bg-cobalt group-hover:text-white">
-                            <Icon size={20} weight="light" aria-hidden="true" />
-                          </span>
+                          <Icon size={30} weight="thin" aria-hidden="true" className="text-ink transition duration-500 ease-heavy group-hover:text-cobalt" />
                           <span className="text-[15px] font-medium tracking-[-0.02em]">{item.label}</span>
                           <span className="text-sm leading-snug text-ink-3">{item.body}</span>
                         </Link>
