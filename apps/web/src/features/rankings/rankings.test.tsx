@@ -470,6 +470,22 @@ describe('Rankings rank columns', () => {
     }
   });
 
+  it('shows SERP features icons and the spoken list for a keyword with features', async () => {
+    const withFeatures = fixtureStates().find(({ state }) => state.feature_types_present.length > 0);
+    if (withFeatures === undefined) throw new Error('No fixture keyword has features');
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => candidate.textContent === withFeatures.text);
+    const row = header?.closest('tr');
+    if (row === null || row === undefined) throw new Error(`No row for ${withFeatures.text}`);
+    const cell = row.cells[columnIndex(grid, /^SERP features$/)];
+    if (cell === undefined) throw new Error('No SERP features cell');
+    expect(cell.querySelectorAll('svg[data-slot="icon"]').length).toBeGreaterThan(0);
+    expect(within(cell).getByText(/^SERP features:/)).toHaveClass('sr-only');
+  });
+
   it('tells one story for a keyword whose checks all failed: a warning, n/a, no change, a stale marker', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
@@ -686,6 +702,26 @@ describe('Rankings rank filters', () => {
     await waitFor(() => expect(url.latest().has('rank') || url.latest().has('chg')).toBe(false));
     await loadedGrid();
     expect(asked.some((query) => [...query.keys()].some((key) => /rank_|improved|declined/.test(key)))).toBe(false);
+  });
+
+  it('chooses SERP feature: Video, sends filter[feature_present]=video and writes feat=video to the URL', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await choose(user, grid, 'SERP feature', 'Video');
+    await waitFor(() => expect(asked.some((query) => query.get('filter[feature_present]') === 'video')).toBe(true));
+    await waitFor(() => expect(url.latest().get('feat')).toBe('video'));
+  });
+
+  it('drops an unknown feature code from a link with a notice', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    renderWithProviders(as('viewer'), { searchParams: '?feat=image_pack', onUrlUpdate: url.onUrlUpdate });
+    expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
+    await waitFor(() => expect(url.latest().has('feat')).toBe(false));
+    await loadedGrid();
+    expect(asked.some((query) => query.has('filter[feature_present]'))).toBe(false);
   });
 });
 

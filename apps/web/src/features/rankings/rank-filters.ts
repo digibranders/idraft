@@ -1,6 +1,7 @@
 import type { KeywordFilters } from './rankings-queries';
 import type { FilterValues } from '@/components/app/filters/types';
 import { RANK_BUCKETS } from '@/lib/format';
+import { FEATURE_TYPES, OWNABLE_FEATURE_TYPES } from '@/lib/keywords/serp-features';
 
 /**
  * The Rank, Change and Stale chips (13-filters-search.md sections 4 and 5, 24-page-templates.md section 9.3)
@@ -28,6 +29,8 @@ export type RankFilterParams = Pick<
   | 'filter[improved]'
   | 'filter[declined]'
   | 'filter[is_stale]'
+  | 'filter[feature_present]'
+  | 'filter[feature_owned]'
 >;
 
 /** The one value a single choice chip holds, if it is one of `allowed`. */
@@ -58,5 +61,9 @@ export function rankFilterParams(values: FilterValues): RankFilterParams {
   if (change === 'entered') params['filter[rank_change_label_in]'] = ['new'];
   if (change === 'lost') params['filter[rank_change_label_in]'] = ['lost'];
   if (stale === 'stale') params['filter[is_stale]'] = true;
+  const feature = choiceOf(values, 'feat', FEATURE_TYPES);
+  const ownedFeature = choiceOf(values, 'featown', OWNABLE_FEATURE_TYPES);
+  if (feature !== undefined) params['filter[feature_present]'] = feature;
+  if (ownedFeature !== undefined) params['filter[feature_owned]'] = ownedFeature;
   return params;
 }

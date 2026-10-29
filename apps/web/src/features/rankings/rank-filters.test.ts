@@ -31,6 +31,18 @@ describe('rankFilterParams', () => {
     expect(rankFilterParams(one('chg', 'lost'))).toEqual({ 'filter[rank_change_label_in]': ['lost'] });
   });
 
+  it('maps a SERP feature to feature_present and an owned feature to feature_owned', () => {
+    expect(rankFilterParams(one('feat', 'featured_snippet'))).toEqual({
+      'filter[feature_present]': 'featured_snippet',
+    });
+    expect(rankFilterParams(one('featown', 'video'))).toEqual({ 'filter[feature_owned]': 'video' });
+  });
+
+  it('drops a feature code the API does not know and an owned feature that cannot be owned', () => {
+    expect(rankFilterParams(one('feat', 'image_pack'))).toEqual({});
+    expect(rankFilterParams(one('featown', 'related_searches'))).toEqual({});
+  });
+
   it('maps stale to the API flag', () => {
     expect(rankFilterParams(one('stale', 'stale'))).toEqual({ 'filter[is_stale]': true });
   });

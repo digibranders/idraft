@@ -276,6 +276,15 @@ export const col = {
     return rich(id, 'url', sortValue, options);
   },
 
+  /** SERP features: icon slots, left aligned (12-tables.md section 6, `SERPFeatureList`). */
+  features<TRow>(
+    id: string,
+    sortValue: (row: TRow) => number | null,
+    options: RichOptions<TRow>,
+  ): DataTableColumn<TRow> {
+    return rich(id, 'features', sortValue, options);
+  },
+
   /** A neutral badge, such as an intent. */
   badge<TRow>(
     id: string,
@@ -314,7 +323,7 @@ interface RichOptions<TRow> extends Options {
 
 function rich<TRow>(
   id: string,
-  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url'>,
+  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features'>,
   sortValue: (row: TRow) => string | number | null,
   options: RichOptions<TRow>,
 ): DataTableColumn<TRow> {

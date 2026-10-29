@@ -4,10 +4,12 @@ import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { BestRankView, RankChangeView, RankCellView, RankingUrlView, StaleMarker, useRankTips } from './rank-cells';
+import { SerpFeatureListView } from './feature-cells';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
-import type { DataTableColumn } from '@/components/app/data-table/types';
+import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { rankDisplay, rowChangeDisplay, urlDisplay } from '@/lib/format';
+import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
 
 /** The ids of the rank columns: the API's sort fields, except the ranking URL, which does not sort. */
 export const RANK_COLUMN_IDS = {
@@ -16,6 +18,7 @@ export const RANK_COLUMN_IDS = {
   url: 'ranking_url',
   best: 'best_rank',
   updated: 'last_observed_at',
+  features: 'serp_features',
 } as const;
 
 export interface RankColumns {
@@ -24,6 +27,7 @@ export interface RankColumns {
   url: DataTableColumn<TrackedKeywordRow>;
   best: DataTableColumn<TrackedKeywordRow>;
   updated: DataTableColumn<TrackedKeywordRow>;
+  features: DataTableColumn<TrackedKeywordRow>;
 }
 
 /**
@@ -35,11 +39,28 @@ export interface RankColumns {
 export function useRankColumns(timeZone: string): RankColumns {
   const t = useTranslations('rankings.rank');
   const common = useTranslations('common');
+  const features = useTranslations('rankings.features');
   const tips = useRankTips(timeZone);
   return useMemo((): RankColumns => {
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
     const display = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
       rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures);
+    const featureTip = (row: TrackedKeywordRow): CellTip | undefined => {
+      if (row.state.current.state === 'not_checked') {
+        return { content: features('pendingTooltip') };
+      }
+      const featDisplay = featureListDisplay(row.state.feature_types_present, row.state.owned_feature_types);
+      if (featDisplay.all.length === 0) {
+        return { content: features('noneTooltip') };
+      }
+      const shortLabelOf = (type: string): string =>
+        isFeatureType(type) ? features(`types.${FEATURE_MESSAGE_KEYS[type]}`) : type;
+      const content = featDisplay.all.map((slot) => shortLabelOf(slot.type)).join(', ');
+      const owned = featDisplay.all.filter((slot) => slot.owned);
+      const detail =
+        owned.length > 0 ? `Yours: ${owned.map((slot) => shortLabelOf(slot.type)).join(', ')}` : undefined;
+      return { content, detail };
+    };
     return {
       rank: col.rank<TrackedKeywordRow>(
         RANK_COLUMN_IDS.rank,
@@ -76,6 +97,20 @@ export function useRankColumns(timeZone: string): RankColumns {
         cell: (row) => <RankingUrlView display={urlDisplay(row.state.current, row.state.ranking_url_count)} />,
         cellTip: (row) => tips.url(urlDisplay(row.state.current, row.state.ranking_url_count), display(row)),
       }),
+      features: col.features<TrackedKeywordRow>(RANK_COLUMN_IDS.features, () => null, {
+        header: features('column'),
+        headerTooltip: features('columnTooltip'),
+        priority: 3,
+        width: 120,
+        sortable: false,
+        cell: (row) => (
+          <SerpFeatureListView
+            display={featureListDisplay(row.state.feature_types_present, row.state.owned_feature_types)}
+            checked={row.state.current.state !== 'not_checked'}
+          />
+        ),
+        cellTip: (row) => featureTip(row),
+      }),
       best: col.rank<TrackedKeywordRow>(RANK_COLUMN_IDS.best, (row) => row.state.best_rank, {
         header: t('bestRank'),
         headerTooltip: t('bestRankTooltip'),
@@ -99,5 +134,5 @@ export function useRankColumns(timeZone: string): RankColumns {
           row.state.current.state === 'failed' ? { label: t('failed'), tooltip: t('failedTooltip') } : pending,
       }),
     };
-  }, [t, common, tips, timeZone]);
+  }, [t, common, features, tips, timeZone]);
 }

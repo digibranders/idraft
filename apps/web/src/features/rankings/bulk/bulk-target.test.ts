@@ -43,6 +43,12 @@ describe('bulk targets', () => {
         stale: { kind: 'enum', values: ['stale'] },
       }),
     ).toEqual({ is_active: true, rank_gte: 1, rank_lte: 3, declined: true, is_stale: true });
+    expect(
+      chosen({
+        feat: { kind: 'enum', values: ['video'] },
+        featown: { kind: 'enum', values: ['featured_snippet'] },
+      }),
+    ).toEqual({ is_active: true, feature_present: 'video', feature_owned: 'featured_snippet' });
   });
 
   it('sends the search as the API takes it: printable and at most 200 characters, and none when nothing is left', () => {

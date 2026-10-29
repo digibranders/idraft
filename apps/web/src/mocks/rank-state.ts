@@ -1,6 +1,7 @@
 import { MOCK_TRACKED_KEYWORDS, PENDING_TRACKED_IDS } from './keyword-fixtures';
 import { checksOf, hashOf, type MockCheck } from './rank-history';
 import { registrableDomain } from './factories/domain';
+import type { FeatureType } from '@/lib/keywords/serp-features';
 import type { components } from '@/lib/api/schema';
 
 /**
@@ -39,7 +40,14 @@ const FAILING_RUN = 2;
 /** One fixture keyword whose checks all failed. */
 export const FAILED_IDS: ReadonlySet<string> = new Set(CHECKED_FIXTURES.filter((_, index) => index === 6));
 
-const FEATURES = ['featured_snippet', 'people_also_ask', 'video', 'image_pack', 'local_pack', 'top_stories'] as const;
+const FEATURES = [
+  'featured_snippet',
+  'people_also_ask',
+  'video',
+  'images',
+  'local_pack',
+  'top_stories',
+] as const satisfies readonly FeatureType[];
 
 /** An archived fixture keyword is collected this long after it was added; the mock stores no archive time for it. */
 const ARCHIVED_FIXTURE_COLLECTED_MS = 5 * 24 * HOUR_MS;
@@ -189,7 +197,9 @@ export function rankStateOf(
     (found, check) => (found === null ? check.rank : Math.max(found, check.rank)),
     null,
   );
-  const features = featuresOf(trackedId);
+  const aio = aioOf(trackedId);
+  const showed = aio.state === 'present_cited' || aio.state === 'present_not_cited';
+  const features = [...(showed ? ['ai_overview'] : []), ...featuresOf(trackedId)];
   const url = domain !== null && latest.path !== null ? urlRefOf(domain, latest.path) : null;
   return {
     current: {
@@ -209,8 +219,13 @@ export function rankStateOf(
     first_ranked_at: ranked[0]?.observedAt ?? null,
     feature_types_present: features,
     owned_feature_types:
-      latest.rank === null ? [] : features.filter((feature) => hashOf(`${trackedId}:owned:${feature}`) % 4 === 0),
-    aio: aioOf(trackedId),
+      latest.rank === null
+        ? []
+        : [
+            ...(aio.state === 'present_cited' ? ['ai_overview'] : []),
+            ...featuresOf(trackedId).filter((feature) => hashOf(`${trackedId}:owned:${feature}`) % 4 === 0),
+          ],
+    aio,
     target_url_match: url === null || targetUrl === null ? null : url.canonical_url === targetUrl,
     url_changed_at: null,
     consecutive_failures: FAILING_IDS.has(trackedId) ? FAILING_RUN : 0,

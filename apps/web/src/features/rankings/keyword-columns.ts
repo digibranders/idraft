@@ -12,9 +12,9 @@ import type { SortKey } from '@/lib/tables/table-state';
 
 /**
  * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Rank, Change,
- * Ranking URL, Volume, KD, CPC, Intent, Priority, Group, Tags, Best rank (in the column chooser only),
- * Updated (the last successful check) and Added. The rank columns are built in `rank-columns.tsx`. Waiting for
- * their own plans are the template's sparkline, SERP features, AI Overview and competitor columns. The ids of
+ * Ranking URL, Volume, KD, CPC, Intent, SERP features, Priority, Group, Tags, Best rank (in the column chooser only),
+ * Updated (the last successful check) and Added. The rank and SERP feature columns are built in `rank-columns.tsx`.
+ * Waiting for their own plans are the template's sparkline, AI Overview and competitor columns. The ids of
  * the sortable columns are the API's sort fields, so server mode sends them as they are.
  */
 
@@ -127,6 +127,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           unknown: (row) => (metrics(row) === null ? pending : { label: t('intentUnknown') }),
         },
       ),
+      ranks.features,
       col.count<TrackedKeywordRow>('priority', (row) => row.priority, {
         header: t('priority'),
         headerTooltip: t('priorityTooltip'),

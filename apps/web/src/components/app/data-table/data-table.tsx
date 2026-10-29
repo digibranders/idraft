@@ -1101,7 +1101,8 @@ function HeaderContent<TRow>({
           type="button"
           tabIndex={-1}
           onClick={(event) => onSort(event.shiftKey)}
-          className={cn('flex min-w-0 items-center gap-1 rounded-sm', right && 'flex-row-reverse')}
+          style={{ zIndex: 1 }}
+          className={cn('relative flex min-w-0 items-center gap-1 rounded-sm', right && 'flex-row-reverse')}
         >
           {label}
           {sortKey === null ? null : (

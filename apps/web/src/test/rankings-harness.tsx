@@ -150,7 +150,7 @@ export function answerTrackedAsMany({
       }
       asked.push(new URLSearchParams(url.searchParams));
       const cursor = url.searchParams.get('cursor');
-      if (cursor !== null && slow()) await delay(300);
+      if (cursor !== null && slow()) await delay(600);
       const index = cursor === null ? 0 : Number(cursor.replace('cursor-', ''));
       if (index === 1 && failSecond()) return problem(request, 'not_found', { detail: 'A page that failed' });
       // The real answer of the first page for the same filters and sort

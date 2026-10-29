@@ -45,6 +45,8 @@ export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilte
     ...given('improved', filters['filter[improved]']),
     ...given('declined', filters['filter[declined]']),
     ...given('is_stale', filters['filter[is_stale]']),
+    ...given('feature_present', filters['filter[feature_present]']),
+    ...given('feature_owned', filters['filter[feature_owned]']),
     ...(q === '' ? {} : { q }),
   };
 }

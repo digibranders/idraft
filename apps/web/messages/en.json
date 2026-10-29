@@ -2238,6 +2238,53 @@
         "withinDepth": "no change within the depth checked"
       }
     },
+    "features": {
+      "column": "SERP features",
+      "columnTooltip": "Result features on the first page at the latest check. Highlighted ones show your site.",
+      "none": "None",
+      "noneTooltip": "No result features on the first page at the latest check.",
+      "pending": "Pending",
+      "pendingTooltip": "The first check has not run yet.",
+      "more": "+{count}",
+      "owned": "{feature}, yours",
+      "listName": "SERP features: {features}",
+      "types": {
+        "aiOverview": "AI Overview",
+        "featuredSnippet": "Snippet",
+        "peopleAlsoAsk": "PAA",
+        "localPack": "Local pack",
+        "knowledgeGraph": "Knowledge panel",
+        "topStories": "Top stories",
+        "video": "Video",
+        "images": "Images",
+        "discussionsAndForums": "Discussions",
+        "perspectives": "Perspectives",
+        "shopping": "Shopping",
+        "relatedSearches": "Related searches",
+        "socialPosts": "Social posts",
+        "answerBox": "Answer box",
+        "ads": "Ads",
+        "sitelinks": "Sitelinks"
+      },
+      "names": {
+        "aiOverview": "AI Overview",
+        "featuredSnippet": "Featured snippet",
+        "peopleAlsoAsk": "People also ask",
+        "localPack": "Local pack",
+        "knowledgeGraph": "Knowledge panel",
+        "topStories": "Top stories",
+        "video": "Video",
+        "images": "Images",
+        "discussionsAndForums": "Discussions and forums",
+        "perspectives": "Perspectives",
+        "shopping": "Shopping",
+        "relatedSearches": "Related searches",
+        "socialPosts": "Social posts",
+        "answerBox": "Answer box",
+        "ads": "Ads",
+        "sitelinks": "Sitelinks"
+      }
+    },
     "filters": {
       "group": "Group",
       "tag": "Tags",
@@ -2295,6 +2342,8 @@
         "entered": "Entered",
         "lost": "Lost"
       },
+      "feature": "SERP feature",
+      "featureOwned": "SERP feature you own",
       "stale": "Freshness",
       "staleStates": {
         "stale": "Stale"

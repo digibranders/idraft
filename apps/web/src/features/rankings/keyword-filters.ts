@@ -12,6 +12,7 @@ import type { FilterField, FilterOption } from '@/components/app/filters/types';
 import { api, unwrap } from '@/lib/api/client';
 import type { ApiResponse } from '@/lib/api/query';
 import { LANGUAGE_CODES, languageName } from '@/lib/format/language';
+import { FEATURE_TYPES, OWNABLE_FEATURE_TYPES, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
 import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 
 /**
@@ -48,6 +49,7 @@ async function readCountries(signal: AbortSignal): Promise<Location[]> {
 
 export function useKeywordFilterFields(scope: ProjectScope): readonly FilterField[] {
   const t = useTranslations('rankings.filters');
+  const featureNames = useTranslations('rankings.features.names');
   const depthLabel = useDepthLabel();
   const locale = useLocale();
   const groups = useKeywordGroups(scope);
@@ -116,6 +118,26 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
         options: options(CHANGE_CHOICES, (value) => t(`changes.${value}`)),
       },
       {
+        id: 'feat',
+        kind: 'enum',
+        label: t('feature'),
+        multi: false,
+        options: options(FEATURE_TYPES, (value) => {
+          const key = FEATURE_MESSAGE_KEYS[value];
+          return featureNames.has(key) ? featureNames(key) : value;
+        }),
+      },
+      {
+        id: 'featown',
+        kind: 'enum',
+        label: t('featureOwned'),
+        multi: false,
+        options: options(OWNABLE_FEATURE_TYPES, (value) => {
+          const key = FEATURE_MESSAGE_KEYS[value];
+          return featureNames.has(key) ? featureNames(key) : value;
+        }),
+      },
+      {
         id: 'dev',
         kind: 'enum',
         label: t('device'),
@@ -178,6 +200,7 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
     ];
   }, [
     t,
+    featureNames,
     locale,
     depthLabel,
     groupOptions,

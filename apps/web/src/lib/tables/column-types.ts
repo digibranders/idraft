@@ -17,6 +17,7 @@ export type ColumnType =
   | 'rank'
   | 'rankDelta'
   | 'url'
+  | 'features'
   | 'actions';
 
 export interface ColumnTypeSpec {
@@ -48,6 +49,7 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   rankDelta: { width: 88, min: 84, max: 88, align: 'right', defaultDesc: true, flex: false },
   // The identity place stays with the keyword column: a ranking URL is a plain column here
   url: { width: 260, min: 180, max: 480, align: 'left', defaultDesc: false, flex: false },
+  features: { width: 140, min: 112, max: 220, align: 'left', defaultDesc: true, flex: false },
   actions: { width: 40, min: 40, max: 40, align: 'right', defaultDesc: null, flex: false },
 };
 

@@ -629,9 +629,19 @@ describe('DataTable rank, change and URL columns', () => {
   it('sizes each type as its spec says, and keeps a screen width between its minimum and maximum', () => {
     const wide = col.rank<Row>('rank', () => 1, { header: 'Rank', width: 500, cell: () => null });
     const narrow = col.url<Row>('url', () => null, { header: 'URL', width: 50, cell: () => null });
+    const features = col.features<Row>('serp_features', () => null, {
+      header: 'SERP features',
+      priority: 3,
+      width: 120,
+      sortable: false,
+      cell: () => 'x',
+    });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
     expect(wide.width).toBe(80);
     expect(narrow.width).toBe(180);
+    expect(features.type).toBe('features');
+    expect(features.width).toBe(120);
+    expect(features.sortValue).toBeUndefined();
   });
 
   it('shows the cell the screen gives and sorts rank best first, with unknown ranks last both ways', async () => {

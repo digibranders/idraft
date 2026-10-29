@@ -132,9 +132,9 @@ test.describe('rankings', () => {
     const RANK = ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)'];
     for (const [width, columns, room, updated] of [
       [1280, RANK, 320, false],
-      [1440, [...RANK, 'Intent', 'Priority', 'Group'], 280, false],
+      [1440, [...RANK, 'Intent', 'SERP features', 'Priority', 'Group'], 200, false],
       // Every column of the set shows: the Keyword column is at its 200 px minimum, and the others give up width
-      [1680, [...RANK, 'Intent', 'Priority', 'Group', 'Tags', 'Updated', 'Added'], 200, true],
+      [1680, [...RANK, 'Intent', 'SERP features', 'Priority', 'Group', 'Tags', 'Updated', 'Added'], 200, true],
     ] as const) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/digibranders/fynix/seo/rankings');
@@ -509,9 +509,9 @@ test.describe('rankings', () => {
     expect(waiting).toBeGreaterThanOrEqual(5);
 
     // The 2 minutes pass: the next poll brings the metrics, and the row stops waiting for them. Its first
-    // rank check comes a minute later, so the rank and the ranking URL still say Pending
+    // rank check comes a minute later, so the rank, ranking URL and SERP features still say Pending
     await page.clock.runFor(150_000);
-    await expect(row.getByText('Pending')).toHaveCount(2);
+    await expect(row.getByText('Pending')).toHaveCount(3);
     await expect(row.getByRole('gridcell').filter({ hasText: /^\d[\d,]*$/ })).not.toHaveCount(0);
 
     // The first check has run: the poll that follows fills the rank in, with no reload

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MOCK_TRACKED_KEYWORDS, PENDING_TRACKED_IDS } from './keyword-fixtures';
 import { checksOf, FIRST_CHECK_DELAY_MS, type MockCheck } from './rank-history';
 import { changeOf, FAILED_IDS, FAILING_IDS, rankStateOf, STALE_IDS, stoppedAtOf } from './rank-state';
+import { FEATURE_TYPES } from '@/lib/keywords/serp-features';
 import { TRACKED_KEYWORD_STATE } from '@/test/api-shapes';
 
 const NOW = Date.parse('2026-10-06T12:00:00Z');
@@ -408,5 +409,17 @@ describe('mock rank state of the fixtures', () => {
     expect(values.some((value) => value > 0)).toBe(true);
     expect(values.some((value) => value < 0)).toBe(true);
     expect(values.some((value) => value === 0)).toBe(true);
+  });
+
+  it('uses only the feature codes the backend knows, and lists ai_overview when an AI Overview showed', () => {
+    const now = Date.parse('2026-10-29T12:00:00Z');
+    for (const row of MOCK_TRACKED_KEYWORDS.slice(0, 40)) {
+      const state = rankStateOf(row.tracked_keyword_id, row.created_at, now, 'fynix.digital');
+      for (const code of state.feature_types_present) expect(FEATURE_TYPES).toContain(code);
+      for (const code of state.owned_feature_types) expect(state.feature_types_present).toContain(code);
+      const showed = state.aio.state === 'present_cited' || state.aio.state === 'present_not_cited';
+      if (state.current.state !== 'not_checked')
+        expect(state.feature_types_present.includes('ai_overview')).toBe(showed);
+    }
   });
 });
