@@ -2301,6 +2301,8 @@
       "unknownTooltip": "The latest check did not record the AI Overview.",
       "pending": "Pending",
       "pendingTooltip": "The first check has not run yet.",
+      "failed": "Check failed",
+      "failedTooltip": "The last check failed. It will be tried again.",
       "speech": {
         "cited": "AI Overview present, cited at position {position}",
         "citedNoPosition": "AI Overview present, cited",
@@ -2317,8 +2319,6 @@
     },
     "target": {
       "mismatch": "Ranks with {ranking}, not the target {target}.",
-      "markerLabel": "Target URL does not rank",
-      "chip": "Target URL",
       "match": "Ranks with the target",
       "mismatchChoice": "Ranks with another URL"
     },

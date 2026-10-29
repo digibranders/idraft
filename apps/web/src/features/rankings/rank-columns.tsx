@@ -49,6 +49,9 @@ export function useRankColumns(timeZone: string): RankColumns {
     const display = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
       rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures);
     const aioTip = (row: TrackedKeywordRow): CellTip | undefined => {
+      if (row.state.current.state === 'failed') {
+        return { content: aioT('failedTooltip') };
+      }
       const disp = aioDisplay(row.state.aio, row.state.current.state);
       switch (disp.kind) {
         case 'notLoaded':
@@ -133,7 +136,7 @@ export function useRankColumns(timeZone: string): RankColumns {
           <SerpFeatureListView
             display={featureListDisplay(row.state.feature_types_present, row.state.owned_feature_types)}
             state={row.state.current.state}
-            checked={row.state.current.state !== 'not_checked'}
+            stale={row.state.is_stale}
           />
         ),
         cellTip: (row) => featureTip(row),
@@ -144,7 +147,13 @@ export function useRankColumns(timeZone: string): RankColumns {
         priority: 2,
         width: 104,
         sortable: false,
-        cell: (row) => <AioStatusView display={aioDisplay(row.state.aio, row.state.current.state)} />,
+        cell: (row) => (
+          <AioStatusView
+            display={aioDisplay(row.state.aio, row.state.current.state)}
+            state={row.state.current.state}
+            stale={row.state.is_stale}
+          />
+        ),
         cellTip: (row) => aioTip(row),
       }),
       best: col.rank<TrackedKeywordRow>(RANK_COLUMN_IDS.best, (row) => row.state.best_rank, {

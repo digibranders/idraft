@@ -519,7 +519,7 @@ describe('Bulk actions', () => {
     dialog = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
     expect(await axe(document.body)).toHaveNoViolations();
     await closeWith(dialog);
-  }, 60_000);
+  }, 30_000);
 
   it('draws Archive in the bar neutral and Delete destructive, both last', async () => {
     const { user } = renderWithProviders(as('editor'));

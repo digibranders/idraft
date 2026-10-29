@@ -1095,7 +1095,7 @@ function HeaderContent<TRow>({
   );
   const sortable = column.sortValue !== undefined;
   return (
-    <span className={cn('group/header relative flex w-full min-w-0 items-center gap-1', right && 'flex-row-reverse')}>
+    <span className={cn('group/header relative flex min-w-0 items-center gap-1', right && 'flex-row-reverse')}>
       {sortable ? (
         <button
           type="button"
@@ -1117,11 +1117,12 @@ function HeaderContent<TRow>({
         label
       )}
       {items.length === 0 ? null : (
-        // Over the inner edge, so a short label keeps its width while the chevron is hidden
+        // Over the inner edge: right-0 for left-aligned headers, and -left-3 for right-aligned
+        // headers so the chevron stays within the cell's 12 px padding without overlapping the neighbour
         <span
           className={cn(
             'pointer-events-none absolute top-1/2 -translate-y-1/2 bg-surface-subtle opacity-0 group-focus-within/header:pointer-events-auto group-focus-within/header:opacity-100 group-hover/header:pointer-events-auto group-hover/header:opacity-100',
-            right ? '-left-5' : 'right-0',
+            right ? '-left-3' : 'right-0',
             menuOpen && 'pointer-events-auto opacity-100',
           )}
         >

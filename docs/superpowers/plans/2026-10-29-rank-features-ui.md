@@ -399,6 +399,9 @@ git add apps/web/src apps/web/messages/en.json
 git commit -m "Rankings: SERP features column and filters"
 ```
 
+**As-built notes:**
+- `ai_overview` in `absolute_rank`: `ai_overview` is included in `feature_types_present` and counts toward `features.length` in `absolute_rank: latest.rank + Math.min(features.length, 2)`, as an AI Overview occupies physical SERP space above organic search results.
+
 ### Task 2: AI Overview column and filter
 
 **Files:**

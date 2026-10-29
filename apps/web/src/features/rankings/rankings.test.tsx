@@ -519,6 +519,9 @@ describe('Rankings rank columns', () => {
       expect(cells(/^Ranking URL$/)).toHaveTextContent(/^n\/a$/);
       expect(cells(/^Change$/)).toHaveTextContent(/^$/);
       expect(within(cells(/^SERP features$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
+      expect(within(cells(/^SERP features$/)).getByText('stale')).toHaveClass('sr-only');
+      expect(within(cells(/^AI Overview$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
+      expect(within(cells(/^AI Overview$/)).getByText('stale')).toHaveClass('sr-only');
       // Updated says the check failed and, because the API flags the keyword stale, shows the marker as well
       expect(within(cells(/^Updated$/)).getByText('Check failed')).toBeInTheDocument();
       expect(within(cells(/^Updated$/)).getByText('Stale')).toBeInTheDocument();

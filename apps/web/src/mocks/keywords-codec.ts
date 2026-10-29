@@ -208,6 +208,8 @@ function decodeKeyword(d: Decoder, cells: Tuple): StoredKeyword {
 
 // Tracked keywords. The versions are [depth, url, from, reason, by] each.
 
+// Compare against the fixture's default version to omit version tuples when unedited,
+// keeping the mock cookie under the 3800-byte browser cookie limit budget during bulk edits.
 const isDefaultVersions = (row: StoredTracked): boolean => {
   const [only, ...rest] = row.versions;
   if (only === undefined || rest.length > 0) return false;
@@ -270,6 +272,8 @@ function encodeTracked(e: Encoder, row: StoredTracked): Tuple {
 
 function decodeTracked(d: Decoder, cells: Tuple): StoredTracked {
   const trackedKeywordId = d.id(d.number(cells, 0), 'tracked');
+  // When versions are omitted (encoded as 0 to stay within the cookie size budget),
+  // restore the initial version and target URL from the fixture row.
   const fixture = MOCK_TRACKED_KEYWORDS.find((f) => f.tracked_keyword_id === trackedKeywordId);
   const target = fixture?.versions[0]?.target_url ?? null;
   const createdAt = d.time(cells, 4);

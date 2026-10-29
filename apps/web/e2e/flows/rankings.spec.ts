@@ -99,7 +99,7 @@ test.describe('rankings', () => {
     await expect(grid.getByText(/^[↑↓]\d+$/).first()).toBeVisible();
     await expect(grid.getByText(/^>\d+$/).first()).toBeVisible();
     await expect(grid.getByText('Pending').first()).toBeVisible();
-    await expect(grid.getByRole('img', { name: 'Check failed' })).toHaveCount(2);
+    await expect(grid.getByRole('img', { name: 'Check failed' })).toHaveCount(3);
     await expectAccessible(page);
 
     // Best rank first, and the keywords with no rank last
@@ -133,11 +133,17 @@ test.describe('rankings', () => {
     const rankHeader = headerOf(grid, 'Rank');
     await expect(rankHeader).toBeVisible();
 
-    await grid.getByRole('button', { name: 'Rank', exact: true }).click();
-    await expect(rankHeader).toHaveAttribute('aria-sort', 'ascending');
-
+    // Hover over the header to reveal the options chevron over the cell's left padding
     await rankHeader.hover();
     const chevron = rankHeader.getByRole('button', { name: 'Rank column options' });
+    await expect(chevron).toBeVisible();
+
+    // Clicking the Rank label sorts the column even while the chevron is revealed
+    const label = rankHeader.getByText('Rank', { exact: true });
+    await label.click();
+    await expect(rankHeader).toHaveAttribute('aria-sort', 'ascending');
+
+    // The chevron opens the column options menu
     await chevron.click();
     const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();

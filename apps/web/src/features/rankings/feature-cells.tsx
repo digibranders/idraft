@@ -1,6 +1,7 @@
 import {
   Check,
   CircleDot,
+  Clock,
   Crosshair,
   BookOpen,
   Image,
@@ -53,24 +54,44 @@ const FALLBACK_ICON: LucideIcon = CircleDot;
 
 export interface SerpFeatureListViewProps {
   display: FeatureListDisplay;
-  checked?: boolean;
   state?: RankCell['state'];
+  stale?: boolean;
+}
+
+function StaleMark(): ReactElement {
+  const t = useTranslations('rankings.rank');
+  return (
+    <>
+      <Icon icon={Clock} size="xs" className="text-warning-text" />
+      <span className="sr-only">{t('speech.stale')}</span>
+    </>
+  );
 }
 
 /**
  * SERP features cell: up to 5 icons, owned features in primary text, others in muted,
  * with a +N count and accessible spoken names (12-tables.md section 6).
  */
-export function SerpFeatureListView({ display, checked, state }: SerpFeatureListViewProps): ReactElement {
+export function SerpFeatureListView({ display, state, stale }: SerpFeatureListViewProps): ReactElement {
   const t = useTranslations('rankings.features');
 
   if (state === 'failed') {
-    return <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />;
+    return (
+      <span className="inline-flex items-center gap-1">
+        {stale ? <StaleMark /> : null}
+        <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
+      </span>
+    );
   }
 
   if (display.all.length === 0) {
-    const isChecked = state !== undefined ? state !== 'not_checked' : (checked ?? true);
-    return <span className="text-foreground-tertiary">{isChecked ? t('none') : t('pending')}</span>;
+    const isChecked = state !== undefined ? state !== 'not_checked' : true;
+    return (
+      <span className="inline-flex items-center gap-1 text-foreground-tertiary">
+        {stale ? <StaleMark /> : null}
+        {isChecked ? t('none') : t('pending')}
+      </span>
+    );
   }
 
   const spokenFeatures = display.all
@@ -84,6 +105,7 @@ export function SerpFeatureListView({ display, checked, state }: SerpFeatureList
 
   return (
     <span className="inline-flex items-center gap-1.5">
+      {stale ? <StaleMark /> : null}
       <span className="sr-only">{spokenList}</span>
       <span className="inline-flex items-center gap-1.5" aria-hidden="true">
         {display.shown.map((slot, index) => {
@@ -106,42 +128,66 @@ export function SerpFeatureListView({ display, checked, state }: SerpFeatureList
 
 export interface AioStatusViewProps {
   display: AioDisplay;
+  state?: RankCell['state'];
+  stale?: boolean;
 }
 
 /**
  * AI Overview cell: badge when cited, check icon when present but not cited,
  * tertiary text otherwise (12-tables.md section 6, `AIOverviewStatus`).
  */
-export function AioStatusView({ display }: AioStatusViewProps): ReactElement {
+export function AioStatusView({ display, state, stale }: AioStatusViewProps): ReactElement {
   const t = useTranslations('rankings.aio');
 
-  switch (display.kind) {
-    case 'cited': {
-      const text = display.position === null ? t('citedNoPosition') : t('cited', { position: display.position });
-      return (
-        <Badge tone="positive" icon={Check}>
-          {text}
-        </Badge>
-      );
-    }
-    case 'notCited':
-      return <Icon icon={Check} label={t('speech.notCited')} className="text-primary-text" />;
-    case 'absent':
-      return (
-        <span className="text-foreground-tertiary">
-          <span className="sr-only">{t('speech.absent')}</span>
-          <span aria-hidden="true" className="text-foreground-tertiary">
-            {t('absent')}
-          </span>
-        </span>
-      );
-    case 'notLoaded':
-      return <span className="text-foreground-tertiary">{t('notLoaded')}</span>;
-    case 'unknown':
-      return <span className="text-foreground-tertiary">{t('unknown')}</span>;
-    case 'pending':
-      return <span className="text-foreground-tertiary">{t('pending')}</span>;
+  if (state === 'failed') {
+    return (
+      <span className="inline-flex items-center gap-1">
+        {stale ? <StaleMark /> : null}
+        <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
+      </span>
+    );
   }
+
+  const content = (() => {
+    switch (display.kind) {
+      case 'cited': {
+        const text = display.position === null ? t('citedNoPosition') : t('cited', { position: display.position });
+        const speech =
+          display.position === null ? t('speech.citedNoPosition') : t('speech.cited', { position: display.position });
+        return (
+          <Badge tone="positive" icon={Check} aria-label={speech}>
+            {text}
+          </Badge>
+        );
+      }
+      case 'notCited':
+        return <Icon icon={Check} label={t('speech.notCited')} className="text-primary-text" />;
+      case 'absent':
+        return (
+          <span>
+            <span className="sr-only">{t('speech.absent')}</span>
+            <span aria-hidden="true" className="text-foreground-tertiary">
+              {t('absent')}
+            </span>
+          </span>
+        );
+      case 'notLoaded':
+        return <span className="text-foreground-tertiary">{t('notLoaded')}</span>;
+      case 'unknown':
+        return <span className="text-foreground-tertiary">{t('unknown')}</span>;
+      case 'pending':
+        return <span className="text-foreground-tertiary">{t('pending')}</span>;
+    }
+  })();
+
+  if (!stale) return content;
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <StaleMark />
+      {content}
+    </span>
+  );
 }
 
 /**

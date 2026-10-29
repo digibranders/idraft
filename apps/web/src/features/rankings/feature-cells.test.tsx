@@ -9,7 +9,7 @@ import { renderWithProviders } from '@/test/render';
 describe('SerpFeatureListView', () => {
   it('renders icons, highlights owned ones in primary text, and provides accessible speech text', () => {
     const display = featureListDisplay(['featured_snippet', 'video'], ['featured_snippet']);
-    const { container } = renderWithProviders(<SerpFeatureListView display={display} checked={true} />);
+    const { container } = renderWithProviders(<SerpFeatureListView display={display} state="ranked" />);
 
     const icons = container.querySelectorAll('svg[data-slot="icon"]');
     expect(icons).toHaveLength(2);
@@ -23,7 +23,7 @@ describe('SerpFeatureListView', () => {
   it('renders five icons and a visible +2 when seven features are present', () => {
     const present = ['ads', 'sitelinks', 'video', 'images', 'local_pack', 'shopping', 'top_stories'];
     const display = featureListDisplay(present, []);
-    const { container } = renderWithProviders(<SerpFeatureListView display={display} checked={true} />);
+    const { container } = renderWithProviders(<SerpFeatureListView display={display} state="ranked" />);
 
     const icons = container.querySelectorAll('svg[data-slot="icon"]');
     expect(icons).toHaveLength(5);
@@ -32,16 +32,16 @@ describe('SerpFeatureListView', () => {
 
   it('renders None in tertiary after a check with no features, and Pending when not checked', () => {
     const empty = featureListDisplay([], []);
-    const { rerender } = renderWithProviders(<SerpFeatureListView display={empty} checked={true} />);
+    const { rerender } = renderWithProviders(<SerpFeatureListView display={empty} state="ranked" />);
     expect(screen.getByText('None')).toHaveClass('text-foreground-tertiary');
 
-    rerender(<SerpFeatureListView display={empty} checked={false} />);
+    rerender(<SerpFeatureListView display={empty} state="not_checked" />);
     expect(screen.getByText('Pending')).toHaveClass('text-foreground-tertiary');
   });
 
   it('renders the fallback icon for an unknown code and uses the code as its accessible name', () => {
     const display = featureListDisplay(['new_thing'], []);
-    const { container } = renderWithProviders(<SerpFeatureListView display={display} checked={true} />);
+    const { container } = renderWithProviders(<SerpFeatureListView display={display} state="ranked" />);
 
     const icons = container.querySelectorAll('svg[data-slot="icon"]');
     expect(icons).toHaveLength(1);
@@ -57,16 +57,24 @@ describe('SerpFeatureListView', () => {
     expect(screen.getByRole('img', { name: 'Check failed' })).toHaveClass('text-warning-text');
     expect(screen.queryByText('None')).not.toBeInTheDocument();
   });
+
+  it('shows the stale marker when stale is true', () => {
+    const display = featureListDisplay(['video'], []);
+    renderWithProviders(<SerpFeatureListView display={display} state="ranked" stale={true} />);
+    expect(screen.getByText('stale')).toHaveClass('sr-only');
+  });
 });
 
 describe('AioStatusView', () => {
-  it('renders a cited status in a positive badge with position', () => {
+  it('renders a cited status in a positive badge with position and accessible speech text', () => {
     const display: AioDisplay = { kind: 'cited', position: 2 };
     renderWithProviders(<AioStatusView display={display} />);
 
     const badge = screen.getByText('Cited #2');
     expect(badge).toBeInTheDocument();
-    expect(badge.closest('[data-slot="badge"]')).toHaveClass('bg-positive-subtle', 'text-positive-text');
+    const badgeSlot = badge.closest('[data-slot="badge"]');
+    expect(badgeSlot).toHaveClass('bg-positive-subtle', 'text-positive-text');
+    expect(badgeSlot).toHaveAttribute('aria-label', 'AI Overview present, cited at position 2');
   });
 
   it('renders notCited as a 16 px check icon in primary text with an accessible name and no visible word', () => {
@@ -95,6 +103,17 @@ describe('AioStatusView', () => {
 
     rerender(<AioStatusView display={{ kind: 'pending' }} />);
     expect(screen.getByText('Pending')).toHaveClass('text-foreground-tertiary');
+  });
+
+  it('shows a warning icon with its accessible name when the check failed', () => {
+    renderWithProviders(<AioStatusView display={{ kind: 'unknown' }} state="failed" />);
+    expect(screen.getByRole('img', { name: 'Check failed' })).toHaveClass('text-warning-text');
+    expect(screen.queryByText('n/a')).not.toBeInTheDocument();
+  });
+
+  it('renders a stale marker when stale is true', () => {
+    renderWithProviders(<AioStatusView display={{ kind: 'cited', position: 1 }} stale={true} />);
+    expect(screen.getByText('stale')).toHaveClass('sr-only');
   });
 });
 
