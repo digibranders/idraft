@@ -153,6 +153,16 @@ Revision ids are sequential (`0001`, `0002`, ...) so the history reads in order.
 
 The version table is `ops.alembic_version`. `/api/readyz` reports `migrations: false` until the database is at the revision the running build expects.
 
+### Backward-compatible migrations and rollback
+
+Production rollback is one command: `infra/deploy.sh --rollback`. Rollback reverts the application containers (`api`, `worker`, `web`) to the previous release while leaving the database intact. Because migrations are forward-only, every migration must remain backward compatible with the previous application release (expand then contract pattern):
+
+1. **Expand first:** add new columns as nullable or with defaults, create new tables, add new indexes concurrently.
+2. **Deploy code:** ship application code that reads and writes both the old and new structures.
+3. **Contract later:** in a subsequent release, migrate existing data, drop old columns, or add not-null constraints after the old code is no longer running.
+
+Never drop a column, rename a column, or add a non-default NOT NULL constraint in the same release where code stops using it.
+
 ## Database roles and tenant isolation
 
 | Role | Used by | Notes |

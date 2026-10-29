@@ -1,0 +1,149 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback:
+        description: "Roll back to previous release (true/false)"
+        required: false
+        type: boolean
+        default: false
+      api_image:
+        description: "API image digest (ghcr.io/digibranders/idraft-api@sha256:...)"
+        required: false
+        type: string
+      worker_image:
+        description: "Worker image digest (ghcr.io/digibranders/idraft-worker@sha256:...)"
+        required: false
+        type: string
+      web_image:
+        description: "Web image digest (ghcr.io/digibranders/idraft-web@sha256:...)"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["backend", "web"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 20
+    # packages: read lets a manual run read the revision label of the images it is asked to deploy.
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    # A workflow_run deploys only a successful push to main in this repository, never a fork or a pull request.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    env:
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'deploy' }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      # The commit whose infra/ is installed: the one the triggering workflow built, or the selected ref for a
+      # manual run. The commit recorded for a manual run is the one the images were built from (their label).
+      RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Checkout the release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.RELEASE_COMMIT }}
+          persist-credentials: false
+
+      - name: Configure SSH with a pinned host key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          [ -n "$DEPLOY_KNOWN_HOSTS" ] || { echo "DEPLOY_KNOWN_HOSTS is not set in the production environment." >&2; exit 1; }
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          # Every ssh, scp and rsync below goes through this alias, so none can fall back to trust on first use.
+          {
+            echo "Host idraft-prod"
+            echo "  HostName $DEPLOY_HOST"
+            echo "  User $DEPLOY_USER"
+            echo "  IdentityFile ~/.ssh/id_ed25519"
+            echo "  IdentitiesOnly yes"
+            echo "  BatchMode yes"
+            echo "  StrictHostKeyChecking yes"
+            echo "  UserKnownHostsFile ~/.ssh/known_hosts"
+          } > ~/.ssh/config
+          chmod 0600 ~/.ssh/config
+
+      - name: Roll back to the previous release
+        if: ${{ inputs.rollback == true }}
+        run: ssh idraft-prod "sudo /srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env"
+
+      - name: Log the runner in to GHCR to read image labels
+        if: ${{ !inputs.rollback && github.event_name == 'workflow_dispatch' }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Resolve release digests
+        id: resolve
+        if: ${{ !inputs.rollback }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUT: ${{ runner.temp }}/digests.json
+          REPO: ${{ github.repository }}
+          SHA: ${{ env.RELEASE_COMMIT }}
+          MODE: ${{ github.event_name == 'workflow_run' && 'run' || 'dispatch' }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          INPUT_API: ${{ inputs.api_image }}
+          INPUT_WORKER: ${{ inputs.worker_image }}
+          INPUT_WEB: ${{ inputs.web_image }}
+        run: bash infra/ci/resolve-release.sh
+
+      - name: Stage the environment file on the host
+        if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        # Lands as /etc/idraft/.env.next; deploy.sh promotes it only after the release serves.
+        # The secret travels on stdin and is never part of a command line or a script body.
+        run: printf '%s\n' "$ENV_FILE" | ssh idraft-prod 'sudo /usr/local/sbin/idraft-install-env'
+
+      - name: Log the host in to GHCR
+        if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
+        env:
+          GHCR_PULL_USER: ${{ secrets.GHCR_PULL_USER }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        # The host pulls private images as root. User and token travel on stdin, never on a command line;
+        # the token is read-only (read:packages) and expires, so an expired one fails here, before any change.
+        run: |
+          [ -n "$GHCR_PULL_USER" ] && [ -n "$GHCR_PULL_TOKEN" ] || { echo "GHCR_PULL_USER and GHCR_PULL_TOKEN must be set in the production environment." >&2; exit 1; }
+          printf '%s\n%s\n' "$GHCR_PULL_USER" "$GHCR_PULL_TOKEN" | ssh idraft-prod 'sudo /usr/local/sbin/idraft-ghcr-login'
+
+      - name: Stage infra on the host and install it as root
+        if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
+        run: |
+          rsync -rt --delete --no-links -e ssh infra/ idraft-prod:/srv/idraft/incoming/infra/
+          ssh idraft-prod 'sudo /usr/local/sbin/idraft-install-infra'
+
+      - name: Deploy
+        if: ${{ !inputs.rollback && steps.resolve.outputs.skip != 'true' }}
+        env:
+          DIGESTS: ${{ runner.temp }}/digests.json
+        run: |
+          scp "$DIGESTS" idraft-prod:/srv/idraft/incoming/digests.json
+          ssh idraft-prod 'sudo /srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json'

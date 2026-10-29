@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Offline stand-in for "docker buildx imagetools inspect <ref> --format {{json .Image}}": prints the
+# image config fixture for the reference, or fails like a registry that does not know it.
+# Used only by infra/test/resolve-release.sh.
+set -euo pipefail
+
+: "${FIXTURES:?}"
+if [ "${1:-} ${2:-} ${3:-}" != "buildx imagetools inspect" ]; then
+  echo "docker: unexpected command: $*" >&2
+  exit 1
+fi
+file="$FIXTURES/images/$(printf '%s' "$4" | tr '/@:' '___').json"
+[ -f "$file" ] || {
+  echo "docker: no such image $4" >&2
+  exit 1
+}
+cat "$file"
