@@ -1384,7 +1384,7 @@ describe('Keywords that wait for their first metrics', () => {
     for (let tick = 0; tick < 5; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
     expect(rankOf()).toBe('Pending');
     for (let tick = 0; tick < 2; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
-    await waitFor(() => expect(rankOf()).toMatch(/^(\d+|>\d+not in top \d+)$/));
+    await waitFor(() => expect(rankOf()).toMatch(/^(\d+|>\d+not in top \d+)/));
   }, 20_000);
 
   it('are not polled when none on screen waits: archived keywords are not collected', async () => {

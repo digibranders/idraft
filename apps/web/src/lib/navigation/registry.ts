@@ -13,7 +13,6 @@ import {
   Quote,
   Receipt,
   Settings,
-  Tag,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -98,16 +97,16 @@ export const NAVIGATION: readonly NavDestination[] = [
     section: 1,
     group: 'seo',
     permission: 'data:read',
-    status: 'live',
+    status: 'planned',
   },
   {
     key: 'keywords',
     path: '/seo/keywords',
-    icon: Tag,
+    icon: ListOrdered,
     section: 1,
     group: 'seo',
     permission: 'data:read',
-    status: 'planned',
+    status: 'live',
   },
   {
     key: 'pages',

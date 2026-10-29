@@ -135,7 +135,7 @@ describe('The keyword inspector', () => {
 
   it('shows a saved value in the keyword’s row without reading the whole list again', async () => {
     const listReads = countListReads();
-    const { user } = renderWithProviders(as('editor'));
+    const { user } = renderWithProviders(as('editor'), { searchParams: '?cols=keyword,priority' });
     const inspector = await openFromRow(user, 'seo agency');
     const before = listReads();
     expect(priorityInRow('seo agency')).toBe('1');

@@ -224,7 +224,7 @@ export function columnTexts(grid: HTMLElement, name: RegExp): string[] {
 function visibleText(node: Node): string {
   if (node instanceof Element && node.classList.contains('sr-only')) return '';
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
-  return [...node.childNodes].map(visibleText).join('');
+  return [...node.childNodes].map(visibleText).filter(Boolean).join(' ').trim();
 }
 
 /** `columnTexts` without the hidden text: a rank cell reads "12" even when a screen reader also hears "stale". */

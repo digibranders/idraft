@@ -45,6 +45,8 @@ All commands run in `apps/web`. Before any markup, invoke `design-taste-frontend
 
 ## Decisions
 
+Tables are 12 px with capital header labels, compact (32 px rows) by default and left aligned in every column except the row actions (owner decisions of 2026-10-29); this is global, see 12-tables.md.
+
 1. **Order.** Unblocked tasks first, cheapest first: three columns read from `row.state` only (features, AI Overview, target match), then the two `include` columns (trend, competitors), then the strip, the inspector chart and Check now. The one blocked task (strip aggregates) comes after them; the closing task does the end to end flows and documents.
 2. **Not sortable:** SERP features, AI Overview, competitor and trend columns, since the API cannot sort by them (Facts). Their header tooltips do not promise a sort.
 3. **Column set and tiers** (template 9.3; tiers follow the viewport): SERP features tier 3 (120 px), AI Overview tier 2 (104 px), Competitor tier 4 (120 px, one column per SEO competitor, the first visible by default, the others in the chooser), Trend tier 2 (96 px). Order after the rank columns: Keyword, Rank, Change, Ranking URL, Volume, KD, CPC, Intent, SERP features, AI Overview, Competitor(s), Trend, Priority, Group, Tags, Best rank, Updated, Added. KD and CPC stay where the rank columns plan put them (the template does not list them in the default set; they are chooser candidates later, not moved here).

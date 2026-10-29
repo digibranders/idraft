@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
-import { BestRankView, RankChangeView, RankCellView, RankingUrlView, StaleMarker, useRankTips } from './rank-cells';
+import { BestRankView, RankCellView, RankingUrlView, StaleMarker, useRankTips } from './rank-cells';
 import { SerpFeatureListView, AioStatusView } from './feature-cells';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
@@ -14,7 +14,6 @@ import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/k
 /** The ids of the rank columns: the API's sort fields, except the ranking URL, which does not sort. */
 export const RANK_COLUMN_IDS = {
   rank: 'current_rank',
-  change: 'rank_change',
   url: 'ranking_url',
   best: 'best_rank',
   updated: 'last_observed_at',
@@ -24,7 +23,6 @@ export const RANK_COLUMN_IDS = {
 
 export interface RankColumns {
   rank: DataTableColumn<TrackedKeywordRow>;
-  change: DataTableColumn<TrackedKeywordRow>;
   url: DataTableColumn<TrackedKeywordRow>;
   best: DataTableColumn<TrackedKeywordRow>;
   updated: DataTableColumn<TrackedKeywordRow>;
@@ -101,20 +99,12 @@ export function useRankColumns(timeZone: string): RankColumns {
           header: t('rank'),
           headerTooltip: t('rankTooltip'),
           priority: 1,
-          width: 80,
-          cell: (row) => <RankCellView display={display(row)} />,
-          cellTip: (row) => tips.rank(display(row), row.state.change.previous_rank),
-        },
-      ),
-      change: col.rankDelta<TrackedKeywordRow>(
-        RANK_COLUMN_IDS.change,
-        (row) => (row.state.change.label === 'numeric' ? row.state.change.value : null),
-        {
-          header: t('change'),
-          headerTooltip: t('changeTooltip'),
-          priority: 1,
-          cell: (row) => <RankChangeView display={rowChangeDisplay(row.state.current, row.state.change)} />,
-          cellTip: (row) => tips.change(row.state.change, row.state.current),
+          width: 104,
+          minWidth: 96,
+          cell: (row) => (
+            <RankCellView display={display(row)} change={rowChangeDisplay(row.state.current, row.state.change)} />
+          ),
+          cellTip: (row) => tips.rank(display(row), row.state.change, row.state.current),
         },
       ),
       url: col.url<TrackedKeywordRow>(RANK_COLUMN_IDS.url, () => null, {
@@ -122,6 +112,7 @@ export function useRankColumns(timeZone: string): RankColumns {
         priority: 2,
         width: 180,
         sortable: false,
+        defaultVisible: false,
         hasControls: true,
         cell: (row) => <RankingUrlView display={urlDisplay(row.state.current, row.state.ranking_url_count)} />,
         cellTip: (row) => tips.url(urlDisplay(row.state.current, row.state.ranking_url_count), display(row)),

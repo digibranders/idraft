@@ -102,6 +102,7 @@ export const col = {
       detail?: ((row: TRow) => string) | undefined;
       copy?: { label: (row: TRow) => string; announcement: string } | undefined;
       marker?: ((row: TRow) => ReactNode) | undefined;
+      trailing?: ((row: TRow) => ReactNode) | undefined;
     },
   ): DataTableColumn<TRow> {
     return {
@@ -119,15 +120,25 @@ export const col = {
               <span className="block min-w-0 truncate text-foreground">{value}</span>
             );
           const marker = options.marker?.(row);
-          if (options.copy === undefined && (marker === null || marker === undefined)) return label;
+          const trailing = options.trailing?.(row);
+          if (
+            options.copy === undefined &&
+            (marker === null || marker === undefined) &&
+            (trailing === null || trailing === undefined)
+          ) {
+            return label;
+          }
           // `bg-inherit` hands the cell's own background (hover, selected) to the button's backing
           return (
-            <span className="relative flex min-w-0 items-center gap-1.5 bg-inherit">
-              {label}
-              {marker !== undefined && marker !== null ? <span className="shrink-0">{marker}</span> : null}
+            <span className="relative flex min-w-0 items-center justify-between gap-1.5 bg-inherit">
+              <span className="flex min-w-0 items-center gap-1.5">
+                {label}
+                {marker !== undefined && marker !== null ? <span className="shrink-0">{marker}</span> : null}
+              </span>
               {options.copy !== undefined && (
                 <CopyButton text={value} label={options.copy.label(row)} announcement={options.copy.announcement} />
               )}
+              {trailing !== undefined && trailing !== null ? <span className="shrink-0">{trailing}</span> : null}
             </span>
           );
         },
@@ -139,8 +150,8 @@ export const col = {
         },
       ),
       identity: true,
-      cellLabel: options.copy === undefined ? undefined : text,
-      hasControls: options.copy !== undefined,
+      cellLabel: options.copy === undefined && options.trailing === undefined ? undefined : text,
+      hasControls: options.copy !== undefined || options.trailing !== undefined,
     };
   },
 

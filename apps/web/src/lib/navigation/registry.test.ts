@@ -35,9 +35,9 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Rankings, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
-      'rankings',
+      'keywords',
       'runs',
       'costs',
       'settings',
@@ -56,8 +56,8 @@ describe('the navigation registry', () => {
   it('shows Runs to a reader and Costs to those who may read costs, hiding the one the role cannot open', () => {
     const shownTo = (role: (typeof roleValues)[number]): string[] =>
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
-    expect(shownTo('viewer')).toEqual(['rankings', 'runs', 'settings']);
-    expect(shownTo('analyst')).toEqual(['rankings', 'runs', 'costs', 'settings']);
+    expect(shownTo('viewer')).toEqual(['keywords', 'runs', 'settings']);
+    expect(shownTo('analyst')).toEqual(['keywords', 'runs', 'costs', 'settings']);
     expect(shownTo('billing')).toEqual(['costs', 'settings']);
   });
 
@@ -84,12 +84,12 @@ describe('the navigation registry', () => {
   });
 
   it('builds hrefs from the slugs', () => {
-    const rankings = ALL_LIVE.find((item) => item.key === 'rankings');
+    const keywords = ALL_LIVE.find((item) => item.key === 'keywords');
     const overview = ALL_LIVE.find((item) => item.key === 'overview');
     const runs = ALL_LIVE.find((item) => item.key === 'runs');
     const costs = ALL_LIVE.find((item) => item.key === 'costs');
-    if (!rankings || !overview || !runs || !costs) throw new Error('missing destinations');
-    expect(navHref(rankings, 'digibranders', 'fynix')).toBe('/digibranders/fynix/seo/rankings');
+    if (!keywords || !overview || !runs || !costs) throw new Error('missing destinations');
+    expect(navHref(keywords, 'digibranders', 'fynix')).toBe('/digibranders/fynix/seo/keywords');
     expect(navHref(overview, 'digibranders', 'fynix')).toBe('/digibranders/fynix');
     expect(navHref(runs, 'digibranders', 'fynix')).toBe('/digibranders/fynix/ops/runs');
     expect(navHref(costs, 'digibranders', 'fynix')).toBe('/digibranders/fynix/costs');
@@ -125,8 +125,11 @@ describe('the navigation registry', () => {
     });
 
     it('opens a destination that does not carry its query without one, and a page without a query as it is', () => {
-      expect(switchHref(find('rankings'), 'digibranders', 'cleanstart', '?intent=commercial')).toBe(
-        '/digibranders/cleanstart/seo/rankings',
+      expect(switchHref(find('keywords'), 'digibranders', 'cleanstart', '?intent=commercial')).toBe(
+        '/digibranders/cleanstart/seo/keywords',
+      );
+      expect(switchHref(find('keywords'), 'digibranders', 'cleanstart', '')).toBe(
+        '/digibranders/cleanstart/seo/keywords',
       );
       expect(switchHref(find('runs'), 'digibranders', 'cleanstart', '')).toBe('/digibranders/cleanstart/ops/runs');
     });
@@ -149,6 +152,6 @@ describe('the navigation registry', () => {
   });
 
   it('finds no destination for the path of a planned one among the live ones', () => {
-    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/seo/keywords', 'digibranders', 'fynix')).toBeNull();
+    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/seo/pages', 'digibranders', 'fynix')).toBeNull();
   });
 });

@@ -26,9 +26,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { MenuItemDef } from '@/components/ui/menu';
 import { toast } from '@/components/ui/toast';
+import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import type { TrackedKeywordRow } from '@/lib/api/types';
+import { copyText } from '@/lib/dom/clipboard';
 import { formatRelative } from '@/lib/format';
 import { languageName } from '@/lib/format/language';
 import { quotaFacts } from '@/lib/keywords/quota';
@@ -179,15 +181,29 @@ export function KeywordInspector({
     }
   };
 
-  const moreActions: MenuItemDef[] =
-    data === null || !canWrite
-      ? []
-      : [
+  const kw = data?.keyword.text ?? row?.keyword.text;
+  const moreActions: MenuItemDef[] = [
+    ...(kw !== undefined
+      ? [
+          {
+            id: 'copy',
+            label: t('more.copyKeyword'),
+            onSelect: () => {
+              void copyText(kw);
+              announce(t('more.keywordCopied'));
+            },
+          },
+        ]
+      : []),
+    ...(data !== null && canWrite
+      ? [
           { id: 'depth', label: t('more.changeDepth'), onSelect: () => setDepthOpen(true) },
           data.is_active
             ? { id: 'archive', label: t('more.archive'), onSelect: () => void setActive(false, data, true) }
             : { id: 'unarchive', label: t('more.unarchive'), onSelect: () => void setActive(true, data, false) },
-        ];
+        ]
+      : []),
+  ];
 
   // Until the keyword is known (a shared link, a list that has not reached it) the type names the inspector
   const title = data?.keyword.text ?? row?.keyword.text ?? t('type');

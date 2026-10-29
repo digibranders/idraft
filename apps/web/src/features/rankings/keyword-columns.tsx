@@ -1,10 +1,13 @@
 'use client';
 
+import { ArrowUpRight } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
+import { Icon } from '@/components/ui/icon';
+import { Tooltip } from '@/components/ui/tooltip';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
@@ -77,8 +80,6 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
     return [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
-        // The keyword's own text is copied, not the row's longer name
-        copy: { label: (row) => t('copyKeyword', { keyword: row.keyword.text }), announcement: t('keywordCopied') },
         detail: (row) => {
           const keywordDetail = t('keywordDetail', {
             location: row.location.name,
@@ -96,9 +97,31 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           return keywordDetail;
         },
         marker: (row) => (row.state.target_url_match === false ? <TargetMismatchMarker /> : null),
+        trailing: (row) => {
+          const url = row.state.current.url;
+          if (!url || row.state.current.state !== 'ranked') return null;
+          const hostPath = `${url.host}${url.path}`;
+          const extra = Math.max(0, (row.state.ranking_url_count ?? 1) - 1);
+          const more = extra > 0 ? ` (+${extra} more ranking pages)` : '';
+          const tip = `${hostPath}${more}`;
+          const ariaLabel = `Open the ranking page of ${row.keyword.text}: ${url.canonical_url}`;
+          return (
+            <Tooltip purpose="label" content={tip}>
+              <a
+                href={url.canonical_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={ariaLabel}
+                onClick={(e) => e.stopPropagation()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted hover:bg-surface-hover hover:text-foreground"
+              >
+                <Icon icon={ArrowUpRight} size="default" />
+              </a>
+            </Tooltip>
+          );
+        },
       }),
       ranks.rank,
-      ranks.change,
       ranks.url,
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
@@ -122,23 +145,13 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         },
         { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 112, unknown: missing },
       ),
-      col.badge<TrackedKeywordRow>(
-        'intent',
-        (row) =>
-          row.intent === 'unknown'
-            ? null
-            : {
-                label: t(`intents.${row.intent}`),
-                ...(row.intent_source === 'manual' ? { detail: t('manual') } : {}),
-              },
-        {
-          header: t('intent'),
-          priority: 3,
-          width: 96,
-          sortable: false,
-          unknown: (row) => (metrics(row) === null ? pending : { label: t('intentUnknown') }),
-        },
-      ),
+      col.text<TrackedKeywordRow>('intent', (row) => (row.intent === 'unknown' ? null : t(`intents.${row.intent}`)), {
+        header: t('intent'),
+        priority: 3,
+        width: 96,
+        sortable: false,
+        unknown: (row) => (metrics(row) === null ? pending : { label: t('intentUnknown') }),
+      }),
       ranks.features,
       ranks.aio,
       col.count<TrackedKeywordRow>('priority', (row) => row.priority, {
@@ -148,6 +161,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         // "PRIORITY" with its sort arrow needs 100 px, which is more than a count column holds
         width: 100,
         minWidth: 100,
+        defaultVisible: false,
       }),
       col.text<TrackedKeywordRow>(
         'group',

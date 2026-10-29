@@ -26,6 +26,7 @@ import {
 } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/seo/rankings',
@@ -92,7 +93,7 @@ describe('Rankings', () => {
     );
   });
 
-  it('copies a keyword and its ranking URL from its row, and links the URL, without opening the keyword', async () => {
+  it('copies a keyword from inspector and links the ranking URL without opening the keyword', async () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
     const grid = await loadedGrid();
@@ -100,28 +101,29 @@ describe('Rankings', () => {
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     // The first row that ranks with a URL
-    const row = within(grid)
-      .getAllByRole('link', { name: /^Open \/.* in a new tab$/ })[0]
-      ?.closest('tr');
+    const link = within(grid).getAllByRole('link', { name: /^Open the ranking page of .*: https?:\/\// })[0];
+    const row = link?.closest('tr');
     const header = row === null || row === undefined ? undefined : within(row).getByRole('rowheader');
     const keyword = header?.querySelector('.truncate')?.textContent;
-    if (row === null || row === undefined || header === undefined || keyword === undefined || keyword === '') {
+    if (
+      row === null ||
+      row === undefined ||
+      header === undefined ||
+      keyword === undefined ||
+      keyword === '' ||
+      link === undefined
+    ) {
       throw new Error('No row with a ranking URL');
     }
     // The row header is named by the keyword alone, whatever buttons it holds
     expect(header).toHaveAccessibleName(keyword);
+    expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\//));
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     const keep = (event: Event): void => event.preventDefault();
     // Capturing: the link's own handler stops the click before it reaches the document
     document.addEventListener('click', keep, true);
     try {
-      await user.click(within(header).getByRole('button', { name: `Copy keyword ${keyword}` }));
-      expect(writeText).toHaveBeenLastCalledWith(keyword);
-      const link = within(row).getByRole('link', { name: /^Open \/.* in a new tab$/ });
-      expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\//));
-      expect(link).toHaveAttribute('target', '_blank');
-      expect(link).toHaveAttribute('rel', 'noopener noreferrer nofollow');
-      await user.click(within(row).getByRole('button', { name: 'Copy ranking URL' }));
-      expect(writeText).toHaveBeenLastCalledWith(link.getAttribute('href'));
       await user.click(link);
     } finally {
       document.removeEventListener('click', keep, true);
@@ -130,6 +132,9 @@ describe('Rankings', () => {
     expect(url.latest().has('inspect')).toBe(false);
     await user.click(header);
     await waitFor(() => expect(url.latest().get('inspect')).toMatch(/^keyword:/));
+    await user.click(screen.getByRole('button', { name: new RegExp(`^More actions for ${keyword}`) }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Copy keyword' }));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(keyword));
     Reflect.deleteProperty(navigator, 'clipboard');
   });
 
@@ -412,18 +417,18 @@ describe('Rankings rank columns', () => {
       .getAllByRole('rowheader')
       .find((candidate) => candidate.textContent === moved.text);
     const row = header?.closest('tr');
-    if (row === null || row === undefined) throw new Error(`No row for ${moved.text}`);
+    if (row === null || row === undefined || header === undefined) throw new Error(`No row for ${moved.text}`);
     const change = moved.state.change.value ?? 0;
-    const cellOf = (name: RegExp): HTMLElement => {
-      const cell = row.cells[columnIndex(grid, name)];
-      if (cell === undefined) throw new Error(`No ${String(name)} cell`);
-      return cell;
-    };
-    expect(within(cellOf(/^Rank$/)).getByText(String(moved.state.current.rank))).toHaveClass('num');
-    expect(within(cellOf(/^Change$/)).getByText(`${change > 0 ? '↑' : '↓'}${String(Math.abs(change))}`)).toHaveClass(
+    const rankCell = row.cells[columnIndex(grid, /^Rank$/)];
+    if (rankCell === undefined) throw new Error('No Rank cell');
+    expect(within(rankCell).getByText(String(moved.state.current.rank))).toHaveClass('num');
+    expect(within(rankCell).getByText(`${change > 0 ? '↑' : '↓'}${String(Math.abs(change))}`)).toHaveClass(
       change > 0 ? 'text-positive-text' : 'text-negative-text',
     );
-    expect(within(cellOf(/^Ranking URL$/)).getByText(moved.state.current.url?.path ?? '')).toBeInTheDocument();
+    const link = within(header).getByRole('link', {
+      name: `Open the ranking page of ${moved.text}: ${moved.state.current.url?.canonical_url}`,
+    });
+    expect(link).toHaveAttribute('href', moved.state.current.url?.canonical_url);
   });
 
   it('shows what is not a rank in words: beyond the depth, still waiting, a failed check, and stale', async () => {
@@ -457,9 +462,6 @@ describe('Rankings rank columns', () => {
     await waitFor(() => expect(keywordsIn(grid)).toContain('rank tracker api'));
     const at = keywordsIn(grid).indexOf('rank tracker api');
     expect(columnTexts(grid, /^Rank$/)[at]).toBe('Pending');
-    // No check has run, so there is no first check to speak of: the Rank cell's "Pending" is all there is to say
-    expect(columnTexts(grid, /^Change$/)[at]).toBe('');
-    expect(columnTexts(grid, /^Ranking URL$/)[at]).toBe('Pending');
   }, 15_000);
 
   /** The cells of the row at a place in the grid, found by their column. */
@@ -532,8 +534,6 @@ describe('Rankings rank columns', () => {
       const cells = rowCells(grid, keywordsIn(grid).indexOf(textOfKeyword(id)));
       expect(within(cells(/^Rank$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
       expect(within(cells(/^Rank$/)).getByText('stale')).toHaveClass('sr-only');
-      expect(cells(/^Ranking URL$/)).toHaveTextContent(/^n\/a$/);
-      expect(cells(/^Change$/)).toHaveTextContent(/^$/);
       expect(within(cells(/^SERP features$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
       expect(within(cells(/^SERP features$/)).getByText('stale')).toHaveClass('sr-only');
       expect(within(cells(/^AI Overview$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
@@ -550,18 +550,21 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     await user.click(within(grid).getByRole('button', { name: 'Rank' }));
     await waitFor(() => expect(url.latest().get('sort')).toBe('current_rank'));
-    const numeric = (text: string): boolean => /^\d+$/.test(text);
+    const parseRank = (text: string): number | null => {
+      const match = text.match(/^(\d+)/);
+      return match ? Number(match[1]) : null;
+    };
     const places = (): string[] => visibleColumnTexts(grid, /^Rank$/);
     const asc = places();
-    const ranked = asc.filter(numeric).map(Number);
+    const ranked = asc.map(parseRank).filter((val): val is number => val !== null);
     expect(ranked.length).toBeGreaterThan(5);
     expect(ranked).toEqual([...ranked].sort((a, b) => a - b));
-    expect(asc.slice(0, ranked.length).every(numeric)).toBe(true);
+    expect(asc.slice(0, ranked.length).every((text) => parseRank(text) !== null)).toBe(true);
     await user.click(within(grid).getByRole('button', { name: 'Rank' }));
     await waitFor(() => expect(url.latest().get('sort')).toBe('-current_rank'));
     const desc = places();
-    expect(desc.slice(0, ranked.length).map(Number)).toEqual([...ranked].reverse());
-    expect(desc.slice(ranked.length).some(numeric)).toBe(false);
+    expect(desc.slice(0, ranked.length).map(parseRank)).toEqual([...ranked].reverse());
+    expect(desc.slice(ranked.length).some((text) => parseRank(text) !== null)).toBe(false);
   });
 
   it('gives the tooltip of a rank to the cell that holds the keyboard focus, as its description too', async () => {
@@ -644,7 +647,7 @@ describe('Rankings rank filters', () => {
     );
     expect(within4to10.length).toBeGreaterThan(0);
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(within4to10.length));
-    const places = visibleColumnTexts(grid, /^Rank$/).map(Number);
+    const places = visibleColumnTexts(grid, /^Rank$/).map((text) => parseInt(text, 10));
     expect(places.every((place) => place >= 4 && place <= 10)).toBe(true);
     expect(screen.getByRole('button', { name: 'Rank: 4 to 10. Edit filter' })).toBeInTheDocument();
   });
