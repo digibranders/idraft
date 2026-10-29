@@ -9,6 +9,7 @@ import type {
   KeywordImport,
   Operation,
   Price,
+  RankHistory,
   Run,
   RunDetail,
   Schedule,
@@ -769,4 +770,62 @@ export const PRICE: z.ZodType<Price> = z.object({
   valid_to: z.string().nullable(),
   source_url: z.string(),
   verified_at: z.string(),
+});
+
+export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
+  bands: z.array(
+    z.object({
+      depth_requested: z.number(),
+      entity_id: z.string(),
+      from: z.string(),
+      kind: z.literal('beyond_depth'),
+      label: z.string(),
+      to: z.string(),
+    }),
+  ),
+  columns: z.null(),
+  config_history: z.array(
+    z.object({
+      config_version: z.number(),
+      depth_profile: z.string(),
+      valid_from: z.string(),
+      valid_to: z.string().nullable(),
+    }),
+  ),
+  deep_check_weekday: z.number(),
+  events: z.null(),
+  series: z
+    .array(
+      z.object({
+        entity: ENTITY_REF,
+        points: z.array(
+          z.object({
+            absolute_rank: z.number().nullable(),
+            date: z.string(),
+            depth_requested: z.number().nullable(),
+            observed_at: z.string().nullable(),
+            rank: z.number().nullable(),
+            serp_snapshot_id: z.string().nullable(),
+            state: z.enum(['ranked', 'beyond_depth', 'failed']),
+            url_id: z.string().nullable(),
+          }),
+        ),
+      }),
+    )
+    .nullable(),
+  summary: z.object({
+    average_rank: z.any().nullable(),
+    beyond_depth_checks: z.number(),
+    checks: z.number(),
+    failed_checks: z.number(),
+    ranked_checks: z.number(),
+  }),
+  tracked_keyword_id: z.string(),
+  urls: z.record(z.string(), z.any()),
+  version_boundaries: z.array(z.any()),
+  window: z.object({
+    from: z.string(),
+    timezone: z.string(),
+    to: z.string(),
+  }),
 });

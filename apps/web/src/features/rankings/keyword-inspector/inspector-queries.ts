@@ -14,6 +14,8 @@ import { apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/quer
 export const DETAIL = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}';
 const CONFIG_HISTORY =
   '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/config-history';
+const RANK_HISTORY =
+  '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history';
 export const COMPETITORS =
   '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/competitors';
 const METRICS_HISTORY = '/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history';
@@ -67,6 +69,10 @@ export const detailQuery = (scope: KeywordScope): ApiQueryOptions<typeof DETAIL>
 
 export const configHistoryQuery = (scope: KeywordScope): ApiQueryOptions<typeof CONFIG_HISTORY> =>
   apiQuery(CONFIG_HISTORY, { params: { path: keywordPath(scope) } });
+
+/** The keyword's rank over the last 90 days, with its competitors (the API's defaults). */
+export const rankHistoryQuery = (scope: KeywordScope): ApiQueryOptions<typeof RANK_HISTORY> =>
+  apiQuery(RANK_HISTORY, { params: { path: keywordPath(scope), query: { window: 'last_90d' } } });
 
 /** The Labs snapshots of the keyword where it is tracked. */
 export const metricsHistoryQuery = (

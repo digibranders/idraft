@@ -1101,7 +1101,10 @@ export const rankHistoryQuery = (scope: KeywordScope): ApiQueryOptions<typeof RA
 - [ ] **Step 11: What this card does not do yet** (write it in the as-built note, not as code): hollow markers inside the band (15 section 7 rule 3; the line breaks and the band shows the run), the events strip (rule 6), "Show deep checks" (rule 4), a window other than 90 days, absolute rank.
 - [ ] **Step 12: Gates** (full list).
 - [ ] **Step 13: Independent review on Opus,** fixes, gates again.
-- [ ] **Step 14: Commit** `git commit -m "Rankings: rank history in the keyword inspector"`.
+- [x] **Step 14: Commit** `git commit -m "Rankings: rank history in the keyword inspector"`.
+
+**As-built notes:**
+- Rank history card: does not yet support hollow markers inside the band (15 section 7 rule 3; the line breaks and the band shows the run), the events strip (rule 6), "Show deep checks" (rule 4), a window other than 90 days, or absolute rank.
 
 ### Task 8: Check now (one keyword and bulk)
 

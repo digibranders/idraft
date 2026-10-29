@@ -9,6 +9,7 @@ import { CompetitorsSection } from './competitors-section';
 import { DepthDialog } from './depth-dialog';
 import { KeywordMetricStrip, VolumeByMonth } from './demand-section';
 import { HistorySection } from './history-section';
+import { RankHistorySection } from './rank-history-section';
 import { DETAIL, detailQuery, refreshAfterWrite, type KeywordDetail, type KeywordScope } from './inspector-queries';
 import { LinksSection } from './links-section';
 import type { EditableSection, SectionEdit } from './section-edit';
@@ -299,6 +300,7 @@ export function KeywordInspector({
                 <InspectorSection title={t('demand.title')} icon={ChartColumn} status="loading" />
               ) : (
                 <>
+                  <RankHistorySection scope={keywordScope} timeZone={timeZone} />
                   <VolumeByMonth workspaceId={scope.workspaceId} detail={data} />
                   <LinksSection scope={keywordScope} detail={data} edit={editOf('links')} />
                   <TrackingSection scope={keywordScope} detail={data} timeZone={timeZone} edit={editOf('tracking')} />

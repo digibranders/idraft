@@ -32,6 +32,8 @@ export interface ChartFrameProps {
   categoryHeader: string;
   series: readonly CategorySeries[];
   formatValue: (value: number) => string;
+  /** Adds to the line or bar option, such as a rank axis (`lib/charts/rank-chart.ts`). Keep it stable (`useCallback`). */
+  extendOption?: ((option: Record<string, unknown>, tokens: ChartTokens) => Record<string, unknown>) | undefined;
   /** Bars of a category stack into one column; lines ignore it. */
   stacked?: boolean | undefined;
   height: ChartHeight;
@@ -59,6 +61,7 @@ export function ChartFrame({
   height,
   summary,
   status,
+  extendOption,
 }: ChartFrameProps): ReactElement {
   const t = useTranslations('chart');
   const summaryId = useId();
@@ -73,9 +76,11 @@ export function ChartFrame({
       return next;
     });
   const option = useCallback(
-    (tokens: ChartTokens) =>
-      categoryChartOption({ kind, categories, series, hidden, patterns, tokens, formatValue, stacked }),
-    [kind, categories, series, hidden, patterns, formatValue, stacked],
+    (tokens: ChartTokens): Record<string, unknown> => {
+      const base = categoryChartOption({ kind, categories, series, hidden, patterns, tokens, formatValue, stacked });
+      return extendOption === undefined ? base : extendOption(base, tokens);
+    },
+    [kind, categories, series, hidden, patterns, formatValue, stacked, extendOption],
   );
   const inspector = variant === 'inspector';
   const Title = inspector ? 'h3' : 'h2';

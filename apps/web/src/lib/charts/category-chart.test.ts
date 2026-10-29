@@ -12,6 +12,7 @@ const TOKENS: ChartTokens = {
   axis: 'chart-axis',
   label: 'chart-label',
   band: 'chart-band',
+  rankBandNone: 'chart-rank-band-none',
   surfaceElevated: 'surface-elevated',
   border: 'border',
   borderStrong: 'border-strong',

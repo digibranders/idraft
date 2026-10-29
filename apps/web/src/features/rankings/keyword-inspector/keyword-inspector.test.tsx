@@ -379,4 +379,47 @@ describe('The keyword inspector', () => {
       }),
     ).toBeInTheDocument();
   });
+
+  it('shows rank history with own and competitor series, table view, pending empty state, and error handling', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const inspector = await openFromRow(user, 'seo agency');
+    const historyHeading = within(inspector).getByRole('heading', { level: 3, name: 'Rank history' });
+    const historyCard = historyHeading.closest('section');
+    expect(historyCard).not.toBeNull();
+    if (!historyCard) throw new Error('Rank history section not found');
+    expect(within(historyCard).getByText(/^Last 90 days · \d+ checks, \d+ ranked/)).toBeInTheDocument();
+
+    expect(within(historyCard).getByRole('img', { name: 'Rank history' })).toHaveAccessibleDescription(
+      /^Organic rank of Fynix \(you\) over the last 90 days/,
+    );
+
+    await user.click(within(historyCard).getByRole('button', { name: 'Table' }));
+    const table = within(historyCard).getByRole('table', { name: 'Rank history' });
+    expect(within(table).getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Fynix (you)' })).toBeInTheDocument();
+    expect(within(table).getAllByRole('row').length).toBeGreaterThan(1);
+  });
+
+  it('shows empty state for a pending keyword without rank checks', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const inspector = await openFromRow(user, 'generative engine optimization');
+    expect(await within(inspector).findByText('No checks yet')).toBeInTheDocument();
+    expect(within(inspector).getByText('The rank history fills in after the first check.')).toBeInTheDocument();
+  });
+
+  it('shows error state with Try again on rank history read failure', async () => {
+    const RANK_HISTORY_PATH = mswPath(
+      '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history',
+    );
+    server.use(
+      http.get(RANK_HISTORY_PATH, () =>
+        HttpResponse.json({ code: 'query_timeout', title: 'Timeout' }, { status: 503 }),
+      ),
+    );
+
+    const { user } = renderWithProviders(as('viewer'));
+    const inspector = await openFromRow(user, 'seo agency');
+    expect(await within(inspector).findByText(/The rank history did not load/)).toBeInTheDocument();
+    expect(within(inspector).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
 });

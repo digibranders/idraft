@@ -2479,6 +2479,19 @@
         "noData": "No data",
         "noDataNote": "None at this location"
       },
+      "rankHistory": {
+        "title": "Rank history",
+        "meta": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked",
+        "you": "{name} (you)",
+        "category": "Date",
+        "guide": "Top {rank}",
+        "band": "Not in top {depth}",
+        "summary": "Organic rank of {name} over the last 90 days, 1 is best: from {first} to {last}, best {best}. {competitors, plural, =0 {} one {1 competitor is shown too.} other {# competitors are shown too.}}",
+        "summaryUnranked": "Organic rank of {name} over the last 90 days: not ranked within the depth checked.",
+        "empty": "No checks yet",
+        "emptyReason": "The rank history fills in after the first check.",
+        "failed": "The rank history did not load."
+      },
       "demand": {
         "title": "Search volume by month",
         "category": "Month",
