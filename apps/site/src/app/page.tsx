@@ -6,11 +6,10 @@ import { Engines } from '@/components/engines';
 import { Faq } from '@/components/faq';
 import { HomeHero } from '@/components/home-hero';
 import { HorizontalEngines } from '@/components/horizontal-engines';
-import { ProductReveal } from '@/components/product-reveal';
+import { ProductTour } from '@/components/product-tour';
 import { Reveal } from '@/components/reveal';
 import { RoadmapTeaser } from '@/components/roadmap-teaser';
 import { Roles } from '@/components/roles';
-import { Story } from '@/components/story';
 import { TextReveal } from '@/components/text-reveal';
 
 /*
@@ -21,7 +20,6 @@ export default function Home() {
   return (
     <>
       <HomeHero />
-      <ProductReveal />
       <ClimbStage>
         <Engines />
         <section data-stop="right" className="mx-auto max-w-[1320px] px-5 py-28 md:px-8 lg:py-44">
@@ -30,7 +28,7 @@ export default function Home() {
           </Reveal>
         </section>
         <div data-stop="left">
-          <Story />
+          <ProductTour />
         </div>
         <HorizontalEngines />
         <div data-stop="right">

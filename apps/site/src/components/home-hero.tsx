@@ -8,12 +8,12 @@ import { HeroFrame } from './hero-frame';
 const rise = (index: number) => ({ '--i': index }) as React.CSSProperties;
 
 /**
- * An inset, framed hero: the atrium render fills a large rounded frame, a paper wash on the left keeps the
- * headline legible. The image settles from a slight zoom as the page loads.
+ * A full-bleed first screen: the hero image fills the viewport, a paper wash on the left keeps the headline
+ * legible. On scroll it pins and pulls back into a rounded card (see HeroFrame).
  */
 export function HomeHero() {
   return (
-    <section className="p-3">
+    <>
       <HeroFrame>
         <Image
           src="/images/atrium.png"
@@ -21,12 +21,12 @@ export function HomeHero() {
           fill
           priority
           sizes="100vw"
-          className="hero-zoom -z-20 object-cover object-[70%_50%]"
+          data-hero-image className="-z-20 object-cover object-[70%_50%]"
         />
         <div aria-hidden="true" className="absolute inset-0 -z-10 bg-gradient-to-r from-paper via-paper/80 to-paper/0 lg:via-paper/55" />
         <div aria-hidden="true" className="absolute inset-x-0 bottom-0 -z-10 h-1/3 bg-gradient-to-t from-paper/70 to-transparent" />
 
-        <div className="mx-auto w-full max-w-[1320px] px-6 pt-28 pb-16 md:px-10">
+        <div data-hero-copy className="mx-auto w-full max-w-[1320px] px-6 pt-28 pb-16 md:px-10">
           <h1 className="max-w-[12ch] text-[clamp(3rem,6.4vw,6rem)] leading-[0.98] font-semibold tracking-[-0.055em] text-ink">
             <span className="rise block" style={rise(0)}>
               Rank on Google.
@@ -53,6 +53,6 @@ export function HomeHero() {
           </div>
         </div>
       </HeroFrame>
-    </section>
+    </>
   );
 }
