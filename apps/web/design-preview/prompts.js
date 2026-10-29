@@ -244,7 +244,7 @@ function renderHead() {
   top.append(select, sortHeader('prompt', 'Prompt', 'sticky left-0 z-(--z-pinned-cell) bg-surface-subtle min-w-60 px-1 text-left border-r border-border-subtle', {rowSpan: span }));
   if (shown('topic')) top.append(plainHeader('Topic', `${columnOf('topic').cell} w-36`, span));
   if (grouped) {
-    const group = el('th', 'hidden xl:table-cell h-7 px-3 text-center type-label whitespace-nowrap border-r border-b border-border-subtle', METRICS[state.metric].group);
+    const group = el('th', 'hidden xl:table-cell h-7 px-3 type-label whitespace-nowrap border-r border-b border-border-subtle', METRICS[state.metric].group);
     group.colSpan = engines.length;
     group.scope = 'colgroup';
     top.append(group);

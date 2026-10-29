@@ -2785,11 +2785,16 @@ table tbody td, table tbody td *, table tbody th, table tbody th * {
   font-size: 0.75rem;
   line-height: 1rem;
 }
-table thead th, table thead th * {
-  font-size: 0.75rem;
-  line-height: 1rem;
+table thead th {
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+table thead th:not(.text-center, .text-right) {
+  text-align: left;
+}
+table thead th[data-keep-case], table thead th [data-keep-case] {
+  text-transform: none;
+  letter-spacing: normal;
 }
 @property --tw-translate-x {
   syntax: "*";

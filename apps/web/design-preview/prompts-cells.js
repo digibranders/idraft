@@ -13,7 +13,8 @@ import { deltaNode, scopeCodes } from './prompts-state.js';
 const { $, icon, engineLogo } = window.PreviewUI;
 
 /**
- * MetricCell: the rate, its change beside it, the sample below. Left aligned like every table column.
+ * MetricCell in Compact density, the default (12 section 6): the rate and its change beside it on one line, so the
+ * row stays 32 px; the sample ("612 of 1,296 obs") moves to the tooltip. Left aligned like every table column.
  * `value` null renders InsufficientData with `gap.text` and `gap.tip`.
  */
 export function rateCell({ value, change, sample, tip, gap }) {
@@ -31,16 +32,16 @@ export function rateCell({ value, change, sample, tip, gap }) {
     delta.classList.add('type-label');
     line.append(delta);
   }
-  cell.append(line, el('span', 'block type-label num whitespace-nowrap', sample));
-  if (tip) cell.dataset.tip = tip;
+  cell.append(line);
+  cell.dataset.tip = tip ? `${sample}. ${tip}` : sample;
   return cell;
 }
 
-/** A value with its sample below, for numbers that are not AI rates (a count, an SEO share). */
+/** A value for numbers that are not AI rates (a count, an SEO share); its sample is in the tooltip, as in rateCell. */
 export function valueCell({ text, sample, tip }, className = '') {
   const cell = el('td', `${className} px-3`.trim());
-  cell.append(el('span', 'block num text-foreground', text), el('span', 'block type-label num whitespace-nowrap', sample));
-  if (tip) cell.dataset.tip = tip;
+  cell.append(el('span', 'block num text-foreground', text));
+  cell.dataset.tip = tip ? `${sample}. ${tip}` : sample;
   return cell;
 }
 
@@ -156,8 +157,16 @@ export function sortHeaderCell({ key, label, className, note, rowSpan, sort, att
   button.type = 'button';
   button.dataset[attr] = key;
   const text = el('span', 'flex flex-col items-start whitespace-nowrap');
-  text.append(el('span', '', label));
-  if (note) text.append(el('span', 'font-normal text-foreground-tertiary', note));
+  const name = el('span', '', label);
+  // An engine is a product name: it keeps its own capitals
+  if (key.startsWith('engine:')) name.dataset.keepCase = '';
+  text.append(name);
+  if (note) {
+    // A sub-label (a unit, "avg of 4") is not a column label: it stays as written
+    const sub = el('span', 'font-normal text-foreground-tertiary', note);
+    sub.dataset.keepCase = '';
+    text.append(sub);
+  }
   const arrow = !active ? 'arrow-up-down' : sort.dir === 'asc' ? 'arrow-up-narrow-wide' : 'arrow-down-wide-narrow';
   button.append(text, icon(arrow, `size-icon-xs shrink-0${active ? '' : ' text-foreground-muted'}`));
   th.append(button);

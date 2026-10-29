@@ -202,7 +202,11 @@ function fillCompetitors(topic) {
   const engines = scopeEngines();
   const headRow = el('tr', 'text-left border-t border-border-subtle bg-surface-subtle');
   headRow.append(el('th', 'pl-4 h-row-compact type-label whitespace-nowrap', 'Entity'));
-  engines.forEach((engine, i) => headRow.append(el('th', `${i === engines.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.name)));
+  engines.forEach((engine, i) => {
+    const th = el('th', `${i === engines.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.name);
+    th.dataset.keepCase = '';
+    headRow.append(th);
+  });
   $('[data-topic-entities-head]', inspector).replaceChildren(headRow);
   // One set of entities per engine, so each column is that engine's own rate
   const perEngine = engines.map((engine) => groupEntities(topic.prompts, [engine.code]));

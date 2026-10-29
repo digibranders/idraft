@@ -130,7 +130,7 @@ function fillStrip(prompt) {
 
 /** Yes, no, or "n/a" where the engine's answers are not classified for it (null). */
 const yesNo = (value, label) => {
-  const cell = el('td', 'text-center');
+  const cell = el('td', '');
   if (value === null) {
     const none = el('span', 'type-meta', 'n/a');
     none.dataset.tip = `${label}: ${NOT_CLASSIFIED}`;
@@ -264,7 +264,11 @@ function fillCompetitors(prompt) {
   const metric = $('[data-prompt-entity-metric] [aria-checked="true"]', inspector).dataset.value;
   const headRow = el('tr', 'text-left border-t border-border-subtle bg-surface-subtle');
   headRow.append(el('th', 'pl-4 h-row-compact type-label whitespace-nowrap', 'Entity'));
-  ENGINES.forEach((engine, i) => headRow.append(el('th', `${i === ENGINES.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.name)));
+  ENGINES.forEach((engine, i) => {
+    const th = el('th', `${i === ENGINES.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.name);
+    th.dataset.keepCase = '';
+    headRow.append(th);
+  });
   $('[data-prompt-entities-head]', inspector).replaceChildren(headRow);
 
   const entities = [

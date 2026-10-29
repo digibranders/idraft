@@ -327,7 +327,7 @@ function openAdd() {
 function columnsPopover(trigger) {
   popover(trigger, (panel) => {
     panel.append(el('p', 'px-2 pt-1 type-label text-foreground-tertiary', 'Density'));
-    panel.append(segmented([['default', 'Default'], ['compact', 'Compact']], state.density, (value) => set({ density: value }), 'Density'));
+    panel.append(segmented([['default', 'Comfortable'], ['compact', 'Compact (default)']], state.density, (value) => set({ density: value }), 'Density'));
     panel.append(el('p', 'px-2 pt-2 type-label text-foreground-tertiary', 'Columns'));
     COLUMNS.forEach(([key, label]) => {
       panel.append(checkRow(label, state.cols.includes(key), (on) => {
