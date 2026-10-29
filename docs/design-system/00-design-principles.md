@@ -62,7 +62,7 @@ A developer building a new screen does not decide any of the following; the answ
 | Text size | One of 15 composite type utilities (`type-page-title` to `type-kbd`) ([03](03-typography.md)) |
 | Spacing | 0, 2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48 px ([04](04-spacing-density.md)) |
 | Control height | 36 px default, 32 px small (pagination, icon buttons in tables and inspectors), 40 px only on auth and onboarding ([04](04-spacing-density.md)) |
-| Table row height | 40 px default, 32 px in the Compact density setting and in tables embedded in panels and inspectors; 40 px header row ([04](04-spacing-density.md), [12](12-tables.md)) |
+| Table row height | 32 px (Compact, the default since 2026-10-29, and always in tables embedded in panels and inspectors), 40 px in the Comfortable density setting; 40 px header row ([04](04-spacing-density.md), [12](12-tables.md)) |
 | Radius | 3, 4, 6, 8, 10 px or full, by element type: panels 8, controls 6, badges 4 ([06](06-surfaces-borders-radius.md)) |
 | Colors | Tokens only ([02](02-color-system.md)); no hex, no Tailwind palette |
 | Filter UI | Filter bar with secondary filter buttons (label and chevron) and removable neutral chips ([13](13-filters-search.md)) |

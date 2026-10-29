@@ -26,7 +26,7 @@ Rules:
 1. **Tooltips are never the only path.** Everything in an L2 tooltip is also in the L3 inspector. Tooltips open on keyboard focus as well as hover and follow WCAG 1.4.13 ([08-interaction-states.md](08-interaction-states.md) section 3).
 2. **The inspector never requires the full page** for the question the list answers. If a user opens the full page from the inspector for more than 20% of records in a usability session, content moves from L4 to L3.
 3. **Values do not change meaning across levels.** The rank in the row, the tooltip, the inspector and the page come from the same API field and the same formatter.
-4. **L1 carries the denominator only when it fits.** Rates in Compact density rows (32 px) show the value; `k of n` appears as a second line in Default density (40 px), in the tooltip, and always in the inspector ([12-tables.md](12-tables.md) section 6, `MetricCell`).
+4. **L1 carries the denominator only when it fits.** Rates in Compact density rows (32 px, the default) show the value; `k of n` appears as a second line in Comfortable density (40 px), in the tooltip, and always in the inspector ([12-tables.md](12-tables.md) section 6, `MetricCell`).
 5. **Links go up one level at a time.** A row opens L3; L3 offers "Open page" (L4). A row never jumps straight to L4 on a plain click.
 
 ### 1.2 Assignment by object type
@@ -573,12 +573,12 @@ Bar form:         |------====●=====-------------------|      scale 0% to 60% (
 | Point | 6 px circle, `foreground`, at the estimate |
 | Scale | Shared per column or per chart (0% to a nice ceiling of the largest upper bound), so rows are comparable. The scale is stated in the column header tooltip |
 | Insufficient | No bar; `InsufficientData` instead |
-| Where | Inspector rate tables, Prompt Detail rate table, statistics panel, Default density rate columns when the user enables "Show intervals" in the column menu. Not in Compact density rows |
+| Where | Inspector rate tables, Prompt Detail rate table, statistics panel, Comfortable density rate columns when the user enables "Show intervals" in the column menu. Not in Compact density rows |
 | Accessible name | "95% interval 31% to 37%" |
 
 ### 8.3 SampleCount
 
-`SampleCount` renders `formatSampleCount` in `type-meta num`: "612 of 1,296 obs", "28 of 28 checks", "250 prompts". It is the context line of rate items in the strip, the second line of `MetricCell` in Default density (40 px rows), and a column in inspector rate tables. The noun is always present ("obs", "checks", "prompts", "keywords").
+`SampleCount` renders `formatSampleCount` in `type-meta num`: "612 of 1,296 obs", "28 of 28 checks", "250 prompts". It is the context line of rate items in the strip, the second line of `MetricCell` in Comfortable density (40 px rows), and a column in inspector rate tables. The noun is always present ("obs", "checks", "prompts", "keywords").
 
 ### 8.4 InsufficientData
 

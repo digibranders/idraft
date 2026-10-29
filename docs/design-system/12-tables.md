@@ -34,7 +34,7 @@ The whole table, toolbar to footer, sits inside one panel (1 px `border`, radius
 | Toolbar | 48 px, the panel title row height (32 px `h-control-sm` controls, 8 px vertical padding) | Table search (`SearchInput` `sm`), result count ("1,000 keywords"; on table pages the count lives here, not in the filter bar), sort summary when more than one sort key is set, density toggle, column chooser, export (the saved view menu sits in the page title row, section 11) | Page filters are not here; they live in the page header filter bar ([13-filters-search.md](13-filters-search.md)) |
 | Bulk bar | 48 px | Selection count, "Select all N matching", bulk actions, clear | Replaces the toolbar in place; never floats over rows |
 | Header | 40 px (`h-row-header`) | Column labels, sort state, header menus, resize handles | Sticky |
-| Rows | 32 px Compact (`h-row-compact`), the default; 40 px Default (`h-row`) when the user chooses it. Embedded tables are always 32 px (section 3.1) | Cells | Virtualized above 100 rows |
+| Rows | 32 px Compact (`h-row-compact`), the default; 40 px Comfortable (`h-row`) when the user chooses it. Embedded tables are always 32 px (section 3.1) | Cells | Virtualized above 100 rows |
 | Footer | 48 px (32 px controls, 8 px vertical padding) | `TableFooter`: visible count and freshness; in server mode also `Pagination` (section 12): range text ("Showing 1 to 200 of 12,480 keywords"), previous and next buttons and a page-size menu (100, 200, 500). No page numbers | Sticky at the bottom of the table region (section 12) |
 
 ## 2. Tables versus cards
@@ -83,10 +83,12 @@ Lists of keywords, prompts, citations, domains, pages, competitors, alerts, runs
 | Table | Row height | Notes |
 |---|---|---|
 | Record table (`DataTable`), Compact density | 32 px `h-row-compact` | The default for every page table (owner decision of 2026-10-29). Stored in the saved view only when it differs (section 11) |
-| Record table, Default density | 40 px `h-row` | The user's choice in the table toolbar or in Settings > Preferences, per table, stored in the saved view (section 11). A person who already chose a density keeps it |
+| Record table, Comfortable density (`default` in the code) | 40 px `h-row` | The user's choice in the table toolbar (labels "Compact (default)" and "Comfortable"), per table, stored in the saved view (section 11) as `?density=default`. A link or saved view with `?density=compact` or no density at all now means compact (32 px). A person who already chose Comfortable and has `density=default` in a saved link keeps it; one who never chose gets compact |
 | Embedded table: a table that is one block inside a larger panel or inside an inspector (`SimpleTable`, inspector mini tables, detail page rail tables) | 32 px `h-row-compact`, always | No density toggle. Header labels are `type-table-header` (12 px, capitals). The own row is `surface-selected` with its text in `primary-text` (section 15) |
 
 The header row is 40 px in every case except embedded tables, whose header matches their 32 px rows. Density changes row height only; it never changes font size.
+
+32 px is the **minimum** row height (`h-row-compact` sets a minimum). A cell that carries a second line in `type-label` (a 16 px line, so two lines are 32 px with no vertical padding) or text that wraps makes its row taller: a two-line row is 33 px with its divider, a wrapped one more. Compact shows one line wherever a column can (the `MetricCell` sample moves to its tooltip); the exceptions are identity cells with a secondary line, such as the member name and email or a schedule name and its workload, and columns that must wrap.
 
 ## 4. Alignment rules
 
@@ -113,13 +115,13 @@ Every column declares its type through column meta. Types fix width, alignment, 
 | `prompt` | 360 / 240 / 640, flex | left | A to Z | `PromptCell` |
 | `domain` | 220 / 160 / 360 | left | A to Z | `DomainCell` |
 | `url` | 260 / 180 / 480 | left | A to Z | `URLCell` |
-| `rank` | 64 / 56 / 80 | left | best first (ascending) | `RankCell` |
-| `rankDelta` | 88 / 84 / 88 (the header "Change" with its sort arrow needs 84 px; the first draft was 56 / 48 / 72) | left | biggest improvement first | `RankDeltaCell` |
-| `count` | 88 / 72 / 120 | left | high to low | `NumberCell` |
-| `volume` | 88 / 72 / 120 | left | high to low | `NumberCell` |
+| `rank` | 80 / 80 / 112 | left | best first (ascending) | `RankCell` |
+| `rankDelta` | 96 / 96 / 96 (the header "CHANGE" with its sort arrow needs 95 px; the first draft was 56 / 48 / 72) | left | biggest improvement first | `RankDeltaCell` |
+| `count` | 100 / 100 / 120 | left | high to low | `NumberCell` |
+| `volume` | 96 / 96 / 120 | left | high to low | `NumberCell` |
 | `rate` | 80 / 72 / 120 | left | high to low | `MetricCell` |
 | `rateDelta` | 80 / 64 / 96 | left | largest detectable change | `DeltaCell` |
-| `currency` | 96 / 80 / 128 | left | high to low | `CostCell` |
+| `currency` | 128 / 112 / 144 | left | high to low | `CostCell` |
 | `date` | 120 / 104 / 160 | left | newest first | `DateCell` |
 | `sparkline` | 88 / 88 / 120 | left | not sortable | `SparklineCell` |
 | `badge` | 120 / 88 / 180 | left | A to Z | `Badge` |
@@ -129,6 +131,8 @@ Every column declares its type through column meta. Types fix width, alignment, 
 | `aiOverview` | 112 / 96 / 140 | left | cited first | `AIOverviewStatus` |
 | `competitor` | 160 / 120 / 240 | left | best rank or rate | `CompetitorCell` |
 | `actions` | 40 / 40 / 40 | right (the only right-aligned type) | not sortable | row "More" menu |
+
+Capital header labels with 0.04em tracking are wider than sentence case, so the minimum widths of the numeric and rank types were raised to what the sorted header needs (label, 14 px arrow, 4 px gap, 12 px padding each side), measured in Chrome on 2026-10-29: Priority 100, Volume 95, CPC (USD) 106, Rank 78, Change 95, Finished 101, Ranking URL 127; a longer label sets its own width (Actual (USD) 128, Estimate (USD) 139, Best rank 112). `lib/tables/column-types.test.ts` pins them and `e2e/flows/table-style.spec.ts` measures them.
 
 Identity columns (`keyword`, `prompt`, `domain`, `url`) take remaining width (flex) and are pinned left. At most one flex column per table.
 
@@ -145,11 +149,11 @@ All cells are components in `components/app/cells/`. Full props are in [25-compo
 | `RankCell` | Integer rank from `formatRankCell`, `num`, left aligned; beyond depth renders the text `>20` in `foreground-tertiary` (not a chip); accessible text from `describeRank` ("not in top 20") | "Rank 3 · Sep 29, 02:14 · depth 20" and previous rank | `NotCollected`, stale badge |
 | `RankDeltaCell` | `↑5` / `↓3` / `0` / `New` / `Lost` from `formatRankChange`; tone per emphasis rule | "Improved 5 positions (from #8 to #3). Normal movement for this keyword: up to 2 positions" | Empty on first check |
 | `DeltaCell` | Signed value from `formatMetricDelta` (`+5.3 pts`) with tone | Previous value, interval, method; "Within normal variation" when not detectable | `n/a` when no comparison |
-| `MetricCell` | Rate `47.2%`; Default density (40 px rows, now the user's choice) adds `612 of 1,296 obs` below in `type-label` (12 / 16 px, the only secondary style that fits under a 16 px value line in a 40 px row); Compact density, the default, and embedded tables show the rate only | `k of n`, interval, prompts, window, method link | `InsufficientData` (hatched, "Insufficient", section 7.3); `NotApplicable` ("No AIO") |
+| `MetricCell` | Rate `47.2%`; Comfortable density (40 px rows, the user's choice) adds `612 of 1,296 obs` below in `type-label` (12 / 16 px, the only secondary style that fits under a 16 px value line in a 40 px row); Compact density, the default, and embedded tables show the rate only | `k of n`, interval, prompts, window, method link | `InsufficientData` (hatched, "Insufficient", section 7.3); `NotApplicable` ("No AIO") |
 | `NumberCell` | Exact grouped integer (`12,400`) | Exact value when abbreviated elsewhere | `n/a` |
 | `DomainCell` | 16 px favicon (Citations, Sources, Competitors only), registrable domain in Geist Mono at the table size `foreground`, subdomain prefix in `foreground-tertiary`; role badge for own and competitor domains | Full host, category | Unresolved redirect flag |
 | `URLCell` | Geist Mono at the table size (12 / 16 px). Host (optional, hidden when the table is scoped to one domain) in `foreground-tertiary`, path in `foreground`, middle-truncated with an ellipsis; hover shows copy and open icons (24 px targets) | Full display URL; original URL on the copy action | `Not ranking` text when empty |
-| `SparklineCell` | 64 x 20 px canvas line in Default density, 64 x 16 px in Compact and embedded tables; 1.5 px gray (`chart-reference`) stroke, the own row in `primary` ([15-data-visualization.md](15-data-visualization.md) section 9); ranks drawn inverted; last point dot 3 px | Mini table of last 7 values and dates | Dashed flat baseline when no data |
+| `SparklineCell` | 64 x 16 px canvas line in Compact (the default) and embedded tables, 64 x 20 px in Comfortable; 1.5 px gray (`chart-reference`) stroke, the own row in `primary` ([15-data-visualization.md](15-data-visualization.md) section 9); ranks drawn inverted; last point dot 3 px | Mini table of last 7 values and dates | Dashed flat baseline when no data |
 | `EngineCell` / `EngineMetricCell` | Per-engine value (rate or status) under a grouped header "ChatGPT · Gemini · AI Mode" | Engine class (consumer UI, SERP AI), n, interval | Engine not enabled: `n/a`; insufficient: hatched |
 | `EngineStatusGlyph` (inside `EngineCell` for prompt by engine status) | One glyph per engine, centered in a fixed slot: cited is a 10 px filled `primary` circle; mentioned but not cited is a 10 px circle with a 2 px `primary` ring (`border-2`); not mentioned is a 6 px `foreground-muted` dot. A legend with the same three glyphs and their labels sits in the page filter bar ([13-filters-search.md](13-filters-search.md)). Each glyph has an accessible name ("ChatGPT: cited", "Gemini: mentioned, not cited", "AI Mode: not mentioned"); the three shapes differ, so the state never depends on color alone | Engine, state, run time, cited URL when cited | Engine not enabled: `n/a`; not yet run: `Pending` |
 | `EnginePresenceSquare` (per-engine presence, for example on Citations) | An 8 px square, `rounded-2xs` (2 px): `primary` fill when present, `border` fill when absent. The squares for several engines sit in one row in engine order ([14-badges-status.md](14-badges-status.md) section 4). Each square has an accessible name ("Gemini: present", "Gemini: absent") | Engine and presence count | Engine not enabled: `n/a` |

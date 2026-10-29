@@ -45,7 +45,7 @@ Two sizes on the reference screens fall between utilities and are mapped to one:
 Rules:
 - Nothing is smaller than 12 px, except the 11 px keyboard hint (`type-kbd`). Nothing in the application shell is larger than 24 px.
 - Heading levels are semantic (`h1` for the page title, `h2` for sections, `h3` for panels) independent of the visual utility. Every page has exactly one `h1`.
-- Uppercase text is not used for labels, headers or badges. Sentence case everywhere ([22-content-formatting.md](22-content-formatting.md) section 1).
+- Uppercase text is not used for labels or badges. Sentence case everywhere ([22-content-formatting.md](22-content-formatting.md) section 1), with one exception: table column headers are written in capitals by `type-table-header` (owner decision of 2026-10-29). The strings stay in sentence case in the source and in the accessible name.
 - Letter spacing is never set outside the composites.
 - Line length for prose is capped at 720 px (`max-w-reading`). Analytics content is not width-capped.
 
@@ -64,7 +64,7 @@ Within a table row, the identity column (keyword, prompt, domain) uses `foregrou
 ## 4. Numbers
 
 1. **Tabular figures everywhere numbers are compared**: table numeric cells, metric values, deltas, ranks, percentages, currency, counts, axis labels, timestamps in tables. Apply the `num` utility (sets `font-variant-numeric: tabular-nums` and `tnum`). `type-metric` and `type-metric-sm` include it.
-2. **Right-align numeric columns** so digits line up; left-align text; center nothing except the checkbox column ([12-tables.md](12-tables.md) section 4).
+2. **Left-align every table column, numeric ones included**, in tabular figures (`num`); center nothing except the checkbox column, and right-align only the row-actions column (owner decision of 2026-10-29, [12-tables.md](12-tables.md) section 4).
 3. Proportional figures remain in running prose ("Rank improved from #8 to #4 on Sep 29").
 4. The minus sign is the typographic minus (U+2212), which has the same advance width as the plus sign in tabular figures. `@/lib/format` inserts it; never type a hyphen as a minus in UI text.
 5. Units follow values with a space where the unit is a word (`14 pts`, `1,240 keywords`) and without a space for symbols (`47.2%`, `$24.18`).

@@ -204,7 +204,7 @@ The matrix compares organic ranking strength with AI visibility for keywords (or
 | Property | Spec |
 |---|---|
 | Renderer | Shared canvas renderer (`components/app/sparkline`), one draw per row, not ECharts |
-| Size | 64 x 20 px (Default rows and the metric strip), 64 x 16 px (Compact rows and embedded tables) |
+| Size | 64 x 16 px (Compact rows, the default, and embedded tables), 64 x 20 px (Comfortable rows and the metric strip) |
 | Stroke | 1.5 px. Gray (`chart-reference`) by default. In tables that mix the own brand with competitors or other domains, the own or owned row is drawn in `chart-1` and every other row stays gray. Tables whose rows are all the own site (Rankings) keep every sparkline gray |
 | Area | None |
 | Last point | 3 px dot in the stroke color |

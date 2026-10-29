@@ -84,7 +84,7 @@ export type {
   DisplayUrl, NumberContext, MetricValue, MetricComparison, MetricSeries, MetricPoint, MetricCellValue,
 };
 
-/** Table and list density ([04-spacing-density.md](04-spacing-density.md) §3): Default 40 px rows (`h-row`), Compact 32 px rows (`h-row-compact`). Default is 'default'. */
+/** Table and list density ([04-spacing-density.md](04-spacing-density.md) §3): 'default' is 40 px rows (`h-row`, labelled Comfortable), 'compact' is 32 px rows (`h-row-compact`). The default is 'compact' (`DEFAULT_DENSITY`). */
 export type Density = 'default' | 'compact';
 
 /** Engine codes as returned by the API (`engine_code`). The contracts package is the source of truth. */
@@ -2627,7 +2627,7 @@ interface ColumnHeaderMenuProps {
 ### 7.6 DensityToggle
 `app/data-table/density-toggle.tsx` · V1 · [04 §3](04-spacing-density.md)
 
-Purpose: Default (40 px rows) or Compact (32 px rows), persisted per user per table in the saved view state (`density`: `default` or `compact`, default `default`). Labels "Default" and "Compact".
+Purpose: Compact (32 px rows, the default) or Comfortable (40 px rows), persisted per table in the saved view state (`density`: `default` or `compact`, default `compact`, left out of the URL). Labels "Compact (default)" and "Comfortable".
 
 ```ts
 interface DensityToggleProps { value: Density; onValueChange: (density: Density) => void }
@@ -2781,7 +2781,7 @@ interface KeywordCellProps {
   flags?: { targetMismatch?: TargetURLIndicatorProps; cannibalization?: CannibalizationIndicatorProps };
   branded?: boolean;                // micro badge only in prompt-linked views
   isNew?: boolean;                  // "New" info-subtle badge after an add or import
-  secondaryLine?: string | null;    // Default density: "US · Desktop · /pricing · 2.4K"
+  secondaryLine?: string | null;    // Comfortable density: "US · Desktop · /pricing · 2.4K"
   hoverActions?: ReadonlyArray<RecordAction<string>>;   // up to 2 icon-xs actions
 }
 ```
@@ -2864,14 +2864,14 @@ interface DeltaCellProps {
 ### 8.6 MetricCell
 `app/cells/metric-cell.tsx` · V1 · [12 §6](12-tables.md), [23 §1.1](23-application-patterns.md)
 
-Purpose: a rate with its denominator: `47.2%`; Default density (40 px rows) adds `612 of 1,296 obs` below in `type-label`; Compact density and embedded tables show the rate only. Formerly called `RateCell` in 19 and 20 (section 23, item 48).
+Purpose: a rate with its denominator: `47.2%`; Comfortable density (40 px rows) adds `612 of 1,296 obs` below in `type-label`; Compact density, the default, and embedded tables show the rate only (the sample is in the tooltip). Formerly called `RateCell` in 19 and 20 (section 23, item 48).
 
 ```ts
 interface MetricCellProps {
   value: MetricCellValue;           // contract MetricCell: value, numerator, denominator, n_observations, ci, suppressed_reason
   noun: SampleNoun;
   decimals?: 0 | 1;                 // 0 when the interval half-width is at least 2 points
-  intervalDisplay?: 'none' | 'bar'; // 'bar' only when "Show intervals" is on in Default density
+  intervalDisplay?: 'none' | 'bar'; // 'bar' only when "Show intervals" is on in Comfortable density
   density: Density;
 }
 ```
@@ -2932,7 +2932,7 @@ interface URLCellProps {
 ### 8.10 SparklineCell
 `app/sparkline/sparkline-cell.tsx` · V1 · [12 §6](12-tables.md), [15 §9](15-data-visualization.md)
 
-Purpose: a 64 x 20 px (Default density) or 64 x 16 px (Compact density and embedded tables) canvas trend drawn by the shared renderer: 1.5 px, gray, with the own row in cobalt.
+Purpose: a 64 x 16 px (Compact density, the default, and embedded tables) or 64 x 20 px (Comfortable density) canvas trend drawn by the shared renderer: 1.5 px, gray, with the own row in cobalt.
 
 ```ts
 interface SparklineCellProps {
@@ -3123,7 +3123,7 @@ interface ConfidenceIndicatorProps {
 - **Variants:** none (bar: 1 px `border-strong` axis, 2 px `foreground-secondary` interval, 6 px `foreground` point; no filled track).
 - **States:** interval, insufficient, missing (`n/a`).
 - **A11y:** accessible name "95% interval 31% to 37%"; bar `aria-hidden` when text is present.
-- **Use:** inspector rate tables, Prompt Detail rate table, statistics panel, Default-density rate columns with "Show intervals". **Not for:** Compact rows by default; SEO rank metrics (no interval exists).
+- **Use:** inspector rate tables, Prompt Detail rate table, statistics panel, Comfortable-density rate columns with "Show intervals". **Not for:** Compact rows by default; SEO rank metrics (no interval exists).
 
 ### 9.6 SampleCount
 `app/metric/sample-count.tsx` · V1 · [23 §8.3](23-application-patterns.md)
@@ -4058,7 +4058,7 @@ Purpose: neutral badge for prompt type (Question, Recommendation, Comparison, ..
 interface PromptTypeBadgeProps { type: string; label: string }   // type key from the contracts enum
 ```
 
-- **Variants:** none (neutral subtle). **A11y:** text. **Use:** `PromptCell` (Default density), inspector header meta. **Not for:** panels (neutral `Badge` "Core", "Discovery").
+- **Variants:** none (neutral subtle). **A11y:** text. **Use:** `PromptCell` (Comfortable density), inspector header meta. **Not for:** panels (neutral `Badge` "Core", "Discovery").
 
 ### 15.6 MentionRate
 `app/ai/mention-rate.tsx` · V1 · [23 §2](23-application-patterns.md), [24 §9.5](24-page-templates.md)

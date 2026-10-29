@@ -14,7 +14,7 @@ This document defines how every screen adapts from a 1920 px monitor down to a 3
 4. **Nothing disappears silently.** A hidden column is reachable through the inspector and the column chooser. A feature that is not offered on a phone says so and names the feature (section 11).
 5. **Viewport breakpoints are for the shell; container queries are for components.** The sidebar, top bar, page header, filter bar, dialog mode and table column tiers respond to the viewport. Anything that can sit in both the page and the inspector responds to its container (section 12).
 6. **The page never scrolls horizontally** at any width from 320 px up. Wide tables scroll inside their own region with the identity column pinned.
-7. **Touch sizing only where touch is primary.** The desktop keeps its desktop sizes (36 px controls, 40 px rows, 32 px rows in Compact density). 44 px targets apply to the mobile layout (section 10).
+7. **Touch sizing only where touch is primary.** The desktop keeps its desktop sizes (36 px controls, 32 px table rows in Compact density, the default, 40 px rows in Comfortable density). 44 px targets apply to the mobile layout (section 10).
 
 ### 1.1 Layout class versus input mode
 
@@ -262,9 +262,9 @@ Every field of a row is available in three places regardless of width:
 
 ### 6.6 Tablet tables
 
-At 768 to 1279 only priority 1 columns are shown, so in Default density the identity cell carries a secondary line:
-1. The density at this width is Default (40 px rows), as at every width. Compact (32 px rows) stays available in the density toggle, and a saved density choice is always respected; 32 px rows still meet the 24 px target size (WCAG 2.5.8).
-2. In Default density the identity column shows its secondary line in `type-label` (12 / 16 px, the style that fits under a 20 px line in a 40 px row) with the values of the two highest priority-2 columns as text. Compact density shows one line. Rank Tracker: `US · Desktop · /pricing · 2.4K`. Prompt Explorer: `ChatGPT 38% · Gemini 25% · AI Mode 40%`.
+At 768 to 1279 only priority 1 columns are shown, so in Comfortable density (the 40 px choice) the identity cell carries a secondary line:
+1. The density at this width is Compact (32 px rows), the default, as at every width (owner decision of 2026-10-29). Comfortable (40 px rows) stays available in the density toggle, and a saved density choice is always respected; 32 px rows meet the 24 px target size (WCAG 2.5.8).
+2. In Comfortable density the identity column shows its secondary line in `type-label` (12 / 16 px, which fits under a 16 px line in a 40 px row) with the values of the two highest priority-2 columns as text. Compact density, the default, shows one line, and the values move to the tooltip and the inspector. Rank Tracker: `US · Desktop · /pricing · 2.4K`. Prompt Explorer: `ChatGPT 38% · Gemini 25% · AI Mode 40%`.
 3. On touch-primary tablets the row actions button ("More actions for {row name}") is always visible instead of appearing on hover, and icon buttons in rows are at least 32 px.
 
 ### 6.7 Mobile list rows
@@ -388,7 +388,7 @@ Footer actions in a full-screen dialog sheet: buttons share the width equally, 4
 |---|---|---|---|
 | Buttons and inputs | 36 px (`h-control`); 32 px (`h-control-sm`) for pagination and small controls in tables and inspectors | 36 px | 44 px for primary actions, sheet footers, filter rows and form fields; 36 px for secondary inline buttons with at least 12 px spacing |
 | Icon buttons | 24 px for hover actions inside cells; 32 px (`h-control-sm`) in tables, toolbars, inspectors and elsewhere | 32 px minimum | 44 px in the top bar and sheet headers |
-| Table and list rows | 40 px Default, 32 px Compact and embedded tables | 40 px Default, 32 px Compact | 56 px list rows |
+| Table and list rows | 32 px Compact (the default) and embedded tables, 40 px Comfortable | 32 px Compact (the default), 40 px Comfortable | 56 px list rows |
 | Navigation items | 32 px sidebar items, 4 px apart; 32 px square icons in the collapsed rail ([11-navigation.md](11-navigation.md) sections 2 and 3) | 40 px in the drawer | 44 px in the drawer |
 | Checkboxes and radios | 16 px box in a 24 px target | 24 px target | 44 px row target (the whole option row is the label) |
 | Filter chips | 36 px, remove button with a 24 px target | 36 px | Not shown (chips live in the sheet as 44 px rows) |
@@ -488,7 +488,7 @@ Example:
 | 1680 x 1050 | Wide desktop | fine | Tier 4 boundary, prompt inspector docked 440 |
 | 1440 x 900 | Desktop (reference) | fine | Visual baseline for every template, inspector docking at both defaults, narrowing of a widened inspector |
 | 1280 x 800 | Small desktop | fine | Tier 2 boundary, inspector overlay with expanded sidebar, docked with collapsed |
-| 1024 x 768 | Tablet landscape | coarse | Collapsed rail, overlay inspector, Default density with secondary identity line, visible row actions |
+| 1024 x 768 | Tablet landscape | coarse | Collapsed rail, overlay inspector, Compact density (Comfortable adds the secondary identity line), visible row actions |
 | 768 x 1024 | Tablet portrait | coarse | Drawer navigation, date window in the top bar, filter badge |
 | 390 x 844 | Mobile | coarse | List rows, filter sheet, inspector sheet, 44 px targets, desktop-only notices |
 | 360 x 740 | Mobile (minimum) | coarse | Same as 390, no truncated primary values |

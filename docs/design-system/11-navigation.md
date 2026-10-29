@@ -164,7 +164,7 @@ As built (workspace setup and entities, 2026-10-01): the navigation lists only t
 |---|---|---|---|
 | Profile | `/settings/profile` | Photo (upload, remove), name, email (read-only with a Verified badge; the API has no change-email route), and the workspaces the user belongs to with role, project access and "Leave" (not offered to the only owner) | Name through the `SaveBar` (`PATCH /me`) |
 | Security | `/settings/security` | Password ("Change password" dialog: current, new with at least 12 characters, confirm; it signs out other sessions). Two-factor authentication: state badge, "New recovery codes" (dialog, codes shown once), "Turn off" (disabled with a reason for owners and admins, who must keep it on). Active sessions: device, place and IP, last active, "This device" badge, "Sign out" per row and "Sign out other sessions" | Each action at once; actions that need a fresh session open the re-authentication dialog first ([20-frontend-specification.md](../20-frontend-specification.md) section 3) |
-| Preferences | `/settings/preferences` | Theme (System, Light, Dark segmented control), default table density (Default, Compact), number and date format (`Select` with a live example), "Reduce motion" and "Single-key shortcuts" switches | Each control at once (auto-save, [10-forms.md](10-forms.md) section 13.3); no `SaveBar` |
+| Preferences | `/settings/preferences` | Theme (System, Light, Dark segmented control), table density (Compact (default), Comfortable), number and date format (`Select` with a live example), "Reduce motion" and "Single-key shortcuts" switches | Each control at once (auto-save, [10-forms.md](10-forms.md) section 13.3); no `SaveBar` |
 
 ## 6. Page-level tabs
 

@@ -161,7 +161,7 @@ Density is a CVA axis on table rows: `density: { default: 'h-row', compact: 'h-r
 | `type-micro` | 12 / 16 | 500 | Badges |
 | `type-metric` | 24 / 32 | 600, tracking -0.02em, tabular | Metric strip values |
 | `type-metric-sm` | 18 / 24 | 600, tabular | Inspector key-value values |
-| `type-mono` | 13 / 20 | 400, Geist Mono | URLs and domains in tables, code |
+| `type-mono` | 13 / 20 | 400, Geist Mono | IDs, code, URLs outside tables (inside a table: `font-mono` at the table size) |
 | `type-kbd` | 11 / 16 | 500 | Keyboard hints ("⌘K") |
 
 The application body is 14 / 20 (`body` in `globals.css`). Do not combine `text-*`, `leading-*`, `font-*` and `tracking-*` classes to rebuild a type style.
@@ -287,7 +287,7 @@ A static Phase 0 version exists at `apps/web/design-preview/index.html`. It has 
 |---|---|
 | Viewports | 1440 x 900 and 390 x 844 (the `visual-desktop` and `visual-mobile` projects of `apps/web/playwright.config.ts`); 1280 x 800 when a template needs it |
 | Themes | light and dark for every section |
-| Density | Default (40 px rows) and Compact (32 px rows) for table sections |
+| Density | Compact (32 px rows, the default) and Comfortable (40 px rows) for table sections |
 | Determinism | `await document.fonts.ready`; `page.clock.setFixedTime('2026-09-29T12:00:00Z')`; timezone `UTC`; `deviceScaleFactor: 1`; animations disabled (Playwright default for screenshots); fixture data only, no network |
 | Threshold | `maxDiffPixelRatio: 0.002` (the config's default for every screenshot); a primitive's own test may set `0.001` |
 | Scope | Every `components/ui` primitive state, every `components/app` component, the six page templates |

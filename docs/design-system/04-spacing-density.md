@@ -90,9 +90,9 @@ Minimum target size is 24 by 24 px (WCAG 2.5.8). Icon buttons inside 32 px rows 
 
 ## 3. Density modes
 
-Two modes exist for full-page tables and lists. **Compact is the default** (owner decision of 2026-10-29): every table opens at 32 px rows. Default (40 px) stays available through the density control and the Preferences setting, and a person who already chose a density keeps it. Controls, typography and spacing outside tables do not change with density. Tables embedded in panels and inspectors (mini tables) always use 32 px rows and do not follow the setting.
+Two modes exist for full-page tables and lists. **Compact is the default** (owner decision of 2026-10-29): every table opens at 32 px rows. Comfortable (40 px, `default` in the code) stays available through the density control and the Preferences setting, and a person who already chose a density keeps it. A saved link without a density means compact. Controls, typography and spacing outside tables do not change with density. Tables embedded in panels and inspectors (mini tables) always use 32 px rows and do not follow the setting.
 
-| Property | Default (40 px, a choice) | Compact (the default) |
+| Property | Comfortable (40 px, a choice) | Compact (the default) |
 |---|---|---|
 | Row height | 40 px (`h-row`) | 32 px (`h-row-compact`) |
 | Header row | 40 px | 40 px |
@@ -106,10 +106,10 @@ Two modes exist for full-page tables and lists. **Compact is the default** (owne
 Rows visible: 900 px minus 424 px of chrome (top bar 52, header offset 20, title block 56, metric strip 76, filter bar 36, three 16 px gaps, table toolbar 48, table header 40, table footer 48) leaves 476 px; divided by the row height that is 11 rows at 40 px and 14 rows at 32 px, the same budget as [24-page-templates.md](24-page-templates.md) section 4.
 
 Rules:
-- The density toggle lives in the table toolbar (a two-option segmented control with icons and labels "Default" and "Compact") and persists per user per table in the saved-view state ([12-tables.md](12-tables.md) section 11).
+- The density toggle lives in the table toolbar (a two-option segmented control with icons and labels "Compact (default)" and "Comfortable") and persists per user per table in the saved-view state ([12-tables.md](12-tables.md) section 11).
 - Density changes row height only. It never changes font size: table text is 12 / 16 px in both modes.
 - The saved view writes `compact` nowhere (it is the default) and writes `default` when a person picks it; the Preferences density control starts on Compact.
-- Tables whose rows need two lines of content (for example the discovery inbox with evidence) offer Default density as the roomier choice; in Compact, the default, their second line moves to the tooltip or inspector.
+- Tables whose rows need two lines of content (for example the discovery inbox with evidence) offer Comfortable density as the roomier choice; in Compact, the default, their second line moves to the tooltip or inspector. Where a screen keeps a second line anyway (a member's email, a schedule's workload), the row grows past 32 px: 32 px is a minimum ([12-tables.md](12-tables.md) section 3.1).
 
 ## 4. Density without clutter
 

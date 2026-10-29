@@ -95,11 +95,11 @@ Geist Sans throughout. Geist Mono for URLs, domains in dense tables, and code.
 | Table cell | 12 / 16 | 400 | All table body text (owner decision of 2026-10-29; the reference screens show 13 / 20) | `type-table` |
 | Table header | 12 / 16, capitals, 0.04em | 400, tertiary | Table column headers (owner decision of 2026-10-29) | `type-table-header` |
 | Meta | 13 / 20 | 400, tertiary | Meta line under titles, times, "6h ago", metric labels | `type-meta` |
-| Label | 12 / 16 | 400, tertiary | Table headers, key-value labels, legends, axis labels, group labels | `type-label` |
+| Label | 12 / 16 | 400, tertiary | Key-value labels, a secondary line in a table cell, legends, axis labels, group labels (table headers use `type-table-header`) | `type-label` |
 | Badge | 12 / 16 | 500 | "Commercial", "cited", "Ranking" | `type-micro` |
 | Metric value | 24 / 32 | 600, tracking -0.02em, tabular | Metric strip values | `type-metric` |
 | Key-value value | 18 / 24 | 600, tabular | Inspector key-value grid values | `type-metric-sm` |
-| Mono | 13 / 20 | 400 | URLs and domains in tables | `type-mono` |
+| Mono | 13 / 20 | 400 | IDs, code, URLs outside tables (in tables: `font-mono` at 12 / 16) | `type-mono` |
 | Keyboard hint | 11 / 16 | 500 | "⌘K" | `type-kbd` |
 
 The base font size of the application body is 14 px.
@@ -126,7 +126,7 @@ The base font size of the application body is 14 px.
 | Small control | 32 px | Pagination, icon buttons in tables and inspectors |
 | Large control | 40 px | Auth and onboarding only |
 | Table header row | 40 px, `--surface-subtle`, 1 px vertical dividers between header cells | |
-| Table row | 40 px default, 32 px for tables embedded in panels and inspectors | Screens 2 and 4 show 44, screen 7 shows 36 |
+| Table row | 32 px by default since 2026-10-29 (Compact), 40 px in Comfortable, always 32 px for tables embedded in panels and inspectors | Screens 2 and 4 show 44, screen 7 shows 36 |
 | Checkbox | 16 px, radius 4 | |
 | Badge | 22 px tall, 8 px horizontal padding, radius 4 | |
 | Inspector | 400 px default, 440 px for the prompt and citation inspectors. A floating card under the top bar: `--background` fill, 1 px `--border`, radius 10, `shadow-inspector`, 12 px from the top bar and the window edges; 16 px padding; sections are `--surface` cards 12 px apart | First reference batch (the topic drawer), by user decision; widths from screens 2 and 4 |
@@ -185,7 +185,7 @@ The base font size of the application body is 14 px.
 | Rank move icons in feeds | `TrendingUp` and `TrendingDown`, in positive or negative text only when the move is emphasized | Screen 6; the detectability rule still decides the color |
 | Pagination in data tables | The "Showing 1 to 200 of 12,480 keywords" text and previous and next buttons (32 px, bordered). No numbered pages, because table pagination is cursor-based | Screen 4 styling; product rule unchanged |
 | Hover actions inside table cells (copy, open) | 24 px icon buttons | They sit inside 32 px compact rows |
-| Metric second line in table cells (`612 of 1,296 obs`) | `type-label` (12/16) under the value in Default density; tooltip only in Compact | 13/20 meta does not fit a 40 px row |
+| Metric second line in table cells (`612 of 1,296 obs`) | `type-label` (12/16) under the value in Comfortable density; tooltip only in Compact, the default | 13/20 meta does not fit a 40 px row |
 | Rank change text | "↑5" (no space) as returned by `formatRankChange` | Formatting rules are unchanged; the screens' "↑ 3" spacing is not copied |
 | Date range and location controls | In the top bar, as project-wide scope. Location shows on every screen that aggregates data from several markets, and is hidden on single-market records (keyword and prompt detail, which state their market in the meta line) and on screens without a location dimension; the full list is in [13-filters-search.md](../13-filters-search.md) section 4. Screen-specific filters stay in the filter bar | Every screen shows them in the top bar |
 | Breadcrumb | Leading `House` icon (16 px, tertiary) for the project root, `ChevronRight` (14 px, muted) separators, ancestors in `foreground-tertiary`, the current page in `foreground` 500 | Every screen |

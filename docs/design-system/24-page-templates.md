@@ -292,7 +292,7 @@ Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title 
 |                  +----------------------------------------------------------+----------------------------------------+
 |                  | Header row                                               | Evidence sections                      |
 |                  +----------------------------------------------------------+ (source detail, SERP or answer         |
-|                  | Row 40 (Default density): candidate, source chips,       | examples, near duplicates)             |
+|                  | Row 40 (Comfortable density): candidate, source chips,       | examples, near duplicates)             |
 |                  |   evidence line in type-meta                             |                                        |
 |                  | Row 40                                                   +----------------------------------------+
 |                  | ...                                                      | Footer: [Reject] [Snooze] [Accept]     |
@@ -302,7 +302,7 @@ Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title 
 |---|---|---|---|
 | Header | `PageHeader` with count tabs | 196 px to the first block | Primary action is "Generate" on Prompts (opens the generator), none on Keywords |
 | Status control | `SegmentedControl` `sm` in the table toolbar: New, Accepted, Snoozed, Rejected (counts on New only) | 32 px | Writes `status=`; each status is its own list |
-| Table | `DataTable` in Default density (40 px rows; the second line carries the evidence summary, [04-spacing-density.md](04-spacing-density.md) section 3) | Fills | Single-key triage `a`, `r`, `s` on the focused row ([23-application-patterns.md](23-application-patterns.md) section 10) |
+| Table | `DataTable` in Comfortable density (40 px rows, set by the screen because it needs two lines; the second line carries the evidence summary, [04-spacing-density.md](04-spacing-density.md) section 3) | Fills | Single-key triage `a`, `r`, `s` on the focused row ([23-application-patterns.md](23-application-patterns.md) section 10) |
 | Evidence panel | `Inspector` with candidate header, `MetricStrip` `sm`, evidence sections | Full height | Footer holds Reject (`ghost`), Snooze (`secondary`), Accept (`primary`) |
 | Bulk bar | Replaces the toolbar on selection | 48 px | Accept, Snooze, Reject, then Assign group, Tags, Topic, then "Promote to tracked" (opens a dialog with quota and cost) |
 
@@ -482,7 +482,7 @@ Column chooser extras (not in the default set): Previous rank, Best rank, Target
 | 1440 | 1,192 px | All except Competitor and Updated (1,176 px) |
 | 1440, inspector docked | 792 px | Same set as 1440; the table scrolls horizontally with Keyword pinned |
 | 1280 | 1,032 px | Keyword, Rank, Δ, Ranking URL, Volume, AI Overview, Trend (960 px) |
-| 1024 (sidebar collapsed) | 928 px | Keyword, Rank, Δ; Default density adds the secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6) |
+| 1024 (sidebar collapsed) | 928 px | Keyword, Rank, Δ; Comfortable density adds the secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6) |
 | 768 | 736 px | Keyword, Rank, Δ, as at 1024 |
 
 At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 400, below the 720 px minimum, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6), so the table keeps its 1,032 px set.
@@ -917,7 +917,7 @@ Route `/discover/keywords`.
 |---|---|---|
 | Header | `PageHeader` with count tabs Keywords, Prompts, Opportunities | Prompts tab adds primary "Generate prompts" |
 | Status | `SegmentedControl` in the toolbar, next to the result count | `status=new` default |
-| Table | `DataTable`, Default density (40 px rows, chosen for its two-line rows; every other table opens in Compact); second line is the evidence summary in `type-meta` | Keyword columns: Candidate, Sources (neutral chips, max 2 then "+1"), Volume (Estimate), KD, CPC (chooser), Intent, AI demand (Estimate, chooser), GSC impressions (28 days), Competitor best rank (chooser), Opportunity score (chooser, with factor popover), Data as of |
+| Table | `DataTable`, Comfortable density (40 px rows, set by the screen for its two-line rows; every other table opens in Compact); second line is the evidence summary in `type-meta` | Keyword columns: Candidate, Sources (neutral chips, max 2 then "+1"), Volume (Estimate), KD, CPC (chooser), Intent, AI demand (Estimate, chooser), GSC impressions (28 days), Competitor best rank (chooser), Opportunity score (chooser, with factor popover), Data as of |
 | Evidence panel | `Inspector` 400 px (no "Open page": candidates have no full page): strip with volume, KD, modeled AI demand (Estimate), GSC impressions; source detail per source; near duplicates; triage footer (the one inspector footer outside edit mode) with `Kbd` hints | Prompt candidates show "Generated phrasing, not an observed user prompt" or "Bing grounding phrase, not a user prompt" at the top; no volume column |
 | Bulk bar | Accept, Snooze, Reject, Assign group, Tags, Topic, Intent, Priority, then "Promote to tracked" | Promote dialog: location, device (both creates two), depth profile, group, quota impact, daily cost estimate |
 
