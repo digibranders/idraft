@@ -10,7 +10,7 @@ A measurement instrument for SEO rankings and AI answer visibility, used for hou
 
 > The interface should look like a professional analytical instrument, not a collection of dashboard components.
 
-Design read used for every decision in this system: information-dense product UI for SEO and GEO power users, with v2 sizing (14 px interface text, 36 px controls, 40 px table rows in Default density, 32 px in Compact), restrained instrument-grade language, built on shadcn/ui with Base UI primitives, Tailwind CSS v4 and Geist. Visual variance 2 of 10, motion 2 of 10. The visual values come from the reference screens through [reference/visual-spec.md](reference/visual-spec.md).
+Design read used for every decision in this system: information-dense product UI for SEO and GEO power users, with v2 sizing (14 px interface text, 36 px controls, 32 px table rows in Compact density, the default since 2026-10-29, 40 px in Default density), restrained instrument-grade language, built on shadcn/ui with Base UI primitives, Tailwind CSS v4 and Geist. Visual variance 2 of 10, motion 2 of 10. The visual values come from the reference screens through [reference/visual-spec.md](reference/visual-spec.md).
 
 ## 2. Principles
 

@@ -17,7 +17,7 @@ Weights: **400** (regular text and labels), **500** (badges, emphasized values, 
 
 ## 2. Type scale
 
-Every text element uses exactly one composite utility. Composites set size, line height, weight and letter spacing together, so they cannot drift apart. There are 15 composites, and one more for a single case: `type-input-touch` (16 / 24 px, 400) is the text of fields and one-time code cells below 768 px, so iOS Safari does not zoom the page on focus ([19-responsive-behavior.md](19-responsive-behavior.md) section 10). The base body size is 14 px (`body` in `globals.css` is 14 / 20). Table cells stay at 13 / 20 (`type-table`) so dense tables keep their column capacity. Values follow [reference/visual-spec.md](reference/visual-spec.md) section 3.
+Every text element uses exactly one composite utility. Composites set size, line height, weight and letter spacing together, so they cannot drift apart. There are 15 composites, and one more for a single case: `type-input-touch` (16 / 24 px, 400) is the text of fields and one-time code cells below 768 px, so iOS Safari does not zoom the page on focus ([19-responsive-behavior.md](19-responsive-behavior.md) section 10). The base body size is 14 px (`body` in `globals.css` is 14 / 20). Table cells are 12 / 16 (`type-table`) so dense tables keep their column capacity (owner decision of 2026-10-29; they were 13 / 20). `type-table-header` (12 / 16, capitals, 0.04em) names the column headers and `type-table-strong` keeps weight 500 at the table size. Values follow [reference/visual-spec.md](reference/visual-spec.md) section 3.
 
 | Utility | Size / line height | Weight | Tracking | Default color | Use |
 |---|---|---|---|---|---|
@@ -29,13 +29,15 @@ Every text element uses exactly one composite utility. Composites set size, line
 | `type-body-strong` | 14 / 20 px | 500 | 0 | inherits | Button labels, active tab, active nav item, emphasized inline values, entity names in feeds |
 | `type-inline-strong` | inherits | 500 | inherits | inherits | A span inside running text that must keep the size and line height of its text: the own brand's mention highlight in answers ([23-application-patterns.md](23-application-patterns.md) section 5.3) |
 | `type-prose` | 14 / 22 px | 400 | 0 | inherits | AI answer text in inspectors, methodology text, help articles, empty-state explanations longer than two lines |
-| `type-table` | 13 / 20 px | 400 | 0 | inherits | Table body cells |
+| `type-table` | 12 / 16 px | 400 | 0 | inherits | Table body cells (every table, owner decision of 2026-10-29) |
+| `type-table-strong` | 12 / 16 px | 500 | 0 | inherits | A strong table cell, such as a total row |
+| `type-table-header` | 12 / 16 px | 400 | 0.04em, UPPERCASE | `foreground-tertiary` | Table column header labels |
 | `type-meta` | 13 / 20 px | 400 | 0 | `foreground-tertiary` | Meta line under titles, timestamps ("6h ago"), metric strip labels, descriptions, helper text, values after bar-list bars |
-| `type-label` | 12 / 16 px | 400 | 0 | `foreground-tertiary` | Table header text, key-value labels, legends, axis labels, sidebar group labels, form field labels |
+| `type-label` | 12 / 16 px | 400 | 0 | `foreground-tertiary` | Key-value labels, a secondary line in a table cell, legends, axis labels, sidebar group labels, form field labels |
 | `type-micro` | 12 / 16 px | 500 | 0 | inherits | Badges (22 px) and count badges. Filter chips use `type-body` ([13-filters-search.md](13-filters-search.md) section 2); keyboard hints use `type-kbd` |
 | `type-metric` | 24 / 32 px | 600 | -0.02em | `foreground` | Metric strip values, tabular |
 | `type-metric-sm` | 18 / 24 px | 600 | -0.01em | `foreground` | Inspector key-value grid values, tabular |
-| `type-mono` | 13 / 20 px | 400 | 0 | inherits | Geist Mono values: URLs and domains in tables, IDs, code |
+| `type-mono` | 13 / 20 px | 400 | 0 | inherits | Geist Mono values: IDs, code, URLs outside tables. Inside a table the mono family (`font-mono`) is used at the table size (12 / 16) |
 | `type-kbd` | 11 / 16 px | 500 | 0 | inherits | Keyboard shortcut glyphs ("⌘K"), in Geist Sans |
 
 Two sizes on the reference screens fall between utilities and are mapped to one: the project name in the sidebar switcher (about 15 px on the screens) and the chart tooltip date (13 px on the screens) both use `type-subsection-title` (14 / 20 px, 600), which is within the 2 px tolerance and keeps the scale at 15 utilities ([reference/visual-spec.md](reference/visual-spec.md) section 6; [11-navigation.md](11-navigation.md) section 2, [15-data-visualization.md](15-data-visualization.md) section 10). Percentage labels inside 100% stacked bars are 12 px, white or `foreground` by contrast ([15-data-visualization.md](15-data-visualization.md) section 5.2).

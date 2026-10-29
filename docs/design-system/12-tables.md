@@ -1,7 +1,9 @@
 # 12. Tables
 
 Status: Accepted (design-system v2)
-Last updated: 2026-09-29
+Last updated: 2026-10-29
+
+**Owner decisions of 2026-10-29: one house style for every table.** Table body text is 12 / 16 px (`type-table`). Header labels are 12 / 16 px in capitals with 0.04em letter spacing, in the same tertiary color (`type-table-header`). Compact (32 px rows, `h-row-compact`) is the default density. Every column, header and cell, is left aligned, numeric types included; only the row-actions column (the "More" menu button) is right aligned. Numbers stay tabular (`num`). These rules replace the earlier 13 / 20 px text, sentence-case header labels, 40 px default rows and right-aligned numbers in sections 1, 3, 3.1, 4, 5, 6, 7 and 15; where an older line elsewhere in the design system disagrees, this section wins.
 Implementation: `components/app/data-table/` built on TanStack Table v9 (`@tanstack/react-table` 9.x, `useTable` API, client sorting). Row windowing is computed in `lib/tables/row-window.ts`, not with TanStack Virtual, which the React Compiler cannot compile (25-component-inventory.md, deviation 124). Versions verified 2026-09-29 in `research/09-frontend-stack.md`.
 
 Tables are the primary instrument of this product. There is exactly one table component for record lists, `DataTable`. Small read-only key-value tables (inside inspectors, chart data alternatives) use `SimpleTable` (section 15).
@@ -32,7 +34,7 @@ The whole table, toolbar to footer, sits inside one panel (1 px `border`, radius
 | Toolbar | 48 px, the panel title row height (32 px `h-control-sm` controls, 8 px vertical padding) | Table search (`SearchInput` `sm`), result count ("1,000 keywords"; on table pages the count lives here, not in the filter bar), sort summary when more than one sort key is set, density toggle, column chooser, export (the saved view menu sits in the page title row, section 11) | Page filters are not here; they live in the page header filter bar ([13-filters-search.md](13-filters-search.md)) |
 | Bulk bar | 48 px | Selection count, "Select all N matching", bulk actions, clear | Replaces the toolbar in place; never floats over rows |
 | Header | 40 px (`h-row-header`) | Column labels, sort state, header menus, resize handles | Sticky |
-| Rows | 40 px Default (`h-row`), 32 px Compact (`h-row-compact`). Embedded tables are always 32 px (section 3.1) | Cells | Virtualized above 100 rows |
+| Rows | 32 px Compact (`h-row-compact`), the default; 40 px Default (`h-row`) when the user chooses it. Embedded tables are always 32 px (section 3.1) | Cells | Virtualized above 100 rows |
 | Footer | 48 px (32 px controls, 8 px vertical padding) | `TableFooter`: visible count and freshness; in server mode also `Pagination` (section 12): range text ("Showing 1 to 200 of 12,480 keywords"), previous and next buttons and a page-size menu (100, 200, 500). No page numbers | Sticky at the bottom of the table region (section 12) |
 
 ## 2. Tables versus cards
@@ -55,7 +57,7 @@ Lists of keywords, prompts, citations, domains, pages, competitors, alerts, runs
 | Table background | `surface` |
 | Header background | `surface-subtle` |
 | Header height | 40 px (`h-row-header`) in record tables at both densities; embedded tables use a 32 px header (section 3.1) |
-| Header text | `type-label` (12 / 16 px, weight 400, `foreground-tertiary`); sorted column header text in `foreground` |
+| Header text | `type-table-header` (12 / 16 px, weight 400, UPPERCASE, letter spacing 0.04em, `foreground-tertiary`); sorted column header text in `foreground`. The source strings stay in sentence case; the capitals come from the style, so a screen never types them |
 | Header bottom border | 1 px `border` |
 | Header cell dividers | 1 px `border-subtle` vertical line between adjacent header cells, full header height. Not drawn before the first or after the last header cell |
 | Row divider | 1 px `border-subtle`, horizontal only |
@@ -70,19 +72,19 @@ Lists of keywords, prompts, citations, domains, pages, competitors, alerts, runs
 | Pinned columns | Same background as the row; when the body is scrolled horizontally, a 1 px `border` appears on the pinned edge (no shadow) |
 | Last row | No bottom divider when the table ends before the region does |
 | Cell padding | 12 px horizontal; first cell 12 px left (16 px when there is no checkbox column, matching the 16 px panel padding) |
-| Text | `type-table` (13 / 20 px). Table cells stay 13 px while body text elsewhere is 14 px |
-| URLs and domains | `type-mono` (13 / 20 px), single line, truncated with an ellipsis (`URLCell`, section 6) |
+| Text | `type-table` (12 / 16 px, weight 400; `type-table-strong` keeps weight 500 for a total or a strong cell). Table cells are 12 px while body text elsewhere is 14 px. A cell component inside a table declares no size of its own and inherits the table's; a secondary line in a cell uses `type-label` (12 / 16 px, tertiary) |
+| URLs and domains | Geist Mono (`font-mono`) at the table size (12 / 16 px), single line, truncated with an ellipsis (`URLCell`, section 6). `type-mono` (13 / 20 px) is not used inside tables |
 | Truncation | Single line, end ellipsis, full value in tooltip ([22-content-formatting.md](22-content-formatting.md) section 6) |
-| Numbers | `num` (tabular figures), right-aligned |
+| Numbers | `num` (tabular figures), left aligned like every other column (section 4) |
 | Empty cell | A cell is never empty for an unknown or not-applicable value: `n/a` in `foreground-tertiary` when a value is expected but missing, and the specific states of section 7.3 for unknown values ([17-empty-loading-error-states.md](17-empty-loading-error-states.md) section 1, rule 1) |
 
 ### 3.1 Density and embedded tables
 
 | Table | Row height | Notes |
 |---|---|---|
-| Record table (`DataTable`), Default density | 40 px `h-row` | The default for every page table |
-| Record table, Compact density | 32 px `h-row-compact` | The user's Compact setting, per table, stored in the saved view (section 11) |
-| Embedded table: a table that is one block inside a larger panel or inside an inspector (`SimpleTable`, inspector mini tables, detail page rail tables) | 32 px `h-row-compact`, always | No density toggle. Header labels are `type-label` (12 px). The own row is `surface-selected` with its text in `primary-text` (section 15) |
+| Record table (`DataTable`), Compact density | 32 px `h-row-compact` | The default for every page table (owner decision of 2026-10-29). Stored in the saved view only when it differs (section 11) |
+| Record table, Default density | 40 px `h-row` | The user's choice in the table toolbar or in Settings > Preferences, per table, stored in the saved view (section 11). A person who already chose a density keeps it |
+| Embedded table: a table that is one block inside a larger panel or inside an inspector (`SimpleTable`, inspector mini tables, detail page rail tables) | 32 px `h-row-compact`, always | No density toggle. Header labels are `type-table-header` (12 px, capitals). The own row is `surface-selected` with its text in `primary-text` (section 15) |
 
 The header row is 40 px in every case except embedded tables, whose header matches their 32 px rows. Density changes row height only; it never changes font size.
 
@@ -91,14 +93,14 @@ The header row is 40 px in every case except embedded tables, whose header match
 | Content | Horizontal | Header |
 |---|---|---|
 | Text, identity, URLs, badges, status | Left | Left |
-| Numbers, ranks, deltas, percentages, currency, counts | Right | Right |
-| Dates and times in "Updated" columns | Right (tabular figures) | Right |
+| Numbers, ranks, deltas, percentages, currency, counts | Left (tabular figures) | Left |
+| Dates and times in "Updated" columns | Left (tabular figures) | Left |
 | Sparklines | Left | Left |
 | Icon-only columns (feature icons, flags) | Left, fixed icon slots so icons align vertically across rows | Left |
 | Checkbox | Center within 40 px column | Center |
-| Actions | Right | none (no header text) |
+| Actions | Right (the only right-aligned column) | Right, no header text |
 
-A delta column sits immediately right of its value column; together they read "7 ↓1". Units are in the header ("Volume", "Cost (USD)") rather than repeated in every cell, except percentages.
+Left alignment is an owner decision of 2026-10-29: no column type is right aligned except the row actions, in the header and in the cells, and the column types in section 5 and in `lib/tables/column-types.ts` carry no right-alignment special case. A delta column sits immediately right of its value column; together they read "7 ↓1". Units are in the header ("Volume", "Cost (USD)") rather than repeated in every cell, except percentages.
 
 ## 5. Column specification
 
@@ -111,22 +113,22 @@ Every column declares its type through column meta. Types fix width, alignment, 
 | `prompt` | 360 / 240 / 640, flex | left | A to Z | `PromptCell` |
 | `domain` | 220 / 160 / 360 | left | A to Z | `DomainCell` |
 | `url` | 260 / 180 / 480 | left | A to Z | `URLCell` |
-| `rank` | 64 / 56 / 80 | right | best first (ascending) | `RankCell` |
-| `rankDelta` | 88 / 84 / 88 (the header "Change" with its sort arrow needs 84 px; the first draft was 56 / 48 / 72) | right | biggest improvement first | `RankDeltaCell` |
-| `count` | 88 / 72 / 120 | right | high to low | `NumberCell` |
-| `volume` | 88 / 72 / 120 | right | high to low | `NumberCell` |
-| `rate` | 80 / 72 / 120 | right | high to low | `MetricCell` |
-| `rateDelta` | 80 / 64 / 96 | right | largest detectable change | `DeltaCell` |
-| `currency` | 96 / 80 / 128 | right | high to low | `CostCell` |
-| `date` | 120 / 104 / 160 | right | newest first | `DateCell` |
+| `rank` | 64 / 56 / 80 | left | best first (ascending) | `RankCell` |
+| `rankDelta` | 88 / 84 / 88 (the header "Change" with its sort arrow needs 84 px; the first draft was 56 / 48 / 72) | left | biggest improvement first | `RankDeltaCell` |
+| `count` | 88 / 72 / 120 | left | high to low | `NumberCell` |
+| `volume` | 88 / 72 / 120 | left | high to low | `NumberCell` |
+| `rate` | 80 / 72 / 120 | left | high to low | `MetricCell` |
+| `rateDelta` | 80 / 64 / 96 | left | largest detectable change | `DeltaCell` |
+| `currency` | 96 / 80 / 128 | left | high to low | `CostCell` |
+| `date` | 120 / 104 / 160 | left | newest first | `DateCell` |
 | `sparkline` | 88 / 88 / 120 | left | not sortable | `SparklineCell` |
 | `badge` | 120 / 88 / 180 | left | A to Z | `Badge` |
-| `engineGroup` (3 to 4 engine sub-columns) | 72 each | right | per engine | `EngineMetricCell` |
+| `engineGroup` (3 to 4 engine sub-columns) | 72 each | left | per engine | `EngineMetricCell` |
 | `status` | 120 / 96 / 180 | left | severity first | `StatusCell` |
 | `features` | 140 / 112 / 220 | left | count | `SERPFeatureList` |
 | `aiOverview` | 112 / 96 / 140 | left | cited first | `AIOverviewStatus` |
 | `competitor` | 160 / 120 / 240 | left | best rank or rate | `CompetitorCell` |
-| `actions` | 40 / 40 / 40 | right | not sortable | row "More" menu |
+| `actions` | 40 / 40 / 40 | right (the only right-aligned type) | not sortable | row "More" menu |
 
 Identity columns (`keyword`, `prompt`, `domain`, `url`) take remaining width (flex) and are pinned left. At most one flex column per table.
 
@@ -140,13 +142,13 @@ All cells are components in `components/app/cells/`. Full props are in [25-compo
 |---|---|---|---|
 | `KeywordCell` | Keyword text in `foreground`; optional trailing 12 px icons for target-URL mismatch and cannibalization flag | Full keyword, location and device | Branded keywords get a neutral `Branded` micro badge only in prompt-linked views |
 | `PromptCell` | Prompt text single line; optional leading `PromptTypeBadge` hidden in compact mode | Full prompt text (max 320 px wide, wraps) | Core panel prompts show a 12 px lock icon when the panel is locked |
-| `RankCell` | Integer rank from `formatRankCell`, `num`, right-aligned; beyond depth renders the text `>20` in `foreground-tertiary` (not a chip); accessible text from `describeRank` ("not in top 20") | "Rank 3 · Sep 29, 02:14 · depth 20" and previous rank | `NotCollected`, stale badge |
+| `RankCell` | Integer rank from `formatRankCell`, `num`, left aligned; beyond depth renders the text `>20` in `foreground-tertiary` (not a chip); accessible text from `describeRank` ("not in top 20") | "Rank 3 · Sep 29, 02:14 · depth 20" and previous rank | `NotCollected`, stale badge |
 | `RankDeltaCell` | `↑5` / `↓3` / `0` / `New` / `Lost` from `formatRankChange`; tone per emphasis rule | "Improved 5 positions (from #8 to #3). Normal movement for this keyword: up to 2 positions" | Empty on first check |
 | `DeltaCell` | Signed value from `formatMetricDelta` (`+5.3 pts`) with tone | Previous value, interval, method; "Within normal variation" when not detectable | `n/a` when no comparison |
-| `MetricCell` | Rate `47.2%`; Default density (40 px rows) adds `612 of 1,296 obs` below in `type-label` (12 / 16 px, the only secondary style that fits under a 20 px value line in a 40 px row); Compact density and embedded tables show the rate only | `k of n`, interval, prompts, window, method link | `InsufficientData` (hatched, "Insufficient", section 7.3); `NotApplicable` ("No AIO") |
+| `MetricCell` | Rate `47.2%`; Default density (40 px rows, now the user's choice) adds `612 of 1,296 obs` below in `type-label` (12 / 16 px, the only secondary style that fits under a 16 px value line in a 40 px row); Compact density, the default, and embedded tables show the rate only | `k of n`, interval, prompts, window, method link | `InsufficientData` (hatched, "Insufficient", section 7.3); `NotApplicable` ("No AIO") |
 | `NumberCell` | Exact grouped integer (`12,400`) | Exact value when abbreviated elsewhere | `n/a` |
-| `DomainCell` | 16 px favicon (Citations, Sources, Competitors only), registrable domain in `type-mono` `foreground`, subdomain prefix in `foreground-tertiary`; role badge for own and competitor domains | Full host, category | Unresolved redirect flag |
-| `URLCell` | `type-mono` (13 / 20 px). Host (optional, hidden when the table is scoped to one domain) in `foreground-tertiary`, path in `foreground`, middle-truncated with an ellipsis; hover shows copy and open icons (24 px targets) | Full display URL; original URL on the copy action | `Not ranking` text when empty |
+| `DomainCell` | 16 px favicon (Citations, Sources, Competitors only), registrable domain in Geist Mono at the table size `foreground`, subdomain prefix in `foreground-tertiary`; role badge for own and competitor domains | Full host, category | Unresolved redirect flag |
+| `URLCell` | Geist Mono at the table size (12 / 16 px). Host (optional, hidden when the table is scoped to one domain) in `foreground-tertiary`, path in `foreground`, middle-truncated with an ellipsis; hover shows copy and open icons (24 px targets) | Full display URL; original URL on the copy action | `Not ranking` text when empty |
 | `SparklineCell` | 64 x 20 px canvas line in Default density, 64 x 16 px in Compact and embedded tables; 1.5 px gray (`chart-reference`) stroke, the own row in `primary` ([15-data-visualization.md](15-data-visualization.md) section 9); ranks drawn inverted; last point dot 3 px | Mini table of last 7 values and dates | Dashed flat baseline when no data |
 | `EngineCell` / `EngineMetricCell` | Per-engine value (rate or status) under a grouped header "ChatGPT · Gemini · AI Mode" | Engine class (consumer UI, SERP AI), n, interval | Engine not enabled: `n/a`; insufficient: hatched |
 | `EngineStatusGlyph` (inside `EngineCell` for prompt by engine status) | One glyph per engine, centered in a fixed slot: cited is a 10 px filled `primary` circle; mentioned but not cited is a 10 px circle with a 2 px `primary` ring (`border-2`); not mentioned is a 6 px `foreground-muted` dot. A legend with the same three glyphs and their labels sits in the page filter bar ([13-filters-search.md](13-filters-search.md)). Each glyph has an accessible name ("ChatGPT: cited", "Gemini: mentioned, not cited", "AI Mode: not mentioned"); the three shapes differ, so the state never depends on color alone | Engine, state, run time, cited URL when cited | Engine not enabled: `n/a`; not yet run: `Pending` |
@@ -168,7 +170,7 @@ Rules:
 ## 7. States
 
 ### 7.1 Loading
-- First load: real header plus 12 skeleton rows at the current density, with skeleton bars sized by column type (numbers short and right-aligned, identity long).
+- First load: real header plus 12 skeleton rows at the current density, with skeleton bars sized by column type (numbers short, identity long, all left aligned).
 - Refetch after filter or sort change: previous rows stay at full opacity (dimming would drop text contrast below 4.5:1) with `aria-busy="true"`, the static 2 px `RefetchBar` under the header ([17-empty-loading-error-states.md](17-empty-loading-error-states.md) section 3.4), and "Updating" with a 14 px spinner in the toolbar after 400 ms. No skeleton flash.
 - Pagination in server mode: the next page replaces rows with skeletons only if it takes longer than 300 ms.
 
@@ -262,7 +264,7 @@ Saved views make an analytical setup reproducible and shareable.
 | `filters` | `{ loc: 2840, dev: "desktop", topic: ["t_12"], rank: ["top3", "top10"] }` (URL keys and rank bucket ids from [13-filters-search.md](13-filters-search.md) section 5) |
 | `sort` | `["-volume", "rank"]` |
 | `columns` | visible ids in order, widths, pins |
-| `density` | `compact` (values `default` and `compact`) |
+| `density` | `compact` (values `default` and `compact`; `compact` is the default and is left out of the URL, `default` is written when chosen) |
 | `grouping` | `null` or a column id |
 | `search` | table search text (optional) |
 
@@ -308,7 +310,7 @@ Rows are not links (`<a>` wrapping a row breaks table semantics). Navigation is 
 
 ## 15. SimpleTable (read-only)
 
-For inspector key-value lists, chart data alternatives, and small reference tables: native `table` semantics without `role="grid"`, no selection, no virtualization, `type-table`, 32 px rows (`h-row-compact`, always; section 3.1), header labels in `type-label` (12 px, tertiary) on `surface-subtle`, label column `foreground-secondary` at 40% width, values `foreground`. In a ranked mini table (for example the top results in an inspector), the own row is `surface-selected` with its text in `primary-text`. Key-value lists with fewer than 8 items inside an inspector may use a description list (`dl`) styled identically.
+For inspector key-value lists, chart data alternatives, and small reference tables: native `table` semantics without `role="grid"`, no selection, no virtualization, `type-table` (12 / 16 px), 32 px rows (`h-row-compact`, always; section 3.1), header labels in `type-table-header` (12 px, capitals, tertiary) on `surface-subtle`, every column left aligned, label column `foreground-secondary` at 40% width, values `foreground`. In a ranked mini table (for example the top results in an inspector), the own row is `surface-selected` with its text in `primary-text`. Key-value lists with fewer than 8 items inside an inspector may use a description list (`dl`) styled identically.
 
 ## 16. Grouping and expandable rows
 

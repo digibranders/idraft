@@ -92,7 +92,8 @@ Geist Sans throughout. Geist Mono for URLs, domains in dense tables, and code.
 | Body, nav, controls | 14 / 20 | 400 | Sidebar labels, buttons, inputs, tabs | `type-body` |
 | Body strong | 14 / 20 | 500 | Active tab, active nav item, button labels, entity names in feeds | `type-body-strong` |
 | Answer text | 14 / 22 | 400 | Latest answer in the prompt inspector | `type-prose` |
-| Table cell | 13 / 20 | 400 | All table body text | `type-table` |
+| Table cell | 12 / 16 | 400 | All table body text (owner decision of 2026-10-29; the reference screens show 13 / 20) | `type-table` |
+| Table header | 12 / 16, capitals, 0.04em | 400, tertiary | Table column headers (owner decision of 2026-10-29) | `type-table-header` |
 | Meta | 13 / 20 | 400, tertiary | Meta line under titles, times, "6h ago", metric labels | `type-meta` |
 | Label | 12 / 16 | 400, tertiary | Table headers, key-value labels, legends, axis labels, group labels | `type-label` |
 | Badge | 12 / 16 | 500 | "Commercial", "cited", "Ranking" | `type-micro` |
@@ -153,7 +154,7 @@ The base font size of the application body is 14 px.
 | Neutral badge | `--neutral-subtle` fill, `--neutral-text` label, optional 1 px `--neutral-border` |
 | Positive badge | `--positive-subtle` fill, `--positive-text` label, optional check icon ("Cited", "Owned", "Cited · source 2 of 5") |
 | Metric strip | Section 4 |
-| Data table | Inside a panel. Header row in `--surface-subtle` with 12 px tertiary labels and faint vertical dividers. Rows divided by `--border-subtle`. Numbers right-aligned and tabular. URLs in mono, truncated with an ellipsis. Selected row in `--surface-selected` with the key text in `--primary-text` |
+| Data table | Inside a panel. Header row in `--surface-subtle` with 12 px tertiary labels in capitals and faint vertical dividers. Rows divided by `--border-subtle`, 32 px by default. Every column left aligned, numbers tabular (owner decisions of 2026-10-29; the reference screens right-align numbers). URLs in mono, truncated with an ellipsis. Selected row in `--surface-selected` with the key text in `--primary-text` |
 | Rank change | Arrow glyph and number ("↑ 3", "↓ 2") in positive or negative text; "0" in neutral |
 | Engine status glyph | Cited: 10 px filled cobalt circle. Mentioned: 10 px cobalt ring. Not mentioned: 6 px light gray dot. A legend with the same glyphs sits in the filter bar |
 | Engine presence square | 8 px square, radius 2: cobalt when present, `--border` gray when absent |

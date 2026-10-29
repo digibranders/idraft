@@ -1,7 +1,7 @@
 # 04. Spacing and Density
 
 Status: Accepted (design-system v2)
-Last updated: 2026-09-29
+Last updated: 2026-10-29 (table density default, owner decision)
 Implementation: Tailwind `--spacing: 0.25rem` and named size utilities in [`globals.css`](../../apps/web/src/styles/globals.css); size tokens in [`tokens.css`](../../apps/web/src/styles/tokens.css)
 
 ## 1. Spacing scale
@@ -61,8 +61,8 @@ Values follow [reference/visual-spec.md](reference/visual-spec.md) section 4.
 | Checkbox | 16 px box, radius 4, inside a 24 px hit area | `size-4` in a `size-6` target |
 | Radio | 16 px circle (the same size as the checkbox), inside a 24 px hit area | `size-4` in a `size-6` target |
 | Switch | 36 x 20 px track, 24 px hit area | component |
-| Table row, default | **40 px** | `h-row` (`--size-row`) |
-| Table row, compact (Compact density setting; tables embedded in panels and inspectors) | **32 px** | `h-row-compact` (`--size-row-compact`) |
+| Table row, compact (the default density since 2026-10-29; tables embedded in panels and inspectors) | **32 px** | `h-row-compact` (`--size-row-compact`) |
+| Table row, default density (the user's choice) | **40 px** | `h-row` (`--size-row`) |
 | Table header row | 40 px | `h-row-header` (`--size-row-header`) |
 | Table toolbar (and the bulk bar that replaces it) | 48 px, the panel title row height (32 px controls, 8 px vertical padding) | component ([12-tables.md](12-tables.md) section 1) |
 | Table footer (`TableFooter`, holds pagination in server mode) | 48 px: the range text and 32 px pagination buttons | component ([12-tables.md](12-tables.md) section 1) |
@@ -90,15 +90,15 @@ Minimum target size is 24 by 24 px (WCAG 2.5.8). Icon buttons inside 32 px rows 
 
 ## 3. Density modes
 
-Two modes exist for full-page tables and lists. Controls, typography and spacing outside tables do not change with density. Tables embedded in panels and inspectors (mini tables) always use 32 px rows and do not follow the setting.
+Two modes exist for full-page tables and lists. **Compact is the default** (owner decision of 2026-10-29): every table opens at 32 px rows. Default (40 px) stays available through the density control and the Preferences setting, and a person who already chose a density keeps it. Controls, typography and spacing outside tables do not change with density. Tables embedded in panels and inspectors (mini tables) always use 32 px rows and do not follow the setting.
 
-| Property | Default | Compact |
+| Property | Default (40 px, a choice) | Compact (the default) |
 |---|---|---|
 | Row height | 40 px (`h-row`) | 32 px (`h-row-compact`) |
 | Header row | 40 px | 40 px |
 | Cell horizontal padding | 12 px | 12 px |
-| Cell vertical padding | 10 px (derived from row height and 20 px line height) | 6 px |
-| Font | `type-table` 13 / 20 | `type-table` 13 / 20 |
+| Cell vertical padding | 12 px (derived from row height and the 16 px line height) | 8 px |
+| Font | `type-table` 12 / 16 | `type-table` 12 / 16 |
 | Secondary line in a cell | shown when the column defines one ([12-tables.md](12-tables.md) section 6) | not shown (moves to tooltip or inspector) |
 | Sparkline height | 20 px | 16 px |
 | Rows visible in a 900 px tall viewport (T2 with a metric strip, no tabs) | 11 | 14 |
@@ -107,14 +107,15 @@ Rows visible: 900 px minus 424 px of chrome (top bar 52, header offset 20, title
 
 Rules:
 - The density toggle lives in the table toolbar (a two-option segmented control with icons and labels "Default" and "Compact") and persists per user per table in the saved-view state ([12-tables.md](12-tables.md) section 11).
-- Density changes row height only. It never changes font size.
-- Tables whose rows need two lines of content (for example the discovery inbox with evidence) are designed for Default density; in Compact their second line moves to the tooltip or inspector.
+- Density changes row height only. It never changes font size: table text is 12 / 16 px in both modes.
+- The saved view writes `compact` nowhere (it is the default) and writes `default` when a person picks it; the Preferences density control starts on Compact.
+- Tables whose rows need two lines of content (for example the discovery inbox with evidence) offer Default density as the roomier choice; in Compact, the default, their second line moves to the tooltip or inspector.
 
 ## 4. Density without clutter
 
 The techniques that create density in this system, in order of preference:
 
-1. **Alignment** on a shared left edge and right-aligned numeric columns.
+1. **Alignment** on a shared left edge, numeric columns included (owner decision of 2026-10-29; only the row actions sit at the right edge).
 2. **Typographic hierarchy** (color step and weight) instead of boxes.
 3. **Grouping by whitespace or a single divider**, not a border around each group.
 4. **Progressive disclosure**: tooltip, inspector, full page ([23-application-patterns.md](23-application-patterns.md) section 1).

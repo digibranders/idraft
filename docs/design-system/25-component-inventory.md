@@ -2548,7 +2548,7 @@ interface DataTableProps<TRow> {
 }
 ```
 
-- **Variants:** `density` (Default 40 px `h-row`, Compact 32 px `h-row-compact`). No other visual variants. The table sits inside a panel (1 px `border`, radius 8). Header row 40 px (`h-row-header`) on `surface-subtle`, labels `type-label` (12 px tertiary, weight 400), 1 px `border-subtle` vertical dividers between header cells only; body rows `type-table` (13/20) with `border-subtle` horizontal dividers only; numbers right-aligned `num`; URLs `type-mono` (13/20) truncated with an ellipsis.
+- **Variants:** `density` (Compact 32 px `h-row-compact`, the default since 2026-10-29; Default 40 px `h-row`). No other visual variants. The table sits inside a panel (1 px `border`, radius 8). Header row 40 px (`h-row-header`) on `surface-subtle`, labels `type-table-header` (12 / 16 px, capitals, 0.04em, tertiary, weight 400), 1 px `border-subtle` vertical dividers between header cells only; body rows `type-table` (12/16) with `border-subtle` horizontal dividers only; every column, numbers included, left aligned with `num`, except the row-actions column, which is right aligned; URLs in the mono family at the table size, truncated with an ellipsis.
 - **States:** loading (real header, 12 skeleton rows), ready, refetching (previous rows at full opacity, `aria-busy`, `RefetchBar` under the header, "Updating" after 400 ms), partial load ("Loading 1,200 of 4,812 rows", client sort and export disabled with that reason), empty, filtered empty (header stays), error (`TableErrorRow`), row hover, selected (`surface-selected`, key text in `primary-text`), active (inset 2 px `primary` edge), focused cell, group rows, expanded children, new rows, below 768 px the `DataTableList`.
 - **A11y:** native table with explicit roles, `role="grid"` (`treegrid` when grouped); one roving tab stop; keyboard map 20 §6.3 (Enter opens, Space selects, Shift+Space ranges, Ctrl or Cmd+A, Shift+F10 row menu, Enter or F2 widget mode, Escape never clears selection); `aria-rowcount` includes header rows, `aria-rowindex` on every rendered row, focused row always rendered; `aria-sort` on the primary sort `th`; sort summary text for multi-sort; identity cell is `th role="rowheader"`; hint paragraph describes keys.
 - **Use:** any list users compare, sort, filter or act on in bulk; more than 6 records of one type.
@@ -2714,7 +2714,7 @@ interface SimpleTableProps<TRow> {
 }
 ```
 
-- **Variants:** none (32 px rows and header, `h-row-compact`, always; `type-table`; header labels `type-label` (12 px tertiary) on `surface-subtle`; in a ranked mini table the own row is `surface-selected` with its text in `primary-text`). **States:** rows, empty (one sentence row), scrolls horizontally inside panels when wide.
+- **Variants:** none (32 px rows and header, `h-row-compact`, always; `type-table` (12 / 16 px); header labels `type-table-header` (12 px, capitals, tertiary) on `surface-subtle`; every column left aligned; in a ranked mini table the own row is `surface-selected` with its text in `primary-text`). **States:** rows, empty (one sentence row), scrolls horizontally inside panels when wide.
 - **A11y:** native `table`, `th scope="col"` and `scope="row"`; no roving focus; inner links are Tab stops. **Use:** fewer than 50 rows, no selection, at most one link per row. **Not for:** anything sortable, selectable or large (`DataTable`).
 
 ### 7.12 KeyValueTable
@@ -4344,7 +4344,7 @@ interface QuoteBoxProps {
 }
 ```
 
-- **Variants:** none. `surface-subtle` fill, 1 px `border-subtle`, `rounded-md` (6 px), 12 px padding (`p-3`), text in `type-table` (13 px) inside typographic quotes; source line in `type-meta` below.
+- **Variants:** none. `surface-subtle` fill, 1 px `border-subtle`, `rounded-md` (6 px), 12 px padding (`p-3`), text at 13 / 20 px (the former `type-table` size; `type-table` is 12 / 16 since 2026-10-29 and is for tables only) inside typographic quotes; source line in `type-meta` below.
 - **States:** default; long text wraps (no clamp inside the inspector section).
 - **A11y:** `blockquote` with the source as `cite` text; `lang` on the quote; untrusted content rules of 23 §5.6 apply (React text only).
 - **Use:** the sentence that mentions the brand, the citation context, a short answer excerpt in prompt, citation and answer inspectors.

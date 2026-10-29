@@ -10,7 +10,7 @@ Implementation: [`apps/web/src/styles/tokens.css`](../../apps/web/src/styles/tok
 | Foundation | Decision | Document |
 |---|---|---|
 | Color | Neutral-first OKLCH tokens, one vivid cobalt accent, four semantic families, separate chart palette | [02](02-color-system.md) |
-| Typography | Geist Sans (UI), Geist Mono (technical values), 14 px base (table cells 13 px), 15 composite type utilities, tabular numbers for all figures | [03](03-typography.md) |
+| Typography | Geist Sans (UI), Geist Mono (technical values), 14 px base (table cells 12 px), composite type utilities, tabular numbers for all figures | [03](03-typography.md) |
 | Spacing | 4 px base; 12 allowed steps | [04](04-spacing-density.md) |
 | Density | Default (40 px rows) and Compact (32 px rows); 36 px controls; embedded tables always 32 px | [04](04-spacing-density.md) |
 | Layout | Sidebar 208 px (56 px collapsed), top bar 52 px, 20 px gutters, 16 px between page blocks, full-width analytics | [05](05-layout-grid.md) |
