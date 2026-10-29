@@ -30,7 +30,7 @@ for spec in "${projects[@]}"; do
   write_test_env "$test_dir/$name.env" "$test_dir/$name-redis" "$http" "$https" "$edge" "$backend"
   echo "=== Deploying project $name on port $https ==="
   COMPOSE_PROJECT_NAME="$name" IDRAFT_RELEASES_DIR="$test_dir/$name-releases" IDRAFT_LOCK_FILE="$test_dir/$name.lock" \
-    "$deploy_sh" "$test_dir/$name.env" "$test_dir/v1.json"
+    IDRAFT_REDIS_ACL_DIR="$test_dir/$name-redis" "$deploy_sh" "$test_dir/$name.env" "$test_dir/v1.json"
 done
 
 echo "=== Both stacks up: each serves on its own port ==="

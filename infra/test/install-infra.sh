@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs the real infra/host/idraft-install-infra as root in an Ubuntu 24.04 container (the production
-# OS), on a copy of this infra/ tree staged the way CI stages it, and checks what lands in /srv/idraft/infra
-# (the checks are infra/test/install-infra-checks.sh). Needs Docker, and network access the first time
-# to build a small image with rsync.
+# OS), on a copy of this infra/ tree staged the way CI stages it, and checks what lands in /srv/idraft/infra;
+# then runs the real idraft-install-env on good and hostile env files (the checks are
+# infra/test/install-infra-checks.sh). Needs Docker, and network access the first time to build a small
+# image with rsync.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

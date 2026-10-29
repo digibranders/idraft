@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Refuses a platform env file that would let it choose what runs as root on the host.
+# Used by idraft-install-env before it stages a file, and by deploy.sh before every deploy. Installed by
+# bootstrap.sh as /usr/local/sbin/idraft-check-env. Prints why on refusal, never a value.
+#
+# Usage: idraft-check-env <env-file> [<redis-acl-dir>] [<allow-tags>]
+#   <redis-acl-dir>  the only accepted REDIS_ACL_DIR; default /etc/idraft/redis (tests pass their own)
+#   <allow-tags>     1 also accepts name:tag for the allowed third-party images; default 0 (tests only)
+#
+# Compose runs as root and interpolates this file into the Compose file, so a value is a privilege:
+# an image variable picks a container that runs as root, and a host path is bind-mounted into one.
+# The rules, derived from every ${...} in compose/docker-compose.yml:
+#   * CADDY_IMAGE, POSTGRES_IMAGE, REDIS_IMAGE: absent (Compose uses the official default) or the
+#     official image pinned by digest, caddy[:tag]@sha256:<64 hex> and so on.
+#   * API_IMAGE, WORKER_IMAGE, WEB_IMAGE: ignored. deploy.sh exports the validated release digests,
+#     which take precedence over the env file.
+#   * Any other *_IMAGE: refused, the Compose file uses none.
+#   * REDIS_ACL_DIR, the only host path the Compose file takes from the env: exactly <redis-acl-dir>.
+#   * COMPOSE_* and DOCKER_*: refused, they would change which files Compose reads or which daemon it uses.
+#   * The format deploy.sh relies on: KEY=value lines only, no quotes, no inline comment, no '$'.
+set -euo pipefail
+
+file="${1:?usage: idraft-check-env <env-file> [<redis-acl-dir>] [<allow-tags>]}"
+acl_dir="${2:-/etc/idraft/redis}"
+allow_tags="${3:-0}"
+
+refuse() {
+  echo "Refusing the environment file: $*" >&2
+  exit 1
+}
+
+# check_image <key> <value> <repository>
+check_image() {
+  [[ "$2" =~ ^$3(:[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}$ ]] && return 0
+  if [ "$allow_tags" = 1 ] && [[ "$2" =~ ^$3:[A-Za-z0-9._-]+$ ]]; then
+    return 0
+  fi
+  refuse "$1 must be the official $3 image pinned by digest: $3[:tag]@sha256:<64 hex>."
+}
+
+[ -f "$file" ] || refuse "$file does not exist."
+n=0
+while IFS= read -r line || [ -n "$line" ]; do
+  n=$((n + 1))
+  [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+  # Anything Compose might read differently (export, spaces around =) is refused, not guessed at.
+  [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || refuse "line $n is not KEY=value (no spaces, no export)."
+  key="${line%%=*}"
+  value="${line#*=}"
+  case "$value" in
+    \"* | \'*) refuse "$key has a quoted value. Write values without quotes (see infra/compose/.env.example)." ;;
+    *" #"*) refuse "$key has an inline comment. Put comments on their own line." ;;
+    # Compose interpolates $, but deploy.sh hashes the raw Redis passwords: they would differ.
+    *'$'*) refuse "$key has a value containing '\$'. Use alphanumeric or URL-safe secrets (openssl rand -hex 24)." ;;
+  esac
+  case "$key" in
+    COMPOSE_* | DOCKER_*) refuse "$key may not be set here: it changes how Compose or Docker runs." ;;
+    API_IMAGE | WORKER_IMAGE | WEB_IMAGE) ;;
+    CADDY_IMAGE) check_image "$key" "$value" caddy ;;
+    POSTGRES_IMAGE) check_image "$key" "$value" postgres ;;
+    REDIS_IMAGE) check_image "$key" "$value" redis ;;
+    *_IMAGE) refuse "$key is not an image the Compose file uses." ;;
+    REDIS_ACL_DIR)
+      [ "$value" = "$acl_dir" ] || refuse "REDIS_ACL_DIR must be $acl_dir: it is bind-mounted into the Redis container."
+      ;;
+  esac
+done < "$file"

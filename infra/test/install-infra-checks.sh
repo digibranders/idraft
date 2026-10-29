@@ -93,3 +93,34 @@ if /src/host/idraft-install-infra 2> /tmp/refusal; then
 fi
 grep -q "must belong to the deploy user" /tmp/refusal || fail "the refusal does not say why: $(cat /tmp/refusal)"
 echo "install-infra checks passed"
+
+# idraft-install-env stages only an env that cannot choose what runs as root.
+mkdir -p /etc/idraft
+chmod 0700 /etc/idraft
+good=/src/compose/.env.example
+/src/host/idraft-install-env < "$good" > /dev/null || fail "the example env was refused"
+cmp -s "$good" /etc/idraft/.env.next || fail "the staged env differs from the input"
+[ "$(stat -c '%a %U' /etc/idraft/.env.next)" = "600 root" ] || fail ".env.next is $(stat -c '%a %U' /etc/idraft/.env.next), not 600 root"
+
+# refused <case> <expected message> <sed expression applied to the example env>
+refused() {
+  rm -f /etc/idraft/.env.next
+  sed "$3" "$good" > /tmp/bad.env
+  if /src/host/idraft-install-env < /tmp/bad.env 2> /tmp/refusal; then
+    fail "$1 was accepted"
+  fi
+  grep -q "$2" /tmp/refusal || fail "$1: the refusal does not say why: $(cat /tmp/refusal)"
+  [ ! -e /etc/idraft/.env.next ] || fail "$1 was staged"
+  [ -z "$(find /etc/idraft -name '.env.next.*')" ] || fail "$1 left a temporary file"
+}
+digest=sha256:4764ce37931aac77c0d033680b339b19b4a4a81772204d268947cb851212d0ac
+refused "a foreign Caddy image" "CADDY_IMAGE must be" "s|^CADDY_IMAGE=.*|CADDY_IMAGE=ghcr.io/attacker/caddy@$digest|"
+refused "an unpinned Postgres image" "POSTGRES_IMAGE must be" "s|^POSTGRES_IMAGE=.*|POSTGRES_IMAGE=postgres:18|"
+refused "a Redis image of another repository" "REDIS_IMAGE must be" "s|^REDIS_IMAGE=.*|REDIS_IMAGE=redis-evil@$digest|"
+refused "an image variable Compose does not use" "is not an image" "\$a EXTRA_IMAGE=busybox@$digest"
+refused "the Redis ACL dir set to /" "REDIS_ACL_DIR must be /etc/idraft/redis" "s|^REDIS_ACL_DIR=.*|REDIS_ACL_DIR=/|"
+refused "the Redis ACL dir behind export" "not KEY=value" "s|^REDIS_ACL_DIR=.*|export REDIS_ACL_DIR=/|"
+refused "the Redis ACL dir with spaces around =" "not KEY=value" "s|^REDIS_ACL_DIR=.*|REDIS_ACL_DIR = /|"
+refused "a Compose setting" "COMPOSE_FILE may not be set" "\$a COMPOSE_FILE=/tmp/evil.yml"
+refused "a quoted value" "quoted value" "s|^DOMAIN=.*|DOMAIN=\"app.idraft.ai\"|"
+echo "install-env checks passed"

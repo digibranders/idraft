@@ -16,6 +16,7 @@
 #   IDRAFT_ALLOW_TAGS    1 accepts name:tag images default 0 (digest references only)
 #   IDRAFT_ACL_OWNER     owner of users.acl        default 999:999 (the redis image user); empty skips chown
 #   IDRAFT_ACL_MODE      mode of users.acl         default 0600
+#   IDRAFT_REDIS_ACL_DIR the only REDIS_ACL_DIR    default /etc/idraft/redis (see host/idraft-check-env)
 # COMPOSE_PROJECT_NAME is honoured by Compose, which is how tests keep to their own project.
 set -euo pipefail
 
@@ -26,6 +27,8 @@ lock_file="${IDRAFT_LOCK_FILE:-/run/idraft-deploy.lock}"
 allow_tags="${IDRAFT_ALLOW_TAGS:-0}"
 acl_owner="${IDRAFT_ACL_OWNER-999:999}"
 acl_mode="${IDRAFT_ACL_MODE:-0600}"
+# Empty means the checker's own default, so the production path is written in one place.
+expected_acl_dir="${IDRAFT_REDIS_ACL_DIR:-}"
 
 # idraft-ghcr-login stores the registry login here, and sudo does not promise a HOME.
 if [ "$(id -u)" -eq 0 ]; then
@@ -69,18 +72,11 @@ env_get() {
   printf '%s' "${line#*=}"
 }
 
+# The same rules idraft-install-env applies (format, image allowlist, fixed host paths), so an env that
+# reached /etc/idraft some other way, or before that check existed, cannot pick what runs as root either.
 check_env_file() {
   [ -f "$env_file" ] || die "Environment file not found: $env_file"
-  if grep -nE "^[A-Za-z_][A-Za-z0-9_]*=[\"']" "$env_file" >/dev/null; then
-    die "$env_file has a quoted value. Write values without quotes (see infra/compose/.env.example)."
-  fi
-  if grep -nE "^[A-Za-z_][A-Za-z0-9_]*=.* #" "$env_file" >/dev/null; then
-    die "$env_file has an inline comment. Put comments on their own line."
-  fi
-  # Compose interpolates $ in an env file, but the ACL hashes below use the raw value: they would differ.
-  if grep -nE '^[A-Za-z_][A-Za-z0-9_]*=.*\$' "$env_file" >/dev/null; then
-    die "$env_file has a value containing '\$'. Use alphanumeric or URL-safe secrets (openssl rand -hex 24)."
-  fi
+  bash "$here/host/idraft-check-env" "$env_file" "$expected_acl_dir" "$allow_tags" || die "$env_file was refused; nothing was changed."
 }
 
 # copy_private <src> <dst>: an atomic 0600 copy, for env files.
@@ -383,8 +379,8 @@ else
   env_file="$live_env"
   echo "No staged environment; deploying with $live_env."
 fi
-check_env_file
 read_release "$2"
+check_env_file
 
 echo "Starting deployment of release $release_sha:"
 echo "  API:    $api_image"

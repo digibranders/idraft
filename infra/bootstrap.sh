@@ -37,7 +37,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-for helper in idraft-install-env idraft-install-infra idraft-ghcr-login; do
+for helper in idraft-install-env idraft-check-env idraft-install-infra idraft-ghcr-login; do
   [ -f "$here/host/$helper" ] || die "$here/host/$helper is missing; run this from a copy of the whole infra/ directory."
 done
 
@@ -99,6 +99,8 @@ ensure_dir 0700 deploy deploy /srv/idraft/incoming
 ensure_dir 0700 root root /etc/idraft
 ensure_dir 0711 root root /etc/idraft/redis
 install -m 0755 -o root -g root "$here/host/idraft-install-env" /usr/local/sbin/idraft-install-env
+# Called by idraft-install-env from its own directory; not in sudoers, it needs no root.
+install -m 0755 -o root -g root "$here/host/idraft-check-env" /usr/local/sbin/idraft-check-env
 install -m 0755 -o root -g root "$here/host/idraft-install-infra" /usr/local/sbin/idraft-install-infra
 install -m 0755 -o root -g root "$here/host/idraft-ghcr-login" /usr/local/sbin/idraft-ghcr-login
 
