@@ -7,7 +7,7 @@
 import { DAY, DEPTHS, DEVICES, INTENTS, LANGUAGES, LOCATIONS, PAGE_SIZE, SOURCES, STAGES, allTags, groupList, labelOf } from './kw-data.js';
 
 /** Rank carries the change since the previous check; the ranking URL is the arrow beside the keyword, and its column is opt-in. */
-export const DEFAULT_COLUMNS = ['rank', 'volume', 'kd', 'cpc', 'intent', 'priority', 'group', 'tags', 'updated', 'added'];
+export const DEFAULT_COLUMNS = ['rank', 'volume', 'kd', 'cpc', 'intent', 'group', 'tags', 'updated', 'added'];
 /** Columns the chooser offers (the keyword column is always shown and pinned). */
 export const COLUMNS = [
   ['rank', 'Rank', 'rank'],
