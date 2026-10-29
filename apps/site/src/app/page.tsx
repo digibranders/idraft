@@ -3,43 +3,24 @@ import { Compare } from '@/components/compare';
 import { CtaBand } from '@/components/cta-band';
 import { Engines } from '@/components/engines';
 import { Faq } from '@/components/faq';
+import { Journey } from '@/components/journey';
 import { HomeHero } from '@/components/home-hero';
 import { HorizontalEngines } from '@/components/horizontal-engines';
-import { Reveal } from '@/components/reveal';
 import { FeaturesTeaser } from '@/components/features-teaser';
 import { Roles } from '@/components/roles';
-import { TextReveal } from '@/components/text-reveal';
 
 export default function Home() {
   return (
     <>
-      <div data-rail="Start">
-        <HomeHero />
-      </div>
+      <HomeHero />
       <Engines />
-      <section data-rail="Why" className="mx-auto max-w-[1320px] px-5 py-28 md:px-8 lg:py-44">
-        <Reveal>
-          <TextReveal text="Search is no longer ten blue links. People now get answers from AI, and those answers name brands. idraft shows where you rank and where you are named, together, with the evidence behind each number." />
-        </Reveal>
-      </section>
-      <div data-rail="Engines">
-        <HorizontalEngines />
-      </div>
-      <div data-rail="Features">
-        <Bento />
-      </div>
-      <div data-rail="Compare">
-        <Compare />
-      </div>
-      <div data-rail="And more">
-        <FeaturesTeaser />
-      </div>
-      <div data-rail="Roles">
-        <Roles />
-      </div>
-      <div data-rail="Questions">
-        <Faq />
-      </div>
+      <Journey />
+      <HorizontalEngines />
+      <Bento />
+      <Compare />
+      <FeaturesTeaser />
+      <Roles />
+      <Faq />
       <CtaBand title="See your rank and your answer together." body="We are onboarding teams by invitation. Tell us what you track and we will reply with next steps." />
     </>
   );
