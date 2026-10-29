@@ -150,9 +150,9 @@ test.describe('rankings', () => {
     page,
   }) => {
     await signIn(page, EDITOR);
-    const RANK = ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)'];
+    const RANK = ['Rank', 'Change', 'Ranking URL', 'Volume', 'KD', 'CPC (USD)', 'AI Overview'];
     for (const [width, columns, room, updated] of [
-      [1280, RANK, 320, false],
+      [1280, RANK, 280, false],
       [1440, [...RANK, 'Intent', 'SERP features', 'Priority', 'Group'], 200, false],
       // Every column of the set shows: the Keyword column is at its 200 px minimum, and the others give up width
       [1680, [...RANK, 'Intent', 'SERP features', 'Priority', 'Group', 'Tags', 'Updated', 'Added'], 200, true],
@@ -530,9 +530,9 @@ test.describe('rankings', () => {
     expect(waiting).toBeGreaterThanOrEqual(5);
 
     // The 2 minutes pass: the next poll brings the metrics, and the row stops waiting for them. Its first
-    // rank check comes a minute later, so the rank, ranking URL and SERP features still say Pending
+    // rank check comes a minute later, so the rank, ranking URL, SERP features and AI Overview still say Pending
     await page.clock.runFor(150_000);
-    await expect(row.getByText('Pending')).toHaveCount(3);
+    await expect(row.getByText('Pending')).toHaveCount(4);
     await expect(row.getByRole('gridcell').filter({ hasText: /^\d[\d,]*$/ })).not.toHaveCount(0);
 
     // The first check has run: the poll that follows fills the rank in, with no reload

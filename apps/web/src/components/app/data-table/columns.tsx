@@ -285,6 +285,15 @@ export const col = {
     return rich(id, 'features', sortValue, options);
   },
 
+  /** AI Overview: status and citation, left aligned (12-tables.md section 6, `AIOverviewStatus`). */
+  aiOverview<TRow>(
+    id: string,
+    sortValue: (row: TRow) => number | string | null,
+    options: RichOptions<TRow>,
+  ): DataTableColumn<TRow> {
+    return rich(id, 'aiOverview', sortValue, options);
+  },
+
   /** A neutral badge, such as an intent. */
   badge<TRow>(
     id: string,
@@ -323,7 +332,7 @@ interface RichOptions<TRow> extends Options {
 
 function rich<TRow>(
   id: string,
-  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features'>,
+  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features' | 'aiOverview'>,
   sortValue: (row: TRow) => string | number | null,
   options: RichOptions<TRow>,
 ): DataTableColumn<TRow> {

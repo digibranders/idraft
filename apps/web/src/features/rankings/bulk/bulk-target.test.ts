@@ -49,6 +49,10 @@ describe('bulk targets', () => {
         featown: { kind: 'enum', values: ['featured_snippet'] },
       }),
     ).toEqual({ is_active: true, feature_present: 'video', feature_owned: 'featured_snippet' });
+    expect(chosen({ aio: { kind: 'enum', values: ['present_cited', 'absent'] } })).toEqual({
+      is_active: true,
+      aio_state: ['present_cited', 'absent'],
+    });
   });
 
   it('sends the search as the API takes it: printable and at most 200 characters, and none when nothing is left', () => {

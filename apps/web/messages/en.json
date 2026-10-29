@@ -2288,6 +2288,33 @@
         "sitelinks": "Sitelinks"
       }
     },
+    "aio": {
+      "column": "AI Overview",
+      "columnTooltip": "Whether Google showed an AI Overview at the latest check, and whether it cites your site.",
+      "cited": "Cited #{position}",
+      "citedNoPosition": "Cited",
+      "citedTooltip": "Cited at position {position}",
+      "absent": "No AIO",
+      "notLoaded": "Not loaded",
+      "notLoadedTooltip": "The AI Overview did not load at the latest check.",
+      "unknown": "n/a",
+      "unknownTooltip": "The latest check did not record the AI Overview.",
+      "pending": "Pending",
+      "pendingTooltip": "The first check has not run yet.",
+      "speech": {
+        "cited": "AI Overview present, cited at position {position}",
+        "citedNoPosition": "AI Overview present, cited",
+        "notCited": "AI Overview present, not cited",
+        "absent": "Not applicable, no AI Overview"
+      },
+      "states": {
+        "presentCited": "Cited",
+        "presentNotCited": "Present, not cited",
+        "absent": "No AI Overview",
+        "notLoaded": "Not loaded",
+        "unknown": "Unknown"
+      }
+    },
     "filters": {
       "group": "Group",
       "tag": "Tags",
@@ -2347,6 +2374,7 @@
       },
       "feature": "SERP feature",
       "featureOwned": "SERP feature you own",
+      "aio": "AI Overview",
       "stale": "Freshness",
       "staleStates": {
         "stale": "Stale"

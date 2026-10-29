@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHANGE_CHOICES, RANK_CHOICES, STALE_CHOICES, rankFilterParams } from './rank-filters';
+import { AIO_CHOICES, CHANGE_CHOICES, RANK_CHOICES, STALE_CHOICES, rankFilterParams } from './rank-filters';
 import type { FilterValues } from '@/components/app/filters/types';
 
 const one = (id: string, value: string): FilterValues => ({ [id]: { kind: 'enum', values: [value] } });
@@ -43,6 +43,13 @@ describe('rankFilterParams', () => {
     expect(rankFilterParams(one('featown', 'related_searches'))).toEqual({});
   });
 
+  it('maps the AI Overview chip to a list of states, keeping only known ones', () => {
+    expect(rankFilterParams({ aio: { kind: 'enum', values: ['present_cited', 'absent'] } })).toEqual({
+      'filter[aio_state]': ['present_cited', 'absent'],
+    });
+    expect(rankFilterParams({ aio: { kind: 'enum', values: ['sometimes'] } })).toEqual({});
+  });
+
   it('maps stale to the API flag', () => {
     expect(rankFilterParams(one('stale', 'stale'))).toEqual({ 'filter[is_stale]': true });
   });
@@ -77,5 +84,6 @@ describe('rankFilterParams', () => {
     expect(RANK_CHOICES).toEqual(['top3', 'top10', 'top20', 'top50', 'top100', 'beyond']);
     expect(CHANGE_CHOICES).toEqual(['improved', 'declined', 'entered', 'lost']);
     expect(STALE_CHOICES).toEqual(['stale']);
+    expect(AIO_CHOICES).toEqual(['present_cited', 'present_not_cited', 'absent', 'not_loaded', 'unknown']);
   });
 });

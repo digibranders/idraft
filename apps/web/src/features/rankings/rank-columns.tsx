@@ -4,11 +4,11 @@ import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { BestRankView, RankChangeView, RankCellView, RankingUrlView, StaleMarker, useRankTips } from './rank-cells';
-import { SerpFeatureListView } from './feature-cells';
+import { SerpFeatureListView, AioStatusView } from './feature-cells';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import type { TrackedKeywordRow } from '@/lib/api/types';
-import { rankDisplay, rowChangeDisplay, urlDisplay } from '@/lib/format';
+import { aioDisplay, rankDisplay, rowChangeDisplay, urlDisplay } from '@/lib/format';
 import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
 
 /** The ids of the rank columns: the API's sort fields, except the ranking URL, which does not sort. */
@@ -19,6 +19,7 @@ export const RANK_COLUMN_IDS = {
   best: 'best_rank',
   updated: 'last_observed_at',
   features: 'serp_features',
+  aio: 'aio',
 } as const;
 
 export interface RankColumns {
@@ -28,6 +29,7 @@ export interface RankColumns {
   best: DataTableColumn<TrackedKeywordRow>;
   updated: DataTableColumn<TrackedKeywordRow>;
   features: DataTableColumn<TrackedKeywordRow>;
+  aio: DataTableColumn<TrackedKeywordRow>;
 }
 
 /**
@@ -40,11 +42,30 @@ export function useRankColumns(timeZone: string): RankColumns {
   const t = useTranslations('rankings.rank');
   const common = useTranslations('common');
   const features = useTranslations('rankings.features');
+  const aioT = useTranslations('rankings.aio');
   const tips = useRankTips(timeZone);
   return useMemo((): RankColumns => {
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
     const display = (row: TrackedKeywordRow): ReturnType<typeof rankDisplay> =>
       rankDisplay(row.state.current, row.state.is_stale, row.state.consecutive_failures);
+    const aioTip = (row: TrackedKeywordRow): CellTip | undefined => {
+      const disp = aioDisplay(row.state.aio, row.state.current.state);
+      switch (disp.kind) {
+        case 'notLoaded':
+          return { content: aioT('notLoadedTooltip') };
+        case 'unknown':
+          return { content: aioT('unknownTooltip') };
+        case 'pending':
+          return { content: aioT('pendingTooltip') };
+        case 'cited':
+          return disp.position !== null
+            ? { content: aioT('citedTooltip', { position: disp.position }) }
+            : { content: aioT('citedNoPosition') };
+        case 'notCited':
+        case 'absent':
+          return undefined;
+      }
+    };
     const featureTip = (row: TrackedKeywordRow): CellTip | undefined => {
       if (row.state.current.state === 'not_checked') {
         return { content: features('pendingTooltip') };
@@ -117,6 +138,15 @@ export function useRankColumns(timeZone: string): RankColumns {
         ),
         cellTip: (row) => featureTip(row),
       }),
+      aio: col.aiOverview<TrackedKeywordRow>(RANK_COLUMN_IDS.aio, () => null, {
+        header: aioT('column'),
+        headerTooltip: aioT('columnTooltip'),
+        priority: 2,
+        width: 104,
+        sortable: false,
+        cell: (row) => <AioStatusView display={aioDisplay(row.state.aio, row.state.current.state)} />,
+        cellTip: (row) => aioTip(row),
+      }),
       best: col.rank<TrackedKeywordRow>(RANK_COLUMN_IDS.best, (row) => row.state.best_rank, {
         header: t('bestRank'),
         headerTooltip: t('bestRankTooltip'),
@@ -140,5 +170,5 @@ export function useRankColumns(timeZone: string): RankColumns {
           row.state.current.state === 'failed' ? { label: t('failed'), tooltip: t('failedTooltip') } : pending,
       }),
     };
-  }, [t, common, features, tips, timeZone]);
+  }, [t, common, features, aioT, tips, timeZone]);
 }

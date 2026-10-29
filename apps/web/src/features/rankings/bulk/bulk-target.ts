@@ -47,6 +47,7 @@ export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilte
     ...given('is_stale', filters['filter[is_stale]']),
     ...given('feature_present', filters['filter[feature_present]']),
     ...given('feature_owned', filters['filter[feature_owned]']),
+    ...given('aio_state', filters['filter[aio_state]']),
     ...(q === '' ? {} : { q }),
   };
 }

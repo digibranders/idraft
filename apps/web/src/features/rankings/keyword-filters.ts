@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { FUNNEL_STAGES, INTENTS, OFFERED_DEPTH_PROFILES, SOURCE_KEY, SOURCES } from './keyword-values';
-import { CHANGE_CHOICES, RANK_CHOICES, STALE_CHOICES } from './rank-filters';
+import { CHANGE_CHOICES, RANK_CHOICES, STALE_CHOICES, AIO_CHOICES, AIO_MESSAGE_KEYS } from './rank-filters';
 import type { ProjectScope } from './rankings-queries';
 import { useKeywordGroups, useVocabularies } from './taxonomy-queries';
 import type { FilterField, FilterOption } from '@/components/app/filters/types';
@@ -50,6 +50,7 @@ async function readCountries(signal: AbortSignal): Promise<Location[]> {
 export function useKeywordFilterFields(scope: ProjectScope): readonly FilterField[] {
   const t = useTranslations('rankings.filters');
   const featureNames = useTranslations('rankings.features.names');
+  const aioStates = useTranslations('rankings.aio.states');
   const depthLabel = useDepthLabel();
   const locale = useLocale();
   const groups = useKeywordGroups(scope);
@@ -132,6 +133,13 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
         options: options(OWNABLE_FEATURE_TYPES, (value) => featureNames(FEATURE_MESSAGE_KEYS[value])),
       },
       {
+        id: 'aio',
+        kind: 'enum',
+        label: t('aio'),
+        multi: true,
+        options: options(AIO_CHOICES, (value) => aioStates(AIO_MESSAGE_KEYS[value])),
+      },
+      {
         id: 'dev',
         kind: 'enum',
         label: t('device'),
@@ -195,6 +203,7 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
   }, [
     t,
     featureNames,
+    aioStates,
     locale,
     depthLabel,
     groupOptions,

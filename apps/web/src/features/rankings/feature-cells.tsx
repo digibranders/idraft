@@ -1,4 +1,5 @@
 import {
+  Check,
   CircleDot,
   BookOpen,
   Image,
@@ -22,8 +23,10 @@ import {
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
 import type { RankCell } from '@/lib/api/types';
+import type { AioDisplay } from '@/lib/format';
 import { isFeatureType, FEATURE_MESSAGE_KEYS, type FeatureListDisplay } from '@/lib/keywords/serp-features';
 
 const FEATURE_ICONS: Readonly<Record<string, LucideIcon>> = {
@@ -98,4 +101,44 @@ export function SerpFeatureListView({ display, checked, state }: SerpFeatureList
       </span>
     </span>
   );
+}
+
+export interface AioStatusViewProps {
+  display: AioDisplay;
+}
+
+/**
+ * AI Overview cell: badge when cited, check icon when present but not cited,
+ * tertiary text otherwise (12-tables.md section 6, `AIOverviewStatus`).
+ */
+export function AioStatusView({ display }: AioStatusViewProps): ReactElement {
+  const t = useTranslations('rankings.aio');
+
+  switch (display.kind) {
+    case 'cited': {
+      const text = display.position === null ? t('citedNoPosition') : t('cited', { position: display.position });
+      return (
+        <Badge tone="positive" icon={Check}>
+          {text}
+        </Badge>
+      );
+    }
+    case 'notCited':
+      return <Icon icon={Check} label={t('speech.notCited')} className="text-primary-text" />;
+    case 'absent':
+      return (
+        <span className="text-foreground-tertiary">
+          <span className="sr-only">{t('speech.absent')}</span>
+          <span aria-hidden="true" className="text-foreground-tertiary">
+            {t('absent')}
+          </span>
+        </span>
+      );
+    case 'notLoaded':
+      return <span className="text-foreground-tertiary">{t('notLoaded')}</span>;
+    case 'unknown':
+      return <span className="text-foreground-tertiary">{t('unknown')}</span>;
+    case 'pending':
+      return <span className="text-foreground-tertiary">{t('pending')}</span>;
+  }
 }

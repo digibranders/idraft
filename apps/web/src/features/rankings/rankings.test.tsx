@@ -486,6 +486,23 @@ describe('Rankings rank columns', () => {
     expect(within(cell).getByText(/^SERP features:/)).toHaveClass('sr-only');
   });
 
+  it('shows Cited #n for a keyword cited in the AI Overview', async () => {
+    const withAioCited = fixtureStates().find(
+      ({ state }) => state.aio.state === 'present_cited' && state.aio.citation_position !== null,
+    );
+    if (withAioCited === undefined) throw new Error('No fixture keyword has a cited AI Overview');
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => candidate.textContent === withAioCited.text);
+    const row = header?.closest('tr');
+    if (row === null || row === undefined) throw new Error(`No row for ${withAioCited.text}`);
+    const cell = row.cells[columnIndex(grid, /^AI Overview$/)];
+    if (cell === undefined) throw new Error('No AI Overview cell');
+    expect(within(cell).getByText(`Cited #${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
+  });
+
   it('tells one story for a keyword whose checks all failed: a warning, n/a, no change, a stale marker', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
@@ -723,6 +740,33 @@ describe('Rankings rank filters', () => {
     await waitFor(() => expect(url.latest().has('feat')).toBe(false));
     await loadedGrid();
     expect(asked.some((query) => query.has('filter[feature_present]'))).toBe(false);
+  });
+
+  it('chooses AI Overview: Cited, sends filter[aio_state]=present_cited and keeps only matching rows', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    const picker = (await screen.findAllByRole('button', { name: 'AI Overview' })).find(
+      (button) => !grid.contains(button),
+    );
+    if (picker === undefined) throw new Error('The field picker has no AI Overview');
+    await user.click(picker);
+    await user.click(await screen.findByRole('checkbox', { name: 'Cited' }));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(asked.some((query) => query.get('filter[aio_state]') === 'present_cited')).toBe(true));
+    await waitFor(() => expect(url.latest().get('aio')).toBe('present_cited'));
+    await waitFor(() => {
+      const texts = keywordsIn(grid);
+      expect(texts.length).toBeGreaterThan(0);
+      expect(
+        texts.every((text) => {
+          const item = fixtureStates().find((candidate) => candidate.text === text);
+          return item?.state.aio.state === 'present_cited';
+        }),
+      ).toBe(true);
+    });
   });
 });
 

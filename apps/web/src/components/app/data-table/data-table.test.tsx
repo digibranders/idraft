@@ -636,12 +636,22 @@ describe('DataTable rank, change and URL columns', () => {
       sortable: false,
       cell: () => 'x',
     });
+    const aio = col.aiOverview<Row>('aio', () => null, {
+      header: 'AI Overview',
+      priority: 2,
+      width: 104,
+      sortable: false,
+      cell: () => 'aio',
+    });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
     expect(wide.width).toBe(80);
     expect(narrow.width).toBe(180);
     expect(features.type).toBe('features');
     expect(features.width).toBe(120);
     expect(features.sortValue).toBeUndefined();
+    expect(aio.type).toBe('aiOverview');
+    expect(aio.width).toBe(104);
+    expect(aio.sortValue).toBeUndefined();
   });
 
   it('shows the cell the screen gives and sorts rank best first, with unknown ranks last both ways', async () => {

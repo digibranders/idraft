@@ -60,6 +60,7 @@ export type GroupRef = Schemas['GroupRef'];
 export type TermRef = Schemas['TermRef'];
 export type UrlRef = Schemas['UrlRef'];
 export type RankCell = Schemas['RankCell'];
+export type AioStateInfo = Schemas['AioStateInfo'];
 export type RankChange = Schemas['RankChange'];
 export type TrackedKeywordState = Schemas['TrackedKeywordState'];
 export type KeywordGroup = Schemas['KeywordGroup'];
