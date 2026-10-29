@@ -297,5 +297,41 @@ assert_eq "$(image_of worker)" idraft-worker:local "worker image after SIGTERM"
 tail -n 1 "$IDRAFT_RELEASES_DIR/history.log" | grep -q "DEPLOY_FAILED api=idraft-api:v2" || fail "the interrupted deploy is not in history.log"
 assert_serving "after SIGTERM"
 
+# term_when <log-text>: sends SIGTERM to $deploy_pid once the background deploy printed <log-text>,
+# then waits for it; the exit code lands in last_rc.
+term_when() {
+  wait_for_line "$1" "$test_dir/last.log"
+  kill -TERM "$deploy_pid"
+  set +e
+  wait "$deploy_pid"
+  last_rc=$?
+  set -e
+  cat "$test_dir/last.log"
+}
+
+echo "=== 12. SIGTERM while a failed deploy is restoring: the restore still completes ==="
+cp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before"
+cp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before"
+"$deploy_sh" "$env_file" "$test_dir/badcmd.json" > "$test_dir/last.log" 2>&1 &
+deploy_pid=$!
+term_when "Restoring the release that was serving"
+assert_eq "$last_rc" 1 "deploy exit code after SIGTERM during the restore"
+tail -n 1 "$IDRAFT_RELEASES_DIR/history.log" | grep -q "DEPLOY_FAILED api=idraft-api:badcmd" || fail "the failed deploy is not in history.log after SIGTERM during the restore"
+cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before" || fail "current.json changed"
+cmp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before" || fail "previous.json changed"
+assert_eq "$(image_of api)" idraft-api:local "api image after SIGTERM during the restore"
+assert_serving "after SIGTERM during the restore"
+
+echo "=== 13. SIGTERM during --rollback: the rollback still completes ==="
+cp "$IDRAFT_RELEASES_DIR/previous.json" "$test_dir/previous.before"
+"$deploy_sh" --rollback "$env_file" > "$test_dir/last.log" 2>&1 &
+deploy_pid=$!
+term_when "Rolling back to the previous release"
+assert_eq "$last_rc" 0 "rollback exit code after SIGTERM"
+grep -q "Rollback completed successfully" "$test_dir/last.log" || fail "the rollback did not complete after SIGTERM"
+cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/previous.before" || fail "current.json is not the previous release after the rollback"
+assert_eq "$(image_of api)" idraft-api:v2 "api image after rollback with SIGTERM"
+assert_serving "after rollback with SIGTERM"
+
 assert_eq "$(repo_state)" "$repo_before" "repository working tree at the end"
 echo "Deploy dry-run tests passed successfully."

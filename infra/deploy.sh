@@ -365,6 +365,8 @@ log_history() {
 # the Redis ACL, which may already be rendered from it, goes back to the serving release's env.
 abort_deploy() {
   local failed="api=$api_image worker=$worker_image web=$web_image"
+  # Recovery must finish: a signal in the middle would leave a mix of new and old state.
+  trap '' INT TERM
   undo=""
   echo "$1" >&2
   discard_next_env
@@ -385,6 +387,8 @@ restore_acl() {
 # recorded; the release that was serving (current.json) comes back on its own env.
 fail_deploy() {
   local failed="api=$api_image worker=$worker_image web=$web_image"
+  # Recovery must finish: a signal in the middle would leave a mix of new and old services.
+  trap '' INT TERM
   undo=""
   echo "$1" >&2
   discard_next_env
@@ -407,6 +411,8 @@ restore_serving() {
 }
 
 run_rollback() {
+  # A rollback has no marker to undo it, so it runs to the end once started.
+  trap '' INT TERM
   [ -f "$previous_file" ] || die "Nothing to roll back: no previous release is recorded at $previous_file."
   [ -f "$prev_env" ] || die "Nothing to roll back: the environment of the previous release ($prev_env) is missing."
   echo "Rolling back to the previous release and its environment..."
