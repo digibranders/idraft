@@ -1101,8 +1101,7 @@ function HeaderContent<TRow>({
           type="button"
           tabIndex={-1}
           onClick={(event) => onSort(event.shiftKey)}
-          style={{ zIndex: 1 }}
-          className={cn('relative flex min-w-0 items-center gap-1 rounded-sm', right && 'flex-row-reverse')}
+          className={cn('flex min-w-0 items-center gap-1 rounded-sm', right && 'flex-row-reverse')}
         >
           {label}
           {sortKey === null ? null : (
@@ -1121,9 +1120,9 @@ function HeaderContent<TRow>({
         // Over the inner edge, so a short label keeps its width while the chevron is hidden
         <span
           className={cn(
-            'absolute top-1/2 -translate-y-1/2 bg-surface-subtle opacity-0 group-focus-within/header:opacity-100 group-hover/header:opacity-100',
-            right ? 'left-0' : 'right-0',
-            menuOpen && 'opacity-100',
+            'pointer-events-none absolute top-1/2 -translate-y-1/2 bg-surface-subtle opacity-0 group-focus-within/header:pointer-events-auto group-focus-within/header:opacity-100 group-hover/header:pointer-events-auto group-hover/header:opacity-100',
+            right ? '-left-1' : 'right-0',
+            menuOpen && 'pointer-events-auto opacity-100',
           )}
         >
           <Menu

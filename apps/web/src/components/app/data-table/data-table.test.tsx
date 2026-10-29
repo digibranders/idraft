@@ -656,6 +656,20 @@ describe('DataTable rank, change and URL columns', () => {
     expect(bodyKeywords()).toEqual(['keyword 004', 'keyword 003', 'keyword 002', 'keyword 000', 'keyword 001']);
   });
 
+  it('sorts when clicking the header label and opens the column menu from the chevron', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} columns={RANKED} />);
+    const rankHeader = screen.getByRole('columnheader', { name: /Rank/ });
+    await user.click(within(rankHeader).getByRole('button', { name: 'Rank' }));
+    expect(rankHeader).toHaveAttribute('aria-sort', 'ascending');
+
+    const chevron = within(rankHeader).getByRole('button', { name: 'Rank column options' });
+    await user.click(chevron);
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Sort descending' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+  });
+
   it('sorts a change with the biggest improvement first, and leaves a URL column unsortable', async () => {
     const { user } = renderWithProviders(<Harness rows={rowsOf(5)} columns={RANKED} />);
     await user.click(within(grid()).getByRole('button', { name: 'Change' }));

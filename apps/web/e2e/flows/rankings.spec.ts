@@ -99,7 +99,7 @@ test.describe('rankings', () => {
     await expect(grid.getByText(/^[↑↓]\d+$/).first()).toBeVisible();
     await expect(grid.getByText(/^>\d+$/).first()).toBeVisible();
     await expect(grid.getByText('Pending').first()).toBeVisible();
-    await expect(grid.getByRole('img', { name: 'Check failed' })).toHaveCount(1);
+    await expect(grid.getByRole('img', { name: 'Check failed' })).toHaveCount(2);
     await expectAccessible(page);
 
     // Best rank first, and the keywords with no rank last
@@ -123,6 +123,27 @@ test.describe('rankings', () => {
     const inRange = (await columnOf(grid, 'Rank', { visible: true })).map(Number);
     expect(inRange.every((place) => place >= 4 && place <= 10)).toBe(true);
     await expectAccessible(page);
+  });
+
+  test('clicking the Rank header sorts and the chevron opens the column menu at 1440 px', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/rankings');
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    const rankHeader = headerOf(grid, 'Rank');
+    await expect(rankHeader).toBeVisible();
+
+    await grid.getByRole('button', { name: 'Rank', exact: true }).click();
+    await expect(rankHeader).toHaveAttribute('aria-sort', 'ascending');
+
+    await rankHeader.hover();
+    const chevron = rankHeader.getByRole('button', { name: 'Rank column options' });
+    await chevron.click();
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Sort descending' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
   });
 
   test('the Keyword column keeps its room at 1280, 1440 and 1680 px, with the rank columns in view', async ({

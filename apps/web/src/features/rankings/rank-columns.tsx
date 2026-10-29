@@ -49,6 +49,9 @@ export function useRankColumns(timeZone: string): RankColumns {
       if (row.state.current.state === 'not_checked') {
         return { content: features('pendingTooltip') };
       }
+      if (row.state.current.state === 'failed') {
+        return { content: features('failedTooltip') };
+      }
       const featDisplay = featureListDisplay(row.state.feature_types_present, row.state.owned_feature_types);
       if (featDisplay.all.length === 0) {
         return { content: features('noneTooltip') };
@@ -58,7 +61,9 @@ export function useRankColumns(timeZone: string): RankColumns {
       const content = featDisplay.all.map((slot) => shortLabelOf(slot.type)).join(', ');
       const owned = featDisplay.all.filter((slot) => slot.owned);
       const detail =
-        owned.length > 0 ? `Yours: ${owned.map((slot) => shortLabelOf(slot.type)).join(', ')}` : undefined;
+        owned.length > 0
+          ? features('yours', { features: owned.map((slot) => shortLabelOf(slot.type)).join(', ') })
+          : undefined;
       return { content, detail };
     };
     return {
@@ -106,6 +111,7 @@ export function useRankColumns(timeZone: string): RankColumns {
         cell: (row) => (
           <SerpFeatureListView
             display={featureListDisplay(row.state.feature_types_present, row.state.owned_feature_types)}
+            state={row.state.current.state}
             checked={row.state.current.state !== 'not_checked'}
           />
         ),

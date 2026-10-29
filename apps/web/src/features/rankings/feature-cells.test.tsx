@@ -49,4 +49,11 @@ describe('SerpFeatureListView', () => {
     const srOnly = container.querySelector('.sr-only');
     expect(srOnly).toHaveTextContent('SERP features: new_thing');
   });
+
+  it('shows a warning icon with its accessible name when the check failed', () => {
+    const empty = featureListDisplay([], []);
+    renderWithProviders(<SerpFeatureListView display={empty} state="failed" />);
+    expect(screen.getByRole('img', { name: 'Check failed' })).toHaveClass('text-warning-text');
+    expect(screen.queryByText('None')).not.toBeInTheDocument();
+  });
 });

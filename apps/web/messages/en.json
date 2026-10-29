@@ -2245,8 +2245,11 @@
       "noneTooltip": "No result features on the first page at the latest check.",
       "pending": "Pending",
       "pendingTooltip": "The first check has not run yet.",
+      "failed": "Check failed",
+      "failedTooltip": "The last check failed. It will be tried again.",
       "more": "+{count}",
       "owned": "{feature}, yours",
+      "yours": "Yours: {features}",
       "listName": "SERP features: {features}",
       "types": {
         "aiOverview": "AI Overview",

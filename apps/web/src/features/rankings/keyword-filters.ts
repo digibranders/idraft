@@ -122,20 +122,14 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
         kind: 'enum',
         label: t('feature'),
         multi: false,
-        options: options(FEATURE_TYPES, (value) => {
-          const key = FEATURE_MESSAGE_KEYS[value];
-          return featureNames.has(key) ? featureNames(key) : value;
-        }),
+        options: options(FEATURE_TYPES, (value) => featureNames(FEATURE_MESSAGE_KEYS[value])),
       },
       {
         id: 'featown',
         kind: 'enum',
         label: t('featureOwned'),
         multi: false,
-        options: options(OWNABLE_FEATURE_TYPES, (value) => {
-          const key = FEATURE_MESSAGE_KEYS[value];
-          return featureNames.has(key) ? featureNames(key) : value;
-        }),
+        options: options(OWNABLE_FEATURE_TYPES, (value) => featureNames(FEATURE_MESSAGE_KEYS[value])),
       },
       {
         id: 'dev',

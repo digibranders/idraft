@@ -14,6 +14,7 @@ import {
   ShoppingBag,
   Sparkles,
   TextQuote,
+  TriangleAlert,
   UserRound,
   Video,
   type LucideIcon,
@@ -22,6 +23,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { Icon } from '@/components/ui/icon';
+import type { RankCell } from '@/lib/api/types';
 import { isFeatureType, FEATURE_MESSAGE_KEYS, type FeatureListDisplay } from '@/lib/keywords/serp-features';
 
 const FEATURE_ICONS: Readonly<Record<string, LucideIcon>> = {
@@ -47,18 +49,24 @@ const FALLBACK_ICON: LucideIcon = CircleDot;
 
 export interface SerpFeatureListViewProps {
   display: FeatureListDisplay;
-  checked: boolean;
+  checked?: boolean;
+  state?: RankCell['state'];
 }
 
 /**
  * SERP features cell: up to 5 icons, owned features in primary text, others in muted,
  * with a +N count and accessible spoken names (12-tables.md section 6).
  */
-export function SerpFeatureListView({ display, checked }: SerpFeatureListViewProps): ReactElement {
+export function SerpFeatureListView({ display, checked, state }: SerpFeatureListViewProps): ReactElement {
   const t = useTranslations('rankings.features');
 
+  if (state === 'failed') {
+    return <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />;
+  }
+
   if (display.all.length === 0) {
-    return <span className="text-foreground-tertiary">{checked ? t('none') : t('pending')}</span>;
+    const isChecked = state !== undefined ? state !== 'not_checked' : (checked ?? true);
+    return <span className="text-foreground-tertiary">{isChecked ? t('none') : t('pending')}</span>;
   }
 
   const spokenFeatures = display.all
