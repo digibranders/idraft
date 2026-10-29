@@ -4,6 +4,8 @@ import { useState } from 'react';
 
 import { CONTACT_EMAIL } from '@/content';
 
+import { Button } from './button';
+
 const FOCUS_OPTIONS = ['Rankings and AI answers', 'Rankings only', 'AI answers only', 'Website audits (planned)', 'Something else'] as const;
 
 type Errors = Partial<Record<'name' | 'email' | 'site', string>>;
@@ -68,10 +70,7 @@ export function RequestForm() {
         <textarea id="note" name="note" rows={4} className={FIELD} />
       </div>
       <div className="flex flex-wrap items-center gap-5">
-        <button type="submit" className="group inline-flex items-center gap-3 rounded-full bg-cobalt py-2 pl-6 pr-2 text-[15px] font-medium text-white shadow-[0_14px_30px_-14px_rgb(30_101_227/0.7)] transition duration-500 ease-heavy hover:bg-cobalt-deep active:scale-[0.98]">
-          Request access
-          <span aria-hidden="true" className="grid size-9 place-items-center rounded-full bg-white/15 transition duration-500 ease-heavy group-hover:translate-x-0.5">→</span>
-        </button>
+        <Button>Request access</Button>
         <p className="text-sm text-ink-3">This opens a draft in your email app, addressed to {CONTACT_EMAIL}.</p>
       </div>
       <p role="status" className={`text-[15px] text-cobalt-deep transition duration-500 ${sent ? 'opacity-100' : 'opacity-0'}`}>

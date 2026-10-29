@@ -8,6 +8,7 @@ import { CaretDown, ChartLineUp, ChatsCircle, Graph } from '@phosphor-icons/reac
 
 import { ACCESS_HREF, NAV_LINKS, PRODUCT_LINKS } from '@/content';
 
+import { Button } from './button';
 import { Logo } from './logo';
 
 const ICONS = [ChartLineUp, ChatsCircle, Graph] as const;
@@ -88,12 +89,11 @@ export function Nav() {
               ))}
             </ul>
             <div className="flex items-center gap-1">
-              <Link
-                href={ACCESS_HREF}
-                className="hidden rounded-full bg-cobalt px-5 py-2.5 text-sm font-medium whitespace-nowrap text-white transition duration-500 ease-heavy hover:bg-cobalt-deep active:scale-[0.98] sm:inline-block"
-              >
-                Request access
-              </Link>
+              <span className="hidden sm:inline-flex">
+                <Button href={ACCESS_HREF} compact>
+                  Request access
+                </Button>
+              </span>
               <button
                 type="button"
                 aria-expanded={open}
