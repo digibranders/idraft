@@ -25,6 +25,8 @@ export function HomeHero() {
           </div>
         </div>
         <div aria-hidden="true" className="absolute top-1/3 right-0 -z-10 h-[40rem] w-[50rem] rounded-full bg-cobalt/15 blur-[130px]" />
+        {/* The scene fades into the page at its bottom edge, so the cropped product never ends on a hard line. */}
+        <div aria-hidden="true" className="absolute inset-x-0 bottom-0 z-0 h-32 bg-gradient-to-t from-paper to-transparent" />
         <div aria-hidden="true" data-hero-wash className="absolute inset-y-0 left-0 -z-10 w-[64%] bg-gradient-to-r from-paper via-paper/92 to-transparent" />
 
         <div data-hero-copy className="mx-auto w-full max-w-[1320px] px-6 pt-28 pb-16 md:px-10">
