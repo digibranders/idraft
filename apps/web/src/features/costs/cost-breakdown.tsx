@@ -211,7 +211,7 @@ function BudgetUse({ status, showWorkload = false }: { status: BudgetStatus; sho
       />
       <span className="num">{formatPercent(status.pct_used / 100, { decimals: 1 })}</span>
       {showWorkload && status.budget.workload !== 'all' ? (
-        <span className="type-meta whitespace-nowrap text-foreground-tertiary">
+        <span className="type-label whitespace-nowrap">
           {t('workloadBudget', { workload: workloadName(status.budget.workload) })}
         </span>
       ) : null}

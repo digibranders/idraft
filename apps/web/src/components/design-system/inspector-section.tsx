@@ -14,7 +14,7 @@ import { useInspector } from '@/components/app/inspector/use-inspector';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatInteger } from '@/lib/format';
-import type { Density, SortKey } from '@/lib/tables/table-state';
+import { DEFAULT_DENSITY, type Density, type SortKey } from '@/lib/tables/table-state';
 
 interface SampleKeyword {
   id: string;
@@ -47,7 +47,7 @@ const isTab = (value: string): value is Tab => TABS.some((tab) => tab.value === 
 function InspectorSpecimen(): ReactNode {
   const inspector = useInspector();
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
-  const [density, setDensity] = useState<Density>('default');
+  const [density, setDensity] = useState<Density>(DEFAULT_DENSITY);
   const [search, setSearch] = useState('');
   const ordered = [...KEYWORDS].sort((a, b) => b.volume - a.volume).map(rowId);
   const open = KEYWORDS.find((row) => row.id === inspector.target?.id) ?? null;

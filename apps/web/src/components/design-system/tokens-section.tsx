@@ -80,11 +80,11 @@ export function TokensSection(): ReactNode {
             <caption className="sr-only">Contrast ratio of each text token on each surface</caption>
             <thead>
               <tr>
-                <th scope="col" className="h-row-header px-2 text-left type-label">
+                <th scope="col" className="h-row-header px-2 text-left type-table-header">
                   Text token
                 </th>
                 {TEXT_SURFACES.map((surface) => (
-                  <th key={surface} scope="col" className="h-row-header px-2 text-right type-label">
+                  <th key={surface} scope="col" className="h-row-header px-2 text-left type-table-header">
                     {surface}
                   </th>
                 ))}
@@ -93,11 +93,11 @@ export function TokensSection(): ReactNode {
             <tbody>
               {TEXT_TOKENS.map((token) => (
                 <tr key={token} className="border-t border-border-subtle">
-                  <th scope="row" className="h-row-compact px-2 text-left type-mono text-foreground">
+                  <th scope="row" className="h-row-compact px-2 text-left font-mono text-foreground">
                     {token}
                   </th>
                   {TEXT_SURFACES.map((surface) => (
-                    <td key={surface} className="h-row-compact px-2 text-right">
+                    <td key={surface} className="h-row-compact px-2 text-left">
                       <Ratio ratio={ratioOf(read, token, surface)} required={TEXT_MINIMUM} />
                     </td>
                   ))}
@@ -118,7 +118,7 @@ export function TokensSection(): ReactNode {
             <thead>
               <tr>
                 {['Foreground', 'Background', 'Used for', 'Ratio', 'Needs', 'Result'].map((heading) => (
-                  <th key={heading} scope="col" className="h-row-header px-2 text-left type-label">
+                  <th key={heading} scope="col" className="h-row-header px-2 text-left type-table-header">
                     {heading}
                   </th>
                 ))}
@@ -130,8 +130,8 @@ export function TokensSection(): ReactNode {
                 const passes = ratio !== null && meetsContrast(ratio, pair.required);
                 return (
                   <tr key={`${pair.foreground}/${pair.background}`} className="border-t border-border-subtle">
-                    <td className="h-row-compact px-2 type-mono text-foreground">{pair.foreground}</td>
-                    <td className="h-row-compact px-2 type-mono text-foreground">{pair.background}</td>
+                    <td className="h-row-compact px-2 font-mono text-foreground">{pair.foreground}</td>
+                    <td className="h-row-compact px-2 font-mono text-foreground">{pair.background}</td>
                     <td className="h-row-compact px-2 text-foreground-secondary">{pair.use}</td>
                     <td className="h-row-compact px-2 num">
                       <Ratio ratio={ratio} required={pair.required} />

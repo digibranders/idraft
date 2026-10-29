@@ -60,7 +60,7 @@ function withPixels(value: string): string {
   return `${value} (${String(px)} px)`;
 }
 
-const HEAD = cn('h-row-header pr-4 text-left type-label');
+const HEAD = cn('h-row-header pr-4 text-left type-table-header');
 const CELL = cn('h-row-compact pr-4 align-middle');
 
 /**
@@ -120,7 +120,7 @@ export function SizesSection(): ReactNode {
     <>
       <SpecimenGroup title="Spacing" note="04 section 2. One step is 4 px; these twelve are the only steps in use.">
         <TableScroll label="Spacing">
-          <table className="border-collapse">
+          <table className="border-collapse type-table">
             <caption className="sr-only">The spacing steps with their size in pixels</caption>
             <thead>
               <tr>
@@ -138,10 +138,10 @@ export function SizesSection(): ReactNode {
             <tbody>
               {SPACING.map(([step, className]) => (
                 <tr key={step} className="border-t border-border-subtle">
-                  <th scope="row" className={cn(CELL, 'text-left type-mono text-foreground')}>
+                  <th scope="row" className={cn(CELL, 'text-left font-mono text-foreground')}>
                     {step}
                   </th>
-                  <td className={cn(CELL, 'num type-meta')}>{Number(step) * 4} px</td>
+                  <td className={cn(CELL, 'num text-foreground-tertiary')}>{Number(step) * 4} px</td>
                   <td className={CELL}>
                     <span aria-hidden="true" className={cn('block h-3 rounded-2xs bg-primary', className)} />
                   </td>
@@ -157,7 +157,7 @@ export function SizesSection(): ReactNode {
         note="04 section 5. Heights and widths of components, used as h-, w-, min-w-, max-w- and size- utilities."
       >
         <TableScroll label="Named sizes">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse type-table">
             <caption className="sr-only">The named sizes with their values</caption>
             <thead>
               <tr>
@@ -175,10 +175,12 @@ export function SizesSection(): ReactNode {
             <tbody>
               {NAMED_SIZES.map((name) => (
                 <tr key={name} className="border-t border-border-subtle">
-                  <th scope="row" className={cn(CELL, 'text-left type-mono whitespace-nowrap text-foreground')}>
+                  <th scope="row" className={cn(CELL, 'text-left font-mono whitespace-nowrap text-foreground')}>
                     {name}
                   </th>
-                  <td className={cn(CELL, 'num type-meta whitespace-nowrap')}>{withPixels(read(`size-${name}`))}</td>
+                  <td className={cn(CELL, 'num whitespace-nowrap text-foreground-tertiary')}>
+                    {withPixels(read(`size-${name}`))}
+                  </td>
                   <td className={cn(CELL, 'max-w-0')}>
                     <span
                       aria-hidden="true"
@@ -228,7 +230,7 @@ export function SizesSection(): ReactNode {
 
       <SpecimenGroup title="Layers" note="The z-index scale, lowest first. No other z-index value is allowed.">
         <TableScroll label="Layers">
-          <table className="border-collapse">
+          <table className="border-collapse type-table">
             <caption className="sr-only">The z-index tokens with their values</caption>
             <thead>
               <tr>
@@ -246,11 +248,13 @@ export function SizesSection(): ReactNode {
             <tbody>
               {Z_LAYERS.map((layer) => (
                 <tr key={layer.name} className="border-t border-border-subtle">
-                  <th scope="row" className={cn(CELL, 'text-left type-mono text-foreground')}>
+                  <th scope="row" className={cn(CELL, 'text-left font-mono text-foreground')}>
                     z-{layer.name}
                   </th>
-                  <td className={cn(CELL, 'num type-meta')}>{read(`z-${layer.name}`) || 'Not read yet'}</td>
-                  <td className={cn(CELL, 'type-meta')}>{layer.use}</td>
+                  <td className={cn(CELL, 'num text-foreground-tertiary')}>
+                    {read(`z-${layer.name}`) || 'Not read yet'}
+                  </td>
+                  <td className={cn(CELL, 'text-foreground-tertiary')}>{layer.use}</td>
                 </tr>
               ))}
             </tbody>

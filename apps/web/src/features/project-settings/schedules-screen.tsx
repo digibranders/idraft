@@ -198,8 +198,8 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
       wrap: true,
       cell: (schedule) => (
         <span className="flex flex-col">
-          <span className="type-body text-foreground">{schedule.name}</span>
-          <span className="type-meta">{workloadName(schedule.workload)}</span>
+          <span className="text-foreground">{schedule.name}</span>
+          <span className="type-label">{workloadName(schedule.workload)}</span>
         </span>
       ),
     },
@@ -216,7 +216,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
       cell: (schedule) => (
         <>
           {words.when(schedule)}
-          {schedule.timezone === timeZone ? null : <span className="block type-meta">{schedule.timezone}</span>}
+          {schedule.timezone === timeZone ? null : <span className="block type-label">{schedule.timezone}</span>}
         </>
       ),
     },
@@ -228,14 +228,14 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
       cell: (schedule) => (
         <>
           {schedule.is_active ? (
-            <span className="block num type-body whitespace-nowrap text-foreground-secondary">
+            <span className="block num whitespace-nowrap text-foreground-secondary">
               {formatTableDateTime(schedule.next_run_at, schedule.timezone)}
             </span>
           ) : (
             <Badge tone="warning">{t('pausedBadge')}</Badge>
           )}
           {/* The API names the last run by its id only, so Runs is where its time is */}
-          <span className="block type-meta">
+          <span className="block type-label">
             {schedule.last_run_id === null ? (
               t('neverRun')
             ) : (

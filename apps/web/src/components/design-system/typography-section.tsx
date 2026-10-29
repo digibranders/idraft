@@ -67,7 +67,7 @@ function TypeRow({ name }: { name: TypeStyle }): ReactNode {
   }, []);
   return (
     <tr className="border-t border-border-subtle">
-      <th scope="row" className="py-2 pr-4 text-left align-baseline type-mono text-foreground">
+      <th scope="row" className="py-2 pr-4 text-left align-baseline font-mono text-foreground">
         {className}
       </th>
       <td className="py-2 pr-4 align-baseline">
@@ -75,8 +75,8 @@ function TypeRow({ name }: { name: TypeStyle }): ReactNode {
           {sample}
         </span>
       </td>
-      <td className="py-2 pr-4 align-baseline num type-meta">{spec === '' ? 'Not read yet' : spec}</td>
-      <td className="py-2 align-baseline type-meta">{use}</td>
+      <td className="py-2 pr-4 align-baseline num text-foreground-tertiary">{spec === '' ? 'Not read yet' : spec}</td>
+      <td className="py-2 align-baseline text-foreground-tertiary">{use}</td>
     </tr>
   );
 }
@@ -86,15 +86,15 @@ export function TypographySection(): ReactNode {
     <>
       <SpecimenGroup
         title="Type utilities"
-        note="03 section 2. Fifteen styles; size, line height and weight come together."
+        note="03 section 2. Size, line height and weight come together. Table text is 12 / 16 with capital headers (owner decisions of 2026-10-29)."
       >
         <TableScroll label="Type utilities">
-          <table className="w-full border-collapse">
-            <caption className="sr-only">The fifteen type utilities with a sample and their measured values</caption>
+          <table className="w-full border-collapse type-table">
+            <caption className="sr-only">The type utilities with a sample and their measured values</caption>
             <thead>
               <tr>
                 {['Utility', 'Sample', 'Measured', 'Used for'].map((heading) => (
-                  <th key={heading} scope="col" className="h-row-header pr-4 text-left type-label">
+                  <th key={heading} scope="col" className="h-row-header pr-4 text-left type-table-header">
                     {heading}
                   </th>
                 ))}
