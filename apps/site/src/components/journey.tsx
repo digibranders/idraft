@@ -209,9 +209,9 @@ export function Journey() {
   }, []);
 
   return (
-    <section ref={section} aria-label="Climb from rank 14 to rank 1" className="relative overflow-hidden">
-      <div data-bg className="bg-amber-wash lg:flex lg:min-h-[100dvh] lg:items-center">
-        <div className="mx-auto grid w-full max-w-[1320px] items-center gap-10 px-5 py-20 md:px-8 lg:grid-cols-12 lg:gap-6 lg:py-24">
+    <section ref={section} aria-label="Climb from rank 14 to rank 1" className="relative overflow-hidden bg-amber-wash">
+      <div data-bg className="bg-amber-wash lg:flex lg:min-h-[78dvh] lg:items-center">
+        <div className="mx-auto grid w-full max-w-[1320px] items-center gap-10 px-5 py-20 md:px-8 lg:grid-cols-12 lg:gap-6 lg:py-14">
           <div className="relative lg:col-span-5 lg:h-[26rem]">
             {CAPTIONS.map((caption) => (
               <div key={caption.title} data-caption className="mb-8 lg:absolute lg:inset-x-0 lg:top-0 lg:mb-0">
