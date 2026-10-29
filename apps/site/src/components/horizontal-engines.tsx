@@ -43,7 +43,10 @@ export function HorizontalEngines() {
 
   return (
     <div>
-      <Wave edge="top" />
+      {/* The journey above ends in yellow; the wave's gap shows that color, so one scene flows into the next. */}
+      <div className="bg-amber-wash">
+        <Wave edge="top" />
+      </div>
       <section ref={root} aria-label="The four answer engines" className="relative overflow-hidden bg-wash">
         <div ref={track} className="flex min-h-[100dvh] items-center gap-6 overflow-x-auto px-5 py-20 [scrollbar-width:none] md:px-8 lg:overflow-visible lg:py-0 [&::-webkit-scrollbar]:hidden">
           <div className="w-[min(86vw,32rem)] shrink-0 lg:pr-10">
