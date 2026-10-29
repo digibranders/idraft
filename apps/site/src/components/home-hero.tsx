@@ -18,12 +18,12 @@ export function HomeHero() {
         {/* The product is the scene: the Overview screen, bled off the right edge and tilted back a little. */}
         <div aria-hidden="true" className="absolute inset-0 -z-20 bg-paper" />
         <div data-hero-image className="absolute top-1/2 right-[-22%] -z-20 w-[74%] -translate-y-1/2 [perspective:1800px] max-lg:hidden">
-          <div className="origin-left [transform:rotateY(-14deg)_rotateX(4deg)_rotateZ(-1deg)] overflow-hidden rounded-[1.5rem] shadow-[0_80px_140px_-50px_rgb(20_23_28/0.45),0_40px_80px_-40px_rgb(30_101_227/0.35)] ring-1 ring-ink/10">
+          <div data-hero-tilt className="origin-center [transform:rotateY(-14deg)_rotateX(4deg)_rotateZ(-1deg)] overflow-hidden rounded-[1.5rem] shadow-[0_80px_140px_-50px_rgb(20_23_28/0.45),0_40px_80px_-40px_rgb(30_101_227/0.35)] ring-1 ring-ink/10">
             <Image src="/screens/p-overview.png" alt="The Overview screen of the idraft app: SEO visibility and the mention rate in ChatGPT, Gemini and AI Mode, a trend chart and the rank distribution." width={2880} height={1760} priority sizes="70vw" className="h-auto w-full" />
           </div>
         </div>
         <div aria-hidden="true" className="absolute top-1/3 right-0 -z-10 h-[40rem] w-[50rem] rounded-full bg-cobalt/15 blur-[130px]" />
-        <div aria-hidden="true" className="absolute inset-y-0 left-0 -z-10 w-[64%] bg-gradient-to-r from-paper via-paper/92 to-transparent" />
+        <div aria-hidden="true" data-hero-wash className="absolute inset-y-0 left-0 -z-10 w-[64%] bg-gradient-to-r from-paper via-paper/92 to-transparent" />
 
         <div data-hero-copy className="mx-auto w-full max-w-[1320px] px-6 pt-28 pb-16 md:px-10">
           <h1 className="max-w-[12ch] text-[clamp(3rem,6.4vw,6rem)] leading-[0.98] font-semibold tracking-[-0.055em] text-ink">
