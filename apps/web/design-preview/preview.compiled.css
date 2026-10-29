@@ -2781,11 +2781,11 @@
     }
   }
 }
-[data-view="rankings"] table tbody td, [data-view="rankings"] table tbody td * {
+[data-view="keywords"] table tbody td, [data-view="keywords"] table tbody td * {
   font-size: 0.75rem;
   line-height: 1rem;
 }
-[data-view="rankings"] table thead th, [data-view="rankings"] table thead th * {
+[data-view="keywords"] table thead th, [data-view="keywords"] table thead th * {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
