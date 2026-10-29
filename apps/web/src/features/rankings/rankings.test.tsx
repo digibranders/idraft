@@ -913,6 +913,47 @@ describe('Rankings rank filters', () => {
   });
 });
 
+describe('Rankings summary strip', () => {
+  afterEach(() => server.events.removeAllListeners());
+
+  it('is absent in the Archived view', async () => {
+    renderWithProviders(as('viewer'), { searchParams: '?archived=true' });
+    await loadedGrid();
+    expect(screen.queryByText('Summary for the filtered keywords')).toBeNull();
+    expect(screen.queryByText('Tracked')).toBeNull();
+  });
+
+  it('is absent when the project tracks nothing yet', async () => {
+    renderWithProviders(as('viewer', cleanstart.project_id));
+    expect(await screen.findByRole('heading', { name: 'No keywords tracked yet' })).toBeInTheDocument();
+    expect(screen.queryByText('Summary for the filtered keywords')).toBeNull();
+    expect(screen.queryByText('Tracked')).toBeNull();
+  });
+
+  it('follows a filter change', async () => {
+    const stripAsked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (
+        request.method === 'GET' &&
+        url.pathname.endsWith('/tracked-keywords') &&
+        url.searchParams.get('limit') === '1'
+      ) {
+        stripAsked.push(url.searchParams);
+      }
+    });
+
+    renderWithProviders(as('viewer'), { searchParams: '?dev=mobile' });
+    await loadedGrid();
+
+    await waitFor(() => {
+      expect(
+        stripAsked.some((query) => query.get('filter[device]') === 'mobile' && query.get('filter[rank_lte]') === '10'),
+      ).toBe(true);
+    });
+  });
+});
+
 describe('Rankings import button', () => {
   it('opens the import for a member who may import, before Add keywords', async () => {
     const onImportOpenChange = vi.fn<(open: boolean) => void>();

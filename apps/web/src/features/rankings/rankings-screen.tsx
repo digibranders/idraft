@@ -26,6 +26,7 @@ import {
 } from './rankings-queries';
 import { usePendingMetrics } from './refresh/pending-metrics';
 import { useMetricsRefresh } from './refresh/use-metrics-refresh';
+import { RankStrip } from './strip/rank-strip';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -467,6 +468,9 @@ export function RankingsScreen({
             />
           }
         />
+        {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
+          <RankStrip scope={scope} filters={filters} total={list.total ?? list.rows.length} />
+        )}
         {list.incomplete === null ? null : (
           <Banner
             tone="warning"

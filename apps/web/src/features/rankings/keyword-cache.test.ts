@@ -6,7 +6,9 @@ import { applyKeywordWrite } from './keyword-cache';
 import {
   allListKey,
   countKey,
+  keywordsKey,
   pageListKey,
+  refreshKeywords,
   type KeywordFilters,
   type ListPage,
   type ListQuery,
@@ -121,5 +123,16 @@ describe('a write to one keyword reaches the lists in the cache', () => {
     expect(
       client.getQueryState(pageListKey(SCOPE, { ...ACTIVE, 'filter[priority_lte]': 5 }, byPriority))?.isInvalidated,
     ).toBe(true);
+  });
+
+  it('leaves strip count queries alone on write and invalidates them on refresh', async () => {
+    const stripKey = [...keywordsKey(SCOPE), ACTIVE, 'strip', 'top3'];
+    client.setQueryData(stripKey, 42);
+    applyKeywordWrite(client, SCOPE, { ...detail, priority: detail.priority === 9 ? 8 : 9 });
+    expect(client.getQueryData(stripKey)).toBe(42);
+    expect(client.getQueryState(stripKey)?.isInvalidated).toBe(false);
+
+    await refreshKeywords(client, SCOPE);
+    expect(client.getQueryState(stripKey)?.isInvalidated).toBe(true);
   });
 });

@@ -2338,6 +2338,16 @@
       "tipTitle": "Last checks",
       "tipPoint": "{date}: {rank}"
     },
+    "strip": {
+      "label": "Summary for the filtered keywords",
+      "tracked": "Tracked",
+      "trackedNote": "{count} checked",
+      "top3": "Top 3",
+      "top10": "Top 10",
+      "top20": "Top 20",
+      "ofChecked": "of {count} checked",
+      "failed": "The summary did not load."
+    },
     "filters": {
       "group": "Group",
       "tag": "Tags",
