@@ -10,8 +10,8 @@ import { preferenceKey } from './storage';
  */
 export interface Preferences {
   /**
-   * The row height new tables start at: 40 px, or 32 px. Kept now; the data tables of later plans read it,
-   * and nothing does yet.
+   * The row height new tables start at: 32 px (compact, the default since the owner decision of 2026-10-29),
+   * or 40 px. Kept now; the data tables of later plans read it, and nothing does yet.
    */
   density: 'default' | 'compact';
   /**
@@ -29,7 +29,7 @@ export const PREFERENCE_LOCALES = ['en-US', 'en-GB', 'de-DE'] as const;
 export type PreferenceLocale = (typeof PREFERENCE_LOCALES)[number];
 
 export const DEFAULT_PREFERENCES: Preferences = {
-  density: 'default',
+  density: 'compact',
   locale: 'en-US',
   reduceMotion: false,
   singleKeys: true,
@@ -45,7 +45,7 @@ function parse(raw: string | null): Preferences {
     if (typeof value !== 'object' || value === null) return DEFAULT_PREFERENCES;
     const record = value as Record<string, unknown>;
     return {
-      density: record.density === 'compact' ? 'compact' : 'default',
+      density: record.density === 'default' ? 'default' : DEFAULT_PREFERENCES.density,
       locale: PREFERENCE_LOCALES.find((locale) => locale === record.locale) ?? DEFAULT_PREFERENCES.locale,
       reduceMotion: record.reduceMotion === true,
       singleKeys: record.singleKeys !== false,

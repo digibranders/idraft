@@ -41,6 +41,7 @@ import { can, useCan, useMembership } from '@/lib/permissions';
 import { projectPath, workspacePath } from '@/lib/routes/paths';
 import { useMe } from '@/lib/session/use-me';
 import {
+  DEFAULT_DENSITY,
   formatColumns,
   formatSort,
   parseColumns,
@@ -381,7 +382,7 @@ function RunsContent({ workspaceId, project }: Readonly<{ workspaceId: string; p
             onSortChange={(next) => void setView({ sort: sameSort(next, DEFAULT_SORT) ? null : formatSort(next) })}
             defaultSort={DEFAULT_SORT}
             density={density}
-            onDensityChange={(next: Density) => void setView({ density: next === 'default' ? null : next })}
+            onDensityChange={(next: Density) => void setView({ density: next === DEFAULT_DENSITY ? null : next })}
             columnState={{
               visible,
               onChange: (next) => void setView({ cols: next === null ? null : formatColumns(next) }),

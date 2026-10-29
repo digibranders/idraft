@@ -8,7 +8,7 @@ import type { DataTableColumn, RecordAction, RowActions, ServerPaging, TableStat
 import { CopyButton } from '@/components/app/cells/copy-button';
 import { InspectorOverlayContext } from '@/components/app/inspector/inspector-layout';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
-import type { Density, SortKey } from '@/lib/tables/table-state';
+import { parseDensity, type Density, type SortKey } from '@/lib/tables/table-state';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
@@ -80,7 +80,7 @@ function Harness({
   rowName?: (row: Row) => string;
 }): ReactElement {
   const [sort, setSort] = useState<readonly SortKey[]>(DEFAULT_SORT);
-  const [density, setDensity] = useState<Density>('default');
+  const [density, setDensity] = useState<Density>(parseDensity(null));
   const [visible, setVisible] = useState<readonly string[] | null>(null);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -169,6 +169,47 @@ const bodyKeywords = (): string[] =>
   within(grid())
     .getAllByRole('rowheader')
     .map((cell) => cell.textContent);
+
+describe('DataTable house style (owner decisions of 2026-10-29)', () => {
+  it('opens in compact density: 32 px rows, with the header row alone at the header height', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    const rows = within(grid()).getAllByRole('row');
+    expect(rows[0]).toHaveClass('h-row-header');
+    for (const row of rows.slice(1)) {
+      expect(row).toHaveClass('h-row-compact');
+      expect(row).not.toHaveClass('h-row');
+    }
+  });
+
+  it('left aligns a numeric column in its header and its cells', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveClass('text-left');
+    expect(screen.getByRole('columnheader', { name: /Volume/ })).not.toHaveClass('text-right');
+    const [cell] = within(grid()).getAllByRole('gridcell', { name: /^\d+$/ });
+    expect(cell).toHaveClass('text-left');
+    expect(cell).not.toHaveClass('text-right');
+    expect(cell?.firstElementChild).toHaveClass('num');
+  });
+
+  it('right aligns the row-actions column, in its header and its cells, and nothing else', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    const rightHeaders = within(grid())
+      .getAllByRole('columnheader')
+      .filter((header) => header.classList.contains('text-right'));
+    expect(rightHeaders.map((header) => header.textContent)).toEqual(['Actions']);
+    const rightCells = within(grid())
+      .getAllByRole('gridcell')
+      .filter((cell) => cell.classList.contains('text-right'));
+    expect(rightCells).toHaveLength(3);
+  });
+
+  it('writes header labels in capitals through the table header style, and keeps the body at the table style', () => {
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    const label = within(screen.getByRole('columnheader', { name: /Volume/ })).getByText('Volume');
+    expect(label).toHaveClass('type-table-header');
+    expect(grid()).toHaveClass('type-table');
+  });
+});
 
 describe('DataTable', () => {
   it('is a named grid with a hint, a row header per row and the sorted column marked', async () => {

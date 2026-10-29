@@ -221,7 +221,7 @@ const urlView = (current: RankCell, count: number): ReactElement => (
 );
 
 describe('RankingUrlView', () => {
-  it('shows the path in the mono style, its start giving way to an ellipsis and its end always in view', () => {
+  it('shows the path in the mono family at the table size, its start giving way to an ellipsis and its end always in view', () => {
     renderWithProviders(urlView(cell({ url: URL_REF }), 1));
     // The end tells URLs apart, so it never shrinks; the start is clipped with an ellipsis by CSS, not cut by code
     const end = URL_REF.path.slice(-PATH_END_CHARS);
@@ -231,7 +231,7 @@ describe('RankingUrlView', () => {
     expect(tail).not.toHaveClass('truncate');
     const head = screen.getByText(start);
     expect(head).toHaveClass('truncate');
-    expect(head.closest('.type-mono')).not.toBeNull();
+    expect(head.closest('.font-mono')).not.toBeNull();
     // Nothing of the path is dropped from the text, so no part of it is cut twice
     expect(head.textContent + (tail.textContent ?? '')).toBe(URL_REF.path);
     expect(head.parentElement).toHaveAttribute('aria-hidden', 'true');

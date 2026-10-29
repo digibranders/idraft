@@ -195,7 +195,6 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
     {
       id: 'schedule',
       header: t('columns.schedule'),
-      align: 'left',
       wrap: true,
       cell: (schedule) => (
         <span className="flex flex-col">
@@ -207,14 +206,12 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
     {
       id: 'collects',
       header: t('columns.collects'),
-      align: 'left',
       wrap: true,
       cell: (schedule) => words.collects(schedule.selector, names),
     },
     {
       id: 'when',
       header: t('columns.when'),
-      align: 'left',
       wrap: true,
       cell: (schedule) => (
         <>
@@ -228,7 +225,6 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
       header: t('columns.next'),
       // 22-content-formatting.md section 4: a column of times says which zone they are in
       description: t('columns.nextZone', { timeZone }),
-      align: 'left',
       cell: (schedule) => (
         <>
           {schedule.is_active ? (
@@ -255,7 +251,7 @@ export function SchedulesScreen(props: SchedulesScreenProps): ReactNode {
             id: 'actions',
             header: t('columns.actions'),
             hideHeader: true,
-            align: 'right',
+            actions: true,
             cell: (schedule: Schedule) => (
               <Menu
                 align="end"

@@ -17,10 +17,11 @@ describe('usePreferences', () => {
   it('starts from the defaults, and keeps each person apart', () => {
     const ana = renderHook(() => usePreferences(ANA));
     expect(ana.result.current[0]).toEqual(DEFAULT_PREFERENCES);
-    act(() => ana.result.current[1]('density', 'compact'));
-    expect(ana.result.current[0].density).toBe('compact');
+    expect(DEFAULT_PREFERENCES.density).toBe('compact');
+    act(() => ana.result.current[1]('density', 'default'));
+    expect(ana.result.current[0].density).toBe('default');
     expect(renderHook(() => usePreferences(BEN)).result.current[0]).toEqual(DEFAULT_PREFERENCES);
-    expect(JSON.parse(localStorage.getItem(keyOf(ANA)) ?? '{}')).toMatchObject({ density: 'compact' });
+    expect(JSON.parse(localStorage.getItem(keyOf(ANA)) ?? '{}')).toMatchObject({ density: 'default' });
   });
 
   it('reads what is stored without trusting it', () => {

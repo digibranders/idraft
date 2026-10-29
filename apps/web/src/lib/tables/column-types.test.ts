@@ -14,23 +14,23 @@ const COLUMNS: SizedColumn[] = [
 const FIXED = 40 + 88 + 88 + 120;
 
 describe('rank, change and URL column types (12-tables.md section 5)', () => {
-  it('gives a rank 64 px, right aligned, best (lowest) first', () => {
+  it('gives a rank 64 px, left aligned, best (lowest) first', () => {
     expect(COLUMN_TYPES.rank).toEqual({
       width: 64,
       min: 56,
       max: 80,
-      align: 'right',
+      align: 'left',
       defaultDesc: false,
       flex: false,
     });
   });
 
-  it('gives a rank change 84 to 88 px, which the header "Change" with its sort arrow needs, right aligned, the biggest improvement first', () => {
+  it('gives a rank change 84 to 88 px, which the header "Change" with its sort arrow needs, left aligned, the biggest improvement first', () => {
     expect(COLUMN_TYPES.rankDelta).toEqual({
       width: 88,
       min: 84,
       max: 88,
-      align: 'right',
+      align: 'left',
       defaultDesc: true,
       flex: false,
     });
@@ -88,5 +88,15 @@ describe('resolveWidths', () => {
     expect(tiny.get('added')).toBe(104);
     // What still does not fit scrolls sideways
     expect([...tiny.values()].reduce((sum, width) => sum + width, 0)).toBeGreaterThan(300);
+  });
+});
+
+describe('alignment (owner decision of 2026-10-29)', () => {
+  it('left aligns every column type, numeric ones included, except the checkbox column and the row actions', () => {
+    const aligned = Object.entries(COLUMN_TYPES).map(([type, spec]) => [type, spec.align]);
+    expect(aligned.filter(([, align]) => align !== 'left')).toEqual([
+      ['select', 'center'],
+      ['actions', 'right'],
+    ]);
   });
 });

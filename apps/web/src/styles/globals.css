@@ -285,8 +285,18 @@
 @utility type-prose {
   font-size: 0.875rem; line-height: 1.375rem; font-weight: 400; letter-spacing: 0;
 }
+/* Table body text: 12 / 16 in every table (owner decision of 2026-10-29, 12-tables.md section 3). */
 @utility type-table {
-  font-size: 0.8125rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0;
+  font-size: 0.75rem; line-height: 1rem; font-weight: 400; letter-spacing: 0;
+}
+/* Table cells that stay strong (a total row): same size, weight 500. */
+@utility type-table-strong {
+  font-size: 0.75rem; line-height: 1rem; font-weight: 500; letter-spacing: 0;
+}
+/* Table header labels: 12 / 16, capitals, 0.04em, tertiary (same decision). */
+@utility type-table-header {
+  font-size: 0.75rem; line-height: 1rem; font-weight: 400; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--foreground-tertiary);
 }
 @utility type-meta {
   font-size: 0.8125rem; line-height: 1.25rem; font-weight: 400; letter-spacing: 0; color: var(--foreground-tertiary);

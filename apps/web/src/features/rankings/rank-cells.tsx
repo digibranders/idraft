@@ -45,11 +45,11 @@ const EMPTY_SPEECH = {
 export const PATH_END_CHARS = 12;
 
 /**
- * The cell's content, right aligned: marks, if any, then the value, 2 px apart (icon to counter). A cell that
+ * The cell's content, left aligned: marks, if any, then the value, 2 px apart (icon to counter). A cell that
  * has both marks and a three digit rank is a little wider than the narrowest Rank column: the extra grows to
- * the left, into the padding of the Keyword cell beside it, and does not touch the Change column.
+ * the right, into the padding of the cell beside it.
  */
-const ROW = cn('flex items-center justify-end gap-0.5');
+const ROW = cn('flex items-center gap-0.5');
 
 /**
  * What may make a rank look current when it is not, at any table width (the Updated column's own marker shows
@@ -213,7 +213,7 @@ export function RankingUrlView({ display }: { display: UrlDisplay }): ReactEleme
       return (
         // `relative` and `bg-inherit` hold the copy button when it lies over the end of the cell
         <span className="relative flex min-w-0 items-center gap-1.5 bg-inherit">
-          <span className="block min-w-0 type-mono text-foreground">
+          <span className="block min-w-0 font-mono text-foreground">
             {href === null ? (
               <PathText path={display.path} />
             ) : (
