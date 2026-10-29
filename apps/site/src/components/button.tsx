@@ -21,10 +21,11 @@ type ButtonProps = {
  * the same point on leave, so it never jumps.
  */
 const TONES: Record<Variant, { rest: string; restDisc: string; fill: string; fillDisc: string }> = {
-  primary: { rest: 'bg-cobalt text-white shadow-[0_14px_30px_-14px_rgb(30_101_227/0.7)]', restDisc: 'bg-white/15', fill: 'bg-ink', fillDisc: 'bg-white/15' },
-  secondary: { rest: 'bg-surface text-ink ring-1 ring-ink/10', restDisc: 'bg-ink/5', fill: 'bg-cobalt', fillDisc: 'bg-white/20' },
+  primary: { rest: 'bg-cobalt text-white shadow-[0_14px_30px_-14px_rgb(30_101_227/0.7)]', restDisc: 'bg-white/15', fill: 'bg-ink text-white', fillDisc: 'bg-white/15' },
+  // The secondary only tints toward cobalt, so it never looks like the primary action.
+  secondary: { rest: 'bg-surface text-ink ring-1 ring-ink/10', restDisc: 'bg-ink/5', fill: 'bg-wash text-cobalt-deep', fillDisc: 'bg-cobalt/10' },
   // On a cobalt panel: a white pill, so the action stays the strongest thing in view.
-  light: { rest: 'bg-white text-ink', restDisc: 'bg-cobalt text-white', fill: 'bg-ink', fillDisc: 'bg-white/15' },
+  light: { rest: 'bg-white text-ink', restDisc: 'bg-cobalt text-white', fill: 'bg-ink text-white', fillDisc: 'bg-white/15' },
 };
 
 /** Remembers where the pointer crossed the edge on the way in. Not updated on the way out. */
@@ -52,7 +53,7 @@ export function Button({ href, children, variant = 'primary', compact = false }:
       {arrow(tone.restDisc)}
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-0 inline-flex items-center rounded-full text-white transition-[clip-path] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] [clip-path:circle(0px_at_var(--x,50%)_var(--y,50%))] group-hover:[clip-path:circle(15rem_at_var(--x,50%)_var(--y,50%))] motion-reduce:transition-none ${tone.fill} ${layout}`}
+        className={`pointer-events-none absolute inset-0 inline-flex items-center rounded-full transition-[clip-path] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] [clip-path:circle(0px_at_var(--x,50%)_var(--y,50%))] group-hover:[clip-path:circle(15rem_at_var(--x,50%)_var(--y,50%))] motion-reduce:transition-none ${tone.fill} ${layout}`}
       >
         {children}
         {arrow(tone.fillDisc)}
