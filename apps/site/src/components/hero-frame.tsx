@@ -30,10 +30,12 @@ export function HeroFrame({ children }: { children: React.ReactNode }) {
         defaults: { ease: 'none' },
         scrollTrigger: { trigger: scope, start: 'top top', end: '+=100%', pin: true, scrub: 0.6, anticipatePin: 1 },
       });
-      if (mover) timeline.to(mover, { x: '-35vw', y: '7vh', scale: 1.02 }, 0);
-      if (tilt) timeline.to(tilt, { rotateY: 0, rotateX: 0, rotateZ: 0 }, 0);
-      if (copy) timeline.to(copy, { x: -80, opacity: 0, ease: 'power2.out' }, 0);
-      if (wash) timeline.to(wash, { opacity: 0 }, 0.1);
+      // The headline leaves first (0.05 to 0.35); only then does the product travel under where it was (0.3 to 1).
+      if (mover) timeline.to(mover, { x: '-35vw', y: '7vh', scale: 1.02, duration: 0.7 }, 0.3);
+      if (tilt) timeline.to(tilt, { rotateY: 0, rotateX: 0, rotateZ: 0, duration: 0.7 }, 0.3);
+      // The headline holds for the first part of the scroll, then leaves, so the first screen always has its words.
+      if (copy) timeline.to(copy, { x: -80, opacity: 0, duration: 0.3, ease: 'power2.in' }, 0.05);
+      if (wash) timeline.to(wash, { opacity: 0, duration: 0.3 }, 0.2);
     });
     return () => mm.revert();
   }, []);
