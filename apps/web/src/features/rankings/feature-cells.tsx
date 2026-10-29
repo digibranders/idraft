@@ -1,6 +1,7 @@
 import {
   Check,
   CircleDot,
+  Crosshair,
   BookOpen,
   Image,
   Link,
@@ -141,4 +142,13 @@ export function AioStatusView({ display }: AioStatusViewProps): ReactElement {
     case 'pending':
       return <span className="text-foreground-tertiary">{t('pending')}</span>;
   }
+}
+
+/**
+ * A marker shown in the keyword cell when the latest check ranked a URL other than the target URL
+ * (24-page-templates.md section 9.3). Carries no text of its own: the explanation belongs in the cell's
+ * description.
+ */
+export function TargetMismatchMarker(): ReactElement {
+  return <Icon icon={Crosshair} size="sm" className="text-warning-text" />;
 }

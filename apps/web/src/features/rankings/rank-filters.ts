@@ -16,10 +16,12 @@ export const RANK_CHOICES = ['top3', 'top10', 'top20', 'top50', 'top100', 'beyon
 export const CHANGE_CHOICES = ['improved', 'declined', 'entered', 'lost'] as const;
 export const STALE_CHOICES = ['stale'] as const;
 export const AIO_CHOICES = ['present_cited', 'present_not_cited', 'absent', 'not_loaded', 'unknown'] as const;
+export const TARGET_CHOICES = ['match', 'mismatch'] as const;
 
 export type RankChoice = (typeof RANK_CHOICES)[number];
 export type ChangeChoice = (typeof CHANGE_CHOICES)[number];
 export type AioChoice = (typeof AIO_CHOICES)[number];
+export type TargetChoice = (typeof TARGET_CHOICES)[number];
 
 export const AIO_MESSAGE_KEYS = {
   present_cited: 'presentCited',
@@ -42,6 +44,7 @@ export type RankFilterParams = Pick<
   | 'filter[feature_present]'
   | 'filter[feature_owned]'
   | 'filter[aio_state]'
+  | 'filter[target_url_match]'
 >;
 
 /** The one value a single choice chip holds, if it is one of `allowed`. */
@@ -85,5 +88,7 @@ export function rankFilterParams(values: FilterValues): RankFilterParams {
   if (ownedFeature !== undefined) params['filter[feature_owned]'] = ownedFeature;
   const aio = choicesOf(values, 'aio', AIO_CHOICES);
   if (aio.length > 0) params['filter[aio_state]'] = aio;
+  const target = choiceOf(values, 'tmatch', TARGET_CHOICES);
+  if (target !== undefined) params['filter[target_url_match]'] = target === 'match';
   return params;
 }

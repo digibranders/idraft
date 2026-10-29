@@ -360,7 +360,13 @@ function fixtureStates(): { text: string; state: TrackedKeywordState }[] {
   const texts = new Map(MOCK_KEYWORDS.map((keyword) => [keyword.keyword_id, keyword.text]));
   return MOCK_TRACKED_KEYWORDS.filter((row) => row.is_active).map((row) => ({
     text: texts.get(row.keyword_id) ?? '',
-    state: rankStateOf(row.tracked_keyword_id, row.created_at, Date.now(), 'fynix.digital'),
+    state: rankStateOf(
+      row.tracked_keyword_id,
+      row.created_at,
+      Date.now(),
+      'fynix.digital',
+      row.versions.at(-1)?.target_url ?? null,
+    ),
   }));
 }
 
@@ -764,6 +770,36 @@ describe('Rankings rank filters', () => {
         texts.every((text) => {
           const item = fixtureStates().find((candidate) => candidate.text === text);
           return item?.state.aio.state === 'present_cited';
+        }),
+      ).toBe(true);
+    });
+  });
+
+  it('marks a keyword whose ranking URL does not match its target and filters by target URL match', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+
+    const mismatchRow = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => candidate.textContent === 'website seo audit');
+    expect(mismatchRow).toBeDefined();
+    if (!mismatchRow) throw new Error('No mismatch row found');
+    const icon = mismatchRow.querySelector('svg.text-warning-text');
+    expect(icon).toBeInTheDocument();
+    expect(mismatchRow).toHaveAccessibleDescription(/Ranks with \/blog\/local-seo, not the target \/audits\./);
+
+    await choose(user, grid, 'Target URL', 'Ranks with another URL');
+    await waitFor(() => expect(asked.some((query) => query.get('filter[target_url_match]') === 'false')).toBe(true));
+    await waitFor(() => expect(url.latest().get('tmatch')).toBe('mismatch'));
+    await waitFor(() => {
+      const texts = keywordsIn(grid);
+      expect(texts.length).toBeGreaterThan(0);
+      expect(
+        texts.every((text) => {
+          const item = fixtureStates().find((candidate) => candidate.text === text);
+          return item?.state.target_url_match === false;
         }),
       ).toBe(true);
     });

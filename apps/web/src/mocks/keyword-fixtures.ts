@@ -119,6 +119,12 @@ export const PENDING_TRACKED_IDS: ReadonlySet<string> = new Set(
 
 export const MOCK_TRACKED_KEYWORDS: readonly StoredTracked[] = TRACKED_ROWS.map(({ row, id }, index) => {
   const added = row.metrics === null ? PENDING_ADDED_AT : new Date(ADDED_FROM + index * 37 * HOUR_MS).toISOString();
+  const targetUrl = (() => {
+    if (index === 2) return `https://${fynix.host}/blog/seo-audit`;
+    if (index === 4) return `https://${fynix.host}/blog/seo-audit`;
+    if (index === 7) return `https://${fynix.host}/audits`;
+    return null;
+  })();
   return {
     tracked_keyword_id: id,
     project_id: FYNIX_PROJECT_ID,
@@ -141,7 +147,7 @@ export const MOCK_TRACKED_KEYWORDS: readonly StoredTracked[] = TRACKED_ROWS.map(
     created_at: added,
     updated_at: added,
     versions: [
-      { depth_profile: 'standard', target_url: null, valid_from: added, change_reason: null, changed_by: owner },
+      { depth_profile: 'standard', target_url: targetUrl, valid_from: added, change_reason: null, changed_by: owner },
     ],
   };
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MOCK_TRACKED_KEYWORDS, PENDING_TRACKED_IDS } from './keyword-fixtures';
+import { currentVersion } from './keywords-state';
 import { checksOf, FIRST_CHECK_DELAY_MS, type MockCheck } from './rank-history';
 import { changeOf, FAILED_IDS, FAILING_IDS, rankStateOf, STALE_IDS, stoppedAtOf } from './rank-state';
 import { FEATURE_TYPES } from '@/lib/keywords/serp-features';
@@ -421,5 +422,16 @@ describe('mock rank state of the fixtures', () => {
       if (state.current.state !== 'not_checked')
         expect(state.feature_types_present.includes('ai_overview')).toBe(showed);
     }
+  });
+
+  it('pins true, false, and null target URL matches for fixtures', () => {
+    const matches = MOCK_TRACKED_KEYWORDS.map((row) => {
+      const target = currentVersion(row).target_url;
+      const state = rankStateOf(row.tracked_keyword_id, row.created_at, NOW, DOMAIN, target);
+      return state.target_url_match;
+    });
+    expect(matches.some((match) => match === true)).toBe(true);
+    expect(matches.some((match) => match === false)).toBe(true);
+    expect(matches.some((match) => match === null)).toBe(true);
   });
 });

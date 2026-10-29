@@ -7,6 +7,7 @@ import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
+import { TargetMismatchMarker } from './feature-cells';
 import { useRankColumns } from './rank-columns';
 import type { SortKey } from '@/lib/tables/table-state';
 
@@ -64,6 +65,7 @@ export function useKeywordRowName(projectLanguage: string | null): (row: Tracked
 export function useKeywordColumns(timeZone: string): readonly DataTableColumn<TrackedKeywordRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
+  const targetT = useTranslations('rankings.target');
   const locale = useLocale();
   const ranks = useRankColumns(timeZone);
   return useMemo(() => {
@@ -77,13 +79,23 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         header: t('keyword'),
         // The keyword's own text is copied, not the row's longer name
         copy: { label: (row) => t('copyKeyword', { keyword: row.keyword.text }), announcement: t('keywordCopied') },
-        detail: (row) =>
-          t('keywordDetail', {
+        detail: (row) => {
+          const keywordDetail = t('keywordDetail', {
             location: row.location.name,
             device: t(row.device === 'mobile' ? 'mobile' : 'desktop'),
             engine: t('google'),
             language: languageName(row.language_code, locale),
-          }),
+          });
+          if (row.state.target_url_match === false) {
+            const mismatchSentence = targetT('mismatch', {
+              ranking: row.state.current.url?.path ?? '',
+              target: row.target_url?.path ?? '',
+            });
+            return [keywordDetail, mismatchSentence].join(' ');
+          }
+          return keywordDetail;
+        },
+        marker: (row) => (row.state.target_url_match === false ? <TargetMismatchMarker /> : null),
       }),
       ranks.rank,
       ranks.change,
@@ -162,5 +174,5 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         secondary: true,
       }),
     ];
-  }, [t, common, locale, timeZone, ranks]);
+  }, [t, targetT, common, locale, timeZone, ranks]);
 }

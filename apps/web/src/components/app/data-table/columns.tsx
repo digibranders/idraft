@@ -95,6 +95,7 @@ export const col = {
     options: Options & {
       detail?: ((row: TRow) => string) | undefined;
       copy?: { label: (row: TRow) => string; announcement: string } | undefined;
+      marker?: ((row: TRow) => ReactNode) | undefined;
     },
   ): DataTableColumn<TRow> {
     return {
@@ -111,12 +112,16 @@ export const col = {
             ) : (
               <span className="block min-w-0 truncate text-foreground">{value}</span>
             );
-          if (options.copy === undefined) return label;
+          const marker = options.marker?.(row);
+          if (options.copy === undefined && (marker === null || marker === undefined)) return label;
           // `bg-inherit` hands the cell's own background (hover, selected) to the button's backing
           return (
-            <span className="relative flex min-w-0 items-center bg-inherit">
+            <span className="relative flex min-w-0 items-center gap-1.5 bg-inherit">
               {label}
-              <CopyButton text={value} label={options.copy.label(row)} announcement={options.copy.announcement} />
+              {marker !== undefined && marker !== null ? <span className="shrink-0">{marker}</span> : null}
+              {options.copy !== undefined && (
+                <CopyButton text={value} label={options.copy.label(row)} announcement={options.copy.announcement} />
+              )}
             </span>
           );
         },

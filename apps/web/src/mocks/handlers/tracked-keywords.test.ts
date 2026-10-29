@@ -591,7 +591,14 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
       id: row.tracked_keyword_id,
       text: KEYWORD_TABLE[index]?.text ?? '',
       active: row.is_active,
-      state: rankStateOf(row.tracked_keyword_id, row.created_at, NOW, HOST, null, stoppedAtOf(row)),
+      state: rankStateOf(
+        row.tracked_keyword_id,
+        row.created_at,
+        NOW,
+        HOST,
+        row.versions.at(-1)?.target_url ?? null,
+        stoppedAtOf(row),
+      ),
     }));
   const live = (): Truth[] => fixtures().filter((entry) => entry.active);
   const ids = (entries: readonly { id: string }[]): string[] => entries.map((entry) => entry.id).sort();
@@ -707,22 +714,31 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     expect(await idsOfList(viewer, `filter[ranking_url_id]=${urlId}`)).toEqual(
       ids(live().filter((entry) => entry.state.current.url?.url_id === urlId)),
     );
-    // Nothing has a target URL yet, so the match is unknown for every keyword and neither value takes one
-    expect(await idsOfList(viewer, 'filter[target_url_match]=true')).toEqual([]);
-    expect(await idsOfList(viewer, 'filter[target_url_match]=false')).toEqual([]);
+    expect(await idsOfList(viewer, 'filter[target_url_match]=true')).toEqual(
+      ids(live().filter((entry) => entry.state.target_url_match === true)),
+    );
+    expect(await idsOfList(viewer, 'filter[target_url_match]=false')).toEqual(
+      ids(live().filter((entry) => entry.state.target_url_match === false)),
+    );
   });
 
   it('matches a target URL to the ranking URL once a keyword has one', async () => {
     const editor = mockBrowser('editor');
-    const [first, second] = live().filter((entry) => entry.state.current.url !== null);
+    const [first, second] = live().filter(
+      (entry) => entry.state.current.url !== null && entry.state.target_url_match === null,
+    );
     const same = first?.state.current.url;
     if (first === undefined || second === undefined || same === undefined || same === null) {
       throw new Error('Fewer than two fixture keywords rank');
     }
     await editor.call('PATCH', `${TK}/${first.id}`, { target_url: same.canonical_url });
     await editor.call('PATCH', `${TK}/${second.id}`, { target_url: `https://${HOST}/not-the-ranking-page` });
-    expect(await idsOfList(editor, 'filter[target_url_match]=true')).toEqual([first.id]);
-    expect(await idsOfList(editor, 'filter[target_url_match]=false')).toEqual([second.id]);
+    expect(await idsOfList(editor, 'filter[target_url_match]=true')).toEqual(
+      ids([first, ...live().filter((entry) => entry.state.target_url_match === true)]),
+    );
+    expect(await idsOfList(editor, 'filter[target_url_match]=false')).toEqual(
+      ids([second, ...live().filter((entry) => entry.state.target_url_match === false)]),
+    );
     const detail = dataOf(await editor.call('GET', `${TK}/${first.id}`), TRACKED_KEYWORD_DETAIL);
     expect(detail.state.target_url_match).toBe(true);
   });
@@ -920,7 +936,9 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     expect(await matched({ feature_present: 'featured_snippet' })).toBe(
       everyone.filter((entry) => entry.state.feature_types_present.includes('featured_snippet')).length,
     );
-    expect(await matched({ target_url_match: true })).toBe(0);
+    expect(await matched({ target_url_match: true })).toBe(
+      everyone.filter((entry) => entry.state.target_url_match === true).length,
+    );
     // The body's own limits
     const refused = async (filter: Record<string, unknown>): Promise<string[]> =>
       fieldCodes(await editor.call('POST', `${TK}/bulk-archive`, { filter, archive: false }));

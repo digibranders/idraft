@@ -2315,6 +2315,13 @@
         "unknown": "Unknown"
       }
     },
+    "target": {
+      "mismatch": "Ranks with {ranking}, not the target {target}.",
+      "markerLabel": "Target URL does not rank",
+      "chip": "Target URL",
+      "match": "Ranks with the target",
+      "mismatchChoice": "Ranks with another URL"
+    },
     "filters": {
       "group": "Group",
       "tag": "Tags",
@@ -2375,6 +2382,7 @@
       "feature": "SERP feature",
       "featureOwned": "SERP feature you own",
       "aio": "AI Overview",
+      "target": "Target URL",
       "stale": "Freshness",
       "staleStates": {
         "stale": "Stale"

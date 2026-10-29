@@ -765,6 +765,34 @@ describe('DataTable rank, change and URL columns', () => {
       .find((cell) => cell.textContent === '>20');
     expect(beyond).toHaveAccessibleDescription('Not in the top 20');
   });
+
+  it('renders a marker in a keyword cell without changing the accessible name or tooltip', () => {
+    interface MarkedRow extends Row {
+      flag: boolean;
+    }
+    const columns = [
+      col.keyword<MarkedRow>('keyword', (row) => row.keyword, {
+        header: 'Keyword',
+        detail: (row) => `Detail for ${row.keyword}`,
+        marker: (row) => (row.flag ? <span data-testid="m" /> : null),
+      }),
+    ];
+    const rows: MarkedRow[] = [
+      { id: '1', keyword: 'flagged keyword', volume: 100, difficulty: 20, flag: true },
+      { id: '2', keyword: 'plain keyword', volume: 200, difficulty: 30, flag: false },
+    ];
+    renderWithProviders(<Harness rows={rows} columns={columns as unknown as readonly DataTableColumn<Row>[]} />);
+    const rowHeaders = screen.getAllByRole('rowheader');
+    const first = rowHeaders[0];
+    const second = rowHeaders[1];
+    if (first === undefined || second === undefined) throw new Error('No row headers');
+    expect(within(first).getByTestId('m')).toBeInTheDocument();
+    expect(within(second).queryByTestId('m')).toBeNull();
+    expect(first).toHaveAccessibleName('flagged keyword');
+    expect(second).toHaveAccessibleName('plain keyword');
+    expect(first).toHaveAccessibleDescription('Detail for flagged keyword');
+    expect(second).toHaveAccessibleDescription('Detail for plain keyword');
+  });
 });
 
 /** A keyword cell with a copy button, and a URL cell with a link and a copy button, as Rankings builds them. */

@@ -48,6 +48,7 @@ export function bodyFilterOf(filters: KeywordFilters, search: string): BodyFilte
     ...given('feature_present', filters['filter[feature_present]']),
     ...given('feature_owned', filters['filter[feature_owned]']),
     ...given('aio_state', filters['filter[aio_state]']),
+    ...given('target_url_match', filters['filter[target_url_match]']),
     ...(q === '' ? {} : { q }),
   };
 }

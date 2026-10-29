@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { SerpFeatureListView, AioStatusView } from './feature-cells';
+import { SerpFeatureListView, AioStatusView, TargetMismatchMarker } from './feature-cells';
 import type { AioDisplay } from '@/lib/format';
 import { featureListDisplay } from '@/lib/keywords/serp-features';
 import { renderWithProviders } from '@/test/render';
@@ -95,5 +95,17 @@ describe('AioStatusView', () => {
 
     rerender(<AioStatusView display={{ kind: 'pending' }} />);
     expect(screen.getByText('Pending')).toHaveClass('text-foreground-tertiary');
+  });
+});
+
+describe('TargetMismatchMarker', () => {
+  it('renders a 14 px Crosshair icon in text-warning-text, aria-hidden, and nothing else', () => {
+    const { container } = renderWithProviders(<TargetMismatchMarker />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg).toHaveAttribute('aria-hidden', 'true');
+    expect(svg).toHaveClass('text-warning-text', 'size-icon-sm');
+    expect(container.textContent).toBe('');
+    expect(screen.queryByRole('img')).toBeNull();
   });
 });

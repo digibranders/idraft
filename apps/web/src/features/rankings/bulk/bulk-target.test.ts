@@ -53,6 +53,14 @@ describe('bulk targets', () => {
       is_active: true,
       aio_state: ['present_cited', 'absent'],
     });
+    expect(chosen({ tmatch: { kind: 'enum', values: ['match'] } })).toEqual({
+      is_active: true,
+      target_url_match: true,
+    });
+    expect(chosen({ tmatch: { kind: 'enum', values: ['mismatch'] } })).toEqual({
+      is_active: true,
+      target_url_match: false,
+    });
   });
 
   it('sends the search as the API takes it: printable and at most 200 characters, and none when nothing is left', () => {
