@@ -5,7 +5,6 @@ import { Engines } from '@/components/engines';
 import { Faq } from '@/components/faq';
 import { HomeHero } from '@/components/home-hero';
 import { HorizontalEngines } from '@/components/horizontal-engines';
-import { ProductTour } from '@/components/product-tour';
 import { Reveal } from '@/components/reveal';
 import { RoadmapTeaser } from '@/components/roadmap-teaser';
 import { Roles } from '@/components/roles';
@@ -21,7 +20,6 @@ export default function Home() {
           <TextReveal text="Search is no longer ten blue links. People now get answers from AI, and those answers name brands. idraft shows where you rank and where you are named, together, with the evidence behind each number." />
         </Reveal>
       </section>
-      <ProductTour />
       <HorizontalEngines />
       <Bento />
       <Compare />
