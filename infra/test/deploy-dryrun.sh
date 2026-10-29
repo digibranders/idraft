@@ -367,5 +367,21 @@ cmp "$IDRAFT_RELEASES_DIR/current.json" "$test_dir/current.before" || fail "curr
 assert_serving "after the refused rollback"
 cp "$test_dir/env.previous.good" "$env_file.previous"
 
+echo "=== 16. SIGTERM while the images are pulled: the staged env is dropped and the stop is logged ==="
+# A docker shim makes the pull of the missing image take 5 seconds, so the signal lands inside it.
+mkdir -p "$test_dir/slowbin"
+real_docker="$(command -v docker)"
+# shellcheck disable=SC2016  # the $ must reach the shim unexpanded
+printf '#!/bin/sh\n[ "$1" = pull ] && sleep 5\nexec "%s" "$@"\n' "$real_docker" > "$test_dir/slowbin/docker"
+chmod +x "$test_dir/slowbin/docker"
+cp "$env_file" "$env_file.next"
+PATH="$test_dir/slowbin:$PATH" "$deploy_sh" "$env_file" "$test_dir/nopull.json" > "$test_dir/last.log" 2>&1 &
+deploy_pid=$!
+term_when "Pulling images..."
+[ "$last_rc" -ne 0 ] || fail "a deploy stopped by SIGTERM during the pulls returned 0"
+[ ! -f "$env_file.next" ] || fail "the staged env was left behind after SIGTERM during the pulls"
+tail -n 1 "$IDRAFT_RELEASES_DIR/history.log" | grep -q "DEPLOY_FAILED api=idraft-api:v2" || fail "the stopped deploy is not in history.log"
+assert_serving "after SIGTERM during the pulls"
+
 assert_eq "$(repo_state)" "$repo_before" "repository working tree at the end"
 echo "Deploy dry-run tests passed successfully."

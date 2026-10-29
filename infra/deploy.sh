@@ -88,7 +88,8 @@ rm -f "$output_fifo"
 echo "=== $(date -u +"%Y-%m-%dT%H:%M:%SZ") deploy.sh $* ==="
 
 # What an unexpected exit (a signal, a set -e abort) has to undo before the release is recorded:
-# "" nothing, "acl" the Redis ACL rendered from the candidate, "apps" the application containers.
+# "" nothing, "stage" only the staged env (nothing running was touched), "acl" the Redis ACL rendered from
+# the candidate, "apps" the application containers.
 # abort_deploy and fail_deploy clear it, because they undo the same things themselves.
 undo=""
 on_exit() {
@@ -468,6 +469,8 @@ echo "  Worker: $worker_image"
 echo "  Web:    $web_image"
 
 export_release
+# From here an interruption must drop the staged env and be logged, even before anything runs.
+undo=stage
 # Catches a missing required variable before anything running is touched.
 dc config -q || die "The environment does not render the Compose file. Nothing was changed."
 
