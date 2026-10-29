@@ -28,7 +28,13 @@ export function Bento() {
   return (
     <section id="product" className="mx-auto max-w-[1320px] px-5 py-24 md:px-8 lg:py-32">
       <Reveal>
-        <h2 className="max-w-[18ch] text-[clamp(2.1rem,3.8vw,3.4rem)] leading-[1.05] font-semibold tracking-[-0.04em]">Everything on one record per topic.</h2>
+        <h2 className="max-w-[22ch] text-[clamp(2.2rem,4.2vw,3.8rem)] leading-[1.1] font-semibold tracking-[-0.045em]">
+          Every rank
+          <span aria-hidden="true" className="mx-3 inline-block h-[0.78em] w-[1.7em] rounded-full bg-cover bg-center align-middle shadow-lift ring-1 ring-ink/10" style={{ backgroundImage: 'url(/images/bars.png)' }} />
+          and every answer
+          <span aria-hidden="true" className="mx-3 inline-block h-[0.78em] w-[1.7em] rounded-full bg-cover bg-center align-middle shadow-lift ring-1 ring-ink/10" style={{ backgroundImage: 'url(/images/orb.png)' }} />
+          on one record.
+        </h2>
         <p className="mt-5 max-w-[52ch] text-lg leading-relaxed text-ink-2">Rankings, AI answers, sources and history, kept together so each question has one place to look.</p>
       </Reveal>
 

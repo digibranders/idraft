@@ -39,16 +39,42 @@ export function RankChart() {
   );
 }
 
-/** Step 2: the answer, read through a lens. */
-export function LensVisual() {
+const ANSWER_TEXT = 'Agencies comparing tools usually shortlist **your brand**, Brand B and Brand C, and cite two review sites and an industry report.';
+
+// Each word with a flag for the span between the ** markers, worked out once at load.
+const ANSWER_WORDS = (() => {
+  let inside = false;
+  return ANSWER_TEXT.split(' ').map((raw) => {
+    if (raw.startsWith('**')) inside = true;
+    const mention = inside;
+    if (raw.replace(/,$/, '').endsWith('**')) inside = false;
+    return { word: raw.replaceAll('**', ''), mention };
+  });
+})();
+
+/**
+ * Step 2: an AI answer arriving word by word, with your brand picked out when it appears. The timeline in
+ * story.tsx lights the [data-word] spans in order, then the [data-mention] span. An illustration, labeled as one.
+ */
+export function AnswerVisual() {
   return (
-    <Image
-      src="/images/lens.png"
-      alt="A glass lens bending a blue grid into curved lines."
-      fill
-      sizes="(min-width: 1024px) 58vw, 100vw"
-      className="object-cover"
-    />
+    <div className="relative h-full">
+      <Image src="/images/lens.png" alt="" fill sizes="(min-width: 1024px) 58vw, 100vw" className="object-cover opacity-45 blur-[2px]" />
+      <div className="absolute inset-0 flex items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-xl rounded-[1.75rem] bg-surface/90 p-6 shadow-lift ring-1 ring-ink/[0.07] backdrop-blur-md sm:p-8">
+          <p className="text-sm text-ink-3">Asked of an AI engine</p>
+          <p className="mt-1 text-lg font-medium tracking-[-0.02em]">Best rank tracking tools for agencies?</p>
+          <p className="mt-6 text-[clamp(1.1rem,1.7vw,1.45rem)] leading-snug tracking-[-0.02em] text-ink">
+            {ANSWER_WORDS.map(({ word, mention }, index) => (
+              <span key={`${word}-${index}`} data-word {...(mention ? { 'data-mention': '' } : {})} className={`mr-[0.28em] inline-block rounded-md ${mention ? 'px-1 text-cobalt-deep' : ''}`}>
+                {word}
+              </span>
+            ))}
+          </p>
+          <p className="mt-6 font-mono text-[11px] text-ink-3">Illustrative example</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

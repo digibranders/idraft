@@ -30,8 +30,19 @@
 }
 
 html {
-  scroll-behavior: smooth;
   background: var(--color-paper);
+}
+
+/* Lenis owns smooth scrolling; the native behavior would fight it. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
 }
 
 body {
@@ -63,6 +74,21 @@ body {
       opacity: 1;
       transform: none;
       filter: blur(0);
+    }
+  }
+}
+
+/* The hero image settles from a slight zoom while the headline rises. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-zoom {
+    animation: settle 2.4s var(--ease-out-soft) both;
+  }
+  @keyframes settle {
+    from {
+      transform: scale(1.09);
+    }
+    to {
+      transform: scale(1);
     }
   }
 }

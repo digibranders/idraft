@@ -6,13 +6,13 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 import { STORY_STEPS } from '@/content';
 
-import { GapMatrix, LensVisual, RankChart } from './story-visuals';
+import { GapMatrix, AnswerVisual, RankChart } from './story-visuals';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const FRAME = 'rounded-[2rem] bg-ink/[0.04] p-1.5 ring-1 ring-ink/[0.06] shadow-lift';
 const CORE = 'relative overflow-hidden rounded-[calc(2rem-0.375rem)] bg-surface';
-const VISUALS = [<RankChart key="chart" />, <LensVisual key="lens" />, <GapMatrix key="matrix" />];
+const VISUALS = [<RankChart key="chart" />, <AnswerVisual key="lens" />, <GapMatrix key="matrix" />];
 
 /**
  * One keyword, two answers. On desktop the section pins and the scroll scrubs one timeline: the rank line
@@ -49,6 +49,13 @@ export function Story() {
         .fromTo(rail, { scaleY: 0 }, { scaleY: 1, duration: 3 }, 0)
         .fromTo(line, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.9 }, 0)
         .to(end, { opacity: 1, duration: 0.1 }, 0.9);
+
+      // The answer in view 2 arrives word by word, then your brand is picked out. Only the pinned copy is animated.
+      const answer = layers[1];
+      const words = answer ? Array.from(answer.querySelectorAll('[data-word]')) : [];
+      const mentions = answer ? Array.from(answer.querySelectorAll('[data-mention]')) : [];
+      gsap.set(words, { opacity: 0.12 });
+      timeline.to(words, { opacity: 1, stagger: 0.03, duration: 0.12 }, 1.25).to(mentions, { backgroundColor: '#EAF1FE', duration: 0.2 }, 1.85);
 
       // Hand over from view 1 to 2, then 2 to 3.
       [1, 2].forEach((next) => {
@@ -126,7 +133,7 @@ const VISUALS_FOR_FLOW = [
     <RankChart />
   </div>,
   <div key="lens" className="absolute inset-0">
-    <LensVisual />
+    <AnswerVisual />
   </div>,
   <div key="matrix" className="absolute inset-0">
     <GapMatrix />
