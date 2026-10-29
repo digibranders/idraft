@@ -24,7 +24,7 @@ function ArtCard({ art, title, body, artHeight }: { art: React.ReactNode; title:
  */
 export function Bento() {
   return (
-    <section id="product" className="mx-auto max-w-[1320px] px-5 py-24 md:px-8 lg:py-32">
+    <section id="product" className="mx-auto max-w-[1320px] px-5 py-16 md:px-8 lg:py-20">
       <Reveal>
         <h2 className="max-w-[22ch] text-[clamp(2.2rem,4.2vw,3.8rem)] leading-[1.1] font-semibold tracking-[-0.045em]">Every rank and every answer on one record.</h2>
         <p className="mt-5 max-w-[52ch] text-lg leading-relaxed text-ink-2">Rankings, AI answers, sources and history, kept together so each question has one place to look.</p>

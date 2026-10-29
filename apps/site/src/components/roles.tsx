@@ -88,7 +88,7 @@ export function Roles() {
   };
 
   return (
-    <section ref={section} className="mx-auto flex max-w-[1320px] flex-col justify-center px-5 py-24 md:px-8 lg:min-h-[100dvh] lg:py-24">
+    <section ref={section} className="mx-auto flex max-w-[1320px] flex-col justify-center px-5 py-16 md:px-8 lg:min-h-[80dvh] lg:py-16">
       <h2 className="max-w-[18ch] text-[clamp(2.1rem,3.8vw,3.4rem)] leading-[1.05] font-semibold tracking-[-0.045em] text-balance">Built for the person who gets asked.</h2>
       <span aria-hidden="true" className="mt-8 hidden h-0.5 w-full rounded-full bg-line lg:block">
         <span ref={progress} className="block h-full origin-left rounded-full bg-cobalt" style={{ transform: 'scaleX(0)' }} />

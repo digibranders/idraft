@@ -8,7 +8,7 @@ type CtaBandProps = { title: string; body?: string };
 /** The closing call to action of a page: a large cobalt-washed panel with one action. */
 export function CtaBand({ title, body }: CtaBandProps) {
   return (
-    <section className="mx-auto max-w-[1320px] px-5 py-12 md:px-8 lg:py-20">
+    <section className="mx-auto max-w-[1320px] px-5 py-8 md:px-8 lg:py-12">
       <Reveal>
         <div className="relative isolate overflow-hidden rounded-[2.5rem] bg-cobalt px-8 py-16 text-white sm:px-14 lg:px-20 lg:py-24">
           <div aria-hidden="true" className="absolute -top-1/2 -right-1/4 -z-10 size-[60rem] rounded-full bg-white/25 blur-[140px]" />

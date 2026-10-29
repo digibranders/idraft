@@ -21,7 +21,7 @@ const WITH = [
 /** The same five questions, answered two ways. Two unequal panels: the plain one recedes, the cobalt one leads. */
 export function Compare() {
   return (
-    <section className="mx-auto max-w-[1320px] px-5 py-24 md:px-8 lg:py-32">
+    <section className="mx-auto max-w-[1320px] px-5 py-16 md:px-8 lg:py-20">
       <Reveal>
         <h2 className="max-w-[20ch] text-[clamp(2.1rem,3.8vw,3.4rem)] leading-[1.05] font-semibold tracking-[-0.045em] text-balance">A rank tracker shows half the picture.</h2>
       </Reveal>

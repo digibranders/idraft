@@ -7,8 +7,8 @@ import { Reveal } from './reveal';
 /** The rest of the platform, past the three product pages: a heading and a list of features. */
 export function FeaturesTeaser() {
   return (
-    <section className="mx-auto max-w-[1320px] px-5 py-24 md:px-8 lg:py-32">
-      <div className="relative isolate overflow-hidden rounded-[2.5rem] bg-violet-wash px-6 py-14 sm:px-12 lg:px-16 lg:py-20">
+    <section className="mx-auto max-w-[1320px] px-5 py-16 md:px-8 lg:py-20">
+      <div className="relative isolate overflow-hidden rounded-[2.5rem] bg-violet-wash px-6 py-14 sm:px-12 lg:px-16 lg:py-14">
         <div aria-hidden="true" className="absolute -top-1/3 -right-1/4 -z-10 size-[40rem] rounded-full bg-violet/20 blur-[110px]" />
         <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
           <Reveal className="lg:col-span-5">

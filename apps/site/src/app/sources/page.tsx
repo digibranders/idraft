@@ -4,7 +4,7 @@ import { Binoculars, Clock, Graph, ListMagnifyingGlass, SealCheck, Swap } from '
 import { CapabilityList } from '@/components/capability-list';
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
-import { ScreenFrame } from '@/components/mock/screen-frame';
+import { CitationsScene } from '@/components/art/scenes';
 
 export const metadata: Metadata = {
   title: 'Sources and rivals',
@@ -27,7 +27,7 @@ export default function SourcesPage() {
         eyebrow="Sources and rivals"
         title="See who the answers trust, and who is catching up."
         lead="Every source an AI answer cites and every competitor on your topics, on the same record as your own results."
-        visual={<ScreenFrame src="/screens/p-overview.png" alt="The Overview screen: SEO visibility and the mention rate in every AI engine, with a trend chart and the rank distribution." />}
+        visual={<CitationsScene />}
       />
       <CapabilityList title="From a citation to a plan." lead="Knowing who gets cited tells you where to earn a mention." items={ITEMS} />
       <CtaBand title="Learn where the mentions are earned." />

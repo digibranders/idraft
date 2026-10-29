@@ -2,6 +2,8 @@ import type { Icon } from '@phosphor-icons/react';
 
 import { Reveal } from './reveal';
 
+const TONES = ['bg-wash text-cobalt-deep', 'bg-violet-wash text-violet', 'bg-amber-wash text-ink', 'bg-mint-wash text-mint', 'bg-coral-wash text-coral'] as const;
+
 export type Capability = { icon: Icon; title: string; body: string };
 
 type CapabilityListProps = { title: string; lead?: string; items: readonly Capability[] };
@@ -24,8 +26,8 @@ export function CapabilityList({ title, lead, items }: CapabilityListProps) {
               <li key={item.title}>
                 <Reveal delay={(index % 2) * 0.07}>
                   <div className="border-t border-line py-9">
-                    <span className="grid size-12 place-items-center rounded-full bg-wash text-cobalt-deep">
-                      <Glyph size={24} weight="light" aria-hidden="true" />
+                    <span className={`grid size-12 place-items-center rounded-2xl ${TONES[index % TONES.length]}`}>
+                      <Glyph size={24} weight="duotone" aria-hidden="true" />
                     </span>
                     <h3 className="mt-6 text-xl font-semibold tracking-[-0.03em]">{item.title}</h3>
                     <p className="mt-2 max-w-[40ch] leading-relaxed text-ink-2">{item.body}</p>

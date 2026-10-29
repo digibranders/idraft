@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
-export type StackCard = { title: string; body: string; href: string; image: string; alt: string; cta: string };
+export type StackCard = { title: string; body: string; href: string; art: React.ReactNode; cta: string };
 
 /**
  * Cards that pin at the top and stack as the next one arrives: the previous card shrinks and dims, driven by
@@ -51,7 +50,7 @@ export function StickyStack({ cards }: { cards: readonly StackCard[] }) {
             </Link>
           </div>
           <div className="relative min-h-72 lg:col-span-7">
-            <Image src={card.image} alt={card.alt} fill sizes="(min-width: 1024px) 58vw, 100vw" className="object-cover" />
+            {card.art}
           </div>
         </article>
       ))}

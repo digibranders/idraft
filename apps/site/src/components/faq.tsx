@@ -7,7 +7,7 @@ import { Reveal } from './reveal';
 /** Native details elements: keyboard and screen reader behavior comes from the platform. */
 export function Faq() {
   return (
-    <section id="faq" className="mx-auto max-w-[1320px] px-5 py-24 md:px-8 lg:py-32">
+    <section id="faq" className="mx-auto max-w-[1320px] px-5 py-16 md:px-8 lg:py-20">
       <Reveal>
         <p className="mb-5 inline-block rounded-full bg-wash px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-cobalt-deep uppercase">FAQ</p>
         <h2 className="text-[clamp(2.1rem,3.6vw,3.2rem)] leading-[1.05] font-semibold tracking-[-0.04em]">Questions, answered.</h2>

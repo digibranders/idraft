@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 
 import { RequestForm } from '@/components/request-form';
 
@@ -22,9 +21,24 @@ export default function RequestAccessPage() {
         </div>
       </div>
       <div className="hidden lg:col-span-5 lg:block">
-        <div className="sticky top-32 rounded-t-[12rem] rounded-b-[2rem] bg-ink/[0.04] p-1.5 shadow-lift ring-1 ring-ink/[0.06]">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-t-[11.6rem] rounded-b-[1.6rem]">
-            <Image src="/images/arch.png" alt="A tall rounded arch of frosted glass filled with soft blue light." fill priority sizes="30vw" className="object-cover" />
+        <div className="sticky top-32 rounded-[2rem] bg-ink/[0.04] p-1.5 shadow-lift ring-1 ring-ink/[0.06]">
+          <div className="rounded-[calc(2rem-0.375rem)] bg-gradient-to-br from-violet-wash via-surface to-mint-wash p-8">
+            <h2 className="text-2xl font-semibold tracking-[-0.035em]">What happens next</h2>
+            <ol className="mt-8 flex flex-col gap-6">
+              {[
+                ['bg-violet', 'We read your note', 'A person looks at what you track and why.'],
+                ['bg-coral', 'We reply with next steps', 'Usually within two working days.'],
+                ['bg-mint', 'You add your first topics', 'A site, a few keywords and a few prompts are enough to start.'],
+              ].map(([tone, title, body], index) => (
+                <li key={title} className="flex gap-4">
+                  <span className={`grid size-9 shrink-0 place-items-center rounded-full font-mono text-sm font-semibold text-white ${tone}`}>{index + 1}</span>
+                  <div>
+                    <p className="font-semibold">{title}</p>
+                    <p className="mt-1 leading-relaxed text-ink-2">{body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       </div>

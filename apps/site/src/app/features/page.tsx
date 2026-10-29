@@ -15,7 +15,7 @@ import type { Icon } from '@phosphor-icons/react';
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
 import { Reveal } from '@/components/reveal';
-import { ScreenFrame } from '@/components/mock/screen-frame';
+import { TilesScene } from '@/components/art/scenes';
 
 export const metadata: Metadata = {
   title: 'Features',
@@ -63,7 +63,7 @@ export default function FeaturesPage() {
         eyebrow="Features"
         title="Everything on one record."
         lead="Rankings, AI answers, a website audit, page performance, discovery, competitors, reports and integrations, all tied to the same topics."
-        visual={<ScreenFrame src="/screens/p-overview.png" alt="The Overview screen of the idraft app: SEO visibility and the mention rate in every AI engine, with a trend chart and the rank distribution." />}
+        visual={<TilesScene />}
       />
 
       {GROUPS.map((group) => (

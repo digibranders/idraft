@@ -10,7 +10,7 @@ const ENGINES = [
 export function Engines() {
   return (
     <section aria-label="Answer engines tracked" className="mx-auto max-w-[1320px] px-5 md:px-8">
-      <div className="flex flex-col items-start gap-6 border-t border-line py-10 sm:flex-row sm:items-center sm:gap-14">
+      <div className="flex flex-col items-start gap-6 border-t border-line py-8 sm:flex-row sm:items-center sm:gap-14">
         <p className="text-sm text-ink-3">Answers tracked in</p>
         <ul className="flex flex-wrap items-center gap-x-12 gap-y-6">
           {ENGINES.map((engine) => (
