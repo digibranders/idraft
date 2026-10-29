@@ -96,32 +96,32 @@ export function InvitationsSection(): ReactNode {
         ) : !invitations.isPending && pending.length === 0 ? (
           <p className="px-4 py-3 type-body text-foreground-secondary">{t('none')}</p>
         ) : (
-          <table className="w-full">
+          <table className="w-full type-table">
             <caption className="sr-only">{t('table')}</caption>
             <thead className="bg-surface-subtle">
               <tr>
-                <th scope="col" className="h-row-header px-4 text-left type-label">
+                <th scope="col" className="h-row-header px-4 text-left type-table-header">
                   {t('email')}
                 </th>
-                <th scope="col" className="h-row-header px-3 text-left type-label">
+                <th scope="col" className="h-row-header px-3 text-left type-table-header">
                   {t('role')}
                 </th>
                 <th
                   scope="col"
-                  className="hidden h-row-header px-3 text-left type-label whitespace-nowrap md:table-cell"
+                  className="hidden h-row-header px-3 text-left type-table-header whitespace-nowrap md:table-cell"
                 >
                   {t('access')}
                 </th>
                 <th
                   scope="col"
-                  className="hidden h-row-header px-3 text-left type-label whitespace-nowrap lg:table-cell"
+                  className="hidden h-row-header px-3 text-left type-table-header whitespace-nowrap lg:table-cell"
                 >
                   {t('invitedBy')}
                 </th>
-                <th scope="col" className="hidden h-row-header px-3 text-left type-label sm:table-cell">
+                <th scope="col" className="hidden h-row-header px-3 text-left type-table-header sm:table-cell">
                   {t('expires')}
                 </th>
-                <th scope="col" className="h-row-header px-4">
+                <th scope="col" className="h-row-header px-4 text-right">
                   <span className="sr-only">{t('withdraw')}</span>
                 </th>
               </tr>
@@ -129,29 +129,29 @@ export function InvitationsSection(): ReactNode {
             <tbody aria-busy={invitations.isPending}>
               {invitations.isPending
                 ? Array.from({ length: SKELETON_ROWS }, (_, row) => (
-                    <tr key={row} className="h-row border-t border-border-subtle">
+                    <tr key={row} className="h-row-compact border-t border-border-subtle">
                       <td colSpan={6} className="px-4">
-                        <Skeleton shape="text-14" widthPct={56} />
+                        <Skeleton shape="text-12" widthPct={56} />
                       </td>
                     </tr>
                   ))
                 : pending.map((invitation) => (
-                    <tr key={invitation.invitation_id} className="h-row border-t border-border-subtle">
-                      <th scope="row" className="px-4 text-left type-body font-normal text-foreground">
+                    <tr key={invitation.invitation_id} className="h-row-compact border-t border-border-subtle">
+                      <th scope="row" className="px-4 text-left font-normal text-foreground">
                         {invitation.email}
                       </th>
                       <td className="px-3">
                         <Badge>{roles(invitation.role)}</Badge>
                       </td>
-                      <td className="hidden px-3 type-body whitespace-nowrap text-foreground-secondary md:table-cell">
+                      <td className="hidden px-3 whitespace-nowrap text-foreground-secondary md:table-cell">
                         {invitation.project_ids === null
                           ? members('allProjects')
                           : members('someProjects', { count: invitation.project_ids.length })}
                       </td>
-                      <td className="hidden px-3 type-body whitespace-nowrap text-foreground-secondary lg:table-cell">
+                      <td className="hidden px-3 whitespace-nowrap text-foreground-secondary lg:table-cell">
                         {invitation.invited_by.name}
                       </td>
-                      <td className="hidden px-3 type-body whitespace-nowrap text-foreground-secondary sm:table-cell">
+                      <td className="hidden px-3 whitespace-nowrap text-foreground-secondary sm:table-cell">
                         {formatTableDateTime(invitation.expires_at, browserTimeZone())}
                       </td>
                       <td className="px-4 text-right">

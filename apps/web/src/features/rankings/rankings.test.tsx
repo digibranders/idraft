@@ -154,6 +154,22 @@ describe('Rankings', () => {
     await waitFor(() => expect(url.latest().has('sort')).toBe(false));
   });
 
+  it('opens in compact density from a link without one, keeps a link that says default, and writes a change to the URL', async () => {
+    const url = urlWrites();
+    const first = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    const rowsOf = (): HTMLElement[] => within(grid).getAllByRole('row').slice(1);
+    expect(rowsOf().every((row) => row.classList.contains('h-row-compact'))).toBe(true);
+    await first.user.click(screen.getByRole('button', { name: 'Density' }));
+    await first.user.click(await screen.findByRole('menuitemradio', { name: 'Comfortable' }));
+    await waitFor(() => expect(url.latest().get('density')).toBe('default'));
+    await waitFor(() => expect(rowsOf().every((row) => row.classList.contains('h-row'))).toBe(true));
+    first.unmount();
+    renderWithProviders(as('viewer'), { searchParams: '?density=default' });
+    const again = await loadedGrid();
+    expect(within(again).getAllByRole('row')[1]).toHaveClass('h-row');
+  });
+
   it('reads filters from the URL as chips, and writes a removed chip back', async () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), {

@@ -137,20 +137,20 @@ function Sessions(): ReactNode {
             retryLabel={common('retry')}
           />
         ) : (
-          <table className="w-full">
+          <table className="w-full type-table">
             <caption className="sr-only">{t('sessions')}</caption>
             <thead className="bg-surface-subtle">
               <tr>
-                <th scope="col" className="h-row-header px-4 text-left type-label">
+                <th scope="col" className="h-row-header px-4 text-left type-table-header">
                   {t('device')}
                 </th>
-                <th scope="col" className="hidden h-row-header px-3 text-left type-label sm:table-cell">
+                <th scope="col" className="hidden h-row-header px-3 text-left type-table-header sm:table-cell">
                   {t('place')}
                 </th>
-                <th scope="col" className="h-row-header px-3 text-left type-label">
+                <th scope="col" className="h-row-header px-3 text-left type-table-header">
                   {t('lastActive')}
                 </th>
-                <th scope="col" className="h-row-header px-4">
+                <th scope="col" className="h-row-header px-4 text-right">
                   <span className="sr-only">{t('signOut')}</span>
                 </th>
               </tr>
@@ -159,7 +159,7 @@ function Sessions(): ReactNode {
               {sessions.isPending ? (
                 <tr className="h-row-compact border-t border-border-subtle">
                   <td colSpan={4} className="px-4">
-                    <Skeleton shape="text-14" widthPct={56} />
+                    <Skeleton shape="text-12" widthPct={56} />
                   </td>
                 </tr>
               ) : (
@@ -169,14 +169,14 @@ function Sessions(): ReactNode {
                     <tr key={session.session_id} className="h-row-compact border-t border-border-subtle">
                       <th scope="row" className="px-4 text-left font-normal">
                         <span className="flex flex-wrap items-center gap-x-2">
-                          <span className="type-body whitespace-nowrap text-foreground">{device}</span>
+                          <span className="whitespace-nowrap text-foreground">{device}</span>
                           {session.is_current ? <Badge tone="info">{t('thisDevice')}</Badge> : null}
                         </span>
                       </th>
-                      <td className="hidden px-3 type-body text-foreground-secondary sm:table-cell">
-                        <span className="type-mono">{session.ip ?? t('unknownIp')}</span>
+                      <td className="hidden px-3 text-foreground-secondary sm:table-cell">
+                        <span className="font-mono">{session.ip ?? t('unknownIp')}</span>
                       </td>
-                      <td className="px-3 type-body whitespace-nowrap text-foreground-secondary">
+                      <td className="px-3 whitespace-nowrap text-foreground-secondary">
                         {formatRelative(session.last_seen_at, browserTimeZone())}
                       </td>
                       <td className="px-4 text-right">

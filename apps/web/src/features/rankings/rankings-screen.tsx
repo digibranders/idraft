@@ -51,6 +51,7 @@ import { formatInspectTarget } from '@/lib/inspector/placement';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
 import {
+  DEFAULT_DENSITY,
   formatColumns,
   formatSort,
   parseColumns,
@@ -306,7 +307,7 @@ export function RankingsScreen({
     void setView({ sort: sameSort(next, DEFAULT_SORT) ? null : formatSort(next) });
   };
   const setDensity = (next: Density): void => {
-    void setView({ density: next === 'default' ? null : next });
+    void setView({ density: next === DEFAULT_DENSITY ? null : next });
   };
   const clearFilters = (): void => setValues({});
   // The search that found nothing: in server mode the one the API was sent, which lags the box by the delay

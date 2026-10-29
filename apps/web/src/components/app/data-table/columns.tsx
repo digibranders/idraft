@@ -26,6 +26,11 @@ interface Options {
   priority?: ColumnPriority | undefined;
   /** The screen's default width, kept between the type's minimum and maximum. */
   width?: number | undefined;
+  /**
+   * The narrowest the column may be squeezed to, where its header needs more than its type's minimum: a long
+   * capital label ("PRIORITY" in a count column, which also holds the 60 px "KD").
+   */
+  minWidth?: number | undefined;
   defaultVisible?: boolean | undefined;
   /** Whether the column sorts; on by default for the types that sort. */
   sortable?: boolean | undefined;
@@ -33,10 +38,10 @@ interface Options {
   hasControls?: boolean | undefined;
 }
 
-const clampWidth = (type: ColumnType, width: number | undefined): number | undefined => {
+const clampWidth = (type: ColumnType, width: number | undefined, minWidth: number | undefined): number | undefined => {
   if (width === undefined) return undefined;
   const spec = COLUMN_TYPES[type];
-  return Math.min(spec.max, Math.max(spec.min, width));
+  return Math.min(spec.max, Math.max(minWidth ?? spec.min, width));
 };
 
 function base<TRow>(
@@ -55,7 +60,8 @@ function base<TRow>(
     cellTip,
     hasControls: options.hasControls,
     priority: options.priority ?? 1,
-    width: clampWidth(type, options.width),
+    width: clampWidth(type, options.width, options.minWidth),
+    minWidth: options.minWidth,
     defaultVisible: options.defaultVisible ?? true,
     sortValue: options.sortable === false ? undefined : sortValue,
     cell,
@@ -70,7 +76,7 @@ function Unknown({ value, className }: { value: UnknownValue; className?: string
 /** A marker before a value in one cell: the pair wraps (the marker above the value) before it spills over. */
 function Marked({ marker, children }: { marker: ReactNode; children: ReactNode }): ReactElement {
   return (
-    <span className="inline-flex max-w-full min-w-0 flex-wrap items-center justify-end gap-x-1.5">
+    <span className="inline-flex max-w-full min-w-0 flex-wrap items-center gap-x-1.5">
       {marker}
       {children}
     </span>
@@ -152,7 +158,7 @@ export const col = {
     );
   },
 
-  /** An exact grouped count (`12,400`), right-aligned in tabular figures. */
+  /** An exact grouped count (`12,400`), left aligned in tabular figures. */
   count<TRow>(
     id: string,
     value: (row: TRow) => number | null,
@@ -254,7 +260,7 @@ export const col = {
   },
 
   /**
-   * A rank: right aligned, best (lowest) first. The cell is the screen's, since what it shows depends on the
+   * A rank: left aligned, best (lowest) first. The cell is the screen's, since what it shows depends on the
    * check (a number, `>20`, Pending, a failure); `sortValue` is the rank, or `null` for a keyword with none,
    * which sorts last both ways (12-tables.md sections 6 and 8).
    */
@@ -262,7 +268,7 @@ export const col = {
     return rich(id, 'rank', sortValue, options);
   },
 
-  /** A change in rank: right aligned, the biggest improvement first; `null` sorts last both ways. */
+  /** A change in rank: left aligned, the biggest improvement first; `null` sorts last both ways. */
   rankDelta<TRow>(
     id: string,
     sortValue: (row: TRow) => number | null,
@@ -294,7 +300,7 @@ export const col = {
         ) : (
           <span className="inline-flex items-center gap-1">
             <Badge>{badge.label}</Badge>
-            <span className="type-meta">{badge.detail}</span>
+            <span className="type-label">{badge.detail}</span>
           </span>
         );
       },

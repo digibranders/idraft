@@ -130,7 +130,7 @@ function fillStrip(prompt) {
 
 /** Yes, no, or "n/a" where the engine's answers are not classified for it (null). */
 const yesNo = (value, label) => {
-  const cell = el('td', 'text-center');
+  const cell = el('td', '');
   if (value === null) {
     const none = el('span', 'type-meta', 'n/a');
     none.dataset.tip = `${label}: ${NOT_CLASSIFIED}`;
@@ -218,7 +218,7 @@ function fillCitations(prompt) {
           const name = el('td', `pl-4 truncate max-w-40${entry.role === 'Own' ? ' text-primary-text type-body-strong' : ''}`, entry.domain);
           const role = el('td', '');
           role.append(el('span', entry.role === 'Own' ? 'h-badge inline-flex items-center px-2 rounded-sm bg-positive-subtle text-positive-text type-micro' : NEUTRAL_BADGE, entry.role));
-          return simpleRow([name, role, el('td', 'pr-4 text-right num whitespace-nowrap', `${formatSampleCount(entry.count, observed)} obs`)]);
+          return simpleRow([name, role, el('td', 'pr-4 num whitespace-nowrap', `${formatSampleCount(entry.count, observed)} obs`)]);
         })),
   );
   $('[data-prompt-pages]', inspector).replaceChildren(
@@ -227,13 +227,13 @@ function fillCitations(prompt) {
       : domains.map((entry) => {
           const page = el('td', 'pl-4 max-w-60');
           page.append(el('span', `block truncate type-mono ${entry.role === 'Own' ? 'text-primary-text' : 'text-foreground-secondary'}`, `${entry.domain}${entry.page}`));
-          return simpleRow([page, el('td', 'pr-4 text-right num', formatInteger(Math.max(1, Math.round(entry.count * 0.7))))]);
+          return simpleRow([page, el('td', 'pr-4 num', formatInteger(Math.max(1, Math.round(entry.count * 0.7))))]);
         })),
   );
 }
 
 function countCell(counts, className) {
-  const cell = el('td', `${className} text-right num whitespace-nowrap`);
+  const cell = el('td', `${className} num whitespace-nowrap`);
   const status = rateState(counts.n);
   if (counts.reason) {
     const none = el('span', 'text-foreground-tertiary', 'n/a');
@@ -264,7 +264,11 @@ function fillCompetitors(prompt) {
   const metric = $('[data-prompt-entity-metric] [aria-checked="true"]', inspector).dataset.value;
   const headRow = el('tr', 'text-left border-t border-border-subtle bg-surface-subtle');
   headRow.append(el('th', 'pl-4 h-row-compact type-label whitespace-nowrap', 'Entity'));
-  ENGINES.forEach((engine, i) => headRow.append(el('th', `${i === ENGINES.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap text-right`, engine.name)));
+  ENGINES.forEach((engine, i) => {
+    const th = el('th', `${i === ENGINES.length - 1 ? 'pr-4 ' : ''}h-row-compact type-label whitespace-nowrap`, engine.name);
+    th.dataset.keepCase = '';
+    headRow.append(th);
+  });
   $('[data-prompt-entities-head]', inspector).replaceChildren(headRow);
 
   const entities = [
@@ -339,7 +343,7 @@ function fillStats(prompt) {
         }
         const interval = el('td', 'pl-3');
         interval.append(confidenceIndicator(counts));
-        return simpleRow([name, el('td', 'text-right num', percent0(counts.k / counts.n)), interval, el('td', 'pr-4 text-right type-meta num whitespace-nowrap', `${formatSampleCount(counts.k, counts.n)} obs`)]);
+        return simpleRow([name, el('td', 'num', percent0(counts.k / counts.n)), interval, el('td', 'pr-4 type-label num whitespace-nowrap', `${formatSampleCount(counts.k, counts.n)} obs`)]);
       }),
     );
   }

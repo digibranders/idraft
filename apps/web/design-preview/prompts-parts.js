@@ -46,7 +46,7 @@ function keywordRow({ keyword, rank, overview, cited, linked = false }) {
     line.append(badge);
   }
   name.append(line);
-  row.append(name, el('td', 'text-right num', rank), status);
+  row.append(name, el('td', 'num', rank), status);
   return row;
 }
 

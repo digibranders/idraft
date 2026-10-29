@@ -163,7 +163,7 @@ function promptCell(prompt) {
 }
 
 function rowFor(prompt) {
-  const row = el('tr', 'group h-row border-t border-border-subtle hover:bg-surface-hover cursor-pointer');
+  const row = el('tr', 'group h-row-compact border-t border-border-subtle hover:bg-surface-hover cursor-pointer');
   row.dataset.id = prompt.id;
   const select = el('td', 'w-10 pl-4 pr-2');
   const box = el('input', 'size-4 rounded-sm accent-primary align-middle');
@@ -178,7 +178,7 @@ function rowFor(prompt) {
   if (scopeEngines().length > 1) {
     for (const engine of scopeEngines()) {
       const { node, tip } = engineValue(prompt, engine, state.metric);
-      const cell = el('td', 'hidden xl:table-cell px-3 text-right');
+      const cell = el('td', 'hidden xl:table-cell px-3');
       cell.append(node);
       cell.dataset.tip = tip;
       row.append(cell);
@@ -241,10 +241,10 @@ function renderHead() {
   all.dataset.promptAll = '';
   all.setAttribute('aria-label', 'Select all prompts on this page');
   select.append(all);
-  top.append(select, sortHeader('prompt', 'Prompt', 'sticky left-0 z-(--z-pinned-cell) bg-surface-subtle min-w-60 px-1 text-left border-r border-border-subtle', { align: 'justify-start', rowSpan: span }));
+  top.append(select, sortHeader('prompt', 'Prompt', 'sticky left-0 z-(--z-pinned-cell) bg-surface-subtle min-w-60 px-1 text-left border-r border-border-subtle', {rowSpan: span }));
   if (shown('topic')) top.append(plainHeader('Topic', `${columnOf('topic').cell} w-36`, span));
   if (grouped) {
-    const group = el('th', 'hidden xl:table-cell h-7 px-3 text-center type-label whitespace-nowrap border-r border-b border-border-subtle', METRICS[state.metric].group);
+    const group = el('th', 'hidden xl:table-cell h-7 px-3 type-label whitespace-nowrap border-r border-b border-border-subtle', METRICS[state.metric].group);
     group.colSpan = engines.length;
     group.scope = 'colgroup';
     top.append(group);
@@ -254,13 +254,13 @@ function renderHead() {
     const taking = engines.filter((engine) => measures(engine.code, metric));
     return taking.length === 1 ? taking[0].name : taking.length === 0 ? 'n/a' : `avg of ${taking.length}`;
   };
-  top.append(sortHeader('mention', 'Mention rate', 'w-28 px-1 text-right border-r border-border-subtle', { note: averageNote('mention'), rowSpan: span }));
+  top.append(sortHeader('mention', 'Mention rate', 'w-28 px-1 border-r border-border-subtle', { note: averageNote('mention'), rowSpan: span }));
   for (const key of ['citation', 'recommendation', 'sov']) {
-    if (shown(key)) top.append(sortHeader(key, columnOf(key).label, `${columnOf(key).cell} w-28 px-1 text-right border-r border-border-subtle`, { note: averageNote(key), rowSpan: span }));
+    if (shown(key)) top.append(sortHeader(key, columnOf(key).label, `${columnOf(key).cell} w-28 px-1 border-r border-border-subtle`, { note: averageNote(key), rowSpan: span }));
   }
   if (shown('competitor')) top.append(plainHeader('Top competitor', `${columnOf('competitor').cell} w-36`, span));
   if (shown('trend')) top.append(plainHeader('Trend', `${columnOf('trend').cell} w-24`, span));
-  if (shown('updated')) top.append(sortHeader('updated', 'Updated', `${columnOf('updated').cell} w-36 px-1 border-r border-border-subtle`, { align: 'justify-start', rowSpan: span }));
+  if (shown('updated')) top.append(sortHeader('updated', 'Updated', `${columnOf('updated').cell} w-36 px-1 border-r border-border-subtle`, { rowSpan: span }));
   const actions = el('th', 'w-10');
   if (span) actions.rowSpan = span;
   actions.append(el('span', 'sr-only', 'Row actions'));
@@ -269,7 +269,7 @@ function renderHead() {
   const rows = [top];
   if (grouped) {
     const second = el('tr', 'text-left');
-    for (const engine of engines) second.append(sortHeader(`engine:${engine.code}`, engine.name, 'hidden xl:table-cell w-22 px-1 text-right border-r border-border-subtle'));
+    for (const engine of engines) second.append(sortHeader(`engine:${engine.code}`, engine.name, 'hidden xl:table-cell w-22 px-1 border-r border-border-subtle'));
     rows.push(second);
   }
   head.replaceChildren(...rows);
@@ -1142,7 +1142,7 @@ function renderPanels() {
   const active = PROMPTS.filter((prompt) => !state.archived.has(prompt.id));
   $('[data-panel-rows]', view).replaceChildren(
     ...PANELS.map((panel) => {
-      const row = el('tr', 'h-row border-t border-border-subtle');
+      const row = el('tr', 'h-row-compact border-t border-border-subtle');
       const name = el('th', 'pl-4 pr-3 text-left font-normal');
       name.scope = 'row';
       const line = el('span', 'flex items-center gap-2');
@@ -1162,14 +1162,14 @@ function renderPanels() {
         engineList.append(item);
       });
       engines.append(engineList);
-      const changed = el('td', 'px-3 text-right num', panel.type === 'Core' ? formatPercent(panel.changed) : 'n/a');
+      const changed = el('td', 'px-3 num', panel.type === 'Core' ? formatPercent(panel.changed) : 'n/a');
       if (panel.type !== 'Core') {
         changed.classList.add('text-foreground-tertiary');
         changed.dataset.tip = 'Only the core panel is held stable: its changes are tracked against a 10% limit';
       }
       row.append(
         name,
-        el('td', 'px-3 text-right num', formatInteger(active.filter((prompt) => prompt.panel === panel.name).length)),
+        el('td', 'px-3 num', formatInteger(active.filter((prompt) => prompt.panel === panel.name).length)),
         el('td', 'px-3 whitespace-nowrap', panel.schedule),
         engines,
         changed,
@@ -1252,7 +1252,7 @@ function renderVersions() {
       const pinned = prompt.id === 'p1';
       const kind = pinned ? 'Wording' : ['Wording', 'Wording', 'Wording', 'Context', 'Context', 'Typo'][Math.floor(random() * 6)];
       const reasons = CHANGE_REASONS[kind];
-      const row = el('tr', 'h-row border-t border-border-subtle');
+      const row = el('tr', 'h-row-compact border-t border-border-subtle');
       const text = el('td', 'px-3 max-w-100');
       const link = el('button', 'block max-w-full truncate text-left text-foreground hover:underline', prompt.text);
       link.type = 'button';

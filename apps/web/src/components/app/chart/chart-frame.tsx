@@ -189,15 +189,11 @@ function ChartTable({
         <caption className="sr-only">{title}</caption>
         <thead>
           <tr className="bg-surface-subtle">
-            <th scope="col" className="h-row-compact px-4 text-left type-label font-normal text-foreground-tertiary">
+            <th scope="col" className="h-row-compact px-4 text-left type-table-header">
               {categoryHeader}
             </th>
             {series.map((entry) => (
-              <th
-                key={entry.id}
-                scope="col"
-                className="h-row-compact px-4 text-right type-label font-normal text-foreground-tertiary"
-              >
+              <th key={entry.id} scope="col" className="h-row-compact px-4 text-left type-table-header">
                 {entry.name}
               </th>
             ))}
@@ -212,7 +208,7 @@ function ChartTable({
               {series.map((entry) => {
                 const value = entry.values[index];
                 return (
-                  <td key={entry.id} className="h-row-compact px-4 text-right num">
+                  <td key={entry.id} className="h-row-compact px-4 text-left num">
                     {value === null || value === undefined ? (
                       <span className="text-foreground-tertiary">{noValue}</span>
                     ) : (

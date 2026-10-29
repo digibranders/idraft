@@ -14,7 +14,7 @@ Every new screen, and every change that affects layout, color, typography or int
 - [ ] Is summary data in a metric strip (one 76 px panel, cells split by full-height dividers, delta inline after the value) rather than large KPI cards?
 - [ ] Is the spacing on the scale: 20 px page gutter, 16 px between page blocks, panels with 16 px padding, 8 px radius and a 48 px title row ([reference/visual-spec.md](reference/visual-spec.md) section 4)?
 - [ ] Are controls 36 px (`h-control`), with 32 px (`h-control-sm`) only for pagination and icon buttons in tables and inspectors? Are the table toolbar and table footer 48 px, and menu, select and combobox option rows 32 px?
-- [ ] Are table rows 40 px (`h-row`), or 32 px (`h-row-compact`) in Compact density and in tables embedded in panels and inspectors, under a 40 px header row on `surface-subtle`?
+- [ ] Are table rows 32 px (`h-row-compact`, the default density since 2026-10-29), or 40 px (`h-row`) only where a person chose Default density, under a 40 px header row on `surface-subtle`? Are tables embedded in panels and inspectors always 32 px?
 - [ ] Is the inspector 400 px, or 440 px for prompt, citation and answer evidence, with no shadow when docked?
 - [ ] Could secondary information move to a tooltip, the inspector or a detail page ([23-application-patterns.md](23-application-patterns.md) progressive disclosure)?
 - [ ] Is the hierarchy clear from position, weight and text color alone, without decoration ([00-design-principles.md](00-design-principles.md) section 4)?
@@ -31,8 +31,8 @@ Every new screen, and every change that affects layout, color, typography or int
 - [ ] Are deltas colored only when detectable or emphasized, via `formatMetricDelta` / `formatRankChange`?
 - [ ] Are categorical badges (engine, intent, type) neutral?
 - [ ] Are only token utilities used (no hex, no palette classes, no arbitrary values)?
-- [ ] Is every text element one of the 15 `type-*` utilities (body 14 px, table cells 13 px, page title 24 px)?
-- [ ] Are numbers tabular (`num`) and right-aligned in tables?
+- [ ] Is every text element one of the `type-*` utilities (body 14 px, table cells 12 px, page title 24 px)?
+- [ ] Are numbers tabular (`num`) and left aligned in tables, with only the row-actions column right aligned, and are table header labels in capitals (`type-table-header`)?
 - [ ] Is dark mode correct (layered surfaces, readable semantic colors, charts re-themed)?
 
 ### Numbers and honesty

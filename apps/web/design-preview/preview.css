@@ -32,15 +32,29 @@
 @source "./kw-model.js";
 @source "./kw-table.js";
 
-/* Rankings table: all data at 12 px and header labels in capitals (owner decision for the keyword table).
-   Unlayered on purpose: it wins over the type-* utilities that the cells carry. */
-[data-view="keywords"] table tbody td,
-[data-view="keywords"] table tbody td * {
+/* Every table: all data at 12 px / 16 px and header labels in capitals (owner decisions of 2026-10-29).
+   Unlayered on purpose: it wins over the type-* utilities that the mock-up cells carry. The app does this
+   with the type-table and type-table-header tokens; the preview's hand-written markup is too varied for that. */
+table tbody td,
+table tbody td *,
+table tbody th,
+table tbody th * {
   font-size: 0.75rem;
   line-height: 1rem;
 }
-[data-view="keywords"] table thead th,
-[data-view="keywords"] table thead th * {
+table thead th {
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+/* A th is centered by the browser unless told otherwise: header labels are left aligned, the checkbox column
+   (text-center) and the row actions (text-right) say so themselves. */
+table thead th:not(.text-center, .text-right) {
+  text-align: left;
+}
+/* What is not a column label keeps its case: sub-labels (units, "avg of 4") and product names (engines). The
+   preview code marks them with data-keep-case. Header sizes come from the type-label the header carries. */
+table thead th[data-keep-case],
+table thead th [data-keep-case] {
+  text-transform: none;
+  letter-spacing: normal;
 }

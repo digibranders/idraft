@@ -225,12 +225,12 @@ const CARD_BODIES = {
     $('[data-card-meta]', node).textContent = direction === 'all' ? 'last 28 days' : `${direction} in the last 28 days`;
     $('[data-card-body]', node).replaceChildren(
       ...list.map((m) => {
-        const tr = el('tr', 'h-row border-t border-border-subtle');
+        const tr = el('tr', 'h-row-compact border-t border-border-subtle');
         const name = el('th', 'px-4 text-left type-table font-normal text-foreground', m.keyword);
         name.scope = 'row';
-        const rank = el('td', 'px-3 text-right type-table num', m.rank === null ? '>20' : String(m.rank));
+        const rank = el('td', 'px-3 type-table num', m.rank === null ? '>20' : String(m.rank));
         const up = m.change > 0;
-        const change = el('td', `px-3 pr-4 text-right type-table num ${up ? 'text-positive-text' : 'text-negative-text'}`, `${up ? '↑' : '↓'}${Math.abs(m.change)}`);
+        const change = el('td', `px-3 pr-4 type-table num ${up ? 'text-positive-text' : 'text-negative-text'}`, `${up ? '↑' : '↓'}${Math.abs(m.change)}`);
         tr.append(name, rank, change);
         return tr;
       }),
@@ -251,7 +251,7 @@ const CARD_BODIES = {
         bar.setAttribute('aria-hidden', 'true');
         bar.style.width = `${Math.round((share / max) * 100)}%`;
         barCell.append(bar);
-        const value = el('td', 'w-16 pr-4 text-right type-meta num', `${share % 1 === 0 ? share : share.toFixed(1)}%`);
+        const value = el('td', 'w-16 pr-4 type-label num', `${share % 1 === 0 ? share : share.toFixed(1)}%`);
         tr.append(label, barCell, value);
         return tr;
       }),

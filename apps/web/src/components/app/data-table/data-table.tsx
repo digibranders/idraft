@@ -238,6 +238,7 @@ export function DataTable<TRow extends RowData>({
     return {
       id: column.column.id,
       ...spec,
+      min: column.column.minWidth ?? spec.min,
       width: column.column.width ?? spec.width,
       flex: column.column.identity === true,
     };
@@ -853,6 +854,7 @@ export function DataTable<TRow extends RowData>({
                       status === 'refetching' &&
                         'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary',
                       column.kind === 'select' && 'px-0 text-center',
+                      column.kind === 'actions' && 'px-2 text-right',
                       column.kind === 'data' && ALIGN[COLUMN_TYPES[column.column.type].align],
                     )}
                   >
@@ -904,11 +906,7 @@ export function DataTable<TRow extends RowData>({
                     {grid.map((column) => (
                       <td key={keyOf(column)} className="border-b border-border-subtle px-3">
                         {column.kind === 'data' ? (
-                          <span
-                            className={cn('flex', COLUMN_TYPES[column.column.type].align === 'right' && 'justify-end')}
-                          >
-                            <Skeleton shape="text-13" widthPct={column.column.identity === true ? 72 : 56} />
-                          </span>
+                          <Skeleton shape="text-12" widthPct={column.column.identity === true ? 72 : 56} />
                         ) : null}
                       </td>
                     ))}
@@ -1087,21 +1085,18 @@ function HeaderContent<TRow>({
   items,
   optionsLabel,
 }: HeaderContentProps<TRow>): ReactElement {
-  const right = COLUMN_TYPES[column.type].align === 'right';
   const label = (
-    <span className={cn('truncate type-label', sortKey === null ? 'text-foreground-tertiary' : 'text-foreground')}>
-      {column.header}
-    </span>
+    <span className={cn('truncate type-table-header', sortKey !== null && 'text-foreground')}>{column.header}</span>
   );
   const sortable = column.sortValue !== undefined;
   return (
-    <span className={cn('group/header relative flex min-w-0 items-center gap-1', right && 'flex-row-reverse')}>
+    <span className="group/header relative flex min-w-0 items-center gap-1">
       {sortable ? (
         <button
           type="button"
           tabIndex={-1}
           onClick={(event) => onSort(event.shiftKey)}
-          className={cn('flex min-w-0 items-center gap-1 rounded-sm', right && 'flex-row-reverse')}
+          className="flex min-w-0 items-center gap-1 rounded-sm"
         >
           {label}
           {sortKey === null ? null : (
@@ -1120,8 +1115,7 @@ function HeaderContent<TRow>({
         // Over the inner edge, so a short label keeps its width while the chevron is hidden
         <span
           className={cn(
-            'absolute top-1/2 -translate-y-1/2 bg-surface-subtle opacity-0 group-focus-within/header:opacity-100 group-hover/header:opacity-100',
-            right ? 'left-0' : 'right-0',
+            'absolute top-1/2 right-0 -translate-y-1/2 bg-surface-subtle opacity-0 group-focus-within/header:opacity-100 group-hover/header:opacity-100',
             menuOpen && 'opacity-100',
           )}
         >

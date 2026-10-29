@@ -139,7 +139,7 @@ The order is fixed. Series 1 is always the own brand. Token values live in `toke
 | Bar | 32 px tall, radius 6 on the outer corners only, full panel content width |
 | Segments | Separated by 1 px gaps that show the panel `surface`. Colors follow the chart palette order (section 4.2); `chart-1` only for the own brand, never for a category |
 | Labels inside segments | The percentage, 12 px weight 500 (`type-micro`) with `num`, drawn only in segments of 6% or more. The label color is chosen per segment so the pair meets 4.5:1: `foreground-inverse` (white in the light theme) where it passes, otherwise `foreground`. In the light theme white fails on `chart-2` orange (3.4:1) and `chart-3` teal (3.6:1), so those segments use `foreground`. If neither passes, the label is omitted; the legend table carries the value |
-| Legend table | Below the bar: a `SimpleTable` with one row per segment: 8 px swatch, name, count and percentage (`num`, right-aligned). It carries every value, so no segment depends on its inside label |
+| Legend table | Below the bar: a `SimpleTable` with one row per segment: 8 px swatch, name, count and percentage (`num`, left aligned like every table column). It carries every value, so no segment depends on its inside label |
 | Tooltip | Segment name, count, percentage and denominator |
 
 Dual y-axes are not used. When two measures must be compared over time (organic rank and AI citation rate), use stacked small multiples with a shared x axis.
@@ -204,7 +204,7 @@ The matrix compares organic ranking strength with AI visibility for keywords (or
 | Property | Spec |
 |---|---|
 | Renderer | Shared canvas renderer (`components/app/sparkline`), one draw per row, not ECharts |
-| Size | 64 x 20 px (Default rows and the metric strip), 64 x 16 px (Compact rows and embedded tables) |
+| Size | 64 x 16 px (Compact rows, the default, and embedded tables), 64 x 20 px (Comfortable rows and the metric strip) |
 | Stroke | 1.5 px. Gray (`chart-reference`) by default. In tables that mix the own brand with competitors or other domains, the own or owned row is drawn in `chart-1` and every other row stays gray. Tables whose rows are all the own site (Rankings) keep every sparkline gray |
 | Area | None |
 | Last point | 3 px dot in the stroke color |
