@@ -1,7 +1,11 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+
+gsap.registerPlugin(ScrollTrigger);
 
 const ROLES = [
   {
@@ -24,16 +28,69 @@ const ROLES = [
   },
 ] as const;
 
-/** Three roles, one panel. The active tab slides under the label; the panel cross-fades. */
+type RoleId = (typeof ROLES)[number]['id'];
+
+/**
+ * Three roles, one panel. On desktop the section pins and the scroll moves through the roles one after another,
+ * with a line along the top filling as you go. Clicking a role scrolls to its place. Storytelling: the same
+ * product answers a different question for each person, in sequence. Under 1024px or reduced motion it is a
+ * plain set of tabs.
+ */
 export function Roles() {
-  const [active, setActive] = useState<(typeof ROLES)[number]['id']>('seo');
+  const [active, setActive] = useState<RoleId>('seo');
   const group = useId();
+  const section = useRef<HTMLElement>(null);
+  const progress = useRef<HTMLSpanElement>(null);
+  const trigger = useRef<ScrollTrigger | null>(null);
   const role = ROLES.find((item) => item.id === active) ?? ROLES[0];
 
+  useEffect(() => {
+    const scope = section.current;
+    const line = progress.current;
+    if (!scope || !line) return;
+    const mm = gsap.matchMedia();
+    mm.add('(min-width: 1024px) and (prefers-reduced-motion: no-preference)', () => {
+      let last = 0;
+      trigger.current = ScrollTrigger.create({
+        trigger: scope,
+        start: 'top top',
+        end: '+=1900',
+        pin: true,
+        anticipatePin: 1,
+        onUpdate: (self) => {
+          line.style.transform = `scaleX(${self.progress})`;
+          const index = Math.min(ROLES.length - 1, Math.floor(self.progress * ROLES.length));
+          if (index !== last) {
+            last = index;
+            setActive(ROLES[index]?.id ?? 'seo');
+          }
+        },
+      });
+      return () => {
+        trigger.current = null;
+      };
+    }, scope);
+    return () => mm.revert();
+  }, []);
+
+  const choose = (id: RoleId) => {
+    const st = trigger.current;
+    if (!st) {
+      setActive(id);
+      return;
+    }
+    // Pinned: scroll to the middle of that role's share of the pin, and the scroll handler sets the role.
+    const index = ROLES.findIndex((item) => item.id === id);
+    window.scrollTo({ top: st.start + ((index + 0.5) / ROLES.length) * (st.end - st.start), behavior: 'smooth' });
+  };
+
   return (
-    <section className="mx-auto max-w-[1320px] px-5 py-24 md:px-8 lg:py-32">
+    <section ref={section} className="mx-auto flex max-w-[1320px] flex-col justify-center px-5 py-24 md:px-8 lg:min-h-[100dvh] lg:py-24">
       <h2 className="max-w-[18ch] text-[clamp(2.1rem,3.8vw,3.4rem)] leading-[1.05] font-semibold tracking-[-0.045em] text-balance">Built for the person who gets asked.</h2>
-      <div className="mt-12 grid gap-10 lg:grid-cols-12 lg:gap-16">
+      <span aria-hidden="true" className="mt-8 hidden h-0.5 w-full rounded-full bg-line lg:block">
+        <span ref={progress} className="block h-full origin-left rounded-full bg-cobalt" style={{ transform: 'scaleX(0)' }} />
+      </span>
+      <div className="mt-10 grid gap-10 lg:grid-cols-12 lg:gap-16">
         <LayoutGroup id={group}>
           <div role="tablist" aria-label="Roles" className="flex gap-2 lg:col-span-4 lg:flex-col">
             {ROLES.map((item) => (
@@ -44,11 +101,11 @@ export function Roles() {
                 id={`${group}-${item.id}`}
                 aria-selected={active === item.id}
                 aria-controls={`${group}-panel`}
-                onClick={() => setActive(item.id)}
+                onClick={() => choose(item.id)}
                 className="relative rounded-full px-6 py-3.5 text-left text-lg font-medium tracking-[-0.02em] transition duration-300 lg:rounded-3xl lg:py-5 lg:text-2xl"
               >
                 {active === item.id && <motion.span layoutId="role-pill" transition={{ type: 'spring', stiffness: 380, damping: 34 }} className="absolute inset-0 rounded-[inherit] bg-surface shadow-lift ring-1 ring-ink/[0.07]" />}
-                <span className={`relative ${active === item.id ? 'text-ink' : 'text-ink-3'}`}>{item.label}</span>
+                <span className={`relative transition-colors duration-300 ${active === item.id ? 'text-ink' : 'text-ink-3'}`}>{item.label}</span>
               </button>
             ))}
           </div>
