@@ -31,3 +31,16 @@
 @source "./kw-inspector.js";
 @source "./kw-model.js";
 @source "./kw-table.js";
+
+/* Rankings table: all data at 12 px and header labels in capitals (owner decision for the keyword table).
+   Unlayered on purpose: it wins over the type-* utilities that the cells carry. */
+[data-view="rankings"] table tbody td,
+[data-view="rankings"] table tbody td * {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+[data-view="rankings"] table thead th,
+[data-view="rankings"] table thead th * {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
