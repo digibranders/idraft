@@ -17,7 +17,8 @@
 #   * Any other *_IMAGE: refused, the Compose file uses none.
 #   * REDIS_ACL_DIR, the only host path the Compose file takes from the env: exactly <redis-acl-dir>.
 #   * COMPOSE_* and DOCKER_*: refused, they would change which files Compose reads or which daemon it uses.
-#   * The format deploy.sh relies on: KEY=value lines only, no quotes, no inline comment, no '$'.
+#   * The format deploy.sh relies on: printable ASCII only (no tab, CR, NUL or high byte), KEY=value lines
+#     only, no quotes (also not after a space), no inline comment, no '$'.
 set -euo pipefail
 
 file="${1:?usage: idraft-check-env <env-file> [<redis-acl-dir>] [<allow-tags>]}"
@@ -39,6 +40,10 @@ check_image() {
 }
 
 [ -f "$file" ] || refuse "$file does not exist."
+# Tab, CR, NUL and non-ASCII bytes are read differently by bash, grep and Compose, and read -r drops a NUL
+# silently, so the whole file is checked for them first. Printable ASCII and newlines only.
+[ "$(LC_ALL=C tr -d '\040-\176\n' < "$file" | wc -c | tr -d ' ')" = 0 ] \
+  || refuse "the file contains a byte outside printable ASCII (a tab, CR, NUL or non-ASCII character)."
 n=0
 while IFS= read -r line || [ -n "$line" ]; do
   n=$((n + 1))
@@ -47,6 +52,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || refuse "line $n is not KEY=value (no spaces, no export)."
   key="${line%%=*}"
   value="${line#*=}"
+  [[ "$value" =~ ^\ +[\"\'] ]] && refuse "$key has a space before a quoted value. Write values without quotes (see infra/compose/.env.example)."
   case "$value" in
     \"* | \'*) refuse "$key has a quoted value. Write values without quotes (see infra/compose/.env.example)." ;;
     *" #"*) refuse "$key has an inline comment. Put comments on their own line." ;;

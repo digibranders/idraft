@@ -106,6 +106,18 @@ cmp -s "$good" /etc/idraft/.env.next || fail "the staged env differs from the in
 refused() {
   rm -f /etc/idraft/.env.next
   sed "$3" "$good" > /tmp/bad.env
+  check_refusal "$1" "$2"
+}
+
+# refused_raw <case> <expected message> <printf %b text appended to the example env>
+refused_raw() {
+  rm -f /etc/idraft/.env.next
+  { cat "$good"; printf '%b' "$3"; } > /tmp/bad.env
+  check_refusal "$1" "$2"
+}
+
+# check_refusal <case> <expected message>: idraft-install-env on /tmp/bad.env must refuse and stage nothing.
+check_refusal() {
   if /src/host/idraft-install-env < /tmp/bad.env 2> /tmp/refusal; then
     fail "$1 was accepted"
   fi
@@ -123,4 +135,9 @@ refused "the Redis ACL dir behind export" "not KEY=value" "s|^REDIS_ACL_DIR=.*|e
 refused "the Redis ACL dir with spaces around =" "not KEY=value" "s|^REDIS_ACL_DIR=.*|REDIS_ACL_DIR = /|"
 refused "a Compose setting" "COMPOSE_FILE may not be set" "\$a COMPOSE_FILE=/tmp/evil.yml"
 refused "a quoted value" "quoted value" "s|^DOMAIN=.*|DOMAIN=\"app.idraft.ai\"|"
+refused_raw "a tab" "outside printable ASCII" 'EXTRA=a\tb\n'
+refused_raw "a carriage return" "outside printable ASCII" 'EXTRA=a\r\n'
+refused_raw "a NUL byte" "outside printable ASCII" 'EXTRA=a\0b\n'
+refused_raw "a high byte" "outside printable ASCII" 'EXTRA=a\0377b\n'
+refused_raw "a space before a quote" "space before a quoted value" 'EXTRA= "x"\n'
 echo "install-env checks passed"
