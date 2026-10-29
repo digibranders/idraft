@@ -6,11 +6,11 @@
  */
 import { DAY, DEPTHS, DEVICES, INTENTS, LANGUAGES, LOCATIONS, PAGE_SIZE, SOURCES, STAGES, allTags, groupList, labelOf } from './kw-data.js';
 
-export const DEFAULT_COLUMNS = ['rank', 'change', 'url', 'volume', 'kd', 'cpc', 'intent', 'priority', 'group', 'tags', 'updated', 'added'];
+/** Rank carries the change since the previous check; the ranking URL is the arrow beside the keyword, and its column is opt-in. */
+export const DEFAULT_COLUMNS = ['rank', 'volume', 'kd', 'cpc', 'intent', 'priority', 'group', 'tags', 'updated', 'added'];
 /** Columns the chooser offers (the keyword column is always shown and pinned). */
 export const COLUMNS = [
   ['rank', 'Rank', 'rank'],
-  ['change', 'Change', 'change'],
   ['url', 'Ranking URL', null],
   ['volume', 'Volume', 'volume'],
   ['kd', 'KD', 'kd'],
@@ -271,12 +271,6 @@ function sortValue(kw, key) {
     const rank = rankOf(kw);
     if (rank.kind === 'ranked') return rank.value;
     return rank.kind === 'beyond' ? 1000 : null;
-  }
-  if (key === 'change') {
-    const change = changeOf(kw);
-    if (!change) return null;
-    if (change.kind === 'delta') return change.value;
-    return change.kind === 'entered' ? 1000 : -1000;
   }
   if (key === 'updated') return kw.metricsAt;
   if (key === 'added') return kw.added;

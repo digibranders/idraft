@@ -4,12 +4,14 @@
  */
 import { DEVICES, INTENTS, LANGUAGES, labelOf, locationName } from './kw-data.js';
 import { COLUMNS, changeOf, formatCpc, formatDate, formatInt, rankOf, relativeTime } from './kw-model.js';
-import { badge, copyText, iconButton, icon } from './perf-ui.js';
+import { badge, icon } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 
 /** Columns the narrow screens leave out (the chooser still lists them). */
 const WIDE_ONLY = new Set(['url', 'kd', 'cpc', 'intent', 'group', 'tags', 'best', 'updated', 'added']);
 const CHANGE_COLOUR_FROM = 3;
+/** The preview's one project (kw-data.js); a ranking URL is a path on it. */
+const PROJECT_HOST = 'fynix.digital';
 
 export const cellText = (text, className = '') => el('span', className, text);
 
@@ -18,43 +20,46 @@ export function keywordTip(kw) {
   return [locationName(kw.location), labelOf(DEVICES, kw.device), 'Google', labelOf(LANGUAGES, kw.language)].join(' · ');
 }
 
-function rankCell(kw) {
-  const td = el('td', 'px-3 text-right whitespace-nowrap');
-  const rank = rankOf(kw);
-  if (rank.kind === 'ranked') {
-    td.append(cellText(String(rank.value), 'num type-body-strong text-foreground'));
-    td.dataset.tip = `Checked ${relativeTime(kw.checkedAt)}`;
-  } else if (rank.kind === 'beyond') {
-    td.append(cellText('>20', 'num type-body text-foreground-tertiary'));
-    td.dataset.tip = `Not in the top 20, checked ${relativeTime(kw.checkedAt)}`;
-  } else if (rank.kind === 'failed') {
-    const line = el('span', 'inline-flex items-center justify-end gap-1');
-    line.append(icon('triangle-alert', 'size-icon-sm text-warning-text'), cellText('Check failed', 'type-meta text-warning-text'));
-    td.append(line);
-    td.dataset.tip = 'The last check did not finish. It is retried on the next run';
-  } else {
-    td.append(cellText('Pending', 'type-meta text-foreground-tertiary'));
-    td.dataset.tip = 'The first rank check has not run yet';
+/** The change since the previous check as a small slot after the rank: arrow and places, New, Lost, or nothing. */
+function changeSlot(kw) {
+  const slot = el('span', 'inline-flex items-center gap-0.5 w-12 shrink-0 text-left whitespace-nowrap num');
+  const change = changeOf(kw);
+  if (!change) return { slot, tip: '' };
+  if (change.kind === 'entered') {
+    slot.append(cellText('New', 'type-meta text-positive-text'));
+    return { slot, tip: 'New in the tracked depth since the previous check' };
   }
-  return td;
+  if (change.kind === 'lost') {
+    slot.append(cellText('Lost', 'type-meta text-negative-text'));
+    return { slot, tip: 'Dropped out of the tracked depth since the previous check' };
+  }
+  const moved = Math.abs(change.value);
+  if (moved === 0) {
+    slot.append(cellText('0', 'type-meta text-foreground-tertiary'));
+    return { slot, tip: 'No change since the previous check' };
+  }
+  const colour = moved < CHANGE_COLOUR_FROM ? 'text-foreground-secondary' : change.value > 0 ? 'text-positive-text' : 'text-negative-text';
+  slot.append(icon(change.value > 0 ? 'arrow-up' : 'arrow-down', `size-icon-xs ${colour}`), cellText(String(moved), `type-body-strong ${colour}`));
+  return { slot, tip: `${change.value > 0 ? 'Up' : 'Down'} ${moved} ${moved === 1 ? 'place' : 'places'} since the previous check` };
 }
 
-function changeCell(kw) {
-  const td = el('td', 'px-3 text-right whitespace-nowrap num');
-  const change = changeOf(kw);
-  if (!change) return td;
-  if (change.kind === 'entered') td.append(cellText('New', 'type-body-strong text-positive-text'));
-  else if (change.kind === 'lost') td.append(cellText('Lost', 'type-body-strong text-negative-text'));
-  else {
-    const moved = Math.abs(change.value);
-    if (moved === 0) td.append(cellText('0', 'type-body text-foreground-secondary'));
-    else {
-      const colour = moved < CHANGE_COLOUR_FROM ? 'text-foreground-secondary' : change.value > 0 ? 'text-positive-text' : 'text-negative-text';
-      const line = el('span', 'inline-flex items-center justify-end gap-1');
-      line.append(icon(change.value > 0 ? 'arrow-up' : 'arrow-down', `size-icon-xs ${colour}`), cellText(String(moved), `type-body-strong ${colour}`));
-      td.append(line);
-      td.dataset.tip = change.value > 0 ? `Up ${moved} places since the last check` : `Down ${moved} places since the last check`;
-    }
+function rankCell(kw) {
+  const td = el('td', 'px-3 whitespace-nowrap');
+  const line = el('span', 'flex items-center justify-end gap-2');
+  td.append(line);
+  const rank = rankOf(kw);
+  const { slot, tip } = changeSlot(kw);
+  if (rank.kind === 'ranked' || rank.kind === 'beyond') {
+    const ranked = rank.kind === 'ranked';
+    line.append(cellText(ranked ? String(rank.value) : '>20', `num ${ranked ? 'type-body-strong text-foreground' : 'type-body text-foreground-tertiary'}`), slot);
+    const checked = ranked ? `Checked ${relativeTime(kw.checkedAt)}` : `Not in the top 20, checked ${relativeTime(kw.checkedAt)}`;
+    td.dataset.tip = tip ? `${checked}. ${tip}` : checked;
+  } else if (rank.kind === 'failed') {
+    line.append(icon('triangle-alert', 'size-icon-sm text-warning-text'), cellText('Check failed', 'type-meta text-warning-text'));
+    td.dataset.tip = 'The last check did not finish. It is retried on the next run';
+  } else {
+    line.append(cellText('Pending', 'type-meta text-foreground-tertiary'));
+    td.dataset.tip = 'The first rank check has not run yet';
   }
   return td;
 }
@@ -106,7 +111,6 @@ function tagsCell(kw) {
 
 const CELL = {
   rank: rankCell,
-  change: changeCell,
   url: urlCell,
   volume: (kw) => metricCell(kw, kw.volume === null ? null : formatInt(kw.volume), { pendingLabel: true }),
   kd: (kw) => metricCell(kw, kw.kd === null ? null : String(kw.kd), { pendingLabel: true }),
@@ -140,8 +144,20 @@ function keywordCell(kw, ctx) {
   open.dataset.tip = keywordTip(kw);
   open.dataset.kwOpen = String(kw.id);
   open.addEventListener('click', () => ctx.open(kw.id));
-  const copy = iconButton('copy', `Copy keyword ${kw.keyword}`, () => copyText(kw.keyword, 'Keyword copied'), 'size-7 shrink-0');
-  line.append(open, copy);
+  line.append(open);
+  if (kw.urls.length > 0) {
+    // The page that ranks, one click away; the tooltip names it (and says how many more own pages rank).
+    const target = `${PROJECT_HOST}${kw.urls[0]}`;
+    const more = kw.urls.length > 1 ? ` (+${kw.urls.length - 1} more ranking pages)` : '';
+    const link = el('a', 'size-7 shrink-0 rounded-md flex items-center justify-center text-foreground-muted hover:text-foreground hover:bg-surface-hover');
+    link.href = `https://${target}`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.setAttribute('aria-label', `Open the ranking page of ${kw.keyword}: ${target}`);
+    link.dataset.tip = `${target}${more}`;
+    link.append(icon('arrow-up-right', 'size-icon'));
+    line.append(link);
+  }
   td.append(line);
   return td;
 }
@@ -184,7 +200,7 @@ export function renderTable({ rows, state, selected, ctx }) {
   keyHead.append(el('span', 'px-2 type-label text-foreground-secondary', 'Keyword'));
   head.append(all, keyHead);
   visible.forEach(([key, label, sortKey]) => {
-    head.append(headerCell(label, sortKey, state, ctx, `${WIDE_ONLY.has(key) ? 'hidden md:table-cell' : ''} ${['rank', 'change', 'volume', 'kd', 'cpc', 'priority', 'best'].includes(key) ? 'text-right' : ''}`));
+    head.append(headerCell(label, sortKey, state, ctx, `${WIDE_ONLY.has(key) ? 'hidden md:table-cell' : ''} ${['rank', 'volume', 'kd', 'cpc', 'priority', 'best'].includes(key) ? 'text-right' : ''}`));
   });
   thead.append(head);
 
