@@ -684,6 +684,12 @@ describe('DataTable rank, change and URL columns', () => {
       sortable: false,
       cell: () => 'aio',
     });
+    const spark = col.sparkline<Row>('trend', {
+      header: 'Trend',
+      priority: 2,
+      width: 96,
+      cell: () => 'spark',
+    });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
     expect(wide.width).toBe(112);
     expect(narrow.width).toBe(160);
@@ -693,6 +699,9 @@ describe('DataTable rank, change and URL columns', () => {
     expect(aio.type).toBe('aiOverview');
     expect(aio.width).toBe(104);
     expect(aio.sortValue).toBeUndefined();
+    expect(spark.type).toBe('sparkline');
+    expect(spark.width).toBe(96);
+    expect(spark.sortValue).toBeUndefined();
     // A header that needs more than its type's minimum names its own, and the width follows it
     const priority = col.count<Row>('priority', () => 1, { header: 'Priority', width: 50, minWidth: 100 });
     expect(priority.minWidth).toBe(100);

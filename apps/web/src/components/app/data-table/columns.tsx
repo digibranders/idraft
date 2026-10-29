@@ -316,6 +316,11 @@ export const col = {
     return rich(id, 'aiOverview', sortValue, options);
   },
 
+  /** Rank trend sparkline: canvas, left aligned (15-data-visualization.md section 9). Never sorts. */
+  sparkline<TRow>(id: string, options: RichOptions<TRow>): DataTableColumn<TRow> {
+    return rich(id, 'sparkline', () => null, { ...options, sortable: false });
+  },
+
   /** A neutral badge, such as an intent. */
   badge<TRow>(
     id: string,
@@ -354,7 +359,7 @@ interface RichOptions<TRow> extends Options {
 
 function rich<TRow>(
   id: string,
-  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features' | 'aiOverview'>,
+  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features' | 'aiOverview' | 'sparkline'>,
   sortValue: (row: TRow) => string | number | null,
   options: RichOptions<TRow>,
 ): DataTableColumn<TRow> {

@@ -850,16 +850,35 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     expect(fieldCodes(await viewer.call('GET', `${TK}?sort=-state`))).toEqual(['sort:invalid_sort']);
   });
 
-  it('accepts include=sparkline,competitor_ranks,features,aio and answers null for each block', async () => {
+  it('gives sparkline points when include=sparkline is requested', async () => {
     const viewer = mockBrowser('viewer');
-    for (const query of [
-      'include=sparkline,competitor_ranks,features,aio',
-      'include=sparkline&include=aio&include=metrics',
-    ]) {
+    const rows = await listOf(viewer, 'include=sparkline');
+    expect(rows.length).toBeGreaterThan(0);
+    const checked = rows.find((row) => row.state.current.state === 'ranked');
+    if (checked === undefined) throw new Error('No checked keyword');
+    expect(checked.sparkline).not.toBeNull();
+    expect(checked.sparkline?.depth_mode).toBe('daily_depth');
+    expect(checked.sparkline?.points.length).toBeGreaterThan(0);
+    expect(checked.sparkline?.points.length).toBeLessThanOrEqual(30);
+    const last = checked.sparkline?.points.at(-1);
+    expect(last?.t).toBe(checked.state.current.observed_at);
+
+    const pending = rows.find((row) => row.state.current.state === 'not_checked');
+    if (pending === undefined) throw new Error('No pending keyword');
+    expect(pending.sparkline?.points).toEqual([]);
+
+    const withoutInclude = await listOf(viewer, 'limit=5');
+    for (const row of withoutInclude) {
+      expect(row.sparkline).toBeNull();
+    }
+  });
+
+  it('accepts include=competitor_ranks,features,aio and answers null for each block', async () => {
+    const viewer = mockBrowser('viewer');
+    for (const query of ['include=competitor_ranks,features,aio', 'include=aio&include=metrics']) {
       const rows = await listOf(viewer, query);
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
-        expect(row.sparkline).toBeNull();
         expect(row.competitor_ranks).toBeNull();
         expect(row.features).toBeNull();
         expect(row.aio).toBeNull();

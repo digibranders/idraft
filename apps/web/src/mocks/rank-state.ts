@@ -158,6 +158,42 @@ function aioOf(trackedId: string): AioStateInfo {
   };
 }
 
+/** The checks of a keyword up to `now` as the rank state and sparkline see them. */
+export function checksAt(
+  trackedId: string,
+  createdAt: string,
+  now: number,
+  domain: string | null,
+  stoppedAt: string | null = null,
+): MockCheck[] {
+  if (PENDING_TRACKED_IDS.has(trackedId) || FAILED_IDS.has(trackedId)) return [];
+  const collected = stoppedAt === null;
+  const staleAsOf = STALE_IDS.has(trackedId) ? now - STALE_FIXTURE_AGE_MS : now;
+  const asOf = collected ? staleAsOf : Math.min(staleAsOf, Date.parse(stoppedAt));
+  return checksOf(trackedId, createdAt, asOf).map((check) =>
+    domain === null ? { ...check, rank: null, path: null, urlCount: 0 } : check,
+  );
+}
+
+/** The keyword's sparkline as `include=sparkline` answers it: the last 30 checks, oldest first. */
+export function sparklineOf(
+  trackedId: string,
+  createdAt: string,
+  now: number,
+  domain: string | null,
+  stoppedAt: string | null = null,
+): Schemas['Sparkline'] {
+  return {
+    depth_mode: 'daily_depth',
+    points: checksAt(trackedId, createdAt, now, domain, stoppedAt).map((check) => ({
+      t: check.observedAt,
+      rank: check.rank,
+      depth: check.depth,
+      state: check.rank === null ? 'beyond_depth' : 'ranked',
+    })),
+  };
+}
+
 /**
  * The rank state of a tracked keyword at `now` (the mock clock, read once by the caller).
  *
@@ -180,12 +216,7 @@ export function rankStateOf(
   if (PENDING_TRACKED_IDS.has(trackedId)) return notChecked(0, false);
   if (FAILED_IDS.has(trackedId))
     return notChecked(FAILED_RUN, collected && now - Date.parse(createdAt) > STALE_AFTER_MS);
-  // A stale fixture keyword shows the history of 40 hours ago: its checks since then did not happen
-  const staleAsOf = STALE_IDS.has(trackedId) ? now - STALE_FIXTURE_AGE_MS : now;
-  const asOf = collected ? staleAsOf : Math.min(staleAsOf, Date.parse(stoppedAt));
-  const checks = checksOf(trackedId, createdAt, asOf).map((check) =>
-    domain === null ? { ...check, rank: null, path: null, urlCount: 0 } : check,
-  );
+  const checks = checksAt(trackedId, createdAt, now, domain, stoppedAt);
   const latest = checks.at(-1);
   if (latest === undefined) return notChecked(0, false);
   const ranked = checks.filter((check): check is MockCheck & { rank: number } => check.rank !== null);

@@ -2322,6 +2322,16 @@
       "match": "Ranks with the target",
       "mismatchChoice": "Ranks with another URL"
     },
+    "trend": {
+      "column": "Trend",
+      "columnTooltip": "Rank at the last 30 checks, better up, on a scale of 1 to 20. A gap is a check beyond the depth.",
+      "label": "Rank trend, last {checks, plural, one {check} other {# checks}}: from {first} to {last}, best {best}",
+      "labelBeyond": "{count, plural, one {1 check} other {# checks}} beyond the depth checked",
+      "labelNone": "Rank trend: not ranked within the depth in the last {checks, plural, one {check} other {# checks}}",
+      "labelEmpty": "Rank trend: no checks yet",
+      "tipTitle": "Last checks",
+      "tipPoint": "{date}: {rank}"
+    },
     "filters": {
       "group": "Group",
       "tag": "Tags",

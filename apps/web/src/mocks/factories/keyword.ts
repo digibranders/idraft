@@ -4,7 +4,7 @@ import type { EntityWorld } from '../entities-state';
 import { MOCK_INVITED_USER, MOCK_USERS } from '../fixtures';
 import { fixtureReading, fixtureReadingsOf, METRICS_FETCHED_AT, type FixtureReading } from '../keyword-fixtures';
 import { keywordMetrics, metricsHistory } from '../keyword-metrics';
-import { rankStateOf, stoppedAtOf } from '../rank-state';
+import { rankStateOf, sparklineOf, stoppedAtOf } from '../rank-state';
 import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   currentVersion,
@@ -351,8 +351,10 @@ export function trackedKeywordRowView(
     terms: include.has('terms') ? termsOf(world, entities, row.tracked_keyword_id) : null,
     competitors: include.has('competitors') ? overridesOf(world, entities, row) : null,
     // The real API fills these blocks when asked (`include=sparkline,competitor_ranks,features,aio`); this UI
-    // does not ask for them yet, so the mocks accept the values and answer null
-    sparkline: null,
+    // fills sparkline when asked; the other three still answer null until their tasks
+    sparkline: include.has('sparkline')
+      ? sparklineOf(row.tracked_keyword_id, row.created_at, rank.now, rank.domain, stoppedAtOf(row))
+      : null,
     competitor_ranks: null,
     features: null,
     aio: null,

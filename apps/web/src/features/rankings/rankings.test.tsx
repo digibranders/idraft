@@ -527,6 +527,46 @@ describe('Rankings rank columns', () => {
     expect(within(cell).getByText(`Cited #${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
   });
 
+  it('shows the rank trend sparkline for checked and pending keywords, and requests include=sparkline', async () => {
+    const asked: string[] = [];
+    const listener = ({ request }: { request: Request }): void => {
+      if (request.url.includes('/tracked-keywords')) {
+        const url = new URL(request.url, 'http://localhost');
+        asked.push(...url.searchParams.getAll('include').flatMap((v) => v.split(',')));
+      }
+    };
+    server.events.on('request:start', listener);
+    try {
+      renderWithProviders(as('viewer'));
+      const grid = await loadedGrid();
+      expect(within(grid).getByRole('columnheader', { name: /^Trend/ })).toBeInTheDocument();
+      await waitFor(() => expect(asked).toContain('sparkline'));
+
+      const checked = fixtureStates().find(({ state }) => state.current.state === 'ranked');
+      if (checked === undefined) throw new Error('No checked keyword');
+      const checkedRow = within(grid)
+        .getAllByRole('rowheader')
+        .find((candidate) => candidate.textContent === checked.text)
+        ?.closest('tr');
+      if (!checkedRow) throw new Error(`No row for ${checked.text}`);
+      const checkedCell = checkedRow.cells[columnIndex(grid, /^Trend$/)];
+      if (checkedCell === undefined) throw new Error('No Trend cell on checked row');
+      expect(within(checkedCell).getByRole('img', { name: /^Rank trend, last \d+ checks?: from/ })).toBeInTheDocument();
+
+      const pendingRow = within(grid)
+        .getAllByRole('rowheader')
+        .find((candidate) => candidate.textContent === 'seo for plumbers')
+        ?.closest('tr');
+      if (pendingRow) {
+        const pendingCell = pendingRow.cells[columnIndex(grid, /^Trend$/)];
+        if (pendingCell === undefined) throw new Error('No Trend cell on pending row');
+        expect(within(pendingCell).getByRole('img', { name: 'Rank trend: no checks yet' })).toBeInTheDocument();
+      }
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+  });
+
   it('tells one story for a keyword whose checks all failed: a warning, n/a, no change, a stale marker', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();

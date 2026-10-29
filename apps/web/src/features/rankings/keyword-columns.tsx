@@ -154,6 +154,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
       }),
       ranks.features,
       ranks.aio,
+      ranks.trend,
       col.count<TrackedKeywordRow>('priority', (row) => row.priority, {
         header: t('priority'),
         headerTooltip: t('priorityTooltip'),

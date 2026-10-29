@@ -437,14 +437,26 @@ const TRACKED_KEYWORD_FIELDS = {
 
 export const TRACKED_KEYWORD: z.ZodType<TrackedKeyword> = z.object(TRACKED_KEYWORD_FIELDS);
 
+export const SPARKLINE_POINT = z.object({
+  t: z.string(),
+  rank: z.number().nullable(),
+  depth: z.number(),
+  state: z.enum(['ranked', 'beyond_depth']),
+});
+
+export const SPARKLINE = z.object({
+  depth_mode: z.literal('daily_depth'),
+  points: z.array(SPARKLINE_POINT),
+});
+
 export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   ...TRACKED_KEYWORD_FIELDS,
   metrics: KEYWORD_METRICS.nullable().exactOptional(),
   groups: z.array(GROUP_REF).nullable().exactOptional(),
   terms: z.array(TERM_REF).nullable().exactOptional(),
   competitors: z.array(COMPETITOR_OVERRIDE).nullable().exactOptional(),
-  // The blocks of `include=sparkline,competitor_ranks,features,aio`: the mocks answer null for each
-  sparkline: z.null().exactOptional(),
+  // The blocks of `include=sparkline,competitor_ranks,features,aio`
+  sparkline: SPARKLINE.nullable().exactOptional(),
   competitor_ranks: z.null().exactOptional(),
   features: z.null().exactOptional(),
   aio: z.null().exactOptional(),

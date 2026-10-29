@@ -1,5 +1,7 @@
 'use client';
 
+import { TZDate } from '@date-fns/tz';
+import { format, parseISO } from 'date-fns';
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
@@ -7,7 +9,9 @@ import { BestRankView, RankCellView, RankingUrlView, StaleMarker, useRankTips } 
 import { SerpFeatureListView, AioStatusView } from './feature-cells';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
+import { SparklineCell } from '@/components/app/sparkline/sparkline-cell';
 import type { TrackedKeywordRow } from '@/lib/api/types';
+import { sparklineSummary } from '@/lib/charts/sparkline';
 import { aioDisplay, rankDisplay, rowChangeDisplay, urlDisplay } from '@/lib/format';
 import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
 
@@ -19,6 +23,7 @@ export const RANK_COLUMN_IDS = {
   updated: 'last_observed_at',
   features: 'serp_features',
   aio: 'aio',
+  trend: 'trend',
 } as const;
 
 export interface RankColumns {
@@ -28,6 +33,7 @@ export interface RankColumns {
   updated: DataTableColumn<TrackedKeywordRow>;
   features: DataTableColumn<TrackedKeywordRow>;
   aio: DataTableColumn<TrackedKeywordRow>;
+  trend: DataTableColumn<TrackedKeywordRow>;
 }
 
 /**
@@ -41,6 +47,7 @@ export function useRankColumns(timeZone: string): RankColumns {
   const common = useTranslations('common');
   const features = useTranslations('rankings.features');
   const aioT = useTranslations('rankings.aio');
+  const trendT = useTranslations('rankings.trend');
   const tips = useRankTips(timeZone);
   return useMemo((): RankColumns => {
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
@@ -147,6 +154,44 @@ export function useRankColumns(timeZone: string): RankColumns {
         ),
         cellTip: (row) => aioTip(row),
       }),
+      trend: col.sparkline<TrackedKeywordRow>(RANK_COLUMN_IDS.trend, {
+        header: trendT('column'),
+        headerTooltip: trendT('columnTooltip'),
+        priority: 2,
+        width: 96,
+        cell: (row) => {
+          const points = row.sparkline?.points ?? [];
+          const label = ((): string => {
+            if (points.length === 0) return trendT('labelEmpty');
+            const summary = sparklineSummary(points);
+            if (summary.first === null) return trendT('labelNone', { checks: summary.checks });
+            const base = trendT('label', {
+              checks: summary.checks,
+              first: summary.first,
+              last: summary.last ?? summary.first,
+              best: summary.best ?? summary.first,
+            });
+            return summary.beyond > 0 ? `${base}, ${trendT('labelBeyond', { count: summary.beyond })}` : base;
+          })();
+          return <SparklineCell points={points} label={label} />;
+        },
+        cellTip: (row) => {
+          const points = row.sparkline?.points ?? [];
+          if (points.length === 0) return undefined;
+          const last7 = points
+            .slice(-7)
+            .map((point) => {
+              const d = format(new TZDate(parseISO(point.t).getTime(), timeZone), 'MMM d');
+              const r = point.state === 'ranked' && point.rank !== null ? String(point.rank) : `>${point.depth}`;
+              return trendT('tipPoint', { date: d, rank: r });
+            })
+            .join(', ');
+          return {
+            content: trendT('tipTitle'),
+            detail: last7,
+          };
+        },
+      }),
       best: col.rank<TrackedKeywordRow>(RANK_COLUMN_IDS.best, (row) => row.state.best_rank, {
         header: t('bestRank'),
         headerTooltip: t('bestRankTooltip'),
@@ -171,5 +216,5 @@ export function useRankColumns(timeZone: string): RankColumns {
           row.state.current.state === 'failed' ? { label: t('failed'), tooltip: t('failedTooltip') } : pending,
       }),
     };
-  }, [t, common, features, aioT, tips, timeZone]);
+  }, [t, common, features, aioT, trendT, tips, timeZone]);
 }
