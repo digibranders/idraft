@@ -45,13 +45,14 @@ function changeSlot(kw) {
 
 function rankCell(kw) {
   const td = el('td', 'px-3 whitespace-nowrap');
-  const line = el('span', 'flex items-center justify-end gap-2');
+  const line = el('span', 'flex items-center gap-2');
   td.append(line);
   const rank = rankOf(kw);
   const { slot, tip } = changeSlot(kw);
   if (rank.kind === 'ranked' || rank.kind === 'beyond') {
     const ranked = rank.kind === 'ranked';
-    line.append(cellText(ranked ? String(rank.value) : '>100', `num ${ranked ? 'type-body-strong text-foreground' : 'type-body text-foreground-tertiary'}`), slot);
+    // A fixed-width box keeps the change slot in one column whatever the number of digits.
+    line.append(cellText(ranked ? String(rank.value) : '>100', `num inline-block w-8 shrink-0 ${ranked ? 'type-body-strong text-foreground' : 'type-body text-foreground-tertiary'}`), slot);
     const checked = ranked ? `Checked ${relativeTime(kw.checkedAt)}` : `Not in the top 100, checked ${relativeTime(kw.checkedAt)}`;
     td.dataset.tip = tip ? `${checked}. ${tip}` : checked;
   } else if (rank.kind === 'failed') {
@@ -81,7 +82,7 @@ function urlCell(kw) {
 }
 
 function metricCell(kw, text, { pendingLabel = false } = {}) {
-  const td = el('td', 'px-3 text-right whitespace-nowrap');
+  const td = el('td', 'px-3 whitespace-nowrap');
   if (text === null) td.append(cellText(pendingLabel && kw.cur === 'p' ? 'Pending' : 'No data', 'type-meta text-foreground-tertiary'));
   else td.append(cellText(text, 'num type-body text-foreground'));
   return td;
@@ -121,7 +122,7 @@ const CELL = {
     return td;
   },
   priority: (kw) => {
-    const td = el('td', 'px-3 text-right num type-body text-foreground', String(kw.priority));
+    const td = el('td', 'px-3 num type-body text-foreground', String(kw.priority));
     return td;
   },
   group: groupCell,
@@ -170,14 +171,12 @@ function headerCell(label, key, state, ctx, extraClass) {
   }
   const active = state.sort === key || state.sort === `-${key}`;
   th.setAttribute('aria-sort', state.sort === key ? 'ascending' : state.sort === `-${key}` ? 'descending' : 'none');
-  const node = el('button', `h-8 px-2 rounded-md flex items-center gap-1 whitespace-nowrap type-label hover:bg-surface-hover hover:text-foreground ${key === 'rank' || key === 'volume' || key === 'kd' || key === 'cpc' || key === 'best' || key === 'priority' ? 'justify-end w-full' : ''}`);
+  const node = el('button', `h-8 px-2 rounded-md flex items-center gap-1 whitespace-nowrap type-label hover:bg-surface-hover hover:text-foreground`);
   node.type = 'button';
   const direction = !active ? 'arrow-up-down' : state.sort.startsWith('-') ? 'arrow-down-wide-narrow' : 'arrow-up-narrow-wide';
   node.append(label, icon(direction, `size-icon-xs ${active ? 'text-foreground' : 'text-foreground-muted'}`));
   node.addEventListener('click', () => ctx.sort(key));
   th.append(node);
-  // The rank number ends before the change slot (3rem) and its gap (0.5rem), so the header ends there too.
-  if (key === 'rank') th.style.paddingRight = '3.75rem';
   return th;
 }
 
@@ -202,7 +201,7 @@ export function renderTable({ rows, state, selected, ctx }) {
   keyHead.append(el('span', 'px-2 type-label text-foreground-secondary', 'Keyword'));
   head.append(all, keyHead);
   visible.forEach(([key, label, sortKey]) => {
-    head.append(headerCell(label, sortKey, state, ctx, `${WIDE_ONLY.has(key) ? 'hidden md:table-cell' : ''} ${['rank', 'volume', 'kd', 'cpc', 'priority', 'best'].includes(key) ? 'text-right' : ''}`));
+    head.append(headerCell(label, sortKey, state, ctx, `${WIDE_ONLY.has(key) ? 'hidden md:table-cell' : ''}`));
   });
   thead.append(head);
 
