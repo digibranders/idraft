@@ -117,7 +117,7 @@ const CELL = {
   cpc: (kw) => metricCell(kw, kw.cpc === null ? null : formatCpc(kw.cpc), { pendingLabel: true }),
   intent: (kw) => {
     const td = el('td', 'px-3 whitespace-nowrap');
-    td.append(badge(labelOf(INTENTS, kw.intent), 'neutral'));
+    td.append(cellText(labelOf(INTENTS, kw.intent), 'type-body text-foreground'));
     return td;
   },
   priority: (kw) => {
