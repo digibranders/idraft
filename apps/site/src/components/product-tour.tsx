@@ -5,17 +5,24 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { AnimatePresence, motion } from 'motion/react';
 
-import { Dashboard } from './mock/dashboard';
 import type { MockView } from './mock/app-frame';
+import { Dashboard } from './mock/dashboard';
+import { ScreenFrame } from './mock/screen-frame';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const STEPS = [
-  { view: 'keywords', pill: 'Keywords', title: 'Every keyword, checked every day.', body: 'Position, change since the last check, the page that ranks and the SERP features, on one row.' },
-  { view: 'ai', pill: 'AI answers', title: 'Every prompt, read in every engine.', body: 'Who is named, in what position, and which sources the answer cites, with your brand picked out.' },
-  { view: 'matrix', pill: 'Matrix', title: 'Rank and answer, side by side.', body: 'Each topic with its Google rank and its mention rate, so a gap between the two is obvious.' },
-  { view: 'sources', pill: 'Sources', title: 'Who the AI trusts, ranked.', body: 'The domains answers cite for your topics, by type and by how often, with you in the list.' },
-] as const satisfies readonly { view: MockView; pill: string; title: string; body: string }[];
+type Step =
+  | { kind: 'real'; pill: string; title: string; body: string; src: string; alt: string }
+  | { kind: 'preview'; pill: string; title: string; body: string; view: MockView };
+
+// Real screens are screenshots of the app as it is today. Previews are screens still being built.
+const STEPS: readonly [Step, ...Step[]] = [
+  { kind: 'real', pill: 'Keywords', title: 'Every keyword, checked every day.', body: 'Position, change since the last check, the page that ranks and the volume, difficulty and cost behind each one.', src: '/screens/keywords.png', alt: 'The Keywords screen of the idraft app: a table of tracked keywords with rank, change, ranking URL, volume, difficulty, CPC, intent, priority and group.' },
+  { kind: 'real', pill: 'Detail', title: 'Open a row for the whole story.', body: 'Search volume by month, difficulty, cost per click, groups and topics, and the checks behind the rank.', src: '/screens/keyword-inspector.png', alt: 'The Keywords screen with one keyword open in the inspector: volume by month as a bar chart, difficulty, cost per click, groups and topics.' },
+  { kind: 'preview', pill: 'AI answers', title: 'Every prompt, read in every engine.', body: 'Who is named, in what position, and which sources the answer cites, with your brand picked out.', view: 'ai' },
+  { kind: 'preview', pill: 'Matrix', title: 'Rank and answer, side by side.', body: 'Each topic with its Google rank and its mention rate, so a gap between the two is obvious.', view: 'matrix' },
+  { kind: 'preview', pill: 'Sources', title: 'Who the AI trusts, ranked.', body: 'The domains answers cite for your topics, by type and by how often, with you in the list.', view: 'sources' },
+];
 
 /**
  * A product tour driven by the scroll. On desktop the section pins and the page walks the dashboard through its
@@ -70,7 +77,7 @@ export function ProductTour() {
   return (
     <section ref={section} aria-label="Product tour" className="mx-auto flex max-w-[1320px] flex-col justify-center px-5 pt-24 pb-16 md:px-8 lg:min-h-[100dvh] lg:justify-center lg:pt-20 lg:pb-6">
       <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-6">
           <AnimatePresence mode="wait" initial={false}>
             <motion.h2
               key={current.title}
@@ -90,16 +97,16 @@ export function ProductTour() {
           </AnimatePresence>
         </div>
 
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-6">
           <div role="tablist" aria-label="Product views" className="flex flex-wrap gap-2 lg:justify-end">
             {STEPS.map((item, index) => (
               <button
-                key={item.view}
+                key={item.pill}
                 role="tab"
                 type="button"
                 aria-selected={index === step}
                 onClick={() => choose(index)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200 ${index === step ? 'bg-ink text-white' : 'bg-surface text-ink-2 ring-1 ring-ink/10 hover:text-ink hover:ring-ink/30'}`}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${index === step ? 'bg-ink text-white' : 'bg-surface text-ink-2 ring-1 ring-ink/10 hover:text-ink hover:ring-ink/30'}`}
               >
                 {item.pill}
               </button>
@@ -112,7 +119,16 @@ export function ProductTour() {
       </div>
 
       <div className="mt-6">
-        <Dashboard view={current.view} onViewChange={(view) => choose(Math.max(0, STEPS.findIndex((item) => item.view === view)))} heightClass="h-[30rem] sm:h-[32rem] lg:h-[27rem]" />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={step} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}>
+            {current.kind === 'real' ? (
+              <ScreenFrame src={current.src} alt={current.alt} heightClass="h-[26rem] sm:h-[28rem] lg:h-[27rem]" />
+            ) : (
+              <Dashboard view={current.view} onViewChange={(view) => choose(Math.max(0, STEPS.findIndex((item) => item.kind === 'preview' && item.view === view)))} heightClass="h-[26rem] sm:h-[28rem] lg:h-[27rem]" />
+            )}
+          </motion.div>
+        </AnimatePresence>
+        <p className="mt-3 text-center font-mono text-[11px] text-ink-3">{current.kind === 'real' ? 'A screen from the app today, with sample data.' : 'A preview of a screen in build, with sample data.'}</p>
       </div>
     </section>
   );

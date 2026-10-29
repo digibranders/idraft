@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
-import { Dashboard } from '@/components/mock/dashboard';
+import { ScreenFrame } from '@/components/mock/screen-frame';
 import { RoadmapTeaser } from '@/components/roadmap-teaser';
 import { StickyStack } from '@/components/sticky-stack';
 
@@ -45,8 +45,7 @@ export default function ProductPage() {
         eyebrow="Product"
         title="One record for every topic you care about."
         lead="Rankings, AI answers, sources and history stay together, so each question has one place to look and one set of numbers to trust."
-        visual={<Dashboard initial="matrix" />}
-        backdrop="/images/grid.png"
+        visual={<ScreenFrame src="/screens/keywords.png" alt="The Keywords screen of the idraft app: a table of tracked keywords with rank, change, ranking URL, volume, difficulty, CPC, intent, priority and group." />}
       />
       <StickyStack cards={CARDS} />
       <div className="h-24" />

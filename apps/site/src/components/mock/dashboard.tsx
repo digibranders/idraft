@@ -50,6 +50,7 @@ export function Dashboard({ initial = 'keywords', only, view, onViewChange, heig
         <span className="size-2.5 rounded-full bg-ink/15" />
         <span className="size-2.5 rounded-full bg-ink/15" />
         <span className="mx-auto rounded-md bg-paper px-12 py-0.5 font-mono text-[11px] text-ink-3">app.idraft.ai</span>
+        <span className="rounded-full bg-wash px-2.5 py-0.5 text-[10px] font-medium text-cobalt-deep">Preview</span>
       </div>
       <div className={heightClass}>
         <AppFrame view={current} {...(only ? {} : { onNavigate: navigate })} compact={compact}>
