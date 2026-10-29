@@ -4,7 +4,7 @@ import { GeistSans } from 'geist/font/sans';
 
 import { MotionProvider } from '@/components/motion-provider';
 import { Nav } from '@/components/nav';
-import { ScrollRungs } from '@/components/scroll-rungs';
+import { ScrollRail } from '@/components/scroll-rail';
 import { SiteFooter } from '@/components/site-footer';
 import { SmoothScroll } from '@/components/smooth-scroll';
 
@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MotionProvider>
           <SmoothScroll />
           <Nav />
-          <ScrollRungs />
+          <ScrollRail />
           <main id="top">{children}</main>
           <SiteFooter />
         </MotionProvider>

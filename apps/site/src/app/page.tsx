@@ -13,19 +13,33 @@ import { TextReveal } from '@/components/text-reveal';
 export default function Home() {
   return (
     <>
-      <HomeHero />
+      <div data-rail="Start">
+        <HomeHero />
+      </div>
       <Engines />
-      <section className="mx-auto max-w-[1320px] px-5 py-28 md:px-8 lg:py-44">
+      <section data-rail="Why" className="mx-auto max-w-[1320px] px-5 py-28 md:px-8 lg:py-44">
         <Reveal>
           <TextReveal text="Search is no longer ten blue links. People now get answers from AI, and those answers name brands. idraft shows where you rank and where you are named, together, with the evidence behind each number." />
         </Reveal>
       </section>
-      <HorizontalEngines />
-      <Bento />
-      <Compare />
-      <FeaturesTeaser />
-      <Roles />
-      <Faq />
+      <div data-rail="Engines">
+        <HorizontalEngines />
+      </div>
+      <div data-rail="Features">
+        <Bento />
+      </div>
+      <div data-rail="Compare">
+        <Compare />
+      </div>
+      <div data-rail="And more">
+        <FeaturesTeaser />
+      </div>
+      <div data-rail="Roles">
+        <Roles />
+      </div>
+      <div data-rail="Questions">
+        <Faq />
+      </div>
       <CtaBand title="See your rank and your answer together." body="We are onboarding teams by invitation. Tell us what you track and we will reply with next steps." />
     </>
   );
