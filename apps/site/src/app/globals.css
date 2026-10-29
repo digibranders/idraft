@@ -194,3 +194,6 @@ details > summary::-webkit-details-marker {
 .pin-spacer:has(> section[aria-label^='Climb']) {
   background: var(--color-amber-wash);
 }
+.pin-spacer:has(> section[aria-label='The four answer engines']) {
+  background: var(--color-wash);
+}
