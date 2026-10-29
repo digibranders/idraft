@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
-import { PathScene } from '@/components/art/scenes';
 import { StepsTimeline } from '@/components/steps-timeline';
 
 export const metadata: Metadata = {
@@ -40,7 +39,7 @@ export default function HowItWorksPage() {
         eyebrow="How it works"
         title="From your domain to one matrix, in four moves."
         lead="You choose what to follow. idraft collects it on a schedule and keeps the evidence behind every number."
-        visual={<PathScene />}
+        image={{ src: '/images/scenes/how.webp', alt: 'A hand-drawn flow: a list of search phrases, a robot reading them, a podium with the number 1' }}
       />
       <section className="px-5 py-16 md:px-8 lg:py-28">
         <StepsTimeline steps={STEPS} />

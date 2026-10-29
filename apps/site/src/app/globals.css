@@ -2,22 +2,22 @@
 
 /*
  * Colors are the product's own tokens (apps/web/src/styles/tokens.css), light theme only:
- * paper #F7F8FA, surface #FEFEFF, ink #14171C, cobalt #1E65E3. One accent, used the same on every section.
+ * warm cream paper, ink navy, cobalt in small doses. One accent, used the same on every section.
  * Shape rule: buttons are full pills, outer cards 32px with a 6px bezel, inner cards the concentric remainder.
  */
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  --color-paper: #f7f8fa;
-  --color-surface: #fefeff;
-  --color-wash: #eaf1fe;
-  --color-ink: #14171c;
-  --color-ink-2: #3f4550;
-  --color-ink-3: #626a76;
+  --color-paper: #faf6ec;
+  --color-surface: #fffdf7;
+  --color-wash: #fbefd0;
+  --color-ink: #161b2e;
+  --color-ink-2: #454a5e;
+  --color-ink-3: #6b6f80;
   --color-cobalt: #1e65e3;
   --color-cobalt-deep: #175ad0;
-  --color-line: #e1e5eb;
+  --color-line: #e9e1cf;
 
   /* Illustration colors. The UI keeps one cobalt accent; these live only in artwork and section tints. */
   --color-violet: #7c5cff;
@@ -32,7 +32,7 @@
   --ease-heavy: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --shadow-lift: 0 30px 60px -30px rgb(30 101 227 / 0.28), 0 10px 24px -12px rgb(20 23 28 / 0.1);
+  --shadow-lift: 0 30px 60px -30px rgb(22 27 46 / 0.22), 0 10px 24px -12px rgb(22 27 46 / 0.1);
 }
 
 :root {

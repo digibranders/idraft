@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
-import { ReceiptScene } from '@/components/art/scenes';
 import { Reveal } from '@/components/reveal';
 import { TextReveal } from '@/components/text-reveal';
 
@@ -25,7 +24,7 @@ export default function AboutPage() {
         eyebrow="About"
         title="Numbers should show their work."
         lead="Search has changed twice in a few years. Teams are asked what it means for their brand, and most tools answer with a score. We think the answer should come with evidence."
-        visual={<ReceiptScene />}
+        image={{ src: '/images/scenes/about.webp', alt: 'A sunlit desk with a notebook sketch of a rising chart, a mug, a plant and a sleeping cat' }}
         action={false}
       />
 

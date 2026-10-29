@@ -18,9 +18,9 @@ export function HomeHero() {
         {/* The product is the scene: the Overview screen, bled off the right edge and tilted back a little. */}
         <div aria-hidden="true" className="absolute inset-0 -z-20 bg-paper" />
         <div className="absolute inset-0 -z-20 flex items-center justify-end overflow-hidden max-lg:hidden">
-          <div data-hero-image className="mr-[-22%] w-[74%] [perspective:1800px]">
-          <div data-hero-tilt className="origin-center [transform:rotateY(-14deg)_rotateX(4deg)_rotateZ(-1deg)] overflow-hidden rounded-[1.5rem] shadow-[0_80px_140px_-50px_rgb(20_23_28/0.45),0_40px_80px_-40px_rgb(30_101_227/0.35)] ring-1 ring-ink/10">
-            <Image src="/screens/p-overview.png" alt="The Overview screen of the idraft app: SEO visibility and the mention rate in ChatGPT, Gemini and AI Mode, a trend chart and the rank distribution." width={2880} height={1760} priority sizes="70vw" className="h-auto w-full" />
+          <div data-hero-image className="mr-[-24%] w-[68%] [perspective:1800px]">
+          <div data-hero-tilt className="origin-center [transform:rotateY(-14deg)_rotateX(4deg)_rotateZ(-1deg)] overflow-hidden rounded-[1.5rem] shadow-[0_80px_140px_-50px_rgb(22_27_46/0.4),0_40px_80px_-40px_rgb(255_107_74/0.3)] ring-1 ring-ink/10">
+            <Image src="/images/scenes/home.webp" alt="An analyst at a desk watching a stack of answer cards, with her brand on the top one." width={1800} height={1200} priority sizes="70vw" className="h-auto w-full" />
           </div>
           </div>
         </div>

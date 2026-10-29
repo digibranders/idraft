@@ -4,7 +4,6 @@ import { Bookmarks, FileArrowUp, Funnel, GlobeHemisphereWest, Link as LinkIcon, 
 import { CapabilityList } from '@/components/capability-list';
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
-import { LadderScene } from '@/components/art/scenes';
 import { RankStates } from '@/components/rank-states';
 
 export const metadata: Metadata = {
@@ -28,7 +27,7 @@ export default function RankTrackingPage() {
         eyebrow="Rank tracking"
         title="Know where you rank, and how sure we are."
         lead="Daily Google positions for every keyword, country and device, with the page that ranks and a clear state for every check."
-        visual={<LadderScene />}
+        image={{ src: '/images/scenes/rank.webp', alt: 'A person climbing a staircase of bars with a magnifier, a rising arrow behind' }}
       />
       <CapabilityList title="Everything a position needs around it." lead="A number alone does not explain a drop. Each row carries what you need to read it." items={ITEMS} />
       <RankStates />

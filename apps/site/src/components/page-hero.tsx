@@ -14,20 +14,17 @@ type PageHeroProps = {
   visual?: React.ReactNode;
   /** A soft abstract image behind the visual, for atmosphere only. */
   backdrop?: string;
-  /** `frame` is a landscape bezel, `arch` a tall rounded arch. */
-  shape?: 'frame' | 'arch';
   action?: boolean;
 };
 
 const rise = (index: number) => ({ '--i': index }) as React.CSSProperties;
 
 /** The top of every inner page: large type on the left, a piece of the product (or one picture in a bezel) on the right. */
-export function PageHero({ eyebrow, title, lead, image, visual, backdrop, shape = 'frame', action = true }: PageHeroProps) {
-  const arch = shape === 'arch';
+export function PageHero({ eyebrow, title, lead, image, visual, backdrop, action = true }: PageHeroProps) {
   return (
     <section className="relative isolate mx-auto grid max-w-[1320px] items-center gap-12 px-5 pt-36 pb-16 md:px-8 lg:min-h-[88dvh] lg:grid-cols-12 lg:gap-8 lg:pt-32">
       <div aria-hidden="true" className="absolute -top-40 -left-40 -z-10 size-[44rem] rounded-full bg-wash blur-[120px]" />
-      <div className={visual ? 'lg:col-span-5' : 'lg:col-span-6'}>
+      <div className={visual ? 'lg:col-span-5' : image ? 'lg:col-span-5' : 'lg:col-span-6'}>
         {eyebrow ? (
           <p className="rise mb-6 inline-block rounded-full bg-wash px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-cobalt-deep uppercase" style={rise(0)}>
             {eyebrow}
@@ -55,11 +52,9 @@ export function PageHero({ eyebrow, title, lead, image, visual, backdrop, shape 
           {visual}
         </div>
       ) : image ? (
-        <div className={`rise lg:col-span-6 ${arch ? 'lg:pl-16' : 'lg:pl-4'}`} style={rise(2)}>
-          <div className={`rounded-[2rem] bg-ink/[0.04] p-1.5 shadow-lift ring-1 ring-ink/[0.06] ${arch ? 'mx-auto max-w-sm rounded-t-[12rem]' : ''}`}>
-            <div className={`relative overflow-hidden ${arch ? 'aspect-[4/5] rounded-t-[11.6rem] rounded-b-[1.6rem]' : 'aspect-[4/3] rounded-[calc(2rem-0.375rem)]'}`}>
-              <Image src={image.src} alt={image.alt} fill priority sizes="(min-width: 1024px) 48vw, 100vw" className="object-cover" />
-            </div>
+        <div className="rise lg:col-span-7" style={rise(2)}>
+          <div className="relative aspect-[3/2] overflow-hidden rounded-[2rem] shadow-lift ring-1 ring-ink/[0.06]">
+            <Image src={image.src} alt={image.alt} fill priority sizes="(min-width: 1024px) 56vw, 100vw" className="object-cover" />
           </div>
         </div>
       ) : null}

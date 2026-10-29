@@ -15,7 +15,6 @@ import type { Icon } from '@phosphor-icons/react';
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
 import { Reveal } from '@/components/reveal';
-import { TilesScene } from '@/components/art/scenes';
 
 export const metadata: Metadata = {
   title: 'Features',
@@ -63,7 +62,7 @@ export default function FeaturesPage() {
         eyebrow="Features"
         title="Everything on one record."
         lead="Rankings, AI answers, a website audit, page performance, discovery, competitors, reports and integrations, all tied to the same topics."
-        visual={<TilesScene />}
+        image={{ src: '/images/scenes/features.webp', alt: 'Soft clay objects: a magnifier, bar chart, speech bubble, calendar and bell' }}
       />
 
       {GROUPS.map((group) => (
