@@ -633,6 +633,28 @@ Carried (F85 was carried here and is fixed: the chart's grid now holds the axis 
 
 Review of the rank columns (2026-10-06, plan `docs/superpowers/plans/2026-10-06-rank-columns-ui.md`, branch `frontend/rank-columns`), an independent review on the Opus model, fixed before merge, each with its test first. A stale rank had no cue below 1680 px, where Updated is hidden: the Rank cell now carries a clock for it, and a warning when checks after the last good one failed (the API keeps `current` and only counts the failures). A failed row told three stories (Rank warning, URL "Pending", Best rank "Not ranking", Change "first check"): one rule now, and the never-succeeded keyword is stale from its creation, as in the backend. The Change type could be shrunk by the width resolver below its header (84 px minimum). A long ranking URL was cut twice; its end now always shows. The first-check poll no longer runs for old keywords of a paused project. Rows that tie on a sort come in row id order in client mode as the API orders them. "Select all N matching" counts the matches again just before a delete, archive or change by filter and stops when they changed. The tests of the wider Rankings grid get longer limits. A link naming several values of a single-choice chip was already reported by the hook; tests pin it. Also: copy (a change tooltip sentence, "Freshness: Stale", the previous rank in the tooltip, no repeated "not in the top 20", "no change within the depth checked"), archived mock keywords stop being checked, and a marker wraps with its date. Decisions that changed the specification are noted in doc 20 section 5.3 and doc 25 deviations 144 and 145.
 
+### Rank features UI (2026-10-29)
+
+Plan `docs/superpowers/plans/2026-10-29-rank-features-ui.md`, branch `frontend/keywords-followups`. Independent review fixes incorporated across Tasks 1, 1b, 2, 3, 4, 5, 6, 7, 8, 10 before merge:
+- Data table header options chevron made pointer-events-none while hidden and positioned without overlap.
+- Rank and Change columns merged into a single Rank column with 32 px fixed rank box and fixed-width change slot to its right.
+- Positions up to 100 with depth-aware `>N` display (`>20` for depth 20, `>100` for depth 100) and sorting by current rank only.
+- SERP features and AI Overview columns with accessible speech, badge representations, filters (`feat`, `featown`, `aio`), and failed/stale check treatments.
+- Target URL mismatch marker (`TargetMismatchMarker`) on keyword cells with filter (`tmatch`).
+- Sparkline column (64 x 20 px in both compact and comfortable densities) with 30-day mini history and tooltip.
+- Competitor rank columns with competitor picker and rank change indication; competitor ranks are always included in list requests.
+- Metric strip showing aggregate keyword counts and rank tiers (Tracked, Top 3, Top 10, Top 20, Beyond depth) using five one-row reads.
+- Inspector Rank history card with 30-day organic rank history line chart, custom rank axis bands, and accessible Table view.
+- Single keyword and bulk Check now action with progress tracking, live region announcements, and polling; mock check now records a run but does not alter ranks.
+- None of the four new column types (SERP features, AI Overview, sparkline, competitor) supports sorting.
+- Primary route `/seo/keywords` with redirect from `/seo/rankings`.
+
+Carried:
+
+| Id | Item | Plan |
+|---|---|---|
+| F99 | Metric strip deltas, Average rank, and Visibility aggregates await the backend `GET {P}/seo/rank-summary` endpoint | Task 9 when backend route lands |
+
 ### Rank collection (2026-10-05)
 
 Plans `docs/superpowers/plans/2026-10-05-rank-collection.md` and `2026-10-05-rank-ingest.md`, branch `backend/rank`. Each task was reviewed on the Opus model before the next began.

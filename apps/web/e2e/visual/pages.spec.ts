@@ -38,6 +38,7 @@ async function openFirstKeyword(page: Page): Promise<void> {
   // Docked beside the table on a wide screen and a sheet on a narrow one, so it is found by its heading
   await expect(page.getByRole('heading', { level: 2, name: 'seo agency' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Search volume by month' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Rank history' })).toBeVisible();
 }
 
 /** A file of one new keyword, one that cannot be tracked and one that Fynix tracks already, taken to Review. */

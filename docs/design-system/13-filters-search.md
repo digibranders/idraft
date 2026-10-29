@@ -116,6 +116,8 @@ Key table (every query key used by the application):
 | `cmp` | Comparison period (`CompareSelect`) | replace | 13 |
 | `dev`, `loc`, `eng` | Scope controls: device (filter bar), location (top bar), engines (filter bar). Until the top bar has its location control, Rankings shows `loc` as a filter chip; the key and its value (a location id) stay the same when it moves | replace | 13 |
 | `topic`, `grp`, `tag`, `intent`, `rank`, `feat`, `aio`, `vol` | Filters: topic, keyword group, tag, intent, rank bucket, SERP feature, AI Overview status, volume range | replace | 13 |
+| `featown` | SERP feature you own filter | replace | 13 |
+| `tmatch` | Target URL match filter (`match`, `mismatch`) | replace | 13 |
 | `lang`, `stage`, `prio`, `src`, `depth`, `kd` | Filters of Rankings: language, funnel stage, priority at most (`prio=..2`), keyword source, depth profile, KD at most (`kd=..40`). On Rankings `vol` takes its lower end only (`vol=1000..`), as the API filters by `search_volume_gte` | replace | 13, [24-page-templates.md](24-page-templates.md) section 9.3 |
 | `archived` | Rankings shows archived keywords instead of active ones (`archived=true`); a view switch, not a chip | replace | 13 |
 | `cols`, `density` | Table visible columns in order (`cols=keyword,search_volume`) and row density (`density=compact`) | replace | [12-tables.md](12-tables.md) sections 10 and 11 |

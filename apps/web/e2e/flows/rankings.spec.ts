@@ -671,4 +671,68 @@ test.describe('rankings', () => {
     await dialog.getByRole('button', { name: 'Import 1 keyword' }).click();
     await expect(page.getByText(/^Import finished: 1 added, 1 updated, 1 skipped$/)).toBeVisible({ timeout: 30_000 });
   });
+
+  test('rank features: summary strip, new columns, filters, rank history, check now and competitor column', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.clock.install();
+    await page.goto('/digibranders/fynix/seo/keywords');
+
+    // 1. Metric strip with Tracked and Top 10
+    const strip = page.getByRole('group', { name: 'Summary for the filtered keywords' });
+    await expect(strip.getByText('Tracked')).toBeVisible();
+    await expect(strip.getByText('Top 10')).toBeVisible();
+
+    // 2. At 1440 px SERP features, AI Overview and Trend columns show
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await expect(headerOf(grid, 'SERP features')).toBeVisible();
+    await expect(headerOf(grid, 'AI Overview')).toBeVisible();
+    await expect(headerOf(grid, 'Trend')).toBeVisible();
+
+    // 3. Filter "AI Overview: Cited" and see only cited keywords
+    await page.getByRole('button', { name: 'Add a filter' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'AI Overview' }).click();
+    await page.getByRole('dialog').getByRole('checkbox', { name: 'Cited', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Apply' }).click();
+    await expect(page).toHaveURL(/[?&]aio=present_cited/);
+    await expect(page.getByRole('button', { name: 'AI Overview: Cited. Edit filter' })).toBeVisible();
+    const aioCells = await columnOf(grid, 'AI Overview');
+    expect(aioCells.length).toBeGreaterThan(0);
+    expect(aioCells.every((text) => text.includes('Cited'))).toBe(true);
+
+    // 4. Filter "SERP feature: Video"
+    await page.getByRole('button', { name: 'Remove filter AI Overview: Cited' }).click();
+    await page.getByRole('button', { name: 'Add a filter' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'SERP feature', exact: true }).click();
+    await page.getByRole('dialog').getByRole('radio', { name: 'Video' }).click();
+    await expect(page).toHaveURL(/[?&]feat=video/);
+    await expect(page.getByRole('button', { name: 'SERP feature: Video. Edit filter' })).toBeVisible();
+    await page.getByRole('button', { name: 'Remove filter SERP feature: Video' }).click();
+
+    // 5. Open keyword, verify Rank history card and Table view
+    await grid.getByRole('rowheader').first().click();
+    const inspector = page.getByRole('complementary');
+    await expect(inspector.getByRole('heading', { name: 'Rank history' })).toBeVisible();
+    await inspector.getByRole('group', { name: 'Rank history view' }).getByRole('button', { name: 'Table' }).click();
+    await expect(inspector.locator('table')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('complementary')).toHaveCount(0);
+
+    // 6. Bulk Check now with two keywords, move clock until run completes, assert toast
+    await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
+    const bar = page.getByRole('group', { name: /Bulk actions/ });
+    await expect(bar.getByText('2 selected')).toBeVisible();
+    await bar.getByRole('button', { name: 'Check now' }).click();
+    await expect(page.getByText('Rank check queued', { exact: true })).toBeVisible();
+    await page.clock.runFor(20_000);
+    await expect(page.getByText(/^Ranks checked: \d+ of \d+$/)).toBeVisible({ timeout: 15_000 });
+
+    // 7. At 1680 px the first competitor column shows
+    await page.setViewportSize({ width: 1680, height: 900 });
+    await expect(headerOf(grid, 'Brightwave Digital')).toBeVisible();
+    await expectAccessible(page);
+  });
 });
