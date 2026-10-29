@@ -55,10 +55,10 @@ function rankCell(kw) {
     const checked = ranked ? `Checked ${relativeTime(kw.checkedAt)}` : `Not in the top 20, checked ${relativeTime(kw.checkedAt)}`;
     td.dataset.tip = tip ? `${checked}. ${tip}` : checked;
   } else if (rank.kind === 'failed') {
-    line.append(icon('triangle-alert', 'size-icon-sm text-warning-text'), cellText('Check failed', 'type-meta text-warning-text'));
+    line.append(icon('triangle-alert', 'size-icon-sm text-warning-text'), cellText('Check failed', 'type-meta text-warning-text'), slot);
     td.dataset.tip = 'The last check did not finish. It is retried on the next run';
   } else {
-    line.append(cellText('Pending', 'type-meta text-foreground-tertiary'));
+    line.append(cellText('Pending', 'type-meta text-foreground-tertiary'), slot);
     td.dataset.tip = 'The first rank check has not run yet';
   }
   return td;
@@ -170,12 +170,14 @@ function headerCell(label, key, state, ctx, extraClass) {
   }
   const active = state.sort === key || state.sort === `-${key}`;
   th.setAttribute('aria-sort', state.sort === key ? 'ascending' : state.sort === `-${key}` ? 'descending' : 'none');
-  const node = el('button', `h-8 px-2 rounded-md flex items-center gap-1 whitespace-nowrap type-label hover:bg-surface-hover hover:text-foreground ${key === 'volume' || key === 'kd' || key === 'cpc' || key === 'best' || key === 'priority' ? 'justify-end w-full' : ''}`);
+  const node = el('button', `h-8 px-2 rounded-md flex items-center gap-1 whitespace-nowrap type-label hover:bg-surface-hover hover:text-foreground ${key === 'rank' || key === 'volume' || key === 'kd' || key === 'cpc' || key === 'best' || key === 'priority' ? 'justify-end w-full' : ''}`);
   node.type = 'button';
   const direction = !active ? 'arrow-up-down' : state.sort.startsWith('-') ? 'arrow-down-wide-narrow' : 'arrow-up-narrow-wide';
   node.append(label, icon(direction, `size-icon-xs ${active ? 'text-foreground' : 'text-foreground-muted'}`));
   node.addEventListener('click', () => ctx.sort(key));
   th.append(node);
+  // The rank number ends before the change slot (3rem) and its gap (0.5rem), so the header ends there too.
+  if (key === 'rank') th.style.paddingRight = '3.75rem';
   return th;
 }
 
