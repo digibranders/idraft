@@ -21,8 +21,6 @@
 
   --ease-heavy: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
-  /* A fill that visibly travels: slow start, brisk middle, soft landing. */
-  --ease-fill: cubic-bezier(0.7, 0, 0.2, 1);
 
   --shadow-lift: 0 30px 60px -30px rgb(30 101 227 / 0.28), 0 10px 24px -12px rgb(20 23 28 / 0.1);
 }
