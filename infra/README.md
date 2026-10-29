@@ -29,6 +29,20 @@ Rollback restores container images and the env, not these files: they always com
 
 `/api/readyz` is reachable from the internet through Caddy, and nothing else under `/api/internal` is. The decision rests on the handler in `backend/src/idraft/api/health.py`: it returns `{"status": ..., "checks": {"postgres": bool, "redis": bool, "migrations": bool}}`, never a version, hostname or error text. The external uptime check planned for WP6 needs it. The cost is that anyone can learn whether the stack is up. If that is not acceptable, put `/api/readyz` back into the `@internal` matcher in `compose/caddy/Caddyfile` and point the uptime check at a Caddy health route instead.
 
+## What the guards do and do not cover
+
+**The deploy user can still run its own code as root.** `deploy.sh` and `compose/docker-compose.yml` are installed from a stage the `deploy` user writes, and `sudo` lets `deploy` run `/srv/idraft/infra/deploy.sh`. Anyone holding the deploy key can therefore stage a `deploy.sh` or a Compose file of their choice, run `idraft-install-infra`, and have it executed as root. Nothing in this directory prevents that.
+
+What the guards (the env checker, the digest-only image rule, the stage copy that never lets root read through a link, the recovery rules in `deploy.sh`) do protect against:
+
+* mistakes: a bad env, a tag instead of a digest, a deploy cut short by a signal;
+* links and odd files planted in the stage by accident or by a tool;
+* a deploy key that is only ever used through the pipeline as designed.
+
+They do **not** protect against a hostile or stolen deploy key. Treat that key as root on the host.
+
+The real fix, not implemented here: install `deploy.sh` and the Compose files as root-owned files (by `bootstrap.sh`, or fetched by digest from a release artifact), and let `sudo` run only those. The deploy user would then pass data (the digests, the env) but never code.
+
 ## Host Bootstrap
 
 The host bootstrap script configures a fresh Ubuntu 24.04 server into an operational container host.
@@ -67,7 +81,7 @@ Re-running the script with the same arguments changes nothing and restarts nothi
 * **Deploy user:** Creates unprivileged `deploy` with the CI public key as its only authorized key. It is not in the `docker` group (bootstrap removes it if an earlier run added it): every Docker call goes through the root-owned scripts it may run with `sudo`.
 * **Sudo:** `/etc/sudoers.d/idraft-deploy` (mode 0440, checked with `visudo -cf` before install) lets `deploy` run exactly five commands as root, without a password:
   * `/usr/local/sbin/idraft-ghcr-login` (no arguments): reads a GitHub user name and a token from stdin and runs `docker login ghcr.io --password-stdin` for root.
-  * `/usr/local/sbin/idraft-install-env` (no arguments): stages `/etc/idraft/.env.next` from stdin (root, 0600). `deploy.sh` promotes it to `.env` only after the release serves. It first runs `/usr/local/sbin/idraft-check-env` on the input and refuses, staging nothing, unless: `CADDY_IMAGE`, `POSTGRES_IMAGE` and `REDIS_IMAGE` are absent or the official `caddy`, `postgres` and `redis` images pinned by digest (`name[:tag]@sha256:<64 hex>`); no other `*_IMAGE` is set (`API_IMAGE`, `WORKER_IMAGE` and `WEB_IMAGE` are allowed but ignored, since `deploy.sh` exports the release digests over them); `REDIS_ACL_DIR`, the only host path the Compose file takes from the env, is exactly `/etc/idraft/redis`; no `COMPOSE_*` or `DOCKER_*` variable is set; and every line is a plain `KEY=value` (no `export`, no spaces around `=`, no quotes, no inline comment, no `$`). `deploy.sh` runs the same check on the env it deploys with, so a file that reached `/etc/idraft` another way is refused too.
+  * `/usr/local/sbin/idraft-install-env` (no arguments): stages `/etc/idraft/.env.next` from stdin (root, 0600). `deploy.sh` promotes it to `.env` only after the release serves. It first runs `/usr/local/sbin/idraft-check-env` on the input and refuses, staging nothing, unless: `CADDY_IMAGE`, `POSTGRES_IMAGE` and `REDIS_IMAGE` are absent or the official `caddy`, `postgres` and `redis` images pinned by digest (`name[:tag]@sha256:<64 hex>`); no other `*_IMAGE` is set (`API_IMAGE`, `WORKER_IMAGE` and `WEB_IMAGE` are allowed but ignored, since `deploy.sh` exports the release digests over them); `REDIS_ACL_DIR`, the only host path the Compose file takes from the env, is exactly `/etc/idraft/redis`; no `COMPOSE_*` or `DOCKER_*` variable is set; and the file is printable ASCII with every line a plain `KEY=value` (no `export`, no spaces around `=`, no quotes, no inline comment, no `$`). The checker is called by that fixed path, so only the root-owned copy bootstrap installed is ever used. `deploy.sh` runs the same check on the env it deploys with, so a file that reached `/etc/idraft` another way is refused too.
   * `/usr/local/sbin/idraft-install-infra` (no arguments): copies the staged infra files into `/srv/idraft/infra`. Root never reads the stage: the rsync sender runs as the owner of `/srv/idraft/incoming` (through `runuser`), so a link in the stage, or the stage swapped for a link, reaches only what `deploy` could read itself. Root receives into a private snapshot and installs from there.
   * `/srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`
   * `/srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env`
@@ -156,7 +170,7 @@ If `/etc/idraft/.env.next` exists, the script deploys with it (and says so); del
 
 ### Rules for `/etc/idraft/.env`
 
-Both Compose and `deploy.sh` read this file, and the first-operator command below sources it with a shell. Write one `KEY=value` per line, with no quotes, no inline comments and no spaces around `=`. `deploy.sh` refuses a quoted value, an inline comment, or a value containing `$` (Compose would interpolate it, and the Redis ACL hashes deploy.sh computes would no longer match the password the services use). Secrets must be alphanumeric or URL-safe: generate them with `openssl rand -hex 24`.
+Both Compose and `deploy.sh` read this file, and the first-operator command below sources it with a shell. Write one `KEY=value` per line, in printable ASCII only (no tabs, carriage returns, NUL or non-ASCII characters, comments included), with no quotes, no inline comments and no spaces around `=`. `deploy.sh` refuses a quoted value, an inline comment, or a value containing `$` (Compose would interpolate it, and the Redis ACL hashes deploy.sh computes would no longer match the password the services use). Secrets must be alphanumeric or URL-safe: generate them with `openssl rand -hex 24`.
 
 Three files belong together under `/etc/idraft`:
 
@@ -180,7 +194,7 @@ The deploy script executes the following stages in strict order:
 7. Only now rotates the records: the old `current.json` becomes `previous.json`, the `.env` being replaced becomes `.env.previous`, `.env.next` becomes `.env`, the new release becomes `current.json`, and a line is appended to `/srv/idraft/releases/history.log`.
 8. On a failure after step 4, `.env.next` is deleted, the release recorded in `current.json` is restored on the unchanged `.env` (the ACL is re-rendered from it first) and the failure is logged as `DEPLOY_FAILED`. On the very first deploy there is nothing to restore: the application containers are stopped (postgres and redis stay up) and the script exits non-zero with a message.
 
-From step 1 on, the script ignores `HUP` and `PIPE`, so a cancelled job or a dropped SSH session cannot stop it half way. All its output goes through a FIFO to a copier that appends it to `/srv/idraft/releases/deploy.log` and passes it on to the caller while anyone reads it; a write therefore never fails, even after the connection is gone. When the deploy outlives its session, read the outcome there and in `history.log`. A `TERM` or `INT`, or any unexpected exit, before the release is recorded undoes what was done: once step 5 has started it restores the serving release exactly as step 8 does, before that it re-renders the Redis ACL from `.env`; either way it is logged as `DEPLOY_FAILED`. Step 7 itself ignores `TERM` and `INT`, so the records are never left half rotated.
+From step 1 on, the script ignores `HUP` and `PIPE`, so a cancelled job or a dropped SSH session cannot stop it half way. All its output goes through a FIFO to a copier that appends it to `/srv/idraft/releases/deploy.log` and passes it on to the caller while anyone reads it; a write therefore never fails, even after the connection is gone. When the deploy outlives its session, read the outcome there and in `history.log`. A `TERM` or `INT`, or any unexpected exit, before the release is recorded undoes what was done: once step 5 has started it restores the serving release exactly as step 8 does, before that it re-renders the Redis ACL from `.env`, and from the config check on it discards `.env.next`; either way it is logged as `DEPLOY_FAILED`. Step 7 and every recovery (the restore after a failed deploy, and `--rollback` as a whole) ignore `TERM` and `INT`, so the records are never left half rotated and a restore is never cut short. If the env of the release being restored is refused by the checker, recovery reports `RECOVERY FAILED` (or, in `--rollback`, falls back to the serving release) instead of just exiting.
 
 ## Rollback
 
@@ -289,7 +303,7 @@ Not secrets, but set in the same file: `HTTP_PORT`, `HTTPS_PORT`, `EDGE_SUBNET`,
 Both need Docker and the `idraft-api:local`, `idraft-worker:local` and `idraft-web:local` images, and use throwaway secrets, their own Compose project names and non-default ports:
 
 ```bash
-bash infra/test/deploy-dryrun.sh      # failed first deploy, v1, v2, bad pull, failing health gate, failing migration, bad env change, rollback with its env, SIGHUP with the reader gone, SIGTERM mid-deploy
+bash infra/test/deploy-dryrun.sh      # failed first deploy, v1, v2, bad pull, failing health gate, failing migration, bad env change, rollback with its env, SIGHUP with the reader gone, SIGTERM mid-deploy, during a restore, during --rollback and during the pulls, a refused env during recovery
 bash infra/test/parallel-stack.sh     # two full stacks side by side on different ports and subnets
 ```
 
