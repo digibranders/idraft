@@ -8,11 +8,34 @@ fail() {
   exit 1
 }
 
-# stage: a fresh copy of the tree in the place CI rsyncs it to.
+# The account CI logs in as, owning the stage the way bootstrap.sh sets it up.
+id -u deploy >/dev/null 2>&1 || useradd --system --create-home --shell /bin/bash deploy
+
+# stage: a fresh copy of the tree in the place CI rsyncs it to, owned by the deploy user.
 stage() {
   rm -rf /srv/idraft/incoming /srv/idraft/infra
   mkdir -p /srv/idraft/incoming /srv/idraft/infra
   cp -R /src /srv/idraft/incoming/infra
+  chown -R deploy:deploy /srv/idraft/incoming
+  chmod 0700 /srv/idraft/incoming
+}
+
+# A directory only root can read, standing in for /etc/idraft.
+# Made at run time, so it appears in no staged file (this script is staged too).
+secret_value="root-only-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+make_secret() {
+  rm -rf /srv/secret
+  mkdir -p /srv/secret
+  echo "$secret_value" > /srv/secret/value
+  cp /src/deploy.sh /srv/secret/deploy.sh
+  chmod 0700 /srv/secret
+}
+
+assert_no_leak() {
+  if grep -rqs "$secret_value" /srv/idraft; then
+    fail "$1: the root-only secret reached /srv/idraft"
+  fi
+  [ -z "$(find /srv/idraft -maxdepth 1 -name '.infra-snapshot.*')" ] || fail "$1: the snapshot directory was left behind"
 }
 
 stage
@@ -34,15 +57,39 @@ done
 [ "$(stat -c %a "$t")" = 755 ] || fail "$t is mode $(stat -c %a "$t"), not 755"
 [ -z "$(find /srv/idraft -maxdepth 1 -name '.infra-snapshot.*')" ] || fail "the snapshot directory was left behind"
 
-# A staged path that is a symbolic link is refused, and nothing it points at is copied.
-rm -rf /srv/idraft/incoming /srv/idraft/infra
-mkdir -p /srv/idraft/incoming /srv/idraft/infra /srv/secret
-echo secret > /srv/secret/value
-cp /src/deploy.sh /srv/secret/deploy.sh
+# The deploy user can swap the stage, or anything in it, for a link at any moment, so there is no check
+# to win a race against: whatever a link points at, only what the deploy user could read itself is copied.
+make_secret
+
+# The stage itself swapped for a link to a root-only directory: the read fails and nothing is installed.
+stage
+rm -rf /srv/idraft/incoming/infra
 ln -s /srv/secret /srv/idraft/incoming/infra
+chown -h deploy:deploy /srv/idraft/incoming/infra
 if /src/host/idraft-install-infra 2> /tmp/refusal; then
-  fail "a symbolic link as the stage was accepted"
+  fail "a stage linked to a root-only directory was installed"
 fi
-grep -q "symbolic link" /tmp/refusal || fail "the refusal does not say why: $(cat /tmp/refusal)"
-[ -z "$(ls -A /srv/idraft/infra)" ] || fail "something was copied from behind the link"
+grep -q "Could not read" /tmp/refusal || fail "the refusal does not say why: $(cat /tmp/refusal)"
+[ -z "$(ls -A /srv/idraft/infra)" ] || fail "something was copied from behind the stage link"
+assert_no_leak "stage link"
+
+# Links inside the stage, to the root-only directory and to a file in it: skipped, the rest installs.
+stage
+ln -s /srv/secret /srv/idraft/incoming/infra/compose/leak
+ln -s /srv/secret/value /srv/idraft/incoming/infra/leak.txt
+chown -h deploy:deploy /srv/idraft/incoming/infra/compose/leak /srv/idraft/incoming/infra/leak.txt
+/src/host/idraft-install-infra > /dev/null 2>&1 || fail "a stage with links inside was not installed"
+[ -f "$t/deploy.sh" ] || fail "the stage with links inside did not install deploy.sh"
+if [ -e "$t/compose/leak" ] || [ -e "$t/leak.txt" ]; then
+  fail "a link inside the stage was copied"
+fi
+assert_no_leak "links inside the stage"
+
+# A stage owned by root is refused: the sender would read with root's rights again.
+stage
+chown root:root /srv/idraft/incoming
+if /src/host/idraft-install-infra 2> /tmp/refusal; then
+  fail "a root-owned stage was accepted"
+fi
+grep -q "must belong to the deploy user" /tmp/refusal || fail "the refusal does not say why: $(cat /tmp/refusal)"
 echo "install-infra checks passed"

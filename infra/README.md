@@ -68,7 +68,7 @@ Re-running the script with the same arguments changes nothing and restarts nothi
 * **Sudo:** `/etc/sudoers.d/idraft-deploy` (mode 0440, checked with `visudo -cf` before install) lets `deploy` run exactly five commands as root, without a password:
   * `/usr/local/sbin/idraft-ghcr-login` (no arguments): reads a GitHub user name and a token from stdin and runs `docker login ghcr.io --password-stdin` for root.
   * `/usr/local/sbin/idraft-install-env` (no arguments): stages `/etc/idraft/.env.next` from stdin (root, 0600). `deploy.sh` promotes it to `.env` only after the release serves.
-  * `/usr/local/sbin/idraft-install-infra` (no arguments): copies the staged infra files into `/srv/idraft/infra`.
+  * `/usr/local/sbin/idraft-install-infra` (no arguments): copies the staged infra files into `/srv/idraft/infra`. Root never reads the stage: the rsync sender runs as the owner of `/srv/idraft/incoming` (through `runuser`), so a link in the stage, or the stage swapped for a link, reaches only what `deploy` could read itself. Root receives into a private snapshot and installs from there.
   * `/srv/idraft/infra/deploy.sh /etc/idraft/.env /srv/idraft/incoming/digests.json`
   * `/srv/idraft/infra/deploy.sh --rollback /etc/idraft/.env`
 * **Directory structure:** `/srv/idraft`, `releases`, `infra` and `shared` are root-owned; the deploy user cannot edit anything sudo may run. `/srv/idraft/incoming` is the only place `deploy` can write (mode 0700), used to stage uploads. `/etc/idraft` is root-only (0700).
@@ -291,7 +291,7 @@ bash infra/test/deploy-dryrun.sh      # failed first deploy, v1, v2, bad pull, f
 bash infra/test/parallel-stack.sh     # two full stacks side by side on different ports and subnets
 ```
 
-`bash infra/test/install-infra.sh` runs the real `idraft-install-infra` as root in an Ubuntu 24.04 container and checks the installed tree: scripts such as `compose/postgres/initdb/10-roles.sh` keep their exec bit even when the stage lost it, everything else is 0644, all root-owned. The dry run also replaces the Caddyfile in place and checks that the running Caddy serves the change.
+`bash infra/test/install-infra.sh` runs the real `idraft-install-infra` as root in an Ubuntu 24.04 container and checks the installed tree: scripts such as `compose/postgres/initdb/10-roles.sh` keep their exec bit even when the stage lost it, everything else is 0644, all root-owned. It also stages links to a root-only directory, inside the stage and as the stage itself, and checks that none of its content reaches `/srv/idraft`. The dry run also replaces the Caddyfile in place and checks that the running Caddy serves the change.
 
 `bash infra/test/resolve-release.sh` needs only bash, jq and awk: it tests the release resolution logic against fixtures, without Docker or network.
 
