@@ -127,7 +127,7 @@ export function useMetricsRefresh({
   const t = useTranslations('rankings.refresh');
   const queryClient = useQueryClient();
   const { user } = useMe();
-  const open = useOpenRefreshes(scope, user.user_id, enabled);
+  const open = useOpenRefreshes(scope, user.user_id, enabled, 'keyword_metrics');
   const { refetch } = open;
   const manual = open.data?.manual ?? null;
   const left = manual === null ? null : leftToday(manual);
@@ -137,16 +137,16 @@ export function useMetricsRefresh({
   // remembered, here and in the cache, so no later read of the open runs brings it back, nor does leaving
   // Rankings and coming back.
   const [started, setStarted] = useState<readonly string[]>([]);
-  const [ended, setEnded] = useState<ReadonlySet<string>>(() => endedRefreshes(queryClient, scope));
+  const [ended, setEnded] = useState<ReadonlySet<string>>(() => endedRefreshes(queryClient, scope, 'keyword_metrics'));
   const followed = [...started, ...(open.data?.runs ?? []).map((run) => run.run_id)].filter(
     (runId, index, all) => !ended.has(runId) && all.indexOf(runId) === index,
   );
   const onSettled = useCallback(
     (runId: string): void => {
-      rememberEndedRefresh(queryClient, scope, runId);
+      rememberEndedRefresh(queryClient, scope, runId, 'keyword_metrics');
       setEnded((previous) => new Set(previous).add(runId));
       setStarted((previous) => previous.filter((candidate) => candidate !== runId));
-      forgetOpenRefresh(queryClient, scope, runId);
+      forgetOpenRefresh(queryClient, scope, runId, 'keyword_metrics');
     },
     [queryClient, scope],
   );
@@ -158,7 +158,7 @@ export function useMetricsRefresh({
         toast({ type: 'info', title: t('errors.budgetBlocked') });
         return;
       }
-      rememberRefreshRun(queryClient, scope, run);
+      rememberRefreshRun(queryClient, scope, run, 'keyword_metrics');
       setStarted((previous) => (previous.includes(run.run_id) ? previous : [...previous, run.run_id]));
       // The bar that shows the run says nothing when it first appears, only when its status changes
       announce(t('progress.started'));
@@ -276,7 +276,7 @@ export function useMetricsRefresh({
           }
         : null,
     progress: followed.map((runId) => (
-      <RefreshProgress key={runId} scope={scope} runId={runId} onSettled={onSettled} />
+      <RefreshProgress key={runId} scope={scope} runId={runId} workload="keyword_metrics" onSettled={onSettled} />
     )),
     dialog: enabled ? (
       <RefreshDialog

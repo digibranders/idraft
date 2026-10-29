@@ -329,7 +329,8 @@ describe('Bulk actions', () => {
         http.get(mswPath(TRACKED), ({ request }) => {
           const url = new URL(request.url);
           const filtered = [...url.searchParams.keys()].some((key) => key.startsWith('filter['));
-          if (url.searchParams.get('limit') !== '1' || !filtered) return undefined;
+          const isStrip = url.searchParams.has('filter[rank_is_null]') || url.searchParams.has('filter[rank_lte]');
+          if (url.searchParams.get('limit') !== '1' || !filtered || isStrip) return undefined;
           reads += 1;
           return HttpResponse.json({
             data: [],
@@ -425,7 +426,10 @@ describe('Bulk actions', () => {
         http.get(mswPath(TRACKED), ({ request }) => {
           const url = new URL(request.url);
           const filtered = [...url.searchParams.keys()].some((key) => key.startsWith('filter['));
-          return url.searchParams.get('limit') === '1' && filtered ? problem(request, 'not_found') : undefined;
+          const isStrip = url.searchParams.has('filter[rank_is_null]') || url.searchParams.has('filter[rank_lte]');
+          return url.searchParams.get('limit') === '1' && filtered && !isStrip
+            ? problem(request, 'not_found')
+            : undefined;
         }),
       );
       const seen = writes();

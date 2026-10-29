@@ -12,6 +12,7 @@ import {
 } from './operations-rules';
 import { can } from './access';
 import {
+  at,
   bodyError,
   cursorPage,
   extraMembers,
@@ -26,7 +27,10 @@ import { readingOf } from '../factories/keyword';
 import { labsMicros, runDetailView, runPath, runState, runView } from '../factories/operations';
 import { operationIdMinter, operationWorld, runTime, TRIGGERS, withRun, type StoredRun } from '../operations-state';
 import { invalid, mock, problem } from '../respond';
+import { projectList } from '../workspace-state';
 import type { ValidationItem } from '@/lib/api/types';
+
+export const MOCK_SERP_CHECKS_PER_MONTH = 500;
 
 /**
  * Collection runs (19 section 3.11.4, backend plan D9): a project's runs, newest first in cursor pages (the
@@ -353,6 +357,133 @@ export const runHandlers: HttpHandler[] = [
             blocked_by_budget_id: blocking.budget_id,
             status_reason: 'budget_exceeded',
           };
+    const changes = minter.commit(withRun(caller.operationChanges, run));
+    const cookie = savedOperations(request, changes);
+    if (typeof cookie !== 'string') return cookie;
+    const workspaceId = caller.access.workspace.workspace_id;
+    return HttpResponse.json(
+      { data: runView(workspaceId, operationWorld(changes).schedules, run, now) },
+      {
+        status: 202,
+        headers: { 'set-cookie': cookie, location: runPath(workspaceId, run), 'retry-after': RUN_RETRY_SECONDS },
+      },
+    );
+  }),
+
+  mock('post', `${P}/seo/check-now`, async ({ request, cookies, params }) => {
+    const caller = operationsProjectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'runs:trigger',
+    });
+    if (caller instanceof Response) return caller;
+    const text = await request.text();
+    const body: unknown = text === '' ? {} : JSON.parse(text);
+    if (!isRecord(body)) return invalid(request, [notAnObject()]);
+
+    const ids = body.tracked_keyword_ids;
+    const idsErrors: ValidationItem[] = [];
+    if (!Array.isArray(ids)) {
+      idsErrors.push(bodyError('tracked_keyword_ids', 'list_type', 'Input should be a valid list'));
+    } else {
+      if (ids.length < 1) {
+        idsErrors.push(bodyError('tracked_keyword_ids', 'too_short', 'At least 1 item.'));
+      } else if (ids.length > 100) {
+        idsErrors.push(bodyError('tracked_keyword_ids', 'too_long', 'At most 100 items.'));
+      }
+      const seen = new Set<string>();
+      let duplicate = false;
+      for (const id of ids) {
+        if (typeof id === 'string' && seen.has(id)) {
+          duplicate = true;
+          break;
+        }
+        if (typeof id === 'string') seen.add(id);
+      }
+      if (duplicate) {
+        idsErrors.push(bodyError('tracked_keyword_ids', 'duplicate', 'Duplicate item in list'));
+      }
+      for (let i = 0; i < ids.length; i += 1) {
+        idsErrors.push(...uuidError(ids[i], at('tracked_keyword_ids', i)));
+      }
+    }
+
+    const depth = body.depth;
+    const depthErrors: ValidationItem[] =
+      depth === undefined || depth === null
+        ? []
+        : typeof depth === 'number' && [10, 20, 50, 100].includes(depth)
+          ? []
+          : [bodyError('depth', 'enum', 'Allowed: 10, 20, 50, 100.')];
+
+    const shape = [...extraMembers(body, ['tracked_keyword_ids', 'depth']), ...idsErrors, ...depthErrors];
+    if (shape.length > 0) return invalid(request, shape);
+
+    const trackedIds = ids as string[];
+    const activeTracked = new Set(
+      liveTrackedOf(caller.keywords, caller.project.project_id)
+        .filter((row) => row.is_active)
+        .map((row) => row.tracked_keyword_id),
+    );
+    if (trackedIds.some((id) => !activeTracked.has(id))) {
+      return invalid(request, [
+        bodyError('tracked_keyword_ids', 'keyword_unknown', 'A keyword is not one this project tracks actively.'),
+      ]);
+    }
+
+    const now = Date.now();
+    const used = manualRunsToday(caller.operations, caller.project.project_id, now);
+    if (used >= MANUAL_RUN_LIMIT) {
+      return problem(request, 'manual_run_limit', {
+        detail: `This project has started ${String(MANUAL_RUN_LIMIT)} manual runs today. The count starts again at midnight UTC.`,
+        limit: MANUAL_RUN_LIMIT,
+      });
+    }
+
+    const workspaceProjects = new Set(
+      projectList(caller.changes, caller.access.workspace.workspace_id).map((p) => p.project_id),
+    );
+    const month = new Date(now).toISOString().slice(0, 7);
+    const monthlyUsed = caller.operations.runs
+      .filter(
+        (run) =>
+          workspaceProjects.has(run.project_id) &&
+          run.workload === 'seo_rank' &&
+          run.trigger === 'manual' &&
+          run.created_at.slice(0, 7) === month,
+      )
+      .reduce((sum, run) => sum + run.tasks_total, 0);
+
+    if (monthlyUsed + trackedIds.length > MOCK_SERP_CHECKS_PER_MONTH) {
+      return problem(request, 'quota_exceeded', {
+        detail: `This workspace has used ${String(monthlyUsed)} of its ${String(MOCK_SERP_CHECKS_PER_MONTH)} live checks this month.`,
+        limit: MOCK_SERP_CHECKS_PER_MONTH,
+        used: monthlyUsed,
+        requested: trackedIds.length,
+        quota: 'max_serp_checks_per_month',
+      });
+    }
+
+    const minter = operationIdMinter(caller.operationChanges);
+    // No budget pre-flight: the mock prices only Labs reads.
+    // The mock records a run but does not change any rank (Decision 8).
+    const run: StoredRun = {
+      run_id: minter.next('run'),
+      project_id: caller.project.project_id,
+      schedule_id: null,
+      workload: 'seo_rank',
+      trigger: 'manual',
+      created_at: runTime(now),
+      created_by: caller.session.user.user_id,
+      tasks_total: trackedIds.length,
+      tasks_failed: 0,
+      calls: trackedIds.length,
+      keyword_count: trackedIds.length,
+      stale_days: null,
+      ending: 'completed',
+      status_reason: null,
+      blocked_by_budget_id: null,
+      cancelled_at: null,
+      cancel_reason: null,
+    };
     const changes = minter.commit(withRun(caller.operationChanges, run));
     const cookie = savedOperations(request, changes);
     if (typeof cookie !== 'string') return cookie;

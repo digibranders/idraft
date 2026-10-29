@@ -185,4 +185,11 @@ describe('The words for how a refresh ends', () => {
     // "nothing" is the words for a completed run that had nothing to read
     expect([...Object.values(FINISH_KEYS), 'nothing'].sort()).toEqual(Object.keys(finished).sort());
   });
+
+  it('holds identical finish and progress keys for rankings.checkNow and rankings.refresh', () => {
+    const refresh = messages.rankings.refresh;
+    const checkNow = messages.rankings.checkNow;
+    expect(Object.keys(checkNow.finished).sort()).toEqual(Object.keys(refresh.finished).sort());
+    expect(Object.keys(checkNow.progress).sort()).toEqual(Object.keys(refresh.progress).sort());
+  });
 });

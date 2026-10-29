@@ -26,6 +26,7 @@ import {
 } from './rankings-queries';
 import { usePendingMetrics } from './refresh/pending-metrics';
 import { useMetricsRefresh } from './refresh/use-metrics-refresh';
+import { useCheckNow } from './check-now/use-check-now';
 import { RankStrip } from './strip/rank-strip';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
@@ -251,13 +252,21 @@ export function RankingsScreen({
     menuButton: moreButton,
     onDrop: dropChosen,
   });
-  // Refresh metrics sits with the other changes to the chosen keywords, ahead of Archive and Delete
+  const checkNow = useCheckNow({
+    scope,
+    enabled: canRefresh,
+    archived: view.archived,
+    chosen,
+    onDrop: dropChosen,
+  });
+  // Check now goes right before Refresh metrics, both ahead of the first destructive action
   const firstDestructive = bulk.actions.findIndex((action) => action.group === 'destructive');
-  const refreshAt = firstDestructive === -1 ? bulk.actions.length : firstDestructive;
-  const bulkActions =
-    refresh.barAction === null
-      ? bulk.actions
-      : [...bulk.actions.slice(0, refreshAt), refresh.barAction, ...bulk.actions.slice(refreshAt)];
+  const insertAt = firstDestructive === -1 ? bulk.actions.length : firstDestructive;
+  const nonDestructive = bulk.actions.slice(0, insertAt);
+  const destructive = bulk.actions.slice(insertAt);
+  const checkNowBar = checkNow.barAction === null ? [] : [checkNow.barAction];
+  const refreshBar = refresh.barAction === null ? [] : [refresh.barAction];
+  const bulkActions = [...nonDestructive, ...checkNowBar, ...refreshBar, ...destructive];
   const menuItems: MenuItemDef[] = [
     ...(refresh.menuItem === null ? [] : [refresh.menuItem]),
     ...(canWrite
@@ -430,6 +439,7 @@ export function RankingsScreen({
         onEditStateChange={onEditStateChange}
         discards={discards}
         hiddenByFilters={hiddenByFilters}
+        frequentAction={checkNow.inspectorAction}
       />
     );
 
@@ -450,6 +460,7 @@ export function RankingsScreen({
             onSettled={onImportSettled}
           />
         ))}
+        {checkNow.progress}
         {refresh.progress}
         <FilterBar
           fields={fields}

@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChartColumn } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { CompetitorsSection } from './competitors-section';
 import { DepthDialog } from './depth-dialog';
@@ -59,6 +59,8 @@ export interface KeywordInspectorProps {
   discards: number;
   /** The keyword is not among the rows the filters match (24-page-templates.md section 9.3, States). */
   hiddenByFilters: boolean;
+  /** Frequent action button in header (e.g. Check now). */
+  frequentAction?: ((trackedId: string, active: boolean) => ReactNode) | undefined;
 }
 
 type Tab = 'overview';
@@ -92,6 +94,7 @@ export function KeywordInspector({
   onEditStateChange,
   discards,
   hiddenByFilters,
+  frequentAction,
 }: KeywordInspectorProps): ReactElement {
   const t = useTranslations('rankings.inspector');
   const filters = useTranslations('rankings.filters');
@@ -245,6 +248,7 @@ export function KeywordInspector({
         positionText,
         navigation,
         badges,
+        frequentAction: frequentAction?.(trackedKeywordId, scopeOf?.is_active ?? false),
         freshness:
           fetchedAt === null ? null : <span>{t('updated', { time: formatRelative(fetchedAt, timeZone) })}</span>,
         moreActions,

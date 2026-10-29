@@ -2108,6 +2108,41 @@
         "budgetBlocked": "The metrics refresh did not start: a budget for keyword research is used up this month"
       }
     },
+    "checkNow": {
+      "action": "Check now",
+      "actionDetail": "{left} of {limit} left today",
+      "blocked": {
+        "allMatching": "Check now takes chosen keywords, not every matching keyword. Choose up to 100.",
+        "tooMany": "Check now takes up to 100 keywords at a time.",
+        "none": "Choose keywords first.",
+        "archived": "Archived keywords are not checked.",
+        "noneLeft": "No manual runs left today. The limit resets at 00:00 UTC."
+      },
+      "refused": {
+        "limit": "No manual runs left today. The limit resets at 00:00 UTC.",
+        "quota": "This workspace has made {used} of its {limit} live checks this month. {requested, plural, one {1 more does} other {# more do}} not fit.",
+        "paused": "The data provider is not being asked just now. Try again in a few minutes.",
+        "unknownKeyword": "A keyword is no longer tracked here. The list was read again; try again.",
+        "other": "The check did not start. Try again."
+      },
+      "progress": {
+        "queued": "Rank check queued",
+        "running": "Checking ranks",
+        "slow": "Rank check is taking longer than usual to start",
+        "started": "Rank check queued. Its progress shows under the page title.",
+        "lost": "This rank check could not be followed here. It may still be running. Reload the page to check on it.",
+        "counts": "{done} of {total} checked",
+        "countsFailed": "{done} of {total} checked, {failed} failed"
+      },
+      "finished": {
+        "completed": "Ranks checked: {done} of {total}",
+        "nothing": "No keyword needed a check",
+        "completedWithErrors": "Ranks checked: {done} of {total}, {failed} failed",
+        "failed": "The rank check failed",
+        "cancelled": "The rank check was cancelled",
+        "budgetBlocked": "The rank check did not start: a budget for rank checks is used up this month"
+      }
+    },
     "caption": "Tracked keywords",
     "noun": {
       "one": "keyword",
