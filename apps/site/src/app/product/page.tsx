@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
 import { ScreenFrame } from '@/components/mock/screen-frame';
-import { RoadmapTeaser } from '@/components/roadmap-teaser';
+import { FeaturesTeaser } from '@/components/features-teaser';
 import { StickyStack } from '@/components/sticky-stack';
 
 export const metadata: Metadata = {
@@ -49,7 +49,7 @@ export default function ProductPage() {
       />
       <StickyStack cards={CARDS} />
       <div className="h-24" />
-      <RoadmapTeaser />
+      <FeaturesTeaser />
       <CtaBand title="Start with the topics that matter most." body="Request access and tell us which keywords and questions you want to follow first." />
     </>
   );

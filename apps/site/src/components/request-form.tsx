@@ -6,7 +6,7 @@ import { CONTACT_EMAIL } from '@/content';
 
 import { Button } from './button';
 
-const FOCUS_OPTIONS = ['Rankings and AI answers', 'Rankings only', 'AI answers only', 'Website audits (planned)', 'Something else'] as const;
+const FOCUS_OPTIONS = ['Rankings and AI answers', 'Rankings only', 'AI answers only', 'Website audits', 'Something else'] as const;
 
 type Errors = Partial<Record<'name' | 'email' | 'site', string>>;
 

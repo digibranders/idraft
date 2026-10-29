@@ -10,16 +10,18 @@ export const PRODUCT_LINKS = [
 
 export const NAV_LINKS = [
   { label: 'How it works', href: '/how-it-works' },
-  { label: 'Roadmap', href: '/roadmap' },
+  { label: 'Features', href: '/features' },
   { label: 'About', href: '/about' },
 ] as const;
 
-/** Planned work, in no promised order. Nothing here is a release date. */
-export const PLANNED = [
-  { title: 'Website audit', body: 'Crawl your site and list the technical and content issues that hold pages back, tied to the keywords and prompts you track.' },
-  { title: 'Page performance', body: 'Clicks, impressions and position for each URL from Search Console, compared month over month.' },
-  { title: 'Keyword and prompt discovery', body: 'Suggestions for what to track next, found from your rankings, your rivals and the questions people ask AI.' },
-  { title: 'Integrations', body: 'Search Console, analytics and other first-party sources next to the data idraft collects.' },
+/** Everything idraft does beyond the three product pages. */
+export const MORE_FEATURES = [
+  { title: 'Website audit', body: 'Crawl your site and list the technical and content issues that hold pages back: crawlability, broken links and redirects, indexing, duplicate content, structured data and Core Web Vitals, tied to the keywords and prompts you track.' },
+  { title: 'Page performance', body: 'Clicks, impressions, CTR and position for each URL from Search Console, compared month over month, with each page flagged as growing, stable or slipping.' },
+  { title: 'Discovery', body: 'Suggestions for keywords and prompts to track next, found from your rankings, your rivals and the questions people ask AI, waiting in an inbox you approve.' },
+  { title: 'Competitors', body: 'Every rival you follow, on the same keywords and prompts, with who is gaining in search and in AI answers.' },
+  { title: 'Reports', body: 'Share a view with a client or a boss: rankings, AI answers and sources in one report, with the evidence behind each number.' },
+  { title: 'Integrations', body: 'Search Console, analytics and other first-party sources sit next to the data idraft collects.' },
 ] as const;
 
 export const STORY_STEPS = [
@@ -56,7 +58,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: 'Is it only rankings and AI answers?',
-    a: 'That is where idraft starts. A website audit and other SEO tools are planned, so the platform grows around the same record per topic. See the roadmap for what is planned.',
+    a: 'No. Rankings and AI answers are the core, and around them are a website audit, page performance, discovery, competitor tracking, reports and integrations, all on the same record per topic. See the features page for the full list.',
   },
   {
     q: 'How do I get access?',

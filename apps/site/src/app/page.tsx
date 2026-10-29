@@ -6,7 +6,7 @@ import { Faq } from '@/components/faq';
 import { HomeHero } from '@/components/home-hero';
 import { HorizontalEngines } from '@/components/horizontal-engines';
 import { Reveal } from '@/components/reveal';
-import { RoadmapTeaser } from '@/components/roadmap-teaser';
+import { FeaturesTeaser } from '@/components/features-teaser';
 import { Roles } from '@/components/roles';
 import { TextReveal } from '@/components/text-reveal';
 
@@ -23,7 +23,7 @@ export default function Home() {
       <HorizontalEngines />
       <Bento />
       <Compare />
-      <RoadmapTeaser />
+      <FeaturesTeaser />
       <Roles />
       <Faq />
       <CtaBand title="See your rank and your answer together." body="We are onboarding teams by invitation. Tell us what you track and we will reply with next steps." />
