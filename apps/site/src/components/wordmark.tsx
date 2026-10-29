@@ -1,18 +1,19 @@
 'use client';
 
 import { useRef } from 'react';
-import { motion, useInView, useMotionValue, useReducedMotion, useSpring, useTransform, type MotionValue } from 'motion/react';
+import { motion, useInView, useMotionValue, useSpring, useTransform, type MotionValue } from 'motion/react';
 
 const LETTERS = ['i', 'd', 'r', 'a', 'f', 't'] as const;
 
-type LetterProps = { char: string; pointerX: MotionValue<number>; index: number; shown: boolean; reduce: boolean };
+type LetterProps = { char: string; pointerX: MotionValue<number>; index: number; shown: boolean };
 
-function Letter({ char, pointerX, index, shown, reduce }: LetterProps) {
+function Letter({ char, pointerX, index, shown }: LetterProps) {
   const ref = useRef<HTMLSpanElement>(null);
   // The letter nearest the cursor rises the most, like a step being climbed.
   const lift = useTransform(pointerX, (x) => {
     const el = ref.current;
-    if (!el || reduce) return 0;
+    // Read at pointer time (client only), so server and client render the same markup.
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
     const rect = el.getBoundingClientRect();
     const d = (x - (rect.left + rect.width / 2)) / rect.width;
     return -Math.exp(-(d * d) / 0.9) * rect.height * 0.14;
@@ -22,7 +23,7 @@ function Letter({ char, pointerX, index, shown, reduce }: LetterProps) {
   return (
     <span className="inline-block overflow-hidden pt-[0.18em]">
       <motion.span
-        initial={reduce ? false : { y: '115%' }}
+        initial={{ y: '115%' }}
         animate={{ y: shown ? '0%' : '115%' }}
         transition={{ duration: 1, delay: index * 0.07, ease: [0.32, 0.72, 0, 1] }}
         className="inline-block"
@@ -40,9 +41,8 @@ function Letter({ char, pointerX, index, shown, reduce }: LetterProps) {
  * unclipped wrapper, because a letter hidden inside its own mask would never count as visible.
  */
 export function Wordmark() {
-  const reduce = useReducedMotion() ?? false;
   const wrapper = useRef<HTMLDivElement>(null);
-  const shown = useInView(wrapper, { once: true, amount: 0.4 }) || reduce;
+  const shown = useInView(wrapper, { once: true, amount: 0.4 });
   const pointerX = useMotionValue(-9999);
   return (
     <div
@@ -53,7 +53,7 @@ export function Wordmark() {
       className="flex select-none justify-center text-[clamp(6rem,27vw,26rem)] leading-[0.82] font-semibold tracking-[-0.06em] text-cobalt"
     >
       {LETTERS.map((char, index) => (
-        <Letter key={char + index} char={char} pointerX={pointerX} index={index} shown={shown} reduce={reduce} />
+        <Letter key={char + index} char={char} pointerX={pointerX} index={index} shown={shown} />
       ))}
     </div>
   );

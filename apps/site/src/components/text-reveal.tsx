@@ -1,12 +1,12 @@
 'use client';
 
 import { useRef } from 'react';
-import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react';
+import { motion, useScroll, useTransform, type MotionValue } from 'motion/react';
 
-function Word({ word, range, progress, reduce }: { word: string; range: [number, number]; progress: MotionValue<number>; reduce: boolean }) {
+function Word({ word, range, progress }: { word: string; range: [number, number]; progress: MotionValue<number> }) {
   const opacity = useTransform(progress, range, [0.14, 1]);
   return (
-    <motion.span style={reduce ? {} : { opacity }} className="mr-[0.26em] inline-block">
+    <motion.span style={{ opacity }} className="mr-[0.26em] inline-block motion-reduce:opacity-100!">
       {word}
     </motion.span>
   );
@@ -17,7 +17,6 @@ function Word({ word, range, progress, reduce }: { word: string; range: [number,
  * reader sets the reading pace with the scroll, so the claim lands one phrase at a time.
  */
 export function TextReveal({ text }: { text: string }) {
-  const reduce = useReducedMotion() ?? false;
   const ref = useRef<HTMLParagraphElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.85', 'end 0.45'] });
   const words = text.split(' ');
@@ -26,7 +25,7 @@ export function TextReveal({ text }: { text: string }) {
       {words.map((word, index) => {
         const start = index / words.length;
         const end = start + 1 / words.length;
-        return <Word key={`${word}-${index}`} word={word} range={[start, end]} progress={scrollYProgress} reduce={reduce} />;
+        return <Word key={`${word}-${index}`} word={word} range={[start, end]} progress={scrollYProgress} />;
       })}
     </p>
   );

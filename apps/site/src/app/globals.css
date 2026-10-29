@@ -110,6 +110,13 @@ body {
   }
 }
 
+/* Reduced motion: the timeline line is simply full. */
+@media (prefers-reduced-motion: reduce) {
+  [data-fill] {
+    transform: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

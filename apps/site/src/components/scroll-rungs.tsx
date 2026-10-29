@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue } from 'motion/react';
+import { motion, useScroll, useSpring, useTransform, type MotionValue } from 'motion/react';
 
 const RUNGS = 6;
 
@@ -18,12 +18,10 @@ function Rung({ index, progress }: { index: number; progress: MotionValue<number
  * is passed. A signature rather than a progress bar; it is hidden below 1024px and under reduced motion.
  */
 export function ScrollRungs() {
-  const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 28 });
-  if (reduce) return null;
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed top-1/2 right-5 z-20 hidden -translate-y-1/2 flex-col items-end gap-2 lg:flex">
+    <div aria-hidden="true" className="pointer-events-none fixed top-1/2 right-5 z-20 hidden -translate-y-1/2 flex-col items-end gap-2 motion-reduce:!hidden lg:flex">
       {Array.from({ length: RUNGS }, (_, index) => RUNGS - 1 - index).map((index) => (
         <Rung key={index} index={index} progress={progress} />
       ))}

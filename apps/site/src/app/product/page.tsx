@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { CtaBand } from '@/components/cta-band';
 import { PageHero } from '@/components/page-hero';
+import { Dashboard } from '@/components/mock/dashboard';
 import { RoadmapTeaser } from '@/components/roadmap-teaser';
 import { StickyStack } from '@/components/sticky-stack';
 
@@ -44,7 +45,8 @@ export default function ProductPage() {
         eyebrow="Product"
         title="One record for every topic you care about."
         lead="Rankings, AI answers, sources and history stay together, so each question has one place to look and one set of numbers to trust."
-        image={{ src: '/images/grid.png', alt: 'A grid of frosted glass tiles, a few tinted blue and one lifted above the rest.' }}
+        visual={<Dashboard initial="matrix" />}
+        backdrop="/images/grid.png"
       />
       <StickyStack cards={CARDS} />
       <div className="h-24" />

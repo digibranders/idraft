@@ -6,6 +6,7 @@ import { Engines } from '@/components/engines';
 import { Faq } from '@/components/faq';
 import { HomeHero } from '@/components/home-hero';
 import { HorizontalEngines } from '@/components/horizontal-engines';
+import { ProductReveal } from '@/components/product-reveal';
 import { Reveal } from '@/components/reveal';
 import { RoadmapTeaser } from '@/components/roadmap-teaser';
 import { Roles } from '@/components/roles';
@@ -20,6 +21,7 @@ export default function Home() {
   return (
     <>
       <HomeHero />
+      <ProductReveal />
       <ClimbStage>
         <Engines />
         <section data-stop="right" className="mx-auto max-w-[1320px] px-5 py-28 md:px-8 lg:py-44">

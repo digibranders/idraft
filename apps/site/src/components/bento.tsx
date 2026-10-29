@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { AnswerCard, MiniRanks, MiniSources } from './mock/fragments';
 
 import { Reveal } from './reveal';
 import { SpotlightCell } from './spotlight-cell';
@@ -22,7 +22,7 @@ function HistoryGap() {
 
 /*
  * Five cells for five features: 7 + 5 on the first row, 3 + 4 + 5 on the second (the widths add to 12 each).
- * Variety on purpose: a contour field, a lens photo, a photo stack, a solid cobalt block, a tinted chart cell.
+ * Variety on purpose: a wash with a rank table, an answer card, a source list, a solid cobalt block, a tinted chart cell.
  */
 export function Bento() {
   return (
@@ -42,10 +42,13 @@ export function Bento() {
         <Reveal className="lg:col-span-7">
           <SpotlightCell className="h-full">
             <div className="relative flex min-h-[26rem] flex-col justify-between p-8 sm:p-10">
-              <Image src="/images/contour.png" alt="" fill sizes="(min-width: 1024px) 55vw, 100vw" className="object-cover object-bottom" />
+              <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-wash/70 via-surface to-surface" />
               <div className="relative">
                 <h3 className={H3}>Daily rankings that stay honest</h3>
                 <p className={`${P} text-ink-2`}>Position, change since the last check, the ranking URL and SERP features for every keyword. A missing check is shown as missing.</p>
+              </div>
+              <div className="relative mt-10 sm:max-w-md">
+                <MiniRanks />
               </div>
             </div>
           </SpotlightCell>
@@ -58,8 +61,9 @@ export function Bento() {
                 <h3 className={H3}>Be the answer, not only the result</h3>
                 <p className={`${P} text-ink-2`}>Mentions, position in the answer and tone across ChatGPT, Gemini and Google AI.</p>
               </div>
-              <Image src="/images/lens.png" alt="" fill sizes="(min-width: 1024px) 40vw, 100vw" className="object-cover object-bottom" />
-              <div aria-hidden="true" className="absolute inset-x-0 top-0 h-3/5 bg-gradient-to-b from-surface via-surface/90 to-transparent" />
+              <div className="relative mt-8 flex flex-1 items-end">
+                <AnswerCard index={2} className="w-full shadow-lift" />
+              </div>
             </div>
           </SpotlightCell>
         </Reveal>
@@ -67,8 +71,8 @@ export function Bento() {
         <Reveal delay={0.04} className="lg:col-span-3">
           <SpotlightCell className="h-full">
             <div className="flex min-h-[24rem] flex-col">
-              <div className="relative h-44 shrink-0">
-                <Image src="/images/sources.png" alt="" fill sizes="(min-width: 1024px) 25vw, 100vw" className="object-cover" />
+              <div className="p-5 pb-0">
+                <MiniSources />
               </div>
               <div className="p-7">
                 <h3 className="text-xl font-semibold leading-tight tracking-[-0.03em]">See who the AI trusts</h3>
