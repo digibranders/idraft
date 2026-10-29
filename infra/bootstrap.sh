@@ -99,7 +99,7 @@ ensure_dir 0700 deploy deploy /srv/idraft/incoming
 ensure_dir 0700 root root /etc/idraft
 ensure_dir 0711 root root /etc/idraft/redis
 install -m 0755 -o root -g root "$here/host/idraft-install-env" /usr/local/sbin/idraft-install-env
-# Called by idraft-install-env from its own directory; not in sudoers, it needs no root.
+# Called by idraft-install-env by this fixed path; not in sudoers, it needs no root.
 install -m 0755 -o root -g root "$here/host/idraft-check-env" /usr/local/sbin/idraft-check-env
 install -m 0755 -o root -g root "$here/host/idraft-install-infra" /usr/local/sbin/idraft-install-infra
 install -m 0755 -o root -g root "$here/host/idraft-ghcr-login" /usr/local/sbin/idraft-ghcr-login

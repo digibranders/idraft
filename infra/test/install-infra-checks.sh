@@ -98,6 +98,8 @@ echo "install-infra checks passed"
 mkdir -p /etc/idraft
 chmod 0700 /etc/idraft
 good=/src/compose/.env.example
+# Where bootstrap.sh installs the checker, and the only place idraft-install-env looks for it.
+install -m 0755 -o root -g root /src/host/idraft-check-env /usr/local/sbin/idraft-check-env
 /src/host/idraft-install-env < "$good" > /dev/null || fail "the example env was refused"
 cmp -s "$good" /etc/idraft/.env.next || fail "the staged env differs from the input"
 [ "$(stat -c '%a %U' /etc/idraft/.env.next)" = "600 root" ] || fail ".env.next is $(stat -c '%a %U' /etc/idraft/.env.next), not 600 root"
@@ -140,4 +142,16 @@ refused_raw "a carriage return" "outside printable ASCII" 'EXTRA=a\r\n'
 refused_raw "a NUL byte" "outside printable ASCII" 'EXTRA=a\0b\n'
 refused_raw "a high byte" "outside printable ASCII" 'EXTRA=a\0377b\n'
 refused_raw "a space before a quote" "space before a quoted value" 'EXTRA= "x"\n'
+
+# A checker that merely sits beside the script is never used: only the installed one counts.
+rm -rf /tmp/lookalike /etc/idraft/.env.next
+mkdir /tmp/lookalike
+cp /src/host/idraft-install-env /tmp/lookalike/
+printf '#!/bin/sh\nexit 0\n' > /tmp/lookalike/idraft-check-env
+chmod 0755 /tmp/lookalike/idraft-check-env
+{ cat "$good"; echo "COMPOSE_FILE=/tmp/evil.yml"; } > /tmp/bad.env
+if /tmp/lookalike/idraft-install-env < /tmp/bad.env > /dev/null 2>&1; then
+  fail "idraft-install-env used a checker found beside itself"
+fi
+[ ! -e /etc/idraft/.env.next ] || fail "a hostile env was staged through a checker beside the script"
 echo "install-env checks passed"

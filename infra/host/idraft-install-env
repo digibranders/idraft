@@ -4,15 +4,20 @@
 # writes env files (a sudoers rule allows exactly this command). It never prints the contents.
 # deploy.sh validates .env.next, deploys with it and promotes it to .env only once the release serves,
 # so a bad env can never replace the one the serving release runs on.
-# The file is checked with idraft-check-env (installed beside this script) before it is staged: Compose
-# reads it as root, so an image or host path in it must not be the deploy user's choice.
+# The file is checked with /usr/local/sbin/idraft-check-env before it is staged: Compose reads it as
+# root, so an image or host path in it must not be the deploy user's choice. The checker is called by its
+# fixed path, never through $0, so it is the root-owned copy bootstrap.sh installed.
 set -euo pipefail
 
 target="/etc/idraft/.env.next"
-check_env="$(dirname "$0")/idraft-check-env"
+check_env="/usr/local/sbin/idraft-check-env"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "idraft-install-env must run as root (through sudo)." >&2
+  exit 1
+fi
+if [ ! -f "$check_env" ]; then
+  echo "$check_env is missing; run infra/bootstrap.sh again." >&2
   exit 1
 fi
 
