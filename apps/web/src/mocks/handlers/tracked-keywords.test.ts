@@ -873,13 +873,47 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     }
   });
 
-  it('accepts include=competitor_ranks,features,aio and answers null for each block', async () => {
+  it('gives competitor ranks when include=competitor_ranks is requested', async () => {
     const viewer = mockBrowser('viewer');
-    for (const query of ['include=competitor_ranks,features,aio', 'include=aio&include=metrics']) {
+    const rows = await listOf(viewer, 'include=competitor_ranks');
+    expect(rows.length).toBeGreaterThan(0);
+
+    const checked = rows.find(
+      (row) => row.state.current.state === 'ranked' && row.tracked_keyword_id !== mockId('tracked', 1),
+    );
+    if (checked === undefined) throw new Error('No checked keyword');
+    expect(checked.competitor_ranks).not.toBeNull();
+    expect(checked.competitor_ranks?.length).toBe(5);
+    for (const comp of checked.competitor_ranks ?? []) {
+      expect(comp.entity.role).toBe('competitor');
+      expect(comp.current).toBeDefined();
+      expect(['ranked', 'beyond_depth']).toContain(comp.current.state);
+      expect(comp.change).toBeDefined();
+    }
+
+    const row1 = rows.find((row) => row.tracked_keyword_id === mockId('tracked', 1));
+    if (row1 && row1.competitor_ranks) {
+      const entityIds = row1.competitor_ranks.map((r) => r.entity.entity_id);
+      expect(entityIds).not.toContain(MOCK_ENTITY_IDS.meridian);
+      expect(entityIds).toContain(MOCK_ENTITY_IDS.seoWeekly);
+    }
+
+    const pending = rows.find((row) => row.state.current.state === 'not_checked');
+    if (pending === undefined) throw new Error('No pending keyword');
+    expect(pending.competitor_ranks).toEqual([]);
+
+    const withoutInclude = await listOf(viewer, 'limit=5');
+    for (const row of withoutInclude) {
+      expect(row.competitor_ranks).toBeNull();
+    }
+  });
+
+  it('accepts include=features,aio and answers null for each block', async () => {
+    const viewer = mockBrowser('viewer');
+    for (const query of ['include=features,aio', 'include=aio&include=metrics']) {
       const rows = await listOf(viewer, query);
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
-        expect(row.competitor_ranks).toBeNull();
         expect(row.features).toBeNull();
         expect(row.aio).toBeNull();
       }

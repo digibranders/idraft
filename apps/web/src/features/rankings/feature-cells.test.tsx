@@ -1,7 +1,8 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { SerpFeatureListView, AioStatusView, TargetMismatchMarker } from './feature-cells';
+import { SerpFeatureListView, AioStatusView, TargetMismatchMarker, CompetitorRankView } from './feature-cells';
+import type { CompetitorRank } from '@/lib/api/types';
 import type { AioDisplay } from '@/lib/format';
 import { featureListDisplay } from '@/lib/keywords/serp-features';
 import { renderWithProviders } from '@/test/render';
@@ -126,5 +127,112 @@ describe('TargetMismatchMarker', () => {
     expect(svg).toHaveClass('text-warning-text', 'size-icon-sm');
     expect(container.textContent).toBe('');
     expect(screen.queryByRole('img')).toBeNull();
+  });
+});
+
+describe('CompetitorRankView', () => {
+  it('renders an 8 px square swatch with color_index and rank through RankCellView', () => {
+    const entry: CompetitorRank = {
+      entity: {
+        entity_id: 'c1',
+        canonical_name: 'Rankforge',
+        entity_type: 'brand',
+        role: 'competitor',
+        color_index: 3,
+      },
+      current: {
+        state: 'ranked',
+        rank: 7,
+        absolute_rank: 7,
+        depth_requested: 20,
+        url: null,
+        observed_at: '2026-10-27T10:00:00Z',
+        serp_snapshot_id: null,
+      },
+      change: {
+        label: 'numeric',
+        value: 2,
+        previous_rank: 9,
+        previous_observed_at: '2026-10-26T10:00:00Z',
+      },
+    };
+
+    const { container } = renderWithProviders(<CompetitorRankView entry={entry} name="Rankforge" />);
+    const swatch = container.querySelector('.rounded-2xs');
+    expect(swatch).toBeInTheDocument();
+    expect(swatch).toHaveAttribute('aria-hidden', 'true');
+    expect(swatch).toHaveClass('size-2');
+    expect(swatch).toHaveStyle({ backgroundColor: 'var(--chart-3)' });
+    expect(screen.getByText('7')).toBeInTheDocument();
+  });
+
+  it('renders beyond depth rank as >20 with swatch', () => {
+    const entry: CompetitorRank = {
+      entity: {
+        entity_id: 'c2',
+        canonical_name: 'Northlight',
+        entity_type: 'brand',
+        role: 'competitor',
+        color_index: 4,
+      },
+      current: {
+        state: 'beyond_depth',
+        rank: null,
+        absolute_rank: null,
+        depth_requested: 20,
+        url: null,
+        observed_at: '2026-10-27T10:00:00Z',
+        serp_snapshot_id: null,
+      },
+      change: {
+        label: 'unchanged_beyond',
+        value: null,
+        previous_rank: null,
+        previous_observed_at: null,
+      },
+    };
+
+    const { container } = renderWithProviders(<CompetitorRankView entry={entry} name="Northlight" />);
+    const swatch = container.querySelector('.rounded-2xs');
+    expect(swatch).toHaveStyle({ backgroundColor: 'var(--chart-4)' });
+    expect(screen.getByText('>20')).toBeInTheDocument();
+  });
+
+  it('renders n/a in tertiary when entry is missing or null', () => {
+    renderWithProviders(<CompetitorRankView entry={null} name="Unknown" />);
+    const na = screen.getByText('n/a');
+    expect(na).toBeInTheDocument();
+    expect(na).toHaveClass('text-foreground-tertiary');
+  });
+
+  it('falls back to 2 + position % 5 when color_index is null', () => {
+    const entry: CompetitorRank = {
+      entity: {
+        entity_id: 'c3',
+        canonical_name: 'NoColor',
+        entity_type: 'brand',
+        role: 'competitor',
+        color_index: null,
+      },
+      current: {
+        state: 'ranked',
+        rank: 12,
+        absolute_rank: 12,
+        depth_requested: 20,
+        url: null,
+        observed_at: '2026-10-27T10:00:00Z',
+        serp_snapshot_id: null,
+      },
+      change: {
+        label: 'first_check',
+        value: null,
+        previous_rank: null,
+        previous_observed_at: null,
+      },
+    };
+
+    const { container } = renderWithProviders(<CompetitorRankView entry={entry} name="NoColor" position={1} />);
+    const swatch = container.querySelector('.rounded-2xs');
+    expect(swatch).toHaveStyle({ backgroundColor: 'var(--chart-3)' });
   });
 });

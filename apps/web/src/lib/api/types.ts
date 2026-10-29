@@ -42,6 +42,7 @@ export type MonthlySearches = Schemas['MonthlySearches'];
 export type TrackedVariant = Schemas['TrackedVariant'];
 export type TrackedKeyword = Schemas['TrackedKeyword'];
 export type TrackedKeywordRow = Schemas['TrackedKeywordRow'];
+export type CompetitorRank = Schemas['CompetitorRank'];
 export type TrackedKeywordDetail = Schemas['TrackedKeywordDetail'];
 export type TrackedKeywordCreate = Schemas['TrackedKeywordCreate'];
 export type TrackedKeywordPatch = Schemas['TrackedKeywordPatch'];

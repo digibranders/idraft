@@ -8,10 +8,10 @@ import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Icon } from '@/components/ui/icon';
 import { Tooltip } from '@/components/ui/tooltip';
-import type { TrackedKeywordRow } from '@/lib/api/types';
+import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
-import { useRankColumns } from './rank-columns';
+import { useCompetitorColumns, useRankColumns } from './rank-columns';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
@@ -65,12 +65,16 @@ export function useKeywordRowName(projectLanguage: string | null): (row: Tracked
   );
 }
 
-export function useKeywordColumns(timeZone: string): readonly DataTableColumn<TrackedKeywordRow>[] {
+export function useKeywordColumns(
+  timeZone: string,
+  competitors: readonly EntityRef[] = [],
+): readonly DataTableColumn<TrackedKeywordRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
   const targetT = useTranslations('rankings.target');
   const locale = useLocale();
   const ranks = useRankColumns(timeZone);
+  const competitorColumns = useCompetitorColumns(competitors, timeZone);
   return useMemo(() => {
     // Before Labs answers there is nothing; after an empty answer there is no data (12-tables.md 7.3)
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
@@ -154,6 +158,7 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
       }),
       ranks.features,
       ranks.aio,
+      ...competitorColumns,
       ranks.trend,
       col.count<TrackedKeywordRow>('priority', (row) => row.priority, {
         header: t('priority'),
@@ -191,5 +196,5 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         secondary: true,
       }),
     ];
-  }, [t, targetT, common, locale, timeZone, ranks]);
+  }, [t, targetT, common, locale, timeZone, ranks, competitorColumns]);
 }

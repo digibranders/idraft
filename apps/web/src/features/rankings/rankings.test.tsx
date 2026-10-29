@@ -641,6 +641,51 @@ describe('Rankings rank columns', () => {
     await user.click(choice);
     expect(within(grid).getByRole('columnheader', { name: /Best rank/ })).toBeInTheDocument();
   });
+
+  it('shows the first competitor column by default, lists others in column chooser, and shows n/a when excluded', async () => {
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url, 'http://localhost');
+      if (url.pathname.endsWith('/tracked-keywords') && request.method === 'GET') {
+        asked.push(url.search);
+      }
+    });
+    try {
+      const { user } = renderWithProviders(as('viewer'));
+      const grid = await loadedGrid();
+
+      // First competitor column (Brightwave Digital) is present by default
+      expect(within(grid).getByRole('columnheader', { name: /^Brightwave Digital/ })).toBeInTheDocument();
+      // Other competitor columns (e.g. Meridian Growth) are off by default
+      expect(within(grid).queryByRole('columnheader', { name: /^Meridian Growth/ })).toBeNull();
+
+      // Open column chooser
+      await user.click(screen.getByRole('button', { name: 'Columns' }));
+      const meridianChoice = screen.getByRole('checkbox', { name: 'Meridian Growth' });
+      expect(meridianChoice).not.toBeChecked();
+
+      const requestsBefore = asked.length;
+      await user.click(meridianChoice);
+
+      // Now Meridian Growth column is in the grid
+      expect(within(grid).getByRole('columnheader', { name: /^Meridian Growth/ })).toBeInTheDocument();
+      // Turning it on does not make a new list request
+      expect(asked.length).toBe(requestsBefore);
+
+      // Keyword 1 (seo agency berlin) excludes Meridian Growth, so its cell has "n/a"
+      const row1Header = within(grid)
+        .getAllByRole('rowheader')
+        .find((candidate) => candidate.textContent === 'seo agency berlin');
+      const row1 = row1Header?.closest('tr');
+      if (!row1) throw new Error('No row for seo agency berlin');
+      const meridianColIndex = columnIndex(grid, /^Meridian Growth$/);
+      const meridianCell = row1.cells[meridianColIndex];
+      if (meridianCell === undefined) throw new Error('No meridianCell');
+      expect(within(meridianCell).getByText('n/a')).toBeInTheDocument();
+    } finally {
+      server.events.removeAllListeners();
+    }
+  });
 });
 
 describe('Rankings rank filters', () => {

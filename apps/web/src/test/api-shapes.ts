@@ -44,6 +44,7 @@ import type {
   TrackedKeyword,
   TrackedKeywordDetail,
   TrackedKeywordRow,
+  CompetitorRank,
   UrlRef,
   Vocabulary,
 } from '@/lib/api/types';
@@ -449,6 +450,12 @@ export const SPARKLINE = z.object({
   points: z.array(SPARKLINE_POINT),
 });
 
+export const COMPETITOR_RANK: z.ZodType<CompetitorRank> = z.object({
+  entity: ENTITY_REF,
+  current: RANK_CELL,
+  change: RANK_CHANGE,
+});
+
 export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   ...TRACKED_KEYWORD_FIELDS,
   metrics: KEYWORD_METRICS.nullable().exactOptional(),
@@ -457,7 +464,7 @@ export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   competitors: z.array(COMPETITOR_OVERRIDE).nullable().exactOptional(),
   // The blocks of `include=sparkline,competitor_ranks,features,aio`
   sparkline: SPARKLINE.nullable().exactOptional(),
-  competitor_ranks: z.null().exactOptional(),
+  competitor_ranks: z.array(COMPETITOR_RANK).nullable().exactOptional(),
   features: z.null().exactOptional(),
   aio: z.null().exactOptional(),
   state: TRACKED_KEYWORD_STATE,

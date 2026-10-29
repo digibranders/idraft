@@ -2322,6 +2322,12 @@
       "match": "Ranks with the target",
       "mismatchChoice": "Ranks with another URL"
     },
+    "competitor": {
+      "headerTooltip": "{name}'s organic rank at the latest check.",
+      "notTracked": "n/a",
+      "notTrackedTooltip": "{name} is not in this keyword's competitor set.",
+      "speech": "{name}: {rank}"
+    },
     "trend": {
       "column": "Trend",
       "columnTooltip": "Rank at the last 30 checks, better up, on a scale of 1 to 20. A gap is a check beyond the depth.",

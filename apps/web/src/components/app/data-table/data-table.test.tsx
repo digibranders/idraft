@@ -690,6 +690,12 @@ describe('DataTable rank, change and URL columns', () => {
       width: 96,
       cell: () => 'spark',
     });
+    const comp = col.competitor<Row>('competitor_1', {
+      header: 'Brightwave',
+      priority: 4,
+      width: 120,
+      cell: () => 'comp',
+    });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
     expect(wide.width).toBe(112);
     expect(narrow.width).toBe(160);
@@ -702,6 +708,9 @@ describe('DataTable rank, change and URL columns', () => {
     expect(spark.type).toBe('sparkline');
     expect(spark.width).toBe(96);
     expect(spark.sortValue).toBeUndefined();
+    expect(comp.type).toBe('competitor');
+    expect(comp.width).toBe(120);
+    expect(comp.sortValue).toBeUndefined();
     // A header that needs more than its type's minimum names its own, and the width follows it
     const priority = col.count<Row>('priority', () => 1, { header: 'Priority', width: 50, minWidth: 100 });
     expect(priority.minWidth).toBe(100);

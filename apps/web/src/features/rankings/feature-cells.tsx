@@ -27,9 +27,10 @@ import type { ReactElement } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
-import type { RankCell } from '@/lib/api/types';
-import type { AioDisplay } from '@/lib/format';
+import type { CompetitorRank, RankCell } from '@/lib/api/types';
+import { rankDisplay, type AioDisplay } from '@/lib/format';
 import { isFeatureType, FEATURE_MESSAGE_KEYS, type FeatureListDisplay } from '@/lib/keywords/serp-features';
+import { RankCellView } from './rank-cells';
 
 const FEATURE_ICONS: Readonly<Record<string, LucideIcon>> = {
   ai_overview: Sparkles,
@@ -197,4 +198,51 @@ export function AioStatusView({ display, state, stale }: AioStatusViewProps): Re
  */
 export function TargetMismatchMarker(): ReactElement {
   return <Icon icon={Crosshair} size="sm" className="text-warning-text" />;
+}
+
+/**
+ * A competitor's rank cell: an 8 px square colour swatch followed by the competitor's rank
+ * (12-tables.md CompetitorCell, 15-data-visualization.md section 3).
+ */
+export function CompetitorRankView({
+  entry,
+  name,
+  colorIndex,
+  position = 0,
+}: {
+  entry?: CompetitorRank | null | undefined;
+  name: string;
+  colorIndex?: number | null | undefined;
+  position?: number | undefined;
+}): ReactElement {
+  const t = useTranslations('rankings.competitor');
+  if (!entry) {
+    return (
+      <span className="text-foreground-tertiary" title={t('notTrackedTooltip', { name })}>
+        {t('notTracked')}
+      </span>
+    );
+  }
+  const color =
+    colorIndex !== undefined && colorIndex !== null && colorIndex >= 2 && colorIndex <= 6
+      ? colorIndex
+      : entry.entity.color_index !== undefined &&
+          entry.entity.color_index !== null &&
+          entry.entity.color_index >= 2 &&
+          entry.entity.color_index <= 6
+        ? entry.entity.color_index
+        : 2 + (position % 5);
+
+  const display = rankDisplay(entry.current, false, 0);
+
+  return (
+    <span className="flex items-center gap-1.5">
+      <span
+        aria-hidden="true"
+        className="size-2 shrink-0 rounded-2xs"
+        style={{ backgroundColor: `var(--chart-${color})` }}
+      />
+      <RankCellView display={display} />
+    </span>
+  );
 }

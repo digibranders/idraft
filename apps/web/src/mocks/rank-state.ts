@@ -195,6 +195,38 @@ export function sparklineOf(
 }
 
 /**
+ * A competitor's rank on the keyword as `include=competitor_ranks` answers it: the same walk as the keyword's
+ * own, seeded by the keyword and the competitor, at the moments of the keyword's own checks.
+ */
+export function competitorRankOf(
+  trackedId: string,
+  createdAt: string,
+  now: number,
+  entity: Schemas['EntityRef'],
+  stoppedAt: string | null = null,
+): Schemas['CompetitorRank'] | null {
+  // No competitor rank before the keyword's own first good check (pending or failed keywords have none)
+  if (checksAt(trackedId, createdAt, now, null, stoppedAt).length === 0) return null;
+  const until = stoppedAt === null ? now : Math.min(now, Date.parse(stoppedAt));
+  const theirs = checksOf(`${trackedId}:${entity.entity_id}`, createdAt, until);
+  const latest = theirs.at(-1);
+  if (latest === undefined) return null;
+  return {
+    entity,
+    current: {
+      state: latest.rank === null ? 'beyond_depth' : 'ranked',
+      rank: latest.rank,
+      absolute_rank: latest.rank,
+      depth_requested: latest.depth,
+      url: null,
+      observed_at: latest.observedAt,
+      serp_snapshot_id: null,
+    },
+    change: changeOf(theirs.at(-2) ?? null, latest),
+  };
+}
+
+/**
  * The rank state of a tracked keyword at `now` (the mock clock, read once by the caller).
  *
  * - `domain` is the project's primary domain, which the ranking URLs are under; a project without one has no

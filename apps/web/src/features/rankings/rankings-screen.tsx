@@ -1,6 +1,6 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderTree, MoreHorizontal, Plus, Upload } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
@@ -15,6 +15,7 @@ import { forgetWritingImport, useWritingImport } from './import/import-queries';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns, useKeywordRowName } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
+import { projectEntitiesQuery } from './keyword-inspector/inspector-queries';
 import {
   PAGE_SIZE_CHOICES,
   keywordFilters,
@@ -44,7 +45,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { useErrorId } from '@/lib/api/use-error-id';
-import type { TrackedKeywordRow } from '@/lib/api/types';
+import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
 import { formatInteger, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
@@ -143,7 +144,13 @@ export function RankingsScreen({
       }),
   });
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
-  const columns = useKeywordColumns(timeZone);
+  const { data: entitiesData } = useQuery(projectEntitiesQuery(scope));
+  const competitors = useMemo((): EntityRef[] => {
+    return (entitiesData?.data ?? [])
+      .filter((pe) => pe.role === 'competitor' && pe.track_seo && pe.removed_at === null)
+      .map((pe) => ({ ...pe.entity, color_index: pe.entity.color_index ?? pe.color_index }));
+  }, [entitiesData]);
+  const columns = useKeywordColumns(timeZone, competitors);
   const rowName = useKeywordRowName(defaults.languageCode);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {

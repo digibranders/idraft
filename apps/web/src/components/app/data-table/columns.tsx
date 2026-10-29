@@ -321,6 +321,11 @@ export const col = {
     return rich(id, 'sparkline', () => null, { ...options, sortable: false });
   },
 
+  /** A competitor's organic rank, left aligned with color swatch (12-tables.md CompetitorCell). */
+  competitor<TRow>(id: string, options: RichOptions<TRow>): DataTableColumn<TRow> {
+    return rich(id, 'competitor', () => null, { ...options, sortable: false });
+  },
+
   /** A neutral badge, such as an intent. */
   badge<TRow>(
     id: string,
@@ -359,7 +364,7 @@ interface RichOptions<TRow> extends Options {
 
 function rich<TRow>(
   id: string,
-  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features' | 'aiOverview' | 'sparkline'>,
+  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features' | 'aiOverview' | 'sparkline' | 'competitor'>,
   sortValue: (row: TRow) => string | number | null,
   options: RichOptions<TRow>,
 ): DataTableColumn<TRow> {

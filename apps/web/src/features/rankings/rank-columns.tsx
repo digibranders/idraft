@@ -6,11 +6,11 @@ import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { BestRankView, RankCellView, RankingUrlView, StaleMarker, useRankTips } from './rank-cells';
-import { SerpFeatureListView, AioStatusView } from './feature-cells';
+import { SerpFeatureListView, AioStatusView, CompetitorRankView } from './feature-cells';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import { SparklineCell } from '@/components/app/sparkline/sparkline-cell';
-import type { TrackedKeywordRow } from '@/lib/api/types';
+import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { sparklineSummary } from '@/lib/charts/sparkline';
 import { aioDisplay, rankDisplay, rowChangeDisplay, urlDisplay } from '@/lib/format';
 import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
@@ -217,4 +217,56 @@ export function useRankColumns(timeZone: string): RankColumns {
       }),
     };
   }, [t, common, features, aioT, trendT, tips, timeZone]);
+}
+
+/**
+ * Competitor rank columns: one column per project competitor, ordered by color_index ascending then name.
+ * Default visible for the first competitor only.
+ */
+export function useCompetitorColumns(
+  competitors: readonly EntityRef[],
+  timeZone: string,
+): DataTableColumn<TrackedKeywordRow>[] {
+  const t = useTranslations('rankings.competitor');
+  const tips = useRankTips(timeZone);
+
+  return useMemo(() => {
+    const sorted = [...competitors].sort((a, b) => {
+      const aColor = a.color_index ?? Number.MAX_SAFE_INTEGER;
+      const bColor = b.color_index ?? Number.MAX_SAFE_INTEGER;
+      if (aColor !== bColor) return aColor - bColor;
+      return a.canonical_name.localeCompare(b.canonical_name);
+    });
+
+    return sorted.map((competitor, idx) => {
+      const id = `competitor_${competitor.entity_id}`;
+      return col.competitor<TrackedKeywordRow>(id, {
+        header: competitor.canonical_name,
+        headerTooltip: t('headerTooltip', { name: competitor.canonical_name }),
+        priority: 4,
+        width: 120,
+        sortable: false,
+        defaultVisible: idx === 0,
+        cell: (row) => {
+          const entry = row.competitor_ranks?.find((cr) => cr.entity.entity_id === competitor.entity_id);
+          return (
+            <CompetitorRankView
+              entry={entry}
+              name={competitor.canonical_name}
+              colorIndex={competitor.color_index}
+              position={idx}
+            />
+          );
+        },
+        cellTip: (row) => {
+          const entry = row.competitor_ranks?.find((cr) => cr.entity.entity_id === competitor.entity_id);
+          if (!entry) {
+            return { content: t('notTrackedTooltip', { name: competitor.canonical_name }) };
+          }
+          const display = rankDisplay(entry.current, false, 0);
+          return tips.rank(display);
+        },
+      });
+    });
+  }, [competitors, t, tips]);
 }
