@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 
 import { CtaBand } from '@/components/cta-band';
-import { AnswerArt, RankArt, SourcesArt } from '@/components/art/illustrations';
 import { PageHero } from '@/components/page-hero';
 import { RecordScene } from '@/components/art/scenes';
 import { FeaturesTeaser } from '@/components/features-teaser';
@@ -17,21 +17,21 @@ const CARDS = [
     title: 'Rank tracking',
     body: 'Daily Google positions for every keyword, country and device, with the ranking page, SERP features and a clear state for every gap.',
     href: '/rank-tracking',
-    art: <RankArt />,
+    art: <Image src="/images/scenes/rank.webp" alt="A person climbing a staircase of bars with a magnifier" fill sizes="(min-width: 1024px) 58vw, 100vw" className="object-cover" />,
     cta: 'Explore rank tracking',
   },
   {
     title: 'AI visibility',
     body: 'What ChatGPT, Gemini, Google AI Overviews and AI Mode say about your topics: who is named, in what position, and which sources they cite.',
     href: '/ai-visibility',
-    art: <AnswerArt />,
+    art: <Image src="/images/scenes/ai.webp" alt="A person chatting with a friendly AI assistant" fill sizes="(min-width: 1024px) 58vw, 100vw" className="object-cover" />,
     cta: 'Explore AI visibility',
   },
   {
     title: 'Sources and rivals',
     body: 'Every source an answer cites, grouped by domain, and your competitors tracked on the same keywords and prompts.',
     href: '/sources',
-    art: <SourcesArt />,
+    art: <Image src="/images/scenes/sources.webp" alt="An isometric town of web pages with people carrying link pins" fill sizes="(min-width: 1024px) 58vw, 100vw" className="object-cover" />,
     cta: 'Explore sources and rivals',
   },
 ] as const;
