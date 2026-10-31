@@ -54,7 +54,7 @@ async function readCountries(signal: AbortSignal): Promise<Location[]> {
   return found;
 }
 
-export function useKeywordFilterFields(scope: ProjectScope): readonly FilterField[] {
+export function useKeywordFilterFields(scope: ProjectScope, depth?: number | undefined): readonly FilterField[] {
   const t = useTranslations('rankings.filters');
   const targetT = useTranslations('rankings.target');
   const featureNames = useTranslations('rankings.features.names');
@@ -117,7 +117,9 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
         kind: 'enum',
         label: t('rank'),
         multi: false,
-        options: options(RANK_CHOICES, (value) => t(`rankBuckets.${value}`)),
+        options: options(RANK_CHOICES, (value) =>
+          value === 'beyond' && depth === 100 ? t('rankBuckets.over100') : t(`rankBuckets.${value}`),
+        ),
       },
       {
         id: 'chg',
@@ -216,6 +218,7 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
       },
     ];
   }, [
+    depth,
     t,
     targetT,
     featureNames,

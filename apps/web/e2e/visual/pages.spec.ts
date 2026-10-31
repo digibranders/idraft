@@ -74,9 +74,9 @@ const SIGNED_IN: readonly SignedInPage[] = [
   { name: 'settings-domains', path: '/digibranders/fynix/settings/domains' },
   { name: 'settings-taxonomy', path: '/digibranders/fynix/settings/taxonomy' },
   { name: 'settings-schedules', path: '/digibranders/fynix/settings/schedules' },
-  { name: 'rankings', path: '/digibranders/fynix/seo/rankings' },
-  { name: 'rankings-inspector', path: '/digibranders/fynix/seo/rankings', prepare: openFirstKeyword },
-  { name: 'rankings-import-review', path: '/digibranders/fynix/seo/rankings/import', prepare: reviewImport },
+  { name: 'rankings', path: '/digibranders/fynix/seo/keywords' },
+  { name: 'rankings-inspector', path: '/digibranders/fynix/seo/keywords', prepare: openFirstKeyword },
+  { name: 'rankings-import-review', path: '/digibranders/fynix/seo/keywords/import', prepare: reviewImport },
   // Costs and Runs read the month of the fixed clock, September 2026, which is where the fixture runs are
   { name: 'costs', path: '/digibranders/fynix/costs', as: ADMIN },
   { name: 'runs', path: '/digibranders/fynix/ops/runs', as: ADMIN },

@@ -111,7 +111,7 @@ test.describe('the application shell', () => {
       '/digibranders/fynix/settings/members',
       '/digibranders/fynix/settings/entities',
       '/digibranders/fynix/settings/taxonomy',
-      '/digibranders/fynix/seo/rankings',
+      '/digibranders/fynix/seo/keywords',
       '/digibranders/fynix/costs',
       '/digibranders/fynix/ops/runs',
       '/digibranders/fynix/settings/schedules',
@@ -129,7 +129,7 @@ test.describe('the application shell', () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await signIn(page, 'tomas@digibranders.test');
     for (const path of [
-      '/digibranders/fynix/seo/rankings',
+      '/digibranders/fynix/seo/keywords',
       '/digibranders/fynix/costs',
       '/digibranders/fynix/ops/runs',
       '/digibranders/fynix/settings/schedules',

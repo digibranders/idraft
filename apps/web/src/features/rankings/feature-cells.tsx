@@ -27,6 +27,7 @@ import type { ReactElement } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
+import { Tooltip } from '@/components/ui/tooltip';
 import type { CompetitorRank, RankCell } from '@/lib/api/types';
 import { rankDisplay, type AioDisplay } from '@/lib/format';
 import { isFeatureType, FEATURE_MESSAGE_KEYS, type FeatureListDisplay } from '@/lib/keywords/serp-features';
@@ -57,15 +58,19 @@ export interface SerpFeatureListViewProps {
   display: FeatureListDisplay;
   state?: RankCell['state'];
   stale?: boolean;
+  lastSuccessfulCheck?: string | null | undefined;
 }
 
-function StaleMark(): ReactElement {
+export function StaleMark({ lastSuccessfulCheck }: { lastSuccessfulCheck?: string | null | undefined }): ReactElement {
   const t = useTranslations('rankings.rank');
+  const tip = lastSuccessfulCheck ? t('lastGood', { date: lastSuccessfulCheck }) : t('staleTooltip');
   return (
-    <>
-      <Icon icon={Clock} size="xs" className="text-warning-text" />
-      <span className="sr-only">{t('speech.stale')}</span>
-    </>
+    <Tooltip content={tip} purpose="label">
+      <span className="inline-flex items-center">
+        <Icon icon={Clock} size="xs" className="text-warning-text" />
+        <span className="sr-only">{t('speech.stale')}</span>
+      </span>
+    </Tooltip>
   );
 }
 
@@ -73,13 +78,18 @@ function StaleMark(): ReactElement {
  * SERP features cell: up to 5 icons, owned features in primary text, others in muted,
  * with a +N count and accessible spoken names (12-tables.md section 6).
  */
-export function SerpFeatureListView({ display, state, stale }: SerpFeatureListViewProps): ReactElement {
+export function SerpFeatureListView({
+  display,
+  state,
+  stale,
+  lastSuccessfulCheck,
+}: SerpFeatureListViewProps): ReactElement {
   const t = useTranslations('rankings.features');
 
   if (state === 'failed') {
     return (
       <span className="inline-flex items-center gap-1">
-        {stale ? <StaleMark /> : null}
+        {stale ? <StaleMark lastSuccessfulCheck={lastSuccessfulCheck} /> : null}
         <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
       </span>
     );
@@ -89,7 +99,7 @@ export function SerpFeatureListView({ display, state, stale }: SerpFeatureListVi
     const isChecked = state !== undefined ? state !== 'not_checked' : true;
     return (
       <span className="inline-flex items-center gap-1 text-foreground-tertiary">
-        {stale ? <StaleMark /> : null}
+        {stale ? <StaleMark lastSuccessfulCheck={lastSuccessfulCheck} /> : null}
         {isChecked ? t('none') : t('pending')}
       </span>
     );
@@ -106,7 +116,7 @@ export function SerpFeatureListView({ display, state, stale }: SerpFeatureListVi
 
   return (
     <span className="inline-flex items-center gap-1.5">
-      {stale ? <StaleMark /> : null}
+      {stale ? <StaleMark lastSuccessfulCheck={lastSuccessfulCheck} /> : null}
       <span className="sr-only">{spokenList}</span>
       <span className="inline-flex items-center gap-1.5" aria-hidden="true">
         {display.shown.map((slot, index) => {
@@ -120,7 +130,7 @@ export function SerpFeatureListView({ display, state, stale }: SerpFeatureListVi
           );
         })}
         {display.overflow > 0 && (
-          <span className="num type-meta text-foreground-muted">{t('more', { count: display.overflow })}</span>
+          <span className="num type-table text-foreground-muted">{t('more', { count: display.overflow })}</span>
         )}
       </span>
     </span>
@@ -131,19 +141,20 @@ export interface AioStatusViewProps {
   display: AioDisplay;
   state?: RankCell['state'];
   stale?: boolean;
+  lastSuccessfulCheck?: string | null | undefined;
 }
 
 /**
  * AI Overview cell: badge when cited, check icon when present but not cited,
  * tertiary text otherwise (12-tables.md section 6, `AIOverviewStatus`).
  */
-export function AioStatusView({ display, state, stale }: AioStatusViewProps): ReactElement {
+export function AioStatusView({ display, state, stale, lastSuccessfulCheck }: AioStatusViewProps): ReactElement {
   const t = useTranslations('rankings.aio');
 
   if (state === 'failed') {
     return (
       <span className="inline-flex items-center gap-1">
-        {stale ? <StaleMark /> : null}
+        {stale ? <StaleMark lastSuccessfulCheck={lastSuccessfulCheck} /> : null}
         <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
       </span>
     );
@@ -156,7 +167,7 @@ export function AioStatusView({ display, state, stale }: AioStatusViewProps): Re
         const speech =
           display.position === null ? t('speech.citedNoPosition') : t('speech.cited', { position: display.position });
         return (
-          <Badge tone="positive" icon={Check} aria-label={speech}>
+          <Badge tone="positive" icon={Check} role="img" aria-label={speech}>
             {text}
           </Badge>
         );
@@ -185,7 +196,7 @@ export function AioStatusView({ display, state, stale }: AioStatusViewProps): Re
 
   return (
     <span className="inline-flex items-center gap-1">
-      <StaleMark />
+      <StaleMark lastSuccessfulCheck={lastSuccessfulCheck} />
       {content}
     </span>
   );
@@ -218,7 +229,7 @@ export function CompetitorRankView({
   const t = useTranslations('rankings.competitor');
   if (!entry) {
     return (
-      <span className="text-foreground-tertiary" title={t('notTrackedTooltip', { name })}>
+      <span className="text-foreground-tertiary" aria-label={t('speech', { name, rank: t('notTracked') })}>
         {t('notTracked')}
       </span>
     );
@@ -234,9 +245,16 @@ export function CompetitorRankView({
         : 2 + (position % 5);
 
   const display = rankDisplay(entry.current, false, 0);
+  const rankText =
+    entry.current.state === 'ranked' && entry.current.rank !== null
+      ? String(entry.current.rank)
+      : entry.current.state === 'beyond_depth'
+        ? `>${entry.current.depth_requested}`
+        : t('notTracked');
+  const speech = t('speech', { name, rank: rankText });
 
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex items-center gap-1.5" aria-label={speech}>
       <span
         aria-hidden="true"
         className="size-2 shrink-0 rounded-2xs"

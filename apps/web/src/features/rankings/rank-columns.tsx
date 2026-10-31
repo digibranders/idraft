@@ -12,7 +12,7 @@ import type { CellTip, DataTableColumn } from '@/components/app/data-table/types
 import { SparklineCell } from '@/components/app/sparkline/sparkline-cell';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { sparklineSummary } from '@/lib/charts/sparkline';
-import { aioDisplay, rankDisplay, rowChangeDisplay, urlDisplay } from '@/lib/format';
+import { aioDisplay, formatDetailDateTime, rankDisplay, rowChangeDisplay, urlDisplay } from '@/lib/format';
 import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
 
 /** The ids of the rank columns: the API's sort fields, except the ranking URL, which does not sort. */
@@ -107,9 +107,13 @@ export function useRankColumns(timeZone: string): RankColumns {
           headerTooltip: t('rankTooltip'),
           priority: 1,
           width: 104,
-          minWidth: 96,
+          minWidth: 104,
           cell: (row) => (
-            <RankCellView display={display(row)} change={rowChangeDisplay(row.state.current, row.state.change)} />
+            <RankCellView
+              display={display(row)}
+              change={rowChangeDisplay(row.state.current, row.state.change)}
+              timeZone={timeZone}
+            />
           ),
           cellTip: (row) => tips.rank(display(row), row.state.change, row.state.current),
         },
@@ -135,6 +139,9 @@ export function useRankColumns(timeZone: string): RankColumns {
             display={featureListDisplay(row.state.feature_types_present, row.state.owned_feature_types)}
             state={row.state.current.state}
             stale={row.state.is_stale}
+            lastSuccessfulCheck={
+              row.state.last_observed_at ? formatDetailDateTime(row.state.last_observed_at, timeZone) : null
+            }
           />
         ),
         cellTip: (row) => featureTip(row),
@@ -150,6 +157,9 @@ export function useRankColumns(timeZone: string): RankColumns {
             display={aioDisplay(row.state.aio, row.state.current.state)}
             state={row.state.current.state}
             stale={row.state.is_stale}
+            lastSuccessfulCheck={
+              row.state.last_observed_at ? formatDetailDateTime(row.state.last_observed_at, timeZone) : null
+            }
           />
         ),
         cellTip: (row) => aioTip(row),

@@ -9,6 +9,7 @@ import type { CellTip } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
 import { TextLink } from '@/components/ui/text-link';
+import { Tooltip } from '@/components/ui/tooltip';
 import type { RankCell, RankChange } from '@/lib/api/types';
 import {
   formatDetailDateTime,
@@ -45,25 +46,30 @@ const EMPTY_SPEECH = {
 export const PATH_END_CHARS = 12;
 
 /**
- * The cell's content, left aligned: marks, if any, then the value, 2 px apart (icon to counter). A cell that
- * has both marks and a three digit rank is a little wider than the narrowest Rank column: the extra grows to
- * the right, into the padding of the cell beside it.
- */
-
-/**
  * What may make a rank look current when it is not, at any table width (the Updated column's own marker shows
  * only from 1680 px): a clock when the API flags the keyword stale, a warning when checks after the one shown
  * have failed. The glyphs are decoration; the words are hidden text, and the tooltip carries the detail.
  */
-function Marks({ stale, failing }: { stale: boolean; failing: boolean }): ReactElement {
+function Marks({
+  stale,
+  failing,
+  observedAt,
+}: {
+  stale: boolean;
+  failing: boolean;
+  observedAt?: string | null | undefined;
+}): ReactElement {
   const t = useTranslations('rankings.rank');
+  const tip = observedAt ? t('lastGood', { date: observedAt }) : t('staleTooltip');
   return (
     <>
       {stale ? (
-        <>
-          <Icon icon={Clock} size="xs" className="text-warning-text" />
-          <span className="sr-only">{t('speech.stale')}</span>
-        </>
+        <Tooltip content={tip} purpose="label">
+          <span className="inline-flex items-center">
+            <Icon icon={Clock} size="xs" className="text-warning-text" />
+            <span className="sr-only">{t('speech.stale')}</span>
+          </span>
+        </Tooltip>
       ) : null}
       {failing ? (
         <>
@@ -82,9 +88,11 @@ function Marks({ stale, failing }: { stale: boolean; failing: boolean }): ReactE
 export function RankCellView({
   display,
   change,
+  timeZone,
 }: {
   display: RankDisplay;
   change?: ChangeDisplay | undefined;
+  timeZone?: string | undefined;
 }): ReactElement {
   const t = useTranslations('rankings.rank');
   const changeSlot =
@@ -93,13 +101,19 @@ export function RankCellView({
         <RankChangeView display={change} />
       </span>
     ) : null;
+  const observedDate =
+    display.kind !== 'pending' && display.observedAt
+      ? timeZone
+        ? formatDetailDateTime(display.observedAt, timeZone)
+        : display.observedAt
+      : null;
 
   switch (display.kind) {
     case 'ranked':
       return (
         <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center gap-0.5">
-            <Marks stale={display.stale} failing={display.failing} />
+          <span className="inline-flex w-8 shrink-0 items-center gap-0.5 overflow-hidden">
+            <Marks stale={display.stale} failing={display.failing} observedAt={observedDate} />
             <span className="num text-foreground">{formatInteger(display.rank)}</span>
           </span>
           {changeSlot}
@@ -108,8 +122,8 @@ export function RankCellView({
     case 'beyond':
       return (
         <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center gap-0.5">
-            <Marks stale={display.stale} failing={display.failing} />
+          <span className="inline-flex w-8 shrink-0 items-center gap-0.5 overflow-hidden">
+            <Marks stale={display.stale} failing={display.failing} observedAt={observedDate} />
             <span aria-hidden="true" className="num text-foreground-tertiary">
               {formatRankCell({ rank: null, depth: display.depth })}
             </span>
@@ -127,11 +141,11 @@ export function RankCellView({
     case 'failed':
       return (
         <span className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1">
-            <Marks stale={display.stale} failing={false} />
+          <span className="inline-flex w-8 shrink-0 items-center gap-0.5 overflow-hidden">
+            <Marks stale={display.stale} failing={false} observedAt={observedDate} />
             <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
           </span>
-          {changeSlot !== null ? <span aria-hidden="true" className="w-12 shrink-0" /> : null}
+          {changeSlot}
         </span>
       );
   }
@@ -401,7 +415,7 @@ export function useRankTips(timeZone: string): RankTips {
           const cTip = changeTipOf(changeObj, current);
           if (cTip) {
             if (!baseTip) return cTip;
-            const content = `${baseTip.content}. ${cTip.content}.`;
+            const content = `${baseTip.content.replace(/\.*$/, '')}. ${cTip.content.replace(/\.*$/, '')}.`;
             const detail = [baseTip.detail, cTip.detail].filter(Boolean).join(' ');
             return {
               content,

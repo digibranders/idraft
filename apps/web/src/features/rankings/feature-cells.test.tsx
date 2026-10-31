@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { SerpFeatureListView, AioStatusView, TargetMismatchMarker, CompetitorRankView } from './feature-cells';
@@ -28,7 +28,7 @@ describe('SerpFeatureListView', () => {
 
     const icons = container.querySelectorAll('svg[data-slot="icon"]');
     expect(icons).toHaveLength(5);
-    expect(screen.getByText('+2')).toHaveClass('type-meta', 'num');
+    expect(screen.getByText('+2')).toHaveClass('type-table', 'num');
   });
 
   it('renders None in tertiary after a check with no features, and Pending when not checked', () => {
@@ -59,10 +59,14 @@ describe('SerpFeatureListView', () => {
     expect(screen.queryByText('None')).not.toBeInTheDocument();
   });
 
-  it('shows the stale marker when stale is true', () => {
+  it('shows the stale marker when stale is true', async () => {
     const display = featureListDisplay(['video'], []);
-    renderWithProviders(<SerpFeatureListView display={display} state="ranked" stale={true} />);
+    const { user } = renderWithProviders(
+      <SerpFeatureListView display={display} state="ranked" stale={true} lastSuccessfulCheck="Oct 29, 2026, 4:00 PM" />,
+    );
     expect(screen.getByText('stale')).toHaveClass('sr-only');
+    await user.hover(screen.getByText('stale'));
+    await waitFor(() => expect(screen.getByText('Last successful check: Oct 29, 2026, 4:00 PM.')).toBeInTheDocument());
   });
 });
 
@@ -71,11 +75,11 @@ describe('AioStatusView', () => {
     const display: AioDisplay = { kind: 'cited', position: 2 };
     renderWithProviders(<AioStatusView display={display} />);
 
-    const badge = screen.getByText('Cited #2');
+    const badge = screen.getByRole('img', { name: 'AI Overview present, cited at position 2' });
     expect(badge).toBeInTheDocument();
-    const badgeSlot = badge.closest('[data-slot="badge"]');
-    expect(badgeSlot).toHaveClass('bg-positive-subtle', 'text-positive-text');
-    expect(badgeSlot).toHaveAttribute('aria-label', 'AI Overview present, cited at position 2');
+    expect(badge).toHaveAccessibleName('AI Overview present, cited at position 2');
+    expect(badge).toHaveClass('bg-positive-subtle', 'text-positive-text');
+    expect(badge).toHaveTextContent('Cited #2');
   });
 
   it('renders notCited as a 16 px check icon in primary text with an accessible name and no visible word', () => {
@@ -203,6 +207,7 @@ describe('CompetitorRankView', () => {
     const na = screen.getByText('n/a');
     expect(na).toBeInTheDocument();
     expect(na).toHaveClass('text-foreground-tertiary');
+    expect(na).not.toHaveAttribute('title');
   });
 
   it('falls back to 2 + position % 5 when color_index is null', () => {

@@ -54,7 +54,7 @@ export type NavSectionId = 1 | 2 | 3;
 
 export interface NavDestination {
   key: NavKey;
-  /** Below the project root: `''` is Overview, `/seo/rankings` is Rankings. */
+  /** Below the project root: `''` is Overview, `/seo/keywords` is Rankings. */
   path: '' | `/${string}`;
   /** 07-icons.md section 6. */
   icon: LucideIcon;

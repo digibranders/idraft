@@ -1090,7 +1090,9 @@ function HeaderContent<TRow>({
   );
   const sortable = column.sortValue !== undefined;
   return (
-    <span className="group/header relative flex min-w-0 items-center gap-1">
+    // `w-full` spans the header cell so the options chevron wrapper (positioned at `right-0`)
+    // sits at the right edge of the cell without overlapping the sort button and arrow.
+    <span className="group/header relative flex w-full min-w-0 items-center gap-1">
       {sortable ? (
         <button
           type="button"

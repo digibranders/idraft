@@ -12,6 +12,7 @@ import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
 import { TargetMismatchMarker } from './feature-cells';
 import { useCompetitorColumns, useRankColumns } from './rank-columns';
+import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
@@ -106,12 +107,13 @@ export function useKeywordColumns(
           if (!url || row.state.current.state !== 'ranked') return null;
           const hostPath = `${url.host}${url.path}`;
           const extra = Math.max(0, (row.state.ranking_url_count ?? 1) - 1);
-          const more = extra > 0 ? ` (+${extra} more ranking pages)` : '';
+          const more = extra > 0 ? ` ${t('moreRankingPages', { count: extra })}` : '';
           const tip = `${hostPath}${more}`;
-          const ariaLabel = `Open the ranking page of ${row.keyword.text}: ${url.canonical_url}`;
+          const ariaLabel = t('openRankingPage', { keyword: row.keyword.text, url: url.canonical_url });
           return (
             <Tooltip purpose="label" content={tip}>
               <a
+                {...CELL_CONTROL}
                 href={url.canonical_url}
                 target="_blank"
                 rel="noopener noreferrer"

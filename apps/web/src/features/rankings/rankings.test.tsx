@@ -4,12 +4,16 @@ import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import en from '../../../messages/en.json';
+
 import type { TrackedKeywordState } from '@/lib/api/types';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
 import { FAILED_IDS, FAILING_IDS, rankStateOf } from '@/mocks/rank-state';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
+import { SORT_FIELDS } from './keyword-columns';
+import { parseSort } from '@/lib/tables/table-state';
 import { server } from '@/test/msw';
 import {
   answerTrackedAsMany,
@@ -101,7 +105,10 @@ describe('Rankings', () => {
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     // The first row that ranks with a URL
-    const link = within(grid).getAllByRole('link', { name: /^Open the ranking page of .*: https?:\/\// })[0];
+    const openPattern = new RegExp(
+      '^' + en.rankings.columns.openRankingPage.replace('{keyword}', '.*').replace('{url}', 'https?:\\/\\/\\S+') + '$',
+    );
+    const link = within(grid).getAllByRole('link', { name: openPattern })[0];
     const row = link?.closest('tr');
     const header = row === null || row === undefined ? undefined : within(row).getByRole('rowheader');
     const keyword = header?.querySelector('.truncate')?.textContent;
@@ -374,6 +381,34 @@ describe('Rankings', () => {
     expect(screen.getAllByText(/^118 keywords/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Some keywords did not load/)).toBeNull();
   });
+
+  it('renders default visible column set and hides Ranking URL and Priority by default', async () => {
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const headers = within(grid).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
+    for (const expected of ['Rank', 'Volume', 'KD', 'CPC (USD)', 'Intent', 'Group', 'Tags', 'Updated', 'Added']) {
+      expect(headerTexts.some((t) => t?.includes(expected))).toBe(true);
+    }
+    expect(headerTexts.some((t) => t?.includes('Ranking URL'))).toBe(false);
+    expect(headerTexts.some((t) => t?.includes('Priority'))).toBe(false);
+  });
+
+  it('drops rank_change quietly from cols parameter without toast or error', async () => {
+    renderWithProviders(as('viewer'), { searchParams: '?cols=keyword,rank,rank_change,search_volume' });
+    const grid = await loadedGrid();
+    expect(grid).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="toast"]')).toBeNull();
+  });
+
+  it('allows rank_change as a valid sort key in the URL', async () => {
+    expect(SORT_FIELDS.has('rank_change')).toBe(true);
+    expect(parseSort('rank_change', SORT_FIELDS)).toEqual([{ id: 'rank_change', desc: false }]);
+    expect(parseSort('-rank_change', SORT_FIELDS)).toEqual([{ id: 'rank_change', desc: true }]);
+    renderWithProviders(as('viewer'), { searchParams: '?sort=rank_change' });
+    const grid = await loadedGrid();
+    expect(grid).toBeInTheDocument();
+  });
 });
 
 /** The fixture keywords as the mocks state them now: what the API will answer for each active row. */
@@ -425,10 +460,26 @@ describe('Rankings rank columns', () => {
     expect(within(rankCell).getByText(`${change > 0 ? '↑' : '↓'}${String(Math.abs(change))}`)).toHaveClass(
       change > 0 ? 'text-positive-text' : 'text-negative-text',
     );
-    const link = within(header).getByRole('link', {
-      name: `Open the ranking page of ${moved.text}: ${moved.state.current.url?.canonical_url}`,
-    });
+    const expectedLink = en.rankings.columns.openRankingPage
+      .replace('{keyword}', moved.text)
+      .replace('{url}', moved.state.current.url?.canonical_url ?? '');
+    const link = within(header).getByRole('link', { name: expectedLink });
     expect(link).toHaveAttribute('href', moved.state.current.url?.canonical_url);
+  });
+
+  it('shows translated moreRankingPages when ranking_url_count is greater than 1', async () => {
+    const states = fixtureStates();
+    const multi = states.find(({ state }) => state.ranking_url_count > 1);
+    expect(multi).toBeDefined();
+    if (!multi) return;
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const row = within(grid).getByRole('row', { name: new RegExp(multi.text) });
+    const expectedLink = en.rankings.columns.openRankingPage
+      .replace('{keyword}', multi.text)
+      .replace('{url}', multi.state.current.url?.canonical_url ?? '');
+    const link = within(row).getByRole('link', { name: expectedLink });
+    expect(link).toBeInTheDocument();
   });
 
   it('shows what is not a rank in words: beyond the depth, still waiting, a failed check, and stale', async () => {

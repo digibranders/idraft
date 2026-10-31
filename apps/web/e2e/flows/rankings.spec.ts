@@ -139,26 +139,84 @@ test.describe('rankings', () => {
     await signIn(page, EDITOR);
     await page.goto('/digibranders/fynix/seo/keywords');
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await expect(grid.getByRole('rowheader').first()).toBeVisible();
     const rankHeader = headerOf(grid, 'Rank');
     await expect(rankHeader).toBeVisible();
 
-    // Hover over the header to reveal the options chevron over the cell's left padding
-    await rankHeader.hover();
     const chevron = rankHeader.getByRole('button', { name: 'Rank column options' });
-    await expect(chevron).toBeVisible();
+    const chevronWrapper = chevron.locator('..');
+    // Chevron is invisible until hovered
+    await expect(chevronWrapper).toHaveCSS('opacity', '0');
+    await rankHeader.hover();
+    await expect(chevronWrapper).toHaveCSS('opacity', '1');
 
-    // Clicking the Rank label sorts the column even while the chevron is revealed
-    const label = rankHeader.getByText('Rank', { exact: true });
-    await label.click();
+    // Click to sort by Rank ascending
+    const sortBtn = rankHeader.getByRole('button', { name: /^Rank/ });
+    await sortBtn.click();
     await expect(rankHeader).toHaveAttribute('aria-sort', 'ascending');
 
-    // The chevron opens the column options menu
+    // Rank is now SORTED, showing label + sort arrow icon
+    const sortBox = await sortBtn.boundingBox();
+    const chevronBox = await chevron.boundingBox();
+    if (!sortBox || !chevronBox) throw new Error('Missing bounding box for sort button or chevron');
+
+    // Assert bounding boxes do not overlap
+    expect(sortBox.x + sortBox.width).toBeLessThanOrEqual(chevronBox.x);
+
+    // Click the RIGHT edge of the SORTED Rank label button: prove it sorts (to descending) and does not open menu
+    await page.mouse.click(sortBox.x + sortBox.width - 2, sortBox.y + sortBox.height / 2);
+    await expect(rankHeader).toHaveAttribute('aria-sort', 'descending');
+    await expect(page.getByRole('menu')).toHaveCount(0);
+
+    // Click the chevron and prove the column options menu opens
     await chevron.click();
     const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole('menuitem', { name: 'Sort descending' })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Sort ascending' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
+  });
+
+  test('change slot starts at the same horizontal position across ranked, beyond, failed, and stale rows', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, EDITOR);
+    await page.goto('/digibranders/fynix/seo/keywords');
+    const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+    await expect(grid.getByRole('rowheader').first()).toBeVisible();
+
+    // Inspect change slot horizontal offset relative to the rank cell across rows
+    const slotOffsets = await grid.locator('tbody tr[role="row"]').evaluateAll((rows) => {
+      return rows
+        .slice(0, 15)
+        .map((tr) => {
+          const rankCell = (tr as HTMLTableRowElement).cells[1];
+          if (!rankCell) return null;
+          const cellRect = rankCell.getBoundingClientRect();
+          const container = rankCell.firstElementChild;
+          if (!container) return null;
+          const rankBox = container.children[0];
+          const changeSlot = container.children[1];
+          if (!rankBox || !changeSlot) return null;
+          const rankBoxRect = rankBox.getBoundingClientRect();
+          const slotRect = changeSlot.getBoundingClientRect();
+          return {
+            rankBoxWidth: Math.round(rankBoxRect.width),
+            slotOffset: Math.round(slotRect.left - cellRect.left),
+          };
+        })
+        .filter((v): v is { rankBoxWidth: number; slotOffset: number } => v !== null);
+    });
+
+    expect(slotOffsets.length).toBeGreaterThan(0);
+    for (const offset of slotOffsets) {
+      expect(offset.rankBoxWidth).toBe(32);
+    }
+    const firstOffset = slotOffsets[0]?.slotOffset;
+    for (const offset of slotOffsets) {
+      expect(offset.slotOffset).toBe(firstOffset);
+    }
   });
 
   test('the Keyword column keeps its room at 1280, 1440 and 1680 px, with the rank columns in view', async ({
@@ -275,6 +333,20 @@ test.describe('rankings', () => {
       const padding = await plain.evaluate((node) => Number.parseFloat(getComputedStyle(node).paddingRight));
       if (plainBox === null || linkBox === null) throw new Error('The ranking URL cell has no box');
       expect(plainBox.x + plainBox.width - padding - (linkBox.x + linkBox.width)).toBeLessThan(1);
+
+      if (width === 1440) {
+        // From the keyboard: F2 into the cell, Tab between its controls, Enter copies, Escape comes back
+        const urlLink = plain.getByRole('link');
+        const copyUrl = plain.getByRole('button', { name: 'Copy ranking URL' });
+        await plain.focus();
+        await page.keyboard.press('F2');
+        await expect(urlLink).toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(copyUrl).toBeFocused();
+        await page.keyboard.press('Escape');
+        await expect(plain).toBeFocused();
+        await expectAccessible(page);
+      }
     }
   });
 
@@ -290,7 +362,7 @@ test.describe('rankings', () => {
     await expect(grid.getByRole('rowheader').first()).toBeVisible();
 
     // The first keyword that ranks with a URL; its arrow link is in the keyword cell
-    const opens = /^Open the ranking page of .*: https?:\/\//;
+    const opens = /^Open the ranking page of .*: https?:\/\/\S+$/;
     const link = grid.getByRole('link', { name: opens }).first();
     const rowheader = link.locator('xpath=ancestor::th');
     const keyword = await rowheader.getAttribute('aria-label');
@@ -300,9 +372,18 @@ test.describe('rankings', () => {
     // The whole address as the API sent it, which is what the link opens
     const href = await link.getAttribute('href');
     if (href === null) throw new Error('The ranking URL link has no href');
-    expect(href).toMatch(/^https:\/\//);
+    expect(href).toMatch(/^https:\/\/.+$/);
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+
+    // From the keyboard: F2 into the cell, focuses the arrow link, Escape comes back
+    await rowheader.focus();
+    await page.keyboard.press('F2');
+    await expect(link).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(rowheader).toBeFocused();
+    await expect(page.getByRole('complementary', { name: keyword })).toHaveCount(0);
+    await expectAccessible(page);
 
     // Clicking the arrow link never opens the inspector
     await expect(page.getByRole('complementary', { name: keyword })).toHaveCount(0);
@@ -374,7 +455,7 @@ test.describe('rankings', () => {
   test('chosen keywords get a new priority from the bulk bar', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.goto('/digibranders/fynix/seo/keywords');
     await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
@@ -394,7 +475,7 @@ test.describe('rankings', () => {
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.goto('/digibranders/fynix/seo/keywords');
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await grid.getByRole('rowheader').first().click();
     await expect(page.getByRole('complementary', { name: 'seo agency' })).toBeVisible();
@@ -428,7 +509,7 @@ test.describe('rankings', () => {
   test('chosen keywords move to a group, are archived, and come back with Undo', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.goto('/digibranders/fynix/seo/keywords');
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(page.getByText('59 keywords', { exact: true }).first()).toBeVisible();
     const rowOf = (keyword: string): Locator =>
@@ -468,7 +549,7 @@ test.describe('rankings', () => {
   test('a group is created while moving keywords, then renamed in Manage groups', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.goto('/digibranders/fynix/seo/keywords');
     await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
@@ -505,7 +586,7 @@ test.describe('rankings', () => {
     // The mocks read the page's clock: Labs answers 2 minutes after a keyword is added, and the screen asks
     // again every 30 seconds while a row waits. The clock is moved by hand instead of waited for.
     await page.clock.install();
-    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.goto('/digibranders/fynix/seo/keywords');
     await page.getByRole('button', { name: 'Add keywords' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add keywords' });
     await dialog.getByRole('textbox', { name: 'Keywords' }).fill('seo reporting tool\nSEO Reporting Tool');
@@ -629,7 +710,7 @@ test.describe('rankings', () => {
   }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, EDITOR);
-    await page.goto('/digibranders/fynix/seo/rankings/import');
+    await page.goto('/digibranders/fynix/seo/keywords/import');
     const dialog = page.getByRole('dialog', { name: 'Import keywords' });
     await expect(dialog).toBeVisible();
 

@@ -2192,8 +2192,8 @@
     "columns": {
       "keyword": "Keyword",
       "keywordDetail": "{location} · {device} · {engine} · {language}",
-      "copyKeyword": "Copy keyword {keyword}",
-      "keywordCopied": "Keyword copied",
+      "openRankingPage": "Open the ranking page of {keyword}: {url}",
+      "moreRankingPages": "{count, plural, one {(+1 more ranking page)} other {(+# more ranking pages)}}",
       "rowName": "{keyword}, {device}, {location}",
       "rowNameLanguage": "{keyword}, {device}, {location}, {language}",
       "desktop": "Desktop",
@@ -2228,9 +2228,7 @@
     },
     "rank": {
       "rank": "Rank",
-      "rankTooltip": "Organic rank at the latest check. A keyword beyond the depth that was checked shows the depth, such as >20.",
-      "change": "Change",
-      "changeTooltip": "How the rank moved since the previous check. Arrows show the direction. Color marks a move of more than 2 places, and New and Lost always.",
+      "rankTooltip": "Organic rank at the latest check and how it moved since the previous check. A keyword beyond the depth that was checked shows the depth, such as >20.",
       "rankingUrl": "Ranking URL",
       "openUrl": "Open {path} in a new tab",
       "copyUrl": "Copy ranking URL",
@@ -2431,7 +2429,8 @@
         "top20": "11 to 20",
         "top50": "21 to 50",
         "top100": "51 to 100",
-        "beyond": "Beyond depth"
+        "beyond": "Beyond depth",
+        "over100": "Over 100"
       },
       "chg": "Change",
       "changes": {
