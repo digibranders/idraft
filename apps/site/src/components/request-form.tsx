@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { CONTACT_EMAIL } from '@/content';
 
 import { Button } from './button';
+import { Select } from './select';
 
 const FOCUS_OPTIONS = ['Rankings and AI answers', 'Rankings only', 'AI answers only', 'Website audits', 'Something else'] as const;
 
@@ -59,11 +60,8 @@ export function RequestForm() {
       </div>
       <div>
         <label htmlFor="focus" className={LABEL}>What are you most interested in?</label>
-        <select id="focus" name="focus" defaultValue={FOCUS_OPTIONS[0]} className={FIELD}>
-          {FOCUS_OPTIONS.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </select>
+        <Select id="focus" name="focus" options={FOCUS_OPTIONS} />
+
       </div>
       <div>
         <label htmlFor="note" className={LABEL}>Anything we should know? <span className="font-normal text-ink-3">Optional</span></label>
