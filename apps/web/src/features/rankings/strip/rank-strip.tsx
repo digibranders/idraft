@@ -13,21 +13,20 @@ import { useStripCounts } from './strip-queries';
 export interface RankStripProps {
   scope: ProjectScope;
   filters: KeywordFilters;
-  total?: number | undefined;
+  total: number;
 }
 
 /**
  * Summary metric strip of the filtered keywords (24-page-templates.md section 9.3).
  * Four counts: Tracked (with checked count), Top 3, Top 10 and Top 20 (each of checked count).
  */
-export function RankStrip({ scope, filters, total: totalProp }: RankStripProps): ReactElement {
+export function RankStrip({ scope, filters, total }: RankStripProps): ReactElement {
   const t = useTranslations('rankings.strip');
   const common = useTranslations('common');
   const { counts, itemErrors, loading, fetching, error, refetch } = useStripCounts(scope, filters, true);
 
   const status = loading ? 'loading' : fetching ? 'refetching' : 'ready';
 
-  const total = counts?.total ?? totalProp;
   const checkedCount =
     counts && counts.ranked !== null && counts.beyond !== null ? counts.ranked + counts.beyond : null;
   const checkedNote = checkedCount !== null ? t('trackedNote', { count: formatInteger(checkedCount) }) : undefined;
@@ -51,11 +50,15 @@ export function RankStrip({ scope, filters, total: totalProp }: RankStripProps):
     };
   };
 
-  // The strip ignores the search box by design (24-page-templates.md section 9.3).
-  // Tracked count is read as its own total query under the active filter chips,
-  // staying consistent with checked count and top counts in both client and server list modes.
+  // The strip ignores rows without a check date for rank counts (24-page-templates.md section 9.3).
+  // Tracked count is the total tracked keywords matching the active filters.
   const items: MetricStripItem[] = [
-    itemOf('tracked', t('tracked'), total, itemErrors.total, checkedNote),
+    {
+      id: 'tracked',
+      label: t('tracked'),
+      value: formatInteger(total),
+      context: checkedNote,
+    },
     itemOf('top3', t('top3'), counts?.top3, itemErrors.top3, ofChecked),
     itemOf('top10', t('top10'), counts?.top10, itemErrors.top10, ofChecked),
     itemOf('top20', t('top20'), counts?.top20, itemErrors.top20, ofChecked),
