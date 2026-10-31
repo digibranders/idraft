@@ -32,8 +32,16 @@ describe('sparkline geometry', () => {
     expect(sparklineGeometry([ranked(10)]).segments).toEqual([[{ x: SPARK_WIDTH / 2, y: expect.any(Number) }]]);
   });
 
-  it('has nothing to draw without points', () => {
+  it('has nothing to draw without points or when all points are beyond depth', () => {
     expect(sparklineGeometry([])).toEqual({ segments: [], last: null });
+    expect(sparklineGeometry([beyond, beyond])).toEqual({ segments: [], last: null });
+  });
+
+  it('creates a single one-point segment for [beyond, ranked, beyond]', () => {
+    const geo = sparklineGeometry([beyond, ranked(8), beyond]);
+    expect(geo.segments).toHaveLength(1);
+    expect(geo.segments[0]).toHaveLength(1);
+    expect(geo.last).toBeNull();
   });
 });
 

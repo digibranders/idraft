@@ -125,14 +125,25 @@ describe('a write to one keyword reaches the lists in the cache', () => {
     ).toBe(true);
   });
 
-  it('leaves strip count queries alone on write and invalidates them on refresh', async () => {
-    const stripKey = [...keywordsKey(SCOPE), ACTIVE, 'strip', 'top3'];
+  it('invalidates strip count queries when write changes membership', async () => {
+    const stripKey = [...keywordsKey(SCOPE), { ...ACTIVE, 'filter[priority_lte]': 8 }, 'strip', 'top3'];
     client.setQueryData(stripKey, 42);
     applyKeywordWrite(client, SCOPE, { ...detail, priority: detail.priority === 9 ? 8 : 9 });
-    expect(client.getQueryData(stripKey)).toBe(42);
-    expect(client.getQueryState(stripKey)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(stripKey)?.isInvalidated).toBe(true);
 
     await refreshKeywords(client, SCOPE);
     expect(client.getQueryState(stripKey)?.isInvalidated).toBe(true);
+  });
+
+  it('invalidates Top 10 strip count query after removing a keyword from the filtered group', () => {
+    const group = detail.groups[0];
+    if (group === undefined) throw new Error('The first mock keyword is in no group');
+    const byGroup: KeywordFilters = { ...ACTIVE, 'filter[group]': group.group_id };
+    seedAll(byGroup);
+    const groupTop10Key = [...keywordsKey(SCOPE), byGroup, 'strip', 'top10'];
+    client.setQueryData(groupTop10Key, 10);
+
+    applyKeywordWrite(client, SCOPE, { ...detail, groups: [] });
+    expect(client.getQueryState(groupTop10Key)?.isInvalidated).toBe(true);
   });
 });

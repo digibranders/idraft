@@ -41,16 +41,39 @@ describe('SparklineCell', () => {
     expect(contextSpies.arc).toHaveBeenCalledTimes(1);
   });
 
-  it('breaks into multiple segments with no arc if the last check was beyond depth', () => {
+  it('breaks into multiple multi-point segments with no arc if the last check was beyond depth', () => {
     const points: SparklinePoint[] = [
       { t: '2026-10-01T00:00:00Z', rank: 3, depth: 20, state: 'ranked' },
-      { t: '2026-10-02T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-      { t: '2026-10-03T00:00:00Z', rank: 5, depth: 20, state: 'ranked' },
-      { t: '2026-10-04T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
+      { t: '2026-10-02T00:00:00Z', rank: 4, depth: 20, state: 'ranked' },
+      { t: '2026-10-03T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
     ];
     render(<SparklineCell points={points} label="Rank trend" />);
-    expect(contextSpies.moveTo).toHaveBeenCalledTimes(2);
+    expect(contextSpies.moveTo).toHaveBeenCalledTimes(1);
+    expect(contextSpies.lineTo).toHaveBeenCalledTimes(1);
     expect(contextSpies.arc).not.toHaveBeenCalled();
+  });
+
+  it('draws a dot for a one-point segment in [beyond, ranked, beyond]', () => {
+    const points: SparklinePoint[] = [
+      { t: '2026-10-01T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
+      { t: '2026-10-02T00:00:00Z', rank: 7, depth: 20, state: 'ranked' },
+      { t: '2026-10-03T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
+    ];
+    render(<SparklineCell points={points} label="Rank trend" />);
+    expect(contextSpies.arc).toHaveBeenCalledTimes(1);
+    expect(contextSpies.fill).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders dashed treatment when there are no segments [beyond, beyond]', () => {
+    const points: SparklinePoint[] = [
+      { t: '2026-10-01T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
+      { t: '2026-10-02T00:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
+    ];
+    const { container } = render(<SparklineCell points={points} label="Rank trend: not ranked within the depth" />);
+    const emptyWrapper = screen.getByRole('img', { name: 'Rank trend: not ranked within the depth' });
+    expect(emptyWrapper.tagName.toLowerCase()).toBe('span');
+    const line = container.querySelector('.border-border');
+    expect(line).toBeInTheDocument();
   });
 
   it('renders empty state when there are no points', () => {

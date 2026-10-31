@@ -40,7 +40,8 @@ export function stripQueries(filters: KeywordFilters): Record<StripCount, Keywor
 }
 
 export interface StripCounts {
-  counts: Record<StripCount, number> | null;
+  counts: Record<StripCount, number | null> | null;
+  itemErrors: Record<StripCount, boolean>;
   loading: boolean;
   fetching: boolean;
   error: boolean;
@@ -63,17 +64,25 @@ export function useStripCounts(scope: ProjectScope, filters: KeywordFilters, ena
     }),
   });
   const loading = results.some((result) => result.isPending);
-  const counts: Record<StripCount, number> | null = loading
+  const itemErrors: Record<StripCount, boolean> = {
+    ranked: results[0]?.isError ?? false,
+    beyond: results[1]?.isError ?? false,
+    top3: results[2]?.isError ?? false,
+    top10: results[3]?.isError ?? false,
+    top20: results[4]?.isError ?? false,
+  };
+  const counts: Record<StripCount, number | null> | null = loading
     ? null
     : {
-        ranked: results[0]?.data ?? 0,
-        beyond: results[1]?.data ?? 0,
-        top3: results[2]?.data ?? 0,
-        top10: results[3]?.data ?? 0,
-        top20: results[4]?.data ?? 0,
+        ranked: results[0]?.isError ? null : (results[0]?.data ?? 0),
+        beyond: results[1]?.isError ? null : (results[1]?.data ?? 0),
+        top3: results[2]?.isError ? null : (results[2]?.data ?? 0),
+        top10: results[3]?.isError ? null : (results[3]?.data ?? 0),
+        top20: results[4]?.isError ? null : (results[4]?.data ?? 0),
       };
   return {
     counts,
+    itemErrors,
     loading,
     fetching: results.some((result) => result.isFetching),
     error: results.some((result) => result.isError),

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -33,10 +33,14 @@ describe('RankStrip', () => {
 
     expect(await screen.findByText('Tracked')).toBeInTheDocument();
     expect(await screen.findByText(String(activeCount))).toBeInTheDocument();
+    expect(await screen.findByText('55 checked')).toBeInTheDocument();
     expect(screen.getByText('Top 3')).toBeInTheDocument();
+    expect(screen.getByText('6')).toBeInTheDocument();
     expect(screen.getByText('Top 10')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('Top 20')).toBeInTheDocument();
-    expect(await screen.findByText(/^\d+ checked$/)).toBeInTheDocument();
+    expect(screen.getByText('28')).toBeInTheDocument();
+    expect(screen.getAllByText('of 55 checked')).toHaveLength(3);
   });
 
   it('knows Top 3 is 0 without a request under rank=top10 filter', async () => {
@@ -56,10 +60,33 @@ describe('RankStrip', () => {
     renderWithProviders(<RankStrip scope={SCOPE} filters={bucket} total={5} />);
 
     expect(await screen.findByText('Tracked')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByText('Top 3')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Top 3')).toBeInTheDocument();
+    expect(screen.getByText('0')).toBeInTheDocument();
     expect(asked.some((query) => query.includes('rank_lte=3'))).toBe(false);
+  });
+
+  it('does not blank other items when only one read fails', async () => {
+    server.use(
+      http.get(TRACKED_PATH, ({ request }) => {
+        const url = new URL(request.url);
+        if (url.searchParams.get('filter[rank_lte]') === '3') {
+          return HttpResponse.json({ title: 'Server error' }, { status: 500 });
+        }
+        return undefined;
+      }),
+    );
+
+    renderWithProviders(<RankStrip scope={SCOPE} filters={{ 'filter[is_active]': true }} total={59} />);
+
+    expect(await screen.findByText('Tracked')).toBeInTheDocument();
+    expect(await screen.findByText('59')).toBeInTheDocument();
+    expect(screen.getByText('Top 3')).toBeInTheDocument();
+    expect(screen.getByText('n/a')).toBeInTheDocument();
+    expect(screen.getByText('Top 10')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('Top 20')).toBeInTheDocument();
+    expect(screen.getByText('28')).toBeInTheDocument();
+    expect(screen.getByText('The summary did not load.')).toBeInTheDocument();
   });
 
   it('shows error banner with Try again on failure', async () => {
@@ -73,8 +100,9 @@ describe('RankStrip', () => {
     const tryAgain = screen.getByRole('button', { name: 'Try again' });
     expect(tryAgain).toBeInTheDocument();
 
+    expect(screen.getByText('10')).toBeInTheDocument();
     const naElements = screen.getAllByText('n/a');
-    expect(naElements.length).toBeGreaterThanOrEqual(4);
+    expect(naElements).toHaveLength(3);
 
     server.resetHandlers();
     await user.click(tryAgain);

@@ -23,47 +23,47 @@ export interface RankStripProps {
 export function RankStrip({ scope, filters, total }: RankStripProps): ReactElement {
   const t = useTranslations('rankings.strip');
   const common = useTranslations('common');
-  const { counts, loading, fetching, error, refetch } = useStripCounts(scope, filters, true);
+  const { counts, itemErrors, loading, fetching, error, refetch } = useStripCounts(scope, filters, true);
 
   const status = loading ? 'loading' : fetching ? 'refetching' : 'ready';
 
-  const checkedCount = counts ? counts.ranked + counts.beyond : 0;
-  const checkedNote = t('trackedNote', { count: formatInteger(checkedCount) });
-  const ofChecked = t('ofChecked', { count: formatInteger(checkedCount) });
+  const checkedCount =
+    counts && counts.ranked !== null && counts.beyond !== null ? counts.ranked + counts.beyond : null;
+  const checkedNote = checkedCount !== null ? t('trackedNote', { count: formatInteger(checkedCount) }) : undefined;
+  const ofChecked = checkedCount !== null ? t('ofChecked', { count: formatInteger(checkedCount) }) : undefined;
 
-  const items: MetricStripItem[] = error
-    ? [
-        { id: 'tracked', label: t('tracked'), value: 'n/a', unknown: { kind: 'not-applicable' } },
-        { id: 'top3', label: t('top3'), value: 'n/a', unknown: { kind: 'not-applicable' } },
-        { id: 'top10', label: t('top10'), value: 'n/a', unknown: { kind: 'not-applicable' } },
-        { id: 'top20', label: t('top20'), value: 'n/a', unknown: { kind: 'not-applicable' } },
-      ]
-    : [
-        {
-          id: 'tracked',
-          label: t('tracked'),
-          value: formatInteger(total),
-          context: checkedNote,
-        },
-        {
-          id: 'top3',
-          label: t('top3'),
-          value: formatInteger(counts?.top3 ?? 0),
-          context: ofChecked,
-        },
-        {
-          id: 'top10',
-          label: t('top10'),
-          value: formatInteger(counts?.top10 ?? 0),
-          context: ofChecked,
-        },
-        {
-          id: 'top20',
-          label: t('top20'),
-          value: formatInteger(counts?.top20 ?? 0),
-          context: ofChecked,
-        },
-      ];
+  // Tracked count must not disagree with checked count when searching in server mode
+  const displayedTotal = checkedCount !== null ? Math.max(total, checkedCount) : total;
+
+  const itemOf = (
+    id: string,
+    label: string,
+    val: number | null | undefined,
+    isErr: boolean,
+    context?: string,
+  ): MetricStripItem => {
+    if (isErr || val === null || val === undefined) {
+      return { id, label, value: t('unavailable'), unknown: { kind: 'not-applicable' } };
+    }
+    return {
+      id,
+      label,
+      value: formatInteger(val),
+      context,
+    };
+  };
+
+  const items: MetricStripItem[] = [
+    {
+      id: 'tracked',
+      label: t('tracked'),
+      value: formatInteger(displayedTotal),
+      context: checkedNote,
+    },
+    itemOf('top3', t('top3'), counts?.top3, itemErrors.top3, ofChecked),
+    itemOf('top10', t('top10'), counts?.top10, itemErrors.top10, ofChecked),
+    itemOf('top20', t('top20'), counts?.top20, itemErrors.top20, ofChecked),
+  ];
 
   const groups: readonly MetricStripGroup[] = [{ id: 'seo', items }];
 

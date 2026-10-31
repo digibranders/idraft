@@ -91,7 +91,7 @@ export const projectEntitiesQuery = (scope: ProjectScope): ApiQueryOptions<typeo
   apiQuery(PROJECT_ENTITIES, { params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } } });
 
 /** An entity the project tracks in SEO as a competitor: the default competitor set of every keyword. */
-const isProjectCompetitor = (entity: ProjectEntity): boolean =>
+export const isProjectCompetitor = (entity: ProjectEntity): boolean =>
   entity.role === 'competitor' && entity.track_seo && entity.removed_at === null;
 
 /** The entities a keyword's competitor set can hold: the project's competitors and watched entities. */

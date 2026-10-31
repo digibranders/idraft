@@ -2359,7 +2359,8 @@
       "headerTooltip": "{name}'s organic rank at the latest check.",
       "notTracked": "n/a",
       "notTrackedTooltip": "{name} is not in this keyword's competitor set.",
-      "speech": "{name}: {rank}"
+      "speech": "{name}: {rank}",
+      "failed": "The project competitors did not load."
     },
     "trend": {
       "column": "Trend",
@@ -2368,6 +2369,7 @@
       "labelBeyond": "{count, plural, one {1 check} other {# checks}} beyond the depth checked",
       "labelNone": "Rank trend: not ranked within the depth in the last {checks, plural, one {check} other {# checks}}",
       "labelEmpty": "Rank trend: no checks yet",
+      "labelFailed": "Rank trend: checks failed",
       "tipTitle": "Last checks",
       "tipPoint": "{date}: {rank}"
     },
@@ -2379,6 +2381,7 @@
       "top10": "Top 10",
       "top20": "Top 20",
       "ofChecked": "of {count} checked",
+      "unavailable": "n/a",
       "failed": "The summary did not load."
     },
     "filters": {

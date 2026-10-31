@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import en from '../../../messages/en.json';
 
 import type { TrackedKeywordState } from '@/lib/api/types';
+import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
 import { FAILED_IDS, FAILING_IDS, rankStateOf } from '@/mocks/rank-state';
@@ -602,17 +603,20 @@ describe('Rankings rank columns', () => {
       if (!checkedRow) throw new Error(`No row for ${checked.text}`);
       const checkedCell = checkedRow.cells[columnIndex(grid, /^Trend$/)];
       if (checkedCell === undefined) throw new Error('No Trend cell on checked row');
-      expect(within(checkedCell).getByRole('img', { name: /^Rank trend, last \d+ checks?: from/ })).toBeInTheDocument();
+      expect(
+        within(checkedCell).getByRole('img', {
+          name: 'Rank trend, last 30 checks: from 19 to 12, best 8, 1 check beyond the depth checked',
+        }),
+      ).toBeInTheDocument();
 
       const pendingRow = within(grid)
         .getAllByRole('rowheader')
-        .find((candidate) => candidate.textContent === 'seo for plumbers')
+        .find((candidate) => candidate.textContent === 'generative engine optimization')
         ?.closest('tr');
-      if (pendingRow) {
-        const pendingCell = pendingRow.cells[columnIndex(grid, /^Trend$/)];
-        if (pendingCell === undefined) throw new Error('No Trend cell on pending row');
-        expect(within(pendingCell).getByRole('img', { name: 'Rank trend: no checks yet' })).toBeInTheDocument();
-      }
+      if (!pendingRow) throw new Error('No row for pending keyword');
+      const pendingCell = pendingRow.cells[columnIndex(grid, /^Trend$/)];
+      if (pendingCell === undefined) throw new Error('No Trend cell on pending row');
+      expect(within(pendingCell).getByRole('img', { name: 'Rank trend: no checks yet' })).toBeInTheDocument();
     } finally {
       server.events.removeListener('request:start', listener);
     }
@@ -736,6 +740,31 @@ describe('Rankings rank columns', () => {
     } finally {
       server.events.removeAllListeners();
     }
+  });
+
+  it('preserves competitor column in URL cols parameter on round trip without flash', async () => {
+    const meridianColId = `competitor_${MOCK_ENTITY_IDS.meridian}`;
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), {
+      searchParams: `?cols=keyword,current_rank,${meridianColId}`,
+      onUrlUpdate: url.onUrlUpdate,
+    });
+    const grid = await loadedGrid();
+
+    // Meridian Growth header is present
+    expect(within(grid).getByRole('columnheader', { name: /^Meridian Growth/ })).toBeInTheDocument();
+
+    // Opens column chooser and confirms Meridian Growth is checked
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const meridianChoice = screen.getByRole('checkbox', { name: 'Meridian Growth' });
+    expect(meridianChoice).toBeChecked();
+
+    // Toggling updates cols and preserves competitor column round-trip
+    await user.click(meridianChoice);
+    await waitFor(() => expect(url.latest().get('cols') ?? '').not.toContain(meridianColId));
+
+    await user.click(meridianChoice);
+    await waitFor(() => expect(url.latest().get('cols') ?? '').toContain(meridianColId));
   });
 });
 

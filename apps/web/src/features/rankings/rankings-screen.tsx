@@ -15,7 +15,7 @@ import { forgetWritingImport, useWritingImport } from './import/import-queries';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns, useKeywordRowName } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
-import { projectEntitiesQuery } from './keyword-inspector/inspector-queries';
+import { isProjectCompetitor, projectEntitiesQuery } from './keyword-inspector/inspector-queries';
 import {
   PAGE_SIZE_CHOICES,
   keywordFilters,
@@ -112,6 +112,7 @@ export function RankingsScreen({
   const t = useTranslations('rankings');
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
+  const competitorT = useTranslations('rankings.competitor');
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
@@ -146,12 +147,29 @@ export function RankingsScreen({
       }),
   });
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
-  const { data: entitiesData } = useQuery(projectEntitiesQuery(scope));
+  const entitiesQuery = useQuery(projectEntitiesQuery(scope));
   const competitors = useMemo((): EntityRef[] => {
-    return (entitiesData?.data ?? [])
-      .filter((pe) => pe.role === 'competitor' && pe.track_seo && pe.removed_at === null)
-      .map((pe) => ({ ...pe.entity, color_index: pe.entity.color_index ?? pe.color_index }));
-  }, [entitiesData]);
+    if (entitiesQuery.data) {
+      return entitiesQuery.data.data
+        .filter(isProjectCompetitor)
+        .map((pe) => ({ ...pe.entity, color_index: pe.entity.color_index ?? pe.color_index }));
+    }
+    // Avoid one-column flash when URL names a competitor column while entities query is pending
+    if (entitiesQuery.isPending && view.cols) {
+      const parsedIds = view.cols.split(',').filter((colId) => colId.startsWith('competitor_'));
+      return parsedIds.map((colId) => {
+        const entityId = colId.replace(/^competitor_/, '');
+        return {
+          entity_id: entityId,
+          canonical_name: '',
+          color_index: null,
+          entity_type: 'organization' as const,
+          role: 'competitor' as const,
+        };
+      });
+    }
+    return [];
+  }, [entitiesQuery.data, entitiesQuery.isPending, view.cols]);
   const columns = useKeywordColumns(timeZone, competitors);
   const rowName = useKeywordRowName(defaults.languageCode);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
@@ -462,6 +480,21 @@ export function RankingsScreen({
         ))}
         {checkNow.progress}
         {refresh.progress}
+        {entitiesQuery.isError ? (
+          <Banner
+            tone="negative"
+            placement="region"
+            message={competitorT('failed')}
+            actions={
+              <Button variant="secondary" size="sm" onClick={() => void entitiesQuery.refetch()}>
+                {common('retry')}
+              </Button>
+            }
+          />
+        ) : null}
+        {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
+          <RankStrip scope={scope} filters={filters} total={list.total ?? list.rows.length} />
+        )}
         <FilterBar
           fields={fields}
           values={values}
@@ -479,9 +512,6 @@ export function RankingsScreen({
             />
           }
         />
-        {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
-          <RankStrip scope={scope} filters={filters} total={list.total ?? list.rows.length} />
-        )}
         {list.incomplete === null ? null : (
           <Banner
             tone="warning"

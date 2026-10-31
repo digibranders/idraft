@@ -1,7 +1,5 @@
 'use client';
 
-import { TZDate } from '@date-fns/tz';
-import { format, parseISO } from 'date-fns';
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
@@ -12,7 +10,15 @@ import type { CellTip, DataTableColumn } from '@/components/app/data-table/types
 import { SparklineCell } from '@/components/app/sparkline/sparkline-cell';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { sparklineSummary } from '@/lib/charts/sparkline';
-import { aioDisplay, formatDetailDateTime, rankDisplay, rowChangeDisplay, urlDisplay } from '@/lib/format';
+import {
+  aioDisplay,
+  formatDetailDateTime,
+  formatRankCell,
+  formatTableDate,
+  rankDisplay,
+  rowChangeDisplay,
+  urlDisplay,
+} from '@/lib/format';
 import { featureListDisplay, isFeatureType, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
 
 /** The ids of the rank columns: the API's sort fields, except the ranking URL, which does not sort. */
@@ -172,13 +178,19 @@ export function useRankColumns(timeZone: string): RankColumns {
         cell: (row) => {
           const points = row.sparkline?.points ?? [];
           const label = ((): string => {
-            if (points.length === 0) return trendT('labelEmpty');
+            if (row.state.current.state === 'failed') return trendT('labelFailed');
+            if (row.state.current.state === 'not_checked' || points.length === 0) return trendT('labelEmpty');
             const summary = sparklineSummary(points);
             if (summary.first === null) return trendT('labelNone', { checks: summary.checks });
+            const latest = points.at(-1);
+            const lastRankStr =
+              latest?.state === 'beyond_depth'
+                ? formatRankCell({ rank: null, depth: latest.depth })
+                : String(summary.last ?? summary.first);
             const base = trendT('label', {
               checks: summary.checks,
               first: summary.first,
-              last: summary.last ?? summary.first,
+              last: lastRankStr,
               best: summary.best ?? summary.first,
             });
             return summary.beyond > 0 ? `${base}, ${trendT('labelBeyond', { count: summary.beyond })}` : base;
@@ -191,8 +203,8 @@ export function useRankColumns(timeZone: string): RankColumns {
           const last7 = points
             .slice(-7)
             .map((point) => {
-              const d = format(new TZDate(parseISO(point.t).getTime(), timeZone), 'MMM d');
-              const r = point.state === 'ranked' && point.rank !== null ? String(point.rank) : `>${point.depth}`;
+              const d = formatTableDate(point.t, timeZone);
+              const r = formatRankCell({ rank: point.rank, depth: point.depth });
               return trendT('tipPoint', { date: d, rank: r });
             })
             .join(', ');
@@ -274,7 +286,7 @@ export function useCompetitorColumns(
             return { content: t('notTrackedTooltip', { name: competitor.canonical_name }) };
           }
           const display = rankDisplay(entry.current, false, 0);
-          return tips.rank(display);
+          return tips.rank(display, entry.change, entry.current);
         },
       });
     });

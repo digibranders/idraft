@@ -21,9 +21,12 @@ export interface SparklineCellProps {
 export function SparklineCell({ points, label, className }: SparklineCellProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const geo = sparklineGeometry(points, SPARK_WIDTH, SPARK_HEIGHT);
+  const hasSegments = geo.segments.length > 0;
+
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (canvas === null || points.length === 0) return undefined;
+    if (canvas === null || !hasSegments) return undefined;
 
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const ctx = canvas.getContext('2d');
@@ -40,18 +43,23 @@ export function SparklineCell({ points, label, className }: SparklineCellProps):
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
 
-      const geo = sparklineGeometry(points, SPARK_WIDTH, SPARK_HEIGHT);
       for (const segment of geo.segments) {
         if (segment.length === 0) continue;
         const first = segment[0];
         if (first === undefined) continue;
-        ctx.beginPath();
-        ctx.moveTo(first.x, first.y);
-        for (let i = 1; i < segment.length; i += 1) {
-          const pt = segment[i];
-          if (pt !== undefined) ctx.lineTo(pt.x, pt.y);
+        if (segment.length === 1) {
+          ctx.beginPath();
+          ctx.arc(first.x, first.y, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(first.x, first.y);
+          for (let i = 1; i < segment.length; i += 1) {
+            const pt = segment[i];
+            if (pt !== undefined) ctx.lineTo(pt.x, pt.y);
+          }
+          ctx.stroke();
         }
-        ctx.stroke();
       }
 
       if (geo.last !== null) {
@@ -69,9 +77,9 @@ export function SparklineCell({ points, label, className }: SparklineCellProps):
     return () => {
       theme.disconnect();
     };
-  }, [points]);
+  }, [hasSegments, geo]);
 
-  if (points.length === 0) {
+  if (!hasSegments) {
     return (
       <span
         role="img"
