@@ -1259,7 +1259,7 @@ export function checkNowRefusal(error: unknown, requested = 0): CheckNowRefusal 
 **As-built notes:**
 - Check now: records a run and increments manual run count but does not change any rank in the mock world (mock rank is purely derived from fixtures and mock time; storing up to 100 ids per run does not fit the operations cookie budget).
 - Single inspector button: placed in inspector header `frequentAction` slot, disabled during in-flight runs and when quota is exhausted.
-- Single toast announcement: announces once at start (`progress.started`), followed by header progress bar; lost toast id matches `keyword-${workload}-${runId}`.
+- Live region notification: announces once at start (`progress.started`) via `announce()`, not a toast, followed by header progress bar; lost toast id matches `keyword-${workload}-${runId}`.
 - Quota synchronization: refetches quota on run start and on bulk bar open.
 - Refetch on completion: rank state is invalidated and refetched when check now completes.
 
@@ -1287,22 +1287,22 @@ export function checkNowRefusal(error: unknown, requested = 0): CheckNowRefusal 
 - [x] **Step 1: E2E flows** (`e2e/flows/rankings.spec.ts`): an editor opens Rankings and sees the strip with Tracked and Top 10; at 1440 px the SERP features, AI Overview and Trend columns show for fixture keywords; filters "AI Overview: Cited" and sees only cited keywords; filters "SERP feature: Video"; opens a keyword and sees the Rank history card and its Table view; chooses two keywords and presses Check now, moves the clock with `page.clock.runFor` until the run completes, and sees the finished toast; at 1680 px the first competitor column shows.
 - [x] **Step 2: Visual:** the Rankings entry's screenshot gains the strip and the new columns; the inspector entry gains the rank history card (no baseline is committed: they are made in the pinned image only).
 - [x] **Step 3: Documents** (Edit and Write tools only): as-built notes for every limit recorded in the tasks (sparkline 64 x 20 in both densities; hollow markers, events strip, deep checks and other windows not in the history card; competitor ranks always included; mock check now changes no rank; no sort for the four new column types; the strip without deltas, Average rank and Visibility until Task 9), the two new URL keys, the inventory deviations, and a review log row.
-- [x] **Step 4: Gates** (all in `apps/web`): `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `NEXT_PUBLIC_API_MOCKING=off pnpm build`, `pnpm run preview`, `pnpm e2e`.
+- [ ] **Step 4: Gates** (all in `apps/web`): `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `NEXT_PUBLIC_API_MOCKING=off pnpm build`, `pnpm run preview`, `pnpm e2e`.
 - [ ] **Step 5: Whole-branch review on Opus:** the lead dispatches an independent reviewer on the Opus model with this plan and the diff from the branch point; fix every Critical and Important finding with its test first; gates again.
 - [x] **Step 6: Commit** "Rankings: rank features, end to end and documents".
 
 **As-built notes:**
 - Column sorting: none of the four new column types (SERP features, AI Overview, sparkline, competitor) supports sorting.
-- Sparkline dimensions: 64 x 20 px in both compact and comfortable densities; single point rendered as dot with radius 2; failed and not_checked checks show explicit trend labels.
+- Sparkline dimensions: 64 x 20 px in both compact and comfortable densities; single point rendered as dot with radius 1.5; failed and not_checked checks show explicit trend labels.
 - Competitor ranks: always included (`INCLUDE` contains `'competitor_ranks'`) because conditional inclusion based on column visibility would refetch the entire table on every column chooser toggle; tooltips display rank change; error banner displayed on query failure.
 - Rank history card: does not yet include hollow markers inside the band, events strip, deep checks toggle, or custom time windows (fixed to 90 days); supports same-day checks, failed check glyphs, padded bands, and full table accessibility.
-- Metric strip: implemented with five one-row queries for Tracked, Top 3, Top 10, and Top 20 counts; placed between page header and filter bar per design system 24 section 9.3; invalidated on keyword membership changes. Deltas, Average rank and Visibility wait for backend route `GET {P}/seo/rank-summary` (Task 9).
-- Check now: single inspector header button; single toast announcement at start (`progress.started`); in-flight mutual exclusion; quota refetched on start and bulk bar open; rank state refetched on completion.
-- Merged Rank and Change column: 32 px fixed rank box with change slot starting at identical x coordinate across ranked, beyond-depth, failed and stale rows. Stale ">100" contained to prevent overflow into change slot.
-- Data table header: options chevron positioned at right-0 with pointer-events-none when hidden, ensuring sorted Rank label sorts cleanly without opening column menu at 96 px minimum width.
+- Metric strip: implemented with five one-row queries for Tracked, Top 3, Top 10, and Top 20 counts (ignoring keywords without a check date); placed between page header and filter bar per design system 24 section 9.3; invalidated on keyword membership changes. Deltas, Average rank and Visibility wait for backend route `GET {P}/seo/rank-summary` (Task 9).
+- Check now: single inspector header button; live region notification uses `announce()` at start (`progress.started`), not a toast; in-flight mutual exclusion with accessible disabled tooltip; quota refetched on start and bulk bar open; rank state updated and refetched on completion.
+- Merged Rank and Change column: marks positioned beside the 32 px rank box with common change slot starting at identical x coordinate across ranked, beyond-depth, failed and stale rows so nothing is clipped and stale ">100" does not overflow into change slot.
+- Data table header: options chevron positioned at right-0 with pointer-events-none when hidden, ensuring sorted Rank label sorts cleanly without opening column menu at DataTable Rank minWidth of 104 px (not 96).
 - Trailing arrow link on keyword column uses ICU plural messages and opens ranking URL in a new tab.
 - Cell formatting: cited badge uses role="img" with descriptive accessible name ("AI Overview present, cited at position N"); +N overflow token uses 12 px font; stale clock icons display last successful check date tooltip; duplicate native title removed from n/a cells.
-- Beyond depth filtering and display: positions to 100 at depth 100 (">100") and depth 20 (">20"); Beyond depth filter reads "Over 100" at depth 100; legacy `cols` values containing `rank_change` dropped gracefully.
+- Beyond depth filtering and display: positions to 100 at depth 100 (">100") and depth 20 (">20"); "Over 100" filter item appears only once depth 100 is passed (calling useKeywordFilterFields with depth); legacy `cols` values containing `rank_change` dropped gracefully.
 - Primary route: `/seo/keywords` with redirect from `/seo/rankings`.
 - URL filter keys: added `featown` and `tmatch`.
 
