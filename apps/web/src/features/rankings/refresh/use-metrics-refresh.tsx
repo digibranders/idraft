@@ -167,6 +167,14 @@ export function useMetricsRefresh({
   );
 
   const [opened, setOpened] = useState(false);
+  const wasChosenRef = useRef(false);
+  useEffect(() => {
+    const isChosen = chosen.ids.size > 0;
+    if (isChosen && !wasChosenRef.current && enabled) {
+      void refetch();
+    }
+    wasChosenRef.current = isChosen;
+  }, [chosen.ids.size, enabled, refetch]);
   // What opened the dialog last: kept after it closes, since the close is when focus goes back
   const [from, setFrom] = useState<Source>('menu');
   // A member who may not refresh keeps no index
@@ -286,6 +294,7 @@ export function useMetricsRefresh({
         finalFocus={finalFocus}
         targets={targets}
         manual={manual}
+        onStart={() => void refetch()}
         onStarted={onStarted}
         onLimitReached={() => void refetch()}
         onKeywordsUnknown={onKeywordsUnknown}

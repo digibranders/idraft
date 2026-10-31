@@ -57,7 +57,7 @@ export function RefreshProgress({
     }
     if (lost !== null) {
       handled.current = true;
-      toast({ id: `keyword-refresh-${runId}`, type: 'info', title: t('progress.lost') });
+      toast({ id: `keyword-${workload}-${runId}`, type: 'info', title: t('progress.lost') });
       onSettled(runId);
       return;
     }

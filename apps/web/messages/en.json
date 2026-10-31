@@ -2110,7 +2110,6 @@
     },
     "checkNow": {
       "action": "Check now",
-      "actionDetail": "{left} of {limit} left today",
       "blocked": {
         "allMatching": "Check now takes chosen keywords, not every matching keyword. Choose up to 100.",
         "tooMany": "Check now takes up to 100 keywords at a time.",

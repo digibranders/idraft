@@ -1,4 +1,4 @@
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
@@ -11,7 +11,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { makeQueryClient } from '@/lib/api/query-client';
 import { LiveRegions } from '@/providers/live-regions';
 
-export type ProvidedRender = RenderResult & { user: UserEvent };
+export type ProvidedRender = RenderResult & { user: UserEvent; queryClient: QueryClient };
 export interface ProvidedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   /** The query string the component starts with, for components that keep state in the URL. */
   searchParams?: string;
@@ -57,5 +57,5 @@ export function renderWithProviders(
     );
   }
   const user = userEvent.setup();
-  return { user, ...render(ui, { wrapper: TestProviders, ...options }) };
+  return { user, queryClient, ...render(ui, { wrapper: TestProviders, ...options }) };
 }

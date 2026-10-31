@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { checkNowRefusal, checkNowTarget } from './check-now-model';
 import { RefreshProgress } from '../refresh/refresh-progress';
@@ -51,6 +51,19 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
   const left = manual === null ? null : leftToday(manual);
   const exhausted = left === 0;
 
+  const inFlightRef = useRef(false);
+  const [inFlight, setInFlight] = useState(false);
+
+  // Refetch quota whenever the bulk actions bar opens
+  const wasChosenRef = useRef(false);
+  useEffect(() => {
+    const isChosen = chosen.ids.size > 0;
+    if (isChosen && !wasChosenRef.current && enabled) {
+      void refetch();
+    }
+    wasChosenRef.current = isChosen;
+  }, [chosen.ids.size, enabled, refetch]);
+
   const [started, setStarted] = useState<readonly string[]>([]);
   const [ended, setEnded] = useState<ReadonlySet<string>>(() => endedRefreshes(queryClient, scope, 'seo_rank'));
   const followed = [...started, ...(open.data?.runs ?? []).map((run) => run.run_id)].filter(
@@ -69,6 +82,10 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
 
   const triggerCheck = useCallback(
     async (ids: string[]): Promise<void> => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      setInFlight(true);
+      void refetch();
       try {
         const answer = await unwrap(
           api.POST(CHECK_NOW_PATH, {
@@ -108,17 +125,22 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
         } else {
           toast({ type: 'error', title: t('refused.other') });
         }
+      } finally {
+        inFlightRef.current = false;
+        setInFlight(false);
       }
     },
     [scope, queryClient, refetch, t, onDrop],
   );
 
   const target = checkNowTarget(chosen, archived);
-  const disabledReason = exhausted
-    ? t('blocked.noneLeft')
-    : target.kind === 'blocked'
-      ? t(`blocked.${target.reason}`)
-      : null;
+  const disabledReason = inFlight
+    ? t('action')
+    : exhausted
+      ? t('blocked.noneLeft')
+      : target.kind === 'blocked'
+        ? t(`blocked.${target.reason}`)
+        : null;
 
   const barAction: RecordAction<TrackedKeywordRow> | null = enabled
     ? {
@@ -128,7 +150,7 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
         group: 'object',
         disabledReason,
         onSelect: async () => {
-          if (target.kind !== 'ids') return;
+          if (inFlightRef.current || target.kind !== 'ids') return;
           await triggerCheck(target.ids);
         },
       }
@@ -138,12 +160,20 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
     (trackedId: string, active: boolean): ReactNode => {
       if (!enabled || !active) return null;
       return (
-        <Button variant="secondary" size="sm" icon={RefreshCw} onClick={() => void triggerCheck([trackedId])}>
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={RefreshCw}
+          disabled={inFlight || exhausted}
+          loading={inFlight}
+          title={exhausted ? t('blocked.noneLeft') : undefined}
+          onClick={() => void triggerCheck([trackedId])}
+        >
           {t('action')}
         </Button>
       );
     },
-    [enabled, triggerCheck, t],
+    [enabled, inFlight, exhausted, triggerCheck, t],
   );
 
   const progress = followed.map((runId) => (

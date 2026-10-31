@@ -151,7 +151,7 @@ test.describe('rankings', () => {
     await expect(chevronWrapper).toHaveCSS('opacity', '1');
 
     // Click to sort by Rank ascending
-    const sortBtn = rankHeader.getByRole('button', { name: /^Rank/ });
+    const sortBtn = rankHeader.getByRole('button', { name: 'Rank', exact: true });
     await sortBtn.click();
     await expect(rankHeader).toHaveAttribute('aria-sort', 'ascending');
 
@@ -191,7 +191,7 @@ test.describe('rankings', () => {
       return rows
         .slice(0, 15)
         .map((tr) => {
-          const rankCell = (tr as HTMLTableRowElement).cells[1];
+          const rankCell = (tr as HTMLTableRowElement).cells[2];
           if (!rankCell) return null;
           const cellRect = rankCell.getBoundingClientRect();
           const container = rankCell.firstElementChild;
@@ -801,15 +801,20 @@ test.describe('rankings', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('complementary')).toHaveCount(0);
 
-    // 6. Bulk Check now with two keywords, move clock until run completes, assert toast
+    // 6. Bulk Check now with two keywords, move clock until run completes, assert toast and refetch
     await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
     await expect(bar.getByText('2 selected')).toBeVisible();
     await bar.getByRole('button', { name: 'Check now' }).click();
     await expect(page.getByText('Rank check queued', { exact: true })).toBeVisible();
+    const refetched = page.waitForResponse(
+      (response) => response.url().includes('/tracked-keywords') && !response.url().includes('/tracked-keywords/'),
+    );
     await page.clock.runFor(20_000);
     await expect(page.getByText(/^Ranks checked: \d+ of \d+$/)).toBeVisible({ timeout: 15_000 });
+    const response = await refetched;
+    expect(response.status()).toBe(200);
 
     // 7. At 1680 px the first competitor column shows
     await page.setViewportSize({ width: 1680, height: 900 });
