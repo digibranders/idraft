@@ -1,56 +1,44 @@
 'use client';
 
-import Image from 'next/image';
-import { ArrowRight } from '@phosphor-icons/react';
 import { useEffect, useRef } from 'react';
-import type { ReactElement } from 'react';
+import Image from 'next/image';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
+import { ChatGptArt, GeminiArt, ModeArt, OverviewArt } from './art/illustrations';
 import { Wave } from './wave';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const PANELS = [
-  { name: 'Google AI Overviews', category: 'Search summaries', body: 'See the brands named and pages cited in the answer above the search results.', logo: '/logos/google.svg', width: 77, art: <Image src="/images/scenes/e-overview.webp" alt="A summary card with a crown on top of a stack of search result strips" fill sizes="(min-width: 1280px) 22vw, 84vw" className="object-cover" />, tint: 'from-amber-wash via-surface to-amber-wash', marker: 'bg-amber' },
-  { name: 'Google AI Mode', category: 'Follow-up answers', body: 'Follow the conversation, with the sources behind each answer kept together.', logo: '/logos/google.svg', width: 77, art: <Image src="/images/scenes/e-mode.webp" alt="Two speech bubbles with a trail branching into follow-up questions" fill sizes="(min-width: 1280px) 22vw, 84vw" className="object-cover" />, tint: 'from-violet-wash via-surface to-violet-wash', marker: 'bg-violet' },
-  { name: 'ChatGPT', category: 'Recommendations', body: 'See which brands make the shortlist and which pages support the answer.', logo: '/logos/openai.svg', width: 86, art: <Image src="/images/scenes/e-chatgpt.webp" alt="A stitched felt chat bubble receiving a note" fill sizes="(min-width: 1280px) 22vw, 84vw" className="object-cover" />, tint: 'from-mint-wash via-surface to-mint-wash', marker: 'bg-mint' },
-  { name: 'Gemini', category: 'Cited answers', body: 'Read the mentions and citations, checked on the same schedule as the rest.', logo: '/logos/gemini.svg', width: 98, art: <Image src="/images/scenes/e-gemini.webp" alt="Two orbiting stars over marbled water" fill sizes="(min-width: 1280px) 22vw, 84vw" className="object-cover" />, tint: 'from-wash via-surface to-coral-wash', marker: 'bg-coral' },
+  { name: 'Google AI Overviews', body: 'The summary above the results, with the sources it links to and the brands it names.', logo: '/logos/google.svg', width: 77, art: <OverviewArt />, tint: 'bg-amber-wash' },
+  { name: 'Google AI Mode', body: 'Follow-up answers in a conversation, each with its own cited sources.', logo: '/logos/google.svg', width: 77, art: <ModeArt />, tint: 'bg-violet-wash' },
+  { name: 'ChatGPT', body: 'Answers that recommend brands and cite the pages they drew on.', logo: '/logos/openai.svg', width: 86, art: <ChatGptArt />, tint: 'bg-mint-wash' },
+  { name: 'Gemini', body: 'Answers with citations, collected on the same schedule as the rest.', logo: '/logos/gemini.svg', width: 98, art: <GeminiArt />, tint: 'bg-coral-wash' },
 ] as const;
 
-/** A scroll-driven desktop story with native swiping on phones and a static reduced-motion fallback. */
-export function HorizontalEngines(): ReactElement {
+/**
+ * Direction change: the page stops scrolling down and the four engines slide in sideways. The track moves by
+ * the scroll distance, so the reader controls the pace. Under 1024px or reduced motion it is a normal swipe row.
+ */
+export function HorizontalEngines() {
   const root = useRef<HTMLElement>(null);
   const track = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const scope = root.current;
-    const scene = track.current;
-    if (!scope || !scene) return;
-
-    const media = gsap.matchMedia();
-    media.add('(min-width: 1024px) and (min-height: 640px) and (prefers-reduced-motion: no-preference)', () => {
-      scope.dataset.scrollPinned = 'true';
-      const distance = (): number => Math.max(0, scene.scrollWidth - scope.clientWidth);
-
-      gsap.to(scene, {
+    const rail = track.current;
+    if (!scope || !rail) return;
+    const mm = gsap.matchMedia();
+    mm.add('(min-width: 1024px) and (prefers-reduced-motion: no-preference)', () => {
+      const distance = () => rail.scrollWidth - window.innerWidth + 64;
+      gsap.to(rail, {
         x: () => -distance(),
         ease: 'none',
-        scrollTrigger: {
-          trigger: scope,
-          start: 'top top',
-          end: () => `+=${distance()}`,
-          pin: true,
-          scrub: 0.8,
-          invalidateOnRefresh: true,
-          anticipatePin: 1,
-        },
+        scrollTrigger: { trigger: scope, start: 'top top', end: () => `+=${distance()}`, pin: true, scrub: 0.8, invalidateOnRefresh: true, anticipatePin: 1 },
       });
-
-      return () => { delete scope.dataset.scrollPinned; };
     }, scope);
-
-    return () => media.revert();
+    return () => mm.revert();
   }, []);
 
   return (
@@ -59,46 +47,26 @@ export function HorizontalEngines(): ReactElement {
       <div className="bg-amber-wash">
         <Wave edge="top" />
       </div>
-      <section ref={root} aria-label="The four answer engines" className="engine-story overflow-hidden bg-wash py-8 md:py-12">
-        <div ref={track} className="engine-scene mx-auto max-w-[1320px]">
-          <div className="engine-intro px-5 md:px-8">
-            <h2 className="max-w-[20ch] text-[clamp(2.2rem,4.2vw,3.8rem)] leading-[1.05] font-semibold tracking-[-0.05em] text-balance">Four places people get answers.</h2>
-            <p className="mt-4 max-w-[48ch] text-base leading-relaxed text-ink-2 md:text-lg">idraft reads all of them on a schedule and keeps what each one said.</p>
+      <section ref={root} aria-label="The four answer engines" className="relative overflow-hidden bg-wash">
+        <div ref={track} className="flex min-h-[76dvh] items-center gap-6 overflow-x-auto px-5 py-20 [scrollbar-width:none] md:px-8 lg:overflow-visible lg:py-20 [&::-webkit-scrollbar]:hidden">
+          <div className="w-[min(86vw,32rem)] shrink-0 lg:pr-10">
+            <h2 className="text-[clamp(2.4rem,4.6vw,4.4rem)] leading-[1] font-semibold tracking-[-0.05em] text-balance">Four places people get answers.</h2>
+            <p className="mt-6 max-w-[34ch] text-lg leading-relaxed text-ink-2">idraft reads all of them on a schedule and keeps what each one said.</p>
           </div>
-          <div className="mt-8 flex items-center justify-between px-5 text-xs font-medium text-ink-2 md:hidden">
-            <span>4 engines. Every answer on record.</span>
-            <span aria-hidden="true" className="flex items-center gap-2">Swipe to explore <ArrowRight size={16} /></span>
-          </div>
-          <div
-            role="region"
-            aria-label="Answer engine cards"
-            // A native scroll region needs a tab stop so keyboard users can scroll with arrow keys.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            className="engine-cards mt-4 grid auto-cols-[min(84vw,22rem)] grid-flow-col gap-4 overflow-x-auto overscroll-x-contain px-5 pt-1 pb-6 [scroll-padding-inline:1.25rem] [scrollbar-width:none] snap-x snap-mandatory focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cobalt md:mt-9 md:auto-cols-auto md:grid-flow-row md:grid-cols-2 md:overflow-x-visible md:px-8 xl:grid-cols-4 [&::-webkit-scrollbar]:hidden"
-          >
-            {PANELS.map((panel, index) => (
-              <article key={panel.name} className="flex min-w-0 snap-start flex-col rounded-[2rem] bg-surface p-1.5 shadow-[0_12px_24px_-18px_rgb(96_72_26/0.22)] ring-1 ring-ink/[0.07] motion-safe:transition-transform motion-safe:duration-300 motion-safe:md:hover:-translate-y-1">
-                <div className={`relative overflow-hidden rounded-[1.625rem] bg-gradient-to-br ${panel.tint}`}>
-                  <div className="relative z-10 flex h-16 items-center justify-between gap-3 px-5">
-                    <Image src={panel.logo} alt="" width={panel.width} height={24} unoptimized className="h-5 w-auto" />
-                    <span aria-hidden="true" className="font-mono text-[11px] text-ink-2">0{index + 1} / 04</span>
-                  </div>
-                  <div className="relative h-52 overflow-hidden">
-                    {panel.art}
-                  </div>
+          {PANELS.map((panel) => (
+            <article key={panel.name} className="grid h-[min(64dvh,32rem)] w-[min(88vw,46rem)] shrink-0 overflow-hidden rounded-[2.5rem] bg-surface shadow-[0_28px_44px_-26px_rgb(30_101_227/0.3)] ring-1 ring-ink/[0.07] sm:grid-cols-2">
+              <div className="flex flex-col justify-between gap-8 p-8 sm:p-10">
+                <Image src={panel.logo} alt="" width={panel.width} height={24} unoptimized className="h-6 w-auto opacity-80" />
+                <div>
+                  <h3 className="text-[clamp(1.8rem,2.6vw,2.4rem)] leading-tight font-semibold tracking-[-0.04em]">{panel.name}</h3>
+                  <p className="mt-3 max-w-[30ch] leading-relaxed text-ink-2">{panel.body}</p>
                 </div>
-                <div className="px-5 pt-5 pb-6">
-                  <p className="flex items-center gap-2 text-xs font-medium text-ink-2">
-                    <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${panel.marker}`} />
-                    {panel.category}
-                  </p>
-                  <h3 className="mt-2.5 text-[1.375rem] leading-tight font-semibold tracking-[-0.04em]">{panel.name}</h3>
-                  <p className="mt-2.5 text-sm leading-relaxed text-pretty text-ink-2">{panel.body}</p>
-                </div>
-              </article>
-            ))}
-          </div>
+              </div>
+              <div aria-hidden="true" className={`relative hidden sm:block ${panel.tint}`}>
+                {panel.art}
+              </div>
+            </article>
+          ))}
         </div>
       </section>
       <Wave edge="bottom" />
