@@ -7,7 +7,7 @@ import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '../fixtures';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '../keyword-fixtures';
 import { MOCK_RUNS, MOCK_SCHEDULE_IDS } from '../operations-fixtures';
 import { mockId } from '../mock-ids';
-import { CURSOR_PAGE, RUN, RUN_DETAIL } from '@/test/api-shapes';
+import { CURSOR_PAGE, RUN, RUN_DETAIL, TRACKED_KEYWORD_DETAIL } from '@/test/api-shapes';
 import { dataOf, fieldCodes, mockBrowser, pageOf } from '@/test/mock-api';
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
@@ -287,5 +287,95 @@ describe('what a run says of why it ended, as the backend does', () => {
       status_reason: null,
       operation: { status: 'failed', error: null },
     });
+  });
+
+  it('starts a manual rank check run that is planned, runs and completes, and counts for the day', async () => {
+    const editor = mockBrowser('editor');
+    const activeTracked = MOCK_TRACKED_KEYWORDS.filter((row) => row.project_id === fynix.project_id && row.is_active);
+    const firstActive = activeTracked[0];
+    const secondActive = activeTracked[1];
+    if (firstActive === undefined || secondActive === undefined) throw new Error('Missing active tracked fixtures');
+    const id1 = firstActive.tracked_keyword_id;
+    const id2 = secondActive.tracked_keyword_id;
+    const beforeCheck = dataOf(await editor.call('GET', `${P}/tracked-keywords/${id1}`), TRACKED_KEYWORD_DETAIL);
+    const answer = await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [id1, id2] });
+    expect(answer.status).toBe(202);
+    const run = dataOf(answer, RUN);
+    expect(run).toMatchObject({
+      workload: 'seo_rank',
+      trigger: 'manual',
+      status: 'planned',
+      tasks_total: 2,
+      operation: { status: 'queued', links: { cancel: `${P}/runs/${run.run_id}/cancel` } },
+    });
+    tick(RUN_PLANNED_MS + RUN_WORKING_MS / 2);
+    const running = dataOf(await editor.call('GET', `${P}/runs/${run.run_id}`), RUN_DETAIL);
+    expect(running).toMatchObject({ status: 'running' });
+    tick(RUN_WORKING_MS);
+    const done = dataOf(await editor.call('GET', `${P}/runs/${run.run_id}`), RUN_DETAIL);
+    expect(done).toMatchObject({ status: 'completed', tasks_succeeded: 2 });
+    const afterCheck = dataOf(await editor.call('GET', `${P}/tracked-keywords/${id1}`), TRACKED_KEYWORD_DETAIL);
+    expect(afterCheck.state.current.rank).not.toBeNull();
+    expect(afterCheck.state.current.rank).not.toEqual(beforeCheck.state.current.rank);
+    const listed = await editor.call('GET', `${P}/runs?limit=1`);
+    expect(MANUAL_META.parse(listed.body.meta).manual_runs_today.used).toBe(1);
+  });
+
+  it('validates the check-now request shape and keyword status', async () => {
+    const editor = mockBrowser('editor');
+    const activeTracked = MOCK_TRACKED_KEYWORDS.filter((row) => row.project_id === fynix.project_id && row.is_active);
+    const firstActive = activeTracked[0];
+    if (firstActive === undefined) throw new Error('Missing active tracked fixture');
+    const id1 = firstActive.tracked_keyword_id;
+    const archived = MOCK_TRACKED_KEYWORDS.find((row) => row.project_id === fynix.project_id && !row.is_active);
+    if (archived === undefined) throw new Error('Missing archived tracked fixture');
+
+    expect(
+      fieldCodes(
+        await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [archived.tracked_keyword_id] }),
+      ),
+    ).toEqual(['tracked_keyword_ids:keyword_unknown']);
+    expect(
+      fieldCodes(await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [mockId('tracked', 999)] })),
+    ).toEqual(['tracked_keyword_ids:keyword_unknown']);
+
+    expect(fieldCodes(await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [] }))).toEqual([
+      'tracked_keyword_ids:too_short',
+    ]);
+
+    const manyIds = Array.from({ length: 101 }, (_, i) => mockId('tracked', i + 1));
+    expect(fieldCodes(await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: manyIds }))).toEqual([
+      'tracked_keyword_ids:too_long',
+    ]);
+
+    expect(fieldCodes(await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [id1, id1] }))).toEqual([
+      'tracked_keyword_ids:duplicate',
+    ]);
+
+    expect(
+      fieldCodes(await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [id1], extra: true })),
+    ).toEqual(['extra:extra_forbidden']);
+
+    expect(
+      fieldCodes(await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [id1], depth: 30 })),
+    ).toEqual(['depth:enum']);
+
+    expect(await editor.as('viewer').call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [id1] })).toMatchObject({
+      status: 403,
+    });
+  });
+
+  it('enforces manual run limit and monthly quota limit on check-now', async () => {
+    const editor = mockBrowser('editor');
+    const activeTracked = MOCK_TRACKED_KEYWORDS.filter((row) => row.project_id === fynix.project_id && row.is_active);
+    const firstActive = activeTracked[0];
+    if (firstActive === undefined) throw new Error('Missing active tracked fixture');
+    const id1 = firstActive.tracked_keyword_id;
+
+    for (let index = 0; index < MANUAL_RUN_LIMIT; index += 1) {
+      expect((await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [id1] })).status).toBe(202);
+    }
+    const limitRefused = await editor.call('POST', `${P}/seo/check-now`, { tracked_keyword_ids: [id1] });
+    expect(limitRefused).toMatchObject({ status: 429, code: 'manual_run_limit', body: { limit: MANUAL_RUN_LIMIT } });
   });
 });

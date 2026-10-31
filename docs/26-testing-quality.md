@@ -29,7 +29,7 @@ Test IDs below (`SERP-ORG-03`) appear in pytest test names (`test_serp_org_03_..
 | Gold-set evaluation | fixed | 2 min | SERP parser and extraction vs labels (section 4) |
 | Integration (containers) | ~20% | 8 min, 4 shards | db, collectors, API through `httpx.AsyncClient` on the ASGI app, planner and dispatcher, reconciliation, cross-tenant, SQL functions |
 | End-to-end | ~25 specs | 3 smoke specs on PR | Next.js plus full stack with provider stub |
-| Load, restore | scheduled | outside PR | staging droplet, monthly restore drill (doc 23 section 8.3) |
+| Load, restore | scheduled | outside PR | optional staging host (baseline profile), monthly restore drill (doc 23 section 8.3) |
 
 ### 2.2 Tooling
 
@@ -475,7 +475,7 @@ A lint rule bans `dangerouslySetInnerHTML`; its allowlist is empty in V1.
 | SEC-AUTH-01 | 6 failed logins in 15 min; wrong TOTP codes across repeated sign-ins | the sixth attempt is refused with 429 even with the right password; `auth.sign_in_failed` rows and one `auth.lockout` row; five wrong codes lock the account however many times the password step is repeated (`tests/api/auth/test_sign_in.py`, `test_totp_routes.py`, `tests/auth/test_throttle.py`) |
 | SEC-AUTH-02 | Stored credentials after signup, reset request and invitation | password is an argon2id hash; session, verification, reset and invitation tokens are stored only as `sha256`; a used or expired token is rejected, and two concurrent uses of one token cannot both succeed; none of them appears in a response or a log line (`tests/api/auth/test_register.py`, `test_password.py`, `test_sessions.py`) |
 | SEC-AUTH-03 | `owner` or `admin` without TOTP enrolled; replayed TOTP code; password change | blocked from workspace routes until enrolled (arrives with the workspace routes); second use rejected, including two posts at the same moment and the code that confirmed enrolment; every other session revoked and its Redis cache key deleted (`tests/api/auth/test_totp_routes.py`, `test_password.py`) |
-| SEC-DEP-01 | `pip-audit` or `pnpm audit --prod` high or critical; monthly `nmap` of the droplet | build fails; only 80 and 443 open |
+| SEC-DEP-01 | `pip-audit` or `pnpm audit --prod` high or critical; monthly `nmap` of the shared production host | build fails; only 80 and 443 open |
 | SEC-KEY-01 (with API keys, deferred) | API key creation | only prefix and `sha256(secret)` stored |
 | SEC-ENC-01 (Phase 12, with envelope encryption) | Ciphertext copied to another workspace row; `idraft secrets-rewrap --to 2` | decrypt fails (AAD); DEKs rewrapped, ciphertext unchanged |
 
@@ -551,7 +551,7 @@ A variant points the adapter at `sandbox.dataforseo.com` to confirm request shap
 
 ### 8.2 Monthly backup restore drill
 
-Doc 23 section 8 owns the schedule, script and RTO targets; this section owns the assertions. There is no CI restore workflow (ADR-022). Once a month a custodian runs `infra/scripts/restore-verify.sh`, which restores the newest dump into a temporary `postgres:18` container on a laptop or on the droplet and never touches the production database; the result is recorded in the runbook's drill log (`docs/ops/restore-drills.md`):
+Doc 23 section 8 owns the schedule, script and RTO targets; this section owns the assertions. There is no CI restore workflow (ADR-022). Once a month a custodian runs `infra/scripts/restore-verify.sh`, which restores the newest dump into a temporary `postgres:18` container on a laptop or on the shared host (inside `idraft.slice`, 1 GB cap, doc 23 section 8.3, so it cannot starve the neighbour project) and never touches the production database; the result is recorded in the runbook's drill log (`docs/ops/restore-drills.md`):
 
 1. Newest manifest in `daily/` is at most 30 h old (`MAX_BACKUP_AGE_H`, doc 23 section 8.3); sha256 matches the manifest; `age` decryption with the recovery identity succeeds.
 2. `pg_restore` into the temporary `postgres:18` container exits 0.
@@ -565,7 +565,7 @@ Doc 23 section 8 owns the schedule, script and RTO targets; this section owns th
 
 ### 8.3 Load tests
 
-Weekly and before releases, on the optional staging droplet (production size, 4 GB) with a V1-scale synthetic dataset (doc 21 section 13): 5,000 keywords, 400 days, 3 competitors (about 2 M snapshots, 8 M rank rows); 1,000 prompts, 3 engines, 57 cycles (about 205,000 observations, 1.6 M citations).
+Weekly and before releases, never on the production VPS (a load test there would take CPU and I/O from the second project), on the optional staging host (the 8 GB baseline profile of [ADR-023](adr/ADR-023-shared-hostinger-vps.md), with the Postgres and worker limits of production) with a V1-scale synthetic dataset (doc 21 section 13): 5,000 keywords, 400 days, 3 competitors (about 2 M snapshots, 8 M rank rows); 1,000 prompts, 3 engines, 57 cycles (about 205,000 observations, 1.6 M citations).
 
 | Scenario | Pass criteria (p95; doc 16 section 13.4, doc 03 section 5) |
 |---|---|
@@ -686,7 +686,7 @@ Stages 4 to 7 run in parallel. Target p50 under 15 minutes; every stage is a req
 |---|---|---|---|
 | Local | `infra/compose` dev profile: postgres:18, redis:8, s3mock, Mailpit, provider stub; `api` and `worker` with `uv run`, `web` with `pnpm dev` | stub; sandbox on request | factories, `uv run idraft db-seed --profile small` |
 | CI | Testcontainers; compose for E2E | stub only; no live provider account | fixtures, gold sets, frozen dataset |
-| Staging (optional droplet) | production compose on its own domain (one origin, like production) | sandbox or a real account with a $10 monthly budget | V1-scale synthetic data only |
+| Staging (optional, separate host: the dedicated VPS before its DNS switch, a short-lived VPS, or a laptop given 8 GB; never inside `idraft.slice`) | production compose, baseline profile, on its own domain (one origin, like production) | sandbox or a real account with a $10 monthly budget | V1-scale synthetic data only |
 
 ### 11.2 Rules
 

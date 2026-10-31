@@ -48,7 +48,10 @@ export const CLIENT_MODE_LIMIT = 10_000;
 export const MAX_FILTER_VALUES = 100;
 /** The largest page the API answers. */
 const PAGE = 200;
-const INCLUDE: NonNullable<ListQuery['include']> = ['metrics', 'groups', 'terms'];
+// The pending-metrics poll lays only metrics and state over a waiting row, so a first check's sparkline
+// arrives with the next read of the list, which is acceptable for a keyword with one point.
+// Competitor ranks are always asked for (small payload per row) to avoid re-reading the list when toggling columns.
+const INCLUDE: NonNullable<ListQuery['include']> = ['metrics', 'groups', 'terms', 'sparkline', 'competitor_ranks'];
 /** The cursor of the first page: none. */
 const FIRST_PAGE: string | null = null;
 /** The sort the client mode loads in: the table sorts in memory, so changing it reads nothing again. */

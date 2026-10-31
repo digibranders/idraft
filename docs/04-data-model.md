@@ -2474,4 +2474,4 @@ CREATE INDEX slo_samples_sampled_at_idx ON ops.slo_samples (sampled_at);
 | DM-1 | Resolved by ADR-022: the `auth` schema is ours (section 4) and S-07 (Better Auth) is dropped | n/a |
 | DM-2 | Measured size of a real DataForSEO depth-100 advanced SERP after zstd level 6: is our 30 to 60 KB estimate right? | S-02 |
 | DM-3 | Measured size of consumer ChatGPT/Gemini answer payloads, and share that is HTML we do not need to keep | S-04 |
-| DM-4 | Query plan for SOV over 12 weeks x 1,000 prompts x 4 engines from `ai.daily_prompt_engine_metrics`: confirm under 200 ms on the target droplet | S-09 |
+| DM-4 | Query plan for SOV over 12 weeks x 1,000 prompts x 4 engines from `ai.daily_prompt_engine_metrics`: confirm under 200 ms on the target host (the 8 GB idraft share) | S-09 |

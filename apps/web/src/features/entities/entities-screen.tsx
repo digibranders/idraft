@@ -219,23 +219,23 @@ function RoleTable({ role, rows, loading, count, canWrite, editorHref, itemsFor 
         <p className="type-meta">{t(`empty.${role}`)}</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-          <table className="w-full" aria-labelledby={titleId}>
+          <table className="w-full type-table" aria-labelledby={titleId}>
             <thead className="bg-surface-subtle">
               <tr>
-                <th scope="col" className="h-row-header px-4 text-left type-label">
+                <th scope="col" className="h-row-header px-4 text-left type-table-header">
                   {t('columns.entity')}
                 </th>
-                <th scope="col" className="hidden h-row-header px-3 text-left type-label md:table-cell">
+                <th scope="col" className="hidden h-row-header px-3 text-left type-table-header md:table-cell">
                   {t('columns.domains')}
                 </th>
-                <th scope="col" className="h-row-header px-3 text-right type-label">
+                <th scope="col" className="h-row-header px-3 text-left type-table-header">
                   {t('columns.aliases')}
                 </th>
-                <th scope="col" className="hidden h-row-header px-3 text-left type-label sm:table-cell">
+                <th scope="col" className="hidden h-row-header px-3 text-left type-table-header sm:table-cell">
                   {t('columns.tracking')}
                 </th>
                 {canWrite ? (
-                  <th scope="col" className="h-row-header px-4">
+                  <th scope="col" className="h-row-header px-4 text-right">
                     <span className="sr-only">{t('columns.actions')}</span>
                   </th>
                 ) : null}
@@ -244,9 +244,9 @@ function RoleTable({ role, rows, loading, count, canWrite, editorHref, itemsFor 
             <tbody aria-busy={loading}>
               {loading
                 ? Array.from({ length: SKELETON_ROWS }, (_, index) => (
-                    <tr key={index} className="h-row border-t border-border-subtle">
+                    <tr key={index} className="h-row-compact border-t border-border-subtle">
                       <td colSpan={columns} className="px-4">
-                        <Skeleton shape="text-14" widthPct={48} />
+                        <Skeleton shape="text-12" widthPct={48} />
                       </td>
                     </tr>
                   ))
@@ -285,31 +285,27 @@ function EntityRow({
   );
   const more = hosts.length - SHOWN_DOMAINS;
   return (
-    <tr className="h-row border-t border-border-subtle">
+    <tr className="h-row-compact border-t border-border-subtle">
       <th scope="row" className="px-4 py-2 text-left font-normal">
         <span className="flex items-center gap-2">
           <EntitySwatch colorIndex={row.color_index} own={row.role === 'own'} />
-          <TextLink render={<Link href={editorHref} />} className="type-body">
-            {name}
-          </TextLink>
+          <TextLink render={<Link href={editorHref} />}>{name}</TextLink>
           {row.role === 'own' && row.is_primary ? <Badge>{t('primary')}</Badge> : null}
         </span>
       </th>
-      <td className="hidden px-3 type-body text-foreground-secondary md:table-cell">
+      <td className="hidden px-3 text-foreground-secondary md:table-cell">
         {hosts.length === 0
           ? t('noDomains')
           : more > 0
             ? t('domainsMore', { domains: hosts.slice(0, SHOWN_DOMAINS).join(', '), count: more })
             : hosts.join(', ')}
       </td>
-      <td className="px-3 text-right num type-body text-foreground-secondary">{row.alias_count}</td>
+      <td className="px-3 num text-foreground-secondary">{row.alias_count}</td>
       <td className="hidden px-3 sm:table-cell">
         <span className="flex gap-1">
           {row.track_seo ? <Badge variant="outline">{t('trackSeo')}</Badge> : null}
           {row.track_ai ? <Badge variant="outline">{t('trackAi')}</Badge> : null}
-          {row.track_seo || row.track_ai ? null : (
-            <span className="type-body text-foreground-tertiary">{t('trackNone')}</span>
-          )}
+          {row.track_seo || row.track_ai ? null : <span className="text-foreground-tertiary">{t('trackNone')}</span>}
         </span>
       </td>
       {canWrite ? (

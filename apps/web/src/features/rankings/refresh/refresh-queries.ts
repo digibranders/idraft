@@ -25,34 +25,55 @@ export const REFRESH_PATH = '/api/v1/workspaces/{workspace_id}/projects/{project
 /** `POST {P}/keyword-metrics/refresh`: a manual run of the `keyword_metrics` workload, answered `202`. */
 export const REFRESH_METRICS = apiMutation('post', REFRESH_PATH);
 
+export type FollowedWorkload = 'keyword_metrics' | 'seo_rank';
+
 const path = (scope: ProjectScope): { workspace_id: string; project_id: string } => ({
   workspace_id: scope.workspaceId,
   project_id: scope.projectId,
 });
 
-const refreshKey = (scope: ProjectScope): QueryKey => [
+const refreshKey = (scope: ProjectScope, workload: FollowedWorkload): QueryKey => [
   ...projectKey(scope.workspaceId, scope.projectId),
   'runs',
-  'keyword-refresh',
+  `${workload}-runs`,
 ];
 
 /** The key of the open manual refreshes and the day's count. */
-export const openRefreshesKey = (scope: ProjectScope): QueryKey => [...refreshKey(scope), 'open'];
+export const openRefreshesKey = (scope: ProjectScope, workload: FollowedWorkload): QueryKey => [
+  ...refreshKey(scope, workload),
+  'open',
+];
 
 /** The key of one run the header follows. */
-export const refreshRunKey = (scope: ProjectScope, runId: string): QueryKey => [...refreshKey(scope), 'run', runId];
+export const refreshRunKey = (scope: ProjectScope, runId: string, workload: FollowedWorkload): QueryKey => [
+  ...refreshKey(scope, workload),
+  'run',
+  runId,
+];
 
 /** The key of the runs that ended and were reported: what the screen remembers across leaving and coming back. */
-const endedKey = (scope: ProjectScope): QueryKey => [...refreshKey(scope), 'ended'];
+const endedKey = (scope: ProjectScope, workload: FollowedWorkload): QueryKey => [
+  ...refreshKey(scope, workload),
+  'ended',
+];
 
 /** The runs the header reported as ended (or let go of) while the cache held them: none is followed again. */
-export function endedRefreshes(queryClient: QueryClient, scope: ProjectScope): ReadonlySet<string> {
-  return queryClient.getQueryData<ReadonlySet<string>>(endedKey(scope)) ?? new Set();
+export function endedRefreshes(
+  queryClient: QueryClient,
+  scope: ProjectScope,
+  workload: FollowedWorkload,
+): ReadonlySet<string> {
+  return queryClient.getQueryData<ReadonlySet<string>>(endedKey(scope, workload)) ?? new Set();
 }
 
 /** Remembers that the header reported the run, so a screen opened again does not report it a second time. */
-export function rememberEndedRefresh(queryClient: QueryClient, scope: ProjectScope, runId: string): void {
-  queryClient.setQueryData<ReadonlySet<string>>(endedKey(scope), (held) => new Set(held).add(runId));
+export function rememberEndedRefresh(
+  queryClient: QueryClient,
+  scope: ProjectScope,
+  runId: string,
+  workload: FollowedWorkload,
+): void {
+  queryClient.setQueryData<ReadonlySet<string>>(endedKey(scope, workload), (held) => new Set(held).add(runId));
 }
 
 /** The project's open manual refreshes, and how many manual runs the project has started today (UTC), when it says. */
@@ -69,13 +90,18 @@ export interface OpenRefreshes {
 export const startedBy = (run: Pick<Run, 'created_by'>, userId: string): boolean =>
   run.created_by?.actor_type === 'user' && run.created_by.actor_id === userId;
 
-async function readOpen(scope: ProjectScope, userId: string, signal: AbortSignal): Promise<OpenRefreshes> {
+async function readOpen(
+  scope: ProjectScope,
+  userId: string,
+  workload: FollowedWorkload,
+  signal: AbortSignal,
+): Promise<OpenRefreshes> {
   const page = await unwrap(
     api.GET(RUNS, {
       params: {
         path: path(scope),
         query: {
-          'filter[workload_in]': ['keyword_metrics'],
+          'filter[workload_in]': [workload],
           'filter[trigger_in]': ['manual'],
           'filter[status_in]': ['planned', 'running'],
           limit: OPEN_RUNS_LIMIT,
@@ -94,17 +120,22 @@ async function readOpen(scope: ProjectScope, userId: string, signal: AbortSignal
  * it finds is put into the cache of the run itself, unless that holds a reading already, so the header shows a
  * run a reload resumed before the run is asked about.
  */
-export function useOpenRefreshes(scope: ProjectScope, userId: string, enabled: boolean): UseQueryResult<OpenRefreshes> {
+export function useOpenRefreshes(
+  scope: ProjectScope,
+  userId: string,
+  enabled: boolean,
+  workload: FollowedWorkload,
+): UseQueryResult<OpenRefreshes> {
   const queryClient = useQueryClient();
   return useQuery({
-    queryKey: openRefreshesKey(scope),
+    queryKey: openRefreshesKey(scope, workload),
     enabled,
     queryFn: async ({ signal }) => {
-      const open = await readOpen(scope, userId, signal);
+      const open = await readOpen(scope, userId, workload, signal);
       for (const found of open.runs) {
         // Held as stale (updated at the start of time): it shows at once, and the run is still read on mount
-        if (queryClient.getQueryData<Run>(refreshRunKey(scope, found.run_id)) === undefined) {
-          queryClient.setQueryData<Run>(refreshRunKey(scope, found.run_id), found, { updatedAt: 0 });
+        if (queryClient.getQueryData<Run>(refreshRunKey(scope, found.run_id, workload)) === undefined) {
+          queryClient.setQueryData<Run>(refreshRunKey(scope, found.run_id, workload), found, { updatedAt: 0 });
         }
       }
       return open;
@@ -113,15 +144,25 @@ export function useOpenRefreshes(scope: ProjectScope, userId: string, enabled: b
 }
 
 /** A run that ended no longer counts as open in what a reload found: the header must not take it up again. */
-export function forgetOpenRefresh(queryClient: QueryClient, scope: ProjectScope, runId: string): void {
-  queryClient.setQueryData<OpenRefreshes>(openRefreshesKey(scope), (held) =>
+export function forgetOpenRefresh(
+  queryClient: QueryClient,
+  scope: ProjectScope,
+  runId: string,
+  workload: FollowedWorkload,
+): void {
+  queryClient.setQueryData<OpenRefreshes>(openRefreshesKey(scope, workload), (held) =>
     held === undefined ? held : { ...held, runs: held.runs.filter((run) => run.run_id !== runId) },
   );
 }
 
 /** Puts a run the API just answered into the cache, so the header shows it before it asks. */
-export function rememberRefreshRun(queryClient: QueryClient, scope: ProjectScope, run: Run): void {
-  queryClient.setQueryData<Run>(refreshRunKey(scope, run.run_id), run);
+export function rememberRefreshRun(
+  queryClient: QueryClient,
+  scope: ProjectScope,
+  run: Run,
+  workload: FollowedWorkload,
+): void {
+  queryClient.setQueryData<Run>(refreshRunKey(scope, run.run_id, workload), run);
 }
 
 async function readRun(scope: ProjectScope, runId: string, signal: AbortSignal): Promise<Run> {
@@ -156,7 +197,7 @@ export interface RunFollow {
  * It is let go of when the API refuses to say (403) and after `RUN_FAILURES_MAX` reads in a row that were
  * not answered, so an unreachable API is not asked every five seconds for good.
  */
-export function useRefreshRun(scope: ProjectScope, runId: string): RunFollow {
+export function useRefreshRun(scope: ProjectScope, runId: string, workload: FollowedWorkload): RunFollow {
   const [trouble, setTrouble] = useState<Trouble>(NO_TROUBLE);
   const lost: Lost | null = trouble.forbidden
     ? 'forbidden'
@@ -164,7 +205,7 @@ export function useRefreshRun(scope: ProjectScope, runId: string): RunFollow {
       ? 'unreachable'
       : null;
   const current = useQuery({
-    queryKey: refreshRunKey(scope, runId),
+    queryKey: refreshRunKey(scope, runId, workload),
     queryFn: async ({ signal }) => {
       try {
         const answer = await readRun(scope, runId, signal);

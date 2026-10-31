@@ -1,13 +1,22 @@
-import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
-import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 
-export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations('navigation.items');
-  return { title: t('rankings') };
-}
-
-/** SEO > Rankings: the layout renders the screen, so that the import route can open over it. */
-export default function RankingsPage(): ReactNode {
-  return null;
+export default async function RankingsRedirect({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ workspace: string; project: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<never> {
+  const { workspace, project } = await params;
+  const sp = await searchParams;
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (Array.isArray(value)) {
+      for (const item of value) search.append(key, item);
+    } else if (value !== undefined) {
+      search.set(key, value);
+    }
+  }
+  const query = search.toString();
+  redirect(`/${encodeURIComponent(workspace)}/${encodeURIComponent(project)}/seo/keywords${query ? `?${query}` : ''}`);
 }

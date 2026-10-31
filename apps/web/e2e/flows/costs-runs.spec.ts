@@ -29,7 +29,7 @@ test.describe('costs and runs', () => {
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page, ADMIN);
-    await page.goto('/digibranders/fynix/seo/rankings');
+    await page.goto('/digibranders/fynix/seo/keywords');
     const sidebar = page.getByRole('navigation', { name: 'Primary' });
     await expect(sidebar.getByRole('link', { name: 'Keywords' })).toHaveAttribute('aria-current', 'page');
 

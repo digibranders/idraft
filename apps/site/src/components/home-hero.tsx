@@ -31,9 +31,12 @@ export function HomeHero() {
 
         <div data-hero-copy className="mx-auto w-full max-w-[1320px] px-6 pt-28 pb-16 md:px-10">
           <h1 className="max-w-[12ch] text-[clamp(3rem,6.4vw,6rem)] leading-[0.98] font-semibold tracking-[-0.055em] text-ink">
-            <span className="rise block" style={rise(0)}>
-              Rank on Google.
+            <span data-hero-line className="block">
+              <span className="rise block" style={rise(0)}>
+                Rank on Google.
+              </span>
             </span>
+            <span data-hero-line className="block">
             <span className="rise block text-cobalt" style={rise(1)}>
               Get{' '}
               <span className="relative inline-block">
@@ -44,15 +47,20 @@ export function HomeHero() {
               </span>{' '}
               by AI.
             </span>
+            </span>
           </h1>
-          <p className="rise mt-8 max-w-[38ch] text-lg leading-relaxed text-pretty text-ink-2 md:text-xl" style={rise(2)}>
-            One place to track where you rank in search and what ChatGPT, Gemini and Google AI say about you.
-          </p>
-          <div className="rise mt-10 flex flex-wrap items-center gap-3" style={rise(3)}>
-            <Button href={ACCESS_HREF}>Request access</Button>
-            <Button href="/how-it-works" variant="secondary">
-              See how it works
-            </Button>
+          <div data-hero-line className="mt-8">
+            <p className="rise max-w-[38ch] text-lg leading-relaxed text-pretty text-ink-2 md:text-xl" style={rise(2)}>
+              One place to track where you rank in search and what ChatGPT, Gemini and Google AI say about you.
+            </p>
+          </div>
+          <div data-hero-line className="mt-10">
+            <div className="rise flex flex-wrap items-center gap-3" style={rise(3)}>
+              <Button href={ACCESS_HREF}>Request access</Button>
+              <Button href="/how-it-works" variant="secondary">
+                See how it works
+              </Button>
+            </div>
           </div>
         </div>
       </HeroFrame>

@@ -37,7 +37,7 @@ All commands run in `apps/web`. Before any markup, invoke `design-taste-frontend
 
 ## Decisions
 
-1. **Columns built:** Rank (`current_rank`), Change (`rank_change`), Ranking URL (`ranking_url`, not sortable), Best rank (`best_rank`, chooser only), Updated (`last_observed_at`). Sparkline, SERP features, AI Overview, competitor positions, target URL match, the metric strip, "Check now" and the rank history in the inspector are separate plans.
+1. **Columns built:** Rank (`current_rank`), Change (`rank_change`), Ranking URL (`ranking_url`, not sortable), Best rank (`best_rank`, chooser only), Updated (`last_observed_at`). Sparkline, SERP features, AI Overview, competitor positions, target URL match, the metric strip, "Check now" and the rank history in the inspector are separate plans. Built in docs/superpowers/plans/2026-10-29-rank-features-ui.md: sparkline, SERP features, AI Overview, competitor columns, target URL match, metric strip, Check now, and inspector rank history; Rank and Change merged into a single Rank column.
 2. **Order and tiers** (12-tables and template 9.3): Keyword, Rank (tier 1), Change (tier 1), Ranking URL (tier 2), Volume (tier 2, was 1: it keeps working at tier 2 since the template puts Rank and Change first), KD, CPC, Intent, Priority, Group, Tags, Best rank (tier 3, off by default), Updated (tier 4), Added (tier 4). **Default sort stays Volume descending** (the template).
 3. **States of the Rank cell** (never an empty cell, 12-tables section 7.3):
    - `ranked`: the number, right aligned.

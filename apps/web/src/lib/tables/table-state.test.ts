@@ -93,9 +93,10 @@ describe('parseColumns and parseDensity', () => {
     expect(parseColumns(null, KNOWN, ['keyword'])).toBeNull();
   });
 
-  it('reads compact and falls back to the default density', () => {
+  it('keeps a chosen density and opens in compact otherwise', () => {
     expect(parseDensity('compact')).toBe('compact');
-    expect(parseDensity('dense')).toBe('default');
-    expect(parseDensity(null)).toBe('default');
+    expect(parseDensity('default')).toBe('default');
+    expect(parseDensity('dense')).toBe('compact');
+    expect(parseDensity(null)).toBe('compact');
   });
 });

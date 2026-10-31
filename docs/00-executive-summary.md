@@ -9,7 +9,7 @@ A self-hosted platform that measures how a brand, its domains, pages, keywords, 
 
 ## 2. The ten decisions that shape everything
 
-1. **Python backend and self-hosted Next.js**: one Python project (FastAPI API and a Taskiq worker) and a Next.js app, both on one DigitalOcean droplet behind Caddy on one origin. Pydantic models are the contract; the web app uses a TypeScript client generated from the OpenAPI document. [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [ADR-002](adr/ADR-002-single-droplet-compose.md)
+1. **Python backend and self-hosted Next.js**: one Python project (FastAPI API and a Taskiq worker) and a Next.js app, both on one shared Hostinger VPS (idraft gets a capped 8 GB share) behind Caddy on one origin. Pydantic models are the contract; the web app uses a TypeScript client generated from the OpenAPI document. [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [ADR-002](adr/ADR-002-single-host-compose.md)
 2. **PostgreSQL 18 is the ledger**; observations are append-only and partitioned monthly; rollups store counts and sums; raw provider payloads go to Cloudflare R2. [ADR-003](adr/ADR-003-postgresql-ledger.md), [ADR-004](adr/ADR-004-raw-payloads-r2.md)
 3. **Every paid call is a task row before it is a queue job**, so Redis loss never loses or duplicates spend. Taskiq on Redis carries the jobs in two queues, `collect` and `process`. [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) (queue), [ADR-005](adr/ADR-005-queue-bullmq-postgres-ledger.md) (ledger)
 4. **DataForSEO behind an adapter contract**, with fallbacks (Oxylabs or Bright Data for SEO, SearchAPI.io for AI) built only when a defined trigger fires. [ADR-006](adr/ADR-006-dataforseo-primary-adapters.md)
@@ -41,13 +41,13 @@ A self-hosted platform that measures how a brand, its domains, pages, keywords, 
 | **V1 target:** 1,000 prompts/week (ChatGPT, Gemini, AI Mode; priority subset with replicates) + 1,000 keywords daily (`standard` depth) | **about $102 to $148** |
 | 1,000 prompts/week + 5,000 keywords daily (`standard`) | about $337 to $429 |
 | Same with top 100 every day | about $954 to $1,169 |
-| 5,000 prompts/week (replicates) + 10,000 keywords (`standard`, 20% mobile), 8 GB droplet | about $965 to $1,101 |
+| 5,000 prompts/week (replicates) + 10,000 keywords (`standard`, 20% mobile), 8 GB idraft share | about $965 to $1,101 |
 
-Unit costs: about $0.057 per tracked keyword per month (`standard`), $0.0156 per prompt per month (3 engines, 1 replicate), $0.0012 per AI observation, $0.0006 per 10 SERP results. Fixed infrastructure is about $24 to $30. Full model in [27-cost-model.md](27-cost-model.md).
+Unit costs: about $0.057 per tracked keyword per month (`standard`), $0.0156 per prompt per month (3 engines, 1 replicate), $0.0012 per AI observation, $0.0006 per 10 SERP results. Fixed infrastructure is H (50% of the Hostinger VPS invoice, owner to fill in) plus about $1 for R2; the other services are on free tiers. Full model in [27-cost-model.md](27-cost-model.md).
 
-## 5. Can one droplet do it?
+## 5. Can one host do it?
 
-Yes for V1. Collection is I/O-bound and runs well under 5% of DataForSEO's rate limits; ingest writes under 50 rows per second at peak. The binding constraint is disk: at 5,000 keywords daily plus 1,000 prompts weekly, PostgreSQL grows about 15 GB per year against about 40 GB usable, so the droplet lasts about 2.5 years; at 10,000 keywords plus 5,000 prompts it needs a Volume or a separate database host within about 10 months. Exact triggers for resize, Volume, database droplet, second worker droplet and ClickHouse are in [28-data-growth-scaling.md](28-data-growth-scaling.md).
+Yes for V1. Collection is I/O-bound and runs well under 5% of DataForSEO's rate limits; ingest writes under 50 rows per second at peak. Disk is not the binding constraint: at 5,000 keywords daily plus 1,000 prompts weekly, PostgreSQL grows about 15 GB per year against about 185 GB free on the shared host, so the watch items are the 8 GB memory share and the 4 vCPU shared with a second project. Exact triggers for moving idraft to its own 16 GB or 32 GB VPS, a separate database host, a second worker host and ClickHouse are in [28-data-growth-scaling.md](28-data-growth-scaling.md).
 
 ## 6. Final decision summary
 
@@ -56,7 +56,7 @@ Yes for V1. Collection is I/O-bound and runs well under 5% of DataForSEO's rate 
 | Decision | Selected | Alternatives | Reason | Revisit trigger |
 |---|---|---|---|---|
 | Language and repo | Python 3.13 backend (FastAPI, Pydantic v2, uv) in `backend/`; Next.js (TypeScript, pnpm) in `apps/web/` with a client generated from OpenAPI; no Turborepo ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) | TypeScript monorepo ([ADR-001](adr/ADR-001-typescript-monorepo.md)); Go | Extraction, canonicalization and statistics are stronger in Python; one contract via OpenAPI | A Python-only or a Node-only capability becomes central to a phase |
-| Hosting | One DO droplet (2 vCPU/4 GB/80 GB), Docker Compose, Ubuntu 26.04; containers `caddy`, `web`, `api`, `worker`, `postgres`, `redis`; Next.js self-hosted on the same origin | Vercel for the web app; managed services; Kubernetes | Constraint; simple ops; no cross-region hop for server rendering, no CORS | Resize to 8 GB on steady swap, cache hit ratio under 99% for a week, or database over 10 GB; doc 28 triggers |
+| Hosting | One shared Hostinger VPS (4 vCPU/16 GB/193 GB, Ubuntu 24.04; idraft share capped at 8 GB by `idraft.slice`), Docker Compose behind a shared host-level edge proxy ([ADR-023](adr/ADR-023-shared-hostinger-vps.md)); containers `caddy`, `web`, `api`, `worker`, `postgres`, `redis`; Next.js self-hosted on the same origin | Vercel for the web app; managed services; Kubernetes | Constraint; simple ops; no cross-region hop for server rendering, no CORS | Move idraft to its own 16 GB or 32 GB VPS on the doc 28 section 7 triggers (slice memory, host load, database size, second project needs) |
 | Database | PostgreSQL 18, monthly partitions, rollups, RLS | TimescaleDB; ClickHouse now | Integrity, joins, one datastore | ClickHouse triggers (doc 28 section 8) |
 | Raw storage | R2, zstd, retention classes | JSONB in PG; no raw | Disk; re-parse ability | R2 price or reliability change |
 | Queue | Taskiq on Redis 8, queues `collect` and `process` in one worker; PG task ledger; dispatcher | BullMQ ([ADR-005](adr/ADR-005-queue-bullmq-postgres-ledger.md)); arq; Procrastinate; Celery (fallback) | No lost or double spend; SQL-visible schedule; async-native collection | Taskiq fails its Phase 1 smoke test (fall back to Celery) |
@@ -72,7 +72,7 @@ Yes for V1. Collection is I/O-bound and runs well under 5% of DataForSEO's rate 
 | Extraction | Deterministic stages + budgeted LLM adjudication; versioned derivations | LLM-first | Reproducibility, cost | Gold-set targets unmet |
 | Visibility | CTR-weighted ratio with versioned curve `ctr_v1`; no composite AI+SEO score | Opaque scores | Explainability | None |
 | Tenancy | workspace_id + RLS; global URL/domain dictionaries; shared fetch cache in Phase 11 or later | Schema per tenant | Isolation with compact storage | Enterprise isolation needs |
-| Backups | Nightly pg_dump + zstd + age + rclone to R2, 30-day retention; DigitalOcean weekly droplet backups; monthly scripted restore drill | GFS rotation with bucket lock and CI restore test; WAL-G | RPO 24 h at low operating cost; R2 WAL-G bug | RPO < 24 h (PITR), offering to outside companies |
+| Backups | Nightly pg_dump + zstd + age + rclone to R2, 30-day retention; Hostinger host snapshots as a second copy (verify plan in hPanel); monthly scripted restore drill | GFS rotation with bucket lock and CI restore test; WAL-G | RPO 24 h at low operating cost; R2 WAL-G bug | RPO < 24 h (PITR), offering to outside companies |
 | Observability | Sentry, Healthchecks, Better Stack uptime, JSON logs via `docker compose logs`, SQL ops checks, in-app Operations screen over the task ledger | Alloy to Grafana Cloud ([ADR-021](adr/ADR-021-observability-stack.md)); Netdata; self-hosted Prometheus | 4 GB RAM budget; the task ledger already records collection state | Free-tier limits |
 | Gemini API grounding | Not used for bulk measurement | Use as benchmark | Terms restrict caching and analysis | Counsel approval or terms change |
 

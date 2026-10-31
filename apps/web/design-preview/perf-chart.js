@@ -204,8 +204,8 @@ function seriesTable(spec) {
   const head = el('tr', 'h-row-header text-left bg-surface-subtle');
   head.append(el('th', 'px-3 type-label', first.granularity === 'day' ? 'Date' : 'From'));
   spec.metrics.forEach((metric) => {
-    head.append(el('th', 'px-3 type-label text-right', METRICS[metric.key].label));
-    if (first.prev) head.append(el('th', 'px-3 type-label text-right text-foreground-tertiary', 'Before'));
+    head.append(el('th', 'px-3 type-label', METRICS[metric.key].label));
+    if (first.prev) head.append(el('th', 'px-3 type-label text-foreground-tertiary', 'Before'));
   });
   const thead = el('thead');
   thead.append(head);
@@ -215,8 +215,8 @@ function seriesTable(spec) {
     row.append(el('td', 'px-3 whitespace-nowrap', label));
     spec.metrics.forEach((metric) => {
       const bucket = spec.buckets[metric.key];
-      row.append(el('td', 'px-3 text-right num', bucket.cur[index] === null ? 'No data' : formatMetric(metric.key, bucket.cur[index])));
-      if (bucket.prev) row.append(el('td', 'px-3 text-right num text-foreground-tertiary', bucket.prev[index] === null ? 'No data' : formatMetric(metric.key, bucket.prev[index])));
+      row.append(el('td', 'px-3 num', bucket.cur[index] === null ? 'No data' : formatMetric(metric.key, bucket.cur[index])));
+      if (bucket.prev) row.append(el('td', 'px-3 num text-foreground-tertiary', bucket.prev[index] === null ? 'No data' : formatMetric(metric.key, bucket.prev[index])));
     });
     body.append(row);
   });

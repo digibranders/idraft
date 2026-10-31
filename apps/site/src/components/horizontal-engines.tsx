@@ -19,8 +19,13 @@ const PANELS = [
   { name: 'Gemini', category: 'Cited answers', body: 'Read the mentions and citations, checked on the same schedule as the rest.', logo: '/logos/gemini.svg', width: 98, art: <GeminiArt />, tint: 'from-wash via-surface to-coral-wash', marker: 'bg-coral' },
 ] as const;
 
+type HorizontalEnginesProps = {
+  /** The homepage waves connect this section to its neighboring scenes. */
+  withWaves?: boolean;
+};
+
 /** A scroll-driven desktop story with native swiping on phones and a static reduced-motion fallback. */
-export function HorizontalEngines(): ReactElement {
+export function HorizontalEngines({ withWaves = true }: HorizontalEnginesProps): ReactElement {
   const root = useRef<HTMLElement>(null);
   const track = useRef<HTMLDivElement>(null);
 
@@ -56,10 +61,11 @@ export function HorizontalEngines(): ReactElement {
 
   return (
     <div>
-      {/* The journey above ends in yellow; the wave's gap shows that color, so one scene flows into the next. */}
-      <div className="bg-amber-wash">
-        <Wave edge="top" />
-      </div>
+      {withWaves ? (
+        <div className="bg-amber-wash">
+          <Wave edge="top" />
+        </div>
+      ) : null}
       <section ref={root} aria-label="The four answer engines" className="engine-story overflow-hidden bg-wash py-8 md:py-12">
         <div ref={track} className="engine-scene mx-auto max-w-[1320px]">
           <div className="engine-intro px-5 md:px-8">
@@ -102,7 +108,7 @@ export function HorizontalEngines(): ReactElement {
           </div>
         </div>
       </section>
-      <Wave edge="bottom" />
+      {withWaves ? <Wave edge="bottom" /> : null}
     </div>
   );
 }

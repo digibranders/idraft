@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { chosenColumns, columnsAtTier, moveColumn, toggleColumn, type ColumnVisibilityMeta } from './visible-columns';
+import { chosenColumns, moveColumn, toggleColumn, type ColumnVisibilityMeta } from './visible-columns';
 
 const COLUMNS: ColumnVisibilityMeta[] = [
   { id: 'keyword', priority: 1, identity: true, defaultVisible: true },
@@ -14,15 +14,6 @@ describe('chosenColumns', () => {
   it('uses the defaults until the person chooses, with the identity column first', () => {
     expect(chosenColumns(COLUMNS, null)).toEqual(['keyword', 'volume', 'kd', 'added']);
     expect(chosenColumns(COLUMNS, ['cpc', 'gone', 'volume', 'keyword'])).toEqual(['keyword', 'cpc', 'volume']);
-  });
-});
-
-describe('columnsAtTier', () => {
-  it('drops what the viewport is too narrow for, never the identity column', () => {
-    expect(columnsAtTier(COLUMNS, null, 1)).toEqual(['keyword', 'added']);
-    expect(columnsAtTier(COLUMNS, null, 2)).toEqual(['keyword', 'volume', 'added']);
-    expect(columnsAtTier(COLUMNS, null, 4)).toEqual(['keyword', 'volume', 'kd', 'added']);
-    expect(columnsAtTier(COLUMNS, ['cpc'], 4)).toEqual(['keyword', 'cpc']);
   });
 });
 

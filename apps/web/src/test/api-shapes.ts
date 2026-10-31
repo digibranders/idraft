@@ -9,6 +9,7 @@ import type {
   KeywordImport,
   Operation,
   Price,
+  RankHistory,
   Run,
   RunDetail,
   Schedule,
@@ -44,6 +45,7 @@ import type {
   TrackedKeyword,
   TrackedKeywordDetail,
   TrackedKeywordRow,
+  CompetitorRank,
   UrlRef,
   Vocabulary,
 } from '@/lib/api/types';
@@ -437,15 +439,33 @@ const TRACKED_KEYWORD_FIELDS = {
 
 export const TRACKED_KEYWORD: z.ZodType<TrackedKeyword> = z.object(TRACKED_KEYWORD_FIELDS);
 
+export const SPARKLINE_POINT = z.object({
+  t: z.string(),
+  rank: z.number().nullable(),
+  depth: z.number(),
+  state: z.enum(['ranked', 'beyond_depth']),
+});
+
+export const SPARKLINE = z.object({
+  depth_mode: z.literal('daily_depth'),
+  points: z.array(SPARKLINE_POINT),
+});
+
+export const COMPETITOR_RANK: z.ZodType<CompetitorRank> = z.object({
+  entity: ENTITY_REF,
+  current: RANK_CELL,
+  change: RANK_CHANGE,
+});
+
 export const TRACKED_KEYWORD_ROW: z.ZodType<TrackedKeywordRow> = z.object({
   ...TRACKED_KEYWORD_FIELDS,
   metrics: KEYWORD_METRICS.nullable().exactOptional(),
   groups: z.array(GROUP_REF).nullable().exactOptional(),
   terms: z.array(TERM_REF).nullable().exactOptional(),
   competitors: z.array(COMPETITOR_OVERRIDE).nullable().exactOptional(),
-  // The blocks of `include=sparkline,competitor_ranks,features,aio`: the mocks answer null for each
-  sparkline: z.null().exactOptional(),
-  competitor_ranks: z.null().exactOptional(),
+  // The blocks of `include=sparkline,competitor_ranks,features,aio`
+  sparkline: SPARKLINE.nullable().exactOptional(),
+  competitor_ranks: z.array(COMPETITOR_RANK).nullable().exactOptional(),
   features: z.null().exactOptional(),
   aio: z.null().exactOptional(),
   state: TRACKED_KEYWORD_STATE,
@@ -750,4 +770,62 @@ export const PRICE: z.ZodType<Price> = z.object({
   valid_to: z.string().nullable(),
   source_url: z.string(),
   verified_at: z.string(),
+});
+
+export const RANK_HISTORY: z.ZodType<RankHistory> = z.object({
+  bands: z.array(
+    z.object({
+      depth_requested: z.number(),
+      entity_id: z.string(),
+      from: z.string(),
+      kind: z.literal('beyond_depth'),
+      label: z.string(),
+      to: z.string(),
+    }),
+  ),
+  columns: z.null(),
+  config_history: z.array(
+    z.object({
+      config_version: z.number(),
+      depth_profile: z.string(),
+      valid_from: z.string(),
+      valid_to: z.string().nullable(),
+    }),
+  ),
+  deep_check_weekday: z.number(),
+  events: z.null(),
+  series: z
+    .array(
+      z.object({
+        entity: ENTITY_REF,
+        points: z.array(
+          z.object({
+            absolute_rank: z.number().nullable(),
+            date: z.string(),
+            depth_requested: z.number().nullable(),
+            observed_at: z.string().nullable(),
+            rank: z.number().nullable(),
+            serp_snapshot_id: z.string().nullable(),
+            state: z.enum(['ranked', 'beyond_depth', 'failed']),
+            url_id: z.string().nullable(),
+          }),
+        ),
+      }),
+    )
+    .nullable(),
+  summary: z.object({
+    average_rank: z.any().nullable(),
+    beyond_depth_checks: z.number(),
+    checks: z.number(),
+    failed_checks: z.number(),
+    ranked_checks: z.number(),
+  }),
+  tracked_keyword_id: z.string(),
+  urls: z.record(z.string(), z.any()),
+  version_boundaries: z.array(z.any()),
+  window: z.object({
+    from: z.string(),
+    timezone: z.string(),
+    to: z.string(),
+  }),
 });

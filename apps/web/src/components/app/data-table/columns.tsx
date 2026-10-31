@@ -26,6 +26,11 @@ interface Options {
   priority?: ColumnPriority | undefined;
   /** The screen's default width, kept between the type's minimum and maximum. */
   width?: number | undefined;
+  /**
+   * The narrowest the column may be squeezed to, where its header needs more than its type's minimum: a long
+   * capital label ("PRIORITY" in a count column, which also holds the 60 px "KD").
+   */
+  minWidth?: number | undefined;
   defaultVisible?: boolean | undefined;
   /** Whether the column sorts; on by default for the types that sort. */
   sortable?: boolean | undefined;
@@ -33,10 +38,10 @@ interface Options {
   hasControls?: boolean | undefined;
 }
 
-const clampWidth = (type: ColumnType, width: number | undefined): number | undefined => {
+const clampWidth = (type: ColumnType, width: number | undefined, minWidth: number | undefined): number | undefined => {
   if (width === undefined) return undefined;
   const spec = COLUMN_TYPES[type];
-  return Math.min(spec.max, Math.max(spec.min, width));
+  return Math.min(spec.max, Math.max(minWidth ?? spec.min, width));
 };
 
 function base<TRow>(
@@ -55,7 +60,8 @@ function base<TRow>(
     cellTip,
     hasControls: options.hasControls,
     priority: options.priority ?? 1,
-    width: clampWidth(type, options.width),
+    width: clampWidth(type, options.width, options.minWidth),
+    minWidth: options.minWidth,
     defaultVisible: options.defaultVisible ?? true,
     sortValue: options.sortable === false ? undefined : sortValue,
     cell,
@@ -70,7 +76,7 @@ function Unknown({ value, className }: { value: UnknownValue; className?: string
 /** A marker before a value in one cell: the pair wraps (the marker above the value) before it spills over. */
 function Marked({ marker, children }: { marker: ReactNode; children: ReactNode }): ReactElement {
   return (
-    <span className="inline-flex max-w-full min-w-0 flex-wrap items-center justify-end gap-x-1.5">
+    <span className="inline-flex max-w-full min-w-0 flex-wrap items-center gap-x-1.5">
       {marker}
       {children}
     </span>
@@ -95,6 +101,8 @@ export const col = {
     options: Options & {
       detail?: ((row: TRow) => string) | undefined;
       copy?: { label: (row: TRow) => string; announcement: string } | undefined;
+      marker?: ((row: TRow) => ReactNode) | undefined;
+      trailing?: ((row: TRow) => ReactNode) | undefined;
     },
   ): DataTableColumn<TRow> {
     return {
@@ -111,12 +119,26 @@ export const col = {
             ) : (
               <span className="block min-w-0 truncate text-foreground">{value}</span>
             );
-          if (options.copy === undefined) return label;
+          const marker = options.marker?.(row);
+          const trailing = options.trailing?.(row);
+          if (
+            options.copy === undefined &&
+            (marker === null || marker === undefined) &&
+            (trailing === null || trailing === undefined)
+          ) {
+            return label;
+          }
           // `bg-inherit` hands the cell's own background (hover, selected) to the button's backing
           return (
-            <span className="relative flex min-w-0 items-center bg-inherit">
-              {label}
-              <CopyButton text={value} label={options.copy.label(row)} announcement={options.copy.announcement} />
+            <span className="relative flex min-w-0 items-center justify-between gap-1.5 bg-inherit">
+              <span className="flex min-w-0 items-center gap-1.5">
+                {label}
+                {marker !== undefined && marker !== null ? <span className="shrink-0">{marker}</span> : null}
+              </span>
+              {options.copy !== undefined && (
+                <CopyButton text={value} label={options.copy.label(row)} announcement={options.copy.announcement} />
+              )}
+              {trailing !== undefined && trailing !== null ? <span className="shrink-0">{trailing}</span> : null}
             </span>
           );
         },
@@ -128,8 +150,8 @@ export const col = {
         },
       ),
       identity: true,
-      cellLabel: options.copy === undefined ? undefined : text,
-      hasControls: options.copy !== undefined,
+      cellLabel: options.copy === undefined && options.trailing === undefined ? undefined : text,
+      hasControls: options.copy !== undefined || options.trailing !== undefined,
     };
   },
 
@@ -152,7 +174,7 @@ export const col = {
     );
   },
 
-  /** An exact grouped count (`12,400`), right-aligned in tabular figures. */
+  /** An exact grouped count (`12,400`), left aligned in tabular figures. */
   count<TRow>(
     id: string,
     value: (row: TRow) => number | null,
@@ -254,7 +276,7 @@ export const col = {
   },
 
   /**
-   * A rank: right aligned, best (lowest) first. The cell is the screen's, since what it shows depends on the
+   * A rank: left aligned, best (lowest) first. The cell is the screen's, since what it shows depends on the
    * check (a number, `>20`, Pending, a failure); `sortValue` is the rank, or `null` for a keyword with none,
    * which sorts last both ways (12-tables.md sections 6 and 8).
    */
@@ -262,7 +284,7 @@ export const col = {
     return rich(id, 'rank', sortValue, options);
   },
 
-  /** A change in rank: right aligned, the biggest improvement first; `null` sorts last both ways. */
+  /** A change in rank: left aligned, the biggest improvement first; `null` sorts last both ways. */
   rankDelta<TRow>(
     id: string,
     sortValue: (row: TRow) => number | null,
@@ -274,6 +296,34 @@ export const col = {
   /** A URL: left aligned, A to Z; `null` sorts last both ways. */
   url<TRow>(id: string, sortValue: (row: TRow) => string | null, options: RichOptions<TRow>): DataTableColumn<TRow> {
     return rich(id, 'url', sortValue, options);
+  },
+
+  /** SERP features: icon slots, left aligned (12-tables.md section 6, `SERPFeatureList`). */
+  features<TRow>(
+    id: string,
+    sortValue: (row: TRow) => number | null,
+    options: RichOptions<TRow>,
+  ): DataTableColumn<TRow> {
+    return rich(id, 'features', sortValue, options);
+  },
+
+  /** AI Overview: status and citation, left aligned (12-tables.md section 6, `AIOverviewStatus`). */
+  aiOverview<TRow>(
+    id: string,
+    sortValue: (row: TRow) => number | string | null,
+    options: RichOptions<TRow>,
+  ): DataTableColumn<TRow> {
+    return rich(id, 'aiOverview', sortValue, options);
+  },
+
+  /** Rank trend sparkline: canvas, left aligned (15-data-visualization.md section 9). Never sorts. */
+  sparkline<TRow>(id: string, options: RichOptions<TRow>): DataTableColumn<TRow> {
+    return rich(id, 'sparkline', () => null, { ...options, sortable: false });
+  },
+
+  /** A competitor's organic rank, left aligned with color swatch (12-tables.md CompetitorCell). */
+  competitor<TRow>(id: string, options: RichOptions<TRow>): DataTableColumn<TRow> {
+    return rich(id, 'competitor', () => null, { ...options, sortable: false });
   },
 
   /** A neutral badge, such as an intent. */
@@ -294,7 +344,7 @@ export const col = {
         ) : (
           <span className="inline-flex items-center gap-1">
             <Badge>{badge.label}</Badge>
-            <span className="type-meta">{badge.detail}</span>
+            <span className="type-label">{badge.detail}</span>
           </span>
         );
       },
@@ -314,7 +364,7 @@ interface RichOptions<TRow> extends Options {
 
 function rich<TRow>(
   id: string,
-  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url'>,
+  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features' | 'aiOverview' | 'sparkline' | 'competitor'>,
   sortValue: (row: TRow) => string | number | null,
   options: RichOptions<TRow>,
 ): DataTableColumn<TRow> {

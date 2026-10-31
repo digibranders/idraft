@@ -125,6 +125,8 @@ export function applyKeywordWrite(queryClient: QueryClient, scope: ProjectScope,
   const prefix = keywordsKey(scope).length;
   const id = detail.tracked_keyword_id;
   let membershipChanged = false;
+
+  let before: TrackedKeywordRow | undefined;
   for (const query of queryClient.getQueryCache().findAll({ queryKey: keywordsKey(scope) })) {
     const list = listOf(query.queryKey, prefix);
     if (list === null) continue;
@@ -132,14 +134,43 @@ export function applyKeywordWrite(queryClient: QueryClient, scope: ProjectScope,
       list.kind === 'all'
         ? queryClient.getQueryData<AllData>(query.queryKey)?.pages
         : [queryClient.getQueryData<PageData>(query.queryKey)?.page].filter((page) => page !== undefined);
-    const before = pages === undefined ? undefined : findIn(pages, id);
-    if (pages === undefined || before === undefined) {
+    if (pages !== undefined) {
+      const found = findIn(pages, id);
+      if (found !== undefined) {
+        before = found;
+        break;
+      }
+    }
+  }
+
+  const after = before === undefined ? undefined : rowFromDetail(before, detail);
+  const changed = before && after ? changedFilters(before, after) : [];
+  if (changed.includes('filter[is_active]')) membershipChanged = true;
+
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: keywordsKey(scope) })) {
+    if (query.queryKey[prefix + 1] === 'strip') {
+      const stripFilters = isRecord(query.queryKey[prefix]) ? query.queryKey[prefix] : {};
+      if (
+        before === undefined ||
+        changed.includes('filter[is_active]') ||
+        changed.some((name) => name in stripFilters)
+      ) {
+        void queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
+      }
+      continue;
+    }
+
+    const list = listOf(query.queryKey, prefix);
+    if (list === null) continue;
+    const pages =
+      list.kind === 'all'
+        ? queryClient.getQueryData<AllData>(query.queryKey)?.pages
+        : [queryClient.getQueryData<PageData>(query.queryKey)?.page].filter((page) => page !== undefined);
+    const rowInList = pages === undefined ? undefined : findIn(pages, id);
+    if (pages === undefined || rowInList === undefined || after === undefined) {
       void queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
       continue;
     }
-    const after = rowFromDetail(before, detail);
-    const changed = changedFilters(before, after);
-    if (changed.includes('filter[is_active]')) membershipChanged = true;
     if (changed.some((name) => name in list.filters)) {
       void queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
       continue;

@@ -1,20 +1,25 @@
 'use client';
 
+import { ArrowUpRight } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
-import type { TrackedKeywordRow } from '@/lib/api/types';
+import { Icon } from '@/components/ui/icon';
+import { Tooltip } from '@/components/ui/tooltip';
+import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { languageName } from '@/lib/format/language';
-import { useRankColumns } from './rank-columns';
+import { TargetMismatchMarker } from './feature-cells';
+import { useCompetitorColumns, useRankColumns } from './rank-columns';
+import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import type { SortKey } from '@/lib/tables/table-state';
 
 /**
  * The columns of Rankings (24-page-templates.md section 9.3), in the template's order: Keyword, Rank, Change,
- * Ranking URL, Volume, KD, CPC, Intent, Priority, Group, Tags, Best rank (in the column chooser only),
- * Updated (the last successful check) and Added. The rank columns are built in `rank-columns.tsx`. Waiting for
- * their own plans are the template's sparkline, SERP features, AI Overview and competitor columns. The ids of
+ * Ranking URL, Volume, KD, CPC, Intent, SERP features, AI Overview, Priority, Group, Tags, Best rank (in the column chooser only),
+ * Updated (the last successful check) and Added. The rank, SERP feature and AI Overview columns are built in `rank-columns.tsx`.
+ * Waiting for their own plans are the template's sparkline and competitor columns. The ids of
  * the sortable columns are the API's sort fields, so server mode sends them as they are.
  */
 
@@ -61,11 +66,16 @@ export function useKeywordRowName(projectLanguage: string | null): (row: Tracked
   );
 }
 
-export function useKeywordColumns(timeZone: string): readonly DataTableColumn<TrackedKeywordRow>[] {
+export function useKeywordColumns(
+  timeZone: string,
+  competitors: readonly EntityRef[] = [],
+): readonly DataTableColumn<TrackedKeywordRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
+  const targetT = useTranslations('rankings.target');
   const locale = useLocale();
   const ranks = useRankColumns(timeZone);
+  const competitorColumns = useCompetitorColumns(competitors, timeZone);
   return useMemo(() => {
     // Before Labs answers there is nothing; after an empty answer there is no data (12-tables.md 7.3)
     const pending: UnknownValue = { label: t('pending'), tooltip: t('pendingTooltip') };
@@ -75,24 +85,55 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
     return [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
-        // The keyword's own text is copied, not the row's longer name
-        copy: { label: (row) => t('copyKeyword', { keyword: row.keyword.text }), announcement: t('keywordCopied') },
-        detail: (row) =>
-          t('keywordDetail', {
+        detail: (row) => {
+          const keywordDetail = t('keywordDetail', {
             location: row.location.name,
             device: t(row.device === 'mobile' ? 'mobile' : 'desktop'),
             engine: t('google'),
             language: languageName(row.language_code, locale),
-          }),
+          });
+          if (row.state.target_url_match === false) {
+            const mismatchSentence = targetT('mismatch', {
+              ranking: row.state.current.url?.path ?? '',
+              target: row.target_url?.path ?? '',
+            });
+            return [keywordDetail, mismatchSentence].join(' ');
+          }
+          return keywordDetail;
+        },
+        marker: (row) => (row.state.target_url_match === false ? <TargetMismatchMarker /> : null),
+        trailing: (row) => {
+          const url = row.state.current.url;
+          if (!url || row.state.current.state !== 'ranked') return null;
+          const hostPath = `${url.host}${url.path}`;
+          const extra = Math.max(0, (row.state.ranking_url_count ?? 1) - 1);
+          const more = extra > 0 ? ` ${t('moreRankingPages', { count: extra })}` : '';
+          const tip = `${hostPath}${more}`;
+          const ariaLabel = t('openRankingPage', { keyword: row.keyword.text, url: url.canonical_url });
+          return (
+            <Tooltip purpose="label" content={tip}>
+              <a
+                {...CELL_CONTROL}
+                href={url.canonical_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={ariaLabel}
+                onClick={(e) => e.stopPropagation()}
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted hover:bg-surface-hover hover:text-foreground"
+              >
+                <Icon icon={ArrowUpRight} size="default" />
+              </a>
+            </Tooltip>
+          );
+        },
       }),
       ranks.rank,
-      ranks.change,
       ranks.url,
       col.volume<TrackedKeywordRow>('search_volume', (row) => metrics(row)?.search_volume.value ?? null, {
         header: t('volume'),
         headerTooltip: t('volumeTooltip'),
         priority: 2,
-        width: 88,
+        width: 96,
         unknown: missing,
       }),
       col.count<TrackedKeywordRow>('keyword_difficulty', (row) => metrics(row)?.keyword_difficulty ?? null, {
@@ -108,30 +149,27 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
           const cpc = metrics(row)?.cpc_usd ?? null;
           return cpc === null ? null : Number(cpc);
         },
-        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 96, unknown: missing },
+        { header: t('cpc'), headerTooltip: t('cpcTooltip'), priority: 2, width: 112, unknown: missing },
       ),
-      col.badge<TrackedKeywordRow>(
-        'intent',
-        (row) =>
-          row.intent === 'unknown'
-            ? null
-            : {
-                label: t(`intents.${row.intent}`),
-                ...(row.intent_source === 'manual' ? { detail: t('manual') } : {}),
-              },
-        {
-          header: t('intent'),
-          priority: 3,
-          width: 96,
-          sortable: false,
-          unknown: (row) => (metrics(row) === null ? pending : { label: t('intentUnknown') }),
-        },
-      ),
+      col.text<TrackedKeywordRow>('intent', (row) => (row.intent === 'unknown' ? null : t(`intents.${row.intent}`)), {
+        header: t('intent'),
+        priority: 3,
+        width: 96,
+        sortable: false,
+        unknown: (row) => (metrics(row) === null ? pending : { label: t('intentUnknown') }),
+      }),
+      ranks.features,
+      ranks.aio,
+      ...competitorColumns,
+      ranks.trend,
       col.count<TrackedKeywordRow>('priority', (row) => row.priority, {
         header: t('priority'),
         headerTooltip: t('priorityTooltip'),
         priority: 3,
-        width: 72,
+        // "PRIORITY" with its sort arrow needs 100 px, which is more than a count column holds
+        width: 100,
+        minWidth: 100,
+        defaultVisible: false,
       }),
       col.text<TrackedKeywordRow>(
         'group',
@@ -160,5 +198,5 @@ export function useKeywordColumns(timeZone: string): readonly DataTableColumn<Tr
         secondary: true,
       }),
     ];
-  }, [t, common, locale, timeZone, ranks]);
+  }, [t, targetT, common, locale, timeZone, ranks, competitorColumns]);
 }

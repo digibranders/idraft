@@ -2,7 +2,7 @@ import type { ComponentProps, ReactElement } from 'react';
 
 import { cn } from '@/lib/utils';
 
-/** `text-14`: body and controls. `text-13`: table cells and meta lines. `text-12`: labels. */
+/** `text-14`: body and controls. `text-13`: meta lines. `text-12`: table cells (12 / 16) and labels. */
 export type SkeletonShape = 'text-14' | 'text-13' | 'text-12' | 'block' | 'badge' | 'sparkline';
 /** Widths follow a fixed pattern per row, never a random one, so a re-render does not flicker (17 section 3.1). */
 export type SkeletonWidth = 48 | 56 | 64 | 72 | 80 | 100;

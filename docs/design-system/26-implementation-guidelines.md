@@ -120,8 +120,8 @@ Rules:
 | `h-control` | 36 px | Default control: buttons, inputs, selects, filter buttons, filter chips, segmented controls, top-bar controls |
 | `h-control-lg` | 40 px | Auth and onboarding only |
 | `h-control-touch` | 44 px | Primary actions on touch phones only |
-| `h-row` | 40 px | Default table row (Default density) |
-| `h-row-compact` | 32 px | Compact density, and every table embedded in a panel or inspector |
+| `h-row` | 40 px | Table row in Default density (a user's choice) |
+| `h-row-compact` | 32 px | Compact density, the default for every table since 2026-10-29, and every table embedded in a panel or inspector |
 | `h-row-header` | 40 px | Table header row |
 | `h-topbar` | 52 px | Top bar |
 | `w-sidebar`, `w-sidebar-collapsed` | 208 px, 56 px | Sidebar |
@@ -140,9 +140,9 @@ Rules:
 | `w-command` | 640 px | Command palette |
 | `size-icon-xs`, `size-icon-sm`, `size-icon`, `size-icon-md`, `size-icon-lg` | 12, 14, 16, 18, 20 px | Icons; 16 px default, 18 px in the sidebar |
 
-Density is a CVA axis on table rows: `density: { default: 'h-row', compact: 'h-row-compact' }`. Default (40 px) and Compact (32 px) are the only two densities; any other row height class is a lint error.
+Density is a CVA axis on table rows: `density: { default: 'h-row', compact: 'h-row-compact' }`. Compact (32 px) is the default and Default (40 px) the alternative; they are the only two densities, and any other row height class is a lint error. The default lives in `DEFAULT_DENSITY` (`lib/tables/table-state.ts`).
 
-**Type utilities (15).** Each sets size, line height, weight and tracking together; some also set the color.
+**Type utilities.** Each sets size, line height, weight and tracking together; some also set the color.
 
 | Utility | Size / line | Weight | Use |
 |---|---|---|---|
@@ -153,13 +153,15 @@ Density is a CVA axis on table rows: `density: { default: 'h-row', compact: 'h-r
 | `type-body` | 14 / 20 | 400 | Body, navigation, controls, tabs |
 | `type-body-strong` | 14 / 20 | 500 | Active tab, active nav item, button labels, entity names in feeds |
 | `type-prose` | 14 / 22 | 400 | AI answer text, long help |
-| `type-table` | 13 / 20 | 400 | Table cells |
+| `type-table` | 12 / 16 | 400 | Table cells |
+| `type-table-strong` | 12 / 16 | 500 | A strong table cell (total row) |
+| `type-table-header` | 12 / 16 | 400, 0.04em, uppercase, tertiary | Table column headers |
 | `type-meta` | 13 / 20 | 400, tertiary | Meta lines, times, metric strip labels |
-| `type-label` | 12 / 16 | 400, tertiary | Table headers, key-value labels, legends, axis labels, sidebar group labels |
+| `type-label` | 12 / 16 | 400, tertiary | Key-value labels, secondary lines in table cells, legends, axis labels, sidebar group labels |
 | `type-micro` | 12 / 16 | 500 | Badges |
 | `type-metric` | 24 / 32 | 600, tracking -0.02em, tabular | Metric strip values |
 | `type-metric-sm` | 18 / 24 | 600, tabular | Inspector key-value values |
-| `type-mono` | 13 / 20 | 400, Geist Mono | URLs and domains in tables, code |
+| `type-mono` | 13 / 20 | 400, Geist Mono | IDs, code, URLs outside tables (inside a table: `font-mono` at the table size) |
 | `type-kbd` | 11 / 16 | 500 | Keyboard hints ("⌘K") |
 
 The application body is 14 / 20 (`body` in `globals.css`). Do not combine `text-*`, `leading-*`, `font-*` and `tracking-*` classes to rebuild a type style.
@@ -285,7 +287,7 @@ A static Phase 0 version exists at `apps/web/design-preview/index.html`. It has 
 |---|---|
 | Viewports | 1440 x 900 and 390 x 844 (the `visual-desktop` and `visual-mobile` projects of `apps/web/playwright.config.ts`); 1280 x 800 when a template needs it |
 | Themes | light and dark for every section |
-| Density | Default (40 px rows) and Compact (32 px rows) for table sections |
+| Density | Compact (32 px rows, the default) and Comfortable (40 px rows) for table sections |
 | Determinism | `await document.fonts.ready`; `page.clock.setFixedTime('2026-09-29T12:00:00Z')`; timezone `UTC`; `deviceScaleFactor: 1`; animations disabled (Playwright default for screenshots); fixture data only, no network |
 | Threshold | `maxDiffPixelRatio: 0.002` (the config's default for every screenshot); a primitive's own test may set `0.001` |
 | Scope | Every `components/ui` primitive state, every `components/app` component, the six page templates |

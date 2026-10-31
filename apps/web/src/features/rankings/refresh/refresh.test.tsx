@@ -29,7 +29,7 @@ import { renderWithProviders } from '@/test/render';
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/fynix/seo/rankings',
+  usePathname: () => '/digibranders/fynix/seo/keywords',
 }));
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
@@ -103,10 +103,13 @@ interface RunsState {
 function serveRuns(state: RunsState): { reads: () => number } {
   let reads = 0;
   server.use(
-    http.get(mswPath(RUNS), () => {
+    http.get(mswPath(RUNS), ({ request }) => {
       reads += 1;
+      const url = new URL(request.url);
+      const workloads = url.searchParams.getAll('filter[workload_in]');
+      const matching = workloads.length === 0 ? state.open : state.open.filter((r) => workloads.includes(r.workload));
       return HttpResponse.json({
-        data: state.open,
+        data: matching,
         page: LIST_PAGE,
         meta: { manual_runs_today: { used: state.used, limit: 20 } },
       });
@@ -1060,6 +1063,22 @@ describe('A refresh in the header', () => {
       expect(screen.getAllByRole('progressbar')).toHaveLength(1);
       expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '4 of 10 read');
     });
+
+    it('finds an open seo_rank run on mount by the Check now follower and not by the refresh follower', async () => {
+      const seoRankRun = run({
+        run_id: RUN_ID,
+        workload: 'seo_rank',
+        status: 'running',
+        tasks_total: 5,
+        tasks_succeeded: 2,
+        created_by: { actor_type: 'user', actor_id: mockUser('editor').user_id, label: 'Editor' },
+      });
+      serveRuns({ used: 1, open: [seoRankRun] });
+      serveRun(() => seoRankRun);
+      renderWithProviders(as('editor'));
+      expect(await screen.findByText('Checking ranks')).toBeInTheDocument();
+      expect(screen.queryByText('Refreshing metrics')).toBeNull();
+    });
   });
 
   describe('that cannot be followed', () => {
@@ -1384,7 +1403,7 @@ describe('Keywords that wait for their first metrics', () => {
     for (let tick = 0; tick < 5; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
     expect(rankOf()).toBe('Pending');
     for (let tick = 0; tick < 2; tick += 1) await act(() => vi.advanceTimersByTimeAsync(30_000));
-    await waitFor(() => expect(rankOf()).toMatch(/^(\d+|>\d+not in top \d+)$/));
+    await waitFor(() => expect(rankOf()).toMatch(/^(\d+|>\d+not in top \d+)(?:first check)?$/));
   }, 20_000);
 
   it('are not polled when none on screen waits: archived keywords are not collected', async () => {

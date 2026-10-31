@@ -1,6 +1,6 @@
 # ADR-022: Python backend, self-hosted Next.js, and the simplified V1 platform
 
-Status: Accepted (architecture locked 2026-09-30)
+Status: Accepted (architecture locked 2026-09-30), host amended by ADR-023
 Date: 2026-09-30
 Supersedes: ADR-001 (language), ADR-005 (queue transport), ADR-014 (auth library), ADR-018 (readiness signal), ADR-021 (observability stack). Amends: ADR-002 (process model, host budget), ADR-012 (shared fetch cache timing), ADR-013 (retention and restore testing), ADR-017 (timing).
 Diagram: [../diagrams/architecture-locked.html](../diagrams/architecture-locked.html)
@@ -111,3 +111,6 @@ Two stack changes were made at the same time. The backend moves to Python, becau
 ## Revisit trigger
 
 The tool is offered to outside companies; the collection window overruns twice in a month; Taskiq fails its smoke test; a Python-only or a Node-only capability becomes central to a phase.
+
+## Amendment (2026-10-31)
+The host rows above (one DigitalOcean droplet of 2 vCPU, 4 GB and 80 GB, Ubuntu 26.04, DigitalOcean weekly droplet backups, the Cloud Firewall, the roughly $30 fixed monthly cost and the "resize to 8 GB" scaling step) are superseded by [ADR-023](ADR-023-shared-hostinger-vps.md). The host is a Hostinger VPS (4 vCPU, 16 GB, Ubuntu 24.04) shared with a second project; idraft gets a capped 8 GB share and the 8 GB profile is the baseline. Fixed cost is H (50% of the Hostinger invoice) plus R2 about $1. The process model, Compose, Python backend, self-hosted web app and the rest of this decision are unchanged. The text above is kept as history.

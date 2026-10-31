@@ -633,6 +633,28 @@ Carried (F85 was carried here and is fixed: the chart's grid now holds the axis 
 
 Review of the rank columns (2026-10-06, plan `docs/superpowers/plans/2026-10-06-rank-columns-ui.md`, branch `frontend/rank-columns`), an independent review on the Opus model, fixed before merge, each with its test first. A stale rank had no cue below 1680 px, where Updated is hidden: the Rank cell now carries a clock for it, and a warning when checks after the last good one failed (the API keeps `current` and only counts the failures). A failed row told three stories (Rank warning, URL "Pending", Best rank "Not ranking", Change "first check"): one rule now, and the never-succeeded keyword is stale from its creation, as in the backend. The Change type could be shrunk by the width resolver below its header (84 px minimum). A long ranking URL was cut twice; its end now always shows. The first-check poll no longer runs for old keywords of a paused project. Rows that tie on a sort come in row id order in client mode as the API orders them. "Select all N matching" counts the matches again just before a delete, archive or change by filter and stops when they changed. The tests of the wider Rankings grid get longer limits. A link naming several values of a single-choice chip was already reported by the hook; tests pin it. Also: copy (a change tooltip sentence, "Freshness: Stale", the previous rank in the tooltip, no repeated "not in the top 20", "no change within the depth checked"), archived mock keywords stop being checked, and a marker wraps with its date. Decisions that changed the specification are noted in doc 20 section 5.3 and doc 25 deviations 144 and 145.
 
+### Rank features UI (2026-10-29)
+
+Plan `docs/superpowers/plans/2026-10-29-rank-features-ui.md`, branch `frontend/keywords-followups`. Independent review in progress across Tasks 1, 1b, 2, 3, 4, 5, 6, 7, 8, 10:
+- Data table header options chevron made pointer-events-none while hidden and positioned at right-0 without overlap at DataTable Rank minWidth of 104 px (not 96).
+- Rank and Change columns merged into a single Rank column with 32 px fixed rank box, marks beside the box, and common change slot starting at identical x coordinate.
+- Positions up to 100 with depth-aware `>N` display (`>20` for depth 20, `>100` for depth 100) and sorting by current rank only.
+- SERP features and AI Overview columns with accessible speech, badge representations, filters (`feat`, `featown`, `aio`), and failed/stale check treatments.
+- Target URL mismatch marker (`TargetMismatchMarker`) on keyword cells with filter (`tmatch`).
+- Sparkline column (64 x 20 px in both compact and comfortable densities, dot radius 1.5) with 30-day mini history and tooltip.
+- Competitor rank columns with competitor picker and rank change indication; competitor ranks are always included in list requests.
+- Metric strip showing aggregate keyword counts and rank tiers (Tracked ignoring keywords without check date, Top 3, Top 10, Top 20, Beyond depth) placed between page header and filter bar.
+- Inspector Rank history card with 90-day organic rank history line chart, custom rank axis bands, failure glyphs, multiple checks per day preserved, and accessible Table view.
+- Single keyword and bulk Check now action with progress tracking, live region notification via announce() at start (`progress.started`), not a toast, quota refetches, in-flight mutual exclusion, polling, and rank state update on completion.
+- None of the four new column types (SERP features, AI Overview, sparkline, competitor) supports sorting.
+- Primary route `/seo/keywords` with redirect from `/seo/rankings`.
+
+Carried:
+
+| Id | Item | Plan |
+|---|---|---|
+| F99 | Metric strip deltas, Average rank, and Visibility aggregates await the backend `GET {P}/seo/rank-summary` endpoint | Task 9 when backend route lands |
+
 ### Rank collection (2026-10-05)
 
 Plans `docs/superpowers/plans/2026-10-05-rank-collection.md` and `2026-10-05-rank-ingest.md`, branch `backend/rank`. Each task was reviewed on the Opus model before the next began.
@@ -665,3 +687,19 @@ Carried:
 | F96 | `balance_check` and `cost_reconcile` keep their readings in Redis, raise no `ops.platform_alerts` row and ping no Healthchecks check; the account's day is taken as UTC, and spend after the last reading of a day is not in that day's comparison (up to 15 minutes) | the operations step (doc 25) |
 | F97 | Every SERP fixture and the live answer shape (taken to equal `task_get/advanced`) are synthetic until spike S-01 captures real ones; re-run the parser tests on the captured set before the first deploy | S-01, before deploy |
 | F98 | The competitor backfill from stored snapshots and `ops.derivation_log`, the shared fetch cache, the data quality tables, `ops.task_attempts`, the load test on recorded payloads and the real 14-day run were deferred (plan R14) | steps 6 and 7 |
+
+### Shared Hostinger host (2026-10-31)
+
+The docs assumed one DigitalOcean droplet (`s-2vcpu-4gb`, $24 per month) used only by idraft. The host is a Hostinger VPS (4 vCPU, 16 GB RAM, 193 GB disk, 2 GB swap, Ubuntu 24.04) shared with a second project, and idraft gets a capped 8 GB share. [ADR-023](adr/ADR-023-shared-hostinger-vps.md) records the decision. Old entries above are history and were not rewritten.
+
+- Added: ADR-023 (shared Hostinger VPS, `idraft.slice` 8 GB share, 8 GB profile as baseline, shared host-level edge proxy, hPanel firewall plus ufw, R2 dump as the real backup with Hostinger snapshots as a second copy, path to a dedicated 16 GB or 32 GB VPS). Fixed monthly cost is now H (50% of the Hostinger invoice, owner fills in) plus R2 about $1 plus free tiers; the "$30 per month" figure is gone.
+- ADR-002 renamed "Single-host Docker Compose for V1", status "Accepted, amended by ADR-022 and ADR-023", with a dated amendment (host, sizes, firewall, backups, scaling ladder). Amendment notes added to ADR-001, 013, 015, 021 and 022; the ADR index has the new row.
+- Updated in this pass: docs 00, 01, 04, 13, 16, 19 and 20 (hosting and capacity wording only); `docs/diagrams/README.md` and `docs/diagrams/architecture-locked.html` (labels, legend and a visible "Amended 2026-10-31 by ADR-023: host" note on the locked page); `README.md`; `infra/README.md` (new "Shared host" section; the items are marked TO BE IMPLEMENTED in infra code, with the follow-up list); `docs/superpowers/plans/2026-10-28-production-runtime.md` (host rows, goal G6, D9 recomputed for the 8 GB profile, D11, new WP2b with the shared-host tasks, cutover and risk changes) and its Delivery 1 prompt (host note only). Docs 02, 03 and 21 to 31 were updated by the other agents of the same pass.
+- Not changed: `research/` (dated evidence snapshots), old completed plans, the design system documents (no hosting content), and all infra code.
+
+| Id | Item | Plan |
+|---|---|---|
+| D-H1 | Hostinger plan price, term and renewal, which snapshots or backups the plan includes and their retention, in-place upgrade options, outbound network limits. Verify in hPanel; nothing in the docs states them | owner, before the cutover |
+| D-H2 | Edge proxy for the shared ports 80 and 443: the existing nginx or a host-level Caddy | owner and the second project's owner, before WP2b step 4 |
+| D-H3 | The second project's name and its expected resource needs, so the split (about 8 GB each) can be reviewed against measured load | owner |
+| D-H4 | Who owns host-level changes (edge proxy, firewall, systemd slices, OS updates and reboots) | owner |

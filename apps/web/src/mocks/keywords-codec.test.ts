@@ -124,4 +124,77 @@ describe('the keyword changes codec', () => {
     expect(keywordsCookie(changes)).not.toBeNull();
     expect(keywordWorld(changes).tracked).toHaveLength(MOCK_TRACKED_KEYWORDS.length + 40);
   });
+
+  it('round-trips when a user clears the target URL on a fixture keyword', () => {
+    const fixtureRow = MOCK_TRACKED_KEYWORDS[2];
+    expect(fixtureRow?.versions[0]?.target_url).not.toBeNull();
+    const version = fixtureRow?.versions[0];
+    if (version === undefined || fixtureRow === undefined) throw new Error('Missing fixture 2');
+    const cleared: StoredTracked = {
+      ...fixtureRow,
+      versions: [{ ...version, target_url: null }],
+    };
+    const changes: KeywordChanges = {
+      tracked: { edited: [cleared] },
+    };
+    const decoded = roundTrip(changes);
+    expect(decoded?.tracked?.edited?.[0]?.versions[0]?.target_url).toBeNull();
+  });
+
+  it('round-trips when a user sets the same target URL as the fixture', () => {
+    const fixtureRow = MOCK_TRACKED_KEYWORDS[2];
+    if (fixtureRow === undefined) throw new Error('Missing fixture 2');
+    const sameTarget: StoredTracked = {
+      ...fixtureRow,
+      priority: 1,
+    };
+    const changes: KeywordChanges = {
+      tracked: { edited: [sameTarget] },
+    };
+    const decoded = roundTrip(changes);
+    expect(decoded?.tracked?.edited?.[0]?.versions[0]?.target_url).toBe(fixtureRow.versions[0]?.target_url);
+    expect(decoded?.tracked?.edited?.[0]?.priority).toBe(1);
+  });
+
+  it('decodes an old cookie that stored explicit versions', () => {
+    const explicitVersionTuple = [
+      0, // depth standard (0)
+      'https://example.com/custom',
+      0, // valid_from
+      0, // change_reason null
+      0, // changed_by null
+    ];
+    const raw = {
+      t: {
+        m: [
+          [
+            -1, // tracked_keyword_id from string table
+            -2, // project_id
+            -3, // keyword_id
+            2276, // location_id
+            0, // created_at
+            0, // language_code (default)
+            0, // device (desktop)
+            0, // priority (default 3)
+            0, // intent
+            0, // intent_source
+            0, // funnel_stage
+            0, // frequency
+            0, // source
+            0, // is_active (true)
+            0, // deleted_at (null)
+            0, // updated_at (created_at)
+            0, // business_value (null)
+            0, // schedule_id (null)
+            0, // os (null)
+            0, // created_by (null)
+            [explicitVersionTuple], // cell 20: explicit versions array
+          ],
+        ],
+      },
+      u: [mockId('tracked', 2), project, mockId('keyword', 2)],
+    };
+    const decoded = decodeKeywordChanges(raw as never);
+    expect(decoded?.tracked?.edited?.[0]?.versions[0]?.target_url).toBe('https://example.com/custom');
+  });
 });

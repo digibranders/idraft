@@ -33,6 +33,13 @@ export function formatTableDateTime(instant: Date | string, timeZone: string, no
   return sameYear(z, n) ? format(z, 'MMM d, HH:mm') : format(z, 'MMM d, yyyy, HH:mm');
 }
 
+/** Table date: "Sep 29". Adds the year when it differs from the current year: "Sep 29, 2025". */
+export function formatTableDate(instant: Date | string, timeZone: string, now: Date = new Date()): string {
+  const z = toZoned(instant, timeZone);
+  const n = new TZDate(now.getTime(), timeZone);
+  return sameYear(z, n) ? format(z, 'MMM d') : format(z, 'MMM d, yyyy');
+}
+
 /** The calendar date of an instant in the project timezone as "2026-09-29", for a name of a file. */
 export function formatIsoDate(instant: Date | string, timeZone: string): string {
   return format(toZoned(instant, timeZone), 'yyyy-MM-dd');

@@ -10,7 +10,7 @@ A measurement instrument for SEO rankings and AI answer visibility, used for hou
 
 > The interface should look like a professional analytical instrument, not a collection of dashboard components.
 
-Design read used for every decision in this system: information-dense product UI for SEO and GEO power users, with v2 sizing (14 px interface text, 36 px controls, 40 px table rows in Default density, 32 px in Compact), restrained instrument-grade language, built on shadcn/ui with Base UI primitives, Tailwind CSS v4 and Geist. Visual variance 2 of 10, motion 2 of 10. The visual values come from the reference screens through [reference/visual-spec.md](reference/visual-spec.md).
+Design read used for every decision in this system: information-dense product UI for SEO and GEO power users, with v2 sizing (14 px interface text, 36 px controls, 32 px table rows in Compact density, the default since 2026-10-29, 40 px in Default density), restrained instrument-grade language, built on shadcn/ui with Base UI primitives, Tailwind CSS v4 and Geist. Visual variance 2 of 10, motion 2 of 10. The visual values come from the reference screens through [reference/visual-spec.md](reference/visual-spec.md).
 
 ## 2. Principles
 
@@ -62,7 +62,7 @@ A developer building a new screen does not decide any of the following; the answ
 | Text size | One of 15 composite type utilities (`type-page-title` to `type-kbd`) ([03](03-typography.md)) |
 | Spacing | 0, 2, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48 px ([04](04-spacing-density.md)) |
 | Control height | 36 px default, 32 px small (pagination, icon buttons in tables and inspectors), 40 px only on auth and onboarding ([04](04-spacing-density.md)) |
-| Table row height | 40 px default, 32 px in the Compact density setting and in tables embedded in panels and inspectors; 40 px header row ([04](04-spacing-density.md), [12](12-tables.md)) |
+| Table row height | 32 px (Compact, the default since 2026-10-29, and always in tables embedded in panels and inspectors), 40 px in the Comfortable density setting; 40 px header row ([04](04-spacing-density.md), [12](12-tables.md)) |
 | Radius | 3, 4, 6, 8, 10 px or full, by element type: panels 8, controls 6, badges 4 ([06](06-surfaces-borders-radius.md)) |
 | Colors | Tokens only ([02](02-color-system.md)); no hex, no Tailwind palette |
 | Filter UI | Filter bar with secondary filter buttons (label and chevron) and removable neutral chips ([13](13-filters-search.md)) |

@@ -13,34 +13,35 @@ import { deltaNode, scopeCodes } from './prompts-state.js';
 const { $, icon, engineLogo } = window.PreviewUI;
 
 /**
- * MetricCell at Default density (12 section 6): the rate, its change beside it, the sample below.
+ * MetricCell in Compact density, the default (12 section 6): the rate and its change beside it on one line, so the
+ * row stays 32 px; the sample ("612 of 1,296 obs") moves to the tooltip. Left aligned like every table column.
  * `value` null renders InsufficientData with `gap.text` and `gap.tip`.
  */
 export function rateCell({ value, change, sample, tip, gap }) {
-  const cell = el('td', 'px-3 text-right');
+  const cell = el('td', 'px-3');
   if (value === null) {
     const pill = insufficient(gap.text);
     pill.dataset.tip = gap.tip;
     cell.append(pill);
     return cell;
   }
-  const line = el('span', 'flex items-baseline justify-end gap-1.5');
+  const line = el('span', 'flex items-baseline gap-1.5');
   line.append(el('span', 'num text-foreground', percent0(value)));
   const delta = deltaNode(change);
   if (delta) {
     delta.classList.add('type-label');
     line.append(delta);
   }
-  cell.append(line, el('span', 'block type-label num whitespace-nowrap', sample));
-  if (tip) cell.dataset.tip = tip;
+  cell.append(line);
+  cell.dataset.tip = tip ? `${sample}. ${tip}` : sample;
   return cell;
 }
 
-/** A value with its sample below, for numbers that are not AI rates (a count, an SEO share). */
+/** A value for numbers that are not AI rates (a count, an SEO share); its sample is in the tooltip, as in rateCell. */
 export function valueCell({ text, sample, tip }, className = '') {
-  const cell = el('td', `${className} px-3 text-right`.trim());
-  cell.append(el('span', 'block num text-foreground', text), el('span', 'block type-label num whitespace-nowrap', sample));
-  if (tip) cell.dataset.tip = tip;
+  const cell = el('td', `${className} px-3`.trim());
+  cell.append(el('span', 'block num text-foreground', text));
+  cell.dataset.tip = tip ? `${sample}. ${tip}` : sample;
   return cell;
 }
 
@@ -146,18 +147,26 @@ const HEADER = 'px-3 whitespace-nowrap type-label border-r border-border-subtle'
  * A sortable column header (12 section 7). `sort` is the { key, dir } in force and `attr` the data attribute
  * the table listens for, so each table keeps its own sort.
  */
-export function sortHeaderCell({ key, label, className, note, align = 'justify-end', rowSpan, sort, attr }) {
+export function sortHeaderCell({ key, label, className, note, rowSpan, sort, attr }) {
   const active = sort.key === key;
   const th = el('th', className);
   th.scope = 'col';
   th.setAttribute('aria-sort', active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
   if (rowSpan) th.rowSpan = rowSpan;
-  const button = el('button', `w-full min-h-8 px-2 py-1 rounded-md flex items-center ${align} gap-1 type-label hover:bg-surface-hover hover:text-foreground${active ? ' text-foreground' : ''}`);
+  const button = el('button', `w-full min-h-8 px-2 py-1 rounded-md flex items-center justify-start gap-1 type-label hover:bg-surface-hover hover:text-foreground${active ? ' text-foreground' : ''}`);
   button.type = 'button';
   button.dataset[attr] = key;
-  const text = el('span', `flex flex-col whitespace-nowrap ${align === 'justify-end' ? 'items-end' : 'items-start'}`);
-  text.append(el('span', '', label));
-  if (note) text.append(el('span', 'font-normal text-foreground-tertiary', note));
+  const text = el('span', 'flex flex-col items-start whitespace-nowrap');
+  const name = el('span', '', label);
+  // An engine is a product name: it keeps its own capitals
+  if (key.startsWith('engine:')) name.dataset.keepCase = '';
+  text.append(name);
+  if (note) {
+    // A sub-label (a unit, "avg of 4") is not a column label: it stays as written
+    const sub = el('span', 'font-normal text-foreground-tertiary', note);
+    sub.dataset.keepCase = '';
+    text.append(sub);
+  }
   const arrow = !active ? 'arrow-up-down' : sort.dir === 'asc' ? 'arrow-up-narrow-wide' : 'arrow-down-wide-narrow';
   button.append(text, icon(arrow, `size-icon-xs shrink-0${active ? '' : ' text-foreground-muted'}`));
   th.append(button);

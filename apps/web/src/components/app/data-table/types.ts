@@ -75,6 +75,8 @@ export interface DataTableColumn<TRow> {
   priority: ColumnPriority;
   /** The screen's default width, between the type's minimum and maximum. */
   width?: number | undefined;
+  /** The narrowest the column may be squeezed to, when its header needs more than its type's minimum. */
+  minWidth?: number | undefined;
   /** The identity column: the row header, always visible, pinned left. */
   identity?: boolean | undefined;
   /** Shown by default; the others wait in the column chooser. */

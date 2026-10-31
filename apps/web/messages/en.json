@@ -915,10 +915,10 @@
       "description": "How the app looks and behaves for you in this browser. Each change applies at once.",
       "theme": "Theme",
       "themeHint": "System follows your device setting.",
-      "density": "Default table density",
-      "densityHint": "New tables start at this row height: 40 px or 32 px.",
-      "densityDefault": "Default",
-      "densityCompact": "Compact",
+      "density": "Table density",
+      "densityHint": "Tables open at 32 px rows. Comfortable (40 px) is kept here for when tables read this setting; each table keeps its own choice in its link.",
+      "densityDefault": "Comfortable",
+      "densityCompact": "Compact (default)",
       "locale": "Number and date format",
       "example": "Example: {number} · {date}",
       "motionAndKeys": "Motion and keyboard",
@@ -1388,8 +1388,8 @@
     "toolbar": "{caption} table actions",
     "updating": "Updating",
     "density": "Density",
-    "densityDefault": "Default",
-    "densityCompact": "Compact",
+    "densityDefault": "Comfortable",
+    "densityCompact": "Compact (default)",
     "columns": "Columns",
     "resetColumns": "Reset to default",
     "moveUp": "Move {column} up",
@@ -1406,6 +1406,9 @@
     "moveLeft": "Move left",
     "moveRight": "Move right",
     "hide": "Hide column",
+    "wider": "Wider",
+    "narrower": "Narrower",
+    "resetWidth": "Reset width",
     "selectAll": "Select all {count, plural, one {# {nounOne}} other {# {nounOther}}} loaded",
     "selectRow": "Select {name}",
     "rowActions": "Actions for {name}",
@@ -1432,7 +1435,8 @@
     "table": "Table",
     "patterns": "Patterns",
     "legend": "Series in {title}",
-    "noValue": "No data"
+    "noValue": "No data",
+    "failed": "Failed"
   },
   "inspector": {
     "resize": "Resize inspector",
@@ -2108,6 +2112,41 @@
         "budgetBlocked": "The metrics refresh did not start: a budget for keyword research is used up this month"
       }
     },
+    "checkNow": {
+      "action": "Check now",
+      "inProgress": "Check in progress",
+      "blocked": {
+        "allMatching": "Check now takes chosen keywords, not every matching keyword. Choose up to 100.",
+        "tooMany": "Check now takes up to 100 keywords at a time.",
+        "none": "Choose keywords first.",
+        "archived": "Archived keywords are not checked.",
+        "noneLeft": "No manual runs left today. The limit resets at 00:00 UTC."
+      },
+      "refused": {
+        "limit": "No manual runs left today. The limit resets at 00:00 UTC.",
+        "quota": "This workspace has made {used} of its {limit} live checks this month. {requested, plural, one {1 more does} other {# more do}} not fit.",
+        "paused": "The data provider is not being asked just now. Try again in a few minutes.",
+        "unknownKeyword": "A keyword is no longer tracked here. The list was read again; try again.",
+        "other": "The check did not start. Try again."
+      },
+      "progress": {
+        "queued": "Rank check queued",
+        "running": "Checking ranks",
+        "slow": "Rank check is taking longer than usual to start",
+        "started": "Rank check queued. Its progress shows under the page title.",
+        "lost": "This rank check could not be followed here. It may still be running. Reload the page to check on it.",
+        "counts": "{done} of {total} checked",
+        "countsFailed": "{done} of {total} checked, {failed} failed"
+      },
+      "finished": {
+        "completed": "Ranks checked: {done} of {total}",
+        "nothing": "No keyword needed a check",
+        "completedWithErrors": "Ranks checked: {done} of {total}, {failed} failed",
+        "failed": "The rank check failed",
+        "cancelled": "The rank check was cancelled",
+        "budgetBlocked": "The rank check did not start: a budget for rank checks is used up this month"
+      }
+    },
     "caption": "Tracked keywords",
     "noun": {
       "one": "keyword",
@@ -2157,8 +2196,8 @@
     "columns": {
       "keyword": "Keyword",
       "keywordDetail": "{location} · {device} · {engine} · {language}",
-      "copyKeyword": "Copy keyword {keyword}",
-      "keywordCopied": "Keyword copied",
+      "openRankingPage": "Open the ranking page of {keyword}: {url}",
+      "moreRankingPages": "{count, plural, one {(+1 more ranking page)} other {(+# more ranking pages)}}",
       "rowName": "{keyword}, {device}, {location}",
       "rowNameLanguage": "{keyword}, {device}, {location}, {language}",
       "desktop": "Desktop",
@@ -2193,9 +2232,7 @@
     },
     "rank": {
       "rank": "Rank",
-      "rankTooltip": "Organic rank at the latest check. A keyword beyond the depth that was checked shows the depth, such as >20.",
-      "change": "Change",
-      "changeTooltip": "How the rank moved since the previous check. Arrows show the direction. Color marks a move of more than 2 places, and New and Lost always.",
+      "rankTooltip": "Organic rank at the latest check and how it moved since the previous check. A keyword beyond the depth that was checked shows the depth, such as >20.",
       "rankingUrl": "Ranking URL",
       "openUrl": "Open {path} in a new tab",
       "copyUrl": "Copy ranking URL",
@@ -2237,6 +2274,119 @@
         "stillBeyond": "still beyond tracked depth",
         "withinDepth": "no change within the depth checked"
       }
+    },
+    "features": {
+      "column": "SERP features",
+      "columnTooltip": "Result features on the first page at the latest check. Highlighted ones show your site.",
+      "none": "None",
+      "noneTooltip": "No result features on the first page at the latest check.",
+      "pending": "Pending",
+      "pendingTooltip": "The first check has not run yet.",
+      "failed": "Check failed",
+      "failedTooltip": "The last check failed. It will be tried again.",
+      "more": "+{count}",
+      "owned": "{feature}, yours",
+      "yours": "Yours: {features}",
+      "listName": "SERP features: {features}",
+      "types": {
+        "aiOverview": "AI Overview",
+        "featuredSnippet": "Snippet",
+        "peopleAlsoAsk": "PAA",
+        "localPack": "Local pack",
+        "knowledgeGraph": "Knowledge panel",
+        "topStories": "Top stories",
+        "video": "Video",
+        "images": "Images",
+        "discussionsAndForums": "Discussions",
+        "perspectives": "Perspectives",
+        "shopping": "Shopping",
+        "relatedSearches": "Related searches",
+        "socialPosts": "Social posts",
+        "answerBox": "Answer box",
+        "ads": "Ads",
+        "sitelinks": "Sitelinks"
+      },
+      "names": {
+        "aiOverview": "AI Overview",
+        "featuredSnippet": "Featured snippet",
+        "peopleAlsoAsk": "People also ask",
+        "localPack": "Local pack",
+        "knowledgeGraph": "Knowledge panel",
+        "topStories": "Top stories",
+        "video": "Video",
+        "images": "Images",
+        "discussionsAndForums": "Discussions and forums",
+        "perspectives": "Perspectives",
+        "shopping": "Shopping",
+        "relatedSearches": "Related searches",
+        "socialPosts": "Social posts",
+        "answerBox": "Answer box",
+        "ads": "Ads",
+        "sitelinks": "Sitelinks"
+      }
+    },
+    "aio": {
+      "column": "AI Overview",
+      "columnTooltip": "Whether Google showed an AI Overview at the latest check, and whether it cites your site.",
+      "cited": "Cited #{position}",
+      "citedNoPosition": "Cited",
+      "citedTooltip": "Cited at position {position}",
+      "absent": "No AIO",
+      "notLoaded": "Not loaded",
+      "notLoadedTooltip": "The AI Overview did not load at the latest check.",
+      "unknown": "n/a",
+      "unknownTooltip": "The latest check did not record the AI Overview.",
+      "pending": "Pending",
+      "pendingTooltip": "The first check has not run yet.",
+      "failed": "Check failed",
+      "failedTooltip": "The last check failed. It will be tried again.",
+      "speech": {
+        "cited": "AI Overview present, cited at position {position}",
+        "citedNoPosition": "AI Overview present, cited",
+        "notCited": "AI Overview present, not cited",
+        "absent": "Not applicable, no AI Overview"
+      },
+      "states": {
+        "presentCited": "Cited",
+        "presentNotCited": "Present, not cited",
+        "absent": "No AI Overview",
+        "notLoaded": "Not loaded",
+        "unknown": "Unknown"
+      }
+    },
+    "target": {
+      "mismatch": "Ranks with {ranking}, not the target {target}.",
+      "match": "Ranks with the target",
+      "mismatchChoice": "Ranks with another URL"
+    },
+    "competitor": {
+      "headerTooltip": "{name}'s organic rank at the latest check.",
+      "notTracked": "n/a",
+      "notTrackedTooltip": "{name} is not in this keyword's competitor set.",
+      "speech": "{name}: {rank}",
+      "failed": "The project competitors did not load."
+    },
+    "trend": {
+      "column": "Trend",
+      "columnTooltip": "Rank at the last 30 checks, better up, on a scale of 1 to 20. A gap is a check beyond the depth.",
+      "label": "Rank trend, last {checks, plural, one {check} other {# checks}}: from {first} to {last}, best {best}",
+      "labelBeyond": "{count, plural, one {1 check} other {# checks}} beyond the depth checked",
+      "labelNone": "Rank trend: not ranked within the depth in the last {checks, plural, one {check} other {# checks}}",
+      "labelEmpty": "Rank trend: no checks yet",
+      "labelFailed": "Rank trend: checks failed",
+      "tipTitle": "Last checks",
+      "tipPoint": "{date}: {rank}"
+    },
+    "strip": {
+      "label": "Summary for the filtered keywords",
+      "tracked": "Tracked",
+      "trackedNote": "{count} checked",
+      "top3": "Top 3",
+      "top10": "Top 10",
+      "top20": "Top 20",
+      "ofChecked": "of {count} checked",
+      "unavailable": "n/a",
+      "failed": "The summary did not load."
     },
     "filters": {
       "group": "Group",
@@ -2286,7 +2436,8 @@
         "top20": "11 to 20",
         "top50": "21 to 50",
         "top100": "51 to 100",
-        "beyond": "Beyond depth"
+        "beyond": "Beyond depth",
+        "over100": "Over 100"
       },
       "chg": "Change",
       "changes": {
@@ -2295,6 +2446,10 @@
         "entered": "Entered",
         "lost": "Lost"
       },
+      "feature": "SERP feature",
+      "featureOwned": "SERP feature you own",
+      "aio": "AI Overview",
+      "target": "Target URL",
       "stale": "Freshness",
       "staleStates": {
         "stale": "Stale"
@@ -2330,6 +2485,8 @@
         "description": "Your changes to this keyword will be lost."
       },
       "more": {
+        "copyKeyword": "Copy keyword",
+        "keywordCopied": "Keyword copied",
         "changeDepth": "Change depth profile",
         "archive": "Archive keyword",
         "unarchive": "Unarchive keyword"
@@ -2362,6 +2519,24 @@
         "pendingNote": "Arrives within minutes",
         "noData": "No data",
         "noDataNote": "None at this location"
+      },
+      "rankHistory": {
+        "title": "Rank history",
+        "meta": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked",
+        "metaWithFailed": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked, {failed} failed",
+        "you": "{name} (you)",
+        "category": "Date",
+        "guide": "Top {rank}",
+        "band": "Not in top {depth}",
+        "bandSingle": "Not in top {depth} on {date}.",
+        "bandRange": "Not in top {depth} from {from} to {to}.",
+        "checkFailed": "Check failed",
+        "summary": "Organic rank of {name} over the last 90 days, 1 is best: from {first} to {last}, best {best}. {competitors, plural, =0 {} one {1 competitor is shown too.} other {# competitors are shown too.}}{failed, plural, =0 {} other { {failed} failed.}}",
+        "summaryUnranked": "Organic rank of {name} over the last 90 days: not ranked within the depth checked.",
+        "summaryAllFailed": "Organic rank of {name} over the last 90 days: every check failed.",
+        "empty": "No checks yet",
+        "emptyReason": "The rank history fills in after the first check.",
+        "failed": "The rank history did not load."
       },
       "demand": {
         "title": "Search volume by month",

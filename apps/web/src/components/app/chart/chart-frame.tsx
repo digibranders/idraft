@@ -32,6 +32,8 @@ export interface ChartFrameProps {
   categoryHeader: string;
   series: readonly CategorySeries[];
   formatValue: (value: number) => string;
+  /** Adds to the line or bar option, such as a rank axis (`lib/charts/rank-chart.ts`). Keep it stable (`useCallback`). */
+  extendOption?: ((option: Record<string, unknown>, tokens: ChartTokens) => Record<string, unknown>) | undefined;
   /** Bars of a category stack into one column; lines ignore it. */
   stacked?: boolean | undefined;
   height: ChartHeight;
@@ -59,6 +61,7 @@ export function ChartFrame({
   height,
   summary,
   status,
+  extendOption,
 }: ChartFrameProps): ReactElement {
   const t = useTranslations('chart');
   const summaryId = useId();
@@ -73,9 +76,11 @@ export function ChartFrame({
       return next;
     });
   const option = useCallback(
-    (tokens: ChartTokens) =>
-      categoryChartOption({ kind, categories, series, hidden, patterns, tokens, formatValue, stacked }),
-    [kind, categories, series, hidden, patterns, formatValue, stacked],
+    (tokens: ChartTokens): Record<string, unknown> => {
+      const base = categoryChartOption({ kind, categories, series, hidden, patterns, tokens, formatValue, stacked });
+      return extendOption === undefined ? base : extendOption(base, tokens);
+    },
+    [kind, categories, series, hidden, patterns, formatValue, stacked, extendOption],
   );
   const inspector = variant === 'inspector';
   const Title = inspector ? 'h3' : 'h2';
@@ -183,21 +188,18 @@ function ChartTable({
   formatValue: (value: number) => string;
   noValue: string;
 }): ReactElement {
+  const t = useTranslations('chart');
   return (
     <div className="max-h-70 overflow-auto rounded-lg border border-border-subtle">
       <table className="w-full border-collapse type-table">
         <caption className="sr-only">{title}</caption>
         <thead>
           <tr className="bg-surface-subtle">
-            <th scope="col" className="h-row-compact px-4 text-left type-label font-normal text-foreground-tertiary">
+            <th scope="col" className="h-row-compact px-4 text-left type-table-header">
               {categoryHeader}
             </th>
             {series.map((entry) => (
-              <th
-                key={entry.id}
-                scope="col"
-                className="h-row-compact px-4 text-right type-label font-normal text-foreground-tertiary"
-              >
+              <th key={entry.id} scope="col" className="h-row-compact px-4 text-left type-table-header">
                 {entry.name}
               </th>
             ))}
@@ -205,15 +207,17 @@ function ChartTable({
         </thead>
         <tbody>
           {categories.map((category, index) => (
-            <tr key={category} className="border-t border-border-subtle">
+            <tr key={`${category}-${String(index)}`} className="border-t border-border-subtle">
               <th scope="row" className="h-row-compact px-4 text-left font-normal text-foreground-secondary">
                 {category}
               </th>
               {series.map((entry) => {
                 const value = entry.values[index];
                 return (
-                  <td key={entry.id} className="h-row-compact px-4 text-right num">
-                    {value === null || value === undefined ? (
+                  <td key={entry.id} className="h-row-compact px-4 text-left num">
+                    {value === 'failed' ? (
+                      <span className="text-foreground-secondary">{t('failed')}</span>
+                    ) : value === null || value === undefined ? (
                       <span className="text-foreground-tertiary">{noValue}</span>
                     ) : (
                       formatValue(value)

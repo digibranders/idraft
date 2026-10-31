@@ -1,7 +1,7 @@
 # 02. Product Requirements
 
 Status: Draft for architecture freeze
-Last updated: 2026-09-29
+Last updated: 2026-10-31
 Related: [00-executive-summary.md](00-executive-summary.md), [29-phase-roadmap.md](29-phase-roadmap.md) (phase per requirement), [16-metrics-methodology.md](16-metrics-methodology.md)
 
 ## 1. Product statement
@@ -125,8 +125,8 @@ Requirement ids: `SEO-`, `AI-`, `VIS-` (AI visibility intelligence), `X-` (cross
 | Id | Requirement | Target |
 |---|---|---|
 | NFR-01 | Collection reliability | 98% of scheduled rank checks and 95% of AI tasks ingested within window + 6 hours |
-| NFR-02 | Dashboard latency (p95) | overview 300 ms, lists 500 ms, matrix 800 ms on the V1 droplet |
-| NFR-03 | Availability (API) | 99.5% monthly (single host; planned maintenance excluded) |
+| NFR-02 | Dashboard latency (p95) | overview 300 ms, lists 500 ms, matrix 800 ms on the V1 host (idraft's share of the Hostinger VPS: 8 GB RAM, about 2 vCPU guaranteed under contention) |
+| NFR-03 | Availability (API) | 99.5% monthly (single host, shared with a second project; planned maintenance excluded) |
 | NFR-04 | Data durability | RPO 24 h (V1), RTO 4 h for full rebuild; PITR (minutes) before external SaaS |
 | NFR-05 | Scale without rewrite | 10,000 prompts/week, 100,000+ AI observations/month, tens of thousands of keywords, millions of observations/month via documented scaling steps (doc 28) |
 | NFR-06 | Security | Tenant isolation tested in CI; encrypted credentials; 2FA for admins; OWASP ASVS L2 as the review baseline |
@@ -137,7 +137,7 @@ Requirement ids: `SEO-`, `AI-`, `VIS-` (AI visibility intelligence), `X-` (cross
 
 ## 5. Explicit V1 exclusions
 
-Cloro; custom large-scale browser scraping; proxy networks; CAPTCHA solving; Kubernetes; multiple droplets (V1); managed PostgreSQL or Redis; ClickHouse; a global keyword database; a global prompt database; an opaque "AI visibility score"; automated article or mass GEO content generation; hundreds of engines; Gemini API grounding for bulk measurement (terms).
+Cloro; custom large-scale browser scraping; proxy networks; CAPTCHA solving; Kubernetes; multiple hosts (V1; the move to a dedicated VPS is a planned scaling step, doc 28 section 7); managed PostgreSQL or Redis; ClickHouse; a global keyword database; a global prompt database; an opaque "AI visibility score"; automated article or mass GEO content generation; hundreds of engines; Gemini API grounding for bulk measurement (terms).
 
 ## 6. Success criteria for MVP
 

@@ -22,7 +22,7 @@ const rise = (index: number) => ({ '--i': index }) as React.CSSProperties;
 /** The top of every inner page: large type on the left, a piece of the product (or one picture in a bezel) on the right. */
 export function PageHero({ eyebrow, title, lead, image, visual, backdrop, action = true }: PageHeroProps) {
   return (
-    <section className="relative isolate mx-auto grid max-w-[1320px] items-center gap-12 px-5 pt-36 pb-16 md:px-8 lg:min-h-[88dvh] lg:grid-cols-12 lg:gap-8 lg:pt-32">
+    <section className="relative isolate mx-auto grid overflow-x-clip max-w-[1320px] items-center gap-12 px-5 pt-36 pb-16 md:px-8 lg:min-h-[88dvh] lg:grid-cols-12 lg:gap-8 lg:pt-32">
       <div aria-hidden="true" className="absolute -top-40 -left-40 -z-10 size-[44rem] rounded-full bg-wash blur-[120px]" />
       <div className={visual ? 'lg:col-span-5' : image ? 'lg:col-span-5' : 'lg:col-span-6'}>
         {eyebrow ? (

@@ -20,3 +20,6 @@ Shared Zod contracts across API and UI; one CI pipeline; BullMQ available. Stati
 
 ## Revisit trigger
 A required capability (for example a local NER or embedding model) cannot run acceptably in Node, or a Python-only library becomes central.
+
+## Amendment (2026-10-31)
+Host note only: "the droplet" above is now a shared Hostinger VPS with an 8 GB idraft share ([ADR-023](ADR-023-shared-hostinger-vps.md)). This ADR remains superseded by ADR-022.

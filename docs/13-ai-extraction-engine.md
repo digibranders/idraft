@@ -300,7 +300,7 @@ Used for: uncertain mentions (Stage 5), ambiguous recommendations (Stage 9), low
 
 Order of magnitude (Assumption, measure in Phase 8): with 1,000 prompts x 4 engines x 4.33 cycles, about 17,000 observations per month. If 15% need adjudication for one item each and batching gives 20 items per call at roughly 2,000 input and 600 output tokens per call, that is about 130 calls per month, a few US dollars at cheap-model prices.
 
-A local model (for example a small ONNX classifier running in the worker via `onnxruntime`) is **not** in V1. On a 4 GB droplet shared with PostgreSQL it would compete for memory, and its accuracy on this task is unproven. Revisit in Phase 14 if LLM adjudication volume or cost grows beyond budget.
+A local model (for example a small ONNX classifier running in the worker via `onnxruntime`) is **not** in V1. On the 8 GB idraft share of the host, shared with PostgreSQL it would compete for memory, and its accuracy on this task is unproven. Revisit in Phase 14 if LLM adjudication volume or cost grows beyond budget.
 
 ## 5. Outputs
 

@@ -84,16 +84,16 @@ export function DomainsScreen({ workspaceId, projectId, workspaceSlug, projectSl
                 <p className="type-meta">{t(`empty.${role}`)}</p>
               ) : (
                 <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-                  <table className="w-full" aria-labelledby={titleId}>
+                  <table className="w-full type-table" aria-labelledby={titleId}>
                     <thead className="bg-surface-subtle">
                       <tr>
-                        <th scope="col" className="h-row-header px-4 text-left type-label">
+                        <th scope="col" className="h-row-header px-4 text-left type-table-header">
                           {t('columns.domain')}
                         </th>
-                        <th scope="col" className="h-row-header px-3 text-left type-label">
+                        <th scope="col" className="h-row-header px-3 text-left type-table-header">
                           {t('columns.counts')}
                         </th>
-                        <th scope="col" className="h-row-header px-4 text-left type-label">
+                        <th scope="col" className="h-row-header px-4 text-left type-table-header">
                           {t('columns.entity')}
                         </th>
                       </tr>
@@ -101,24 +101,24 @@ export function DomainsScreen({ workspaceId, projectId, workspaceSlug, projectSl
                     <tbody aria-busy={domains.isPending}>
                       {domains.isPending
                         ? Array.from({ length: SKELETON_ROWS }, (_, index) => (
-                            <tr key={index} className="h-row border-t border-border-subtle">
+                            <tr key={index} className="h-row-compact border-t border-border-subtle">
                               <td colSpan={3} className="px-4">
-                                <Skeleton shape="text-14" widthPct={56} />
+                                <Skeleton shape="text-12" widthPct={56} />
                               </td>
                             </tr>
                           ))
                         : ofRole.map((row) => (
                             <tr
                               key={`${row.entity.entity_id}-${ruleText(row)}-${row.match_scope}`}
-                              className="h-row border-t border-border-subtle"
+                              className="h-row-compact border-t border-border-subtle"
                             >
-                              <th scope="row" className="px-4 py-2 text-left type-body font-normal">
+                              <th scope="row" className="px-4 py-2 text-left font-normal">
                                 {ruleText(row)}
                               </th>
-                              <td className="px-3 type-body whitespace-nowrap text-foreground-secondary">
+                              <td className="px-3 whitespace-nowrap text-foreground-secondary">
                                 {scopes(SCOPE_KEY[row.match_scope])}
                               </td>
-                              <td className="px-4 type-body">
+                              <td className="px-4">
                                 <TextLink
                                   render={
                                     <Link

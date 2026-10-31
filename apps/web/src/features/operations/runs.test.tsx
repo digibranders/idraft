@@ -450,6 +450,18 @@ describe('Runs while a run is open', () => {
 });
 
 describe('Runs', () => {
+  it('opens in compact density from a link without one, and keeps a link that says default', async () => {
+    const first = renderWithProviders(runsAs('admin'));
+    const table = await grid();
+    await waitFor(() => expect(bodyRows(table)).toHaveLength(septemberRuns.length));
+    expect(bodyRows(table).every((row) => row.classList.contains('h-row-compact'))).toBe(true);
+    first.unmount();
+    renderWithProviders(runsAs('admin'), { searchParams: '?density=default' });
+    const again = await grid();
+    await waitFor(() => expect(bodyRows(again)).toHaveLength(septemberRuns.length));
+    expect(bodyRows(again).every((row) => row.classList.contains('h-row'))).toBe(true);
+  });
+
   it("lists the project's runs of the month, the newest first, with what the plan names", async () => {
     const asked = recordRequests('/runs');
     const { container } = renderWithProviders(runsAs('admin'));

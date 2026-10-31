@@ -1,7 +1,14 @@
 'use client';
 
 import { BarChart, LineChart } from 'echarts/charts';
-import { AriaComponent, GridComponent, TooltipComponent } from 'echarts/components';
+import {
+  AriaComponent,
+  GridComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+  TooltipComponent,
+} from 'echarts/components';
 import { init, use as registerModules, type ECharts } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useRef, type ReactElement } from 'react';
@@ -9,7 +16,17 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import { readChartTokens, type ChartTokens } from '@/lib/design/read-tokens';
 
 // Tree-shaken: only what the category charts draw. Legend and title are React (15 section 3).
-registerModules([LineChart, BarChart, GridComponent, TooltipComponent, AriaComponent, CanvasRenderer]);
+registerModules([
+  LineChart,
+  BarChart,
+  GridComponent,
+  TooltipComponent,
+  AriaComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+  CanvasRenderer,
+]);
 
 export interface EChartProps {
   /** Builds the option from the colours of the theme in use; called again when the theme changes. */

@@ -14,7 +14,7 @@ This document defines how every screen adapts from a 1920 px monitor down to a 3
 4. **Nothing disappears silently.** A hidden column is reachable through the inspector and the column chooser. A feature that is not offered on a phone says so and names the feature (section 11).
 5. **Viewport breakpoints are for the shell; container queries are for components.** The sidebar, top bar, page header, filter bar, dialog mode and table column tiers respond to the viewport. Anything that can sit in both the page and the inspector responds to its container (section 12).
 6. **The page never scrolls horizontally** at any width from 320 px up. Wide tables scroll inside their own region with the identity column pinned.
-7. **Touch sizing only where touch is primary.** The desktop keeps its desktop sizes (36 px controls, 40 px rows, 32 px rows in Compact density). 44 px targets apply to the mobile layout (section 10).
+7. **Touch sizing only where touch is primary.** The desktop keeps its desktop sizes (36 px controls, 32 px table rows in Compact density, the default, 40 px rows in Comfortable density). 44 px targets apply to the mobile layout (section 10).
 
 ### 1.1 Layout class versus input mode
 
@@ -202,6 +202,8 @@ Rules:
 3. The checkbox column and the row actions column are not tiered: both are present whenever selection and row actions are available at that width.
 4. The identity column is pinned left at every width and absorbs spare width up to its maximum (480 px for keywords, 640 px for prompts, [12-tables.md](12-tables.md) section 5). These are column maximums, unrelated to the inspector widths.
 5. Priorities are defined per screen in the screen's column config next to the column definition, never computed from column order.
+5a. **Every default column shows at every width (owner decision of 2026-10-30).** Priorities no longer hide columns: a window under 1280 px showed only the priority 1 columns, the identity column took the rest of the width, and the other columns could not be reached. The table now shows the person's chosen columns, or the defaults, at every width and scrolls sideways inside its region. The identity column takes what the others leave, down to its minimum, and stays pinned while it leaves at least 360 px for them; when a person has made it wider than that, it scrolls away with the rest instead of blocking the view.
+5b. **The identity column's width is the person's to set.** Drag the right edge of its header (an 8 px hit area), or use Wider, Narrower and Reset width in its column options menu (the keyboard and screen reader path, WCAG 2.5.7); double click the edge to reset. It is never narrower than 120 px, and never wider than the region less 160 px. The width is kept for the session; saving it with the view state is a later step.
 6. Width budgets below are the column's default width on that screen; column widths do not change with density. Each lies within its column type's minimum and maximum ([12-tables.md](12-tables.md) section 5). At each tier boundary the visible set must fit the content width of that viewport with the sidebar expanded and no inspector. A screen that fails this check lowers a column's priority; it does not shrink columns below their minimum.
 
 ### 6.2 Rank Tracker
@@ -247,8 +249,8 @@ Engine columns follow the engine filter. Engines beyond the first three selected
 
 ### 6.4 User overrides and the column chooser
 
-1. The column chooser lists every column, grouped as in [12-tables.md](12-tables.md). Columns hidden by the current tier are listed with the note "Hidden at this width" in `type-meta` and a "Show anyway" action.
-2. "Show anyway" pins the column visible at every width for this user and table (stored in the saved view state). Pinned columns add to the table width; the table scrolls horizontally inside its region.
+1. The column chooser lists every column, grouped as in [12-tables.md](12-tables.md). Every ticked column shows at every width (section 6.1 rule 5a).
+2. A ticked column is part of the person's chosen set, stored in the saved view state. Chosen columns add to the table width; the table scrolls horizontally inside its region with the identity column pinned while it leaves room (rule 5b). There is no separate "Show anyway" action.
 3. A column the user hides stays hidden at every width.
 4. "Reset to default" in the column chooser ([12-tables.md](12-tables.md) section 10) restores defaults and tiers.
 5. The column chooser, resize and reorder are not offered on touch-primary phones (section 11).
@@ -262,9 +264,9 @@ Every field of a row is available in three places regardless of width:
 
 ### 6.6 Tablet tables
 
-At 768 to 1279 only priority 1 columns are shown, so in Default density the identity cell carries a secondary line:
-1. The density at this width is Default (40 px rows), as at every width. Compact (32 px rows) stays available in the density toggle, and a saved density choice is always respected; 32 px rows still meet the 24 px target size (WCAG 2.5.8).
-2. In Default density the identity column shows its secondary line in `type-label` (12 / 16 px, the style that fits under a 20 px line in a 40 px row) with the values of the two highest priority-2 columns as text. Compact density shows one line. Rank Tracker: `US · Desktop · /pricing · 2.4K`. Prompt Explorer: `ChatGPT 38% · Gemini 25% · AI Mode 40%`.
+At 768 to 1279 only priority 1 columns are shown, so in Comfortable density (the 40 px choice) the identity cell carries a secondary line:
+1. The density at this width is Compact (32 px rows), the default, as at every width (owner decision of 2026-10-29). Comfortable (40 px rows) stays available in the density toggle, and a saved density choice is always respected; 32 px rows meet the 24 px target size (WCAG 2.5.8).
+2. In Comfortable density the identity column shows its secondary line in `type-label` (12 / 16 px, which fits under a 16 px line in a 40 px row) with the values of the two highest priority-2 columns as text. Compact density, the default, shows one line, and the values move to the tooltip and the inspector. Rank Tracker: `US · Desktop · /pricing · 2.4K`. Prompt Explorer: `ChatGPT 38% · Gemini 25% · AI Mode 40%`.
 3. On touch-primary tablets the row actions button ("More actions for {row name}") is always visible instead of appearing on hover, and icon buttons in rows are at least 32 px.
 
 ### 6.7 Mobile list rows
@@ -388,7 +390,7 @@ Footer actions in a full-screen dialog sheet: buttons share the width equally, 4
 |---|---|---|---|
 | Buttons and inputs | 36 px (`h-control`); 32 px (`h-control-sm`) for pagination and small controls in tables and inspectors | 36 px | 44 px for primary actions, sheet footers, filter rows and form fields; 36 px for secondary inline buttons with at least 12 px spacing |
 | Icon buttons | 24 px for hover actions inside cells; 32 px (`h-control-sm`) in tables, toolbars, inspectors and elsewhere | 32 px minimum | 44 px in the top bar and sheet headers |
-| Table and list rows | 40 px Default, 32 px Compact and embedded tables | 40 px Default, 32 px Compact | 56 px list rows |
+| Table and list rows | 32 px Compact (the default) and embedded tables, 40 px Comfortable | 32 px Compact (the default), 40 px Comfortable | 56 px list rows |
 | Navigation items | 32 px sidebar items, 4 px apart; 32 px square icons in the collapsed rail ([11-navigation.md](11-navigation.md) sections 2 and 3) | 40 px in the drawer | 44 px in the drawer |
 | Checkboxes and radios | 16 px box in a 24 px target | 24 px target | 44 px row target (the whole option row is the label) |
 | Filter chips | 36 px, remove button with a 24 px target | 36 px | Not shown (chips live in the sheet as 44 px rows) |
@@ -488,7 +490,7 @@ Example:
 | 1680 x 1050 | Wide desktop | fine | Tier 4 boundary, prompt inspector docked 440 |
 | 1440 x 900 | Desktop (reference) | fine | Visual baseline for every template, inspector docking at both defaults, narrowing of a widened inspector |
 | 1280 x 800 | Small desktop | fine | Tier 2 boundary, inspector overlay with expanded sidebar, docked with collapsed |
-| 1024 x 768 | Tablet landscape | coarse | Collapsed rail, overlay inspector, Default density with secondary identity line, visible row actions |
+| 1024 x 768 | Tablet landscape | coarse | Collapsed rail, overlay inspector, Compact density (Comfortable adds the secondary identity line), visible row actions |
 | 768 x 1024 | Tablet portrait | coarse | Drawer navigation, date window in the top bar, filter badge |
 | 390 x 844 | Mobile | coarse | List rows, filter sheet, inspector sheet, 44 px targets, desktop-only notices |
 | 360 x 740 | Mobile (minimum) | coarse | Same as 390, no truncated primary values |

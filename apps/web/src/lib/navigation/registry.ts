@@ -13,7 +13,6 @@ import {
   Quote,
   Receipt,
   Settings,
-  Tag,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -55,7 +54,7 @@ export type NavSectionId = 1 | 2 | 3;
 
 export interface NavDestination {
   key: NavKey;
-  /** Below the project root: `''` is Overview, `/seo/rankings` is Rankings. */
+  /** Below the project root: `''` is Overview, `/seo/keywords` is Rankings. */
   path: '' | `/${string}`;
   /** 07-icons.md section 6. */
   icon: LucideIcon;
@@ -98,16 +97,16 @@ export const NAVIGATION: readonly NavDestination[] = [
     section: 1,
     group: 'seo',
     permission: 'data:read',
-    status: 'live',
+    status: 'planned',
   },
   {
     key: 'keywords',
     path: '/seo/keywords',
-    icon: Tag,
+    icon: ListOrdered,
     section: 1,
     group: 'seo',
     permission: 'data:read',
-    status: 'planned',
+    status: 'live',
   },
   {
     key: 'pages',

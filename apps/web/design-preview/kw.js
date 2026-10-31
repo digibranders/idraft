@@ -2,7 +2,7 @@
 /**
  * SEO > Rankings for the static preview (docs/20 section 5.3). One page: the keyword table, its filters and bulk
  * actions. Add keywords, Import, Manage groups and the keyword inspector are dialogs and drawers on this page.
- * Import is a route (#/rankings/import) that opens its dialog over the table. Schedules, Costs and Runs are not
+ * Import is a route (#/keywords/import) that opens its dialog over the table. Schedules, Costs and Runs are not
  * part of this page.
  *
  * The state lives in the query string (kw-model.js), so a link reproduces a view. A reload drops an unconfirmed
@@ -20,9 +20,9 @@ import { createInspector } from './kw-inspector.js';
 import { BUTTON, BUTTON_PRIMARY, BUTTON_SM, FIELD, button, checkRow, closePopovers, icon, iconButton, popover, popoverOpen, resizeHandle, segmented, toast } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 
-const view = document.querySelector('[data-view="rankings"]');
+const view = document.querySelector('[data-view="keywords"]');
 const DRAWER_KEY = 'preview.rankings.drawer-width';
-const IMPORT_HASH = '#/rankings/import';
+const IMPORT_HASH = '#/keywords/import';
 
 let state = DEFAULT_STATE;
 let mounted = false;
@@ -151,7 +151,7 @@ function openImport() {
   importFrame = openImportDialog({
     onClose: () => {
       importFrame = null;
-      if (location.hash === IMPORT_HASH) history.replaceState(null, '', `${location.pathname}${location.search}#/rankings`);
+      if (location.hash === IMPORT_HASH) history.replaceState(null, '', `${location.pathname}${location.search}#/keywords`);
       render();
     },
     onKeep: keepImportRoute,
@@ -327,7 +327,7 @@ function openAdd() {
 function columnsPopover(trigger) {
   popover(trigger, (panel) => {
     panel.append(el('p', 'px-2 pt-1 type-label text-foreground-tertiary', 'Density'));
-    panel.append(segmented([['default', 'Default'], ['compact', 'Compact']], state.density, (value) => set({ density: value }), 'Density'));
+    panel.append(segmented([['default', 'Comfortable'], ['compact', 'Compact (default)']], state.density, (value) => set({ density: value }), 'Density'));
     panel.append(el('p', 'px-2 pt-2 type-label text-foreground-tertiary', 'Columns'));
     COLUMNS.forEach(([key, label]) => {
       panel.append(checkRow(label, state.cols.includes(key), (on) => {
@@ -467,10 +467,10 @@ function hide() {
 
 // Pages reads the address when it opens, so Rankings lets go of its query before the next page is shown.
 window.addEventListener('preview-leave', (event) => {
-  if (mounted && event.detail.from === 'rankings') releaseAddress();
+  if (mounted && event.detail.from === 'keywords') releaseAddress();
 });
 window.addEventListener('preview-route', (event) => {
-  if (event.detail.view === 'rankings') show();
+  if (event.detail.view === 'keywords') show();
   else if (mounted) hide();
 });
 // Back, or any route change, while the import is open goes through the Stop question (syncImport).
@@ -511,4 +511,4 @@ document.addEventListener('keydown', (event) => {
 
 window.addEventListener('pagehide', () => closePopovers());
 
-if (!location.hash || location.hash.startsWith('#/rankings')) show();
+if (!location.hash || location.hash.startsWith('#/keywords') || location.hash.startsWith('#/rankings')) show();

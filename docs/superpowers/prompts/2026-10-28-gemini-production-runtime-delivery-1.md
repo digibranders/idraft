@@ -14,7 +14,8 @@ Implement **Delivery 1** of `docs/superpowers/plans/2026-10-28-production-runtim
 
 1. `docs/superpowers/plans/2026-10-28-production-runtime.md` (the plan)
 2. `docs/22-infrastructure-devops.md` (the design you are implementing; note sections 1, 4.1, 4.2, 4.3, 4.5, 7, 8, 9)
-3. `docs/adr/ADR-022-python-backend-simplified-platform.md` and `docs/adr/ADR-002-single-droplet-compose.md`
+3. `docs/adr/ADR-022-python-backend-simplified-platform.md` and `docs/adr/ADR-002-single-host-compose.md`
+   Also read `docs/adr/ADR-023-shared-hostinger-vps.md` (2026-10-31): the host is a Hostinger VPS shared with a second project and idraft gets a capped 8 GB share. Delivery 1 stays host-agnostic (laptop and CI); the shared-host work is WP2b of the plan and is not part of this delivery, so do not bind Caddy to loopback or add `cgroup_parent` yet. Use the 8 GB profile values from decision D9 of the plan, not the 4 GB values in docs that have not caught up.
 4. `backend/Dockerfile`, `backend/smoke.sh`, `backend/check.sh`, `apps/web/Dockerfile`
 5. `backend/src/idraft/config/settings.py` (every environment variable the api and worker read)
 6. `.github/workflows/backend.yml` and `.github/workflows/web.yml`

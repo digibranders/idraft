@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 
 import { FINISH_KEYS, RUN_SLOW_MS } from './refresh-model';
-import { useRefreshRun } from './refresh-queries';
+import { useRefreshRun, type FollowedWorkload } from './refresh-queries';
 import { refreshKeywords, type ProjectScope } from '../rankings-queries';
 import { CollectionProgress } from '@/components/app/status/collection-progress';
 import { toast, type ToastOptions } from '@/components/ui/toast';
@@ -18,6 +18,7 @@ import { useRunReason } from '@/lib/runs/use-run-reason';
 export interface RefreshProgressProps {
   scope: ProjectScope;
   runId: string;
+  workload?: FollowedWorkload;
   /** The run ended, or cannot be followed: the header lets go of it. Called once, with the id. */
   onSettled: (runId: string) => void;
 }
@@ -29,11 +30,18 @@ export interface RefreshProgressProps {
  * at the end, since new metrics may have arrived. A run the API no longer knows is let go of without a word;
  * one it will not say anything about, or does not answer for, with one line that it may still run.
  */
-export function RefreshProgress({ scope, runId, onSettled }: RefreshProgressProps): ReactElement | null {
-  const t = useTranslations('rankings.refresh');
+export function RefreshProgress({
+  scope,
+  runId,
+  workload = 'keyword_metrics',
+  onSettled,
+}: RefreshProgressProps): ReactElement | null {
+  const tRefresh = useTranslations('rankings.refresh');
+  const tCheckNow = useTranslations('rankings.checkNow');
+  const t = workload === 'seo_rank' ? tCheckNow : tRefresh;
   const reasonText = useRunReason();
   const queryClient = useQueryClient();
-  const { run, gone, lost } = useRefreshRun(scope, runId);
+  const { run, gone, lost } = useRefreshRun(scope, runId, workload);
   // The end is reported once, however many times the answer is read again
   const handled = useRef(false);
   // A run the cache already holds as ended was reported on an earlier visit to the screen
@@ -49,18 +57,21 @@ export function RefreshProgress({ scope, runId, onSettled }: RefreshProgressProp
     }
     if (lost !== null) {
       handled.current = true;
-      toast({ id: `keyword-refresh-${runId}`, type: 'info', title: t('progress.lost') });
+      toast({ id: `keyword-${workload}-${runId}`, type: 'info', title: t('progress.lost') });
       onSettled(runId);
       return;
     }
     if (run === undefined || !isFinished(run.status)) return;
     handled.current = true;
     if (!reportedBefore.current) {
-      toast({ id: `keyword-refresh-${runId}`, ...finishedToast(run, t, reasonText) });
+      toast({
+        id: `keyword-${workload}-${runId}`,
+        ...finishedToast(run, t as unknown as Translate, reasonText),
+      });
       void refreshKeywords(queryClient, scope);
     }
     onSettled(runId);
-  }, [run, gone, lost, runId, scope, queryClient, onSettled, t, reasonText]);
+  }, [run, gone, lost, runId, workload, scope, queryClient, onSettled, t, reasonText]);
 
   // A run still queued after a long while is said to take longer than usual, and is followed all the same
   const queued = run?.status === 'planned';
@@ -99,7 +110,7 @@ export function RefreshProgress({ scope, runId, onSettled }: RefreshProgressProp
   );
 }
 
-type Translate = ReturnType<typeof useTranslations<'rankings.refresh'>>;
+type Translate = (key: string, values?: Record<string, string | number | Date>) => string;
 
 /** The toast of a run that has ended: how it ended, with the reason when the API gave one we have words for. */
 function finishedToast(

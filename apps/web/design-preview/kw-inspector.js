@@ -84,11 +84,11 @@ function volumeCard(kw) {
     }
     const table = el('table', 'w-full type-table');
     const head = el('tr', 'text-left type-label text-foreground-secondary');
-    head.append(el('th', 'py-1 font-normal', 'Month'), el('th', 'py-1 font-normal text-right', 'Searches'));
+    head.append(el('th', 'py-1 font-normal', 'Month'), el('th', 'py-1 font-normal', 'Searches'));
     const tbody = el('tbody');
     values.forEach((value, index) => {
       const tr = el('tr', 'border-t border-border-subtle');
-      tr.append(el('td', 'py-1', months[index]), el('td', 'py-1 num text-right', formatInt(value)));
+      tr.append(el('td', 'py-1', months[index]), el('td', 'py-1 num', formatInt(value)));
       tbody.append(tr);
     });
     table.append(el('thead', '', ''), tbody);

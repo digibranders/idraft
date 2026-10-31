@@ -82,7 +82,7 @@ function visibleRows() {
 // Pieces of the list
 
 function metricCell(row, key) {
-  const td = el('td', 'px-3 text-right whitespace-nowrap');
+  const td = el('td', 'px-3 whitespace-nowrap');
   if (row.loading || state.review === 'syncing') {
     td.append(el('span', 'inline-block h-3 w-16 rounded-sm bg-surface-hover animate-skeleton-pulse'));
     return td;
@@ -93,11 +93,11 @@ function metricCell(row, key) {
   return td;
 }
 
-function headerCell(label, key, align = 'left') {
+function headerCell(label, key) {
   const th = el('th', `px-1 border-r border-border-subtle ${key === 'path' ? '' : ''}`);
   th.setAttribute('aria-sort', state.sort === key ? 'ascending' : state.sort === `-${key}` ? 'descending' : 'none');
   const active = state.sort === key || state.sort === `-${key}`;
-  const node = el('button', `w-full h-8 px-2 rounded-md flex items-center gap-1 type-label hover:bg-surface-hover hover:text-foreground ${align === 'right' ? 'justify-end' : ''}`);
+  const node = el('button', `w-full h-8 px-2 rounded-md flex items-center gap-1 type-label hover:bg-surface-hover hover:text-foreground`);
   node.type = 'button';
   node.append(label, icon(!active ? 'arrow-up-down' : state.sort.startsWith('-') ? 'arrow-down-wide-narrow' : 'arrow-up-narrow-wide', `size-icon-xs ${active ? '' : 'text-foreground-muted'}`));
   node.addEventListener('click', () => {
@@ -127,7 +127,7 @@ function renderTable(rows, ranges) {
   head.append(el('th', 'hidden xl:table-cell px-3 type-label border-r border-border-subtle', 'Group'));
   head.append(headerCell('Health', 'attention'));
   head.append(el('th', 'hidden 2xl:table-cell px-3 type-label border-r border-border-subtle', 'Indexing'));
-  head.append(headerCell('Clicks', 'clicks', 'right'), headerCell('Impressions', 'impressions', 'right'), headerCell('CTR', 'ctr', 'right'), headerCell('Position', 'position', 'right'));
+  head.append(headerCell('Clicks', 'clicks'), headerCell('Impressions', 'impressions'), headerCell('CTR', 'ctr'), headerCell('Position', 'position'));
   head.append(el('th', 'hidden xl:table-cell px-3 type-label', 'Trend'));
   thead.append(head);
   const tbody = el('tbody');
@@ -140,7 +140,7 @@ function renderTable(rows, ranges) {
   }
   rows.forEach((row) => {
     const { page, model } = row;
-    const tr = el('tr', `h-row border-t border-border-subtle hover:bg-surface-hover ${state.page === page.id ? 'bg-surface-selected' : ''}`);
+    const tr = el('tr', `h-row-compact border-t border-border-subtle hover:bg-surface-hover ${state.page === page.id ? 'bg-surface-selected' : ''}`);
     const boxCell = el('td', 'w-10 pl-4 pr-2');
     const box = el('input', 'size-4 rounded-sm accent-primary align-middle');
     box.type = 'checkbox';

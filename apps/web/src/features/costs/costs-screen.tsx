@@ -234,12 +234,11 @@ function CostsContent({ workspaceId, workspaceName, projects }: CostsScreenProps
   const stripGroups = [{ id: 'month', items: stripItems }];
 
   const workloadColumns: PlainColumn<CostRow>[] = [
-    { id: 'workload', header: t('workload'), align: 'left', cell: (row) => workloadName(row.keys.workload ?? '') },
-    { id: 'cost', header: t('cost'), align: 'right', cell: (row) => formatCurrency(money(row.cost_usd)) },
+    { id: 'workload', header: t('workload'), cell: (row) => workloadName(row.keys.workload ?? '') },
+    { id: 'cost', header: t('cost'), cell: (row) => formatCurrency(money(row.cost_usd)) },
     {
       id: 'share',
       header: t('share'),
-      align: 'right',
       cell: (row) => formatPercent(shareOf(row.cost_usd, byWorkload.data?.meta.total_cost_usd ?? '0'), { decimals: 1 }),
     },
   ];

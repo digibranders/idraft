@@ -38,6 +38,7 @@ async function openFirstKeyword(page: Page): Promise<void> {
   // Docked beside the table on a wide screen and a sheet on a narrow one, so it is found by its heading
   await expect(page.getByRole('heading', { level: 2, name: 'seo agency' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Search volume by month' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Rank history' })).toBeVisible();
 }
 
 /** A file of one new keyword, one that cannot be tracked and one that Fynix tracks already, taken to Review. */
@@ -73,9 +74,9 @@ const SIGNED_IN: readonly SignedInPage[] = [
   { name: 'settings-domains', path: '/digibranders/fynix/settings/domains' },
   { name: 'settings-taxonomy', path: '/digibranders/fynix/settings/taxonomy' },
   { name: 'settings-schedules', path: '/digibranders/fynix/settings/schedules' },
-  { name: 'rankings', path: '/digibranders/fynix/seo/rankings' },
-  { name: 'rankings-inspector', path: '/digibranders/fynix/seo/rankings', prepare: openFirstKeyword },
-  { name: 'rankings-import-review', path: '/digibranders/fynix/seo/rankings/import', prepare: reviewImport },
+  { name: 'rankings', path: '/digibranders/fynix/seo/keywords' },
+  { name: 'rankings-inspector', path: '/digibranders/fynix/seo/keywords', prepare: openFirstKeyword },
+  { name: 'rankings-import-review', path: '/digibranders/fynix/seo/keywords/import', prepare: reviewImport },
   // Costs and Runs read the month of the fixed clock, September 2026, which is where the fixture runs are
   { name: 'costs', path: '/digibranders/fynix/costs', as: ADMIN },
   { name: 'runs', path: '/digibranders/fynix/ops/runs', as: ADMIN },

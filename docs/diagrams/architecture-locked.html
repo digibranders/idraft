@@ -42,6 +42,7 @@
   .lede { font-size: 17px; color: var(--muted); margin-top: 12px; }
   .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 20px; font-size: 13px; color: var(--muted); }
   .meta b { color: var(--fg); font-weight: 500; }
+  .amended { margin-top: 20px; padding: 12px 16px; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 8px; font-size: 14px; }
   .decisions { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 20px; }
   .decision { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
   .decision b { display: block; font-weight: 600; margin-bottom: 4px; }
@@ -83,19 +84,20 @@
   <header>
     <div class="eyebrow">Locked 2026-09-30</div>
     <h1>Visibility Platform Architecture</h1>
-    <p class="lede prose">One droplet, five services, one ledger. What runs where, how a paid provider call moves from a scheduled row to a number on a screen, and which parts of the original spec were cut.</p>
+    <p class="lede prose">One host, five services, one ledger. What runs where, how a paid provider call moves from a scheduled row to a number on a screen, and which parts of the original spec were cut.</p>
     <div class="meta">
       <span><b>For:</b> the agency team and client logins</span>
       <span><b>Not yet:</b> public SaaS (nothing here blocks it)</span>
       <span><b>Target load:</b> 1,000 keywords daily, 1,000 prompts weekly</span>
       <span><b>Provider cost:</b> about $102 to $148 a month</span>
     </div>
+    <p class="amended prose"><b>Amended 2026-10-31 by ADR-023: host.</b> The host is now a shared Hostinger VPS (4 vCPU, 16 GB, Ubuntu 24.04) with a capped 8 GB idraft share (<code>idraft.slice</code>), a shared host-level edge proxy that owns ports 80 and 443, and a second project on the same machine. Where this page says "droplet", read "the idraft share of the shared VPS". Firewall is Hostinger hPanel plus ufw; the second backup copy is a Hostinger snapshot (verify in hPanel). Process model, Compose, data flow and the cuts below are unchanged. The original text is kept below as history. See <a href="../adr/ADR-023-shared-hostinger-vps.md">ADR-023</a>.</p>
   </header>
 
   <h2>What is locked</h2>
   <div class="decisions">
     <div class="decision"><b>Python backend</b><span>FastAPI for the API, Taskiq for the worker. Extraction and statistics live where the libraries are.</span></div>
-    <div class="decision"><b>Next.js on the droplet</b><span>Same origin as the API. Server rendering calls FastAPI over the Docker network, not across the internet.</span></div>
+    <div class="decision"><b>Next.js on the same host</b><span>Same origin as the API. Server rendering calls FastAPI over the Docker network, not across the internet.</span></div>
     <div class="decision"><b>PostgreSQL 18 is the ledger</b><span>Observations are append-only and partitioned monthly. Rollups hold counts and sums. Every number is reproducible.</span></div>
     <div class="decision"><b>A task row before every paid call</b><span>The scheduler writes the row, the dispatcher checks the budget, then the job is queued. Losing Redis loses nothing.</span></div>
     <div class="decision"><b>Redis for transport only</b><span>Queue (acknowledged streams), rate limiter, scheduler lock, session cache. No state lives only in Redis.</span></div>
@@ -105,11 +107,11 @@
     <div class="decision"><b>Own auth module</b><span>Argon2 passwords, a sessions table, TOTP for admins, invitations and roles. About 500 lines, no framework to fight.</span></div>
     <div class="decision"><b>Tenant isolation stays</b><span>Row-level security on every workspace table plus a cross-tenant test in CI. Clients log in, so this is not optional.</span></div>
     <div class="decision"><b>Docker Compose, images built in CI</b><span>Nothing is built on the server. Rollback is the previous image tag.</span></div>
-    <div class="decision"><b>4 GB droplet to start</b><span>About 2.1 to 2.8 GB in steady state. Resize to 8 GB on defined triggers, not on a hunch.</span></div>
+    <div class="decision"><b>8 GB share of a shared VPS</b><span>Originally a 4 GB droplet at 2.1 to 2.8 GB steady state; now the 8 GB profile on a shared Hostinger VPS. Move to a dedicated 16 GB or 32 GB VPS on defined triggers, not on a hunch.</span></div>
   </div>
 
   <h2>Deployment</h2>
-  <p class="prose">Six containers on one DigitalOcean droplet. Caddy is the only thing listening on the public network; Postgres and Redis have no published ports. The worker is the only process that spends money.</p>
+  <p class="prose">Six containers in the idraft share of one shared Hostinger VPS. A host-level edge proxy (shared with the second project, open decision D-H2) owns ports 80 and 443 and forwards to Caddy, which listens on loopback only; Postgres and Redis have no published ports. The worker is the only process that spends money.</p>
   <figure>
     <div class="fig">
       <svg viewBox="0 0 1080 460" role="img" aria-label="Deployment: a browser reaches Caddy over HTTPS; Caddy routes /api/* to FastAPI and everything else to Next.js; Next.js calls the API over the Docker network; the API and the worker share Postgres and Redis; the worker alone talks to DataForSEO and writes raw payloads to R2; Postgres dumps nightly to R2; errors and heartbeats go to Sentry and Healthchecks.">
@@ -120,13 +122,13 @@
 
         <g class="frame">
           <rect x="190" y="16" width="690" height="430" rx="10"/>
-          <text x="204" y="38">DigitalOcean droplet, 4 GB, Docker Compose</text>
+          <text x="204" y="38">Shared Hostinger VPS, idraft slice 8 GB, Docker Compose</text>
           <text x="204" y="420">Deploy: GitHub Actions builds the web, api and worker images and pushes them to GHCR.</text>
-          <text x="204" y="436">The droplet pulls, runs Alembic migrations, then restarts api and worker.</text>
+          <text x="204" y="436">The VPS pulls, runs Alembic migrations, then restarts api and worker.</text>
         </g>
 
         <g class="node ext"><rect x="20" y="180" width="120" height="56" rx="8"/><text x="80" y="204" text-anchor="middle">Browser</text><text x="80" y="221" text-anchor="middle" class="sub">team and clients</text></g>
-        <g class="node"><rect x="220" y="180" width="110" height="56" rx="8"/><text x="275" y="204" text-anchor="middle">caddy</text><text x="275" y="221" text-anchor="middle" class="sub">TLS, reverse proxy</text></g>
+        <g class="node"><rect x="220" y="180" width="110" height="56" rx="8"/><text x="275" y="204" text-anchor="middle">caddy</text><text x="275" y="221" text-anchor="middle" class="sub">gateway, loopback only</text></g>
         <g class="node"><rect x="380" y="90" width="140" height="56" rx="8"/><text x="450" y="114" text-anchor="middle">web</text><text x="450" y="131" text-anchor="middle" class="sub">Next.js, standalone</text></g>
         <g class="node"><rect x="380" y="180" width="140" height="56" rx="8"/><text x="450" y="204" text-anchor="middle">api</text><text x="450" y="221" text-anchor="middle" class="sub">FastAPI on uvicorn</text></g>
         <g class="node"><rect x="580" y="100" width="120" height="56" rx="8"/><text x="640" y="124" text-anchor="middle">redis 8</text><text x="640" y="141" text-anchor="middle" class="sub">queue, locks, cache</text></g>
@@ -162,10 +164,10 @@
         <tr><td>web</td><td>ours, Next.js standalone</td><td>Pages and server rendering; calls the api over the Docker network</td><td class="num">150 to 250 MB</td></tr>
         <tr><td>api</td><td>ours, Python 3.13 + uv</td><td>FastAPI: auth, tenancy, reads, writes, OpenAPI</td><td class="num">120 to 200 MB</td></tr>
         <tr><td>worker</td><td>ours, same Dockerfile as api</td><td>Taskiq worker and scheduler: planner tick, provider calls, ingest, derivation, rollups, maintenance</td><td class="num">150 to 300 MB</td></tr>
-        <tr><td>postgres</td><td>postgres:18</td><td>Ledger, observations, rollups, sessions; named volume, 768 MB shared buffers</td><td class="num">1.0 to 1.3 GB</td></tr>
+        <tr><td>postgres</td><td>postgres:18</td><td>Ledger, observations, rollups, sessions; named volume; 2 GB shared buffers in the 8 GB profile (768 MB in the original 4 GB budget)</td><td class="num">1.0 to 1.3 GB</td></tr>
         <tr><td>redis</td><td>redis:8</td><td>Queue transport, rate limiter, scheduler lock, session cache; AOF on, 256 MB cap, noeviction</td><td class="num">100 to 256 MB</td></tr>
-        <tr><td>host</td><td>Ubuntu, Docker, sshd</td><td>2 GB swap as a safety net, weekly DigitalOcean snapshot</td><td class="num">about 400 MB</td></tr>
-        <tr><td>Total</td><td></td><td>of about 3.8 GB usable; the rest is Postgres file cache</td><td class="num">2.1 to 2.8 GB</td></tr>
+        <tr><td>host</td><td>Ubuntu 24.04, Docker, sshd, edge proxy</td><td>2 GB shared swap as a safety net, Hostinger host snapshot (verify in hPanel)</td><td class="num">about 400 MB</td></tr>
+        <tr><td>Total</td><td></td><td>original 4 GB estimate; the 8 GB profile budget is in doc 22</td><td class="num">2.1 to 2.8 GB</td></tr>
       </tbody>
     </table>
   </div>
@@ -267,10 +269,10 @@
         <tr><td>Extraction, statistics</td><td>rapidfuzz, tldextract, url-normalize; scipy and statsmodels</td><td>The reason for Python. Wilson intervals, bootstrap and paired comparisons are library calls, not a port.</td></tr>
         <tr><td>Raw storage</td><td>Cloudflare R2, zstd, retention per payload class</td><td>Keeps Postgres small and makes re-parsing free.</td></tr>
         <tr><td>Provider</td><td>DataForSEO behind an adapter; polling only</td><td>Fallback providers are built only when a defined trigger fires.</td></tr>
-        <tr><td>Hosting</td><td>DigitalOcean droplet, 4 GB, Docker Compose, Caddy; Cloudflare proxy optional</td><td>One box, one domain, defined resize triggers.</td></tr>
-        <tr><td>CI/CD</td><td>GitHub Actions: lint, typecheck, tests, build images, push to GHCR, SSH deploy, Alembic before restart</td><td>The droplet never builds anything.</td></tr>
+        <tr><td>Hosting</td><td>Shared Hostinger VPS, idraft slice 8 GB, Docker Compose, Caddy; Cloudflare proxy optional</td><td>One box, one domain, defined resize triggers.</td></tr>
+        <tr><td>CI/CD</td><td>GitHub Actions: lint, typecheck, tests, build images, push to GHCR, SSH deploy, Alembic before restart</td><td>The VPS never builds anything.</td></tr>
         <tr><td>Operations</td><td>Sentry (errors and performance), Healthchecks (cron heartbeats), one uptime ping, an in-app Operations screen over the task table</td><td>Replaces Grafana Alloy, Grafana Cloud, Prometheus and SLO error budgets.</td></tr>
-        <tr><td>Backups</td><td>Nightly pg_dump encrypted with age to R2, 30-day retention; weekly DigitalOcean snapshot; scripted monthly restore drill</td><td>Meets the 24 h recovery point without the GFS rotation, bucket lock and CI restore workflow.</td></tr>
+        <tr><td>Backups</td><td>Nightly pg_dump encrypted with age to R2, 30-day retention; Hostinger host snapshot (verify in hPanel); scripted monthly restore drill</td><td>Meets the 24 h recovery point without the GFS rotation, bucket lock and CI restore workflow.</td></tr>
       </tbody>
     </table>
   </div>
@@ -306,10 +308,10 @@
         <tr><td>Readiness signal</td><td>Pingback endpoint, polling and a sweeper</td><td>Polling only, every 30 to 60 s <span class="pill">removed</span></td></tr>
         <tr><td>Metrics stack</td><td>Grafana Alloy, Grafana Cloud, Prometheus registry, SLO error budgets</td><td>Sentry, Healthchecks, uptime ping, Operations screen <span class="pill">replaced</span></td></tr>
         <tr><td>Secrets</td><td>SOPS and age files decrypted to tmpfs on deploy</td><td>A root-only .env written from GitHub Actions secrets <span class="pill">replaced</span></td></tr>
-        <tr><td>Backups</td><td>GFS 14/8/12 rotation, bucket lock, weekly CI restore test, second copy of raw AI data</td><td>Nightly dump, 30 days, weekly snapshot, monthly drill <span class="pill">replaced</span></td></tr>
+        <tr><td>Backups</td><td>GFS 14/8/12 rotation, bucket lock, weekly CI restore test, second copy of raw AI data</td><td>Nightly dump, 30 days, host snapshot, monthly drill <span class="pill">replaced</span></td></tr>
         <tr><td>Repo</td><td>12 packages and Turborepo</td><td>backend plus apps/web <span class="pill">replaced</span></td></tr>
         <tr><td>Gold datasets</td><td>360 SERPs and 400 answers, each annotated twice</td><td>100 and 100, single annotation, grown from real bugs <span class="pill">reduced</span></td></tr>
-        <tr><td>Memory budget</td><td>Per-container tuning table for a 4 GB host</td><td>A few settings and defined resize triggers <span class="pill">reduced</span></td></tr>
+        <tr><td>Memory budget</td><td>Per-container tuning table for a 4 GB host</td><td>A few settings and defined scaling triggers <span class="pill">reduced</span></td></tr>
         <tr><td>Envelope encryption</td><td>AES-GCM with versioned keys and a rewrap CLI</td><td>When client integrations arrive (Phase 12) <span class="pill">deferred</span></td></tr>
         <tr><td>API keys, idempotency keys</td><td>Phase 1</td><td>When a client asks for an API <span class="pill">deferred</span></td></tr>
         <tr><td>Google sign-in, shared fetch cache</td><td>Phases 1 and 4</td><td>Google sign-in on request; the shared fetch cache in Phase 11 or later <span class="pill">deferred</span></td></tr>
@@ -324,9 +326,9 @@
     <table>
       <thead><tr><th>Trigger</th><th>Action</th><th>Cost</th></tr></thead>
       <tbody>
-        <tr><td>Swap in steady use, or Postgres cache hit ratio under 99%, or the database over 10 GB</td><td>Resize the droplet to 8 GB</td><td>$24 to $48 a month</td></tr>
+        <tr><td>idraft.slice memory above 70% of 8 GB for a week, or swap in steady use, or host load average above 3.5 for 15 minutes more than three times a week, or the database over 20 GB</td><td>Move idraft to its own 16 GB VPS, then 32 GB (doc 28 section 7)</td><td>verify in hPanel</td></tr>
         <tr><td>Collection window overruns twice in a month</td><td>Raise worker concurrency; then a second worker container</td><td>none</td></tr>
-        <tr><td>Database over 40 GB</td><td>Attach a volume, then move Postgres to its own droplet</td><td>from $10 a month</td></tr>
+        <tr><td>Database over 20 GB</td><td>Move Postgres to its own host (disk is 193 GB shared, so this is far off)</td><td>verify in hPanel</td></tr>
         <tr><td>API p95 over 300 ms on the overview with rollups in place</td><td>Profile the query first; a second api container behind Caddy is the last resort</td><td>none</td></tr>
         <tr><td>The tool is offered to outside companies</td><td>API keys, envelope-encrypted integration credentials, point-in-time recovery</td><td>engineering time</td></tr>
       </tbody>
@@ -349,12 +351,12 @@
     <li>Auth: sign-up, sign-in, TOTP for admins, invitations, roles, workspaces, projects, audit log.</li>
     <li>Worker: scheduler tick, dispatcher with budget check, the DataForSEO client with rate limiting and its error taxonomy.</li>
     <li>Next.js shell from the design system: auth screens, switcher, settings, empty overview; generated API client.</li>
-    <li>Droplet bootstrap, Compose stack, Caddy, firewall, GitHub Actions deploy, nightly backup, Healthchecks, uptime ping.</li>
+    <li>Host bootstrap, Compose stack, Caddy, firewall, GitHub Actions deploy, nightly backup, Healthchecks, uptime ping.</li>
     <li>Done when: a user signs up, creates a workspace and project, invites a member, and a second workspace cannot see the first; the nightly backup lands in R2 and restores; a deploy from main takes under 10 minutes.</li>
   </ul>
 
   <h2>Documents this supersedes</h2>
-  <p class="prose">ADR-001 (language) gets a companion ADR-022 for the Python backend. ADR-002, 005, 014, 018 and 021 are revised. Docs 03, 20, 21, 22, 23, 25, 28, 29 and 31 are updated to match this page. Until then, where a numbered doc and this page disagree, this page wins.</p>
+  <p class="prose">ADR-001 (language) gets a companion ADR-022 for the Python backend. ADR-002, 005, 014, 018 and 021 are revised. Docs 03, 20, 21, 22, 23, 25, 28, 29 and 31 are updated to match this page. ADR-023 (2026-10-31) amends the host only. Until then, where a numbered doc and this page disagree, this page wins.</p>
 </div>
 
 </body>

@@ -123,30 +123,30 @@ export function MembersScreen(): ReactNode {
             retryLabel={common('retry')}
           />
         ) : (
-          <table className="w-full">
+          <table className="w-full type-table">
             <caption className="sr-only">{t('table')}</caption>
             <thead className="bg-surface-subtle">
               <tr>
-                <th scope="col" className="h-row-header px-4 text-left type-label">
+                <th scope="col" className="h-row-header px-4 text-left type-table-header">
                   {t('member')}
                 </th>
-                <th scope="col" className="h-row-header px-3 text-left type-label">
+                <th scope="col" className="h-row-header px-3 text-left type-table-header">
                   {t('role')}
                 </th>
                 <th
                   scope="col"
-                  className="hidden h-row-header px-3 text-left type-label whitespace-nowrap md:table-cell"
+                  className="hidden h-row-header px-3 text-left type-table-header whitespace-nowrap md:table-cell"
                 >
                   {t('access')}
                 </th>
-                <th scope="col" className="hidden h-row-header px-3 text-left type-label lg:table-cell">
+                <th scope="col" className="hidden h-row-header px-3 text-left type-table-header lg:table-cell">
                   {t('twoFactor')}
                 </th>
-                <th scope="col" className="hidden h-row-header px-3 text-left type-label lg:table-cell">
+                <th scope="col" className="hidden h-row-header px-3 text-left type-table-header lg:table-cell">
                   {t('lastActive')}
                 </th>
                 {canManage ? (
-                  <th scope="col" className="h-row-header px-4">
+                  <th scope="col" className="h-row-header px-4 text-right">
                     <span className="sr-only">{t('actions')}</span>
                   </th>
                 ) : null}
@@ -155,39 +155,39 @@ export function MembersScreen(): ReactNode {
             <tbody aria-busy={members.isPending}>
               {members.isPending
                 ? Array.from({ length: SKELETON_ROWS }, (_, row) => (
-                    <tr key={row} className="h-row border-t border-border-subtle">
+                    <tr key={row} className="h-row-compact border-t border-border-subtle">
                       <td colSpan={canManage ? 6 : 5} className="px-4">
-                        <Skeleton shape="text-14" widthPct={56} />
+                        <Skeleton shape="text-12" widthPct={56} />
                       </td>
                     </tr>
                   ))
                 : members.data.data.map((member) => (
-                    <tr key={member.user.user_id} className="h-row border-t border-border-subtle">
-                      <th scope="row" className="px-4 py-2 text-left font-normal">
+                    <tr key={member.user.user_id} className="h-row-compact border-t border-border-subtle">
+                      <th scope="row" className="px-4 text-left font-normal">
                         <span className="flex flex-col">
-                          <span className="flex items-center gap-2 type-body text-foreground">
+                          <span className="flex items-center gap-2 text-foreground">
                             {member.user.name}
                             {member.user.user_id === user.user_id ? <Badge>{t('you')}</Badge> : null}
                           </span>
-                          <span className="type-meta">{member.user.email}</span>
+                          <span className="type-label">{member.user.email}</span>
                         </span>
                       </th>
                       <td className="px-3">
                         <Badge>{roles(member.role)}</Badge>
                       </td>
-                      <td className="hidden px-3 type-body whitespace-nowrap text-foreground-secondary md:table-cell">
+                      <td className="hidden px-3 whitespace-nowrap text-foreground-secondary md:table-cell">
                         {member.project_ids === null
                           ? t('allProjects')
                           : t('someProjects', { count: member.project_ids.length })}
                       </td>
-                      <td className="hidden px-3 type-body text-foreground-secondary lg:table-cell">
+                      <td className="hidden px-3 text-foreground-secondary lg:table-cell">
                         {member.two_factor_enabled === null
                           ? null
                           : member.two_factor_enabled
                             ? t('twoFactorOn')
                             : t('twoFactorOff')}
                       </td>
-                      <td className="hidden px-3 type-body whitespace-nowrap text-foreground-secondary lg:table-cell">
+                      <td className="hidden px-3 whitespace-nowrap text-foreground-secondary lg:table-cell">
                         {member.last_active_at === null
                           ? null
                           : formatRelative(member.last_active_at, browserTimeZone())}

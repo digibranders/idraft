@@ -4,7 +4,7 @@ Status: Draft for architecture freeze (Phase 0)
 Last updated: 2026-09-30
 Owner: Platform / DevOps
 Research basis: [research/08-infra-methodology.md](../research/08-infra-methodology.md) sections 2 and 4 (accessed 2026-09-29)
-Related: [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) (amends ADR-013); [04-data-model.md](04-data-model.md) sections 11.2, 11.3, 12; [22-infrastructure-devops.md](22-infrastructure-devops.md); [24-security.md](24-security.md) sections 5, 13, 14; [28-data-growth-scaling.md](28-data-growth-scaling.md)
+Related: [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) (amends ADR-013); [ADR-023](adr/ADR-023-shared-hostinger-vps.md) (shared Hostinger VPS); [04-data-model.md](04-data-model.md) sections 11.2, 11.3, 12; [22-infrastructure-devops.md](22-infrastructure-devops.md); [24-security.md](24-security.md) sections 5, 13, 14; [28-data-growth-scaling.md](28-data-growth-scaling.md)
 
 ## 1. Scope and principles
 
@@ -12,8 +12,8 @@ This document covers how every piece of state is protected, how we prove backups
 
 - Nightly logical backup: `pg_dump -Fc` with zstd compression, encrypted with age to one offline recipient pair (only the public key is on the host), streamed with `rclone rcat` to the R2 bucket `seo-backups` under `daily/`. Scheduled by a systemd timer, watched by Healthchecks.io.
 - Retention: a 30-day lifecycle rule on `daily/`. No GFS promotion and no bucket lock.
-- Second copy: DigitalOcean weekly droplet backups are enabled. They are whole-disk images held by a different provider, out of reach of the R2 tokens on the host.
-- A scripted restore drill (`restore-verify.sh` into a temporary PostgreSQL container on the droplet or a laptop), run monthly by a custodian and recorded in the drill log. No CI restore workflow and no separate `restore-test` identity.
+- Second copy: Hostinger VPS snapshots (whatever the plan includes; verify in hPanel), taken as a host-level copy and by hand before every risky change. They are whole-disk images held outside the VPS disk and out of reach of the R2 tokens on the host. A snapshot is never the only copy ([ADR-023](adr/ADR-023-shared-hostinger-vps.md)).
+- A scripted restore drill (`restore-verify.sh` into a temporary PostgreSQL container on the host, inside the `idraft.slice` memory cap, or on a laptop), run monthly by a custodian and recorded in the drill log. No CI restore workflow and no separate `restore-test` identity.
 - No point-in-time recovery (PITR) in V1. The upgrade path is pgBackRest with WAL archiving. WAL-G is excluded: its `wal-push` hangs against R2 (issue #2550, open, verified 2026-09-29).
 - Redis is not backed up as a source of truth. The PostgreSQL task ledger (`ops.collection_tasks`) can rebuild every queue.
 - Raw provider payloads in the R2 bucket `seo-raw` are the primary and only copy, for every class including `ai_raw`.
@@ -21,23 +21,23 @@ This document covers how every piece of state is protected, how we prove backups
 Principles:
 
 1. **A backup that has not been restored is a hope, not a backup.** Every month the scripted drill restores the latest dump and checks it against values recorded at dump time.
-2. **The production host can write backups but cannot read them.** It holds only the age public key. A compromised droplet cannot decrypt past dumps.
-3. **A second copy lives with a different provider.** Without bucket locks, a stolen `backup-writer` token could delete dumps in R2. The droplet holds no DigitalOcean API token, so it cannot delete the weekly droplet images.
-4. **Nothing is staged on local disk.** Dumps stream from `pg_dump` to R2. The 80 GB disk budget (doc 22 section 9.5) reserves nothing for backups.
+2. **The production host can write backups but cannot read them.** It holds only the age public key. A compromised host cannot decrypt past dumps, and neither can the second project that shares it.
+3. **A second copy lives outside the VPS disk.** Without bucket locks, a stolen `backup-writer` token could delete dumps in R2. The host holds no Hostinger API token and no hPanel login, so nothing running on it (idraft or the neighbour project) can delete the snapshots. A snapshot is the same provider as the host, so it protects against disk loss and bad changes, not against a Hostinger account loss; R2 covers that.
+4. **Nothing is staged on local disk.** Dumps stream from `pg_dump` to R2. The 193 GB disk is shared with the other project; idraft's planning budget is 90 GB and reserves nothing for backups (doc 22 section 9.5), so a staged dump must never compete with the neighbour for free space.
 5. **Measure RTO, do not assume it.** The monthly drill and the quarterly game day record actual durations.
 
 ## 2. Recovery objectives (V1)
 
 | Data | RPO | RTO | Mechanism | Notes |
 |---|---|---|---|---|
-| PostgreSQL (ledger, all tenant data) | 24 h (nightly dump at 01:30 UTC; worst case about 24.5 h including dump time) | 4 h for a full rebuild on a new droplet at up to 30 GB of data; 8 h above that | nightly dump; DigitalOcean weekly image as the fallback (up to 7 days old) | Collected observations in the gap can be re-ingested from `seo-raw` (section 11 step 13), so the effective loss is mostly configuration edits made after the last dump |
+| PostgreSQL (ledger, all tenant data) | 24 h (nightly dump at 01:30 UTC; worst case about 24.5 h including dump time) | 4 h for a full rebuild on a fresh Hostinger VPS or the dedicated host at up to 30 GB of data; 8 h above that | nightly dump; Hostinger snapshot as the fallback (age depends on the plan's snapshot schedule, verify in hPanel; assume up to 7 days) | Collected observations in the gap can be re-ingested from `seo-raw` (section 11 step 13), so the effective loss is mostly configuration edits made after the last dump |
 | PostgreSQL, single project or table | 24 h | 2 h | partial restore (section 12) | |
 | Raw payloads, `seo-raw` | 0 (written before normalisation, doc 03 invariant 4) | n/a | R2 durability is the only protection for every class | section 9 |
 | Redis | not applicable (not a source of truth) | 15 min | AOF on the volume; otherwise start empty and reconcile from the ledger | section 10 |
 | Platform secrets | 0 | 15 min | GitHub Actions environment secrets; the deploy workflow rewrites `/etc/seo-platform/.env` | doc 24 section 5.1 |
 | Configuration (Compose, Caddyfile, Postgres config, systemd units) | 0 | 15 min | git | |
 | TLS certificates | n/a | 5 min | Caddy re-issues on the new host | Let's Encrypt limits are not a concern for one hostname |
-| Monitoring history | not protected | n/a | disposable | Sentry and Healthchecks keep their own history; logs stay on the droplet (doc 25 section 3.4) |
+| Monitoring history | not protected | n/a | disposable | Sentry and Healthchecks keep their own history; logs stay on the host (doc 25 section 3.4) |
 
 **Why RPO 24 h is acceptable for V1.** The platform is built for one agency and its clients. Most tenant state is collected data, which lands in R2 before PostgreSQL and can be replayed. What is truly lost in a 24 h gap is human input: new keywords, prompt edits, alias changes, alert acknowledgements. When a customer contract needs a smaller RPO, section 13 is the upgrade.
 
@@ -54,23 +54,23 @@ Principles:
 
 | Asset | Location | Backup | Restore source |
 |---|---|---|---|
-| PostgreSQL database `seo` | droplet volume `pgdata` | nightly `pg_dump -Fc -Z zstd` + `pg_dumpall --globals-only`; DigitalOcean weekly image | `seo-backups/daily/`; DigitalOcean backup image |
+| PostgreSQL database `seo` | host volume `pgdata` | nightly `pg_dump -Fc -Z zstd` + `pg_dumpall --globals-only`; Hostinger snapshot | `seo-backups/daily/`; Hostinger snapshot |
 | Roles | PostgreSQL | globals dump + `infra/compose/postgres/initdb/10-roles.sh` in git | git + globals dump |
-| Whole droplet disk (all Docker volumes, `/etc/seo-platform`) | droplet | DigitalOcean weekly backups, the four most recent images kept | DigitalOcean backup image |
-| Redis | droplet volume `redisdata` | none (AOF for convenience) | rebuild from `ops.collection_tasks` |
+| Whole VPS disk (all Docker volumes, `/etc/seo-platform`, and the other project's data) | host | Hostinger snapshots (retention and schedule: verify in hPanel); a manual snapshot before every risky change | Hostinger snapshot (restores both projects, see section 11 path B) |
+| Redis | host volume `redisdata` | none (AOF for convenience) | rebuild from `ops.collection_tasks` |
 | Raw payloads | `seo-raw` | none (single copy) | `seo-raw` |
-| Local spool (payloads waiting for R2) | droplet volume `spool` | none; drained to R2 within minutes | re-fetch from provider if lost |
+| Local spool (payloads waiting for R2) | host volume `spool` | none; drained to R2 within minutes | re-fetch from provider if lost |
 | Compose files, configs, systemd units, scripts | git | GitHub | git clone |
 | Platform secrets | GitHub Actions environment `production`; written to `/etc/seo-platform/.env` on deploy | GitHub | re-run the deploy workflow |
 | Backup age identity (private) | offline only | two custodians (section 5) | custodians |
 | R2 lifecycle configuration | Cloudflare | `infra/r2/*.json` in git | re-apply with the S3 API or wrangler |
-| Cloudflare, DigitalOcean and GitHub account access | providers | hardware security keys for two admins | account recovery |
+| Cloudflare, Hostinger and GitHub account access | providers | hardware security keys for two admins | account recovery |
 
 ## 4. Backup lifecycle
 
 ```mermaid
 flowchart TB
-    subgraph droplet[Droplet]
+    subgraph host[Host, idraft.slice]
         timer[seo-backup.timer<br/>01:30 UTC daily]
         svc[seo-backup.service<br/>backup-postgres.sh]
         pg[(postgres container)]
@@ -89,9 +89,9 @@ flowchart TB
     stg -->|verify size, server-side copy| daily
     svc -. start / success / fail with exit code .-> hc[Healthchecks.io]
 
-    droplet -. weekly whole-disk image .-> dob[(DigitalOcean backups<br/>4 most recent kept)]
+    host -. host-level snapshot .-> dob[(Hostinger snapshot<br/>verify plan in hPanel)]
 
-    subgraph drill[Monthly restore drill, custodian laptop or droplet]
+    subgraph drill[Monthly restore drill, custodian laptop or host]
         rv[restore-verify.sh]
         rv -->|restore-reader token| daily
         rv --> dec[age -d with the recovery identity]
@@ -112,7 +112,7 @@ Every dump is encrypted to one recipient, the public half of one offline key pai
 |---|---|---|---|
 | `recovery` | post-quantum hybrid ML-KEM-768 + X25519 (`age1pq1...`, supported since age 1.3.0) | two custodians, offline | monthly restore drill, disaster recovery, partial restores |
 
-`/etc/seo-platform/backup-recipients.txt` on the droplet contains only that public key:
+`/etc/seo-platform/backup-recipients.txt` on the host contains only that public key:
 
 ```text
 # recovery (offline, custodians A and B), created 2026-10-01
@@ -121,7 +121,7 @@ age1pq1...
 
 The post-quantum recipient protects dumps that contain customer data against "collect now, decrypt later": anyone who copies a dump today keeps it long after the 30-day lifecycle removes it from R2.
 
-The droplet holds no age private key at all. Platform secrets are a different mechanism (`/etc/seo-platform/.env` written by the deploy workflow, doc 24 section 5.1).
+The host holds no age private key at all. Platform secrets are a different mechanism (`/etc/seo-platform/.env` written by the deploy workflow, doc 24 section 5.1).
 
 ### 5.2 Key generation
 
@@ -149,7 +149,7 @@ Rules: two named custodians at all times; when one leaves, rotate (section 5.4) 
 
 1. Generate the new identity offline (section 5.2).
 2. Replace the old public key in `backup-recipients.txt` with the new one; commit the change to `infra/` and deploy it to the host. Run `systemctl start seo-backup.service` and confirm the new dump decrypts with the new identity.
-3. Keep the old identity in custody until every dump created before step 2 has expired (30 days in R2; DigitalOcean images do not contain dumps), then destroy it. If the rotation is because the old identity leaked, treat all dumps encrypted to it as exposed and follow the incident process in doc 24.
+3. Keep the old identity in custody until every dump created before step 2 has expired (30 days in R2; Hostinger snapshots do not contain dumps unless a dump was staged on disk, which the design avoids), then destroy it. If the rotation is because the old identity leaked, treat all dumps encrypted to it as exposed and follow the incident process in doc 24.
 
 ## 6. Nightly PostgreSQL backup
 
@@ -415,7 +415,7 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-`Persistent=true` runs a missed backup at the next boot (for example if the droplet was powered off at 01:30). The Healthchecks check uses the cron schedule `30 1 * * *`, timezone UTC, grace 2 hours, so a missed or hung run alerts by 03:30 UTC.
+`Persistent=true` runs a missed backup at the next boot (for example if the host was powered off at 01:30). The Healthchecks check uses the cron schedule `30 1 * * *`, timezone UTC, grace 2 hours, so a missed or hung run alerts by 03:30 UTC.
 
 Manual run: `systemctl start seo-backup.service && journalctl -u seo-backup -n 50 --no-pager`.
 
@@ -437,7 +437,7 @@ seo-backups/
 | Copy | Where | Retention | Copies kept | Oldest restore point |
 |---|---|---|---|---|
 | Nightly dump | `seo-backups/daily/` | 30-day lifecycle rule | 30 (31 while R2 deletes within its 24 h window) | 30 days |
-| Weekly droplet image | DigitalOcean backups | managed by DigitalOcean | the 4 most recent | about 4 weeks |
+| Host snapshot | Hostinger (hPanel) | managed by Hostinger; number of snapshots and any automatic schedule depend on the plan, verify in hPanel | verify in hPanel; plan on the most recent one plus one manual pre-change snapshot | verify in hPanel; assume up to 7 days |
 
 There is no GFS promotion: no weekly or monthly tier and no server-side copies between prefixes ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). The oldest restore point is 30 days, which also bounds how long a deleted workspace stays in backups (doc 24 section 13). Longer retention is a trigger item in doc 28, needed only for a public offering.
 
@@ -468,18 +468,20 @@ Rules to remember (verified 2026-09-29): objects are typically removed within 24
 
 ### 7.3 Bucket locks and the second copy
 
-No bucket locks ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). The protection they gave against a stolen `backup-writer` token is replaced by a second copy the droplet cannot reach: **DigitalOcean weekly droplet backups**.
+No bucket locks ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). The protection they gave against a stolen `backup-writer` token is replaced by a second copy the host cannot reach: **Hostinger VPS snapshots**.
 
-- Enabled on the droplet (`doctl compute droplet-action enable-backups <droplet-id>`, or `--enable-backups` at creation). DigitalOcean takes one whole-disk image a week and keeps the four most recent. Cost: 20% of the droplet price, $4.80 per month on the $24 droplet.
-- The image includes the Docker volumes (`pgdata`, `redisdata`, `spool`) and `/etc/seo-platform`. It is taken from a running system, so PostgreSQL treats it as a crash and replays WAL on first start; this is the normal crash-recovery path, exercised at the game day (section 16).
-- The droplet has no DigitalOcean API token, so nothing running on it can delete or alter the images. Account access needs a hardware security key (section 3).
-- It is the fallback, not the primary restore path: it can be up to 7 days old, and it is not encrypted with our key. Use it when the R2 dumps are gone or unusable (section 11, path B).
+- Taken in hPanel (VPS, Snapshots & Backups). What the plan includes (automatic backups, number of snapshots kept, retention, restore-in-place) is **not verified: verify in hPanel** and record the answer in `docs/ops/restore-drills.md`. Until verified, treat the plan as having no automatic backups and rely on manual snapshots.
+- A **manual snapshot is taken before every risky change**: OS upgrade, Docker or kernel upgrade, Postgres major upgrade, firewall change, edge proxy change (D-H2), or the compose cutover in `docs/superpowers/plans/2026-10-28-production-runtime.md`. Snapshot slots are usually few, so the pre-change snapshot replaces the previous manual one.
+- The image covers the whole VPS: the Docker volumes (`pgdata`, `redisdata`, `spool`), `/etc/seo-platform`, and the other project's data. It is taken from a running system, so PostgreSQL treats it as a crash and replays WAL on first start; this is the normal crash-recovery path, exercised at the game day (section 16). **Restoring a whole-disk snapshot in place rolls the neighbour project back too**, so path B restores it onto a new VPS and copies only idraft's data (section 11).
+- The host holds no Hostinger credential, so nothing running on it can delete or alter the snapshots. hPanel access needs a hardware security key or the strongest 2FA the account offers (section 3).
+- Cost: **included in the plan or priced per hPanel, verify**. No separate price is assumed in section 14.
+- It is the fallback, not the primary restore path: it can be up to 7 days old, and it is not encrypted with our key. It is **never the only copy**. Use it when the R2 dumps are gone or unusable (section 11, path B).
 
 ### 7.4 Tokens
 
 | Token | R2 permission | Scope | Stored |
 |---|---|---|---|
-| `backup-writer` | Object Read & Write | `seo-backups` | droplet `/etc/seo-platform/rclone.conf` (root, 0400) |
+| `backup-writer` | Object Read & Write | `seo-backups` | host `/etc/seo-platform/rclone.conf` (root, 0400) |
 | `restore-reader` | Object Read only | `seo-backups` | password manager, custodians only; used for the monthly drill and for disaster recovery |
 | `raw-worker` | Object Read & Write | `seo-raw` | `/etc/seo-platform/.env`, read by `worker` and `api` |
 | Admin | Admin Read & Write | account | never stored; created in the dashboard for a configuration change and deleted afterwards |
@@ -492,20 +494,20 @@ An object token cannot change lifecycle rules. Only an admin token can, and none
 
 | Check | When | Where | Detects |
 |---|---|---|---|
-| Every pipeline stage exit status (`pipefail` + `PIPESTATUS`) | nightly | droplet | `pg_dump`, `age` or upload failure |
-| Uploaded size equals bytes streamed; minimum size | nightly | droplet | truncated or empty uploads |
-| Size drop above 50% vs previous dump | nightly | droplet | accidental mass deletion, wrong database, broken dump |
-| SHA-256 of the encrypted object recorded in the manifest | nightly | droplet | later corruption or tampering |
-| SHA-256 re-computed after download | monthly drill | laptop or droplet | storage corruption, overwrite |
-| Decryption with the recovery identity | monthly drill | laptop or droplet | wrong recipient, broken encryption, lost or wrong offline key |
+| Every pipeline stage exit status (`pipefail` + `PIPESTATUS`) | nightly | host | `pg_dump`, `age` or upload failure |
+| Uploaded size equals bytes streamed; minimum size | nightly | host | truncated or empty uploads |
+| Size drop above 50% vs previous dump | nightly | host | accidental mass deletion, wrong database, broken dump |
+| SHA-256 of the encrypted object recorded in the manifest | nightly | host | later corruption or tampering |
+| SHA-256 re-computed after download | monthly drill | laptop or host | storage corruption, overwrite |
+| Decryption with the recovery identity | monthly drill | laptop or host | wrong recipient, broken encryption, lost or wrong offline key |
 | `pg_restore --list` parses the table of contents | monthly drill | temporary container | unreadable archive |
 | Full `pg_restore --exit-on-error` | monthly drill | temporary container | any object that fails to restore |
 | Exact match of counts and checksums with the manifest | monthly drill | temporary container | silent data loss inside a technically valid dump |
 | Freshness of the newest observation | monthly drill | temporary container | backups of a database that stopped collecting |
-| Newest DigitalOcean backup image is under 8 days old | monthly drill | `doctl` | weekly droplet backups disabled or failing |
+| A Hostinger snapshot exists and its date is under 8 days old (only if the plan has automatic snapshots; otherwise the date of the last manual one is recorded) | monthly drill | hPanel (no API token on the host) | snapshots disabled, failing or stale |
 | Both custodians decrypt with the recovery identity | quarterly | custodian laptops | one custodian's copy lost or wrong |
 
-The production droplet cannot run the decrypting checks by itself, by design: it has no private key. The drill therefore needs a custodian, who either runs it on a laptop or supplies the identity to the droplet for the length of one run (section 8.3).
+The production host cannot run the decrypting checks by itself, by design: it has no private key. The drill therefore needs a custodian, who either runs it on a laptop or supplies the identity to the host for the length of one run (section 8.3).
 
 ### 8.2 Check SQL
 
@@ -576,9 +578,9 @@ Procedure (30 to 60 minutes, mostly waiting):
 1. Take the `restore-reader` token and the recovery identity from the password manager.
 2. Run the script where it fits:
    - **Laptop (default).** Docker, bash 4 or newer, `age`, `rclone`, `jq` and GNU coreutils installed (on macOS, Homebrew `bash` and the `coreutils` package with its `gnubin` directory on `PATH`). The identity never leaves the custodian's machine.
-   - **Droplet.** Allowed while free disk is at least 6 times the dump size and no collection window is open. Copy the identity to `/run/seo-restore/identity` (tmpfs) over SSH, run with `WORK_BASE=/var/lib/seo-restore`, then `shred -u /run/seo-restore/identity`. The temporary container is capped at 1 GB of memory so it cannot starve the production PostgreSQL.
-3. Check the second copy: `doctl compute droplet backups <droplet-id>` must list an image less than 8 days old.
-4. Record the run in the runbook's drill log, `docs/ops/restore-drills.md` (one table row: date, custodian, where it ran, dump key, result and exit code, restore seconds, total seconds, date of the newest DigitalOcean image) and commit it. The script prints the row.
+   - **Host (the shared Hostinger VPS).** Allowed while all of these hold: host free disk (both projects, `df /`) is at least 6 times the dump size and the scratch data stays inside idraft's 90 GB budget; no collection window is open; `idraft.slice` memory is under 5 GB, so the scratch container fits under the 7 GB soft limit; and the neighbour project is not running its own restore, migration or heavy job (ask in the shared channel, or check host load below 2). The container is started with `cgroup_parent: idraft.slice`, so the drill can never take memory or CPU weight beyond idraft's share. Copy the identity to `/run/seo-restore/identity` (tmpfs) over SSH, run with `WORK_BASE=/var/lib/seo-restore`, then `shred -u /run/seo-restore/identity`. The temporary container is capped at 1 GB of memory so it cannot starve the production PostgreSQL, and runs at `nice 19` / `--cpu-shares 128` so it yields CPU to both projects.
+3. Check the second copy in hPanel: the newest snapshot must be less than 8 days old if the plan has automatic snapshots (verify in hPanel); otherwise confirm the last manual snapshot date and that one was taken before the last risky change.
+4. Record the run in the runbook's drill log, `docs/ops/restore-drills.md` (one table row: date, custodian, where it ran, dump key, result and exit code, restore seconds, total seconds, date of the newest Hostinger snapshot) and commit it. The script prints the row.
 
 The drill starts no worker. A worker started against a restored copy (a fuller rehearsal, or a staging copy) runs with `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` empty, or with an `INSTALLATION_ID` of its own, never `prod`. The restored ledger holds production's task ids and runs, and the installation in every tag is what keeps such a copy from sending production's tasks again or taking production's results from the shared account. The worker refuses to start in production with DataForSEO credentials and no `INSTALLATION_ID` set.
 
@@ -599,7 +601,7 @@ HC_URL="https://hc-ping.com/<uuid-of-restore-drill-check>" \
 ```bash
 #!/usr/bin/env bash
 # Monthly restore drill. Restores the newest dump into a temporary PostgreSQL container and compares it
-# with the manifest. Runs on a custodian laptop or on the droplet; never touches the production database.
+# with the manifest. Runs on a custodian laptop or on the host; never touches the production database.
 # Exit codes: 2 usage or config | 10 no or stale backup | 11 checksum | 12 archive unreadable | 13 restore failed | 14 mismatch | 15 not fresh
 set -Eeuo pipefail
 shopt -s inherit_errexit
@@ -639,7 +641,7 @@ on_exit() {
         --arg manifest "${MANIFEST:-}" --argjson total "$total" \
         --argjson phases "$(for k in "${!T[@]}"; do printf '{"%s":%s}\n' "$k" "${T[$k]}"; done | jq -s 'add // {}')" \
         '{result: $result, exit_code: $rc, manifest: $manifest, total_s: $total, phases_s: $phases}' > "$REPORT" || true
-  # One row for docs/ops/restore-drills.md; the custodian adds the DigitalOcean image date.
+  # One row for docs/ops/restore-drills.md; the custodian adds the Hostinger snapshot date.
   printf '| %s | %s | %s | %s | %s (%s) | %s | %s | |\n' "$(date -u +%F)" "${USER:-unknown}" "$(hostname)" \
          "${DUMP_KEY:-none}" "$result" "$rc" "${T[restore]:-n/a}" "$total"
   if (( rc == 0 )); then hc_ping ""; else hc_ping "/$rc"; fi
@@ -725,7 +727,7 @@ log "PASS: ${TOC_ENTRIES} TOC entries, restore ${T[restore]} s, total $(( $(date
 
 `infra/sql/roles-restore.sql` (to be written with the restore drill in plan 6; its role list must match `infra/compose/postgres/initdb/10-roles.sh`) creates the four database roles of ADR-022 as `NOLOGIN` with the same attributes (`app_api` without `BYPASSRLS`, `app_worker` with `BYPASSRLS`, `migrator` as owner, `backup` read-only with `BYPASSRLS`), so ownership and the table and column grants in the dump apply cleanly. It deliberately does not set passwords.
 
-**Disk and memory.** The drill needs about 6 times the dump size free (encrypted file, decrypted file, restored data). On the droplet that fits while the dump is small; when `dump.bytes` in the manifest exceeds 2 GB, run the drill on a laptop, or on a temporary `s-4vcpu-8gb` droplet ($0.07143/hour, verified 2026-09-29) created with `doctl` and destroyed afterwards. A 90-minute drill there costs about $0.11.
+**Disk and memory.** The drill needs about 6 times the dump size free (encrypted file, decrypted file, restored data). On the shared host that fits while the dump is small: 6 times a 2 GB dump is 12 GB, which is 6.2% of the 193 GB disk and 13% of idraft's 90 GB budget. When `dump.bytes` in the manifest exceeds 2 GB, or the neighbour project's disk use leaves less than 40 GB free on the host, run the drill on a laptop. A temporary extra VPS is not used for drills: Hostinger bills by term (verify the minimum term in hPanel), so a laptop or the new dedicated host before its DNS switch (section 11) are the only scratch targets. The drill is capped by `idraft.slice` like any idraft container: a restore that would push the slice past 7 GB (`MemoryHigh`) is throttled by the kernel and is stopped, not allowed to push the neighbour into swap.
 
 **Reminder.** The optional `HC_URL` points at the `restore-drill` Healthchecks check (period 31 days, grace 3 days). A successful run pings it; a month without a drill makes it late, which is the alert that the manual drill stopped happening (section 15).
 
@@ -792,7 +794,7 @@ Redis holds the Taskiq queues (`collect`, `process`), rate-limit counters, locks
 |---|---|---|
 | Container restart or host reboot | AOF replays; at most about 1 s of writes lost | automatic; messages lost in flight are re-enqueued from the ledger by the reconciler |
 | AOF corrupt at startup (Redis refuses to start) | queues unavailable | `docker compose run --rm --entrypoint redis-check-aof redis --fix /data/appendonlydir/<manifest>`; if that fails, move the AOF directory aside and start empty |
-| Volume lost, or new droplet after a disaster | empty Redis | start empty, then reconcile (below) |
+| Volume lost, or new host after a disaster | empty Redis | start empty, then reconcile (below) |
 
 Reconciliation from the ledger, `idraft queue-reconcile` (also run automatically by the worker at startup when it finds the queues empty while PostgreSQL has non-terminal tasks). `idraft` is the backend's admin CLI, run as `docker compose run --rm worker idraft <command>`:
 
@@ -809,9 +811,9 @@ Reconciliation from the ledger, `idraft queue-reconcile` (also run automatically
 
 Expected time: under 5 minutes for a day's worth of tasks. The runbook step is part of section 11.
 
-## 11. Full restore runbook: new droplet to serving traffic
+## 11. Full restore runbook: new host to serving traffic
 
-Use when the droplet is lost, the disk is corrupt, or the host is compromised. Roles: an incident lead (runs the runbook), a custodian (holds the recovery identity and the `restore-reader` token), and someone who can run the deploy workflow in GitHub (can be the same person). Preparation that makes this fast, done once in advance: a DNS TTL of 300 s on the site's A record, or a DigitalOcean Reserved IP attached to the droplet (pricing not verified in research 08; check before adopting); `doctl` authenticated on two laptops; this runbook printed.
+Use when the host is lost, the disk is corrupt, or the host is compromised. The target is either a **fresh Hostinger VPS** of the same shape (4 vCPU, 16 GB, Ubuntu 24.04) that again shares the box with the neighbour project, or the **dedicated host** (16 GB or 32 GB VPS, [ADR-023](adr/ADR-023-shared-hostinger-vps.md) decision 9); the steps are the same, and rebuilding straight onto the dedicated host is the preferred way out when the old VPS cannot be trusted. The neighbour project is rebuilt from its own backups by its own owner; this runbook restores idraft only. Roles: an incident lead (runs the runbook), a custodian (holds the recovery identity and the `restore-reader` token), and someone who can run the deploy workflow in GitHub (can be the same person). Preparation that makes this fast, done once in advance: a DNS TTL of 300 s on the site's A record (no floating IP is assumed; verify in hPanel whether the plan offers one before relying on it); hPanel access on two laptops; this runbook printed.
 
 Time estimates assume a dump of about 5 GB (PostgreSQL about 25 GB, doc 22 section 10.5 scenario A at month 24 or B at month 12). Scale the restore steps linearly for other sizes.
 
@@ -820,9 +822,9 @@ Time estimates assume a dump of about 5 GB (PostgreSQL about 25 GB, doc 22 secti
 | # | Step | Commands / detail | Estimate |
 |---|---|---|---|
 | 0 | Declare the incident, pick the restore point | Newest manifest in `daily/` unless corruption is suspected to predate it; then pick an older daily (30 are kept). If the R2 dumps are gone or unusable, switch to path B. Record the choice in the incident channel. | 10 min |
-| 1 | Contain | If the old host is compromised: power it off (keep it for forensics; do not destroy), revoke `backup-writer`, `raw-worker`, DataForSEO and LLM keys and put the new values into the GitHub Actions environment, rotate the Tailscale node key. If it is merely dead, skip. | 0 to 15 min |
-| 2 | Create the droplet | `doctl compute droplet create seo-prod-2 --size s-2vcpu-4gb --image ubuntu-26-04-x64 --region <region> --ssh-keys <ids> --tag-names seo-prod --enable-backups --wait` (the tag attaches the Cloud Firewall; `--enable-backups` turns on the weekly images). | 3 min |
-| 3 | Bootstrap | Doc 22 section 6.6 (host bootstrap: packages, Docker, firewall, users, swap, systemd units). | 15 min |
+| 1 | Contain | If the old host is compromised: tell the neighbour project's owner at once (same box, same blast radius, doc 24 section 9), take a manual hPanel snapshot for forensics, power the VPS off (do not destroy it; if the neighbour is still running there, stop only the idraft stack and slice instead), revoke `backup-writer`, `raw-worker`, DataForSEO and LLM keys and put the new values into the GitHub Actions environment, rotate the Tailscale node key. If it is merely dead, skip. | 0 to 15 min |
+| 2 | Provision the target | In hPanel create the VPS (Ubuntu 24.04; 4 vCPU / 16 GB for a like-for-like rebuild, 16 GB or 32 GB for the dedicated host), add the team SSH keys, enable the hPanel firewall with only 22 (restricted), 80 and 443, and take a first snapshot of the clean OS. Plan, price and available data centres: verify in hPanel. | 10 min |
+| 3 | Bootstrap | `infra/bootstrap.sh`, doc 22 section 6.6 (host bootstrap: packages, Docker, `ufw`, the idraft deploy user, swap, `idraft.slice`, systemd units). On a shared target also confirm the host-level edge proxy forwards idraft's hostnames to the loopback gateway (open decision D-H2, doc 30). | 15 min |
 | 4 | Secrets | Point the deploy workflow at the new host (deploy host and SSH key in the GitHub environment) and run its "write secrets" step: it writes `/etc/seo-platform/.env` (root, 0600), `backup.env` and `rclone.conf` from the environment secrets. No key needs to be pasted by hand. | 10 min |
 | 5 | Pull the release, start data services only | On the host: `docker compose pull` for the last released image tag (the latest successful deploy run in GitHub), then `docker compose up -d postgres redis`. Do not run `migrator` and do not start `api`, `worker` or `web`. The Postgres entrypoint initialises an empty cluster, the empty `seo` database and the roles. | 10 min |
 | 6 | Fetch and verify the dump | With the `restore-reader` token in a temporary rclone config: `rclone copyto r2:seo-backups/daily/<base>.pgdump.age /var/lib/seo-restore/dump.age` and the manifest; `sha256sum` must equal `dump.sha256`. | 5 min |
@@ -835,15 +837,15 @@ Time estimates assume a dump of about 5 GB (PostgreSQL about 25 GB, doc 22 secti
 | 13 | Replay the gap from R2 | Keep collection paused (`COLLECTION_PAUSED=true` in `/etc/seo-platform/.env`). Run `idraft raw-replay --since <manifest.created_at minus 1 h>`: lists `raw/v1/*/*/*/<yyyy>/<mm>/<dd>/` for each day since the dump, skips SHA-256 values already in `ops.raw_payloads`, re-registers the rest, and enqueues ingest. Workers write the task identity (idempotency key, workspace, project, subject) as R2 object metadata at upload time, so replay can attribute payloads without the lost `ops.collection_tasks` rows. Replayed payloads also repopulate `ops.fetch_cache` so today's runs do not buy the same SERPs twice. | 15 to 45 min |
 | 14 | Rebuild queues | `idraft queue-reconcile` (section 10). | 5 min |
 | 15 | Start the application | `docker compose up -d caddy api worker web`; remove `COLLECTION_PAUSED` (GitHub environment, redeploy); all containers `healthy`. | 5 min |
-| 16 | Move traffic | Reassign the Reserved IP, or update the site's A record. There is one domain, so one record moves both the app and the API. Caddy obtains a certificate within 1 to 2 minutes of DNS pointing at the host. Readiness is polling only, so no provider callback depends on the address; tasks that completed during the outage are found by the `tasks_ready` poll and the id sweeper. | 5 to 15 min |
-| 17 | Validate | `https://<domain>/api/healthz` returns 200; log in (the `__Host-session` cookie is set); open a project and compare headline numbers with the last known values (screenshots in the incident channel); Better Stack green; `systemctl start seo-backup.service` and see the Healthchecks success ping; confirm `doctl compute droplet get <id> --format Features` lists `backups`. | 15 min |
-| 18 | Aftercare | Tell users which window of edits was lost (between `manifest.created_at` and the failure); run the restore drill (section 8.3) against the first dump from the new host; write the post-incident review with measured step times; destroy the old droplet once forensics are done. | later |
+| 16 | Move traffic | Update the site's A record to the new host's address. There is one domain, so one record moves both the app and the API. The certificate is issued within 1 to 2 minutes of DNS pointing at the host, by the edge proxy on a shared target or by the gateway on the dedicated host (D-H2, doc 30). Readiness is polling only, so no provider callback depends on the address; tasks that completed during the outage are found by the `tasks_ready` poll and the id sweeper. | 5 to 15 min |
+| 17 | Validate | `https://<domain>/api/healthz` returns 200; log in (the `__Host-session` cookie is set); open a project and compare headline numbers with the last known values (screenshots in the incident channel); Better Stack green; `systemctl start seo-backup.service` and see the Healthchecks success ping; confirm in hPanel that a snapshot of the new host exists and take a manual one now that it is serving. | 15 min |
+| 18 | Aftercare | Tell users which window of edits was lost (between `manifest.created_at` and the failure); run the restore drill (section 8.3) against the first dump from the new host; write the post-incident review with measured step times; cancel or wipe the old VPS only after forensics are done and, if it was shared, the neighbour project has moved off it. | later |
 
 **Total for steps 0 to 17: about 2.5 to 3.5 hours**, inside the 4-hour RTO for databases up to about 30 GB. At 60 GB and above, step 8 alone takes 1.5 to 2 hours and the RTO becomes 6 to 8 hours; that is one of the reasons to adopt pgBackRest before then (section 13).
 
-**Path B: restore from a DigitalOcean weekly image.** Use only when the R2 dumps are missing, deleted or fail verification. The restore point is up to 7 days old.
+**Path B: restore from a Hostinger snapshot.** Use only when the R2 dumps are missing, deleted or fail verification. The restore point is the snapshot's age (verify the schedule in hPanel; assume up to 7 days). A snapshot covers the whole VPS, so the neighbour project is rolled back with idraft when it is restored in place.
 
-1. `doctl compute droplet backups <old-droplet-id>` to list images; `doctl compute droplet create seo-prod-2 --size s-2vcpu-4gb --image <backup-image-id> --region <region> --ssh-keys <ids> --tag-names seo-prod --enable-backups --wait`. If the old droplet still exists, "Restore from backup" in the control panel does the same in place.
+1. In hPanel list the snapshots and pick the newest one that predates the damage. Restore options, in order of preference: (a) onto a **new VPS** if the plan supports creating one from a snapshot (verify in hPanel); (b) **in place** on the same VPS, only after the neighbour project's owner agrees and confirms they have their own recent backup, because everything they wrote since the snapshot is lost.
 2. Before starting the application, set `COLLECTION_PAUSED=true` and run the deploy workflow's "write secrets" step so `/etc/seo-platform/.env` holds current (and, after a compromise, rotated) values.
 3. `docker compose up -d postgres redis`. PostgreSQL replays WAL from the crash-consistent image; check `docker compose logs postgres` for "database system is ready to accept connections".
 4. Continue with path A at step 12 and run through step 18. Steps 6 to 11 do not apply: the image is a physical copy, so there is no dump to fetch and planner statistics are already present. The replay in step 13 uses the image's timestamp as `--since` and covers up to 7 days of raw payloads.
@@ -861,7 +863,7 @@ First check whether a restore is needed at all:
 When rows are truly gone (a bad migration, a buggy purge, a manual `DELETE`):
 
 1. **Pick the dump** taken before the damage, from `daily/`. Only 30 days of dumps exist; damage older than that cannot be undone from backups.
-2. **Restore it into a scratch instance**, never into production: a temporary `s-4vcpu-8gb` droplet ($0.07143/hour, verified 2026-09-29) or the custodian's laptop with Docker. Decrypt with the recovery identity (section 11 step 7). For one table, restore the schema and only that table's data:
+2. **Restore it into a scratch instance**, never into production: the custodian's laptop with Docker (a scratch container on the shared host is allowed only under the section 8.3 limits: inside `idraft.slice`, 1 GB cap). Decrypt with the recovery identity (section 11 step 7). For one table, restore the schema and only that table's data:
 
    ```bash
    pg_restore --section=pre-data -d seo dump.pgdump
@@ -897,7 +899,7 @@ Estimate: 1 to 2 hours, mostly steps 2 and 6.
 
 ### 13.2 When to upgrade
 
-Adopt pgBackRest when any of these holds: a customer contract or SLA needs RPO below 24 hours; the nightly dump takes more than 60 minutes; the measured restore phase in the monthly drill exceeds 90 minutes; PostgreSQL moves to its own droplet (doc 03 step 2), which is the natural time to change the image.
+Adopt pgBackRest when any of these holds: a customer contract or SLA needs RPO below 24 hours; the nightly dump takes more than 60 minutes; the measured restore phase in the monthly drill exceeds 90 minutes; PostgreSQL moves to its own host (doc 03 step 2), which is the natural time to change the image.
 
 Tool choice (verified 2026-09-29): pgBackRest 2.59.2 works against R2 with path-style addressing; WAL-G 3.0.9 hangs on `wal-push` against R2 (issue #2550, open); Barman cloud does not directly support third-party S3 vendors and lacks zstd for base backups. pgBackRest also brings `verify`, block incremental backups and asynchronous archiving.
 
@@ -951,13 +953,13 @@ Operations:
 - systemd timers on the host: full backup Sunday 02:30 UTC, differential Monday to Saturday 02:30 UTC (`docker exec -u postgres seo-postgres pgbackrest --stanza=seo --type=diff backup`), `pgbackrest verify` weekly. Each pings its own Healthchecks check.
 - An `ops_health` check alerts when `pg_stat_archiver.last_archived_time` is older than 10 minutes or `failed_count` increases.
 - The `pgbackrest/` prefix gets no lifecycle rule (section 7.2); pgBackRest's own retention expires old backups and WAL.
-- `archive-push-queue-max = 4GiB` makes pgBackRest drop WAL rather than let `pg_wal` fill the disk if R2 is unreachable for a long time. That breaks the PITR chain until the next full backup, which is the right trade on an 80 GB disk; it alerts through the archiver check.
+- `archive-push-queue-max = 4GiB` makes pgBackRest drop WAL rather than let `pg_wal` fill the disk if R2 is unreachable for a long time. That breaks the PITR chain until the next full backup, which is the right trade on a disk shared with another project (193 GB, idraft budget 90 GB); it alerts through the archiver check.
 - Quarterly PITR drill: restore to a timestamp into a scratch instance with `pgbackrest --stanza=seo --type=time --target='<ts>' --target-action=promote restore`. R2 restores with many small files are slow (pgBackRest issue #2782); bundling mitigates it, and the drill measures it.
 
 Trade-offs to accept consciously:
 
 - pgBackRest encryption is symmetric. The cipher passphrase must be on the server to push WAL, so a compromised host can read the PITR repository. The nightly age-encrypted logical dump stays as an independent path the server cannot read.
-- The token pgBackRest uses must be able to delete (for expiry). A stolen token can delete PITR history and the R2 dumps; the DigitalOcean weekly images remain.
+- The token pgBackRest uses must be able to delete (for expiry). A stolen token can delete PITR history and the R2 dumps; the Hostinger snapshots remain.
 
 ## 14. Backup size projections and R2 costs
 
@@ -975,7 +977,7 @@ Database sizes from doc 22 section 10.5:
 
 ### 14.2 Stored backup volume (30 dailies)
 
-Thirty copies near the current dump size. DigitalOcean weekly images are not stored in R2 and are priced separately (section 14.4).
+Thirty copies near the current dump size. Hostinger snapshots are not stored in R2 and are priced by Hostinger (section 14.4).
 
 | Scenario | Stored at 12 months | Stored at 24 months |
 |---|---|---|
@@ -1003,7 +1005,15 @@ R2 Standard storage $0.015 per GB-month, 10 GB-month free per month, egress free
 
 In the first months, before dumps and raw payloads grow, R2 costs about $1 or less (the figure used in ADR-022 and doc 27 section 2).
 
-DigitalOcean weekly droplet backups cost 20% of the droplet price whatever the data size: $4.80 per month on the $24 droplet, $9.60 after a resize to the $48 droplet (doc 27 section 1).
+**Host cost.** The fixed cost is `H`, 50% of the Hostinger VPS invoice (the owner enters the amount; no price is assumed here, [ADR-023](adr/ADR-023-shared-hostinger-vps.md) decision 8). Hostinger snapshots are **included in the plan or priced per hPanel: verify**. Until verified they add 0 to the totals below; if hPanel shows a separate snapshot or backup charge `S`, add `S / 2` (idraft's half). The flat 20%-of-host-price backup line of the earlier plan no longer exists.
+
+| Scenario | Monthly infrastructure total, first months | At 12 months | At 24 months |
+|---|---|---|---|
+| A | H + about $1 | H + about $1.45 | H + about $2.75 |
+| B | H + about $1 | H + about $3.60 | H + about $5.90 |
+| C | H + about $1 | H + about $6.20 | H + about $9.80 |
+
+Totals are host share plus R2 only; DataForSEO and LLM spend are variable and unchanged (doc 27). After a move to a dedicated VPS (section 11, [ADR-023](adr/ADR-023-shared-hostinger-vps.md) decision 9) the fixed part becomes the whole invoice of that VPS, `D` (16 GB or 32 GB plan, price: verify in hPanel), and the R2 column is unchanged. Disk is not a cost lever on the shared host: even scenario C at 24 months (78 GB database plus 8 GB of Docker images and logs) is close to idraft's 90 GB budget, which is why doc 28 section 7 triggers the dedicated host before that point.
 
 Operations stay inside the free tier: scenario C writes about 350,000 raw objects a month (Class A), the nightly dump uses about 350 multipart parts (about 10,000 Class A a month), and ingest reads each raw object once (Class B). Daily Infrequent Access transitions were rejected in section 9.2.
 
@@ -1022,7 +1032,7 @@ The largest lever if cost matters: a shorter lifecycle on `daily/` (14 days inst
 | Monthly restore drill overdue | Healthchecks dead-man on `restore-drill` | period 31 days, grace 3 days | warning | a custodian runs the drill (section 8.3) |
 | Monthly restore drill failed (exit 10 to 15) | Healthchecks `/fail` from the script; the drill log row | same check | critical (11, 12, 13: backup integrity incident); warning (10, 14, 15: investigate) | read `restore-report.json` and the script output; rerun; exit 14 means the dump differs from its own manifest: stop trusting that dump and test the previous one |
 | Restore phase above 90 min | `restore-report.json` and drill log trend | monthly review | info | revisit RTO, consider pgBackRest |
-| DigitalOcean weekly image missing or older than 8 days | drill step 3 (`doctl compute droplet backups`) | monthly | warning | re-enable backups on the droplet; open a DigitalOcean ticket if an image failed |
+| Hostinger snapshot missing or older than 8 days (if the plan has automatic snapshots; otherwise no manual snapshot before the last risky change) | drill step 3 (hPanel) | monthly | warning | take a manual snapshot now; re-enable automatic backups in hPanel; open a Hostinger ticket if a scheduled one failed |
 | R2 unreachable for raw writes | `ops_health` check on spool size (doc 25 alert 40) | warning above 1 GB, critical above 4 GB (cap 5 GB) | warning / critical | check Cloudflare status; collection pauses automatically at the cap |
 | Lifecycle rule drift | monthly `maintenance` job compares live config with `infra/r2/*.json` (doc 25 alert 41) | monthly | warning | re-apply from git with an admin token |
 | Custodian check overdue | quarterly game day calendar | quarterly | info | schedule it |
@@ -1034,16 +1044,16 @@ Healthchecks checks used by this document: `backup-nightly` and `restore-drill` 
 Two hours, first week of each quarter, run by someone other than the person who last ran it where the team allows. Record every step time in the game-day log (`docs/ops/gameday-<yyyy-qn>.md`).
 
 Preparation:
-- [ ] Pick a scenario (rotate): full droplet loss from the R2 dump (path A); full droplet loss from a DigitalOcean image (path B); accidental deletion of one project's observations; corrupt newest dump (use the previous one); R2 backup token leaked and dumps deleted; Redis volume lost; custodian unavailable (the second custodian runs the restore).
+- [ ] Pick a scenario (rotate): full host loss from the R2 dump (path A); full host loss from a Hostinger snapshot (path B); accidental deletion of one project's observations; corrupt newest dump (use the previous one); R2 backup token leaked and dumps deleted; Redis volume lost; custodian unavailable (the second custodian runs the restore).
 - [ ] Confirm the latest monthly drill passed (drill log) and note its restore duration.
 
 Keys and access:
 - [ ] Each custodian decrypts a test file encrypted to the recovery public key (`age -d -i ...`) and confirms the printed copy location.
 - [ ] Two people can run the deploy workflow and edit the GitHub Actions environment secrets.
-- [ ] `doctl`, Tailscale and GitHub access work from two laptops.
+- [ ] hPanel, Tailscale and GitHub access work from two laptops.
 
-Exercise (scenario "full droplet loss", the default every other quarter):
-- [ ] Follow section 11 on a throwaway droplet (`seo-gameday`, tag `seo-gameday` with its own firewall), against the real `seo-backups` bucket with the `restore-reader` token.
+Exercise (scenario "full host loss", the default every other quarter):
+- [ ] Follow section 11 on a scratch target, never on the shared host's live stack: a local Docker host or VM on a laptop, or the dedicated VPS before its DNS switch once one exists. A throwaway Hostinger VPS is avoided because of minimum billing terms (verify in hPanel). Use the real `seo-backups` bucket with the `restore-reader` token. If the exercise must run on the shared host, use a separate Compose project name inside `idraft.slice`, 1 GB for Postgres, and tell the neighbour project first.
 - [ ] Use a test hostname (`gameday.<domain>`) for step 16 so production DNS is untouched.
 - [ ] Run `idraft raw-replay` for the last 24 hours in dry-run mode and check the count against production.
 - [ ] Run `idraft queue-reconcile` against the restored database with a scratch Redis; confirm queued message counts match non-terminal tasks.
@@ -1053,11 +1063,11 @@ Configuration audit:
 - [ ] Lifecycle rules match `infra/r2/*.json`; `wrangler r2 bucket lock list` shows no lock on either bucket.
 - [ ] Token inventory matches section 7.4; delete unused tokens.
 - [ ] `backup-recipients.txt` on the host contains exactly the one expected public key.
-- [ ] DigitalOcean backups are enabled on the droplet and the newest image is under 8 days old.
+- [ ] Hostinger snapshots are in the state recorded in the drill log (automatic backups on, if the plan has them) and the newest snapshot is under 8 days old; a pre-change manual snapshot exists for the last risky change.
 - [ ] Healthchecks checks exist with the right schedules and notify at least two people.
 
 Close-out:
-- [ ] Destroy the game-day droplet (cost about $0.15 for two hours).
+- [ ] Remove the scratch target and its containers and volumes; confirm `df` on the shared host is back to its earlier level.
 - [ ] Compare measured times with the RTO; update section 11 estimates.
 - [ ] File issues for every step that was unclear, slow or wrong; update this document.
 
@@ -1066,10 +1076,12 @@ Close-out:
 > **Concerns (no fixed decision changed)**
 >
 > 1. **The restore drill is manual and needs a custodian.** ADR-022 removed the weekly CI restore workflow and the `restore-test` identity, which closes the old concern that a decryption key lived in GitHub. The new risk is that a manual drill stops happening. Mitigation: the `restore-drill` Healthchecks check goes late after 31 days, the drill log is committed to the repository, and the game day checks it.
-> 2. **No bucket lock.** A stolen `backup-writer` token, or a compromised droplet, can delete every dump in R2. The droplet cannot touch the DigitalOcean weekly images, so the worst case is a restore point up to 7 days old plus the raw-payload replay (section 11, path B). Accepted in ADR-022.
+> 2. **No bucket lock.** A stolen `backup-writer` token, or a compromised host, can delete every dump in R2. The host cannot touch the Hostinger snapshots, so the worst case is a restore point as old as the newest snapshot (assume up to 7 days, verify in hPanel) plus the raw-payload replay (section 11, path B). Path B restores the whole VPS, including the neighbour project, so it is a last resort. Accepted in ADR-022.
 > 3. **Raw object key layout.** Resolved: per-class lifecycle rules need the retention class in the key, `raw/v1/<retention_class>/<provider>/<endpoint_slug>/...` (section 9.1); docs 04, 06, 07 and 18 now use it.
 > 4. **Replay after disaster needs R2 object metadata.** To re-ingest payloads collected after the last dump, workers must store task identity as object metadata at upload time (section 11 step 13). This is a requirement for the `storage` package and doc 21.
 > 5. **pgBackRest needs a custom Postgres image** (now noted in doc 04 section 2 and ADR-013) and a server-held symmetric cipher passphrase (section 13.3), which departs from doc 04's stock-image goal and from principle 2 of this document for the PITR path. Accepted only when the upgrade is triggered; the age-encrypted logical dump remains the protected path.
 > 6. **Raw payloads have one copy, including `ai_raw`.** Accepted for V1 (sections 2 and 9.5).
-> 7. **Backup retention and privacy.** Deleted workspaces remain in encrypted dumps for up to 30 days and in DigitalOcean weekly images for up to 4 weeks. This matches doc 24 section 13 and must be stated in the privacy policy.
-> 8. **DigitalOcean images are not encrypted with our key.** They contain the database files and `/etc/seo-platform/.env`. Their protection is DigitalOcean account security (hardware keys for two admins, section 3).
+> 7. **Backup retention and privacy.** Deleted workspaces remain in encrypted dumps for up to 30 days and in Hostinger snapshots for as long as the plan keeps them (verify in hPanel). This matches doc 24 section 13 and must be stated in the privacy policy.
+> 8. **Hostinger snapshots are not encrypted with our key.** They contain the database files, `/etc/seo-platform/.env` and the neighbour project's data. Their protection is Hostinger account security (hardware keys or the strongest 2FA for two admins, section 3).
+> 9. **Shared host.** A disk fill, runaway process or bad firewall change by the neighbour project is an idraft incident, and the reverse. Mitigations are in [ADR-023](adr/ADR-023-shared-hostinger-vps.md): `idraft.slice` caps, host disk alerts that count both projects (doc 25), separate deploy users, and R2 backups that do not depend on the host. Snapshot restore is the one operation that cannot be done for one project alone.
+> 10. **Hostinger plan details are unverified:** snapshot count and schedule, restore-onto-new-VPS, floating IP, minimum billing term. Each is marked "verify in hPanel" where it matters; the owner records the answers in the drill log.

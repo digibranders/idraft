@@ -84,7 +84,7 @@ export type {
   DisplayUrl, NumberContext, MetricValue, MetricComparison, MetricSeries, MetricPoint, MetricCellValue,
 };
 
-/** Table and list density ([04-spacing-density.md](04-spacing-density.md) §3): Default 40 px rows (`h-row`), Compact 32 px rows (`h-row-compact`). Default is 'default'. */
+/** Table and list density ([04-spacing-density.md](04-spacing-density.md) §3): 'default' is 40 px rows (`h-row`, labelled Comfortable), 'compact' is 32 px rows (`h-row-compact`). The default is 'compact' (`DEFAULT_DENSITY`). */
 export type Density = 'default' | 'compact';
 
 /** Engine codes as returned by the API (`engine_code`). The contracts package is the source of truth. */
@@ -2548,7 +2548,7 @@ interface DataTableProps<TRow> {
 }
 ```
 
-- **Variants:** `density` (Default 40 px `h-row`, Compact 32 px `h-row-compact`). No other visual variants. The table sits inside a panel (1 px `border`, radius 8). Header row 40 px (`h-row-header`) on `surface-subtle`, labels `type-label` (12 px tertiary, weight 400), 1 px `border-subtle` vertical dividers between header cells only; body rows `type-table` (13/20) with `border-subtle` horizontal dividers only; numbers right-aligned `num`; URLs `type-mono` (13/20) truncated with an ellipsis.
+- **Variants:** `density` (Compact 32 px `h-row-compact`, the default since 2026-10-29; Default 40 px `h-row`). No other visual variants. The table sits inside a panel (1 px `border`, radius 8). Header row 40 px (`h-row-header`) on `surface-subtle`, labels `type-table-header` (12 / 16 px, capitals, 0.04em, tertiary, weight 400), 1 px `border-subtle` vertical dividers between header cells only; body rows `type-table` (12/16) with `border-subtle` horizontal dividers only; every column, numbers included, left aligned with `num`, except the row-actions column, which is right aligned; URLs in the mono family at the table size, truncated with an ellipsis.
 - **States:** loading (real header, 12 skeleton rows), ready, refetching (previous rows at full opacity, `aria-busy`, `RefetchBar` under the header, "Updating" after 400 ms), partial load ("Loading 1,200 of 4,812 rows", client sort and export disabled with that reason), empty, filtered empty (header stays), error (`TableErrorRow`), row hover, selected (`surface-selected`, key text in `primary-text`), active (inset 2 px `primary` edge), focused cell, group rows, expanded children, new rows, below 768 px the `DataTableList`.
 - **A11y:** native table with explicit roles, `role="grid"` (`treegrid` when grouped); one roving tab stop; keyboard map 20 §6.3 (Enter opens, Space selects, Shift+Space ranges, Ctrl or Cmd+A, Shift+F10 row menu, Enter or F2 widget mode, Escape never clears selection); `aria-rowcount` includes header rows, `aria-rowindex` on every rendered row, focused row always rendered; `aria-sort` on the primary sort `th`; sort summary text for multi-sort; identity cell is `th role="rowheader"`; hint paragraph describes keys.
 - **Use:** any list users compare, sort, filter or act on in bulk; more than 6 records of one type.
@@ -2627,7 +2627,7 @@ interface ColumnHeaderMenuProps {
 ### 7.6 DensityToggle
 `app/data-table/density-toggle.tsx` · V1 · [04 §3](04-spacing-density.md)
 
-Purpose: Default (40 px rows) or Compact (32 px rows), persisted per user per table in the saved view state (`density`: `default` or `compact`, default `default`). Labels "Default" and "Compact".
+Purpose: Compact (32 px rows, the default) or Comfortable (40 px rows), persisted per table in the saved view state (`density`: `default` or `compact`, default `compact`, left out of the URL). Labels "Compact (default)" and "Comfortable".
 
 ```ts
 interface DensityToggleProps { value: Density; onValueChange: (density: Density) => void }
@@ -2714,7 +2714,7 @@ interface SimpleTableProps<TRow> {
 }
 ```
 
-- **Variants:** none (32 px rows and header, `h-row-compact`, always; `type-table`; header labels `type-label` (12 px tertiary) on `surface-subtle`; in a ranked mini table the own row is `surface-selected` with its text in `primary-text`). **States:** rows, empty (one sentence row), scrolls horizontally inside panels when wide.
+- **Variants:** none (32 px rows and header, `h-row-compact`, always; `type-table` (12 / 16 px); header labels `type-table-header` (12 px, capitals, tertiary) on `surface-subtle`; every column left aligned; in a ranked mini table the own row is `surface-selected` with its text in `primary-text`). **States:** rows, empty (one sentence row), scrolls horizontally inside panels when wide.
 - **A11y:** native `table`, `th scope="col"` and `scope="row"`; no roving focus; inner links are Tab stops. **Use:** fewer than 50 rows, no selection, at most one link per row. **Not for:** anything sortable, selectable or large (`DataTable`).
 
 ### 7.12 KeyValueTable
@@ -2781,7 +2781,7 @@ interface KeywordCellProps {
   flags?: { targetMismatch?: TargetURLIndicatorProps; cannibalization?: CannibalizationIndicatorProps };
   branded?: boolean;                // micro badge only in prompt-linked views
   isNew?: boolean;                  // "New" info-subtle badge after an add or import
-  secondaryLine?: string | null;    // Default density: "US · Desktop · /pricing · 2.4K"
+  secondaryLine?: string | null;    // Comfortable density: "US · Desktop · /pricing · 2.4K"
   hoverActions?: ReadonlyArray<RecordAction<string>>;   // up to 2 icon-xs actions
 }
 ```
@@ -2864,14 +2864,14 @@ interface DeltaCellProps {
 ### 8.6 MetricCell
 `app/cells/metric-cell.tsx` · V1 · [12 §6](12-tables.md), [23 §1.1](23-application-patterns.md)
 
-Purpose: a rate with its denominator: `47.2%`; Default density (40 px rows) adds `612 of 1,296 obs` below in `type-label`; Compact density and embedded tables show the rate only. Formerly called `RateCell` in 19 and 20 (section 23, item 48).
+Purpose: a rate with its denominator: `47.2%`; Comfortable density (40 px rows) adds `612 of 1,296 obs` below in `type-label`; Compact density, the default, and embedded tables show the rate only (the sample is in the tooltip). Formerly called `RateCell` in 19 and 20 (section 23, item 48).
 
 ```ts
 interface MetricCellProps {
   value: MetricCellValue;           // contract MetricCell: value, numerator, denominator, n_observations, ci, suppressed_reason
   noun: SampleNoun;
   decimals?: 0 | 1;                 // 0 when the interval half-width is at least 2 points
-  intervalDisplay?: 'none' | 'bar'; // 'bar' only when "Show intervals" is on in Default density
+  intervalDisplay?: 'none' | 'bar'; // 'bar' only when "Show intervals" is on in Comfortable density
   density: Density;
 }
 ```
@@ -2932,7 +2932,7 @@ interface URLCellProps {
 ### 8.10 SparklineCell
 `app/sparkline/sparkline-cell.tsx` · V1 · [12 §6](12-tables.md), [15 §9](15-data-visualization.md)
 
-Purpose: a 64 x 20 px (Default density) or 64 x 16 px (Compact density and embedded tables) canvas trend drawn by the shared renderer: 1.5 px, gray, with the own row in cobalt.
+Purpose: a 64 x 16 px (Compact density, the default, and embedded tables) or 64 x 20 px (Comfortable density) canvas trend drawn by the shared renderer: 1.5 px, gray, with the own row in cobalt.
 
 ```ts
 interface SparklineCellProps {
@@ -3123,7 +3123,7 @@ interface ConfidenceIndicatorProps {
 - **Variants:** none (bar: 1 px `border-strong` axis, 2 px `foreground-secondary` interval, 6 px `foreground` point; no filled track).
 - **States:** interval, insufficient, missing (`n/a`).
 - **A11y:** accessible name "95% interval 31% to 37%"; bar `aria-hidden` when text is present.
-- **Use:** inspector rate tables, Prompt Detail rate table, statistics panel, Default-density rate columns with "Show intervals". **Not for:** Compact rows by default; SEO rank metrics (no interval exists).
+- **Use:** inspector rate tables, Prompt Detail rate table, statistics panel, Comfortable-density rate columns with "Show intervals". **Not for:** Compact rows by default; SEO rank metrics (no interval exists).
 
 ### 9.6 SampleCount
 `app/metric/sample-count.tsx` · V1 · [23 §8.3](23-application-patterns.md)
@@ -4058,7 +4058,7 @@ Purpose: neutral badge for prompt type (Question, Recommendation, Comparison, ..
 interface PromptTypeBadgeProps { type: string; label: string }   // type key from the contracts enum
 ```
 
-- **Variants:** none (neutral subtle). **A11y:** text. **Use:** `PromptCell` (Default density), inspector header meta. **Not for:** panels (neutral `Badge` "Core", "Discovery").
+- **Variants:** none (neutral subtle). **A11y:** text. **Use:** `PromptCell` (Comfortable density), inspector header meta. **Not for:** panels (neutral `Badge` "Core", "Discovery").
 
 ### 15.6 MentionRate
 `app/ai/mention-rate.tsx` · V1 · [23 §2](23-application-patterns.md), [24 §9.5](24-page-templates.md)
@@ -4344,7 +4344,7 @@ interface QuoteBoxProps {
 }
 ```
 
-- **Variants:** none. `surface-subtle` fill, 1 px `border-subtle`, `rounded-md` (6 px), 12 px padding (`p-3`), text in `type-table` (13 px) inside typographic quotes; source line in `type-meta` below.
+- **Variants:** none. `surface-subtle` fill, 1 px `border-subtle`, `rounded-md` (6 px), 12 px padding (`p-3`), text at 13 / 20 px (the former `type-table` size; `type-table` is 12 / 16 since 2026-10-29 and is for tables only) inside typographic quotes; source line in `type-meta` below.
 - **States:** default; long text wraps (no clamp inside the inspector section).
 - **A11y:** `blockquote` with the source as `cite` text; `lang` on the quote; untrusted content rules of 23 §5.6 apply (React text only).
 - **Use:** the sentence that mentions the brand, the citation context, a short answer excerpt in prompt, citation and answer inspectors.
@@ -5071,3 +5071,8 @@ Disagreements between documents found while compiling this inventory. The resolu
 | 144 | `col.rank`, `col.rankDelta` and `col.url` | 7.13 and 12 section 5 give each column type an accessor of the cell's props (`RankCellProps`, `RankDeltaCellProps`, `URLCellProps`) and cells in `app/cells/` | The three types are in `lib/tables/column-types.ts` with the spec's widths (rank 64 / 56 / 80, right, best first; rankDelta 88 / 84 / 88, right, biggest improvement first, where 12 section 5 gives 56 / 48 / 72: the header "Change" beside its sort arrow needs 84 px, and with a lower minimum the width resolver shrank the column to about 75 px at 1680 px; url 260 / 180 / 480, left, A to Z, not the flex column). Because what a rank cell shows depends on the check (a number, `>20`, Pending, a failure) and a change on more than one fact, the builders take the sort value and the screen's own `cell` and `cellTip`: `col.rank(id, sortValue, { cell, cellTip, header, headerTooltip, priority, width, sortable, defaultVisible })`, the same for `col.rankDelta` and `col.url`. A `null` sort value sorts last in both directions, as an unknown one does. `col.date` also takes `unknown` (what a row without a date says, with its reason as the tooltip), `marker` (a word before the date, such as Stale, shown also for a row without a date) and `cellTip`. Beside a marker the date never breaks and the pair wraps (the marker above it) before it spills into the next column, since a table-fixed cell does not clip; a date alone may wrap at its space in a narrow column, as it did before. The table sorts rows that tie on every sort key by row id, ascending whichever way the sort runs, as the API breaks ties, so client and server mode list the same order |
 | 145 | `RankCellView`, `RankChangeView`, `RankingUrlView`, `StaleMarker` and `useRankTips` | 12 section 6 puts `RankCell`, `RankDeltaCell` and `URLCell` in `app/cells/` and has them call `formatRankCell`, `formatRankChange` and `describeRank`, which return English | They are in `features/rankings/rank-cells.tsx`, since only Rankings uses them so far. `lib/format/rank-display.ts` (`rankDisplay`, `changeDisplay`, `rowChangeDisplay`, `urlDisplay`) decides what a cell shows from the API's `RankCell`, `RankChange`, `consecutive_failures` and `UrlRef` and returns codes and numbers; the views put the words in through `rankings.rank` messages, with the words for a screen reader in hidden text and the glyph (`>20`, `↑5`, `New`, `+1`, the clock of a stale rank and the warning of a failing check) hidden from speech. `BestRankView` shares the words of the other rank columns ("Pending", "Not ranking", and "n/a" after a failed check, whose tooltip says why). One rule for a failed check: Rank shows the warning, Ranking URL and Best rank "n/a", Updated "Check failed" with its Stale marker, and Change says nothing, as it does before any check. The tone rule is applied with a fixed threshold of 2 places, since the API sends no mean daily change (see 20 section 5.3). `useRankTips(timeZone)` builds the tooltips: the rank's check and depth with the previous rank, a change's own sentence ("Improved 5 positions") with its from and to, the whole address of a ranking URL, Pending, a failed check and the stale marker. A tip's description is the rest of it where the cell's own text already says its first line (a change's words; `>20`, which is spoken as "not in top 20"), so a screen reader does not hear it twice. A long path keeps its last 12 characters (`PATH_END_CHARS`) in view and gives way at its start by CSS. The old `formatRankCell`, `classifyRankChange` and `formatRankChange` in `lib/format/rank.ts` are kept for the places that have the observations and no API state |
 | 146 | `CopyButton` and controls in table cells | 3.7 puts `CopyButton` in `ui/copy-button.tsx` with `value`, `label`, `form` and `size`, shows the check for 1.5 s and has the error toast name the field; 12 section 6 and 20 section 6.3 enter widget mode with Enter or F2 | `ui/` may import only React, Base UI, Lucide, cva and `cn`, and the button needs the announcer and the clipboard helper, so it is `app/cells/copy-button.tsx` (`text`, `label`, `announcement`, `placement`), icon only, 24 px, with the clipboard code in `lib/dom/clipboard.ts` (the Clipboard API, then a selected read-only field). The check stays for 2 seconds, the name is "Copied" while it shows, and the failure toast says "Could not copy. Select the text and copy it yourself." (a table has no field to select). Widget mode is built for the controls marked `CELL_CONTROL` and entered with F2 only, since Enter opens the row on every data cell: Tab and Shift+Tab step between the controls round the ends, Escape returns to the cell at once (the table takes it before the tooltip) and the arrows go back to the grid. `col.keyword` takes `copy` and names its row header by the keyword alone (`DataTableColumn.cellLabel`). `RankingUrlView` links its path to the canonical URL (`webHref` allows http and https only, and refuses an address with a user name or password) and has the copy button, which lies over the end of the cell (`placement="overlay"`) unless a `+N` marker is beside the path (`inline`, a place of its own). A column whose cells hold such controls sets `DataTableColumn.hasControls` (`col.keyword` with `copy` does so itself); only then does the grid's hint say that F2 moves into them (`dataTable.hintControls`, otherwise `dataTable.hint`). The link departs from the specs for outbound links ([20-frontend-specification.md](../20-frontend-specification.md) section 7.2 `ExternalLink`, [20-accessibility.md](20-accessibility.md) section 9.1 rule 4, [12-tables.md](12-tables.md) section 6 `URLCell`): it is a `TextLink` in the link color, underlined on hover and focus, with no `ExternalLink` icon and no hover "open" icon, since a 14 px icon would take width from a column that has none to spare; its name says "in a new tab", and `rel` is `noopener noreferrer nofollow` as the spec has it. While a control of a cell has focus the table turns the cell's own tooltip off (`Tooltip` `disabled`, set from the focus handler of the grid), so the control's own tooltip is the one shown. Space on a link in a cell is taken by the table, which clicks it (Space would scroll the table), and widget mode ends when focus lands on the cell itself, not when the window loses focus |
+| 147 | `col.features`, `col.aiOverview`, `col.competitor`, `col.sparkline` | Column types in 12 §5 and factories in 25 §7.1 | Added to `col.*` in `components/app/data-table/columns.tsx` and types in `lib/tables/column-types.ts`. None of the four sorts; priorities follow template 9.3 (`features` 3, `aiOverview` 2, `competitor` 4, `sparkline` 2) |
+| 148 | `SparklineCell`, `SerpFeatureListView`, `AioStatusView`, `CompetitorRankView` | Cell components in 12 §6 | Implemented in `components/app/sparkline/` and `features/rankings/feature-cells.tsx`. `SparklineCell` renders 64 x 20 px SVG sparkline in both densities. `SerpFeatureListView` renders Lucide icons (owned in `text-primary-text`, present in `text-foreground-muted`) with accessible spoken list. `AioStatusView` renders cited badge, present not cited, absent, and not loaded states. `CompetitorRankView` shows competitor position or beyond-depth check |
+| 149 | `marker` and `trailing` on `col.keyword` | Keyword cell decoration in 12 §6 | `col.keyword` accepts `marker` and `trailing` render functions. `TargetMismatchMarker` renders when `target_url_match === false`; `trailing` renders an arrow-up-right link that opens the ranking URL in a new tab without opening the keyword inspector |
+| 150 | `ChartFrame.extendOption` and `rankAxis` | Custom chart axes and styling in 15 §7 | `ChartFrame` accepts `extendOption(baseOption, tokens)` callback so features can inject custom ECharts options without modifying internal chart builders. `rankAxis` (`lib/charts/rank-chart.ts`) provides inverted 1 to 20 scale up to the depth shown, guides at 3, 10, 20 with labels in right margin, and hatched depth bands |
+| 151 | Merged Rank and Change column | 24 §9.3 shows separate Rank and Change columns | Rank and Change merged into a single Rank column (`col.rank`) with 32 px fixed rank box and fixed change slot to its right. Change column removed from default columns and URL `cols` |

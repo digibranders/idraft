@@ -2260,7 +2260,7 @@ Webhook-Signature: v1=5f2b0c8e...e91a, v1=0a77c1d4...33bf
 
 ## 6. Performance targets
 
-Targets are p95 server time on the V1 droplet with production-shaped data (doc 03 section 5; doc 16 section 13.4), measured by a timing middleware in the FastAPI app and reported through Sentry performance monitoring (10% sampling); nothing is exported to Prometheus (ADR-022). A route class that misses its target for 3 consecutive days raises a Sentry alert; the API's scaling trigger is overall p95 above 300 ms (doc 03 section 5).
+Targets are p95 server time on the V1 host (idraft share of the Hostinger VPS) with production-shaped data (doc 03 section 5; doc 16 section 13.4), measured by a timing middleware in the FastAPI app and reported through Sentry performance monitoring (10% sampling); nothing is exported to Prometheus (ADR-022). A route class that misses its target for 3 consecutive days raises a Sentry alert; the API's scaling trigger is overall p95 above 300 ms (doc 03 section 5).
 
 | Endpoint class | Examples | p95 target | Mechanism |
 |---|---|---|---|
