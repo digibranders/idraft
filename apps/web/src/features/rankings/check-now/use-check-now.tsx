@@ -19,6 +19,7 @@ import { refreshKeywords, type ProjectScope } from '../rankings-queries';
 import type { RecordAction } from '@/components/app/data-table/types';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
+import { Tooltip } from '@/components/ui/tooltip';
 import { announce } from '@/lib/a11y/announcer';
 import { api, unwrap } from '@/lib/api/client';
 import type { Run, TrackedKeywordRow } from '@/lib/api/types';
@@ -135,7 +136,7 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
 
   const target = checkNowTarget(chosen, archived);
   const disabledReason = inFlight
-    ? t('action')
+    ? t('inProgress')
     : exhausted
       ? t('blocked.noneLeft')
       : target.kind === 'blocked'
@@ -159,18 +160,21 @@ export function useCheckNow({ scope, enabled, archived, chosen, onDrop }: UseChe
   const inspectorAction = useCallback(
     (trackedId: string, active: boolean): ReactNode => {
       if (!enabled || !active) return null;
+      const reason = inFlight ? t('inProgress') : exhausted ? t('blocked.noneLeft') : null;
       return (
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={RefreshCw}
-          disabled={inFlight || exhausted}
-          loading={inFlight}
-          title={exhausted ? t('blocked.noneLeft') : undefined}
-          onClick={() => void triggerCheck([trackedId])}
-        >
-          {t('action')}
-        </Button>
+        <Tooltip content={reason ?? ''} disabled={reason === null}>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={RefreshCw}
+            disabled={reason !== null}
+            focusableWhenDisabled
+            loading={inFlight}
+            onClick={() => void triggerCheck([trackedId])}
+          >
+            {t('action')}
+          </Button>
+        </Tooltip>
       );
     },
     [enabled, inFlight, exhausted, triggerCheck, t],

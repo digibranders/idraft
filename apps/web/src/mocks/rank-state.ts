@@ -158,6 +158,20 @@ function aioOf(trackedId: string): AioStateInfo {
   };
 }
 
+interface ManualCheckRecord {
+  completedAt: number;
+}
+
+const manualChecks = new Map<string, ManualCheckRecord>();
+
+export function recordManualCheck(trackedId: string, completedAt: number): void {
+  manualChecks.set(trackedId, { completedAt });
+}
+
+export function clearManualChecks(): void {
+  manualChecks.clear();
+}
+
 /** The checks of a keyword up to `now` as the rank state and sparkline see them. */
 export function checksAt(
   trackedId: string,
@@ -170,9 +184,23 @@ export function checksAt(
   const collected = stoppedAt === null;
   const staleAsOf = STALE_IDS.has(trackedId) ? now - STALE_FIXTURE_AGE_MS : now;
   const asOf = collected ? staleAsOf : Math.min(staleAsOf, Date.parse(stoppedAt));
-  return checksOf(trackedId, createdAt, asOf).map((check) =>
+  const checks = checksOf(trackedId, createdAt, asOf).map((check) =>
     domain === null ? { ...check, rank: null, path: null, urlCount: 0 } : check,
   );
+  const manual = manualChecks.get(trackedId);
+  if (manual !== undefined && now >= manual.completedAt && collected) {
+    const latest = checks.at(-1);
+    const prevRank = latest?.rank ?? null;
+    const newRank = prevRank === null ? 10 : prevRank > 1 ? prevRank - 1 : 2;
+    checks.push({
+      observedAt: new Date(manual.completedAt).toISOString(),
+      rank: domain === null ? null : newRank,
+      depth: latest?.depth ?? 20,
+      path: latest?.path ?? '/',
+      urlCount: latest?.urlCount ?? 1,
+    });
+  }
+  return checks;
 }
 
 /** The keyword's sparkline as `include=sparkline` answers it: the last 30 checks, oldest first. */

@@ -885,6 +885,10 @@ test.describe('rankings', () => {
     await expect(page.getByRole('complementary')).toHaveCount(0);
 
     // 6. Bulk Check now with two keywords, move clock until run completes, assert toast and refetch
+    const seoRow = grid.locator('tbody tr[role="row"]').filter({ hasText: 'seo agency' }).first();
+    const rankCellBefore = await cellOf(grid, seoRow, 'Rank');
+    const initialRankText = (await rankCellBefore.textContent())?.trim();
+
     await page.getByRole('checkbox', { name: 'Select seo agency, desktop, United States', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Select backlink checker, desktop, Germany', exact: true }).click();
     const bar = page.getByRole('group', { name: /Bulk actions/ });
@@ -898,6 +902,16 @@ test.describe('rankings', () => {
     await expect(page.getByText(/^Ranks checked: \d+ of \d+$/)).toBeVisible({ timeout: 15_000 });
     const response = await refetched;
     expect(response.status()).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ keyword: { text: string }; state: { current: { rank: number | null } } }>;
+    };
+    const seoChecked = body.data.find((item) => item.keyword.text === 'seo agency');
+    expect(seoChecked?.state.current.rank).not.toBeNull();
+
+    const rankCellAfter = await cellOf(grid, seoRow, 'Rank');
+    await expect(rankCellAfter).toBeVisible();
+    const updatedRankText = (await rankCellAfter.textContent())?.trim();
+    expect(updatedRankText).not.toEqual(initialRankText);
 
     // 7. At 1680 px the first competitor column shows
     await page.setViewportSize({ width: 1680, height: 900 });

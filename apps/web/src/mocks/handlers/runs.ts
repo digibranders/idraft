@@ -24,8 +24,9 @@ import {
   uuidError,
 } from './rules';
 import { readingOf } from '../factories/keyword';
-import { labsMicros, runDetailView, runPath, runState, runView } from '../factories/operations';
+import { labsMicros, runDetailView, runPath, runState, runView, RUN_WORKING_MS } from '../factories/operations';
 import { operationIdMinter, operationWorld, runTime, TRIGGERS, withRun, type StoredRun } from '../operations-state';
+import { recordManualCheck } from '../rank-state';
 import { invalid, mock, problem } from '../respond';
 import { projectList } from '../workspace-state';
 import type { ValidationItem } from '@/lib/api/types';
@@ -464,7 +465,10 @@ export const runHandlers: HttpHandler[] = [
 
     const minter = operationIdMinter(caller.operationChanges);
     // No budget pre-flight: the mock prices only Labs reads.
-    // The mock records a run but does not change any rank (Decision 8).
+    // The mock records a run and updates ranks upon completion.
+    for (const id of trackedIds) {
+      recordManualCheck(id, now + RUN_WORKING_MS);
+    }
     const run: StoredRun = {
       run_id: minter.next('run'),
       project_id: caller.project.project_id,

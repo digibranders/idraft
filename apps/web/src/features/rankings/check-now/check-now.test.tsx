@@ -151,8 +151,8 @@ describe('Check now', () => {
     });
 
     const { user, queryClient } = renderWithProviders(as('editor'));
-    const initialListReads = listReads;
     const bar = await choose(user, 'seo agency', 'backlink checker');
+    const initialListReads = listReads;
     await user.click(within(bar).getByRole('button', { name: 'Check now' }));
 
     expect(await screen.findByRole('progressbar')).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe('Check now', () => {
     });
   });
 
-  it('prevents duplicate POST on rapid double click (in-flight guard)', async () => {
+  it('prevents duplicate POST on rapid double click in bar (in-flight guard)', async () => {
     let postCount = 0;
     server.use(
       http.post(mswPath(CHECK_NOW), async () => {
@@ -197,9 +197,66 @@ describe('Check now', () => {
     const button = within(bar).getByRole('button', { name: 'Check now' });
     await Promise.all([user.click(button), user.click(button)]);
 
-    await waitFor(() => {
-      expect(postCount).toBe(1);
-    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(postCount).toBe(1);
+  });
+
+  it('prevents duplicate POST on rapid double click in inspector (in-flight guard)', async () => {
+    let postCount = 0;
+    server.use(
+      http.post(mswPath(CHECK_NOW), async () => {
+        postCount += 1;
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        return HttpResponse.json({
+          data: {
+            run_id: 'test-double-click-inspector-run',
+            workload: 'seo_rank',
+            status: 'running',
+            tasks_total: 1,
+            tasks_succeeded: 0,
+            tasks_failed: 0,
+          },
+        });
+      }),
+    );
+
+    const { user } = renderWithProviders(as('editor'));
+    const inspector = await openFromRow(user, 'seo agency');
+    const button = within(inspector).getByRole('button', { name: 'Check now' });
+    await Promise.all([user.click(button), user.click(button)]);
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(postCount).toBe(1);
+  });
+
+  it('prevents duplicate POST across entry points: inspector then bar', async () => {
+    let postCount = 0;
+    server.use(
+      http.post(mswPath(CHECK_NOW), async () => {
+        postCount += 1;
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        return HttpResponse.json({
+          data: {
+            run_id: 'test-cross-entry-run',
+            workload: 'seo_rank',
+            status: 'running',
+            tasks_total: 1,
+            tasks_succeeded: 0,
+            tasks_failed: 0,
+          },
+        });
+      }),
+    );
+
+    const { user } = renderWithProviders(as('editor'));
+    const bar = await choose(user, 'seo agency');
+    const barButton = within(bar).getByRole('button', { name: 'Check now' });
+    const inspector = await openFromRow(user, 'seo agency');
+    const inspectorButton = within(inspector).getByRole('button', { name: 'Check now' });
+
+    await Promise.all([user.click(inspectorButton), user.click(barButton)]);
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
     expect(postCount).toBe(1);
   });
 
@@ -248,8 +305,39 @@ describe('Check now', () => {
 
     const inspector = await openFromRow(user, 'seo agency');
     const inspectorBtn = within(inspector).getByRole('button', { name: 'Check now' });
-    expect(inspectorBtn).toBeDisabled();
-    expect(inspectorBtn).toHaveAttribute('title', 'No manual runs left today. The limit resets at 00:00 UTC.');
+    expect(inspectorBtn).toHaveAttribute('aria-disabled', 'true');
+    expect(inspectorBtn).not.toHaveAttribute('title');
+    expect(inspectorBtn).toHaveAccessibleDescription('No manual runs left today. The limit resets at 00:00 UTC.');
+  });
+
+  it('disables inspector Check now while in flight with "Check in progress" reason', async () => {
+    server.use(
+      http.post(mswPath(CHECK_NOW), async () => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return HttpResponse.json({
+          data: {
+            run_id: 'test-in-flight-run',
+            workload: 'seo_rank',
+            status: 'running',
+            tasks_total: 1,
+            tasks_succeeded: 0,
+            tasks_failed: 0,
+          },
+        });
+      }),
+    );
+
+    const { user } = renderWithProviders(as('editor'));
+    const inspector = await openFromRow(user, 'seo agency');
+    const inspectorBtn = within(inspector).getByRole('button', { name: 'Check now' });
+    await user.click(inspectorBtn);
+
+    const inFlightBtn = await within(inspector).findByRole('button', { name: 'Check now' });
+    await waitFor(() => {
+      expect(inFlightBtn).toHaveAttribute('aria-disabled', 'true');
+    });
+    expect(inFlightBtn).not.toHaveAttribute('title');
+    expect(inFlightBtn).toHaveAccessibleDescription('Check in progress');
   });
 
   it('announces to live region when check now starts', async () => {
