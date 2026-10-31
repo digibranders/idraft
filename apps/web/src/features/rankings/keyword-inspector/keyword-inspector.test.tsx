@@ -23,7 +23,7 @@ vi.mock('@/components/app/chart/echart', () => ({
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/fynix/seo/rankings',
+  usePathname: () => '/digibranders/fynix/seo/keywords',
 }));
 
 function latestRankChartOption(): Record<string, unknown> | undefined {

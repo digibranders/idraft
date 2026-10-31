@@ -166,8 +166,14 @@ describe('RankCellView', () => {
       const el = container.querySelector(`[data-testid="${testId}"]`);
       const rankBox = el?.querySelector('.w-8');
       expect(rankBox).toBeInTheDocument();
-      expect(rankBox).toHaveClass('w-8', 'shrink-0', 'overflow-hidden');
+      expect(rankBox).toHaveClass('w-8', 'shrink-0');
+      expect(rankBox).not.toHaveClass('overflow-hidden');
     }
+  });
+
+  it('renders rank 100 without truncation or clipping', () => {
+    const { getByText } = renderWithProviders(<RankCellView display={rankDisplay(cell({ rank: 100 }), false)} />);
+    expect(getByText('100')).toBeInTheDocument();
   });
 
   it('shows tooltip with last successful check date on stale clock icon', async () => {

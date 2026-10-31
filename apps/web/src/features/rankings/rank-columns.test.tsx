@@ -217,4 +217,9 @@ describe('useCompetitorColumns', () => {
     expect(tip?.content).toContain('Improved 2 positions');
     expect(tip?.detail).toContain('From 6 to 4');
   });
+
+  it('mentions rank change in the Rank column header tooltip', () => {
+    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
+    expect(result.current.rank.headerTooltip).toContain('how it moved');
+  });
 });

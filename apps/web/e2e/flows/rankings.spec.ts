@@ -177,7 +177,7 @@ test.describe('rankings', () => {
     await expect(menu).toHaveCount(0);
   });
 
-  test('change slot starts at the same horizontal position across ranked, beyond, failed, and stale rows', async ({
+  test('change slot starts at the same horizontal position and no clipping occurs across row states', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -186,36 +186,119 @@ test.describe('rankings', () => {
     const grid = page.getByRole('grid', { name: 'Tracked keywords' });
     await expect(grid.getByRole('rowheader').first()).toBeVisible();
 
-    // Inspect change slot horizontal offset relative to the rank cell across rows
-    const slotOffsets = await grid.locator('tbody tr[role="row"]').evaluateAll((rows) => {
+    // Inspect change slot horizontal offset and clipping relative to the rank cell across table rows
+    const rowMeasurements = await grid.locator('tbody tr[role="row"]').evaluateAll((rows) => {
       return rows
         .slice(0, 15)
         .map((tr) => {
           const rankCell = (tr as HTMLTableRowElement).cells[2];
           if (!rankCell) return null;
           const cellRect = rankCell.getBoundingClientRect();
-          const container = rankCell.firstElementChild;
+          const container = rankCell.firstElementChild as HTMLElement | null;
           if (!container) return null;
-          const rankBox = container.children[0];
-          const changeSlot = container.children[1];
+          const rankBox = container.children[0] as HTMLElement | undefined;
+          const changeSlot = container.children[1] as HTMLElement | undefined;
           if (!rankBox || !changeSlot) return null;
           const rankBoxRect = rankBox.getBoundingClientRect();
           const slotRect = changeSlot.getBoundingClientRect();
           return {
             rankBoxWidth: Math.round(rankBoxRect.width),
             slotOffset: Math.round(slotRect.left - cellRect.left),
+            rankBoxClipped: rankBox.scrollWidth > rankBox.clientWidth,
+            slotClipped: changeSlot.scrollWidth > changeSlot.clientWidth,
           };
         })
-        .filter((v): v is { rankBoxWidth: number; slotOffset: number } => v !== null);
+        .filter((v): v is NonNullable<typeof v> => v !== null);
     });
 
-    expect(slotOffsets.length).toBeGreaterThan(0);
-    for (const offset of slotOffsets) {
-      expect(offset.rankBoxWidth).toBe(32);
+    expect(rowMeasurements.length).toBeGreaterThan(0);
+    const firstOffset = rowMeasurements[0]?.slotOffset;
+    for (const m of rowMeasurements) {
+      expect(m.rankBoxWidth).toBe(32);
+      expect(m.slotOffset).toBe(firstOffset);
+      expect(m.rankBoxClipped).toBe(false);
+      expect(m.slotClipped).toBe(false);
     }
-    const firstOffset = slotOffsets[0]?.slotOffset;
-    for (const offset of slotOffsets) {
-      expect(offset.slotOffset).toBe(firstOffset);
+
+    // Measure rendered widths in real browser for ranked 1, 9, 10, 100, and >100,
+    // each with stale and failing marks, verifying no clipping and common slot x
+    const renderedVariants = await page.evaluate(() => {
+      const host = document.createElement('div');
+      host.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;font-size:12px;';
+      document.body.append(host);
+
+      const ranks = ['1', '9', '10', '100', '>100'];
+      const markConditions = [
+        { stale: false, failing: false },
+        { stale: true, failing: false },
+        { stale: false, failing: true },
+        { stale: true, failing: true },
+      ];
+
+      const results = [];
+      for (const rankText of ranks) {
+        for (const marks of markConditions) {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'flex items-center gap-2';
+
+          const rankBox = document.createElement('span');
+          rankBox.className = 'inline-flex w-8 shrink-0 items-center justify-start text-left';
+          const textSpan = document.createElement('span');
+          textSpan.className = 'num text-foreground';
+          textSpan.textContent = rankText;
+          rankBox.append(textSpan);
+
+          const slot = document.createElement('span');
+          slot.className = 'inline-flex shrink-0 items-center gap-1 text-left num whitespace-nowrap';
+
+          if (marks.stale) {
+            const clock = document.createElement('span');
+            clock.className = 'inline-flex items-center size-icon-xs text-warning-text';
+            clock.textContent = '⏱';
+            slot.append(clock);
+          }
+          if (marks.failing) {
+            const warn = document.createElement('span');
+            warn.className = 'inline-flex items-center size-icon-xs text-warning-text';
+            warn.textContent = '⚠';
+            slot.append(warn);
+          }
+          const chg = document.createElement('span');
+          chg.className = 'text-positive-text';
+          chg.textContent = '↑2';
+          slot.append(chg);
+
+          wrapper.append(rankBox, slot);
+          host.append(wrapper);
+
+          const wrapperRect = wrapper.getBoundingClientRect();
+          const rankBoxRect = rankBox.getBoundingClientRect();
+          const textRect = textSpan.getBoundingClientRect();
+          const slotRect = slot.getBoundingClientRect();
+
+          results.push({
+            rankText,
+            marks,
+            rankBoxWidth: Math.round(rankBoxRect.width),
+            textWidth: Math.round(textRect.width),
+            slotOffset: Math.round(slotRect.left - wrapperRect.left),
+            rankBoxClipped: rankBox.scrollWidth > rankBox.clientWidth,
+            slotClipped: slot.scrollWidth > slot.clientWidth,
+          });
+        }
+      }
+      host.remove();
+      return results;
+    });
+
+    expect(renderedVariants.length).toBe(20);
+    const expectedSlotOffset = renderedVariants[0]?.slotOffset;
+    for (const v of renderedVariants) {
+      expect(v.rankBoxWidth).toBe(32);
+      expect(v.slotOffset).toBe(expectedSlotOffset);
+      expect(v.rankBoxClipped).toBe(false);
+      expect(v.slotClipped).toBe(false);
+      expect(v.textWidth).toBeLessThanOrEqual(32);
     }
   });
 
@@ -613,7 +696,7 @@ test.describe('rankings', () => {
     await page.clock.runFor(60_000);
     await expect(row.getByText('Pending')).toHaveCount(0);
     const rank = await cellOf(grid, row, 'Rank');
-    await expect(rank).toHaveText(/^(\d+|>\d+not in top \d+)/);
+    await expect(rank).toHaveText(/^(\d+|>\d+not in top \d+)$/);
   });
 
   test('metrics are refreshed from More actions, and the run is followed in the header', async ({ page }) => {

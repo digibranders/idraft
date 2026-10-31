@@ -11,7 +11,7 @@ import { membershipFactory } from '@/mocks/factories/identity';
 
 const navigation = vi.hoisted(() => ({
   segment: null as string | null,
-  pathname: '/digibranders/fynix/seo/rankings',
+  pathname: '/digibranders/fynix/seo/keywords',
   search: '',
   push: vi.fn<(path: string, options: { scroll: boolean }) => void>(),
   replace: vi.fn<(path: string, options: { scroll: boolean }) => void>(),

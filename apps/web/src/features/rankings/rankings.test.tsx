@@ -19,6 +19,7 @@ import { server } from '@/test/msw';
 import {
   answerTrackedAsMany,
   cleanstart,
+  fynix,
   columnIndex,
   columnTexts,
   keywordsIn,
@@ -34,7 +35,7 @@ import { renderWithProviders } from '@/test/render';
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/fynix/seo/rankings',
+  usePathname: () => '/digibranders/fynix/seo/keywords',
 }));
 
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
@@ -384,7 +385,7 @@ describe('Rankings', () => {
   });
 
   it('renders default visible column set and hides Ranking URL and Priority by default', async () => {
-    renderWithProviders(as('viewer'));
+    const { unmount } = renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
     const headers = within(grid).getAllByRole('columnheader');
     const headerTexts = headers.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
@@ -393,13 +394,44 @@ describe('Rankings', () => {
     }
     expect(headerTexts.some((t) => t?.includes('Ranking URL'))).toBe(false);
     expect(headerTexts.some((t) => t?.includes('Priority'))).toBe(false);
+    unmount();
+
+    // When explicitly named in cols, Ranking URL and Priority are shown
+    renderWithProviders(as('viewer'), { searchParams: '?cols=keyword,current_rank,ranking_url,priority' });
+    const customGrid = await loadedGrid();
+    const customHeaders = within(customGrid).getAllByRole('columnheader');
+    const customTexts = customHeaders.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
+    expect(customTexts.some((t) => t?.includes('Ranking URL'))).toBe(true);
+    expect(customTexts.some((t) => t?.includes('Priority'))).toBe(true);
   });
 
   it('drops rank_change quietly from cols parameter without toast or error', async () => {
-    renderWithProviders(as('viewer'), { searchParams: '?cols=keyword,rank,rank_change,search_volume' });
+    renderWithProviders(as('viewer'), { searchParams: '?cols=keyword,current_rank,rank_change,search_volume' });
     const grid = await loadedGrid();
     expect(grid).toBeInTheDocument();
     expect(document.querySelector('[data-slot="toast"]')).toBeNull();
+    const headers = within(grid).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
+    expect(headerTexts.some((t) => t?.toLowerCase().includes('change'))).toBe(false);
+    expect(within(grid).queryByRole('columnheader', { name: /change/i })).toBeNull();
+    expect(headerTexts.some((t) => t?.includes('Rank'))).toBe(true);
+    expect(headerTexts.some((t) => t?.includes('Volume'))).toBe(true);
+  });
+
+  it('shows Over 100 in the Rank filter bucket when depth is 100 at screen level', async () => {
+    const { unmount } = renderWithProviders(as('viewer', fynix.project_id, { depth: 100 }), {
+      searchParams: '?rank=beyond',
+    });
+    await loadedGrid();
+    expect(screen.getByRole('button', { name: 'Rank: Over 100. Edit filter' })).toBeInTheDocument();
+    unmount();
+
+    // Without depth or at depth 20, the filter chip says Beyond depth
+    renderWithProviders(as('viewer', fynix.project_id, { depth: 20 }), {
+      searchParams: '?rank=beyond',
+    });
+    await loadedGrid();
+    expect(screen.getByRole('button', { name: 'Rank: Beyond depth. Edit filter' })).toBeInTheDocument();
   });
 
   it('allows rank_change as a valid sort key in the URL', async () => {

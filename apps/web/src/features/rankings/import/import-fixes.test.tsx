@@ -33,7 +33,7 @@ import { renderWithProviders } from '@/test/render';
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/fynix/seo/rankings',
+  usePathname: () => '/digibranders/fynix/seo/keywords',
 }));
 // See `import.test.tsx`: under jsdom the upload goes to the JSON route of the mocks, row by row
 vi.mock('@/lib/api/upload', async () => {

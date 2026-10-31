@@ -30,14 +30,14 @@ function fixtureProject(index: number): (typeof MOCK_PROJECTS)[number] {
 export const fynix = fixtureProject(0);
 export const cleanstart = fixtureProject(1);
 
-/** What the route tells the screen about the import dialog. */
-type ImportProps = Pick<RankingsScreenProps, 'importOpen' | 'onImportOpenChange'>;
+/** What the route or test tells the screen about the import dialog or settings. */
+type ScreenProps = Partial<Pick<RankingsScreenProps, 'importOpen' | 'onImportOpenChange' | 'depth'>>;
 
 /** Rankings of `projectId` for a member of `role`, signed in through the mock session cookie. */
 export function rankingsAs(
   role: Role,
   projectId: string = fynix.project_id,
-  importProps: ImportProps = {},
+  screenProps: ScreenProps = {},
   /** The projects a member limited to some may open; `null` is every project. */
   projectIds: readonly string[] | null = null,
 ): ReactElement {
@@ -63,7 +63,7 @@ export function rankingsAs(
                   },
             languageCode: 'en',
           }}
-          {...importProps}
+          {...screenProps}
         />
       </Suspense>
     </PermissionProvider>

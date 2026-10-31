@@ -92,6 +92,8 @@ export interface RankingsScreenProps extends ProjectScope {
   importOpen?: boolean;
   /** Asks the route to open or close the import dialog. */
   onImportOpenChange?: (open: boolean) => void;
+  /** The project's tracked depth (e.g. 100), used to label the beyond-depth filter bucket "Over 100". */
+  depth?: number | undefined;
 }
 
 /**
@@ -108,6 +110,7 @@ export function RankingsScreen({
   defaults,
   importOpen = false,
   onImportOpenChange,
+  depth,
 }: RankingsScreenProps): ReactNode {
   const t = useTranslations('rankings');
   const common = useTranslations('common');
@@ -131,7 +134,7 @@ export function RankingsScreen({
   const moreButton = useRef<HTMLButtonElement>(null);
   const scope = useMemo((): ProjectScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
 
-  const fields = useKeywordFilterFields(scope);
+  const fields = useKeywordFilterFields(scope, depth);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [values, setValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>

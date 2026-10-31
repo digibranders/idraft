@@ -83,7 +83,7 @@ function Marks({
 
 /**
  * The rank and its change in one cell: the rank number in a fixed-width box (~32 px, `w-8 shrink-0`),
- * then the change in a fixed-width slot (`w-12 shrink-0`) to its right.
+ * then the change and marks in a slot to its right.
  */
 export function RankCellView({
   display,
@@ -95,12 +95,6 @@ export function RankCellView({
   timeZone?: string | undefined;
 }): ReactElement {
   const t = useTranslations('rankings.rank');
-  const changeSlot =
-    change !== undefined ? (
-      <span className="inline-flex w-12 shrink-0 items-center gap-0.5 text-left num whitespace-nowrap">
-        <RankChangeView display={change} />
-      </span>
-    ) : null;
   const observedDate =
     display.kind !== 'pending' && display.observedAt
       ? timeZone
@@ -108,12 +102,26 @@ export function RankCellView({
         : display.observedAt
       : null;
 
+  const marks =
+    display.kind === 'pending' ? null : (
+      <Marks
+        stale={display.stale}
+        failing={display.kind === 'failed' ? false : display.failing}
+        observedAt={observedDate}
+      />
+    );
+  const changeSlot = (
+    <span className="inline-flex shrink-0 items-center gap-1 text-left num whitespace-nowrap">
+      {marks}
+      {change !== undefined ? <RankChangeView display={change} /> : null}
+    </span>
+  );
+
   switch (display.kind) {
     case 'ranked':
       return (
         <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center gap-0.5 overflow-hidden">
-            <Marks stale={display.stale} failing={display.failing} observedAt={observedDate} />
+          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
             <span className="num text-foreground">{formatInteger(display.rank)}</span>
           </span>
           {changeSlot}
@@ -122,8 +130,7 @@ export function RankCellView({
     case 'beyond':
       return (
         <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center gap-0.5 overflow-hidden">
-            <Marks stale={display.stale} failing={display.failing} observedAt={observedDate} />
+          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
             <span aria-hidden="true" className="num text-foreground-tertiary">
               {formatRankCell({ rank: null, depth: display.depth })}
             </span>
@@ -141,8 +148,7 @@ export function RankCellView({
     case 'failed':
       return (
         <span className="flex items-center gap-2">
-          <span className="inline-flex w-8 shrink-0 items-center gap-0.5 overflow-hidden">
-            <Marks stale={display.stale} failing={false} observedAt={observedDate} />
+          <span className="inline-flex w-8 shrink-0 items-center justify-start text-left">
             <Icon icon={TriangleAlert} size="sm" label={t('failed')} className="text-warning-text" />
           </span>
           {changeSlot}
