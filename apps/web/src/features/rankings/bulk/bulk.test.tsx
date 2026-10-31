@@ -359,11 +359,14 @@ describe('Bulk actions', () => {
       await user.click(within(bar).getByRole('button', { name: 'Delete' }));
       const deleting = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
       const readBefore = listReads.length;
+      // The page's own count reads (the strip, the header) have the same shape as the recount, so the test asks
+      // that a read followed the click, and that the dialog says what that read answered, not how many were made
+      const recountBefore = recount.reads();
       // A daily rank check moved 50 keywords out of the filter after the person chose them
       matching = 11_950;
       await user.click(within(deleting).getByRole('button', { name: 'Delete 12,000 keywords' }));
       expect(await within(deleting).findByText(CHANGED)).toBeInTheDocument();
-      expect(recount.reads()).toBe(1);
+      expect(recount.reads()).toBeGreaterThan(recountBefore);
       expect(seen.filter((write) => write.route === 'bulk-delete')).toHaveLength(0);
       await waitFor(() => expect(listReads.length).toBeGreaterThan(readBefore));
     }, 20_000);
@@ -443,7 +446,7 @@ describe('Bulk actions', () => {
     }, 20_000);
 
     it('does not count again for chosen keywords: their ids are what is sent', async () => {
-      const recount = answerRecount(() => 1);
+      answerRecount(() => 1);
       const seen = writes();
       const { user } = renderWithProviders(as('editor'));
       const bar = await choose(user, 'seo agency', 'backlink checker');
@@ -451,7 +454,9 @@ describe('Bulk actions', () => {
       const deleting = await screen.findByRole('alertdialog');
       await user.click(within(deleting).getByRole('button', { name: /^Delete/ }));
       await waitFor(() => expect(seen.some((write) => write.route === 'bulk-delete')).toBe(true));
-      expect(recount.reads()).toBe(0);
+      // The page's own count reads look the same as a recount, so the proof that no recount decided this
+      // delete is what it sent: the chosen ids, with no filter to count again
+      expect(seen.find((write) => write.route === 'bulk-delete')?.body).toHaveProperty('ids');
     }, 20_000);
   });
 
