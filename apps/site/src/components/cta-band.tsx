@@ -14,8 +14,8 @@ export function CtaBand({ title, body }: CtaBandProps): ReactElement {
   return (
     <section aria-label="Request access to idraft" className="mx-auto max-w-[1320px] px-5 py-8 md:px-8 lg:py-12">
       <Reveal>
-        <div className="rounded-[2rem] bg-cobalt/15 p-1.5">
-          <div className="grid gap-9 overflow-hidden rounded-[calc(2rem-0.375rem)] bg-cobalt-deep p-6 text-white sm:p-9 md:grid-cols-2 md:items-center lg:grid-cols-12 lg:gap-12 lg:p-14">
+        <div className="rounded-[2rem]">
+          <div className="grid gap-9 overflow-hidden rounded-[2rem] bg-cobalt-deep p-6 text-white sm:p-9 md:grid-cols-2 md:items-center lg:grid-cols-12 lg:gap-12 lg:p-14">
             <div className="lg:col-span-7">
               <h2 className="max-w-[16ch] text-[clamp(2.2rem,4.5vw,4rem)] leading-[1.03] font-semibold tracking-[-0.05em] text-balance">{title}</h2>
               {body ? <p className="mt-5 max-w-[40ch] text-base leading-relaxed text-white/90 lg:text-lg">{body}</p> : null}

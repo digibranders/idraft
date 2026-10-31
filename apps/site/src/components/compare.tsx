@@ -27,8 +27,8 @@ export function Compare() {
       </Reveal>
       <div className="mt-14 grid gap-4 lg:grid-cols-12">
         <Reveal className="lg:col-span-5">
-          <div className="h-full rounded-[2rem] bg-ink/[0.04] p-1.5 ring-1 ring-ink/[0.06]">
-            <div className="h-full rounded-[calc(2rem-0.375rem)] bg-surface p-8 sm:p-10">
+          <div className="h-full rounded-[2rem] ring-1 ring-ink/[0.08]">
+            <div className="h-full rounded-[2rem] bg-surface p-8 sm:p-10">
               <p className="text-xl font-semibold tracking-[-0.03em] text-ink-2">A rank tracker alone</p>
               <ul className="mt-8 flex flex-col gap-5">
                 {ALONE.map((item) => (
@@ -42,8 +42,8 @@ export function Compare() {
           </div>
         </Reveal>
         <Reveal delay={0.1} className="lg:col-span-7">
-          <div className="h-full rounded-[2rem] bg-cobalt/10 p-1.5 ring-1 ring-cobalt/25">
-            <div className="relative h-full overflow-hidden rounded-[calc(2rem-0.375rem)] bg-cobalt p-8 text-white sm:p-10">
+          <div className="h-full rounded-[2rem]">
+            <div className="relative h-full overflow-hidden rounded-[2rem] bg-cobalt p-8 text-white sm:p-10">
               <div aria-hidden="true" className="absolute -top-1/3 -right-1/4 size-[32rem] rounded-full bg-white/20 blur-[90px]" />
               <p className="relative text-xl font-semibold tracking-[-0.03em]">idraft</p>
               <ul className="relative mt-8 flex flex-col gap-5">

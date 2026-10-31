@@ -100,8 +100,8 @@ export function HorizontalEngines({ withWaves = true, withSearch = true }: Horiz
             className={`engine-cards mt-4 grid auto-cols-[min(84vw,22rem)] grid-flow-col gap-4 overflow-x-auto overscroll-x-contain px-5 pt-1 pb-6 [scroll-padding-inline:1.25rem] [scrollbar-width:none] snap-x snap-mandatory focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cobalt md:mt-9 md:auto-cols-auto md:grid-flow-row md:grid-cols-2 md:overflow-x-visible md:px-8 ${withSearch ? 'xl:grid-cols-3' : 'xl:grid-cols-4'} [&::-webkit-scrollbar]:hidden`}
           >
             {panels.map((panel, index) => (
-              <article key={panel.name} className="engine-card flex min-w-0 snap-start flex-col rounded-[2rem] bg-surface p-1.5 shadow-[0_12px_24px_-18px_rgb(96_72_26/0.22)] ring-1 ring-ink/[0.07] motion-safe:transition-transform motion-safe:duration-300 motion-safe:md:hover:-translate-y-1">
-                <div className={`relative overflow-hidden rounded-[1.625rem] bg-gradient-to-br ${panel.tint}`}>
+              <article key={panel.name} className="engine-card flex min-w-0 snap-start flex-col overflow-hidden rounded-[2rem] bg-surface shadow-[0_12px_24px_-18px_rgb(96_72_26/0.22)] ring-1 ring-ink/[0.07] motion-safe:transition-transform motion-safe:duration-300 motion-safe:md:hover:-translate-y-1">
+                <div className={`relative overflow-hidden bg-gradient-to-br ${panel.tint}`}>
                   <div className="relative z-10 flex h-16 items-center justify-between gap-3 px-5">
                     <Image src={panel.logo} alt="" width={panel.width} height={24} unoptimized className="h-5 w-auto" />
                     <span aria-hidden="true" className="font-mono text-[11px] text-ink-2">0{index + 1} / {total}</span>
