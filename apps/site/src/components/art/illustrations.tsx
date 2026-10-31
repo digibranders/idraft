@@ -160,7 +160,7 @@ export function OverviewArt() {
 export function ModeArt() {
   return (
     <div className="relative flex h-full w-full flex-col justify-center gap-2.5 overflow-hidden rounded-[inherit] bg-gradient-to-br from-violet-wash via-surface to-violet-wash p-5">
-      <div className="ml-auto rounded-2xl rounded-br-md bg-violet px-3.5 py-2 text-[12px] font-medium text-white">What about for agencies?</div>
+      <div className="ml-auto rounded-2xl rounded-br-md bg-cobalt px-3.5 py-2 text-[12px] font-medium text-white">What about for agencies?</div>
       <div className="float-b rounded-2xl rounded-bl-md bg-surface px-3.5 py-3 text-[12px] leading-snug shadow-lift ring-1 ring-ink/[0.07]">
         <div className="flex flex-col gap-1.5">
           <Skeleton w="94%" />

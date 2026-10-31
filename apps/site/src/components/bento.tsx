@@ -39,19 +39,19 @@ export function Bento() {
       <div className="mt-14 grid gap-4 lg:grid-cols-12">
         <Reveal className="lg:col-span-7">
           <SpotlightCell className="h-full">
-            <ArtCard art={<Scene src="/images/scenes/rank.webp" alt="A person climbing a staircase of bars with a magnifier" position="50% 40%" />} artHeight="h-72" title="Daily rankings that stay honest" body="Position, change since the last check, the ranking URL and SERP features for every keyword. A missing check is shown as missing." />
+            <ArtCard art={<Scene src="/images/scenes/b-rank.webp" alt="A hiker with a flag at the summit of a numbered stepped mountain" position="50% 40%" />} artHeight="h-72" title="Daily rankings that stay honest" body="Position, change since the last check, the ranking URL and SERP features for every keyword. A missing check is shown as missing." />
           </SpotlightCell>
         </Reveal>
 
         <Reveal delay={0.08} className="lg:col-span-5">
           <SpotlightCell className="h-full">
-            <ArtCard art={<Scene src="/images/scenes/ai.webp" alt="A person chatting with a friendly AI assistant while answer bubbles appear" position="60% 40%" />} artHeight="h-72" title="Be the answer, not only the result" body="Mentions, position in the answer and tone across ChatGPT, Gemini and Google AI." />
+            <ArtCard art={<Scene src="/images/scenes/b-answer.webp" alt="A spotlit stage with a microphone and three speech bubbles, one wearing a crown" position="60% 40%" />} artHeight="h-72" title="Be the answer, not only the result" body="Mentions, position in the answer and tone across ChatGPT, Gemini and Google AI." />
           </SpotlightCell>
         </Reveal>
 
         <Reveal delay={0.04} className="lg:col-span-4">
           <SpotlightCell className="h-full">
-            <ArtCard art={<Scene src="/images/scenes/sources.webp" alt="An isometric town of web pages with people carrying link pins" position="50% 45%" />} artHeight="h-64" title="See who the AI trusts" body="Every source an answer cites, grouped by domain." />
+            <ArtCard art={<Scene src="/images/scenes/b-sources.webp" alt="An engraved library with red threads leading to one glowing book" position="50% 45%" />} artHeight="h-64" title="See who the AI trusts" body="Every source an answer cites, grouped by domain." />
           </SpotlightCell>
         </Reveal>
 
@@ -66,7 +66,7 @@ export function Bento() {
 
         <Reveal delay={0.16} className="lg:col-span-4">
           <SpotlightCell className="h-full">
-            <ArtCard art={<Scene src="/images/scenes/how.webp" alt="A hand-drawn flow from a list of searches to a podium" position="50% 50%" />} artHeight="h-64" title="A history you can trust" body="Each check is stored with its date, so a trend is real data and a gap is labeled, never guessed." />
+            <ArtCard art={<Scene src="/images/scenes/b-history.webp" alt="A calendar grid of small bars forming a rising trend, one square left empty" position="50% 50%" />} artHeight="h-64" title="A history you can trust" body="Each check is stored with its date, so a trend is real data and a gap is labeled, never guessed." />
           </SpotlightCell>
         </Reveal>
       </div>

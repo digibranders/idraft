@@ -194,6 +194,40 @@ details > summary::-webkit-details-marker {
 .pin-spacer:has(> section[aria-label^='Climb']) {
   background: var(--color-amber-wash);
 }
-.pin-spacer:has(> section[aria-label='The four answer engines']) {
+
+/* Only the initialized desktop animation uses a wide track; fallbacks keep the responsive grid. */
+.engine-story[data-scroll-pinned='true'] {
+  display: flex;
+  min-height: min(80dvh, 48rem);
+  align-items: center;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-scene {
+  display: flex;
+  max-width: none;
+  align-items: center;
+  gap: 1.5rem;
+  padding-right: 2rem;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-intro {
+  width: 26rem;
+  flex-shrink: 0;
+  padding-left: 4rem;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-cards {
+  width: max-content;
+  flex-shrink: 0;
+  grid-auto-flow: column;
+  grid-auto-columns: 26rem;
+  grid-template-columns: none;
+  gap: 1.5rem;
+  margin-top: 0;
+  overflow: visible;
+  padding-inline: 0;
+}
+
+.pin-spacer:has(> .engine-story) {
   background: var(--color-wash);
 }
