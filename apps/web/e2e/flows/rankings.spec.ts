@@ -696,7 +696,7 @@ test.describe('rankings', () => {
     await page.clock.runFor(60_000);
     await expect(row.getByText('Pending')).toHaveCount(0);
     const rank = await cellOf(grid, row, 'Rank');
-    await expect(rank).toHaveText(/^(\d+|>\d+not in top \d+)$/);
+    await expect(rank).toHaveText(/^(\d+|>\d+not in top \d+)(first check)?$/);
   });
 
   test('metrics are refreshed from More actions, and the run is followed in the header', async ({ page }) => {
