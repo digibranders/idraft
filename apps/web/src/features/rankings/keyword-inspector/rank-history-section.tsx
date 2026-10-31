@@ -17,7 +17,6 @@ import { formatChartDate, formatInteger } from '@/lib/format';
 
 export interface RankHistorySectionProps {
   scope: KeywordScope;
-  timeZone: string;
 }
 
 /**
@@ -40,6 +39,12 @@ export function RankHistorySection({ scope }: RankHistorySectionProps): ReactEle
   const categories = useMemo(() => (model ? model.categories.map((d) => formatChartDate(d)) : []), [model]);
   const formatValue = useCallback((value: number) => formatInteger(value), []);
 
+  const failedIndices = useMemo(() => {
+    if (!model) return [];
+    const ownValues = model.series[0]?.values ?? [];
+    return ownValues.map((val, idx) => (val === 'failed' ? idx : -1)).filter((idx) => idx >= 0);
+  }, [model]);
+
   const extendOption = useCallback(
     (baseOption: Record<string, unknown>, tokens: ChartTokens) => {
       if (!model) return baseOption;
@@ -47,11 +52,13 @@ export function RankHistorySection({ scope }: RankHistorySectionProps): ReactEle
         depthMax: model.depthMax,
         plotHeight: 180,
         bands: model.bands,
+        failedIndices,
+        failedLabel: t('checkFailed'),
         guide: (rank) => t('guide', { rank }),
         bandLabel: (depth) => t('band', { depth }),
       });
     },
-    [model, t],
+    [model, failedIndices, t],
   );
 
   if (history.isPending) {
@@ -89,21 +96,48 @@ export function RankHistorySection({ scope }: RankHistorySectionProps): ReactEle
 
   const ownName = model.series[0]?.name ?? '';
   const ownValues = model.series[0]?.values ?? [];
-  const rankedValues = ownValues.filter((v): v is number => v !== null);
+  const rankedValues = ownValues.filter((v): v is number => typeof v === 'number');
   const firstRank = rankedValues[0];
   const lastRank = rankedValues.at(-1);
-  const summary =
-    rankedValues.length === 0 || firstRank === undefined || lastRank === undefined
-      ? t('summaryUnranked', { name: ownName })
-      : t('summary', {
-          name: ownName,
-          first: firstRank,
-          last: lastRank,
-          best: Math.min(...rankedValues),
-          competitors: Math.max(0, model.series.length - 1),
-        });
 
-  const meta = t('meta', { checks: model.summary.checks, ranked: model.summary.ranked });
+  const isAllFailed = model.summary.checks > 0 && model.summary.failed === model.summary.checks;
+
+  const bandDescriptions = model.bands
+    .map((b) => {
+      const fromDate = categories[b.from] ?? '';
+      const toDate = categories[b.to] ?? '';
+      return fromDate === toDate
+        ? t('bandSingle', { depth: b.depth, date: fromDate })
+        : t('bandRange', { depth: b.depth, from: fromDate, to: toDate });
+    })
+    .join(' ');
+
+  let baseSummary: string;
+  if (isAllFailed) {
+    baseSummary = t('summaryAllFailed', { name: ownName });
+  } else if (rankedValues.length === 0 || firstRank === undefined || lastRank === undefined) {
+    baseSummary = t('summaryUnranked', { name: ownName });
+  } else {
+    baseSummary = t('summary', {
+      name: ownName,
+      first: firstRank,
+      last: lastRank,
+      best: Math.min(...rankedValues),
+      competitors: Math.max(0, model.series.length - 1),
+      failed: model.summary.failed,
+    });
+  }
+
+  const summary = bandDescriptions ? `${baseSummary} ${bandDescriptions}` : baseSummary;
+
+  const meta =
+    model.summary.failed > 0
+      ? t('metaWithFailed', {
+          checks: model.summary.checks,
+          ranked: model.summary.ranked,
+          failed: model.summary.failed,
+        })
+      : t('meta', { checks: model.summary.checks, ranked: model.summary.ranked });
 
   return (
     <div className="rounded-lg border border-border bg-surface px-4 pt-3 pb-4">

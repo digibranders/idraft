@@ -27,7 +27,7 @@ const STALE_FIXTURE_AGE_MS = 40 * HOUR_MS;
 const FAILED_RUN = 3;
 
 /** The fixture keywords the rank world gives a state of its own, chosen by their place among the checked ones. */
-const CHECKED_FIXTURES = MOCK_TRACKED_KEYWORDS.filter(
+export const CHECKED_FIXTURES = MOCK_TRACKED_KEYWORDS.filter(
   (row) => row.is_active && !PENDING_TRACKED_IDS.has(row.tracked_keyword_id),
 ).map((row) => row.tracked_keyword_id);
 

@@ -7,18 +7,35 @@ import { DETAIL, TERM_ASSIGNMENTS } from './inspector-queries';
 import { mockId } from '@/mocks/mock-ids';
 import { invalidField, mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
+import { readChartTokens, type ChartTokens } from '@/lib/design/read-tokens';
 import { server } from '@/test/msw';
 import { keywordsIn, loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
 // jsdom has no canvas: the chart's frame, legend and table view are what these tests read
-vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+const echartOptions: Record<string, unknown>[] = [];
+vi.mock('@/components/app/chart/echart', () => ({
+  EChart: ({ option }: { option: ((tokens: ChartTokens) => Record<string, unknown>) | Record<string, unknown> }) => {
+    const opt = typeof option === 'function' ? option(readChartTokens()) : option;
+    echartOptions.push(opt);
+    return <div data-testid="echart-canvas" />;
+  },
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/seo/rankings',
 }));
 
-beforeEach(stubWideScreen);
+function latestRankChartOption(): Record<string, unknown> | undefined {
+  return [...echartOptions]
+    .reverse()
+    .find((opt) => (opt.yAxis as Record<string, unknown> | undefined)?.inverse === true);
+}
+
+beforeEach(() => {
+  stubWideScreen();
+  echartOptions.length = 0;
+});
 afterEach(restoreWideScreen);
 
 /** The query strings the screen wrote, newest last. */
@@ -393,11 +410,214 @@ describe('The keyword inspector', () => {
       /^Organic rank of Fynix \(you\) over the last 90 days/,
     );
 
+    await waitFor(() => expect(latestRankChartOption()).toBeDefined());
+    const rankOption = latestRankChartOption();
+    if (!rankOption) throw new Error('Rank chart option not found');
+    const yAxis = rankOption.yAxis as Record<string, unknown>;
+    expect(yAxis).toMatchObject({ inverse: true, min: 1 });
+    expect(yAxis.max).toBeGreaterThanOrEqual(20);
+    const series = (rankOption.series as Array<Record<string, unknown>>) ?? [];
+    const firstSeries = series[0];
+    expect(firstSeries).toBeDefined();
+    const markLine = firstSeries?.markLine as { data: Array<{ yAxis: number; name: string }> };
+    expect(markLine.data).toEqual(
+      expect.arrayContaining([expect.objectContaining({ yAxis: 3 }), expect.objectContaining({ yAxis: 10 })]),
+    );
+
     await user.click(within(historyCard).getByRole('button', { name: 'Table' }));
     const table = within(historyCard).getByRole('table', { name: 'Rank history' });
     expect(within(table).getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Fynix (you)' })).toBeInTheDocument();
-    expect(within(table).getAllByRole('row').length).toBeGreaterThan(1);
+    const rowHeaders = within(table).getAllByRole('rowheader');
+    expect(rowHeaders.length).toBeGreaterThan(1);
+    expect(rowHeaders[0]).toHaveAttribute('scope', 'row');
+    expect(rowHeaders[0]?.textContent).toBeTruthy();
+  });
+
+  it('renders one-point beyond-depth rank history with table dates, empty cell, and non-collapsing markArea', async () => {
+    const RANK_HISTORY_PATH = mswPath(
+      '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history',
+    );
+    server.use(
+      http.get(RANK_HISTORY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            tracked_keyword_id: mockId('tracked', 1),
+            window: { from: '2026-10-01', to: '2026-10-01', timezone: 'UTC' },
+            summary: { checks: 1, ranked_checks: 0, beyond_depth_checks: 1, failed_checks: 0, average_rank: null },
+            series: [
+              {
+                entity: {
+                  entity_id: 'own',
+                  canonical_name: 'Fynix',
+                  entity_type: 'organization',
+                  role: 'own',
+                  color_index: null,
+                },
+                points: [
+                  {
+                    state: 'beyond_depth',
+                    rank: null,
+                    absolute_rank: null,
+                    date: '2026-10-01',
+                    observed_at: '2026-10-01T12:00:00Z',
+                    depth_requested: 20,
+                    serp_snapshot_id: null,
+                    url_id: null,
+                  },
+                ],
+              },
+            ],
+            bands: [
+              {
+                entity_id: 'own',
+                from: '2026-10-01',
+                to: '2026-10-01',
+                depth_requested: 20,
+                kind: 'beyond_depth',
+                label: 'Not in top 20',
+              },
+            ],
+            columns: null,
+          },
+        }),
+      ),
+    );
+
+    const { user } = renderWithProviders(as('viewer'));
+    const inspector = await openFromRow(user, 'seo agency');
+    const historyHeading = within(inspector).getByRole('heading', { level: 3, name: 'Rank history' });
+    const historyCard = historyHeading.closest('section');
+    expect(historyCard).not.toBeNull();
+    if (!historyCard) throw new Error('Rank history section not found');
+
+    expect(within(historyCard).getByText('Last 90 days · 1 check, 0 ranked')).toBeInTheDocument();
+    expect(within(historyCard).getByRole('img', { name: 'Rank history' })).toHaveAccessibleDescription(
+      /Not in top 20 on Oct 1/i,
+    );
+
+    await waitFor(() => expect(latestRankChartOption()).toBeDefined());
+    const rankOption = latestRankChartOption();
+    if (!rankOption) throw new Error('Rank chart option not found');
+    const yAxis = rankOption.yAxis as Record<string, unknown>;
+    expect(yAxis).toMatchObject({ inverse: true, min: 1, max: 20 });
+    const firstSeries = (rankOption.series as Array<Record<string, unknown>>)[0];
+    expect(firstSeries).toBeDefined();
+    const markLine = firstSeries?.markLine as { data: Array<{ yAxis: number; name: string }> };
+    expect(markLine.data.map((d) => d.yAxis)).toEqual([3, 10, 20]);
+    const markAreaData = (firstSeries?.markArea as { data: unknown[][] })?.data;
+    expect(markAreaData).toEqual([
+      [
+        { x: 'min', yAxis: 20, name: 'Not in top 20' },
+        { x: 'max', yAxis: 20 },
+      ],
+    ]);
+
+    await user.click(within(historyCard).getByRole('button', { name: 'Table' }));
+    const table = within(historyCard).getByRole('table', { name: 'Rank history' });
+    const rowHeaders = within(table).getAllByRole('rowheader');
+    expect(rowHeaders).toHaveLength(1);
+    expect(rowHeaders[0]).toHaveAttribute('scope', 'row');
+    expect(rowHeaders[0]?.textContent).toBe('Oct 1');
+    const cells = within(table).getAllByRole('cell');
+    expect(cells).toHaveLength(1);
+    expect(cells[0]?.textContent).toBe('No data');
+  });
+
+  it('renders all-failed rank history with failed summary, failed meta count, and table failure cells', async () => {
+    const RANK_HISTORY_PATH = mswPath(
+      '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/rank-history',
+    );
+    server.use(
+      http.get(RANK_HISTORY_PATH, () =>
+        HttpResponse.json({
+          data: {
+            tracked_keyword_id: mockId('tracked', 1),
+            window: { from: '2026-09-28', to: '2026-09-30', timezone: 'UTC' },
+            summary: { checks: 3, ranked_checks: 0, beyond_depth_checks: 0, failed_checks: 3, average_rank: null },
+            series: [
+              {
+                entity: {
+                  entity_id: 'own',
+                  canonical_name: 'Fynix',
+                  entity_type: 'organization',
+                  role: 'own',
+                  color_index: null,
+                },
+                points: [
+                  {
+                    state: 'failed',
+                    rank: null,
+                    absolute_rank: null,
+                    date: '2026-09-28',
+                    observed_at: '2026-09-28T12:00:00Z',
+                    depth_requested: null,
+                    serp_snapshot_id: null,
+                    url_id: null,
+                  },
+                  {
+                    state: 'failed',
+                    rank: null,
+                    absolute_rank: null,
+                    date: '2026-09-29',
+                    observed_at: '2026-09-29T12:00:00Z',
+                    depth_requested: null,
+                    serp_snapshot_id: null,
+                    url_id: null,
+                  },
+                  {
+                    state: 'failed',
+                    rank: null,
+                    absolute_rank: null,
+                    date: '2026-09-30',
+                    observed_at: '2026-09-30T12:00:00Z',
+                    depth_requested: null,
+                    serp_snapshot_id: null,
+                    url_id: null,
+                  },
+                ],
+              },
+            ],
+            bands: [],
+            columns: null,
+          },
+        }),
+      ),
+    );
+
+    const { user } = renderWithProviders(as('viewer'));
+    const inspector = await openFromRow(user, 'seo agency');
+    const historyHeading = within(inspector).getByRole('heading', { level: 3, name: 'Rank history' });
+    const historyCard = historyHeading.closest('section');
+    expect(historyCard).not.toBeNull();
+    if (!historyCard) throw new Error('Rank history section not found');
+
+    expect(within(historyCard).getByText('Last 90 days · 3 checks, 0 ranked, 3 failed')).toBeInTheDocument();
+    expect(within(historyCard).getByRole('img', { name: 'Rank history' })).toHaveAccessibleDescription(
+      'Organic rank of Fynix (you) over the last 90 days: every check failed.',
+    );
+
+    await waitFor(() => expect(latestRankChartOption()).toBeDefined());
+    const rankOption = latestRankChartOption();
+    if (!rankOption) throw new Error('Rank chart option not found');
+    const firstSeries = (rankOption.series as Array<Record<string, unknown>>)[0];
+    expect(firstSeries).toBeDefined();
+    const markPoint = firstSeries?.markPoint as {
+      data: Array<{ coord: [number, number]; symbol: string; name: string }>;
+    };
+    expect(markPoint.data).toHaveLength(3);
+    expect(markPoint.data[0]).toMatchObject({ coord: [0, 20], symbol: 'triangle', name: 'Check failed' });
+
+    await user.click(within(historyCard).getByRole('button', { name: 'Table' }));
+    const table = within(historyCard).getByRole('table', { name: 'Rank history' });
+    const rowHeaders = within(table).getAllByRole('rowheader');
+    expect(rowHeaders).toHaveLength(3);
+    expect(rowHeaders[0]).toHaveAttribute('scope', 'row');
+    const cells = within(table).getAllByRole('cell');
+    expect(cells).toHaveLength(3);
+    for (const cell of cells) {
+      expect(cell.textContent).toBe('Failed');
+    }
   });
 
   it('shows empty state for a pending keyword without rank checks', async () => {

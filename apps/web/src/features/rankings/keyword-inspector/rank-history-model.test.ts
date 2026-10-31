@@ -132,9 +132,111 @@ describe('rankHistoryChart', () => {
       role: { kind: 'palette', index: 3 },
       values: [null, 8, 7],
     });
-    // comp2 has no color_index, gets index 3 by order (second competitor)
+    // comp2 has no color_index, gets index 3 by order (second competitor), with 'failed' for failed checks
     expect(comp2?.role).toEqual({ kind: 'palette', index: 3 });
-    expect(comp2?.values).toEqual([null, null, null]);
+    expect(comp2?.values).toEqual(['failed', null, null]);
+  });
+
+  it('keeps multiple checks on the same day as separate categories without collapsing', () => {
+    const sameDay = fixture({
+      series: [
+        {
+          entity: {
+            entity_id: 'own-1',
+            canonical_name: 'Fynix',
+            entity_type: 'organization',
+            role: 'own',
+            color_index: null,
+          },
+          points: [
+            {
+              date: '2026-10-01',
+              rank: 5,
+              depth_requested: 20,
+              state: 'ranked',
+              observed_at: '2026-10-01T02:00:00Z',
+              serp_snapshot_id: null,
+              url_id: null,
+              absolute_rank: 5,
+            },
+            {
+              date: '2026-10-01',
+              rank: 4,
+              depth_requested: 20,
+              state: 'ranked',
+              observed_at: '2026-10-01T14:00:00Z',
+              serp_snapshot_id: null,
+              url_id: null,
+              absolute_rank: 4,
+            },
+          ],
+        },
+      ],
+      summary: {
+        checks: 2,
+        ranked_checks: 2,
+        beyond_depth_checks: 0,
+        failed_checks: 0,
+        average_rank: null,
+      },
+    });
+
+    const model = rankHistoryChart(sameDay, { ownName: (name) => `${name} (you)` });
+    expect(model.categories).toEqual(['2026-10-01', '2026-10-01']);
+    expect(model.series[0]?.values).toEqual([5, 4]);
+    expect(model.categories.length).toBe(model.summary.checks);
+  });
+
+  it('does not clip a deeper competitor rank with depthMax', () => {
+    const withDeepCompetitor = fixture({
+      series: [
+        {
+          entity: {
+            entity_id: 'own-1',
+            canonical_name: 'Fynix',
+            entity_type: 'organization',
+            role: 'own',
+            color_index: null,
+          },
+          points: [
+            {
+              date: '2026-10-01',
+              rank: 5,
+              depth_requested: 20,
+              state: 'ranked',
+              observed_at: '2026-10-01T02:00:00Z',
+              serp_snapshot_id: null,
+              url_id: null,
+              absolute_rank: 5,
+            },
+          ],
+        },
+        {
+          entity: {
+            entity_id: 'comp-1',
+            canonical_name: 'Acme',
+            entity_type: 'organization',
+            role: 'competitor',
+            color_index: 3,
+          },
+          points: [
+            {
+              date: '2026-10-01',
+              rank: 45,
+              depth_requested: 20,
+              state: 'ranked',
+              observed_at: '2026-10-01T02:00:00Z',
+              serp_snapshot_id: null,
+              url_id: null,
+              absolute_rank: 45,
+            },
+          ],
+        },
+      ],
+    });
+
+    const model = rankHistoryChart(withDeepCompetitor, { ownName: (name) => `${name} (you)` });
+    expect(model.depthMax).toBe(50);
   });
 
   it('sets depthMax to 20 when all depths are at most 20, or the largest depth up to 100', () => {

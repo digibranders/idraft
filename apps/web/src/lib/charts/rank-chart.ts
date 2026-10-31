@@ -4,6 +4,8 @@ export interface RankAxisExtras {
   depthMax: number;
   plotHeight: number;
   bands: readonly { from: number; to: number; depth: number }[];
+  failedIndices?: readonly number[];
+  failedLabel?: string;
   guide: (rank: number) => string;
   bandLabel: (depth: number) => string;
 }
@@ -62,6 +64,9 @@ export function rankAxis(
     })),
   };
 
+  const rawData = (base.xAxis as { data?: unknown[] } | undefined)?.data;
+  const categoriesCount = Array.isArray(rawData) ? rawData.length : undefined;
+
   const markArea =
     bands.length === 0
       ? undefined
@@ -74,10 +79,34 @@ export function rankAxis(
               rotation: Math.PI / 4,
             },
           },
-          data: bands.map((band) => [
-            { xAxis: band.from, yAxis: band.depth, name: bandLabel(band.depth) },
-            { xAxis: band.to, yAxis: depthMax },
-          ]),
+          data: bands.map((band) => {
+            const isSingle = categoriesCount === 1;
+            return [
+              {
+                ...(isSingle ? { x: 'min' } : { xAxis: band.from - 0.5 }),
+                yAxis: band.depth,
+                name: bandLabel(band.depth),
+              },
+              {
+                ...(isSingle ? { x: 'max' } : { xAxis: band.to + 0.5 }),
+                yAxis: depthMax,
+              },
+            ];
+          }),
+        };
+
+  const markPoint =
+    !extras.failedIndices || extras.failedIndices.length === 0
+      ? undefined
+      : {
+          silent: true,
+          data: extras.failedIndices.map((idx) => ({
+            coord: [idx, depthMax],
+            symbol: 'triangle',
+            symbolSize: 8,
+            itemStyle: { color: tokens.other },
+            name: extras.failedLabel ?? 'Check failed',
+          })),
         };
 
   if (existingSeries.length > 0 && typeof existingSeries[0] === 'object' && existingSeries[0] !== null) {
@@ -85,6 +114,7 @@ export function rankAxis(
       ...existingSeries[0],
       markLine,
       ...(markArea ? { markArea } : {}),
+      ...(markPoint ? { markPoint } : {}),
     };
   }
 

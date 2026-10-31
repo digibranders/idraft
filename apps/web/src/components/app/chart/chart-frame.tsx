@@ -188,6 +188,7 @@ function ChartTable({
   formatValue: (value: number) => string;
   noValue: string;
 }): ReactElement {
+  const t = useTranslations('chart');
   return (
     <div className="max-h-70 overflow-auto rounded-lg border border-border-subtle">
       <table className="w-full border-collapse type-table">
@@ -206,7 +207,7 @@ function ChartTable({
         </thead>
         <tbody>
           {categories.map((category, index) => (
-            <tr key={category} className="border-t border-border-subtle">
+            <tr key={`${category}-${String(index)}`} className="border-t border-border-subtle">
               <th scope="row" className="h-row-compact px-4 text-left font-normal text-foreground-secondary">
                 {category}
               </th>
@@ -214,7 +215,9 @@ function ChartTable({
                 const value = entry.values[index];
                 return (
                   <td key={entry.id} className="h-row-compact px-4 text-left num">
-                    {value === null || value === undefined ? (
+                    {value === 'failed' ? (
+                      <span className="text-foreground-secondary">{t('failed')}</span>
+                    ) : value === null || value === undefined ? (
                       <span className="text-foreground-tertiary">{noValue}</span>
                     ) : (
                       formatValue(value)

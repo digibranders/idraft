@@ -53,7 +53,7 @@ describe('rankAxis', () => {
     expect(guides).toEqual([3, 10, 20]);
   });
 
-  it('hatches each beyond depth run from its depth to the bottom of the axis', () => {
+  it('hatches each beyond depth run from its depth to the bottom of the axis, covering full category width', () => {
     const option = rankAxis(base, tokens, {
       depthMax: 50,
       plotHeight: 240,
@@ -64,9 +64,52 @@ describe('rankAxis', () => {
     const area = (option.series as { markArea?: { data: unknown[] } }[])[0]?.markArea?.data;
     expect(area).toEqual([
       [
-        { xAxis: 2, yAxis: 20, name: 'Not in top 20' },
-        { xAxis: 4, yAxis: 50 },
+        { xAxis: 1.5, yAxis: 20, name: 'Not in top 20' },
+        { xAxis: 4.5, yAxis: 50 },
       ],
+    ]);
+  });
+
+  it('covers full category width for a single category run with min and max', () => {
+    const singleBase = {
+      ...base,
+      xAxis: { type: 'category', data: ['Oct 1'] },
+    };
+    const option = rankAxis(singleBase, tokens, {
+      depthMax: 20,
+      plotHeight: 180,
+      bands: [{ from: 0, to: 0, depth: 20 }],
+      guide: () => '',
+      bandLabel: () => 'Not in top 20',
+    });
+    const area = (option.series as { markArea?: { data: unknown[] } }[])[0]?.markArea?.data;
+    expect(area).toEqual([
+      [
+        { x: 'min', yAxis: 20, name: 'Not in top 20' },
+        { x: 'max', yAxis: 20 },
+      ],
+    ]);
+  });
+
+  it('adds distinct markPoint for failed checks', () => {
+    const option = rankAxis(base, tokens, {
+      depthMax: 20,
+      plotHeight: 180,
+      bands: [],
+      failedIndices: [1],
+      failedLabel: 'Check failed',
+      guide: () => '',
+      bandLabel: () => '',
+    });
+    const markPoint = (option.series as { markPoint?: { data: unknown[] } }[])[0]?.markPoint?.data;
+    expect(markPoint).toEqual([
+      {
+        coord: [1, 20],
+        symbol: 'triangle',
+        symbolSize: 8,
+        itemStyle: { color: 'chart-other' },
+        name: 'Check failed',
+      },
     ]);
   });
 });

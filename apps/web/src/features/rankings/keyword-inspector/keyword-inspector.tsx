@@ -304,7 +304,7 @@ export function KeywordInspector({
                 <InspectorSection title={t('demand.title')} icon={ChartColumn} status="loading" />
               ) : (
                 <>
-                  <RankHistorySection scope={keywordScope} timeZone={timeZone} />
+                  <RankHistorySection scope={keywordScope} />
                   <VolumeByMonth workspaceId={scope.workspaceId} detail={data} />
                   <LinksSection scope={keywordScope} detail={data} edit={editOf('links')} />
                   <TrackingSection scope={keywordScope} detail={data} timeZone={timeZone} edit={editOf('tracking')} />

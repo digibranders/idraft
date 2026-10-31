@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '../fixtures';
 import { KEYWORD_TABLE } from '../keyword-table';
 import { mockId } from '../mock-ids';
+import { FAILED_IDS, FAILING_IDS } from '../rank-state';
 import { RANK_HISTORY } from '@/test/api-shapes';
 import { dataOf, fieldCodes, mockBrowser } from '@/test/mock-api';
 
@@ -53,6 +54,11 @@ describe('Rank history handler', () => {
       }
     }
 
+    // Contains two checks on the same day (scheduled + manual)
+    const dates = (own?.points ?? []).map((p) => p.date);
+    const duplicates = dates.filter((d, i) => dates.indexOf(d) !== i);
+    expect(duplicates.length).toBeGreaterThanOrEqual(1);
+
     // Effective competitors follow
     for (const comp of competitors) {
       expect(['competitor', 'watch']).toContain(comp.entity.role);
@@ -65,6 +71,35 @@ describe('Rank history handler', () => {
       expect(band.label).toMatch(/^Not in top \d+$/);
       expect(band.from <= band.to).toBe(true);
     }
+  });
+
+  it('returns failed_checks > 0 and failed points for a failing keyword', async () => {
+    const failingId = [...FAILING_IDS][0];
+    if (!failingId) throw new Error('Missing failing fixture');
+    const browser = mockBrowser('viewer');
+    const res = await browser.call('GET', `${P}/tracked-keywords/${failingId}/rank-history`);
+    expect(res.status).toBe(200);
+
+    const history = dataOf(res, RANK_HISTORY);
+    expect(history.summary.failed_checks).toBeGreaterThan(0);
+    const own = history.series?.[0];
+    const failedPoints = own?.points.filter((p) => p.state === 'failed');
+    expect(failedPoints?.length).toBe(history.summary.failed_checks);
+  });
+
+  it('answers all failed points and failed summary for an all-failed keyword', async () => {
+    const failedId = [...FAILED_IDS][0];
+    if (!failedId) throw new Error('Missing failed fixture');
+    const browser = mockBrowser('viewer');
+    const res = await browser.call('GET', `${P}/tracked-keywords/${failedId}/rank-history`);
+    expect(res.status).toBe(200);
+
+    const history = dataOf(res, RANK_HISTORY);
+    expect(history.summary.failed_checks).toBe(history.summary.checks);
+    expect(history.summary.ranked_checks).toBe(0);
+    expect(history.summary.beyond_depth_checks).toBe(0);
+    const own = history.series?.[0];
+    expect(own?.points.every((p) => p.state === 'failed')).toBe(true);
   });
 
   it('accepts format=columns and include parameters', async () => {

@@ -1,5 +1,5 @@
-import type { CategorySeries } from '@/lib/charts/category-chart';
-import type { RankHistory } from '@/lib/api/types';
+import type { CategorySeries, CategoryValue } from '@/lib/charts/category-chart';
+import type { HistoryPoint, RankHistory } from '@/lib/api/types';
 
 export interface RankHistoryBand {
   from: number;
@@ -33,6 +33,12 @@ type PaletteIndex = (typeof PALETTE_INDICES)[number];
 const isPaletteIndex = (value: number | null | undefined): value is PaletteIndex =>
   typeof value === 'number' && PALETTE_INDICES.includes(value as PaletteIndex);
 
+interface CheckSlot {
+  key: string;
+  date: string;
+  observedAt: string | null;
+}
+
 /**
  * Transforms an API RankHistory response into chart-ready categories, series, and bands.
  */
@@ -41,43 +47,63 @@ export function rankHistoryChart(history: RankHistory, options: RankHistoryOptio
   const ownRaw = allSeries.find((s) => s.entity.role === 'own') ?? allSeries[0];
   const competitorsRaw = ownRaw ? allSeries.filter((s) => s !== ownRaw) : allSeries;
 
-  const dateSet = new Set<string>();
+  const slotMap = new Map<string, CheckSlot>();
   for (const s of allSeries) {
+    const dateCounts = new Map<string, number>();
     for (const point of s.points) {
-      dateSet.add(point.date);
+      const count = dateCounts.get(point.date) ?? 0;
+      dateCounts.set(point.date, count + 1);
+      const key = point.observed_at ?? `${point.date}#${String(count)}`;
+      if (!slotMap.has(key)) {
+        slotMap.set(key, { key, date: point.date, observedAt: point.observed_at });
+      }
     }
   }
-  const categories = [...dateSet].sort((a, b) => a.localeCompare(b));
 
-  let depthMax = 20;
-  if (ownRaw) {
-    const ownDepths = ownRaw.points.map((p) => p.depth_requested ?? 20);
-    const maxRequested = ownDepths.length > 0 ? Math.max(...ownDepths) : 20;
-    depthMax = maxRequested <= 20 ? 20 : Math.min(100, Math.max(20, maxRequested));
-  }
+  const sortedSlots = [...slotMap.values()].sort((a, b) => {
+    if (a.observedAt !== null && b.observedAt !== null) {
+      return a.observedAt.localeCompare(b.observedAt);
+    }
+    return a.key.localeCompare(b.key);
+  });
+
+  const categories = sortedSlots.map((slot) => slot.date);
+
+  const allPoints = allSeries.flatMap((s) => s.points);
+  const allDepths = allPoints.map((p) => p.depth_requested ?? 20);
+  const allRanks = allPoints.map((p) => p.rank).filter((r): r is number => typeof r === 'number');
+  const maxNeeded = Math.max(20, ...allDepths, ...allRanks);
+  const depthMax = maxNeeded <= 20 ? 20 : maxNeeded <= 50 ? 50 : maxNeeded <= 100 ? 100 : maxNeeded;
+
+  const extractValues = (points: readonly HistoryPoint[]): CategoryValue[] => {
+    const pointByKey = new Map<string, HistoryPoint>();
+    const dateCounts = new Map<string, number>();
+    for (const point of points) {
+      const count = dateCounts.get(point.date) ?? 0;
+      dateCounts.set(point.date, count + 1);
+      const key = point.observed_at ?? `${point.date}#${String(count)}`;
+      pointByKey.set(key, point);
+    }
+    return sortedSlots.map((slot) => {
+      const point = pointByKey.get(slot.key);
+      if (point === undefined) return null;
+      if (point.state === 'failed') return 'failed';
+      if (point.state === 'ranked') return point.rank;
+      return null;
+    });
+  };
 
   const series: CategorySeries[] = [];
   if (ownRaw) {
-    const pointByDate = new Map(ownRaw.points.map((p) => [p.date, p]));
-    const values = categories.map((cat) => {
-      const point = pointByDate.get(cat);
-      return point?.state === 'ranked' ? point.rank : null;
-    });
     series.push({
       id: ownRaw.entity.entity_id,
       name: options.ownName(ownRaw.entity.canonical_name),
       role: { kind: 'brand' },
-      values,
+      values: extractValues(ownRaw.points),
     });
   }
 
   competitorsRaw.forEach((comp, index) => {
-    const pointByDate = new Map(comp.points.map((p) => [p.date, p]));
-    const values = categories.map((cat) => {
-      const point = pointByDate.get(cat);
-      return point?.state === 'ranked' ? point.rank : null;
-    });
-
     const paletteIndex: PaletteIndex = isPaletteIndex(comp.entity.color_index)
       ? comp.entity.color_index
       : (PALETTE_INDICES[index % PALETTE_INDICES.length] ?? 2);
@@ -86,7 +112,7 @@ export function rankHistoryChart(history: RankHistory, options: RankHistoryOptio
       id: comp.entity.entity_id,
       name: comp.entity.canonical_name,
       role: { kind: 'palette', index: paletteIndex },
-      values,
+      values: extractValues(comp.points),
     });
   });
 
@@ -95,7 +121,7 @@ export function rankHistoryChart(history: RankHistory, options: RankHistoryOptio
     .filter((band) => ownEntityId !== undefined && band.entity_id === ownEntityId)
     .map((band) => {
       const from = categories.indexOf(band.from);
-      const to = categories.indexOf(band.to);
+      const to = categories.lastIndexOf(band.to);
       return {
         from: from >= 0 ? from : 0,
         to: to >= 0 ? to : Math.max(0, categories.length - 1),

@@ -1432,7 +1432,8 @@
     "table": "Table",
     "patterns": "Patterns",
     "legend": "Series in {title}",
-    "noValue": "No data"
+    "noValue": "No data",
+    "failed": "Failed"
   },
   "inspector": {
     "resize": "Resize inspector",
@@ -2518,12 +2519,17 @@
       "rankHistory": {
         "title": "Rank history",
         "meta": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked",
+        "metaWithFailed": "Last 90 days · {checks, plural, one {1 check} other {# checks}}, {ranked} ranked, {failed} failed",
         "you": "{name} (you)",
         "category": "Date",
         "guide": "Top {rank}",
         "band": "Not in top {depth}",
-        "summary": "Organic rank of {name} over the last 90 days, 1 is best: from {first} to {last}, best {best}. {competitors, plural, =0 {} one {1 competitor is shown too.} other {# competitors are shown too.}}",
+        "bandSingle": "Not in top {depth} on {date}.",
+        "bandRange": "Not in top {depth} from {from} to {to}.",
+        "checkFailed": "Check failed",
+        "summary": "Organic rank of {name} over the last 90 days, 1 is best: from {first} to {last}, best {best}. {competitors, plural, =0 {} one {1 competitor is shown too.} other {# competitors are shown too.}}{failed, plural, =0 {} other { {failed} failed.}}",
         "summaryUnranked": "Organic rank of {name} over the last 90 days: not ranked within the depth checked.",
+        "summaryAllFailed": "Organic rank of {name} over the last 90 days: every check failed.",
         "empty": "No checks yet",
         "emptyReason": "The rank history fills in after the first check.",
         "failed": "The rank history did not load."

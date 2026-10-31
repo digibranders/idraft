@@ -4,7 +4,7 @@ import { keywordProjectCaller, rankContext } from './keyword-rules';
 import { queryError } from './rules';
 import { entityRefView } from '../factories/entity';
 import { configHistoryView, effectiveCompetitors } from '../factories/keyword';
-import { checksAt, competitorChecksOf, stoppedAtOf } from '../rank-state';
+import { CHECKED_FIXTURES, FAILED_IDS, FAILING_IDS, checksAt, competitorChecksOf, stoppedAtOf } from '../rank-state';
 import { invalid, mock, problem } from '../respond';
 import type { Schemas } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
@@ -76,44 +76,117 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
           color_index: null,
         };
 
-    const ownChecksAll = checksAt(row.tracked_keyword_id, row.created_at, clock, rank.domain, stoppedAtOf(row));
-    const ownChecks = ownChecksAll.filter((c) => Date.parse(c.observedAt) >= windowStartMs);
-
-    const ownPoints: Schemas['HistoryPoint'][] = ownChecks.map((c) => ({
-      absolute_rank: c.rank,
-      date: toDate(c.observedAt),
-      depth_requested: c.depth,
-      observed_at: c.observedAt,
-      rank: c.rank,
-      serp_snapshot_id: null,
-      state: c.rank === null ? 'beyond_depth' : 'ranked',
-      url_id: null,
-    }));
+    const isFailedFixture = FAILED_IDS.has(row.tracked_keyword_id);
+    const isFailingFixture = FAILING_IDS.has(row.tracked_keyword_id);
+    const isFirstCheckedFixture = row.tracked_keyword_id === CHECKED_FIXTURES[0];
 
     const competitors = effectiveCompetitors(caller.keywords, caller.world, row);
-    const competitorSeries: Schemas['HistorySeries'][] = competitors.map((comp) => {
-      const compChecks = competitorChecksOf(
-        row.tracked_keyword_id,
-        comp.entity_id,
-        row.created_at,
-        clock,
-        stoppedAtOf(row),
-      ).filter((c) => Date.parse(c.observedAt) >= windowStartMs);
 
-      return {
+    let ownPoints: Schemas['HistoryPoint'][];
+    let competitorSeries: Schemas['HistorySeries'][];
+
+    if (isFailedFixture) {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const failedTimes = [clock - 2 * DAY_MS, clock - DAY_MS, clock];
+      ownPoints = failedTimes.map((t) => ({
+        absolute_rank: null,
+        date: toDate(new Date(t).toISOString()),
+        depth_requested: null,
+        observed_at: new Date(t).toISOString(),
+        rank: null,
+        serp_snapshot_id: null,
+        state: 'failed',
+        url_id: null,
+      }));
+
+      competitorSeries = competitors.map((comp) => ({
         entity: comp,
-        points: compChecks.map((c) => ({
-          absolute_rank: c.rank,
-          date: toDate(c.observedAt),
-          depth_requested: c.depth,
-          observed_at: c.observedAt,
-          rank: c.rank,
+        points: failedTimes.map((t) => ({
+          absolute_rank: null,
+          date: toDate(new Date(t).toISOString()),
+          depth_requested: null,
+          observed_at: new Date(t).toISOString(),
+          rank: null,
           serp_snapshot_id: null,
-          state: c.rank === null ? 'beyond_depth' : 'ranked',
+          state: 'failed',
           url_id: null,
         })),
-      };
-    });
+      }));
+    } else {
+      const ownChecksAll = checksAt(row.tracked_keyword_id, row.created_at, clock, rank.domain, stoppedAtOf(row));
+      const ownChecks = ownChecksAll.filter((c) => Date.parse(c.observedAt) >= windowStartMs);
+
+      if (isFirstCheckedFixture && ownChecks.length >= 2) {
+        const lastCheck = ownChecks[ownChecks.length - 1];
+        if (lastCheck !== undefined) {
+          const extraObservedAt = new Date(Date.parse(lastCheck.observedAt) + 12 * 60 * 60 * 1000).toISOString();
+          ownChecks.push({
+            ...lastCheck,
+            observedAt: extraObservedAt,
+            rank: lastCheck.rank === null ? null : Math.max(1, lastCheck.rank - 1),
+          });
+          if (ownChecks.length > 30) {
+            ownChecks.shift();
+          }
+        }
+      }
+
+      ownPoints = ownChecks.map((c, idx) => {
+        const isFailedPoint = isFailingFixture && idx >= ownChecks.length - 2;
+        return {
+          absolute_rank: isFailedPoint ? null : c.rank,
+          date: toDate(c.observedAt),
+          depth_requested: isFailedPoint ? null : c.depth,
+          observed_at: c.observedAt,
+          rank: isFailedPoint ? null : c.rank,
+          serp_snapshot_id: null,
+          state: isFailedPoint ? 'failed' : c.rank === null ? 'beyond_depth' : 'ranked',
+          url_id: null,
+        };
+      });
+
+      competitorSeries = competitors.map((comp) => {
+        const compChecks = competitorChecksOf(
+          row.tracked_keyword_id,
+          comp.entity_id,
+          row.created_at,
+          clock,
+          stoppedAtOf(row),
+        ).filter((c) => Date.parse(c.observedAt) >= windowStartMs);
+
+        if (isFirstCheckedFixture && compChecks.length >= 2) {
+          const lastCompCheck = compChecks[compChecks.length - 1];
+          if (lastCompCheck !== undefined) {
+            const extraObservedAt = new Date(Date.parse(lastCompCheck.observedAt) + 12 * 60 * 60 * 1000).toISOString();
+            compChecks.push({
+              ...lastCompCheck,
+              observedAt: extraObservedAt,
+              rank: lastCompCheck.rank === null ? null : Math.max(1, lastCompCheck.rank - 1),
+            });
+            if (compChecks.length > 30) {
+              compChecks.shift();
+            }
+          }
+        }
+
+        return {
+          entity: comp,
+          points: compChecks.map((c, idx) => {
+            const isFailedPoint = isFailingFixture && idx >= compChecks.length - 2;
+            return {
+              absolute_rank: isFailedPoint ? null : c.rank,
+              date: toDate(c.observedAt),
+              depth_requested: isFailedPoint ? null : c.depth,
+              observed_at: c.observedAt,
+              rank: isFailedPoint ? null : c.rank,
+              serp_snapshot_id: null,
+              state: isFailedPoint ? 'failed' : c.rank === null ? 'beyond_depth' : 'ranked',
+              url_id: null,
+            };
+          }),
+        };
+      });
+    }
 
     const series: Schemas['HistorySeries'][] = [
       {
@@ -161,11 +234,12 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
 
     const rankedChecks = ownPoints.filter((p) => p.state === 'ranked').length;
     const beyondChecks = ownPoints.filter((p) => p.state === 'beyond_depth').length;
+    const failedChecks = ownPoints.filter((p) => p.state === 'failed').length;
     const summary: Schemas['HistorySummary'] = {
       checks: ownPoints.length,
       ranked_checks: rankedChecks,
       beyond_depth_checks: beyondChecks,
-      failed_checks: 0,
+      failed_checks: failedChecks,
       average_rank: null,
     };
 
