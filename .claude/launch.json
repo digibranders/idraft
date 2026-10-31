@@ -8,6 +8,12 @@
       "port": 3000
     },
     {
+      "name": "site",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/site", "dev"],
+      "port": 3100
+    },
+    {
       "name": "web-3002",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--dir", "apps/web", "dev", "--port", "3002"],
