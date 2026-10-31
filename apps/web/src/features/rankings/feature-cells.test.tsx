@@ -168,6 +168,8 @@ describe('CompetitorRankView', () => {
     expect(swatch).toHaveClass('size-2');
     expect(swatch).toHaveStyle({ backgroundColor: 'var(--chart-3)' });
     expect(screen.getByText('7')).toBeInTheDocument();
+    expect(container.querySelector('span[aria-label]')).toBeNull();
+    expect(container.querySelector('.sr-only')).toHaveTextContent('Rankforge: 7');
   });
 
   it('renders beyond depth rank as >20 with swatch', () => {
@@ -203,11 +205,13 @@ describe('CompetitorRankView', () => {
   });
 
   it('renders n/a in tertiary when entry is missing or null', () => {
-    renderWithProviders(<CompetitorRankView entry={null} name="Unknown" />);
+    const { container } = renderWithProviders(<CompetitorRankView entry={null} name="Unknown" />);
     const na = screen.getByText('n/a');
     expect(na).toBeInTheDocument();
     expect(na).toHaveClass('text-foreground-tertiary');
     expect(na).not.toHaveAttribute('title');
+    expect(container.querySelector('span[aria-label]')).toBeNull();
+    expect(container.querySelector('.sr-only')).toHaveTextContent('Unknown: n/a');
   });
 
   it('falls back to 2 + position % 5 when color_index is null', () => {

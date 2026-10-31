@@ -157,14 +157,15 @@ export function RankingsScreen({
         .filter(isProjectCompetitor)
         .map((pe) => ({ ...pe.entity, color_index: pe.entity.color_index ?? pe.color_index }));
     }
-    // Avoid one-column flash when URL names a competitor column while entities query is pending
-    if (entitiesQuery.isPending && view.cols) {
+    // Retain competitor columns from URL cols while entities query is pending or if it failed,
+    // so competitor IDs are not dropped on the next column toggle and no blank headers show.
+    if (view.cols) {
       const parsedIds = view.cols.split(',').filter((colId) => colId.startsWith('competitor_'));
       return parsedIds.map((colId) => {
         const entityId = colId.replace(/^competitor_/, '');
         return {
           entity_id: entityId,
-          canonical_name: '',
+          canonical_name: entityId,
           color_index: null,
           entity_type: 'organization' as const,
           role: 'competitor' as const,
@@ -172,7 +173,7 @@ export function RankingsScreen({
       });
     }
     return [];
-  }, [entitiesQuery.data, entitiesQuery.isPending, view.cols]);
+  }, [entitiesQuery.data, view.cols]);
   const columns = useKeywordColumns(timeZone, competitors);
   const rowName = useKeywordRowName(defaults.languageCode);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);

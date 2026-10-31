@@ -1,7 +1,7 @@
 import { render, renderHook } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import en from '../../../messages/en.json';
 import { useCompetitorColumns, useRankColumns } from './rank-columns';
@@ -131,19 +131,24 @@ describe('useRankColumns trend label branches', () => {
   });
 
   it('formats cell tip dates and ranks using locale formatters without hardcoded formats', () => {
-    const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
-    const row = makeRow({
-      sparkline: {
-        depth_mode: 'daily_depth',
-        points: [
-          { t: '2026-10-27T10:00:00Z', rank: 3, depth: 20, state: 'ranked' },
-          { t: '2026-10-28T10:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
-        ],
-      },
-    });
-    const tip = result.current.trend.cellTip?.(row);
-    expect(tip?.content).toBe('Last checks');
-    expect(tip?.detail).toBe('Oct 27: 3, Oct 28: >20');
+    vi.setSystemTime(new Date('2026-10-29T12:00:00Z'));
+    try {
+      const { result } = renderHook(() => useRankColumns('UTC'), { wrapper });
+      const row = makeRow({
+        sparkline: {
+          depth_mode: 'daily_depth',
+          points: [
+            { t: '2026-10-27T10:00:00Z', rank: 3, depth: 20, state: 'ranked' },
+            { t: '2026-10-28T10:00:00Z', rank: null, depth: 20, state: 'beyond_depth' },
+          ],
+        },
+      });
+      const tip = result.current.trend.cellTip?.(row);
+      expect(tip?.content).toBe('Last checks');
+      expect(tip?.detail).toBe('Oct 27: 3, Oct 28: >20');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

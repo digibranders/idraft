@@ -12,7 +12,7 @@ import { keywordsKey, readPage, type KeywordFilters, type ProjectScope } from '.
  * part of the strip's scope, so the strip reads the same in both list modes.
  */
 
-export const STRIP_COUNTS = ['ranked', 'beyond', 'top3', 'top10', 'top20'] as const;
+export const STRIP_COUNTS = ['total', 'ranked', 'beyond', 'top3', 'top10', 'top20'] as const;
 export type StripCount = (typeof STRIP_COUNTS)[number];
 
 const TOPS = { top3: 3, top10: 10, top20: 20 } as const;
@@ -30,6 +30,7 @@ export function stripQueries(filters: KeywordFilters): Record<StripCount, Keywor
     return beyondOnly || from > lte ? null : { ...filters, 'filter[rank_lte]': lte };
   };
   return {
+    total: { ...filters },
     ranked: beyondOnly ? null : { ...filters, 'filter[rank_is_null]': false },
     // A keyword beyond the depth has no rank, so a range or the ranked chip leaves none
     beyond: rankedOnly || ranged ? null : { ...filters, 'filter[rank_is_null]': true },
@@ -64,22 +65,14 @@ export function useStripCounts(scope: ProjectScope, filters: KeywordFilters, ena
     }),
   });
   const loading = results.some((result) => result.isPending);
-  const itemErrors: Record<StripCount, boolean> = {
-    ranked: results[0]?.isError ?? false,
-    beyond: results[1]?.isError ?? false,
-    top3: results[2]?.isError ?? false,
-    top10: results[3]?.isError ?? false,
-    top20: results[4]?.isError ?? false,
-  };
+  const itemErrors = Object.fromEntries(
+    STRIP_COUNTS.map((id, index) => [id, results[index]?.isError ?? false]),
+  ) as Record<StripCount, boolean>;
   const counts: Record<StripCount, number | null> | null = loading
     ? null
-    : {
-        ranked: results[0]?.isError ? null : (results[0]?.data ?? 0),
-        beyond: results[1]?.isError ? null : (results[1]?.data ?? 0),
-        top3: results[2]?.isError ? null : (results[2]?.data ?? 0),
-        top10: results[3]?.isError ? null : (results[3]?.data ?? 0),
-        top20: results[4]?.isError ? null : (results[4]?.data ?? 0),
-      };
+    : (Object.fromEntries(
+        STRIP_COUNTS.map((id, index) => [id, results[index]?.isError ? null : (results[index]?.data ?? 0)]),
+      ) as Record<StripCount, number | null>);
   return {
     counts,
     itemErrors,

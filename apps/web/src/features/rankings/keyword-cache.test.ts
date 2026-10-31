@@ -126,6 +126,7 @@ describe('a write to one keyword reaches the lists in the cache', () => {
   });
 
   it('invalidates strip count queries when write changes membership', async () => {
+    seedAll(ACTIVE, rows);
     const stripKey = [...keywordsKey(SCOPE), { ...ACTIVE, 'filter[priority_lte]': 8 }, 'strip', 'top3'];
     client.setQueryData(stripKey, 42);
     applyKeywordWrite(client, SCOPE, { ...detail, priority: detail.priority === 9 ? 8 : 9 });
@@ -133,6 +134,15 @@ describe('a write to one keyword reaches the lists in the cache', () => {
 
     await refreshKeywords(client, SCOPE);
     expect(client.getQueryState(stripKey)?.isInvalidated).toBe(true);
+  });
+
+  it('leaves strip count queries untouched when write does not affect the filtered strip', () => {
+    seedAll(ACTIVE, rows);
+    const stripKey = [...keywordsKey(SCOPE), { ...ACTIVE, 'filter[device]': 'mobile' }, 'strip', 'top3'];
+    client.setQueryData(stripKey, 42);
+
+    applyKeywordWrite(client, SCOPE, { ...detail, target_url: null });
+    expect(client.getQueryState(stripKey)?.isInvalidated).toBe(false);
   });
 
   it('invalidates Top 10 strip count query after removing a keyword from the filtered group', () => {

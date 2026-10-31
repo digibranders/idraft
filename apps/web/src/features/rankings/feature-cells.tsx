@@ -229,8 +229,9 @@ export function CompetitorRankView({
   const t = useTranslations('rankings.competitor');
   if (!entry) {
     return (
-      <span className="text-foreground-tertiary" aria-label={t('speech', { name, rank: t('notTracked') })}>
+      <span className="text-foreground-tertiary">
         {t('notTracked')}
+        <span className="sr-only">{t('speech', { name, rank: t('notTracked') })}</span>
       </span>
     );
   }
@@ -254,13 +255,14 @@ export function CompetitorRankView({
   const speech = t('speech', { name, rank: rankText });
 
   return (
-    <span className="flex items-center gap-1.5" aria-label={speech}>
+    <span className="flex items-center gap-1.5">
       <span
         aria-hidden="true"
         className="size-2 shrink-0 rounded-2xs"
         style={{ backgroundColor: `var(--chart-${color})` }}
       />
       <RankCellView display={display} />
+      <span className="sr-only">{speech}</span>
     </span>
   );
 }

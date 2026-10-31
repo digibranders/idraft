@@ -8,6 +8,7 @@ const base: KeywordFilters = { 'filter[is_active]': true, 'filter[device]': 'mob
 describe('stripQueries', () => {
   it('counts ranked, beyond, top 3, top 10 and top 20 under the list filters', () => {
     expect(stripQueries(base)).toEqual({
+      total: { ...base },
       ranked: { ...base, 'filter[rank_is_null]': false },
       beyond: { ...base, 'filter[rank_is_null]': true },
       top3: { ...base, 'filter[rank_lte]': 3 },
@@ -19,6 +20,7 @@ describe('stripQueries', () => {
   it('intersects a chosen rank bucket with each top count, and knows an empty one without asking', () => {
     const bucket: KeywordFilters = { ...base, 'filter[rank_gte]': 4, 'filter[rank_lte]': 10 };
     const queries = stripQueries(bucket);
+    expect(queries.total).toEqual(bucket);
     expect(queries.top3).toBeNull();
     expect(queries.top10).toEqual({ ...bucket, 'filter[rank_lte]': 10 });
     expect(queries.top20).toEqual({ ...bucket, 'filter[rank_lte]': 10 });
@@ -28,6 +30,7 @@ describe('stripQueries', () => {
 
   it('has no ranked keywords to count under the beyond depth chip', () => {
     const queries = stripQueries({ ...base, 'filter[rank_is_null]': true });
+    expect(queries.total).toEqual({ ...base, 'filter[rank_is_null]': true });
     expect(queries.ranked).toBeNull();
     expect(queries.top3).toBeNull();
     expect(queries.top10).toBeNull();

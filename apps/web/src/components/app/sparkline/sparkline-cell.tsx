@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 
 import type { SparklinePoint } from '@/lib/api/types';
 import { SPARK_HEIGHT, SPARK_WIDTH, sparklineGeometry } from '@/lib/charts/sparkline';
@@ -21,7 +21,7 @@ export interface SparklineCellProps {
 export function SparklineCell({ points, label, className }: SparklineCellProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const geo = sparklineGeometry(points, SPARK_WIDTH, SPARK_HEIGHT);
+  const geo = useMemo(() => sparklineGeometry(points, SPARK_WIDTH, SPARK_HEIGHT), [points]);
   const hasSegments = geo.segments.length > 0;
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { delay, http } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -798,6 +798,48 @@ describe('Rankings rank columns', () => {
     await user.click(meridianChoice);
     await waitFor(() => expect(url.latest().get('cols') ?? '').toContain(meridianColId));
   });
+
+  it('asserts competitor header before entities query resolves without blank-name placeholder', async () => {
+    const meridianColId = `competitor_${MOCK_ENTITY_IDS.meridian}`;
+    server.use(
+      http.get('*/api/v1/workspaces/:workspace_id/projects/:project_id/entities', async () => {
+        await delay(500);
+        return HttpResponse.json({ data: [] });
+      }),
+    );
+    renderWithProviders(as('viewer'), {
+      searchParams: `?cols=keyword,current_rank,${meridianColId}`,
+    });
+    const grid = await loadedGrid();
+    const headers = within(grid).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent?.trim()).filter(Boolean);
+    expect(headerTexts.some((text) => text === '')).toBe(false);
+    expect(headerTexts.some((text) => text?.includes(MOCK_ENTITY_IDS.meridian))).toBe(true);
+  });
+
+  it('shows error banner when entities query fails and preserves competitor ids in cols on next toggle', async () => {
+    const meridianColId = `competitor_${MOCK_ENTITY_IDS.meridian}`;
+    server.use(
+      http.get('*/api/v1/workspaces/:workspace_id/projects/:project_id/entities', () => {
+        return new HttpResponse(null, { status: 500 });
+      }),
+    );
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), {
+      searchParams: `?cols=keyword,current_rank,${meridianColId}`,
+      onUrlUpdate: url.onUrlUpdate,
+    });
+    await loadedGrid();
+    expect(await screen.findByText('The project competitors did not load.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const priorityChoice = screen.getByRole('checkbox', { name: 'Priority' });
+    await user.click(priorityChoice);
+    await waitFor(() => {
+      const cols = url.latest().get('cols') ?? '';
+      expect(cols).toContain(meridianColId);
+    });
+  });
 });
 
 describe('Rankings rank filters', () => {
@@ -1063,6 +1105,32 @@ describe('Rankings summary strip', () => {
         stripAsked.some((query) => query.get('filter[device]') === 'mobile' && query.get('filter[rank_lte]') === '10'),
       ).toBe(true);
     });
+  });
+
+  it('ignores the search query in server mode and reads Tracked from the strip counts', async () => {
+    answerAsMany({ total: 12_000 });
+    const stripAsked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (
+        request.method === 'GET' &&
+        url.pathname.endsWith('/tracked-keywords') &&
+        url.searchParams.get('limit') === '1'
+      ) {
+        stripAsked.push(url.searchParams);
+      }
+    });
+
+    const { user } = renderWithProviders(as('viewer'));
+    await loadedGrid();
+    expect(screen.getByText('Tracked')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'audit');
+    await waitFor(() => {
+      expect(stripAsked.length).toBeGreaterThan(0);
+      expect(stripAsked.every((query) => !query.has('filter[q]'))).toBe(true);
+    });
+    expect(screen.getByText('Tracked')).toBeInTheDocument();
   });
 });
 
