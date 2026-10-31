@@ -181,6 +181,103 @@ describe('DataTable house style (owner decisions of 2026-10-29)', () => {
     }
   });
 
+  it('shows every default column at a narrow width, whatever its priority (owner decision of 2026-10-30)', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    const headers = within(grid())
+      .getAllByRole('columnheader')
+      .map((header) => header.textContent);
+    expect(headers.join(' ')).toMatch(/Keyword.*Volume.*KD/);
+    vi.unstubAllGlobals();
+  });
+
+  describe('the identity column width', () => {
+    class RegionObserver {
+      static width = 1200;
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        const entry = { target, contentRect: { width: RegionObserver.width, height: 600 } };
+        this.callback([entry as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    const handle = (): HTMLElement => {
+      const edge = grid().querySelector<HTMLElement>('[data-resize-handle]');
+      if (edge === null) throw new Error('The keyword header has no resize handle');
+      return edge;
+    };
+    // The columns' widths sit in the colgroup: the selection column first, then the keyword column
+    const keywordWidth = (): number => Number.parseFloat(grid().querySelectorAll('col')[1]?.style.width ?? '');
+    const keywordHeader = (): HTMLElement => screen.getByRole('columnheader', { name: /^Keyword/ });
+    beforeEach(() => vi.stubGlobal('ResizeObserver', RegionObserver));
+    afterEach(() => {
+      RegionObserver.width = 1200;
+      vi.unstubAllGlobals();
+    });
+
+    it('is dragged by its edge within its limits, and reset with a double click', () => {
+      renderWithProviders(<Harness rows={rowsOf(3)} />);
+      const before = keywordWidth();
+      const edge = handle();
+      Object.assign(edge, { setPointerCapture: vi.fn() });
+      fireEvent.pointerDown(edge, { clientX: 300, pointerId: 1 });
+      fireEvent.pointerMove(edge, { clientX: 260, pointerId: 1 });
+      expect(keywordWidth()).toBe(before - 40);
+      fireEvent.pointerMove(edge, { clientX: -2000, pointerId: 1 });
+      expect(keywordWidth()).toBe(120);
+      fireEvent.pointerMove(edge, { clientX: 5000, pointerId: 1 });
+      // Never wider than the region less the room kept beside it
+      expect(keywordWidth()).toBe(RegionObserver.width - 160);
+      fireEvent.pointerUp(edge, { pointerId: 1 });
+      fireEvent.pointerMove(edge, { clientX: 300, pointerId: 1 });
+      expect(keywordWidth()).toBe(RegionObserver.width - 160);
+      fireEvent.doubleClick(edge);
+      expect(keywordWidth()).toBe(before);
+    });
+
+    it('is widened, narrowed and reset from the column options menu, for the keyboard', async () => {
+      renderWithProviders(<Harness rows={rowsOf(3)} />);
+      const before = keywordWidth();
+      const open = async (item: string): Promise<void> => {
+        fireEvent.click(screen.getByRole('button', { name: 'Keyword column options' }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: item }));
+      };
+      await open('Narrower');
+      expect(keywordWidth()).toBe(before - 40);
+      await open('Wider');
+      await open('Wider');
+      expect(keywordWidth()).toBe(before + 40);
+      await open('Reset width');
+      expect(keywordWidth()).toBe(before);
+    });
+
+    it('has no labelled control in the header, so the column keeps its plain name', () => {
+      renderWithProviders(<Harness rows={rowsOf(3)} />);
+      expect(within(keywordHeader()).queryAllByRole('separator')).toHaveLength(0);
+      expect(keywordHeader()).toHaveAccessibleName(/^Keyword( |$)/);
+      expect(keywordHeader()).not.toHaveAccessibleName(/resize|width/i);
+    });
+
+    it('stays pinned while it leaves room beside it, and scrolls away with the columns when it would not', () => {
+      RegionObserver.width = 700;
+      renderWithProviders(<Harness rows={rowsOf(3)} />);
+      // The columns overflow a 700 px region and the keyword column is small: pinned
+      expect(keywordHeader().style.left).toBe('40px');
+      const edge = handle();
+      Object.assign(edge, { setPointerCapture: vi.fn() });
+      fireEvent.pointerDown(edge, { clientX: 100, pointerId: 1 });
+      fireEvent.pointerMove(edge, { clientX: 5000, pointerId: 1 });
+      // Dragged out to 540 px it would leave 160 px of the 700: it scrolls with the rest
+      expect(keywordHeader().style.left).toBe('');
+    });
+  });
+
   it('left aligns a numeric column in its header and its cells', () => {
     renderWithProviders(<Harness rows={rowsOf(3)} />);
     expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveClass('text-left');
