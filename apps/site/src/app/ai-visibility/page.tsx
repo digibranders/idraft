@@ -32,7 +32,7 @@ export default function AiVisibilityPage() {
         image={{ src: '/images/scenes/ai.webp', alt: 'A paper-cut scene of a person chatting with a friendly AI assistant while answer bubbles appear, one wearing a crown' }}
       />
 
-      <HorizontalEngines withWaves={false} />
+      <HorizontalEngines withWaves={false} withSearch={false} />
 
       <CapabilityList title="What we read from every answer." lead="Extraction is rules first, so results are repeatable, and each one points back to its evidence." items={ITEMS} />
 
