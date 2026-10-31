@@ -28,11 +28,26 @@ export function rankAxis(
   const existingGrid = (base.grid as Record<string, unknown> | undefined) ?? {};
   const existingSeries = Array.isArray(base.series) ? [...base.series] : [];
 
+  const rawData = (base.xAxis as { data?: unknown[] } | undefined)?.data;
+  const categoriesCount = Array.isArray(rawData) ? rawData.length : undefined;
+
+  const maxBandDepth = bands.reduce((max, b) => Math.max(max, b.depth), 0);
+  const effectiveDepthMax =
+    bands.length > 0 && maxBandDepth >= depthMax
+      ? maxBandDepth <= 20
+        ? 25
+        : maxBandDepth <= 50
+          ? 60
+          : maxBandDepth <= 100
+            ? 115
+            : maxBandDepth + 15
+      : depthMax;
+
   const yAxis = {
     ...existingY,
     inverse: true,
     min: 1,
-    max: depthMax,
+    max: effectiveDepthMax,
     interval: undefined,
     axisLabel: {
       ...((existingY.axisLabel as Record<string, unknown> | undefined) ?? {}),
@@ -64,9 +79,6 @@ export function rankAxis(
     })),
   };
 
-  const rawData = (base.xAxis as { data?: unknown[] } | undefined)?.data;
-  const categoriesCount = Array.isArray(rawData) ? rawData.length : undefined;
-
   const markArea =
     bands.length === 0
       ? undefined
@@ -81,15 +93,18 @@ export function rankAxis(
           },
           data: bands.map((band) => {
             const isSingle = categoriesCount === 1;
+            const x0 = band.from === 0 ? 0 : Math.max(0, band.from - 0.5);
+            const x1 =
+              categoriesCount !== undefined && band.to >= categoriesCount - 1 ? categoriesCount - 1 : band.to + 0.5;
             return [
               {
-                ...(isSingle ? { x: 'min' } : { xAxis: band.from - 0.5 }),
+                ...(isSingle ? {} : { xAxis: x0 }),
                 yAxis: band.depth,
                 name: bandLabel(band.depth),
               },
               {
-                ...(isSingle ? { x: 'max' } : { xAxis: band.to + 0.5 }),
-                yAxis: depthMax,
+                ...(isSingle ? {} : { xAxis: x1 }),
+                yAxis: effectiveDepthMax,
               },
             ];
           }),
@@ -101,11 +116,11 @@ export function rankAxis(
       : {
           silent: true,
           data: extras.failedIndices.map((idx) => ({
-            coord: [idx, depthMax],
+            coord: [idx, effectiveDepthMax],
             symbol: 'triangle',
             symbolSize: 8,
             itemStyle: { color: tokens.other },
-            name: extras.failedLabel ?? 'Check failed',
+            name: extras.failedLabel ?? '',
           })),
         };
 

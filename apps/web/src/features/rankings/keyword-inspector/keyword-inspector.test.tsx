@@ -500,18 +500,13 @@ describe('The keyword inspector', () => {
     const rankOption = latestRankChartOption();
     if (!rankOption) throw new Error('Rank chart option not found');
     const yAxis = rankOption.yAxis as Record<string, unknown>;
-    expect(yAxis).toMatchObject({ inverse: true, min: 1, max: 20 });
+    expect(yAxis).toMatchObject({ inverse: true, min: 1, max: 25 });
     const firstSeries = (rankOption.series as Array<Record<string, unknown>>)[0];
     expect(firstSeries).toBeDefined();
     const markLine = firstSeries?.markLine as { data: Array<{ yAxis: number; name: string }> };
     expect(markLine.data.map((d) => d.yAxis)).toEqual([3, 10, 20]);
     const markAreaData = (firstSeries?.markArea as { data: unknown[][] })?.data;
-    expect(markAreaData).toEqual([
-      [
-        { x: 'min', yAxis: 20, name: 'Not in top 20' },
-        { x: 'max', yAxis: 20 },
-      ],
-    ]);
+    expect(markAreaData).toEqual([[{ yAxis: 20, name: 'Not in top 20' }, { yAxis: 25 }]]);
 
     await user.click(within(historyCard).getByRole('button', { name: 'Table' }));
     const table = within(historyCard).getByRole('table', { name: 'Rank history' });

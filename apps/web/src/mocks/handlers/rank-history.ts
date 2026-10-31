@@ -76,6 +76,149 @@ export const rankHistoryHandlers: readonly HttpHandler[] = [
           color_index: null,
         };
 
+    const scenario = cookies['mock_rank_history'];
+    if (scenario === 'one-check') {
+      const p = {
+        date: '2026-10-01',
+        rank: null,
+        depth_requested: 20,
+        state: 'beyond_depth' as const,
+        observed_at: '2026-10-01T02:00:00Z',
+        serp_snapshot_id: null,
+        url_id: null,
+        absolute_rank: null,
+      };
+      return HttpResponse.json({
+        data: {
+          tracked_keyword_id: row.tracked_keyword_id,
+          bands: [
+            {
+              entity_id: ownEntity.entity_id,
+              from: '2026-10-01',
+              to: '2026-10-01',
+              depth_requested: 20,
+              kind: 'beyond_depth',
+              label: 'Not in top 20',
+            },
+          ],
+          columns: null,
+          config_history: [],
+          deep_check_weekday: 1,
+          events: null,
+          series: [{ entity: ownEntity, points: [p] }],
+          summary: {
+            checks: 1,
+            ranked_checks: 0,
+            beyond_depth_checks: 1,
+            failed_checks: 0,
+            average_rank: null,
+          },
+          urls: {},
+          version_boundaries: [],
+          window: { from: '2026-10-01', to: '2026-10-01', timezone: caller.project.timezone },
+        },
+      });
+    }
+    if (scenario === 'run-at-start' || scenario === 'run-at-end' || scenario === 'middle-run') {
+      const dates = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'];
+      const ranks =
+        scenario === 'run-at-start'
+          ? [null, null, 12, 10, 8]
+          : scenario === 'run-at-end'
+            ? [8, 10, 14, null, null]
+            : [5, null, null, 7, 6];
+      const bandFrom =
+        scenario === 'run-at-start' ? '2026-10-01' : scenario === 'run-at-end' ? '2026-10-04' : '2026-10-02';
+      const bandTo =
+        scenario === 'run-at-start' ? '2026-10-02' : scenario === 'run-at-end' ? '2026-10-05' : '2026-10-03';
+      const points = dates.map((date, i) => ({
+        date,
+        rank: ranks[i] ?? null,
+        depth_requested: 50,
+        state: (ranks[i] === null ? 'beyond_depth' : 'ranked') as 'ranked' | 'beyond_depth',
+        observed_at: `${date}T02:00:00Z`,
+        serp_snapshot_id: null,
+        url_id: null,
+        absolute_rank: ranks[i] ?? null,
+      }));
+      return HttpResponse.json({
+        data: {
+          tracked_keyword_id: row.tracked_keyword_id,
+          bands: [
+            {
+              entity_id: ownEntity.entity_id,
+              from: bandFrom,
+              to: bandTo,
+              depth_requested: 50,
+              kind: 'beyond_depth',
+              label: 'Not in top 50',
+            },
+          ],
+          columns: null,
+          config_history: [],
+          deep_check_weekday: 1,
+          events: null,
+          series: [{ entity: ownEntity, points }],
+          summary: {
+            checks: 5,
+            ranked_checks: 3,
+            beyond_depth_checks: 2,
+            failed_checks: 0,
+            average_rank: null,
+          },
+          urls: {},
+          version_boundaries: [],
+          window: { from: '2026-10-01', to: '2026-10-05', timezone: caller.project.timezone },
+        },
+      });
+    }
+    if (scenario === 'depth-20' || scenario === 'depth-100') {
+      const depth = scenario === 'depth-20' ? 20 : 100;
+      const initialRank = scenario === 'depth-20' ? 15 : 65;
+      const dates = ['2026-10-01', '2026-10-02', '2026-10-03'];
+      const ranks = [initialRank, null, null];
+      const points = dates.map((date, i) => ({
+        date,
+        rank: ranks[i] ?? null,
+        depth_requested: depth,
+        state: (ranks[i] === null ? 'beyond_depth' : 'ranked') as 'ranked' | 'beyond_depth',
+        observed_at: `${date}T02:00:00Z`,
+        serp_snapshot_id: null,
+        url_id: null,
+        absolute_rank: ranks[i] ?? null,
+      }));
+      return HttpResponse.json({
+        data: {
+          tracked_keyword_id: row.tracked_keyword_id,
+          bands: [
+            {
+              entity_id: ownEntity.entity_id,
+              from: '2026-10-02',
+              to: '2026-10-03',
+              depth_requested: depth,
+              kind: 'beyond_depth',
+              label: `Not in top ${String(depth)}`,
+            },
+          ],
+          columns: null,
+          config_history: [],
+          deep_check_weekday: 1,
+          events: null,
+          series: [{ entity: ownEntity, points }],
+          summary: {
+            checks: 3,
+            ranked_checks: 1,
+            beyond_depth_checks: 2,
+            failed_checks: 0,
+            average_rank: null,
+          },
+          urls: {},
+          version_boundaries: [],
+          window: { from: '2026-10-01', to: '2026-10-03', timezone: caller.project.timezone },
+        },
+      });
+    }
+
     const isFailedFixture = FAILED_IDS.has(row.tracked_keyword_id);
     const isFailingFixture = FAILING_IDS.has(row.tracked_keyword_id);
     const isFirstCheckedFixture = row.tracked_keyword_id === CHECKED_FIXTURES[0];
