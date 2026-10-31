@@ -30,13 +30,13 @@ import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import { announce } from '@/lib/a11y/announcer';
-import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import { formatInteger } from '@/lib/format';
+import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import { COLUMN_TYPES, resolveWidths, type SizedColumn } from '@/lib/tables/column-types';
 import { CELL_CONTROL_SELECTOR, moveFocus, rangeOf, stepControl, type GridCell } from '@/lib/tables/grid-focus';
 import { rangeGaps, rowWindow, SCROLL_STEP, scrollToRow } from '@/lib/tables/row-window';
 import { nextSort, type Density, type SortKey } from '@/lib/tables/table-state';
-import { columnsAtTier, chosenColumns, moveColumn, toggleColumn } from '@/lib/tables/visible-columns';
+import { columnsFitting, chosenColumns, moveColumn, toggleColumn } from '@/lib/tables/visible-columns';
 import { cn } from '@/lib/utils';
 
 /** Row heights per density, as `h-row` and `h-row-compact` draw them (04-spacing-density.md). */
@@ -160,19 +160,31 @@ export function DataTable<TRow extends RowData>({
   const selectionKey = `${captionId}-selection`;
   const region = useRef<HTMLDivElement>(null);
   const tier = useColumnTier();
+  const [regionSize, setRegionSize] = useState({ width: 1200, height: 600 });
+  const hasActions = rowActions !== undefined && (typeof rowActions === 'function' || rowActions.length > 0);
 
-  // Columns: the chosen set at this width, framed by the selection and actions columns
+  // Columns: the chosen set, or the defaults that fit this width, framed by the selection and actions columns
   const meta = columns.map((column) => ({
     id: column.id,
     priority: column.priority,
     identity: column.identity === true,
     defaultVisible: column.defaultVisible !== false,
+    width: column.width ?? COLUMN_TYPES[column.type].width,
   }));
   const byId = new Map(columns.map((column) => [column.id, column]));
-  const shown = columnsAtTier(meta, columnState.visible, tier).flatMap((id) => {
+  // What the identity column keeps (its minimum), so the defaults never crowd it out
+  const room =
+    regionSize.width -
+    (selection === undefined ? 0 : COLUMN_TYPES.select.width) -
+    (hasActions ? COLUMN_TYPES.actions.width : 0) -
+    COLUMN_TYPES.keyword.min;
+  const shownIds = columnsFitting(meta, columnState.visible, room, tier);
+  const shown = shownIds.flatMap((id) => {
     const column = byId.get(id);
     return column === undefined ? [] : [column];
   });
+  // A person's first change starts from what they see, not from the defaults this width left out
+  const chosenNow = columnState.visible ?? shownIds;
   // F2 does something only where a column shown has controls in its cells, so only then does the hint say so
   const hasControls = shown.some((column) => column.hasControls === true);
   const grid: GridColumn<TRow>[] = [
@@ -211,7 +223,6 @@ export function DataTable<TRow extends RowData>({
   }, [ids]);
 
   // Geometry
-  const [regionSize, setRegionSize] = useState({ width: 1200, height: 600 });
   const [scrollTop, setScrollTop] = useState(0);
   // A server list's next or previous page starts at its first row, not at the place the last page was left
   const pageOffset = server?.offset;
@@ -635,7 +646,7 @@ export function DataTable<TRow extends RowData>({
   }, [status]);
 
   const chooserColumns = (() => {
-    const chosen = chosenColumns(meta, columnState.visible);
+    const chosen = chosenColumns(meta, chosenNow);
     const rest = columns.filter((column) => !chosen.includes(column.id)).map((column) => column.id);
     return [...chosen, ...rest].map((id) => ({
       id,
@@ -682,19 +693,19 @@ export function DataTable<TRow extends RowData>({
               id: 'left',
               label: t('moveLeft'),
               group: t('columns'),
-              onSelect: () => change(moveColumn(meta, columnState.visible, column.id, -1)),
+              onSelect: () => change(moveColumn(meta, chosenNow, column.id, -1)),
             },
             {
               id: 'right',
               label: t('moveRight'),
               group: t('columns'),
-              onSelect: () => change(moveColumn(meta, columnState.visible, column.id, 1)),
+              onSelect: () => change(moveColumn(meta, chosenNow, column.id, 1)),
             },
             {
               id: 'hide',
               label: t('hide'),
               group: t('columns'),
-              onSelect: () => change(toggleColumn(meta, columnState.visible, column.id, false)),
+              onSelect: () => change(toggleColumn(meta, chosenNow, column.id, false)),
             },
           ];
     return [...sortItems, ...layoutItems];
@@ -787,8 +798,8 @@ export function DataTable<TRow extends RowData>({
             <ColumnChooser
               trigger={trigger}
               columns={chooserColumns}
-              onToggle={(id, visible) => columnState.onChange(toggleColumn(meta, columnState.visible, id, visible))}
-              onMove={(id, direction) => columnState.onChange(moveColumn(meta, columnState.visible, id, direction))}
+              onToggle={(id, visible) => columnState.onChange(toggleColumn(meta, chosenNow, id, visible))}
+              onMove={(id, direction) => columnState.onChange(moveColumn(meta, chosenNow, id, direction))}
               onReset={() => columnState.onChange(null)}
             />
           )}

@@ -202,6 +202,7 @@ Rules:
 3. The checkbox column and the row actions column are not tiered: both are present whenever selection and row actions are available at that width.
 4. The identity column is pinned left at every width and absorbs spare width up to its maximum (480 px for keywords, 640 px for prompts, [12-tables.md](12-tables.md) section 5). These are column maximums, unrelated to the inspector widths.
 5. Priorities are defined per screen in the screen's column config next to the column definition, never computed from column order.
+5a. **A narrow window shows what it has room for (owner decision of 2026-10-30).** The tier is the least a viewport shows, not the most. The default columns of a lower priority join by priority, then by place, while each still fits in the table region after the pinned identity column (at its minimum width) and the frame columns. Without this, a window under 1280 px showed only the priority 1 columns, and the identity column took all the rest of the width. Once a person chooses columns in the column chooser, the table shows every chosen column at every width and scrolls sideways; the tiers and the room no longer apply to that set. A first change in the chooser starts from the columns the person sees, not from the defaults this width left out.
 6. Width budgets below are the column's default width on that screen; column widths do not change with density. Each lies within its column type's minimum and maximum ([12-tables.md](12-tables.md) section 5). At each tier boundary the visible set must fit the content width of that viewport with the sidebar expanded and no inspector. A screen that fails this check lowers a column's priority; it does not shrink columns below their minimum.
 
 ### 6.2 Rank Tracker
@@ -247,8 +248,8 @@ Engine columns follow the engine filter. Engines beyond the first three selected
 
 ### 6.4 User overrides and the column chooser
 
-1. The column chooser lists every column, grouped as in [12-tables.md](12-tables.md). Columns hidden by the current tier are listed with the note "Hidden at this width" in `type-meta` and a "Show anyway" action.
-2. "Show anyway" pins the column visible at every width for this user and table (stored in the saved view state). Pinned columns add to the table width; the table scrolls horizontally inside its region.
+1. The column chooser lists every column, grouped as in [12-tables.md](12-tables.md). A column the current width has no room for is unchecked; ticking it shows it at every width (section 6.1 rule 5a).
+2. A ticked column is part of the person's chosen set, stored in the saved view state. Chosen columns add to the table width; the table scrolls horizontally inside its region with the identity column pinned. There is no separate "Show anyway" action.
 3. A column the user hides stays hidden at every width.
 4. "Reset to default" in the column chooser ([12-tables.md](12-tables.md) section 10) restores defaults and tiers.
 5. The column chooser, resize and reorder are not offered on touch-primary phones (section 11).
