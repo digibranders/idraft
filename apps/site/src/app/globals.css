@@ -194,6 +194,59 @@ details > summary::-webkit-details-marker {
 .pin-spacer:has(> section[aria-label^='Climb']) {
   background: var(--color-amber-wash);
 }
-.pin-spacer:has(> section[aria-label='The four answer engines']) {
+
+/* Only the initialized desktop animation uses a wide track; fallbacks keep the responsive grid. */
+.engine-story[data-scroll-pinned='true'] {
+  display: flex;
+  /* Fill the pinned viewport and keep clear of the fixed nav (about 5rem tall). */
+  min-height: 100dvh;
+  padding-top: 5.5rem;
+  align-items: center;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-scene {
+  display: flex;
+  max-width: none;
+  align-items: center;
+  gap: 1.5rem;
+  padding-right: 2rem;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-intro {
+  width: 26rem;
+  flex-shrink: 0;
+  padding-left: 4rem;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-cards {
+  width: max-content;
+  flex-shrink: 0;
+  grid-auto-flow: column;
+  grid-auto-columns: clamp(34rem, 48vw, 42rem);
+  grid-template-columns: none;
+  gap: 1.5rem;
+  margin-top: 0;
+  overflow: visible;
+  padding-inline: 0;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-card-art {
+  height: clamp(13rem, 30dvh, 20rem);
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-card-copy {
+  padding: 1.5rem 2rem 2rem;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-card-title {
+  font-size: clamp(1.75rem, 2.4vw, 2.25rem);
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-card-body {
+  max-width: 52ch;
+  font-size: 1rem;
+}
+
+.pin-spacer:has(> .engine-story) {
   background: var(--color-wash);
 }
