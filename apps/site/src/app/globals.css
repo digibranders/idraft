@@ -198,7 +198,9 @@ details > summary::-webkit-details-marker {
 /* Only the initialized desktop animation uses a wide track; fallbacks keep the responsive grid. */
 .engine-story[data-scroll-pinned='true'] {
   display: flex;
-  min-height: min(80dvh, 48rem);
+  /* Fill the pinned viewport and keep clear of the fixed nav (about 5rem tall). */
+  min-height: 100dvh;
+  padding-top: 5.5rem;
   align-items: center;
 }
 
@@ -220,12 +222,29 @@ details > summary::-webkit-details-marker {
   width: max-content;
   flex-shrink: 0;
   grid-auto-flow: column;
-  grid-auto-columns: 26rem;
+  grid-auto-columns: clamp(34rem, 48vw, 42rem);
   grid-template-columns: none;
   gap: 1.5rem;
   margin-top: 0;
   overflow: visible;
   padding-inline: 0;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-card-art {
+  height: clamp(13rem, 30dvh, 20rem);
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-card-copy {
+  padding: 1.5rem 2rem 2rem;
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-card-title {
+  font-size: clamp(1.75rem, 2.4vw, 2.25rem);
+}
+
+.engine-story[data-scroll-pinned='true'] .engine-card-body {
+  max-width: 52ch;
+  font-size: 1rem;
 }
 
 .pin-spacer:has(> .engine-story) {
