@@ -127,6 +127,35 @@ function Skeleton({ w }: { w: string }) {
   return <span className="block h-2 rounded-full bg-ink/10" style={{ width: w }} />;
 }
 
+/** Classic Google results: a short list with ranks, our own page highlighted with how far it moved. */
+export function SearchArt() {
+  const rows = [
+    { rank: 1, name: 'rankcheck.io', w: '78%' },
+    { rank: 2, name: 'idraft.ai', w: '84%', mine: true },
+    { rank: 3, name: 'searchdaily.com', w: '70%' },
+  ] as const;
+  return (
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[inherit] bg-gradient-to-br from-wash via-surface to-wash p-5">
+      <div className="float-a flex w-full max-w-[17rem] flex-col gap-2 rounded-2xl bg-surface p-3 shadow-lift ring-1 ring-ink/[0.07]">
+        {rows.map((row) => (
+          <div key={row.name} className={`flex items-center gap-3 rounded-xl px-2.5 py-2 ${'mine' in row ? 'bg-cobalt text-white' : ''}`}>
+            <span className={`w-4 text-[13px] font-semibold ${'mine' in row ? 'text-white' : 'text-ink-3'}`}>{row.rank}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-semibold">{row.name}</p>
+              <span className={`mt-1.5 block h-1.5 rounded-full ${'mine' in row ? 'bg-white/45' : 'bg-ink/10'}`} style={{ width: row.w }} />
+            </div>
+            {'mine' in row ? (
+              <span className="flex items-center gap-0.5 text-[11px] font-semibold">
+                <ArrowUp size={11} weight="bold" aria-hidden="true" />3
+              </span>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Google's AI Overview: a summary card with a spark, text lines and the sources it links to. */
 export function OverviewArt() {
   return (

@@ -276,7 +276,7 @@ details > summary::-webkit-details-marker {
   width: max-content;
   flex-shrink: 0;
   grid-auto-flow: column;
-  grid-auto-columns: clamp(34rem, 48vw, 42rem);
+  grid-auto-columns: clamp(30rem, 42vw, 37rem);
   grid-template-columns: none;
   gap: 1.5rem;
   margin-top: 0;
