@@ -122,9 +122,9 @@ export function Roles() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
-              className="rounded-[2rem] bg-ink/[0.04] p-1.5 ring-1 ring-ink/[0.06]"
+              className="rounded-[2rem] ring-1 ring-ink/[0.08]"
             >
-              <div className={`rounded-[calc(2rem-0.375rem)] p-8 transition-colors duration-500 sm:p-12 ${role.tint}`}>
+              <div className={`rounded-[2rem] p-8 transition-colors duration-500 sm:p-12 ${role.tint}`}>
                 <p className="text-[clamp(1.6rem,2.8vw,2.4rem)] leading-tight font-semibold tracking-[-0.04em] text-balance">{role.question}</p>
                 <ul className="mt-8 flex flex-col gap-4">
                   {role.points.map((point) => (

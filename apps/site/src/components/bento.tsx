@@ -11,12 +11,12 @@ function Scene({ src, alt, position = 'center' }: { src: string; alt: string; po
 const H3 = 'text-2xl font-semibold leading-tight tracking-[-0.035em]';
 const P = 'mt-3 max-w-[40ch] leading-relaxed text-ink-2';
 
-/** An illustration window with the copy under it. The art fills its box and clips to the card's inner radius. */
+/** An illustration with the copy under it. The art runs edge to edge and clips to the card's corners. */
 function ArtCard({ art, title, body, artHeight }: { art: React.ReactNode; title: string; body: string; artHeight: string }) {
   return (
     <div className="flex h-full flex-col">
-      <div className={`relative m-3 overflow-hidden rounded-[1.4rem] ${artHeight}`}>{art}</div>
-      <div className="px-6 pt-3 pb-7 sm:px-8">
+      <div className={`relative overflow-hidden ${artHeight}`}>{art}</div>
+      <div className="px-6 pt-6 pb-7 sm:px-8">
         <h3 className={H3}>{title}</h3>
         <p className={P}>{body}</p>
       </div>

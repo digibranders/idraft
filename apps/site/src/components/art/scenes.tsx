@@ -12,8 +12,8 @@ const EASE = [0.32, 0.72, 0, 1] as const;
 
 function Frame({ tint, children, label }: { tint: string; children: React.ReactNode; label: string }) {
   return (
-    <div role="img" aria-label={label} className="rounded-[2rem] bg-ink/[0.04] p-1.5 shadow-lift ring-1 ring-ink/[0.06]">
-      <div className={`relative aspect-[4/3] overflow-hidden rounded-[calc(2rem-0.375rem)] ${tint}`}>{children}</div>
+    <div role="img" aria-label={label} className="rounded-[2rem] shadow-lift ring-1 ring-ink/[0.08]">
+      <div className={`relative aspect-[4/3] overflow-hidden rounded-[2rem] ${tint}`}>{children}</div>
     </div>
   );
 }

@@ -26,8 +26,8 @@ export function SpotlightCell({ children, className = '', innerClassName = 'bg-s
   };
 
   return (
-    <div onPointerMove={onMove} className={`rounded-[2rem] bg-ink/[0.04] p-1.5 ring-1 ring-ink/[0.06] ${className}`}>
-      <div className={`relative h-full overflow-hidden rounded-[calc(2rem-0.375rem)] ${innerClassName}`}>
+    <div onPointerMove={onMove} className={`rounded-[2rem] ring-1 ring-ink/[0.08] ${className}`}>
+      <div className={`relative h-full overflow-hidden rounded-[2rem] ${innerClassName}`}>
         {children}
         <motion.div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ background: light }} />
       </div>

@@ -80,8 +80,8 @@ export default function FeaturesPage() {
                 return (
                   <li key={item.title} className={group.items.length % 2 === 1 && index === 0 ? 'sm:col-span-2' : ''}>
                     <Reveal delay={(index % 2) * 0.07} className="h-full">
-                      <div className="h-full rounded-[2rem] bg-ink/[0.04] p-1.5 ring-1 ring-ink/[0.06]">
-                        <div className="flex h-full flex-col rounded-[calc(2rem-0.375rem)] bg-surface p-7">
+                      <div className="h-full rounded-[2rem] ring-1 ring-ink/[0.08]">
+                        <div className="flex h-full flex-col rounded-[2rem] bg-surface p-7">
                           <Glyph size={36} weight="thin" aria-hidden="true" className="text-ink" />
                           <h3 className="mt-8 text-xl font-semibold tracking-[-0.03em]">{item.title}</h3>
                           <p className="mt-2 leading-relaxed text-ink-2">{item.body}</p>
