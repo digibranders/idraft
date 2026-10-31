@@ -635,17 +635,17 @@ Review of the rank columns (2026-10-06, plan `docs/superpowers/plans/2026-10-06-
 
 ### Rank features UI (2026-10-29)
 
-Plan `docs/superpowers/plans/2026-10-29-rank-features-ui.md`, branch `frontend/keywords-followups`. Independent review fixes incorporated across Tasks 1, 1b, 2, 3, 4, 5, 6, 7, 8, 10 before merge:
-- Data table header options chevron made pointer-events-none while hidden and positioned without overlap.
+Plan `docs/superpowers/plans/2026-10-29-rank-features-ui.md`, branch `frontend/keywords-followups`. Independent review in progress across Tasks 1, 1b, 2, 3, 4, 5, 6, 7, 8, 10:
+- Data table header options chevron made pointer-events-none while hidden and positioned at right-0 without overlap.
 - Rank and Change columns merged into a single Rank column with 32 px fixed rank box and fixed-width change slot to its right.
 - Positions up to 100 with depth-aware `>N` display (`>20` for depth 20, `>100` for depth 100) and sorting by current rank only.
 - SERP features and AI Overview columns with accessible speech, badge representations, filters (`feat`, `featown`, `aio`), and failed/stale check treatments.
 - Target URL mismatch marker (`TargetMismatchMarker`) on keyword cells with filter (`tmatch`).
 - Sparkline column (64 x 20 px in both compact and comfortable densities) with 30-day mini history and tooltip.
 - Competitor rank columns with competitor picker and rank change indication; competitor ranks are always included in list requests.
-- Metric strip showing aggregate keyword counts and rank tiers (Tracked, Top 3, Top 10, Top 20, Beyond depth) using five one-row reads.
-- Inspector Rank history card with 30-day organic rank history line chart, custom rank axis bands, and accessible Table view.
-- Single keyword and bulk Check now action with progress tracking, live region announcements, and polling; mock check now records a run but does not alter ranks.
+- Metric strip showing aggregate keyword counts and rank tiers (Tracked, Top 3, Top 10, Top 20, Beyond depth) placed between page header and filter bar.
+- Inspector Rank history card with 90-day organic rank history line chart, custom rank axis bands, failure glyphs, multiple checks per day preserved, and accessible Table view.
+- Single keyword and bulk Check now action with progress tracking, single toast announcement at start (`progress.started`), quota refetches, in-flight mutual exclusion, and polling; mock check now records a run but does not alter ranks.
 - None of the four new column types (SERP features, AI Overview, sparkline, competitor) supports sorting.
 - Primary route `/seo/keywords` with redirect from `/seo/rankings`.
 

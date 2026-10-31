@@ -1003,7 +1003,7 @@ export function useStripCounts(scope: ProjectScope, filters: KeywordFilters, ena
 
 - [ ] **Step 7: Component test first** `rank-strip.test.tsx` (MSW, the real handlers): Rankings with no filters shows "Tracked", the fixture's active count, "{ranked + beyond} checked", and Top 3, 10 and 20 matching the mock's ranks; with `rank=top10` Top 3 reads 0 without a request for it; values show as bars while loading; an error shows the strip's labels with "n/a" values and one line "The summary did not load." with Try again. Run: FAIL.
 - [ ] **Step 8: Implement `rank-strip.tsx`:** `RankStrip({ scope, filters, total })` renders `MetricStrip` `size="md"`, one group `seo`, four items: `tracked` (value `formatInteger(total)`, context `trackedNote` with `ranked + beyond`), `top3`, `top10`, `top20` (context `ofChecked`). No `delta` member. `status` is `loading` while the counts load, `refetching` while they read again, else `ready`. On error each value is `{ value: 'n/a', unknown: { kind: 'not-applicable' } }` and a `Banner` with Try again (`refetch` of each failed query) sits under the strip.
-- [ ] **Step 9: Wire it** in `rankings-screen.tsx`: after the `FilterBar`, before the incomplete banner, `{view.archived || list.total === 0 ? null : <RankStrip scope={scope} filters={filters} total={list.total} />}` (archived keywords are not checked; an empty list has its empty state). `list.total` is the list's own total, so Tracked costs no request.
+- [ ] **Step 9: Wire it** in `rankings-screen.tsx`: between the page header and the `FilterBar` (per `docs/design-system/24-page-templates.md` section 9.3), `{view.archived || list.total === 0 ? null : <RankStrip scope={scope} filters={filters} total={list.total} />}` (archived keywords are not checked; an empty list has its empty state). `list.total` is the list's own total, so Tracked costs no request.
 - [ ] **Step 10: Screen tests:** the strip is gone in the Archived view and on an empty project; it follows a filter change (Top 10 under `dev=mobile` sends `filter[device]=mobile&filter[rank_lte]=10&limit=1`).
 - [ ] **Step 11: Gates** (full list).
 - [ ] **Step 12: Independent review on Opus,** fixes, gates again.
@@ -1097,14 +1097,17 @@ export const rankHistoryQuery = (scope: KeywordScope): ApiQueryOptions<typeof RA
 ```
 
 - [ ] **Step 9: Inspector test first** in `keyword-inspector.test.tsx`: the Overview tab of a checked fixture keyword shows a "Rank history" card above the demand chart with the meta line; its Table view lists the dates with the own and competitor ranks and an empty cell for a check beyond the depth; a pending keyword shows the empty state "No checks yet"; a failed read shows the section error with Try again; the chart's accessible description is the `summary` sentence. Run: FAIL.
-- [ ] **Step 10: Implement** `rank-history-section.tsx`: `RankHistorySection({ scope, timeZone })` reads `rankHistoryQuery`, builds the model, and renders an `InspectorSection` (icon `LineChart`, status loading, error, ready) holding `ChartFrame` with `variant="inspector"`, `kind="line"`, `height={180}`, `categories` formatted as short dates (`formatDay` or the date formatter `VolumeByMonth` uses for months, in `timeZone`), `categoryHeader` "Date", `series`, `formatValue={(value) => formatInteger(value)}`, `meta`, `summary`, and `extendOption` built with `useCallback` from `rankAxis` and the model's `depthMax` and `bands`. The empty model renders `EmptyState variant="inline"` with `empty` and `emptyReason`. In `keyword-inspector.tsx` insert `<RankHistorySection scope={keywordScope} timeZone={timeZone} />` right after `KeywordMetricStrip`, before `VolumeByMonth`, inside the `data !== null` branch. Run the test: PASS.
+- [ ] **Step 10: Implement** `rank-history-section.tsx`: `RankHistorySection({ scope })` reads `rankHistoryQuery`, builds the model, and renders an `InspectorSection` (icon `LineChart`, status loading, error, ready) holding `ChartFrame` with `variant="inspector"`, `kind="line"`, `height={180}`, `categories` formatted as short dates (`formatDay` or the date formatter `VolumeByMonth` uses for months), `categoryHeader` "Date", `series`, `formatValue={(value) => formatInteger(value)}`, `meta`, `summary`, and `extendOption` built with `useCallback` from `rankAxis` and the model's `depthMax` and `bands`. The empty model renders `EmptyState variant="inline"` with `empty` and `emptyReason`. In `keyword-inspector.tsx` insert `<RankHistorySection scope={keywordScope} />` right after `KeywordMetricStrip`, before `VolumeByMonth`, inside the `data !== null` branch. Run the test: PASS.
 - [ ] **Step 11: What this card does not do yet** (write it in the as-built note, not as code): hollow markers inside the band (15 section 7 rule 3; the line breaks and the band shows the run), the events strip (rule 6), "Show deep checks" (rule 4), a window other than 90 days, absolute rank.
 - [ ] **Step 12: Gates** (full list).
 - [ ] **Step 13: Independent review on Opus,** fixes, gates again.
 - [x] **Step 14: Commit** `git commit -m "Rankings: rank history in the keyword inspector"`.
 
 **As-built notes:**
-- Rank history card: does not yet support hollow markers inside the band (15 section 7 rule 3; the line breaks and the band shows the run), the events strip (rule 6), "Show deep checks" (rule 4), a window other than 90 days, or absolute rank.
+- Rank history card: does not yet support hollow markers inside the band (15 section 7 rule 3; the line breaks and the band shows the run), the events strip (rule 6), "Show deep checks" (rule 4), or absolute rank. Window is fixed to 90 days.
+- Same-day checks: preserved without collapsing (multiple checks per day, shared slot x coordinate); meta point count matches drawn and listed points in the table.
+- Failed checks: rendered with distinct triangle glyphs (`markPoint` at `depthMax`), listed as "failed" in the table, counted in the meta line and summary; an all-failed history explicitly describes check failure; accessible band descriptions provided for screen readers.
+- Bands: `markArea` padded by half a category (from - 0.5 to + 0.5) with single-point min/max to ensure single-check and end runs cover full category width; competitor `depthMax` calculated over all depths and ranks to prevent clipping; unused `timeZone` prop removed.
 
 ### Task 8: Check now (one keyword and bulk)
 
@@ -1250,11 +1253,15 @@ export function checkNowRefusal(error: unknown, requested = 0): CheckNowRefusal 
 - [x] **Step 9: Wire it.** In `rankings-screen.tsx` call `useCheckNow` with `enabled: canRefresh` (the `runs:trigger` check the refresh uses), put `checkNow.barAction` right before `refresh.barAction` in `bulkActions` (both ahead of the first destructive action), render `checkNow.progress` beside `refresh.progress`, and pass `checkNow.inspectorAction` to the keyword inspector. In `keyword-inspector.tsx` accept an optional `frequentAction?: ((trackedId: string, active: boolean) => ReactNode) | undefined` prop and pass `frequentAction?.(scope.trackedKeywordId, scopeOf?.is_active ?? false)` as the header's `frequentAction`.
 - [x] **Step 10: Run** `pnpm vitest run src/features/rankings src/mocks`. Expected: PASS.
 - [x] **Step 11: Gates** (full list).
-- [x] **Step 12: Independent review on Opus,** fixes, gates again.
+- [ ] **Step 12: Independent review on Opus,** fixes, gates again.
 - [x] **Step 13: Commit** `git commit -m "Rankings: check now for one keyword or a selection"`.
 
 **As-built notes:**
 - Check now: records a run and increments manual run count but does not change any rank in the mock world (mock rank is purely derived from fixtures and mock time; storing up to 100 ids per run does not fit the operations cookie budget).
+- Single inspector button: placed in inspector header `frequentAction` slot, disabled during in-flight runs and when quota is exhausted.
+- Single toast announcement: announces once at start (`progress.started`), followed by header progress bar; lost toast id matches `keyword-${workload}-${runId}`.
+- Quota synchronization: refetches quota on run start and on bulk bar open.
+- Refetch on completion: rank state is invalidated and refetched when check now completes.
 
 ### Task 9: Metric strip: average rank, visibility and deltas (BLOCKED)
 
@@ -1281,15 +1288,21 @@ export function checkNowRefusal(error: unknown, requested = 0): CheckNowRefusal 
 - [x] **Step 2: Visual:** the Rankings entry's screenshot gains the strip and the new columns; the inspector entry gains the rank history card (no baseline is committed: they are made in the pinned image only).
 - [x] **Step 3: Documents** (Edit and Write tools only): as-built notes for every limit recorded in the tasks (sparkline 64 x 20 in both densities; hollow markers, events strip, deep checks and other windows not in the history card; competitor ranks always included; mock check now changes no rank; no sort for the four new column types; the strip without deltas, Average rank and Visibility until Task 9), the two new URL keys, the inventory deviations, and a review log row.
 - [x] **Step 4: Gates** (all in `apps/web`): `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `NEXT_PUBLIC_API_MOCKING=off pnpm build`, `pnpm run preview`, `pnpm e2e`.
-- [x] **Step 5: Whole-branch review on Opus:** the lead dispatches an independent reviewer on the Opus model with this plan and the diff from the branch point; fix every Critical and Important finding with its test first; gates again.
+- [ ] **Step 5: Whole-branch review on Opus:** the lead dispatches an independent reviewer on the Opus model with this plan and the diff from the branch point; fix every Critical and Important finding with its test first; gates again.
 - [x] **Step 6: Commit** "Rankings: rank features, end to end and documents".
 
 **As-built notes:**
 - Column sorting: none of the four new column types (SERP features, AI Overview, sparkline, competitor) supports sorting.
-- Sparkline dimensions: 64 x 20 px in both compact and comfortable densities.
-- Competitor ranks: always included (`INCLUDE` contains `'competitor_ranks'`) because conditional inclusion based on column visibility would refetch the entire table on every column chooser toggle.
-- Rank history card: does not yet include hollow markers inside the band, events strip, deep checks toggle, or custom time windows (fixed to 90 days).
-- Metric strip: implemented with five one-row queries for Tracked, Top 3, Top 10, and Top 20 counts; deltas, Average rank and Visibility wait for backend route `GET {P}/seo/rank-summary` (Task 9).
+- Sparkline dimensions: 64 x 20 px in both compact and comfortable densities; single point rendered as dot with radius 2; failed and not_checked checks show explicit trend labels.
+- Competitor ranks: always included (`INCLUDE` contains `'competitor_ranks'`) because conditional inclusion based on column visibility would refetch the entire table on every column chooser toggle; tooltips display rank change; error banner displayed on query failure.
+- Rank history card: does not yet include hollow markers inside the band, events strip, deep checks toggle, or custom time windows (fixed to 90 days); supports same-day checks, failed check glyphs, padded bands, and full table accessibility.
+- Metric strip: implemented with five one-row queries for Tracked, Top 3, Top 10, and Top 20 counts; placed between page header and filter bar per design system 24 section 9.3; invalidated on keyword membership changes. Deltas, Average rank and Visibility wait for backend route `GET {P}/seo/rank-summary` (Task 9).
+- Check now: single inspector header button; single toast announcement at start (`progress.started`); in-flight mutual exclusion; quota refetched on start and bulk bar open; rank state refetched on completion.
+- Merged Rank and Change column: 32 px fixed rank box with change slot starting at identical x coordinate across ranked, beyond-depth, failed and stale rows. Stale ">100" contained to prevent overflow into change slot.
+- Data table header: options chevron positioned at right-0 with pointer-events-none when hidden, ensuring sorted Rank label sorts cleanly without opening column menu at 96 px minimum width.
+- Trailing arrow link on keyword column uses ICU plural messages and opens ranking URL in a new tab.
+- Cell formatting: cited badge uses role="img" with descriptive accessible name ("AI Overview present, cited at position N"); +N overflow token uses 12 px font; stale clock icons display last successful check date tooltip; duplicate native title removed from n/a cells.
+- Beyond depth filtering and display: positions to 100 at depth 100 (">100") and depth 20 (">20"); Beyond depth filter reads "Over 100" at depth 100; legacy `cols` values containing `rank_change` dropped gracefully.
 - Primary route: `/seo/keywords` with redirect from `/seo/rankings`.
 - URL filter keys: added `featown` and `tmatch`.
 
