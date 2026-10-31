@@ -14,11 +14,11 @@ Related: [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) (supersede
 | External uptime | Better Stack free tier, one check |
 | Operations view | The in-app Operations screen (section 8.1), reading `ops.collection_tasks`, `ops.collection_runs`, `ops.cost_daily` and the `ops_health` results |
 | Collection, freshness, cost, database and data quality alerts | SQL rules in `ops_health` jobs, stored in `ops.platform_alerts`, delivered through their Healthchecks checks |
-| Logs | Structured JSON to stdout, Docker `json-file` rotation, about 14 days on the droplet, read with `docker compose logs`. No log shipping |
+| Logs | Structured JSON to stdout, Docker `json-file` rotation, about 14 days on the host, read with `docker compose logs`. No log shipping |
 | Metrics | None exported. No Prometheus, Alloy, Grafana or `/metrics` |
 | Paging | Healthchecks, Better Stack and Sentry notifications to Slack and email. No PagerDuty in V1 |
 
-Two rules drive the design. Anything on the droplet cannot report that the droplet is down, so uptime and heartbeats are checked from outside. PostgreSQL is the ledger, so collection health, freshness, cost and data quality are measured in SQL against the ledger, not reconstructed from counters. ADR-022 removed the Alloy and Grafana Cloud stack of ADR-021 because it competed with PostgreSQL for RAM and duplicated what the ledger already records.
+Two rules drive the design. Anything on the host cannot report that the host is down, so uptime and heartbeats are checked from outside. The host is shared with a second project ([ADR-023](adr/ADR-023-shared-hostinger-vps.md)), so host-wide memory, disk and load are alerted on as well as idraft's own share (`idraft.slice`); Hostinger's hPanel graphs are a manual cross-check only (verify in hPanel), not an alert source. PostgreSQL is the ledger, so collection health, freshness, cost and data quality are measured in SQL against the ledger, not reconstructed from counters. ADR-022 removed the Alloy and Grafana Cloud stack of ADR-021 because it competed with PostgreSQL for RAM and duplicated what the ledger already records.
 
 ## 2. Goals and SLOs (V1)
 
@@ -146,7 +146,7 @@ x-app-logging: &app-logging
 
 Estimated volume (INFERRED, measure in Phase 4): about 150,000 lines, 60 MB per day across services. journald is capped at `SystemMaxUse=500M`. The monthly ops review runs `docker compose logs --since 336h api | head -1` and raises `max-file` if the oldest line is younger than 14 days.
 
-Logs are read on the host with `docker compose logs [--since 30m] <service>` and filtered with `grep` or `jq`. Nothing ships logs off the droplet ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Errors that matter across restarts go to Sentry, which keeps them 30 days. Retention on the droplet is about 14 days, size-capped rather than time-based, matching [24](24-security.md) section 11.
+Logs are read on the host with `docker compose logs [--since 30m] <service>` and filtered with `grep` or `jq`. Nothing ships logs off the host ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Errors that matter across restarts go to Sentry, which keeps them 30 days. Retention on the host is about 14 days, size-capped rather than time-based, matching [24](24-security.md) section 11.
 
 ## 4. Metrics
 
@@ -189,21 +189,21 @@ Readiness source: `ops.collection_tasks.ready_source` records whether `poll`, `s
 
 ### 5.1 Choice
 
-Only external services and the ledger ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Sentry catches exceptions and samples performance; Healthchecks.io watches every scheduled job, including the `ops_health` SQL checks; Better Stack checks from outside that the site answers; the Operations screen shows the ledger. The earlier Grafana Alloy plus Grafana Cloud design (ADR-021) and the Beszel fallback are removed, and so is the memory budget they needed: nothing monitoring-related runs on the droplet beyond the SDKs inside the app processes and a 5-minute host check timer.
+Only external services and the ledger ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). Sentry catches exceptions and samples performance; Healthchecks.io watches every scheduled job, including the `ops_health` SQL checks; Better Stack checks from outside that the site answers; the Operations screen shows the ledger. The earlier Grafana Alloy plus Grafana Cloud design (ADR-021) and the Beszel fallback are removed, and so is the memory budget they needed: nothing monitoring-related runs on the host beyond the SDKs inside the app processes and a 5-minute host check timer.
 
 ### 5.2 Components
 
-| Component | Where | RAM on droplet | Free-tier limits | Monitors |
+| Component | Where | RAM on host | Free-tier limits | Monitors |
 |---|---|---|---|---|
 | Sentry SDK | `api`, `worker` (Python), `web` (Next.js) | 15 to 25 MB per process (INFERRED), inside process budgets | 5,000 errors, 5 M spans, 1 user, 30-day retention | exceptions, sampled traces |
 | Healthchecks.io Hobbyist | SaaS | 0 | 20 checks, 100 log entries each | planner tick, backups, restore drill, maintenance jobs, host check, `ops_health` |
 | Better Stack Free | SaaS | 0 | 10 monitors and heartbeats, 1 status page | one external uptime check |
 | `ops_health` jobs | worker `process` queue | inside its budget | n/a | SQL alerts, SLO samples |
-| `seo-hostcheck.timer` | host systemd timer ([22](22-infrastructure-devops.md) section 9.2) | under 10 MB for about 2 s every 5 min | n/a | disk, memory, swap, OOM, container health |
+| `seo-hostcheck.timer` | host systemd timer ([22](22-infrastructure-devops.md) section 9.2) | under 10 MB for about 2 s every 5 min | n/a | host-wide disk (193 GB, both projects), idraft disk share (budget 90 GB), host `MemAvailable`, swap, load average, `idraft.slice` memory (`/sys/fs/cgroup/idraft.slice/memory.current`), OOM kills, container health |
 | Operations screen | `web` and `api` | none extra | n/a | ledger, alerts, SLO samples |
 | Rejected: Grafana Alloy + Grafana Cloud (ADR-021) | | 70 to 100 MB | | superseded by ADR-022 |
-| Rejected: Netdata | | 250 to 350 MB | | too heavy for 4 GB |
-| Rejected: Uptime Kuma on the droplet | | extra process | | cannot see its own host down |
+| Rejected: Netdata | | 250 to 350 MB | | too heavy for an 8 GB slice on a shared host |
+| Rejected: Uptime Kuma on the host | | extra process | | cannot see its own host down |
 
 ### 5.3 Alloy configuration
 
@@ -218,11 +218,11 @@ Sources: **B** Better Stack, **H** a Healthchecks.io check that is late or pinge
 | 1 | Site down | `GET https://<domain>/api/healthz` fails 2 consecutive checks | P1 | B | [rb-api-down](#rb-api-down) |
 | 2 | Container unhealthy or restarting | host check: any container not `healthy` (covers `web`, which the uptime check does not reach), or its restart count up by more than 3 in 10 min | P1 | H (`host-health`) | [rb-memory](#rb-memory) |
 | 3 | Application error | new or regressed Sentry issue in `api`, `worker` or `web` (P2 if > 50 events in 1 h) | P3/P2 | S | [rb-api-errors](#rb-api-errors) |
-| 4 | Disk | host check: root filesystem > 70% (reason `disk_warn`) or > 85% (reason `disk_crit`) | P1 | H (`host-health`) | [rb-disk](#rb-disk) |
-| 5 | Memory | host check: swap used > 512 MB, `MemAvailable` < 250 MB, or any OOM kill in the last 10 min | P1 | H (`host-health`) | [rb-memory](#rb-memory) |
-| 6 | Swap trend | swap used > 256 MB for 24 h (resize trigger, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)); read from `/proc/meminfo`, which shows host values inside the worker container | P3 | O | [rb-memory](#rb-memory) |
-| 7 | Postgres connections | connections > 80% of `max_connections` (60; 80 after the 8 GB resize, [22](22-infrastructure-devops.md) sections 4.2 and 12.4) in 2 consecutive runs | P2 | O | [rb-postgres](#rb-postgres) |
-| 8 | Postgres cache hit | hit / (hit + read) over the last 24 h < 99% (resize trigger when it holds for a week, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) | P3 | O | [rb-postgres](#rb-postgres) |
+| 4 | Disk | host check, host-wide root filesystem of 193 GB (both projects): > 70%, about 135 GB (reason `disk_warn`) or > 85%, about 164 GB (reason `disk_crit`); and idraft's own share (Docker volumes, images, spool, restore scratch) > 65 GB (`idraft_disk_warn`) or > 80 GB (`idraft_disk_crit`), the lines derived in [22](22-infrastructure-devops.md) section 9.5 | P1 | H (`host-health`) | [rb-disk](#rb-disk) |
+| 5 | Memory | host check: shared swap (2 GB) used > 512 MB, host-wide `MemAvailable` < 1 GB (15.6 GiB visible, both projects), `idraft.slice` `memory.current` > 7 GB (its `MemoryHigh`; the cap is 8 GB), or any OOM kill in the last 10 min (reason names the cgroup: `idraft.slice`, the neighbour's slice or system) | P1 | H (`host-health`) | [rb-memory](#rb-memory) |
+| 6 | Swap and capacity trend | any of: swap used > 256 MB for 24 h; `idraft.slice` memory > 70% of 8 GB (5.6 GB) for a week; host `MemAvailable` < 2 GB more than twice a week; host load average > 3.5 (4 vCPU) for 15 min more than three times a week. These are the dedicated-host triggers of [ADR-023](adr/ADR-023-shared-hostinger-vps.md) and doc 28 section 7; host values are read from `/proc/meminfo` and `/proc/loadavg`, which show host values inside the worker container | P3 | O | [rb-memory](#rb-memory) |
+| 7 | Postgres connections | connections > 80% of `max_connections` (80 in the baseline 8 GB profile, so 64; 60 only on the 4 GB laptop and CI profile, [22](22-infrastructure-devops.md) sections 4.2 and 12.4) in 2 consecutive runs | P2 | O | [rb-postgres](#rb-postgres) |
+| 8 | Postgres cache hit | hit / (hit + read) over the last 24 h < 99% (capacity trigger when it holds for a week, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) | P3 | O | [rb-postgres](#rb-postgres) |
 | 9 | Long transaction | longest transaction > 10 min, or idle in transaction > 5 min | P2 | O | [rb-postgres](#rb-postgres) |
 | 10 | Partition runway | any partitioned parent with fewer than 2 future partitions, or any ingest error `no partition of relation` | P2 | O | [rb-postgres](#rb-postgres) |
 | 11 | Redis memory | used / maxmemory > 80% in 2 consecutive runs, policy not `noeviction`, or any eviction | P1 | O | [rb-queue](#rb-queue) |
@@ -422,7 +422,7 @@ A mass rank change in one project usually means a Google update, a site problem,
 
 ## 10. Tracing
 
-V1 uses correlation ids (section 3.3) plus Sentry performance sampling at 10% ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). No OpenTelemetry collector runs on the droplet.
+V1 uses correlation ids (section 3.3) plus Sentry performance sampling at 10% ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)). No OpenTelemetry collector runs on the host.
 
 | Setting | Value |
 |---|---|
@@ -438,7 +438,7 @@ Request ids are kept everywhere: Caddy sets `X-Request-Id`, every log line and S
 
 Estimate (INFERRED): about 100,000 requests and 600,000 jobs per month give about 70,000 sampled transactions of 10 to 15 spans, about 0.7 M to 1 M spans (14% to 20% of 5 M), and under 1,000 error events once expected errors are filtered. If span volume approaches the free limit, lower the worker rate first; per-route latency needs the API sample more.
 
-Later: when a second droplet or separate Postgres host arrives ([03](03-system-architecture.md) section 10, steps 2 and 3), revisit OpenTelemetry. Correlation fields stay the same.
+Later: when the dedicated host or a separate Postgres host arrives ([03](03-system-architecture.md) section 10, steps 2 and 3), revisit OpenTelemetry. Correlation fields stay the same.
 
 ## 11. Runbooks
 
@@ -447,9 +447,9 @@ Commands run as `deploy` in `/opt/seo-platform/src/infra/compose` ([22](22-infra
 <a id="rb-api-down"></a>
 ### 11.1 Site down, web container down, certificate expiry (alerts 1, 2, 38)
 
-- **First checks:** droplet reachable over SSH? `docker compose ps` (is `caddy`, `web` or `api` unhealthy?); `curl -sS -o /dev/null -w '%{http_code}\n' https://<domain>/api/healthz`; `curl -sS -o /dev/null -w '%{http_code}\n' https://<domain>/`.
+- **First checks:** host reachable over SSH? (If the neighbour project is also down, it is the host: check hPanel status first.) `docker compose ps` (is `caddy`, `web` or `api` unhealthy?); `curl -sS -o /dev/null -w '%{http_code}\n' https://<domain>/api/healthz`; `curl -sS -o /dev/null -w '%{http_code}\n' https://<domain>/`.
 - **Commands:** `docker compose logs --since 15m caddy api web | tail -200`; certificate: `echo | openssl s_client -connect <domain>:443 -servername <domain> 2>/dev/null | openssl x509 -noout -enddate`; `docker compose logs caddy | grep -i -E 'acme|certificate'`.
-- **Mitigation:** `docker compose up -d caddy web api`. If `readyz` fails on Postgres or Redis, go to [rb-postgres](#rb-postgres) or [rb-queue](#rb-queue). Unreachable droplet: power-cycle from the DigitalOcean console. Renewal failures are usually DNS or port 80 blocked at the Cloud Firewall.
+- **Mitigation:** `docker compose up -d caddy web api`. If `readyz` fails on Postgres or Redis, go to [rb-postgres](#rb-postgres) or [rb-queue](#rb-queue). Unreachable host: check hPanel status, then restart from hPanel (this also restarts the neighbour project, so tell its owner first; take a snapshot only if you suspect a compromise). Renewal failures are usually DNS, port 80 blocked at the hPanel firewall or `ufw`, or the host-level edge proxy not forwarding idraft's hostnames (D-H2, doc 30).
 
 <a id="rb-api-errors"></a>
 ### 11.2 Application errors and latency (alert 3, monthly latency review)
@@ -461,16 +461,16 @@ Commands run as `deploy` in `/opt/seo-platform/src/infra/compose` ([22](22-infra
 <a id="rb-disk"></a>
 ### 11.3 Disk and spool (alerts 4, 40)
 
-- **First checks:** `df -h /`; `docker system df`; `du -xh --max-depth=1 /var/lib | sort -h | tail`; `journalctl --disk-usage`; `du -sh /var/spool/seo`.
+- **First checks:** `df -h /` (host-wide, both projects); idraft's share: `docker system df` and `du -sh /var/lib/docker/volumes/idraft_* /var/spool/seo /var/lib/seo-restore`; `du -xh --max-depth=1 /var/lib | sort -h | tail`; `journalctl --disk-usage`; `du -sh /var/spool/seo`.
 - **Commands:** `SELECT relname, pg_size_pretty(pg_total_relation_size(relid)) FROM pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 15;` and `SELECT pg_size_pretty(sum(size)) FROM pg_ls_waldir();`
-- **Mitigation:** `docker image prune -a --filter "until=168h"`; `idraft maintenance-run retention_drop` if drops are overdue; `journalctl --vacuum-size=300M`. Never delete files in the Postgres volume by hand. A growing spool means R2 uploads are failing: go to [rb-provider](#rb-provider). Short term, resize or attach a Volume; above 10 GB of Postgres data the resize trigger in [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) applies.
+- **Mitigation:** `docker image prune -a --filter "until=168h"`; `idraft maintenance-run retention_drop` if drops are overdue; `journalctl --vacuum-size=300M`. Never delete files in the Postgres volume by hand. A growing spool means R2 uploads are failing: go to [rb-provider](#rb-provider). If the host is full but idraft is under its 90 GB budget, the neighbour project is the cause: tell its owner, do not delete anything of theirs. If idraft is over budget, free space first, then plan the dedicated host (doc 28 section 7); there is no Volume to attach. The idraft database over 20 GB is a dedicated-host trigger ([ADR-023](adr/ADR-023-shared-hostinger-vps.md)).
 
 <a id="rb-memory"></a>
 ### 11.4 Memory, swap, OOM, unhealthy or restarting containers (alerts 2, 5, 6)
 
-- **First checks:** which container? `docker compose ps`; `dmesg -T | grep -i -E 'killed process|oom'`; `free -m`; container memory vs limit.
+- **First checks:** which container? `docker compose ps`; `dmesg -T | grep -i -E 'killed process|oom'` (the line names the cgroup, so it shows whether idraft or the neighbour was killed); `free -m`; `systemctl show idraft.slice -p MemoryCurrent -p MemoryHigh -p MemoryMax`; container memory vs `mem_limit`.
 - **Commands:** `docker stats --no-stream`; `docker compose logs --since 30m <service> | tail -100`; `docker inspect --format '{{.RestartCount}} {{.State.OOMKilled}}' <container>`.
-- **Mitigation:** a boot loop with a Pydantic settings error: fix `/etc/seo-platform/.env` through the GitHub environment and redeploy. A memory leak in `api` or `worker`: restart, file an issue with `docker stats` samples, lower job concurrency until fixed. Postgres OOM: find the runaway query, reduce `work_mem`. Swap above 256 MB for a day, or cache hit under 99% for a week: resize to 8 GB.
+- **Mitigation:** a boot loop with a Pydantic settings error: fix `/etc/seo-platform/.env` through the GitHub environment and redeploy. A memory leak in `api` or `worker`: restart, file an issue with `docker stats` samples, lower job concurrency until fixed. Postgres OOM: find the runaway query, reduce `work_mem`. Swap above 256 MB for a day, or cache hit under 99% for a week: check `idraft.slice` first (above 5.6 GB for a week means the 8 GB share is too small); then ask whether the neighbour project grew; the next step is the dedicated 16 GB host (doc 28 section 7), not an in-place resize. If the host `MemAvailable` is low while `idraft.slice` is under 7 GB, the neighbour is the cause: tell its owner.
 
 <a id="rb-postgres"></a>
 ### 11.5 Postgres connections, long transactions, cache hit, partition runway (alerts 7 to 10)
@@ -481,7 +481,7 @@ Commands run as `deploy` in `/opt/seo-platform/src/infra/compose` ([22](22-infra
   SELECT pid, now() - xact_start AS age, state, application_name, left(query, 120)
   FROM pg_stat_activity WHERE xact_start < now() - interval '10 minutes' ORDER BY xact_start;
   ```
-- **Mitigation:** `SELECT pg_cancel_backend(pid)`, then `pg_terminate_backend(pid)` if needed. Many `idle in transaction` from one application means a session leak: restart that container. Falling cache hit after growth is a resize signal. Partition runway: `idraft maintenance-run ensure_partitions`, then re-ingest the failed tasks from R2 ([04](04-data-model.md) section 12.2).
+- **Mitigation:** `SELECT pg_cancel_backend(pid)`, then `pg_terminate_backend(pid)` if needed. Many `idle in transaction` from one application means a session leak: restart that container. Falling cache hit after growth is a capacity signal (slice and host triggers, alert 6). Partition runway: `idraft maintenance-run ensure_partitions`, then re-ingest the failed tasks from R2 ([04](04-data-model.md) section 12.2).
 
 <a id="rb-queue"></a>
 ### 11.6 Queues, Redis, rollup lag, alerting blind (alerts 11 to 13, 21, 39)
@@ -555,7 +555,7 @@ Healthchecks checks: `planner-tick` (5 min; pinged only when the planner tick, d
 
 | Doc | Change |
 |---|---|
-| [24](24-security.md) section 11 | Done: logs stay on the droplet, no external sink; redaction list shared with Sentry |
+| [24](24-security.md) section 11 | Done: logs stay on the host, no external sink; redaction list shared with Sentry |
 | [24](24-security.md) sections 2.1, 3 | Done: same-origin cookie, no CORS. The Operations screen needs a platform operator flag (`auth.users.is_platform_operator`); workspace roles do not cover platform-wide views |
 | [04](04-data-model.md) section 11 | Add `ops.slo_samples (sampled_at, sli, scope, value)` with 90-day retention (section 2.1). Already there: `ops.maintenance_windows` (04 section 11.8), `ops.collection_tasks.ready_source`, `ops.collection_runs.origin_request_id`; `ops.platform_alerts` and `ops.quality_counters_daily` are listed in 04 section 15 |
 | [21](21-scheduler-workers.md) section 10 | `ops_health` pings two checks (`ops-health-critical`, `ops-health`) and is the only notifier for SQL rules; the planner tick pings `planner-tick`; `ops_health_hourly` and `dq_daily` are listed |

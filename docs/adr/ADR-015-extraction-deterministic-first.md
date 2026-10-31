@@ -17,3 +17,6 @@ Reproducible metrics with evidence spans; some rules need tuning on the gold set
 
 ## Revisit trigger
 Gold-set targets unreachable with rules plus budgeted adjudication.
+
+## Amendment (2026-10-31)
+Host note only: "the droplet" above is now the idraft 8 GB share of the shared Hostinger VPS ([ADR-023](ADR-023-shared-hostinger-vps.md)). The decision is unchanged.

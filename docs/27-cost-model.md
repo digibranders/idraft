@@ -1,9 +1,9 @@
 # 27. Cost Model and Provider Cost Metering
 
 Status: Draft for architecture freeze
-Last updated: 2026-09-30
-Price basis: DataForSEO, DigitalOcean, Cloudflare R2 and LLM vendor prices verified 2026-09-29 (`research/01`, `02`, `04`, `08`). All figures USD, excluding tax.
-Related: [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [06-dataforseo-seo-integration.md](06-dataforseo-seo-integration.md) section 6, [07-dataforseo-ai-integration.md](07-dataforseo-ai-integration.md) section 7, [23-backup-disaster-recovery.md](23-backup-disaster-recovery.md) section 14, [28-data-growth-scaling.md](28-data-growth-scaling.md)
+Last updated: 2026-10-31
+Price basis: DataForSEO, Cloudflare R2 and LLM vendor prices verified 2026-09-29 (`research/01`, `02`, `04`, `08`). The Hostinger price is not verified here: the owner enters it from the invoice. All figures USD, excluding tax.
+Related: [ADR-023](adr/ADR-023-shared-hostinger-vps.md), [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [06-dataforseo-seo-integration.md](06-dataforseo-seo-integration.md) section 6, [07-dataforseo-ai-integration.md](07-dataforseo-ai-integration.md) section 7, [23-backup-disaster-recovery.md](23-backup-disaster-recovery.md) section 14, [28-data-growth-scaling.md](28-data-growth-scaling.md)
 
 ## 1. Unit prices used
 
@@ -19,10 +19,9 @@ Related: [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [06-dataf
 | AI Keyword Data | $0.01 per task + $0.0001 per keyword | Verified |
 | LLM Responses (official APIs via DataForSEO) | $0.0006 (live) + vendor cost | Verified |
 | Official APIs direct (per 1,000 grounded prompts, 300 in / 800 out tokens, 1 search) | OpenAI cheapest search-capable model about $10.43 to $11.23; ChatGPT-closest model about $35.50 to $75.50; Perplexity Agent API `sonar` about $4.58 to $4.83 | Verified prices, computed totals (`research/04-official-llm-apis.md`) |
-| DigitalOcean Basic droplet 2 vCPU / 4 GB / 80 GB | $24 per month, 4 TB transfer | Verified |
-| 4 vCPU / 8 GB / 160 GB | $48 | Verified |
-| DigitalOcean weekly droplet backups | 20% of the droplet price: $4.80 on the $24 droplet, $9.60 on the $48 droplet | Verified |
-| DO Volumes | $0.10 per GiB-month | Verified |
+| Hostinger VPS (4 vCPU, 16 GB RAM, 193 GB disk), shared with a second project | Monthly invoice `I`; idraft pays half, `H = 0.5 x I` | Owner invoice, not verified here (D-H1 in doc 30) |
+| Dedicated VPS for idraft alone, 16 GB (`H16`) or 32 GB (`H32`) | Provider price, owner enters | Owner invoice, not verified here; used only after the scaling steps in doc 28 section 7 |
+| Host snapshots / backups from Hostinger | Included in the plan or priced extra | Verify in hPanel; never counted as the only backup |
 | R2 Standard storage | $0.015 per GB-month; free 10 GB-month, 1M Class A, 10M Class B per month; egress free | Verified |
 | Monitoring (Sentry, Healthchecks.io, Better Stack free tiers) | $0 within free limits | Verified limits in doc 25 |
 
@@ -32,13 +31,13 @@ Calendar conventions: a month is 30 days for daily schedules and 4.33 weeks for 
 
 | Item | V1 monthly | Notes |
 |---|---|---|
-| Droplet 2 vCPU / 4 GB (Caddy, web, api, worker, PostgreSQL, Redis) | $24.00 | One host serves the Next.js app and the API ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) |
-| DigitalOcean weekly droplet backups | $4.80 | 20% of the droplet price; the second backup copy ([23](23-backup-disaster-recovery.md) section 1) |
+| Hostinger VPS, idraft's half (`H`): 8 GB RAM cap, fair-share CPU, 90 GB disk budget ([ADR-023](adr/ADR-023-shared-hostinger-vps.md)) | `H` = 50% of the Hostinger invoice | Owner enters the amount (D-H1); one host serves the Next.js app and the API next to a second project |
+| Host snapshots from Hostinger | $0.00 if included in the plan | Second backup copy ([23](23-backup-disaster-recovery.md) section 1); verify in hPanel whether the plan includes them or charges extra, and add any charge to `H` |
 | R2 raw payloads + nightly dumps | about $1.00 | Free tier covers the first 10 GB-month; about $1.45 to $6.20 by month 12 depending on volume ([23](23-backup-disaster-recovery.md) section 14.4); see section 7 |
 | Error tracking, heartbeats, uptime (Sentry, Healthchecks.io, Better Stack) | $0.00 | Free tiers ([25](25-observability.md) section 12) |
 | Transactional email (verification, invites, password reset) | $0.00 | Free tiers of common providers cover V1 volume (under 3,000 emails/month); pick in Phase 1 |
 | Domain and DNS | excluded | Existing |
-| **Total fixed** | **about $30** | Scenario totals in section 8 carry storage in their own column |
+| **Total fixed** | **H + about $1 (R2) + $0** | Scenario totals in section 8 carry R2 in their storage column, so they add `H` only. The earlier flat figure of about $30 for fixed infrastructure no longer applies: the fixed cost is half of the Hostinger invoice, which this document does not price |
 
 ## 3. SEO rank tracking costs
 
@@ -139,22 +138,24 @@ Official API benchmarks via LLM Responses cost roughly 5x to 50x per observation
 | R2 storage cost at steady state | about $0.02 | about $0.63 | about $3.75 |
 | R2 Class A operations | under the 1M free tier | under the free tier | about 0.5M per month: free |
 | Backups in R2 (compressed nightly dumps, 30 kept) | under 10 GB | 20 to 40 GB: $0.15 to $0.45 | move to pgBackRest; about $1 to $2 |
-| DO bandwidth | well under 4 TB included | same | same |
-| Database growth | covered by droplet disk | covered through about year 2 | needs a Volume or DB droplet in year 1 (doc 28) |
+| Hostinger bandwidth | plan transfer allowance not verified here (verify in hPanel); egress is small | same | same |
+| Database growth | covered by idraft's 90 GB disk budget | covered through about year 2 | needs a dedicated host in year 1 (doc 28 section 2.3) |
 
 Storage and bandwidth are negligible compared with collection costs at every scale we model.
 
 ## 8. Combined monthly scenarios
 
-| Scenario | Fixed infra | SEO collection | AI collection | Research | Optional API validation | Storage | **Total** |
-|---|---|---|---|---|---|---|---|
-| **A. V1 target:** 1,000 prompts/week (V1 default design) + 1,000 keywords daily (`standard`) | $28.80 | $56.80 to $68.20 | $17.68 | $3 | $0 to $35 | $1 | **about $108 to $154** |
-| **B.** 1,000 prompts/week + 5,000 keywords daily (`standard`) | $28.80 | $284 to $341 | $17.68 | $10 | $0 to $35 | $1 | **about $342 to $434** |
-| **C.** 1,000 prompts/week + 5,000 keywords daily at top 100 every day | $28.80 | $900 to $1,080 | $17.68 | $10 | $0 to $35 | $2 | **about $959 to $1,174** |
-| **D. Growth:** 5,000 prompts/week (3/3/1 replicates) + 10,000 keywords (`standard`, 20% also mobile) | $57.60 (8 GB droplet with backups) | $682 to $818 | $181.86 | $15 | $35 | $3 | **about $975 to $1,111** |
-| **E. Scale:** 10,000 prompts/week (3/3/1) + 30,000 keywords (`standard`) + second droplet for PostgreSQL | $115 to $144 (with backups) | $1,704 to $2,046 | $363.72 | $30 | $50 | $10 | **about $2,273 to $2,644** |
+`H` is idraft's half of the Hostinger invoice (section 2); `H16` and `H32` are the invoices of a dedicated 16 GB or 32 GB VPS. The owner enters them. Every total is "fixed host cost + variable costs" so no price is invented. Variable costs are SEO collection + AI collection + research + optional API validation + storage (R2).
 
-Fixed infra is the droplet plus DigitalOcean weekly backups (section 2); R2 sits in the storage column. Ranges on SEO collection come from the unresolved async AIO billing reading (section 3.1). The largest single lever is depth: moving 5,000 keywords from top 100 daily to the `standard` profile saves about $616 per month (scenario B vs C).
+| Scenario | Host (fixed) | SEO collection | AI collection | Research | Optional API validation | Storage (R2) | **Total** |
+|---|---|---|---|---|---|---|---|
+| **A. V1 target:** 1,000 prompts/week (V1 default design) + 1,000 keywords daily (`standard`) | `H` | $56.80 to $68.20 | $17.68 | $3 | $0 to $35 | $1 | **H + $78 to $125** |
+| **B.** 1,000 prompts/week + 5,000 keywords daily (`standard`) | `H` | $284 to $341 | $17.68 | $10 | $0 to $35 | $1 | **H + $313 to $406** |
+| **C.** 1,000 prompts/week + 5,000 keywords daily at top 100 every day | `H` | $900 to $1,080 | $17.68 | $10 | $0 to $35 | $2 | **H + $930 to $1,145** |
+| **D. Growth:** 5,000 prompts/week (3/3/1 replicates) + 10,000 keywords (`standard`, 20% also mobile) | `H16` (dedicated 16 GB VPS, step 1 of doc 28 section 7) | $682 to $818 | $181.86 | $15 | $35 | $3 | **H16 + $917 to $1,053** |
+| **E. Scale:** 10,000 prompts/week (3/3/1) + 30,000 keywords (`standard`) on a dedicated 32 GB VPS or a separate database host | `H32` (or `H16` + a database host) | $1,704 to $2,046 | $363.72 | $30 | $50 | $10 | **H32 + $2,158 to $2,500** |
+
+Fixed infra is the Hostinger share plus any snapshot charge (section 2); R2 sits in the storage column. Ranges on SEO collection come from the unresolved async AIO billing reading (section 3.1). The largest single lever is depth: moving 5,000 keywords from top 100 daily to the `standard` profile saves about $616 per month (scenario B vs C). Scenarios A to C fit the shared host; D and E assume the dedicated-host steps of doc 28 section 7 have fired.
 
 ## 9. Unit economics (for pricing)
 
@@ -168,8 +169,8 @@ Fixed infra is the droplet plus DigitalOcean weekly backups (section 2); R2 sits
 | Cost per AI observation | $0.0012 | Commercial AI trackers charge about $0.007 to $0.08 per response (research/07) |
 | Cost per 1,000 SERP observations | $0.60 (depth 10), $1.20 (depth 20), $6.00 (depth 100) | |
 | Cost per 1,000 AI observations | $1.20 | |
-| Fixed cost per project (V1, 10 projects sharing one droplet) | about $3.00 | About $30 of fixed infrastructure divided evenly; falls with more projects |
-| Example project: 1,000 keywords + 250 prompts | about $57 + $4.40 + $3.00 = **about $64 per month** | before margin, support and development costs |
+| Fixed cost per project (V1, 10 projects sharing idraft's half of the host) | `(H + $1) / 10` | Fixed infrastructure (`H` plus R2 about $1) divided evenly; falls with more projects |
+| Example project: 1,000 keywords + 250 prompts | about $57 + $4.40 = **about $61.40 per month, plus `(H + $1) / 10`** | before margin, support and development costs |
 
 ## 10. Cost metering (built from day one)
 

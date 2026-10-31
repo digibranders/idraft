@@ -325,8 +325,9 @@ Other verified points: `chat-latest` is "Latest Instant model used in ChatGPT" [
 
 | Item | Value | Source |
 |---|---|---|
-| Droplet | Basic `s-2vcpu-4gb`: 2 vCPU, 4 GiB, 80 GiB, 4,000 GiB transfer, $24 per month; next step `s-4vcpu-8gb` $48 | R08 §1.1 |
-| Cloud Firewall | Free, network-based | R08 §1.2 |
+| Droplet (original assumption, superseded) | Basic `s-2vcpu-4gb`: 2 vCPU, 4 GiB, 80 GiB, 4,000 GiB transfer, $24 per month; next step `s-4vcpu-8gb` $48 | R08 §1.1 |
+| Cloud Firewall (original assumption, superseded) | Free, network-based | R08 §1.2 |
+| Host as of 2026-10-31 | Shared Hostinger VPS: Ubuntu 24.04, 4 vCPU, 16 GB RAM, 193 GB disk, 2 GB swap; idraft share 8 GB ([ADR-023](adr/ADR-023-shared-hostinger-vps.md)). Plan price and snapshot features: verify in hPanel | Owner, 2026-10-31 |
 | R2 pricing | $0.015 per GB-month Standard; 10 GB, 1M Class A and 10M Class B free per month; egress free | R08 §2.1 |
 | R2 S3 gaps | No object versioning, no S3 Object Lock, no tagging | R08 §2.4 |
 | R2 bucket locks | Age, date or indefinite; prefix-scoped; override lifecycle deletes | R08 §2.3 |
@@ -342,15 +343,15 @@ Other verified points: `chat-latest` is "Latest Instant model used in ChatGPT" [
 | Docker and UFW | Published ports bypass UFW; default bind `0.0.0.0` | R08 §7.2 |
 | Docker logs | `json-file` `max-size` defaults to unlimited | R08 §6.3 |
 | Cloudflare proxy | Read timeout 125 s; Tunnel available on all plans with no inbound ports | R08 §7.5 |
-| Free monitoring | Healthchecks 20 checks; Sentry 5,000 errors; Better Stack 10 monitors; Netdata 250 to 350 MB typical (too heavy for 4 GB) | R08 §6.1 |
+| Free monitoring | Healthchecks 20 checks; Sentry 5,000 errors; Better Stack 10 monitors; Netdata 250 to 350 MB typical (too heavy for the laptop and CI 4 GB profile) | R08 §6.1 |
 
 ### 9.2 Design impact
 
 - **Compose.** Mount the postgres volume at `/var/lib/postgresql`, set `shm_size: 256mb`, set `default_toast_compression = lz4` on 18, cap container logs in `daemon.json`, and set `"ip": "127.0.0.1"` so a stray `ports:` stays local.
-- **RAM budget** on 4 GB: `shared_buffers` 768 MB, Redis `maxmemory` 256 MB with `noeviction`, API 384 MB heap, worker 512 MB heap, 2 GB swap *(Inference, R08 §3.8)*. The two worker containers in 03 §5 must fit the worker allowance; S-08 measures this.
+- **RAM budget.** The baseline is now the 8 GB idraft share of the shared host (doc 28, [ADR-023](adr/ADR-023-shared-hostinger-vps.md)): Postgres `shared_buffers` 2 GB, worker `mem_limit` 768m. The 4 GB budget below survives only as the laptop and CI profile: `shared_buffers` 768 MB, Redis `maxmemory` 256 MB with `noeviction`, API 384 MB heap, worker 512 MB heap, 2 GB swap *(Inference, R08 §3.8)*. The two worker containers in 03 §5 must fit the worker allowance; S-08 measures this.
 - **Queue code.** Use `upsertJobScheduler` for maintenance ticks and `deduplication` for debounced rollups; install ioredis explicitly. Tenant fairness without Pro Groups: interleave `addBulk` by project and use priorities (03 §6 already does).
 - **Backups.** Launch with nightly `pg_dump -Fc -Z zstd` piped through `age` (two recipients, private key off-host) and `rclone rcat` to R2. Bucket lock on `logical/`. No WAL-G. pgBackRest later for PITR, on a prefix without a lock.
-- **Network.** Publish only 80 and 443 (or none with Tunnel), plus a DO Cloud Firewall. Any request that waits on an LLM stays asynchronous because of the 125 s proxy timeout.
+- **Network.** Publish only 80 and 443 (or none with Tunnel), plus the Hostinger hPanel firewall and `ufw`; the shared host-level edge proxy owns 80 and 443 and the idraft gateway binds loopback only. Any request that waits on an LLM stays asynchronous because of the 125 s proxy timeout.
 - **Callback source check.** If the API sits behind Cloudflare proxy or Tunnel, the DataForSEO IP allow list must read the forwarded client IP, not the socket address *(Inference)*.
 
 ---
@@ -423,8 +424,8 @@ Changed by [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) (2026-09
 | S-05 | Are replicates independent draws? | 30 prompts x 20 replicates on ChatGPT and Gemini scrapers (AI Mode optional), submitted in one batch; account duplicate-task limits (40205, 40206) checked first | Exact-duplicate answer rate (`answer_hash`) per engine; within-run cited-domain Jaccard distribution; ICC estimate. Replicates count as independent if at most 20% of pairs are byte-identical (17-statistical-methodology.md A1); otherwise spacing rule set | $1.44 to $2.16 |
 | S-06 | What do AI Mode payloads look like, and is depth billed? | 200 keywords Standard; 20 with a `depth` value to see if it is accepted or rejected; 20 with `calculate_rectangles` | Field presence (`references`, `ai_overview_paid`, shopping); sizes; `cost` per variant; depth behaviour documented | Under $1 |
 | S-07 (dropped by ADR-022) | Does Better Auth work with our schema rules? | Better Auth with Kysely adapter, `auth` schema, uuid ids, organization plugin, API key plugin, 2FA; generate types with `kysely-codegen` | Sign-up, sign-in, org create, invite, role change, API key auth all pass; every auth table in `auth` with uuid PKs; no writes to `public`; RLS helper coexists (DM-1) | $0 (1 to 2 engineer-days) |
-| S-08 (dropped by ADR-022) | Does BullMQ 6 on Redis 8 hold our target load on the 4 GB droplet? | Target droplet with the full Compose stack; queues from 03 §6 at V1 concurrency; `upsertJobScheduler`, deduplication, rate limiter at 1,000 calls per minute against a mock provider; kill and restart workers | Rate limit never exceeded; zero lost jobs across restarts; schedulers fire once per tick after restart; dedup collapses repeated rollups; Redis under 256 MB with `noeviction`; no swap above 256 MB sustained | Under $2 of droplet time |
-| S-09 | Do our key queries meet targets on 12 months of data? | Generate a synthetic 12-month dataset (for example 10,000 keywords daily and 1,000 prompts x 4 engines x 3 replicates daily) on the target droplet; run dashboard queries with `EXPLAIN (ANALYZE, BUFFERS)` | DM-4 SOV over 12 weeks under 200 ms; overview under 300 ms, lists and rank history under 500 ms, matrix under 800 ms p95 (NFR-02); partition pruning visible; disk and TOAST sizes recorded | Under $5 of droplet time |
+| S-08 (dropped by ADR-022) | Does BullMQ 6 on Redis 8 hold our target load on the laptop and CI 4 GB profile? | Target host with the full Compose stack; queues from 03 §6 at V1 concurrency; `upsertJobScheduler`, deduplication, rate limiter at 1,000 calls per minute against a mock provider; kill and restart workers | Rate limit never exceeded; zero lost jobs across restarts; schedulers fire once per tick after restart; dedup collapses repeated rollups; Redis under 256 MB with `noeviction`; no swap above 256 MB sustained | No extra cost on the owned host |
+| S-09 | Do our key queries meet targets on 12 months of data? | Generate a synthetic 12-month dataset (for example 10,000 keywords daily and 1,000 prompts x 4 engines x 3 replicates daily) on the target host (the 8 GB idraft share); run dashboard queries with `EXPLAIN (ANALYZE, BUFFERS)` | DM-4 SOV over 12 weeks under 200 ms; overview under 300 ms, lists and rank history under 500 ms, matrix under 800 ms p95 (NFR-02); partition pruning visible; disk and TOAST sizes recorded | No extra cost on the owned host |
 | S-10 (moved to Phase 1 by ADR-022) | Can we restore from backup, and how long does it take? | Nightly script: `pg_dump -Fc -Z zstd` \| `age` \| `rclone rcat` to R2 with bucket lock on `logical/`; restore on a separate host into `postgres:18`; sanity queries; attempt delete with the backup token | Restore completes and row counts match; RTO and dump time measured; a failed `pg_dump` fails the pipeline and pings Healthchecks with non-zero status; locked object cannot be deleted | Under $1 (R2 free tier) |
 | S-11 | How clean are stored URLs after canonicalisation? | Run the canonicaliser over URLs from S-02 to S-06 payloads | Count of `google.com/goto` URLs, tracking parameters and redirect hosts (Vertex, `utm_source=chatgpt.com`); 100% of goto URLs detected and flagged | $0 (reuses payloads) |
 | S-12 | Are the fallback providers' top-100 billing claims true? | Bright Data top-100 dataset and SearchAPI.io `google_rank_tracking` on 100 keywords each; compare ranks with DataForSEO | Billable units per keyword known; organic rank agreement with DataForSEO measured; fallback order in 05-provider-integrations.md confirmed or changed | $0 to $40 (free tiers first) |
@@ -554,7 +555,7 @@ All URLs accessed 2026-09-29. This is a selection of the primary sources behind 
 - https://authoritytech.io/blog/brand-free-response-rate-ai-visibility-denominator-2026
 
 **Infrastructure (R08)**
-- https://www.digitalocean.com/pricing/droplets
+- https://www.digitalocean.com/pricing/droplets (original assumption, superseded by ADR-023)
 - https://developers.cloudflare.com/r2/pricing/
 - https://developers.cloudflare.com/r2/buckets/bucket-locks/
 - https://developers.cloudflare.com/r2/api/s3/api/

@@ -755,7 +755,7 @@ Why an outline track: a meter without a track has no visible 100%, so 64% has no
 
 | Column | Type | Notes |
 |---|---|---|
-| Provider | text | DataForSEO, OpenAI, Perplexity, DigitalOcean (fixed infrastructure as its own row) |
+| Provider | text | DataForSEO, OpenAI, Perplexity, Hostinger (fixed infrastructure as its own row) |
 | Endpoints | count | Tooltip lists the top 3 |
 | Requests | count | |
 | Units | count | Pages, tasks, tokens (unit named in tooltip) |

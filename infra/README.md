@@ -4,7 +4,7 @@ This directory contains the production Docker Compose stack, configuration files
 
 ## Architecture Overview
 
-The production runtime is a single host running Ubuntu 24.04 LTS with Docker Engine and the Compose plugin:
+The production runtime is a single Hostinger VPS (Ubuntu 24.04 LTS, 4 vCPU, 16 GB RAM, 193 GB disk, 2 GB swap) running Docker Engine and the Compose plugin. The VPS is shared with a second project and idraft is limited to an 8 GB share; see "Shared host" below and [ADR-023](../docs/adr/ADR-023-shared-hostinger-vps.md). The descriptions below are of the code as it stands today:
 
 * **Edge Gateway (`caddy`):** Caddy 2 reverse proxy. Handles automatic TLS certificates for `app.idraft.ai` via Let's Encrypt / ZeroSSL. The only container publishing ports (80 and 443, both variables, see below). `/api/internal/*` is answered with 404. `/api/readyz` is public on purpose, see "Public readiness endpoint".
 * **Frontend (`web`):** Next.js standalone application running on Node 24 slim under uid 1000:1000. Proxied at `/` by Caddy. Communicates internally with `api:8000` via `API_INTERNAL_ORIGIN`.
@@ -42,6 +42,29 @@ What the guards (the env checker, the digest-only image rule, the stage copy tha
 They do **not** protect against a hostile or stolen deploy key. Treat that key as root on the host.
 
 The real fix, not implemented here: install `deploy.sh` and the Compose files as root-owned files (by `bootstrap.sh`, or fetched by digest from a release artifact), and let `sudo` run only those. The deploy user would then pass data (the digests, the env) but never code.
+
+## Shared host
+
+This VPS also runs a second project. [ADR-023](../docs/adr/ADR-023-shared-hostinger-vps.md) decides how the two share it. **The items below are decisions that are TO BE IMPLEMENTED in the infra code; the scripts, Compose files and profiles in this directory do not do them yet.** Until they land, the sections above and below describe the current behaviour (for example `caddy` still publishes 80 and 443, and Postgres is still sized for a 15 GB host).
+
+| Topic | Decision |
+|---|---|
+| Resource share | `idraft.slice` (systemd): `MemoryHigh=7G`, `MemoryMax=8G`, `CPUWeight=100`. Every Compose service sets `cgroup_parent: idraft.slice` besides its own `mem_limit`. CPU is fair-share, memory is a hard cap. |
+| Sizing profile | `profiles/8gb.env` is the baseline: Postgres `mem_limit` 3000m, `shared_buffers` 2 GB, `effective_cache_size` 5 GB, `work_mem` 16 MB, `maintenance_work_mem` 256 MB, `max_connections` 80; worker `mem_limit` 768m. The 4 GB profile is for laptops and CI only. |
+| Gateway | The idraft `caddy` service stays the application gateway (`/api/*` to `api`, the rest to `web`) but binds loopback only, with automatic HTTPS off, and trusts the client address header only from loopback. |
+| Edge proxy | One host-level proxy owns ports 80 and 443 for both projects and forwards idraft hostnames to the loopback gateway. nginx or host-level Caddy is open decision D-H2 (doc 30). |
+| Firewall | Hostinger hPanel firewall plus `ufw` on the host: SSH (restricted), 80 and 443 open, everything else closed. There is no DigitalOcean Cloud Firewall. |
+| Isolation | Separate Compose project name, networks, Postgres, Redis, secret files and deploy user per project; no container ports published on public addresses. |
+| Backups | Nightly encrypted dump to R2 is the real backup. Hostinger snapshots are a second copy (verify what the plan includes in hPanel), taken manually before every risky change and before the cutover. |
+
+Follow-up code changes needed:
+
+1. Compose files: add `cgroup_parent: idraft.slice` to every service, and bind `caddy` to `127.0.0.1` (no public 80 and 443, automatic HTTPS off).
+2. Add `infra/compose/profiles/8gb.env` (and keep a `4gb.env` for laptop and CI) and select the profile through the deploy configuration; change the Postgres sizing in the Compose files to read it.
+3. Add a systemd slice unit for `idraft.slice` and install it from `bootstrap.sh`.
+4. `bootstrap.sh`: ufw rules for SSH, 80 and 443 only, written for a Hostinger VPS (no DigitalOcean firewall assumptions), and no ownership of ports 80 and 443 when the edge proxy is host-level.
+5. Edge proxy configuration for the idraft hostnames, once D-H2 is decided.
+6. Update the "Prerequisites" and Postgres sizing text in this README when the above is done.
 
 ## Host Bootstrap
 

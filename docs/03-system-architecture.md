@@ -1,22 +1,25 @@
 # 03. System Architecture
 
 Status: Draft for architecture freeze (Phase 0)
-Last updated: 2026-09-30
-Related: [04-data-model.md](04-data-model.md), [21-scheduler-workers.md](21-scheduler-workers.md), [22-infrastructure-devops.md](22-infrastructure-devops.md), ADRs in [adr/](adr/), in particular [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)
+Last updated: 2026-10-31
+Related: [04-data-model.md](04-data-model.md), [21-scheduler-workers.md](21-scheduler-workers.md), [22-infrastructure-devops.md](22-infrastructure-devops.md), ADRs in [adr/](adr/), in particular [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) and [ADR-023](adr/ADR-023-shared-hostinger-vps.md) (host)
 Locked architecture diagram: [diagrams/architecture-locked.html](diagrams/architecture-locked.html)
 
 ## 1. Architecture in one paragraph
 
-A Python backend (one project with two entrypoints, `api` and `worker`) and a Next.js web app run as Docker Compose services on one DigitalOcean droplet next to PostgreSQL 18 and Redis 8, behind Caddy on one domain: Caddy routes `/api/*` to the FastAPI `api` and everything else to `web`, whose server components call the API over the Docker network. Collection is asynchronous: the planner tick inside the worker plans runs into PostgreSQL, the worker submits batched tasks to DataForSEO (and later other providers), polls for readiness, stores raw payloads compressed in Cloudflare R2, normalizes them into provider-independent observation rows, runs extraction, and refreshes rollups. PostgreSQL is the ledger for all state; Redis (through Taskiq) is transport and coordination only. Every metric is computed from append-only observations plus versioned derivations, so any number on screen can be traced to raw evidence.
+A Python backend (one project with two entrypoints, `api` and `worker`) and a Next.js web app run as Docker Compose services on a shared Hostinger VPS (4 vCPU, 16 GB RAM, 193 GB disk; idraft gets a capped half: 8 GB RAM in `idraft.slice`, fair-share CPU, a 90 GB disk budget) next to its own PostgreSQL 18 and Redis 8. A host-level edge proxy owns ports 80 and 443 and forwards idraft's hostnames to idraft's own Caddy gateway on loopback; Caddy routes `/api/*` to the FastAPI `api` and everything else to `web`, whose server components call the API over the Docker network. Collection is asynchronous: the planner tick inside the worker plans runs into PostgreSQL, the worker submits batched tasks to DataForSEO (and later other providers), polls for readiness, stores raw payloads compressed in Cloudflare R2, normalizes them into provider-independent observation rows, runs extraction, and refreshes rollups. PostgreSQL is the ledger for all state; Redis (through Taskiq) is transport and coordination only. Every metric is computed from append-only observations plus versioned derivations, so any number on screen can be traced to raw evidence.
 
 ## 2. System context
 
 ```mermaid
 flowchart LR
-    user([Analyst / client user]) -->|HTTPS, one domain| caddy
+    user([Analyst / client user]) -->|HTTPS, one domain| edge
 
-    subgraph droplet[DigitalOcean droplet: Docker Compose]
-        caddy[Caddy<br/>TLS + reverse proxy]
+    subgraph vps[Shared Hostinger VPS]
+        edge[Host edge proxy<br/>TLS, hostname routing,<br/>owned by neither project]
+    subgraph slice[idraft.slice: Docker Compose, 8 GB cap]
+        caddy[Caddy<br/>app gateway, loopback only]
+        edge -->|loopback| caddy
         web[web<br/>Next.js standalone]
         api[api<br/>FastAPI on uvicorn]
         worker[worker<br/>Taskiq, collect + process,<br/>planner tick]
@@ -29,6 +32,7 @@ flowchart LR
         api --> redis
         worker --> pg
         worker --> redis
+    end
     end
 
     worker -->|task_post / tasks_ready / task_get| d4s[DataForSEO APIs]
@@ -61,9 +65,9 @@ There is no public callback endpoint: readiness is polling only ([ADR-022](adr/A
 | Queue | Taskiq with the Redis broker: two queues, `collect` and `process`, in one worker process; the PostgreSQL task table is the ledger. Fallback if Taskiq fails its Phase 1 smoke test: Celery | ADR-022 (supersedes the transport in [ADR-005](adr/ADR-005-queue-bullmq-postgres-ledger.md)) |
 | Object storage | Cloudflare R2 (S3 API) | [ADR-004](adr/ADR-004-raw-payloads-r2.md) |
 | Auth | Own module in FastAPI: argon2id passwords, opaque session ids in `auth.sessions` with a 60 s Redis read-through cache, email verification and password reset with hashed tokens, invitations, roles, TOTP (pyotp), an opt-in at first and required for owner and admin from launch hardening | ADR-022 (supersedes [ADR-014](adr/ADR-014-better-auth.md)) |
-| Frontend | Next.js (App Router), TypeScript, pnpm, TanStack Query and Table, ECharts, shadcn/ui on Tailwind v4, the locked design system; `output: 'standalone'`, one Node process on the droplet | [20-frontend-specification.md](20-frontend-specification.md), ADR-022 |
-| Reverse proxy | Caddy 2 (automatic HTTPS) on one domain: `/api/*` to `api`, everything else to `web`. No CORS, one cookie | [22-infrastructure-devops.md](22-infrastructure-devops.md) |
-| Hosting | One DigitalOcean droplet (2 vCPU, 4 GB, 80 GB, Ubuntu 26.04), Docker Compose. Cloudflare proxied DNS optional. Vercel not used | ADR-022, [ADR-002](adr/ADR-002-single-droplet-compose.md) |
+| Frontend | Next.js (App Router), TypeScript, pnpm, TanStack Query and Table, ECharts, shadcn/ui on Tailwind v4, the locked design system; `output: 'standalone'`, one Node process on the host | [20-frontend-specification.md](20-frontend-specification.md), ADR-022 |
+| Reverse proxy | Two layers. A host-level edge proxy (nginx today, or host-level Caddy; open decision D-H2) owns ports 80 and 443, terminates TLS and forwards idraft's hostnames to idraft's own Caddy 2 gateway, bound to loopback with automatic HTTPS off. Caddy routes `/api/*` to `api`, everything else to `web`, and trusts the client-address header only from loopback. No CORS, one cookie | [22-infrastructure-devops.md](22-infrastructure-devops.md) |
+| Hosting | A Hostinger VPS (4 vCPU, 16 GB RAM, 193 GB disk, 2 GB shared swap, Ubuntu 24.04) shared with a second project. idraft is capped at 8 GB RAM (`idraft.slice`: `MemoryHigh=7G`, `MemoryMax=8G`, every Compose service sets `cgroup_parent: idraft.slice` besides its own `mem_limit`), fair-share CPU (about 2 vCPU guaranteed under contention, up to 4 when the neighbour is idle) and a 90 GB disk budget. Separate Compose project, network, Postgres, Redis and secrets from the other project. Docker Compose. Cloudflare proxied DNS optional. Vercel not used | [ADR-023](adr/ADR-023-shared-hostinger-vps.md), ADR-022, [ADR-002](adr/ADR-002-single-host-compose.md) |
 | Primary provider | DataForSEO (SERP, Labs, Keywords Data, AI Optimization) | [ADR-006](adr/ADR-006-dataforseo-primary-adapters.md) |
 | Errors and performance | Sentry (Python SDK and Next.js SDK, 10% performance sampling) | [25-observability.md](25-observability.md) |
 | Cron heartbeat | Healthchecks.io | [25-observability.md](25-observability.md) |
@@ -75,7 +79,7 @@ Why Python for the backend: the parts of the product that are ours (extraction, 
 ```
 repo/
   apps/
-    web/                    Next.js app (standalone, on the droplet), generated API client, the design system
+    web/                    Next.js app (standalone, on the host), generated API client, the design system
   backend/                  one Python project (uv), two entrypoints: api and worker
     src/idraft/
       api/                  FastAPI app: routers, auth, tenancy, problem+json errors, OpenAPI
@@ -94,7 +98,7 @@ repo/
   infra/
     compose/                docker-compose.yml, Caddyfile, non-secret app.env, Postgres and Redis config
     systemd/                backup and host-check units and timers
-    scripts/                bootstrap-droplet.sh, deploy.sh, backup.sh, restore-verify.sh
+    scripts/                bootstrap.sh, deploy.sh, backup.sh, restore-verify.sh
   docs/                     this documentation package
 ```
 
@@ -118,7 +122,7 @@ db, storage -> config
 | `web` | 1 (one Node process, `output: 'standalone'`) | pages and server rendering; server components call `api` over the Docker network | vertical |
 | `api` | 1 (uvicorn) | HTTP API at `/api/v1`: auth, tenancy, reads, writes, OpenAPI | profile first; a second container behind Caddy only after profiling (section 10, step 4) |
 | `worker` | 1 | Taskiq worker consuming `collect` and `process`; the planner and dispatcher tick under Redis locks; Taskiq's scheduler for maintenance cron jobs | per-queue concurrency, then a second worker container (step 3) |
-| `postgres` | 1 | ledger | vertical, then a Volume, then a dedicated droplet |
+| `postgres` | 1 | ledger | raise `mem_limit` inside the 8 GB slice, then a dedicated 16 GB or 32 GB VPS (section 10, steps 1 and 2) |
 | `redis` | 1 | Taskiq transport, locks, rate limiters, session cache | vertical |
 | `caddy` | 1 | TLS, reverse proxy on one domain, request size limits | n/a |
 | `migrator` | one-off | `alembic upgrade head` during deploy | n/a |
@@ -288,16 +292,14 @@ These are enforced in code review and, where possible, in tests.
 
 ## 10. Scaling path
 
-The architecture is sized for V1 on one droplet. It scales in these steps without a rewrite. Trigger values are fixed by [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) and are canonical in [28-data-growth-scaling.md](28-data-growth-scaling.md) sections 7 (all steps) and 8 (ClickHouse); step numbers are the same in 03, 22 and 28.
+The architecture is sized for V1 on idraft's capped half of a shared Hostinger VPS ([ADR-023](adr/ADR-023-shared-hostinger-vps.md)). It scales in these steps without a rewrite. Trigger values are canonical in [28-data-growth-scaling.md](28-data-growth-scaling.md) sections 7 (all steps) and 8 (ClickHouse); step numbers are the same in 03, 22 and 28.
 
 | Step | Trigger (any) | Change |
 |---|---|---|
-| 0 | V1 | Everything on one 4 GB droplet |
-| 1 | Swap in steady use; PostgreSQL buffer cache hit ratio under 99% for a week; the database over 10 GB | Resize the droplet to 8 GB (vertical, minutes of downtime) |
-| 2 | The database over 40 GB | Attach a DO Volume; then move PostgreSQL to its own droplet with the Volume, over the VPC |
+| 0 | V1 | idraft on the shared 16 GB host: 8 GB RAM slice, fair-share CPU, 90 GB disk budget |
+| 1 | `idraft.slice` memory above 70% of 8 GB for a week or swap in steady use; host MemAvailable under 2 GB more than twice a week; host load average above 3.5 for 15 minutes more than three times a week; idraft database over 20 GB; the other project needing more than its half; the tool offered to outside customers (step 6); PostgreSQL buffer cache hit ratio under 99% for a week | Move idraft to a dedicated 16 GB VPS: provision, `infra/bootstrap.sh`, restore the latest dump, switch DNS, retire the old stack |
+| 2 | The dedicated 16 GB host above the same 70% / swap thresholds, or the database over 100 GB | Dedicated 32 GB VPS, or the database on its own host |
 | 3 | The collection window overruns twice in a month | Raise worker concurrency; then a second `worker` container against the same PostgreSQL and Redis |
 | 4 | API p95 over 300 ms on the overview with rollups in place | Profile the query first; a second `api` container behind Caddy is the last resort |
 | 5 | Any two of the doc 28 section 8 conditions (for example > 500 M observation rows and dashboard p95 > 1 s after tuning) | Add ClickHouse fed by CDC or batch export from partitions; PG remains the ledger |
 | 6 | The tool is offered to outside companies | API keys, envelope encryption of tenant credentials, PITR, GFS backups |
-
-Nothing in V1 prevents these steps: processes communicate only through PostgreSQL, Redis and R2 over the network, all config is environment-based, and no process relies on local disk state except the ephemeral spool directory.

@@ -1,6 +1,6 @@
 # ADR-013: Nightly pg_dump with age encryption to R2; pgBackRest for PITR later
 
-Status: Accepted, amended by ADR-022 (2026-09-30)
+Status: Accepted, amended by ADR-022 (2026-09-30) and ADR-023 (2026-10-31)
 Date: 2026-09-29
 
 ## Context
@@ -28,3 +28,6 @@ Changed by [ADR-022](ADR-022-python-backend-simplified-platform.md):
 - Restore testing: a scripted restore drill (`restore-verify.sh` into a temporary container) is run monthly and the result recorded. It replaces the weekly automated restore test.
 - Removed: the R2 bucket lock, the CI restore workflow, and the `restore-test` identity with its GitHub Actions environment secret. Dumps are age-encrypted to one offline recipient pair (the `recovery` identity); the server still holds only the public recipient. The Consequences sentence about the `restore-test` secret no longer applies.
 - Unchanged: nightly `pg_dump -Fc` with zstd, rclone to R2, Healthchecks dead-man pings, RPO 24 h and RTO 4 h. PITR via pgBackRest remains the trigger-based later step, and the revisit triggers apply to the monthly drill in place of the weekly test.
+
+## Amendment (2026-10-31)
+Changed by [ADR-023](ADR-023-shared-hostinger-vps.md): the host is a shared Hostinger VPS, so the DigitalOcean weekly droplet backups named in the 2026-09-30 amendment are replaced by Hostinger host snapshots (whatever the plan includes; verify in hPanel) as the second copy, with a manual snapshot before every risky change. A snapshot is never the only backup. The database-aware copy is unchanged: nightly encrypted `pg_dump` to R2 and the monthly restore drill. The $4.80 per month DigitalOcean backup cost no longer applies.

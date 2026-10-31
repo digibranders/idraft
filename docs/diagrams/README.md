@@ -2,6 +2,8 @@
 
 Every Mermaid diagram in the documentation package, extracted from its source document (the source document is authoritative; when a source diagram changes, update the copy here). Generated 2026-09-29.
 
+Amended 2026-10-31 by [ADR-023](../adr/ADR-023-shared-hostinger-vps.md): host. Diagrams 1, 13, 14 and 15 and the locked deployment diagram now show the shared Hostinger VPS (idraft slice 8 GB, shared host-level edge proxy, second project box) instead of a DigitalOcean droplet. Nothing else in the 2026-09-30 architecture changed.
+
 Last updated 2026-09-30: diagrams brought in line with [ADR-022](../adr/ADR-022-python-backend-simplified-platform.md), which wins wherever a source document has not caught up yet.
 
 The locked deployment, paid-call lifecycle and data flow diagrams (architecture locked 2026-09-30) live in [architecture-locked.html](architecture-locked.html) in this folder.
@@ -36,7 +38,7 @@ Source: [03-system-architecture.md](../03-system-architecture.md). Type: Flow.
 flowchart LR
     user([Analyst / client user]) -->|"HTTPS, one origin,<br/>__Host-session cookie"| caddy
 
-    subgraph droplet[DigitalOcean droplet: Docker Compose]
+    subgraph droplet[Shared Hostinger VPS, idraft slice 8 GB: Docker Compose]
         caddy[Caddy<br/>TLS + reverse proxy]
         web[web<br/>Next.js standalone]
         api[api<br/>FastAPI, /api/v1]
@@ -447,10 +449,11 @@ flowchart TB
 
     users -->|HTTPS, one origin| fw
 
-    subgraph do[DigitalOcean]
-        fw{{Cloud Firewall<br/>in: 80, 443 tcp+udp from all<br/>22 from allowlist only or none<br/>ICMP}}
-        dobk[(DigitalOcean weekly<br/>droplet backups)]
-        subgraph droplet[Droplet s-2vcpu-4gb, Ubuntu 26.04]
+    subgraph hz[Hostinger]
+        fw{{hPanel firewall + ufw<br/>in: 80, 443 from all<br/>22 from allowlist only<br/>everything else closed}}
+        hzbk[(Hostinger host snapshots<br/>second copy, verify plan in hPanel)]
+        other[Second project<br/>own slice, own Compose project]
+        subgraph droplet[Shared VPS 4 vCPU 16 GB, Ubuntu 24.04, idraft.slice 8 GB]
             subgraph host[Host services: systemd]
                 envfile["/etc/seo-platform/.env<br/>root-owned, mode 0600,<br/>written by deploy workflow"]
                 backup[seo-backup.timer 01:30 UTC<br/>pg_dump, zstd, age, rclone]
@@ -458,8 +461,9 @@ flowchart TB
                 ts[tailscaled]
                 uu[unattended-upgrades<br/>reboot window 04:30 UTC]
             end
+            hedge["Host-level edge proxy :80 :443<br/>TLS + hostname routing for both projects<br/>(nginx or host Caddy, open decision D-H2)"]
             subgraph edge[network: edge]
-                caddy["caddy :80 :443<br/>/api/* to api, rest to web"]
+                caddy["caddy 127.0.0.1 only<br/>/api/* to api, rest to web"]
             end
             subgraph backend[network: backend, internal, no egress]
                 web[web<br/>Next.js standalone]
@@ -472,7 +476,9 @@ flowchart TB
         end
     end
 
-    fw --> caddy
+    fw --> hedge
+    hedge -->|idraft hostnames| caddy
+    hedge -->|other hostnames| other
     caddy -->|"/api/*"| api
     caddy -->|everything else| web
     web -->|server components| api
@@ -484,7 +490,7 @@ flowchart TB
     worker -->|egress network: task_post,<br/>tasks_ready poll, task_get| d4s
     worker -->|PUT/GET| r2raw[(R2 seo-raw)]
     backup -->|nightly encrypted stream| r2bak[(R2 seo-backups/daily/<br/>30-day lifecycle)]
-    droplet -. weekly snapshot .-> dobk
+    droplet -. host snapshot .-> hzbk
     gha -->|push by digest| ghcr
     gha -->|SSH over Tailscale| ts
     droplet -->|docker pull by digest| ghcr
@@ -503,7 +509,7 @@ flowchart LR
     pr[Pull request] --> ci[ci.yml<br/>lint, typecheck, unit + integration tests,<br/>migration check, OpenAPI client drift check,<br/>image build no push]
     main[Push to main] --> rel[release.yml: build job<br/>build the three images, push to GHCR,<br/>output digests]
     rel --> dep["deploy job<br/>environment: production<br/>write /etc/seo-platform/.env from environment secrets,<br/>Tailscale join, SSH forced command"]
-    dep --> host[deploy.sh on droplet<br/>pull by digest, run migrator,<br/>restart api and worker, then web,<br/>health gates]
+    dep --> host[deploy.sh on the VPS<br/>pull by digest, run migrator,<br/>restart api and worker, then web,<br/>health gates]
     host --> ok{healthy?}
     ok -- yes --> done[record release, Sentry release,<br/>prune old images]
     ok -- no --> rb[rollback to previous tag]
@@ -516,7 +522,7 @@ Source: [23-backup-disaster-recovery.md](../23-backup-disaster-recovery.md). Typ
 
 ```mermaid
 flowchart TB
-    subgraph droplet[Droplet]
+    subgraph droplet[Shared Hostinger VPS, idraft slice]
         timer[seo-backup.timer<br/>01:30 UTC daily]
         svc[seo-backup.service<br/>backup-postgres.sh]
         pg[(postgres container)]
@@ -531,7 +537,7 @@ flowchart TB
         daily[daily/<br/>lifecycle: expire after 30 days]
     end
 
-    droplet -. weekly droplet snapshot .-> dobk[(DigitalOcean weekly backups)]
+    droplet -. host snapshot .-> hzbk[(Hostinger host snapshots, verify in hPanel)]
     svc -. start / success / fail with exit code .-> hc[Healthchecks.io]
 
     subgraph drill[Monthly restore drill, scripted and recorded]

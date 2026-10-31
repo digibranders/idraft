@@ -1,36 +1,39 @@
 # 22. Infrastructure and DevOps
 
 Status: Draft for architecture freeze (Phase 0)
-Last updated: 2026-09-30
+Last updated: 2026-10-31 (host changed to a shared Hostinger VPS, ADR-023)
 Owner: Platform / DevOps
 Research basis: [research/08-infra-methodology.md](../research/08-infra-methodology.md) (accessed 2026-09-29)
-Related: [03-system-architecture.md](03-system-architecture.md) sections 5, 6, 10; [04-data-model.md](04-data-model.md) sections 11.3, 12, 13; [23-backup-disaster-recovery.md](23-backup-disaster-recovery.md); [24-security.md](24-security.md) sections 5, 9, 11; [25-observability.md](25-observability.md); [28-data-growth-scaling.md](28-data-growth-scaling.md); [ADR-022](adr/ADR-022-python-backend-simplified-platform.md); locked diagram [diagrams/architecture-locked.html](diagrams/architecture-locked.html)
+Related: [03-system-architecture.md](03-system-architecture.md) sections 5, 6, 10; [04-data-model.md](04-data-model.md) sections 11.3, 12, 13; [23-backup-disaster-recovery.md](23-backup-disaster-recovery.md); [24-security.md](24-security.md) sections 5, 9, 11; [25-observability.md](25-observability.md); [28-data-growth-scaling.md](28-data-growth-scaling.md); [ADR-022](adr/ADR-022-python-backend-simplified-platform.md); [ADR-023](adr/ADR-023-shared-hostinger-vps.md); locked diagram [diagrams/architecture-locked.html](diagrams/architecture-locked.html)
 
-This document is the build sheet for the production host. Every config block is meant to be copied into `infra/` and committed. Numbers labelled "(verified 2026-09-29)" come from primary sources recorded in research doc 08. Numbers labelled "estimate" are arithmetic or engineering judgement and must be replaced by measurements from the Phase 0 spikes.
+This document is the build sheet for the production host. Every config block is meant to be copied into `infra/` and committed. Numbers labelled "(verified 2026-09-29)" come from primary sources recorded in research doc 08. Numbers labelled "estimate" are arithmetic or engineering judgement and must be replaced by measurements from the Phase 0 spikes. Numbers labelled "(measured 2026-10-31)" were read from the live host.
+
+Where the build stands: the live host (Hostinger VPS 187.126.121.25) currently runs idraft under systemd with a hand-built nginx and a Postgres 18 on `127.0.0.1:5433` (the system Postgres 16 on 5432 is not used by idraft). The Docker Compose design in this document is the target. The cutover is planned in `docs/superpowers/plans/2026-10-28-production-runtime.md`. Until then, sections 4 to 8 describe what the cutover builds, and sections 3, 9.5 and 10 hold the budgets that the cutover must respect.
 
 ## 1. Scope and fixed decisions
 
-Values in this section are fixed by [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), which amends [ADR-002](adr/ADR-002-single-droplet-compose.md).
+Values in this section are fixed by [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), which amends [ADR-002](adr/ADR-002-single-host-compose.md), and for the host by [ADR-023](adr/ADR-023-shared-hostinger-vps.md). The original plan assumed one DigitalOcean droplet used only by idraft; ADR-023 replaced it because idraft runs on a Hostinger VPS shared with a second project.
 
 | Area | Decision | Notes |
 |---|---|---|
-| Host | One DigitalOcean Basic droplet `s-2vcpu-4gb`: 2 shared vCPU, 4 GiB RAM, 80 GiB SSD, 4,000 GiB transfer, $24/month (verified 2026-09-29) | Region nearest the team. |
-| OS | Ubuntu 26.04 LTS (released 2026-04-23, maintained to April 2031, offered by DO, supported by Docker Engine; verified 2026-09-29) | |
-| Network edge | DigitalOcean Cloud Firewall (free, off-host, verified 2026-09-29) | No UFW on the host (Docker bypasses it). Cloudflare proxied DNS in front of Caddy is optional (static asset caching, DDoS protection) and changes nothing inside the droplet. |
-| Host-level backups | DigitalOcean weekly droplet backups enabled ($4.80/month) | A second, host-level copy. The database-aware copy is the nightly dump to R2 (doc 23). |
-| Not used | DO managed PostgreSQL or Redis, Kubernetes, Vercel | |
+| Host | One Hostinger VPS (187.126.121.25) shared with a second project: Ubuntu 24.04, 4 vCPU, 16 GB RAM (15.6 GiB visible), 193 GB disk, 2 GB swap (measured 2026-10-31) | idraft's share is 8 GB RAM (soft limit 7 GB) and fair-share CPU (2 vCPU guaranteed, up to 4 when the neighbour is idle), enforced by `idraft.slice` (section 5.4). Moving idraft to its own 16 GB or 32 GB VPS is a planned scaling step (section 11, runbook 12.4). |
+| OS | Ubuntu 24.04 LTS (installed on the host; supported by Docker Engine) | |
+| Network edge | Hostinger hPanel firewall (off-host; verify in hPanel that the plan includes it) plus `ufw` on the host (sections 6.1 and 6.4) | Inbound: 80 and 443 from anywhere, SSH restricted, everything else closed. Published container ports bypass `ufw`, so no container publishes on a public address. Cloudflare proxied DNS in front of the edge proxy is optional (static asset caching, DDoS protection) and changes nothing inside the host. |
+| Host-level backups | Hostinger snapshots or backups, whatever the plan includes (verify in hPanel), plus a manual snapshot before every risky change | A second, host-level copy, never the only one. The database-aware copy is the nightly dump to R2 (doc 23). |
+| Not used | Managed PostgreSQL or Redis, Kubernetes, Vercel, any cloud provider API or CLI | |
 | Runtime | Docker Engine + Compose plugin | Containers: `caddy`, `web`, `api`, `worker`, `postgres`, `redis`, plus the one-off `migrator` that runs `alembic upgrade head` during deploy. No scheduler container, no worker split. |
-| Reverse proxy | Caddy 2 (latest 2.11.4, verified 2026-09-29), automatic HTTPS, one domain | Caddy routes `/api/*` to `api` and everything else to `web`. No CORS, one cookie, no staging API. Official `caddy:2` image pinned by digest. |
+| Edge proxy | One host-level proxy shared by both projects owns ports 80 and 443, terminates TLS and routes by hostname. Implementation is open decision D-H2 in doc 30: today's nginx, or a host-level Caddy | It forwards idraft's hostnames to the gateway below, overwrites `X-Forwarded-For` with the real client address and sets `X-Forwarded-Proto`. It is not part of idraft's Compose project. |
+| Application gateway | Caddy 2 (latest 2.11.4, verified 2026-09-29), the `caddy` service, bound to `127.0.0.1` only, automatic HTTPS off | Routes `/api/*` to `api` and everything else to `web`. No CORS, one cookie, no staging API. Official `caddy:2` image pinned by digest. |
 | Backend runtime | Python 3.13, FastAPI, Pydantic v2, uvicorn; package manager `uv`. Images `seo-api` and `seo-worker`, built from `backend/` in CI | `api` serves `/api/v1`. `worker` runs Taskiq with the `collect` and `process` queues, the planner tick and Taskiq's scheduler. |
 | Web runtime | Next.js with `output: 'standalone'`, one Node process. Image `seo-web`, built from `apps/web` in CI | Server components call `api` over the Docker network. |
 | Database | Official `postgres:18` image (18.6 current, verified 2026-09-29) | Volume at `/var/lib/postgresql`, `shm_size: 256mb`. No published port. |
 | Queue store | Official `redis:8` image (8.10.2 current, verified 2026-09-29). Valkey 9 (`valkey/valkey:9`, 9.1.2, BSD-3, verified 2026-09-29) is a drop-in alternative | `maxmemory 256mb`, `noeviction`, AOF on (`everysec`), ACL users. No published port. Transport, rate limiter, locks and session cache; nothing lives only in Redis. |
-| Domain | One domain, `<domain>`, served by Caddy on the droplet. The production domain is `idraft.ai` (decided 2026-10-27): the web app, the API under `/api` and the Google OAuth redirect URIs all use `https://idraft.ai` | Caddy completes the ACME HTTP-01 challenge on port 80. With Cloudflare proxying on, use SSL mode Full (strict) and confirm a certificate renewal succeeds. |
+| Domain | One domain, `<domain>`, served by the edge proxy, which forwards it to the gateway. The production domain is `idraft.ai` (decided 2026-10-27): the web app, the API under `/api` and the Google OAuth redirect URIs all use `https://idraft.ai` | The edge proxy owns certificate issuance and renewal (HTTP-01 on port 80 or a DNS challenge). With Cloudflare proxying on, use SSL mode Full (strict) and confirm a certificate renewal succeeds. |
 | Object storage | Cloudflare R2: `seo-raw` (raw payloads, zstd JSON) and `seo-backups` (encrypted dumps under `daily/`, 30-day lifecycle rule) | Separate API tokens per bucket. |
 | Platform secrets | `/etc/seo-platform/.env`, root-owned, mode 0600, written by the deploy workflow from GitHub Actions environment secrets | No SOPS, no age for secrets (section 7). age is still used to encrypt backups. |
 | Monitoring (infra) | Sentry (Python and Next.js SDKs), Healthchecks.io heartbeats, one Better Stack free uptime check, the in-app Operations screen, and a host check timer (section 9) | No Prometheus, Alloy, Grafana or `/metrics`. Application observability is in doc 25. |
 
-Monthly run cost for this document's scope (ADR-022): $24 droplet + $4.80 DigitalOcean backups + R2 about $1 + $0 for Sentry, Healthchecks and Better Stack on free tiers = **about $30 per month**.
+Monthly run cost for this document's scope (ADR-023): **H** + R2 about $1 + $0 for Sentry, Healthchecks and Better Stack on free tiers = **H + about $1 per month**. H is idraft's half (50%) of the Hostinger VPS invoice. The owner enters the amount from the invoice; it is not recorded here and the plan's price and included snapshot features are to be verified in hPanel.
 
 ## 2. Deployment diagram
 
@@ -44,20 +47,21 @@ flowchart TB
         betterstack[Better Stack<br/>external uptime]
     end
 
-    users -->|HTTPS, one domain,<br/>Cloudflare proxy optional| fw
+    users -->|HTTPS, one domain per project,<br/>Cloudflare proxy optional| fw
 
-    subgraph do[DigitalOcean]
-        fw{{Cloud Firewall<br/>in: 80, 443 tcp+udp from all<br/>22 from allowlist only or none<br/>ICMP}}
-        subgraph droplet[Droplet s-2vcpu-4gb, Ubuntu 26.04, weekly DO backups]
-            subgraph host[Host services: systemd]
-                envfile[platform .env<br/>root 0600, written by deploy]
-                backup[seo-backup.timer 01:30 UTC<br/>pg_dump, age, rclone]
-                hostcheck[seo-hostcheck.timer every 5 min]
-                ts[tailscaled]
-                uu[unattended-upgrades<br/>reboot window 04:30 UTC]
-            end
+    subgraph vps[Hostinger VPS 187.126.121.25: Ubuntu 24.04, 4 vCPU, 16 GB RAM, 193 GB disk, 2 GB swap]
+        fw{{hPanel firewall and ufw<br/>in: 80, 443 from all<br/>22 from Tailscale or allowlist only<br/>ICMP}}
+        edgeproxy[Shared edge proxy, host level<br/>owns :80 and :443, TLS, hostname routing<br/>nginx or host-level Caddy, decision D-H2]
+        subgraph host[Host services: systemd, shared]
+            backup[seo-backup.timer 01:30 UTC<br/>pg_dump, age, rclone]
+            hostcheck[seo-hostcheck.timer every 5 min<br/>reads both slices]
+            ts[tailscaled]
+            uu[unattended-upgrades<br/>reboot window 04:30 UTC]
+        end
+        subgraph idslice[idraft.slice: MemoryHigh 7G, MemoryMax 8G, CPUWeight 100]
+            envfile[platform .env<br/>root 0600, written by deploy]
             subgraph edge[network: edge]
-                caddy[caddy :80 :443]
+                caddy[caddy gateway<br/>127.0.0.1 only, auto HTTPS off]
                 web[web<br/>Next.js standalone]
             end
             subgraph backend[network: backend, internal, no egress]
@@ -68,9 +72,14 @@ flowchart TB
                 mig[migrator, one-off<br/>alembic upgrade head]
             end
         end
+        subgraph otherslice[Second project slice: same shape, its own Compose project, networks, Postgres and Redis]
+            otherapp[Second project stack]
+        end
     end
 
-    fw --> caddy
+    fw --> edgeproxy
+    edgeproxy -->|idraft hostnames<br/>127.0.0.1 only| caddy
+    edgeproxy -->|other hostnames| otherapp
     caddy -->|"/api/*"| api
     caddy -->|everything else| web
     web -->|SSR calls, Docker network| api
@@ -82,7 +91,7 @@ flowchart TB
     worker -->|PUT/GET| r2raw[(R2 seo-raw)]
     backup -->|encrypted stream| r2bak[(R2 seo-backups/daily/)]
     gha -->|SSH over Tailscale,<br/>write .env, deploy| ts
-    droplet -->|docker pull by digest| ghcr
+    vps -->|docker pull by digest| ghcr
     backup & hostcheck & worker -. pings .-> hc[Healthchecks.io]
     web & api & worker -. errors .-> sentry[Sentry]
     betterstack -->|"GET /api/healthz"| fw
@@ -90,42 +99,70 @@ flowchart TB
 
 Network rules this diagram encodes:
 
-- Only `caddy` publishes ports, and only 80 and 443. No container publishes a metrics port. `postgres` and `redis` are attached only to `backend`, which is declared `internal: true`, so they have no route to the internet in either direction.
+- Only `caddy` publishes a port, and only on `127.0.0.1` (default `127.0.0.1:8088`, set by `GATEWAY_PORT`). Ports 80 and 443 belong to the shared edge proxy, which neither project owns in its Compose file, because a port can be bound once. No container publishes a metrics port. `postgres` and `redis` are attached only to `backend`, which is declared `internal: true`, so they have no route to the internet in either direction.
+- Every Compose service runs inside `idraft.slice` (`cgroup_parent`, section 4.1), so the memory cap and CPU weight of section 3.3 cover the whole stack, including one-off `migrator` runs.
 - `api` and `worker` are also attached to `egress` (a normal bridge) because they call DataForSEO, R2, Sentry, Healthchecks and the email provider. `api` also sits on `edge` so Caddy and `web` can reach it. `web` sits on `edge` only: it talks to `api` and to Sentry, never to PostgreSQL or Redis.
-- SSH reaches the host over Tailscale. The Cloud Firewall rule for port 22 is either removed or restricted to a short break-glass allowlist (section 6.1).
+- SSH reaches the host over Tailscale. The hPanel and `ufw` rules for port 22 are either removed or restricted to a short break-glass allowlist (section 6.1). The second project has its own deploy user and its own Compose project; nothing of idraft's is reachable from it except through the edge proxy.
 
 ## 3. Host sizing and resource budget
 
 ### 3.1 RAM budget
 
-A 4 GiB Basic droplet exposes about 3.8 GiB to the OS after kernel reservations (check `free -m` on first boot). The steady-state figures are fixed by ADR-022. `mem_limit` values are kernel cgroup ceilings, not reservations: they make a runaway process fail inside its own container instead of pushing the whole host into swap.
+The host has 4 vCPU and 16 GB RAM (15.6 GiB visible, measured 2026-10-31) and is shared with a second project (ADR-023). idraft's share is **8 GB RAM**, capped by `idraft.slice` (`MemoryHigh=7G`, `MemoryMax=8G`, section 5.4), and the host keeps about 1 GB for the kernel, systemd, sshd, the edge proxy, dockerd and journald. The figures below use the **baseline profile** (`profiles/8gb.env`, section 4.2): the former "8 GB profile". `mem_limit` values are kernel cgroup ceilings, not reservations: they make a runaway process fail inside its own container instead of pushing the slice into swap. The 4 GB profile survives only for laptops and CI.
 
-| Component | Steady RAM (ADR-022) | Compose `mem_limit` | Notes |
+| Component | Steady RAM | Compose `mem_limit` | Notes |
 |---|---|---|---|
-| Host: kernel, systemd, journald, sshd, containerd, dockerd, tailscaled, fail2ban | about 400 MB | n/a | |
-| `caddy` | 40 MB | 128m | |
-| `web` | 150 to 250 MB | 384m | one Node process, heap capped (section 3.2) |
-| `api` | 120 to 200 MB | 384m | one uvicorn process |
-| `worker` | 150 to 300 MB | 512m | `collect` 8 plus `process` 4 concurrent tasks; payload parsing is the peak |
-| `postgres` | 1.0 to 1.3 GB | 1400m | `shared_buffers = 768MB` (section 4.2) |
+| Host reserve, outside the slice: kernel, systemd, journald, sshd, containerd, dockerd, tailscaled, fail2ban, edge proxy | about 1 GB | n/a | shared by both projects; the whole idle host measured 1.06 GB on 2026-10-31 |
+| `caddy` (gateway) | 40 MB | 128m | |
+| `web` | 150 to 250 MB | 384m | one Node process, heap capped (section 3.2); measured about 170 MB idle |
+| `api` | 120 to 200 MB | 384m | one uvicorn process; measured about 165 MB idle |
+| `worker` | 150 to 300 MB | 768m | `collect` 8 plus `process` 4 concurrent tasks; payload parsing is the peak |
+| `postgres` | 2.3 to 2.8 GB | 3000m | `shared_buffers = 2GB` plus backends and autovacuum (section 4.2); a burst can reach the limit |
 | `redis` | 100 to 256 MB | 512m | `maxmemory 256mb`; the limit leaves room for the AOF rewrite fork |
 | `migrator` (during deploy only) | short-lived | 256m | exits after `alembic upgrade head` |
-| **Total steady** | **2.1 to 2.8 GB of about 3.8 GB usable** | | the rest is PostgreSQL file cache |
-| Swap file | 2 GiB, `vm.swappiness=10` | | a safety net only |
+| **Total steady in the slice** | **about 2.9 to 3.8 GB** (2,860 to 3,846 MB) | | arithmetic: 40 + 150 + 120 + 150 + 2,300 + 100 = 2,860 MB low; 40 + 250 + 200 + 300 + 2,800 + 256 = 3,846 MB high |
+| **Sum of `mem_limit` values** | **5,176 MB** (5,432 MB while `migrator` runs) | | 128 + 384 + 384 + 768 + 3,000 + 512; leaves about 1.6 to 1.8 GB under `MemoryHigh` for page cache of logs and volumes, tmpfs and runtime overhead |
+| Slice limits | `MemoryHigh` 7 GB, `MemoryMax` 8 GB | | steady use is about 41 to 54% of `MemoryHigh` (2.9 / 7 and 3.8 / 7) |
+| Swap file | 2 GB, `vm.swappiness=10` | | shared by both projects; a safety net only (section 5.2) |
 
-Resize to 8 GB (scaling step 1, section 11) when swap is in steady use, or the PostgreSQL buffer cache hit ratio is under 99% for a week, or the database is over 10 GB.
+Page cache is charged to the container that causes it, so PostgreSQL's file cache lives inside its 3000m limit together with `shared_buffers`. The memory the kernel can use as cache for the database is therefore about 3,000 minus 2,048 minus backend memory, not the 5 GB that `effective_cache_size` states (a planner hint only; listed in section 13).
+
+Alert on the slice at 70% of 8 GB (5.6 GB) for a week, or swap in steady use, and treat either as a trigger to move to a dedicated VPS (scaling step 1, section 11).
 
 ### 3.2 Memory-related container settings
 
-- `oom_score_adj`: `postgres` -500, `redis` -300, `caddy` -200, `api` 0, `web` 100, `worker` 300. If the whole host runs out of memory, the kernel kills the worker (whose interrupted work the reconciler recovers from the ledger) before the database.
+- `oom_score_adj`: `postgres` -500, `redis` -300, `caddy` -200, `api` 0, `web` 100, `worker` 300. If `idraft.slice` reaches `MemoryMax`, the kernel kills inside the slice, the worker first (whose interrupted work the reconciler recovers from the ledger) and the database last. If the whole host runs out of memory, the same scores apply across both projects, so `postgres` is still the last to go.
 - `web` is the only Node process: `NODE_OPTIONS=--max-old-space-size=256` keeps V8 garbage collection ahead of its 384m limit.
 - There is no other per-process heap or CPU tuning. PostgreSQL memory is set in `postgresql.conf` (section 4.2) and Redis memory in `redis.conf` (section 4.3).
+
+### 3.3 Shares of the host, CPU fair share and the neighbour
+
+| Slice | `MemoryHigh` (soft) | `MemoryMax` (hard) | `CPUWeight` | CPU under contention | CPU when the neighbour is idle |
+|---|---|---|---|---|---|
+| `idraft.slice` | 7G | 8G | 100 | 2 vCPU (100 of 200 weight on 4 vCPU) | up to all 4 vCPU |
+| Second project slice (proposed; its owner sets the values) | 6G | 6.5G | 100 | 2 vCPU | up to all 4 vCPU |
+| Host reserve (system services, edge proxy) | none | none | default (100 in `system.slice`) | small | |
+| Swap | | | | 2 GB file, shared, `swappiness=10` | |
+
+Hard limits add up to 8 + 6.5 + 1 reserve = 15.5 GB of the 15.6 GiB visible, so the two hard caps cannot together exceed the machine. There is no `CPUQuota`: a hard CPU cap would waste the idle half (ADR-023). `CPUWeight` only decides who wins when both slices want more than their share. Memory is capped hard because memory pressure takes both projects down; CPU is shared by weight.
+
+**What happens when the neighbour misbehaves**
+
+| Neighbour behaviour | Effect on idraft | Protection | Response |
+|---|---|---|---|
+| Memory leak inside its own slice | none beyond its own OOM kills at its `MemoryMax` | slice caps | none for idraft |
+| Memory use outside any slice (a host-level process, a runaway cron job) | host `MemAvailable` falls, page cache shrinks, swap fills, both projects slow down; the OOM killer may fire host-wide | `oom_score_adj` keeps `postgres` last | alert on host `MemAvailable` (section 9.4), runbook 12.9 |
+| CPU spin or fork storm | idraft keeps its 2 guaranteed vCPU through `CPUWeight`; latency rises when both slices are busy | `CPUWeight=100` | runbook 12.9: `systemctl set-property` on the neighbour's slice |
+| Disk fill | not isolated: `postgres` and Redis fail at the first write error | host disk alerts at 70% and 85% (section 9.4), ballast file, idraft budget of 90 GB (section 9.5) | runbook 12.6 and 12.9 |
+| Disk I/O saturation | slower queries and fsyncs | not isolated in V1 (`IOWeight` helps only with an I/O scheduler that supports it; not set) | measure first, runbook 12.9 |
+| Firewall or SSH change that locks out the host or opens ports | an idraft incident | rules documented in section 6, per-project deploy users | restore from the recorded rule set; hPanel console as last resort |
+| Reboot or Docker daemon restart | both stacks restart | `live-restore` keeps containers running across `dockerd` restarts | the maintenance window is agreed with the neighbour (section 6.3) |
 
 ## 4. Service configuration
 
 ### 4.1 docker-compose.yml
 
-File: `infra/compose/docker-compose.yml`. The deploy script (section 8.3) runs Compose as root with three env files: `/etc/seo-platform/.env` (platform secrets, section 7), `/opt/seo-platform/release.env` (the three image digests and `RELEASE_SHA`) and `infra/compose/profiles/<size>.env` (sizing values). Compose uses them only for interpolation: each service receives exactly the keys its `environment:` block names. Sizing values have 4 GB defaults, so a resize (section 12.4) only changes the profile file.
+File: `infra/compose/docker-compose.yml`. The deploy script (section 8.3) runs Compose as root with three env files: `/etc/seo-platform/.env` (platform secrets, section 7), `/opt/seo-platform/release.env` (the three image digests and `RELEASE_SHA`) and `infra/compose/profiles/<size>.env` (sizing values). Compose uses them only for interpolation: each service receives exactly the keys its `environment:` block names. Sizing values default to the baseline profile (`profiles/8gb.env`, the 8 GB share of ADR-023); `profiles/4gb.env` exists for laptops and CI only and also sets `PG_CONF=postgresql.4gb.conf`. Every service sets `cgroup_parent: idraft.slice` (defined in section 5.4), which puts the whole stack under the memory cap and CPU weight of section 3.3. This needs Docker's systemd cgroup driver, the default on Ubuntu 24.04 with cgroup v2 (check with `docker info | grep -i cgroup`). A move to a dedicated VPS (runbook 12.4) keeps the same Compose file and slice, or drops `cgroup_parent` there if no neighbour exists.
 
 ```yaml
 name: seo
@@ -146,6 +183,7 @@ x-logging-app: &logging-app
 
 x-app: &app
   restart: unless-stopped
+  cgroup_parent: idraft.slice       # memory cap and CPU weight of the shared host (section 5.4)
   init: true
   user: "10001:10001"
   read_only: true
@@ -167,14 +205,13 @@ services:
     image: caddy:2@sha256:${CADDY_DIGEST:?}
     container_name: seo-caddy
     restart: unless-stopped
+    cgroup_parent: idraft.slice
     ports:
-      - "0.0.0.0:80:80"
-      - "0.0.0.0:443:443"
-      - "0.0.0.0:443:443/udp"     # HTTP/3
-      # IPv6: add "[::]:80:80" etc. only after enabling IPv6 on the droplet and in daemon.json
+      # Application gateway on loopback only. The shared host-level edge proxy owns 80 and 443
+      # and forwards idraft's hostnames here (ADR-023). Never bind this to 0.0.0.0.
+      - "127.0.0.1:${GATEWAY_PORT:-8088}:80"
     environment:
       DOMAIN: ${DOMAIN:?}
-      ACME_EMAIL: ${ACME_EMAIL:?}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -303,7 +340,7 @@ services:
       retries: 4
       start_period: 30s
     stop_grace_period: 150s           # live_call tasks can take up to 120 s
-    mem_limit: ${WORKER_MEM:-512m}
+    mem_limit: ${WORKER_MEM:-768m}
     oom_score_adj: 300
     networks: [backend, egress]
 
@@ -326,6 +363,7 @@ services:
     image: postgres:18@sha256:${POSTGRES_DIGEST:?}
     container_name: seo-postgres
     restart: unless-stopped
+    cgroup_parent: idraft.slice
     shm_size: 256mb
     stop_signal: SIGINT               # fast shutdown: roll back open transactions, checkpoint, exit
     stop_grace_period: 120s
@@ -347,7 +385,7 @@ services:
       PG_MIGRATOR_PASSWORD: ${PG_MIGRATOR_PASSWORD:?}
     volumes:
       - pgdata:/var/lib/postgresql    # PG 18 image layout: PGDATA=/var/lib/postgresql/18/docker
-      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/${PG_CONF:-postgresql.conf}:/etc/postgresql/postgresql.conf:ro   # baseline; 4gb.env selects postgresql.4gb.conf
       - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
       - ./postgres/pg_ident.conf:/etc/postgresql/pg_ident.conf:ro
       - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
@@ -357,7 +395,7 @@ services:
       timeout: 5s
       retries: 6
       start_period: 60s
-    mem_limit: ${PG_MEM:-1400m}
+    mem_limit: ${PG_MEM:-3000m}
     oom_score_adj: -500
     security_opt: ["no-new-privileges:true"]
     networks:
@@ -369,6 +407,7 @@ services:
     image: redis:8@sha256:${REDIS_DIGEST:?}   # drop-in: valkey/valkey:9 with command valkey-server
     container_name: seo-redis
     restart: unless-stopped
+    cgroup_parent: idraft.slice
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD_HEALTHCHECK:?}   # the healthcheck user may only run PING
@@ -415,7 +454,8 @@ volumes:
 
 Notes on the file:
 
-- Caddy is the only service with published ports. No container publishes a metrics port: there is no `/metrics` endpoint (ADR-022).
+- Caddy is the only service with a published port, and it is bound to `127.0.0.1`. No container publishes a metrics port: there is no `/metrics` endpoint (ADR-022). With `userland-proxy: false` the edge proxy's connection reaches Caddy through Docker NAT, so Caddy sees the source address of the `edge` bridge gateway (172.30.20.1), not `127.0.0.1`; the Caddyfile trusts both (section 4.5). Confirm the address Caddy logs as `remote_ip` on the first deploy.
+- `cgroup_parent: idraft.slice` is set on every service (through the `x-app` anchor for `web`, `api`, `worker` and `migrator`, and explicitly on `caddy`, `postgres` and `redis`). A service without it would escape the memory cap and be counted against the host.
 - Platform secrets come from `/etc/seo-platform/.env` through interpolation (`${NAME:?}`), so each service receives only the keys its `environment:` block names, and a missing key stops `docker compose` before any container changes. Section 7.3 explains why this replaces the earlier tmpfs secret files.
 - `migrator` runs from the `seo-api` image, which contains Alembic and the migrations, and is on `backend` only. It never needs the internet.
 - `postgres` and `redis` get fixed addresses in `172.30.10.0/24` so `pg_hba.conf` can name the subnet. `caddy` and `web` get fixed addresses in `172.30.20.0/24` so uvicorn trusts `X-Forwarded-For` from exactly those two containers.
@@ -423,26 +463,28 @@ Notes on the file:
 - Each release has three images, `seo-web`, `seo-api` and `seo-worker`, each pinned by digest in `release.env`. `seo-api` and `seo-worker` are two targets of the same `backend/` Dockerfile that share every layer except the default command, so both run identical Python code for a release.
 - The `web` container overrides the shared `tmpfs` list to add a writable `.next/cache` (image optimization and fetch cache) on an otherwise read-only filesystem.
 
-### 4.2 PostgreSQL 18 configuration for 4 GB
+### 4.2 PostgreSQL 18 configuration (baseline profile, 8 GB share)
 
-File: `infra/compose/postgres/postgresql.conf`. Memory values follow the PostgreSQL docs and wiki guidance quoted in research 08 section 3.8 (`shared_buffers` about 1/4 of RAM, `effective_cache_size` 1/2 to 3/4), reduced to about 20% because the host is shared with Redis and the `web`, `api` and `worker` processes.
+File: `infra/compose/postgres/postgresql.conf`. This is the baseline profile of ADR-023, the former "8 GB profile": container `mem_limit` 3000m, `shared_buffers` 2 GB, `effective_cache_size` 5 GB, `work_mem` 16 MB, `maintenance_work_mem` 256 MB, `max_connections` 80. Memory values follow the PostgreSQL docs and wiki guidance quoted in research 08 section 3.8 (`shared_buffers` about 1/4 of RAM, `effective_cache_size` 1/2 to 3/4), applied to idraft's 8 GB share: 2 GB is 25% of the share, and the other containers (Redis, `web`, `api`, `worker`, about 0.5 to 1.0 GB together) sit beside it in the slice.
+
+The laptop and CI profile is `postgres/postgresql.4gb.conf`, selected by `profiles/4gb.env` (`PG_CONF`, `PG_MEM=1400m`, `WORKER_MEM=512m`). It differs from the file below only in these values: `max_connections = 60`, `shared_buffers = 768MB`, `effective_cache_size = 1536MB`, `work_mem = 8MB`, `maintenance_work_mem = 128MB`. It is not used in production.
 
 ```conf
 # ---- connections ----
 listen_addresses = '*'                  # container interface only; no published port
 port = 5432
-max_connections = 60                    # pools: api 10, worker 8, migrator 2, backup 2, admin 5;
+max_connections = 80                    # pools: api 10, worker 8, migrator 2, backup 2, admin 5 (27 in use at most);
                                         # headroom for a second worker container (scaling step 3)
 superuser_reserved_connections = 3
 password_encryption = scram-sha-256
 
 # ---- memory ----
-shared_buffers = 768MB
+shared_buffers = 2GB
 huge_pages = off                        # THP is disabled on the host; no explicit huge pages
-effective_cache_size = 1536MB
-work_mem = 8MB
+effective_cache_size = 5GB              # planner hint; container page cache is bounded by mem_limit (section 3.1)
+work_mem = 16MB
 hash_mem_multiplier = 2.0
-maintenance_work_mem = 128MB
+maintenance_work_mem = 256MB
 autovacuum_work_mem = 64MB
 temp_file_limit = 4GB                   # one runaway sort cannot fill the disk
 
@@ -464,7 +506,7 @@ archive_mode = off                      # V1: no WAL archiving, RPO 24 h (doc 23
 # ---- planner ----
 random_page_cost = 1.1
 default_statistics_target = 100
-jit = off                               # OLTP plus small analytics; JIT compile cost rarely pays off on 2 vCPU
+jit = off                               # OLTP plus small analytics; JIT compile cost rarely pays off on shared vCPU
 
 # ---- storage ----
 default_toast_compression = lz4         # PG 19 default; set explicitly on 18
@@ -610,18 +652,23 @@ Rules:
 
 - The worker holds up to 12 concurrent tasks on a pool of 8 connections. Provider tasks touch the database briefly (status update, cost event); a task that needs a connection waits on the pool, not on the queue. `process` concurrency (4) is well under the pool size, so an ingest transaction never waits for a connection held by another ingest.
 - CPU-bound steps (JSON parsing, extraction) run off the event loop (`asyncio.to_thread`), so `collect` tasks keep making progress during an ingest burst.
-- Raising any concurrency value requires checking `max_connections` (60) and the RAM table in section 3.1. The first thing to raise under backlog is `process` from 4 to 6; that is the start of scaling step 3 (section 11), and a second worker container comes after it.
+- Raising any concurrency value requires checking `max_connections` (80) and the RAM table in section 3.1. The first thing to raise under backlog is `process` from 4 to 6; that is the start of scaling step 3 (section 11), and a second worker container comes after it.
 - On `SIGTERM` the worker stops taking messages, waits for in-flight tasks, releases its locks and exits (doc 21 section 12). `stop_grace_period` (150 s) is longer than the longest task timeout (120 s for `live_call`), so a deploy does not interrupt work in normal operation; anything interrupted by a crash is re-enqueued from the ledger by the reconciler.
 
 ### 4.5 Caddyfile
 
-File: `infra/compose/Caddyfile`. One site on one domain: Caddy routes `/api/*` to `api` and everything else to `web` (ADR-022). Caddy obtains and renews the certificate for `<domain>` automatically (needs a DNS A record, ports 80 and 443 reachable, writable `/data`; verified 2026-09-29).
+File: `infra/compose/Caddyfile`. This Caddy is the application gateway behind the shared edge proxy (ADR-023). One site on one domain: Caddy routes `/api/*` to `api` and everything else to `web` (ADR-022). It speaks plain HTTP on the loopback-published port; TLS, certificates and ports 80 and 443 belong to the edge proxy. Automatic HTTPS is off, so Caddy never tries an ACME challenge and never binds a public port.
 
 ```caddyfile
 {
-	email {$ACME_EMAIL}
+	auto_https off
 	admin localhost:2019
 	servers {
+		# Trust X-Forwarded-For only from the edge proxy: loopback, plus the edge bridge
+		# gateway, which is the source address Caddy sees for a connection that came through
+		# the published port (section 4.1). Anything else is untrusted and its header is replaced.
+		trusted_proxies static 127.0.0.1/8 ::1/128 172.30.20.1/32
+		client_ip_headers X-Forwarded-For
 		timeouts {
 			read_header 10s
 			read_body 30s
@@ -629,7 +676,7 @@ File: `infra/compose/Caddyfile`. One site on one domain: Caddy routes `/api/*` t
 			idle 120s
 		}
 		max_header_size 32KB
-		protocols h1 h2 h3
+		protocols h1
 	}
 }
 
@@ -654,7 +701,7 @@ File: `infra/compose/Caddyfile`. One site on one domain: Caddy routes `/api/*` t
 	}
 }
 
-{$DOMAIN} {
+http://{$DOMAIN} {
 	import security_headers
 	encode zstd gzip
 
@@ -710,9 +757,11 @@ Notes:
 - One origin: no CORS, one cookie (`__Host-session`, `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`), no staging API (ADR-022).
 - Rate limiting is not done in Caddy. The official `caddy:2` image has no rate-limit module, and doc 24 section 10 requires official images only. The API enforces all limits in doc 24 section 8 with Redis-backed counters. Caddy contributes body caps and blocks internal paths.
 - Caddy's access logs redact `Authorization`, `Cookie` and `Set-Cookie` by default (`log_credentials` is off unless enabled). There is no public callback route, so no path needs a filter.
+- The edge proxy must overwrite `X-Forwarded-For` with the connecting client address (not append to a client-supplied value) and set `X-Forwarded-Proto: https`. Caddy accepts the header only from the trusted sources in the global options; from anyone else it uses the socket address. With nginx the edge block needs `proxy_set_header X-Forwarded-For $remote_addr;`; with a host-level Caddy it is the default behaviour of `reverse_proxy` with no upstream trust. Test it: `curl -H 'X-Forwarded-For: 1.2.3.4' https://<domain>/api/healthz` must log the real address, not 1.2.3.4.
 - uvicorn trusts `X-Forwarded-For` only from `caddy` and `web` (`--forwarded-allow-ips`, section 4.1). `web` forwards the client address it received from Caddy on its server-side API calls, so rate limiting and audit logs see the real client IP. The sign-in throttle (20 failures per 15 minutes per address, doc 24 section 2) depends on this: if every request appeared to come from one container address, twenty wrong passwords from anyone would lock sign-in for everyone. For the same reason `web` does not call sign-in, register or the email-request routes server side; the browser calls them.
 - `/api/healthz` stays public; Better Stack polls it. It is liveness only: `200 {"status":"ok"}` when the process answers, with no release, hostname or database call ([19](19-api-specification.md) section 3.12 owns both routes). `/api/readyz` (used by the container healthcheck and the deploy script) checks PostgreSQL, Redis and that the schema is at the revision the build expects, reports booleans only, and is not exposed.
-- If the optional Cloudflare proxy is turned on, add Cloudflare's published address ranges to Caddy's `trusted_proxies` in the same change, or rate limits and the sign-in throttle will see Cloudflare edge addresses instead of clients, and one edge address can then lock out every user behind it.
+- If the optional Cloudflare proxy is turned on, the edge proxy (not Caddy) must trust Cloudflare's published address ranges and take the client address from `CF-Connecting-IP`, then set `X-Forwarded-For` from it, in the same change. Otherwise rate limits and the sign-in throttle see Cloudflare edge addresses instead of clients, and one edge address can then lock out every user behind it.
+- HTTP/3 and HSTS preload decisions belong to the edge proxy. The gateway keeps its `Strict-Transport-Security` header, which is harmless when the edge adds the same value.
 
 ## 5. Host configuration
 
@@ -740,8 +789,9 @@ File: `/etc/docker/daemon.json`. Docker's `json-file` driver defaults to unlimit
 ```
 
 - `live-restore` keeps containers running while `dockerd` restarts (manual engine upgrades), so an engine upgrade does not restart PostgreSQL.
-- `userland-proxy: false` makes published ports use iptables NAT only; the client IP reaches Caddy unchanged.
+- `userland-proxy: false` makes published ports use iptables NAT only. Traffic from the edge proxy over the loopback port arrives from the `edge` bridge gateway address (section 4.1); the real client address travels in `X-Forwarded-For`, set by the edge proxy.
 - Log settings are applied at container creation. After changing them, run `docker compose up -d --force-recreate`.
+- `daemon.json` is host-wide and the second project's containers use it too. Before applying it on the shared host, check that the other project publishes no port that relies on the default `0.0.0.0` binding (the `"ip": "127.0.0.1"` default would move it to loopback), and agree the log limits with its owner. `live-restore` means `dockerd` restarts do not stop either project.
 
 ### 5.2 Kernel settings, THP and swap
 
@@ -777,19 +827,45 @@ ExecStart=/bin/sh -c 'echo never > /sys/kernel/mm/transparent_hugepage/enabled &
 WantedBy=basic.target
 ```
 
-Swap: a 2 GiB file with low swappiness.
+Swap: a 2 GiB file with low swappiness. The live host already has 2 GB of swap and it is shared by both projects (swap is not per project); bootstrap creates the file only when `swapon --show` is empty.
 
 ```bash
-fallocate -l 2G /swapfile
-chmod 600 /swapfile
-mkswap /swapfile
-swapon /swapfile
-echo '/swapfile none swap sw 0 0' >> /etc/fstab
+swapon --show | grep -q . || {
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+}
 ```
 
-Swap is a safety net for short spikes (an AOF rewrite fork during an ingest burst, the migrator running during a deploy). Swap in steady use is the step 1 resize trigger (section 11), not a normal operating state.
+Swap is a safety net for short spikes (an AOF rewrite fork during an ingest burst, the migrator running during a deploy). Swap in steady use, by either project, is a warning, and in steady use by idraft it is a step 1 trigger (section 11); it is not a normal operating state. The sysctl file affects the whole host, so `vm.overcommit_memory = 1` and `vm.swappiness = 10` apply to the neighbour too; confirm with its owner before applying them (the first is required by Redis, and the second only reduces swapping).
 
-`vm.overcommit_memory = 1` is what Redis requires, but PostgreSQL's own docs prefer mode 2 so the OOM killer never targets the postmaster. We accept mode 1 because every container has a cgroup memory limit (an overrun kills a process inside that container, not a random host process) and `postgres` has the lowest `oom_score_adj`. This trade-off is listed in section 13.
+`vm.overcommit_memory = 1` is what Redis requires, but PostgreSQL's own docs prefer mode 2 so the OOM killer never targets the postmaster. We accept mode 1 because every container has a cgroup memory limit and sits in a capped slice (an overrun kills a process inside that container or slice, not a random host process) and `postgres` has the lowest `oom_score_adj`. This trade-off is listed in section 13.
+
+### 5.4 systemd slice for the idraft share
+
+File: `/etc/systemd/system/idraft.slice`, installed from `infra/systemd/idraft.slice` by the bootstrap script (step 15).
+
+```ini
+[Unit]
+Description=idraft resource share (ADR-023)
+Before=slices.target
+
+[Slice]
+MemoryAccounting=yes
+CPUAccounting=yes
+IOAccounting=yes
+MemoryHigh=7G
+MemoryMax=8G
+CPUWeight=100
+```
+
+- `MemoryHigh=7G` is the soft limit: above it the kernel throttles and reclaims inside the slice before anything is killed. `MemoryMax=8G` is the hard limit: above it the kernel kills a process in the slice, by `oom_score_adj` (section 3.2).
+- `CPUWeight=100` is the default weight. The second project's slice has the same weight, so under contention each gets half of the 4 vCPU, and an idle slice leaves its share to the other. There is no `CPUQuota`.
+- Apply and check: `systemctl daemon-reload`, then `systemctl start idraft.slice`, `systemctl show idraft.slice -p MemoryHigh -p MemoryMax -p CPUWeight`, and after a deploy `systemd-cgls /idraft.slice` must list every `seo-*` container scope.
+- Change a limit without a reboot: `systemctl set-property idraft.slice MemoryHigh=6G` (writes a drop-in under `/etc/systemd/system.control/`). Record the change in the repo (`infra/systemd/idraft.slice`) the same day.
+- The unit file must exist before any container starts. Without it, systemd creates an unconfigured `idraft.slice` on demand with no limits and the cap silently does not apply, so `deploy.sh` checks in step 1 that `systemctl show idraft.slice -p MemoryMax` reports 8 GB and aborts when it does not.
 
 ### 5.3 Log rotation and retention
 
@@ -807,31 +883,24 @@ Docker rotation is size-based, not time-based. Doc 24 section 11 states "about 1
 
 Doc 24 section 9 summarises these controls; this section is the implementation.
 
-### 6.1 DigitalOcean Cloud Firewall
+### 6.1 Hostinger hPanel firewall and ufw
 
-The Cloud Firewall is enforced off-host, so Docker's iptables rules cannot bypass it. Created once with `doctl` and attached by tag:
-
-```bash
-doctl compute firewall create \
-  --name seo-prod \
-  --tag-names seo-prod \
-  --inbound-rules "protocol:tcp,ports:80,address:0.0.0.0/0,address:::/0 protocol:tcp,ports:443,address:0.0.0.0/0,address:::/0 protocol:udp,ports:443,address:0.0.0.0/0,address:::/0 protocol:icmp,address:0.0.0.0/0,address:::/0" \
-  --outbound-rules "protocol:tcp,ports:all,address:0.0.0.0/0,address:::/0 protocol:udp,ports:all,address:0.0.0.0/0,address:::/0 protocol:icmp,address:0.0.0.0/0,address:::/0"
-```
+Two layers, both owned jointly with the second project because the host is shared: the Hostinger VPS firewall in hPanel (off-host; whether the plan includes it and how many rules it allows: verify in hPanel) and `ufw` on the host (section 6.4). The rule set below is the same in both, so either one alone still protects the host. The rules are recorded in `infra/security/firewall-rules.md`, and a change by either project is announced to the other, because a wrong rule is an incident for both.
 
 | Direction | Protocol / port | Source / destination | Why |
 |---|---|---|---|
-| Inbound | TCP 80 | all | ACME HTTP-01 and HTTP to HTTPS redirect |
-| Inbound | TCP 443 | all | Web app and API over HTTPS (browsers, Better Stack) |
-| Inbound | UDP 443 | all | HTTP/3 |
+| Inbound | TCP 80 | all | ACME HTTP-01 and HTTP to HTTPS redirect, handled by the edge proxy |
+| Inbound | TCP 443 | all | Web apps and APIs over HTTPS (browsers, Better Stack) |
+| Inbound | UDP 443 | all | HTTP/3, only if the edge proxy enables it (D-H2) |
 | Inbound | ICMP | all | path MTU discovery, ping from uptime monitor |
-| Inbound | TCP 22 | **not present** in steady state | SSH goes over Tailscale (section 6.2) |
+| Inbound | TCP 22 | **not present** in steady state (the `ufw` rule is `allow in on tailscale0`) | SSH goes over Tailscale (section 6.2) |
 | Inbound | TCP 22 | break-glass: one or two static team IPs, added by runbook, removed afterwards | Tailscale outage |
+| Inbound | anything else | none | the hPanel default must be deny; check that the plan's default is not "allow all" |
 | Outbound | all | all | provider APIs, R2, GHCR, apt, Tailscale |
 
 Tailscale works without inbound rules (it uses outbound UDP and relays). Direct connections are faster with inbound UDP 41641, but that rule is optional and not added in V1.
 
-Last-resort access when both Tailscale and the allowlist fail: the DigitalOcean web Droplet Console. The `deploy` user has a strong password for console login only (sshd refuses passwords); it is stored in the team password manager.
+Last-resort access when both Tailscale and the allowlist fail: the Hostinger hPanel browser terminal or VPS console (verify in hPanel that the plan offers it). The `deploy` user has a strong password for console login only (sshd refuses passwords); it is stored in the team password manager.
 
 ### 6.2 SSH hardening and Tailscale
 
@@ -843,7 +912,7 @@ KbdInteractiveAuthentication no
 PermitRootLogin no
 PubkeyAuthentication yes
 AuthenticationMethods publickey
-AllowUsers deploy
+AllowUsers deploy <other-project-deploy-user>
 MaxAuthTries 3
 LoginGraceTime 20
 X11Forwarding no
@@ -854,10 +923,11 @@ ClientAliveInterval 60
 ClientAliveCountMax 3
 ```
 
-- OpenSSH 9.8 and later enable `PerSourcePenalties` by default (verified 2026-09-29), which throttles addresses that fail authentication. Ubuntu 26.04 reportedly ships 10.2p1 (unverified secondary source); check with `ssh -V` during bootstrap.
+- OpenSSH 9.8 and later enable `PerSourcePenalties` by default (verified 2026-09-29), which throttles addresses that fail authentication. Ubuntu 24.04 ships an older OpenSSH 9.6 series (check with `ssh -V` during bootstrap), so assume the setting is absent and rely on fail2ban (section 6.5) as the throttle.
+- The host has one `sshd` and one `AllowUsers` list. Each project has its own deploy user (idraft: `deploy`; the other project: its own name, listed above) with its own `authorized_keys`, its own sudoers file and its own CI key. Neither user may read the other's `/etc/<project>` directory or `.env`. `AllowUsers` is a host-wide file, so a change to it is announced to both projects.
 - Ubuntu uses socket-activated sshd (`ssh.socket`). The port stays 22; changing it would mean editing the socket unit and gains nothing when the port is not public.
 - `AllowTcpForwarding no`: there is no database tunnel. PostgreSQL is reached with `docker exec` (section 12.5).
-- `deploy` is the only login user. It belongs to the `docker` group, which is root-equivalent; that is accepted and documented, since the account is only reachable over Tailscale with a hardware-backed or passphrase-protected key.
+- `deploy` is idraft's only login user. It belongs to the `docker` group, which is root-equivalent; that is accepted and documented, since the account is only reachable over Tailscale with a hardware-backed or passphrase-protected key. On a shared host this has a consequence: the `docker` group sees every container on the host, so a member can stop or inspect the other project's containers, and the other project's deploy user (if it is in the same group) can do the same to idraft's. Mitigation: keep the group to the two deploy users, name containers with the project prefix (`seo-*`), and treat either account as root on the shared host (section 13).
 - `/etc/sudoers.d/seo-deploy` lets `deploy` run exactly two commands as root without a password: `/opt/seo-platform/bin/deploy.sh` and `/opt/seo-platform/bin/write-env`. Both need root because `/etc/seo-platform/.env` is root-owned with mode 0600 (section 7).
 - CI uses a separate key in `~deploy/.ssh/authorized_keys` restricted to one command:
 
@@ -899,45 +969,59 @@ OnCalendar=*-*-* 03:30
 RandomizedDelaySec=15m
 ```
 
-Timeline each night (UTC): 01:30 backup (doc 23), 03:30 to 03:45 upgrades, 04:30 reboot only if `/var/run/reboot-required` exists. Docker packages come from the Docker apt origin, which is not in `Allowed-Origins`, so the engine is upgraded manually in the monthly maintenance window (runbook 12.8). A reboot takes 60 to 120 s; `restart: unless-stopped` brings the stack back, the reconciler re-enqueues interrupted work from the ledger, and DataForSEO tasks completed during the reboot are picked up by the `tasks_ready` poll. Tenants whose collection window covers 04:30 UTC see those tasks finish a few minutes later; nothing is lost.
+Timeline each night (UTC): 01:30 backup (doc 23), 03:30 to 03:45 upgrades, 04:30 reboot only if `/var/run/reboot-required` exists. Docker packages come from the Docker apt origin, which is not in `Allowed-Origins`, so the engine is upgraded manually in the monthly maintenance window (runbook 12.8). A reboot takes 60 to 120 s; `restart: unless-stopped` brings the stack back, the reconciler re-enqueues interrupted work from the ledger, and DataForSEO tasks completed during the reboot are picked up by the `tasks_ready` poll. Tenants whose collection window covers 04:30 UTC see those tasks finish a few minutes later; nothing is lost. Updates and the reboot apply to the whole host, so the 03:30 and 04:30 windows are agreed with the second project, and a reboot also restarts its stack.
 
-### 6.4 No host firewall inside the droplet
+### 6.4 Host firewall (ufw) and its limit with Docker
 
-UFW is not enabled. Docker's published ports are NATed before UFW's INPUT chain (verified 2026-09-29), so UFW would give a false sense of coverage. The controls that work are: the off-host Cloud Firewall, no published ports except Caddy, `"ip": "127.0.0.1"` in `daemon.json`, and the `internal: true` backend network.
+`ufw` is enabled on the host as the second layer behind the hPanel firewall, with default deny incoming and default allow outgoing:
+
+```bash
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 443/udp                      # only if the edge proxy serves HTTP/3
+ufw allow in on tailscale0 to any port 22 proto tcp
+# break-glass, added by runbook and removed afterwards:
+# ufw allow from <team ip> to any port 22 proto tcp
+ufw enable
+```
+
+`ufw` filters traffic to host processes (sshd, the edge proxy, Tailscale). It does not filter Docker's published ports: Docker NATs them before `ufw`'s INPUT chain (verified 2026-09-29), so a container that publishes `0.0.0.0:5432` would be open even with a deny-all `ufw`. That is why the container-side controls stay mandatory: no published port except the gateway on `127.0.0.1`, `"ip": "127.0.0.1"` in `daemon.json`, and the `internal: true` backend network. The edge proxy is a host process, not a container, so `ufw` does cover ports 80 and 443. The monthly port scan (section 8.6) tests the result from outside. The second project's containers are held to the same published-port rule.
 
 ### 6.5 fail2ban decision
 
-Installed with the `sshd` jail only (`backend = systemd`, `maxretry = 5`, `bantime = 1h`, `bantime.increment = true`). It costs about 35 MB. In steady state SSH is not reachable from the internet, so the jail rarely fires; it exists for the break-glass case when port 22 is opened to an allowlist and to stay consistent with doc 24 section 9. No Caddy jail: HTTP abuse is handled by API rate limits, and parsing Docker JSON logs from fail2ban adds a moving part for little gain.
+Installed with the `sshd` jail only (`backend = systemd`, `maxretry = 5`, `bantime = 1h`, `bantime.increment = true`). It costs about 35 MB. In steady state SSH is not reachable from the internet, so the jail rarely fires; it exists for the break-glass case when port 22 is opened to an allowlist, as the throttle that OpenSSH 9.6 lacks (section 6.2), and to stay consistent with doc 24 section 9. It is a host-wide service shared with the second project. No Caddy jail: HTTP abuse is handled by API rate limits, and parsing Docker JSON logs from fail2ban adds a moving part for little gain.
 
 ### 6.6 Bootstrap script outline
 
-File: `infra/scripts/bootstrap-droplet.sh`, idempotent, run once as root through the DO console or first SSH session, then never again (configuration changes go through git and the deploy path). Steps:
+File: `infra/bootstrap.sh`, idempotent, run once as root through the hPanel console or first SSH session, then never again (configuration changes go through git and the deploy path). It is written for a fresh VPS, which is the case when idraft moves to its own host (runbook 12.4). On the live shared host, which was built by hand, run it in `--check` mode first: every step that would change host-wide state the second project depends on (`daemon.json`, sysctl, `AllowUsers`, `ufw`, the swap file, the edge proxy) prints a diff and waits for confirmation instead of applying. Steps:
 
-1. **Preconditions.** Abort unless Ubuntu 26.04, x86_64, 4 GiB or more RAM, running as root. `set -euo pipefail`, log to `/var/log/seo-bootstrap.log`.
+1. **Preconditions.** Abort unless Ubuntu 24.04, x86_64, 8 GiB or more RAM, running as root. `set -euo pipefail`, log to `/var/log/seo-bootstrap.log`.
 2. **Base packages.** `apt-get update && apt-get -y full-upgrade`; install `ca-certificates curl gnupg jq unattended-upgrades fail2ban zstd rsync`.
 3. **Users.** Create `deploy` (no password SSH, console password from the password manager), add authorized keys for the ops team and the restricted CI key, `chmod 700 ~deploy/.ssh`.
 4. **SSH.** Write `10-hardening.conf`, run `sshd -t`, `systemctl reload ssh`.
-5. **Kernel.** Write the sysctl file and `sysctl --system`; install and enable `disable-thp.service`; create the 2 GiB swap file.
+5. **Kernel.** Write the sysctl file and `sysctl --system`; install and enable `disable-thp.service`; create the 2 GiB swap file only if the host has no swap (section 5.2).
 6. **journald.** Write the 500 MB / 14 day cap; `systemctl restart systemd-journald`.
 7. **Docker Engine.** Add Docker's apt repository and key per the official Ubuntu instructions; install `docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`; write `daemon.json`; `systemctl restart docker`; add `deploy` to `docker`.
 8. **Tailscale.** Install from Tailscale's apt repository; `tailscale up --auth-key=<one-time key> --advertise-tags=tag:seo-prod`.
 9. **Unattended upgrades.** Write the two apt files and the timer override; `unattended-upgrade --dry-run -v` must succeed.
 10. **fail2ban.** Write `/etc/fail2ban/jail.d/sshd.local`; enable.
-11. **Tools.** Install pinned binaries with checksum verification into `/usr/local/bin`: `age` (1.3.2, verified 2026-09-29; backup encryption only), `rclone` (1.75.1, verified 2026-09-29), `doctl`.
+11. **Tools.** Install pinned binaries with checksum verification into `/usr/local/bin`: `age` (1.3.2, verified 2026-09-29; backup encryption only), `rclone` (1.75.1, verified 2026-09-29).
 12. **Directories.** `/opt/seo-platform/{bin,src,releases}` owned by `deploy`; `/etc/seo-platform` and `/etc/seo-platform/redis` root 0750; `/var/lib/seo-hostcheck`; `/var/lib/seo-ballast` with a 1 GiB ballast file (`fallocate -l 1G`) that can be deleted to buy space in a disk-full incident (runbook 12.6).
 13. **Backup recipients.** Write `/etc/seo-platform/backup-recipients.txt` (public key only, doc 23 section 5) and `/etc/seo-platform/rclone.conf` (root 0400). No secrets key is installed: the platform `.env` arrives with the first deploy (section 7).
 14. **Repository.** Clone the repo read-only with a deploy key into `/opt/seo-platform/src`.
-15. **Host units.** Install from `infra/systemd/`: `seo-backup.service` + `.timer`, `seo-hostcheck.service` + `.timer`; `systemctl daemon-reload`; enable the timers.
+15. **Host units.** Install from `infra/systemd/`: `idraft.slice` (section 5.4), `seo-backup.service` + `.timer`, `seo-hostcheck.service` + `.timer`; `systemctl daemon-reload`; start the slice and enable the timers.
 16. **Sudo rule.** Write `/etc/sudoers.d/seo-deploy` (section 6.2) and check it with `visudo -c`.
-17. **Firewall and DO backups.** Print the droplet ID and remind the operator to add tag `seo-prod` (the Cloud Firewall attaches by tag), to verify with an external port scan that only 80 and 443 are open, and to enable weekly droplet backups (`doctl compute droplet-action enable-backups <droplet-id>`).
+17. **Firewall and snapshots.** Apply the `ufw` rules of section 6.4, then remind the operator to set the hPanel firewall rules of section 6.1, to verify with an external port scan that only 80 and 443 are open, to enable whatever snapshot or backup feature the Hostinger plan offers (verify in hPanel) and to take a first manual snapshot.
 18. **First deploy.** Hand over to the normal deploy path (section 8), which writes `/etc/seo-platform/.env`, pulls the three images by digest, initialises PostgreSQL, runs migrations and starts the stack.
 19. **Verification.** `curl -fsS https://<domain>/api/healthz`, `docker compose ps` all healthy, `systemctl list-timers | grep seo`, trigger `systemctl start seo-backup.service` once and confirm the Healthchecks ping.
 
-Measured target: steps 1 to 17 in under 15 minutes on a fresh droplet. This number feeds the full-restore RTO in doc 23 section 11.
+Measured target: steps 1 to 17 in under 15 minutes on a fresh VPS. This number feeds the full-restore RTO in doc 23 section 11.
 
 ## 7. Environment and secrets flow
 
-ADR-022 and doc 24 section 5.1 set the policy: platform secrets are GitHub Actions environment secrets in the `production` environment, and the deploy workflow writes them to `/etc/seo-platform/.env` on the droplet (root-owned, mode 0600). There is no SOPS and no age for secrets; age is still used to encrypt backups (doc 23). This section implements the policy.
+ADR-022 and doc 24 section 5.1 set the policy: platform secrets are GitHub Actions environment secrets in the `production` environment, and the deploy workflow writes them to `/etc/seo-platform/.env` on the host (root-owned, mode 0600; the second project keeps its own file in its own directory). There is no SOPS and no age for secrets; age is still used to encrypt backups (doc 23). This section implements the policy.
 
 ### 7.1 Files
 
@@ -988,7 +1072,7 @@ The values do land in each container's configuration (`docker inspect` and `/var
 
 ## 8. CI/CD
 
-Nothing is built on the droplet. GitHub Actions runs lint, typecheck and tests, builds the three images, pushes them to GHCR, and deploys over SSH by digest: pull, run `migrator`, restart `api` and `worker`, then `web`. Rollback is the previous tag (ADR-022).
+Nothing is built on the host: its CPU and memory are shared with another project. GitHub Actions runs lint, typecheck and tests, builds the three images, pushes them to GHCR, and deploys over SSH by digest: pull, run `migrator`, restart `api` and `worker`, then `web`. Rollback is the previous tag (ADR-022).
 
 ### 8.1 Pipeline overview
 
@@ -998,7 +1082,7 @@ flowchart LR
     main[Push to main] --> rel[release.yml: build job<br/>build seo-web, seo-api, seo-worker,<br/>push to GHCR, output digests]
     rel --> dep[deploy job<br/>environment: production<br/>Tailscale join, SSH forced command]
     dep --> env[write-env<br/>platform .env, root 0600]
-    env --> host[deploy.sh on droplet<br/>pull by digest, run migrator,<br/>restart api and worker, then web,<br/>health gates]
+    env --> host[deploy.sh on the host<br/>headroom check, pull by digest, run migrator,<br/>restart api and worker, then web,<br/>health gates]
     host --> ok{healthy?}
     ok -- yes --> done[record release, Sentry release,<br/>prune old images]
     ok -- no --> rb[automatic rollback to previous tag]
@@ -1217,19 +1301,19 @@ jobs:
           printf '%s' "${{ secrets.GITHUB_TOKEN }}" | ssh deploy@seo-prod "$CMD"
 ```
 
-The droplet never stores a long-lived registry credential: each deploy logs in with the job's short-lived `GITHUB_TOKEN` (`packages: read`), pulls, and logs out. Images are tagged with the git SHA and deployed by digest. A rollback redeploys the previous release's tag from images already present locally (the last three releases are kept), so it works even if GitHub is down; in that case run `sudo /opt/seo-platform/bin/deploy.sh rollback` over SSH.
+The host never stores a long-lived registry credential: each deploy logs in with the job's short-lived `GITHUB_TOKEN` (`packages: read`), pulls, and logs out. Images are tagged with the git SHA and deployed by digest. A rollback redeploys the previous release's tag from images already present locally (the last three releases are kept), so it works even if GitHub is down; in that case run `sudo /opt/seo-platform/bin/deploy.sh rollback` over SSH.
 
 ### 8.3 Server-side deploy script
 
 `/opt/seo-platform/bin/deploy.sh deploy <web@digest> <api@digest> <worker@digest> <git-sha>` runs as root (through the sudo rule of section 6.2, because it reads `/etc/seo-platform/.env`) and performs, in order, aborting on the first failure. Every `docker compose` call below carries the three `--env-file` flags of section 4.1.
 
-1. **Lock.** `flock -n /run/seo-deploy.lock` so two deploys never overlap.
+1. **Lock and headroom.** `flock -n /run/seo-deploy.lock` so two deploys never overlap. Then check the shared host before changing anything: `idraft.slice` is configured (`systemctl show idraft.slice -p MemoryMax` reports 8 GB, section 5.4), host `MemAvailable` is above 1 GB and the root filesystem is below 85% (the critical thresholds of section 9.4, which count both projects). Abort with the reason otherwise; an operator can override with `--force` after reading runbook 12.9. A deploy must not start a migration on a host that the neighbour has already pushed to its limit.
 2. **Validate.** Each image matches `^ghcr\.io/<org>/seo-(web|api|worker)@sha256:[a-f0-9]{64}$` for its own slot; SHA matches `^[a-f0-9]{40}$` and `git merge-base --is-ancestor <sha> origin/main` succeeds after `git fetch`.
 3. **Pull.** `docker login ghcr.io --password-stdin`, `docker pull` for the three digests, `docker logout ghcr.io`.
 4. **Check out config.** `git -C /opt/seo-platform/src checkout --detach <sha>`; Compose files, Caddyfile and Postgres config now match the release.
 5. **Check secrets.** Every name in the release's `required-secrets.txt` is present and non-empty in `/etc/seo-platform/.env` (written by the workflow just before, section 7.2); render `/etc/seo-platform/redis/users.acl`.
 6. **Write release env.** `/opt/seo-platform/release.env.next` with `WEB_IMAGE`, `API_IMAGE`, `WORKER_IMAGE`, `RELEASE_SHA` and the pinned digests for Caddy, Postgres and Redis.
-7. **Infrastructure services.** `docker compose up -d postgres redis caddy` (no-op unless their digest or config changed; a Postgres minor upgrade restarts it here, which is the only planned DB downtime, about 10 to 30 s). If the Caddyfile changed, `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`. If the Redis ACL changed, `ACL LOAD`.
+7. **Infrastructure services.** `docker compose up -d postgres redis caddy` (no-op unless their digest or config changed; a Postgres minor upgrade restarts it here, which is the only planned DB downtime, about 10 to 30 s). If the Caddyfile changed, `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`. The edge proxy is not touched by this deploy; a change to idraft's hostname routing is a separate, reviewed change to the shared edge configuration. If the Redis ACL changed, `ACL LOAD`.
 8. **Migrations.** If a pending migration contains the marker `-- requires-backup`, first run `systemctl start seo-backup.service` and abort unless it succeeds (doc 23 section 13.1). Then open a 20-minute maintenance window row in `ops.maintenance_windows` (doc 25) and run `docker compose run --rm migrator`, which runs `alembic upgrade head` as the `migrator` role with `lock_timeout = 2s`. Migrations must be backward compatible with the currently running code (expand, migrate, contract; doc 04 section 14), so old containers keep working while the new schema is live. Failure here aborts before any app container changes.
 9. **Restart api and worker.** `docker compose up -d --no-deps api worker`. Compose stops each old container with `SIGTERM`: uvicorn drains in-flight requests, the worker finishes in-flight tasks within `stop_grace_period`, and queued messages wait in Redis for seconds. Section 8.4 describes the gap.
 10. **Restart web.** Once `api` is `healthy`: `docker compose up -d --no-deps web`.
@@ -1264,10 +1348,10 @@ Rollback never reverts `postgres`, `redis` or `caddy` image digests automaticall
 
 | Workflow | Schedule | Purpose |
 |---|---|---|
-| `port-scan.yml` | 1st of month | `nmap -Pn -p-` against the droplet's public IP from a GitHub runner; fails unless exactly 80/tcp and 443/tcp are open (doc 24 section 14) |
+| `port-scan.yml` | 1st of month | `nmap -Pn -p-` against the VPS's public IP from a GitHub runner; fails unless exactly 80/tcp and 443/tcp are open (doc 24 section 14). The scan covers both projects, so a port opened by the other project also fails it; an intentional extra port goes into the allowlist file in the same change |
 | Renovate | weekly | Dependency (uv and pnpm) and base-image digest PRs with a 3-day minimum release age (doc 24 section 10) |
 
-There is no CI restore workflow (ADR-022). The restore test is a scripted drill (`restore-verify.sh` into a temporary container) run monthly on the droplet and recorded (section 12.8, doc 23).
+There is no CI restore workflow (ADR-022). The restore test is a scripted drill (`restore-verify.sh` into a temporary container) run monthly on the host (inside `idraft.slice`, so it counts against idraft's share) and recorded (section 12.8, doc 23).
 
 ## 9. Infrastructure monitoring
 
@@ -1275,14 +1359,14 @@ Scope here is the host, containers, disk and memory. Application errors, heartbe
 
 ### 9.1 No on-box metrics agent
 
-Grafana Alloy, Grafana Cloud, the `container-stats` timer and the per-service `/metrics` ports are removed (ADR-022, which supersedes ADR-021). Host signals come from the `seo-hostcheck` timer (section 9.2); application signals come from Sentry, Healthchecks.io and the in-app Operations screen, which reads `ops.collection_tasks`, `ops.collection_runs` and `ops.cost_daily`. Logs stay on the droplet and are read with `docker compose logs`.
+Grafana Alloy, Grafana Cloud, the `container-stats` timer and the per-service `/metrics` ports are removed (ADR-022, which supersedes ADR-021). Host signals come from the `seo-hostcheck` timer (section 9.2); application signals come from Sentry, Healthchecks.io and the in-app Operations screen, which reads `ops.collection_tasks`, `ops.collection_runs` and `ops.cost_daily`. Logs stay on the host and are read with `docker compose logs`.
 
 ### 9.2 Who watches what
 
 | Signal | Detector | Channel |
 |---|---|---|
-| Droplet or Caddy down, TLS broken | Better Stack free: one HTTPS check on `/api/healthz` every 30 s from outside | email, Slack |
-| Host memory, swap, disk, inodes, OOM kills, container health and restarts, pending reboot | `seo-hostcheck.timer` every 5 min pings Healthchecks (success or `/fail` with a reason) | Healthchecks email, Slack |
+| VPS, edge proxy or gateway down, TLS broken | Better Stack free: one HTTPS check on `/api/healthz` every 30 s from outside | email, Slack |
+| `idraft.slice` memory and events; host-wide memory, swap, disk, inodes, load and OOM kills (both projects); container health and restarts; pending reboot | `seo-hostcheck.timer` every 5 min pings Healthchecks (success or `/fail` with a reason) | Healthchecks email, Slack |
 | Planner tick alive | the worker pings Healthchecks from the planner tick | Healthchecks |
 | Maintenance jobs and the `ops_health` SQL checks | the worker pings Healthchecks after each successful run | Healthchecks |
 | Backup and the monthly restore drill | Healthchecks (doc 23) | Healthchecks |
@@ -1291,16 +1375,16 @@ Grafana Alloy, Grafana Cloud, the `container-stats` timer and the per-service `/
 
 Healthchecks free (Hobbyist) allows 20 checks (verified 2026-09-29). The checks named in this document are `backup-nightly`, `restore-drill`, `planner-tick`, `maintenance`, `ops-health` and `host-health`; the full list is in doc 25.
 
-`seo-hostcheck.sh` (host, root, every 5 min) evaluates: root filesystem use, inode use, `MemAvailable`, swap used, CPU use and steal since the last run (from `/proc/stat`), OOM kills in the last 10 minutes (`journalctl -k --since -10min | grep -c 'Out of memory'`), containers not `healthy`, container restart count increase and memory against `mem_limit` (`docker inspect`, `docker stats --no-stream`), and whether `/var/run/reboot-required` has been present for more than 48 h. It keeps a small state file under `/var/lib/seo-hostcheck` for the conditions that need history, including the share of samples with swap in use over the last 7 days (the step 1 trigger). It pings `/fail` with a one-line reason for any critical condition and `/` otherwise, with warnings in the ping body.
+`seo-hostcheck.sh` (host, root, every 5 min) evaluates two scopes. **Host-wide, both projects:** root filesystem use, inode use, `MemAvailable`, swap used, load average, CPU use and steal since the last run (from `/proc/stat`), OOM kills in the last 10 minutes (`journalctl -k --since -10min | grep -c 'Out of memory'`), and whether `/var/run/reboot-required` has been present for more than 48 h. **idraft only:** `idraft.slice` memory (`/sys/fs/cgroup/idraft.slice/memory.current`), its `memory.events` counters (`high`, `max`, `oom_kill`) and `memory.pressure`, the disk used by idraft's volumes, images and logs (section 9.5), containers not `healthy`, container restart count increase and memory against `mem_limit` (`docker inspect`, `docker stats --no-stream`). It also reads the neighbour's slice `memory.current` and `cpu.stat` (read-only) and puts them in the ping body, so an incident note shows who was using what. It keeps a small state file under `/var/lib/seo-hostcheck` for the conditions that need history, including the share of samples with swap in use over the last 7 days, the slice-above-70% days and the count of host `MemAvailable` dips below 2 GB per week (the step 1 triggers). It pings `/fail` with a one-line reason for any critical condition and `/` otherwise, with warnings in the ping body.
 
-An on-box check cannot report that the droplet itself is down; Better Stack (external) and Healthchecks (dead-man pings) cover that.
+An on-box check cannot report that the VPS itself is down; Better Stack (external) and Healthchecks (dead-man pings) cover that.
 
 ### 9.3 In-app ops checks (`ops_health`, every 5 minutes)
 
 These run as the `ops_health` maintenance job on the `process` queue, scheduled by Taskiq's scheduler inside the worker (doc 21 section 10), because they need database and queue knowledge. Detailed definitions are in doc 25.
 
-- `pg_database_size('seo')` against the scaling triggers: notice at 10 GB (step 1), warn at 35 GB, critical at 40 GB (step 2, doc 28 section 7).
-- PostgreSQL buffer cache hit ratio from `pg_stat_database` (`blks_hit / (blks_hit + blks_read)`), tracked daily; under 99% for a week is a step 1 trigger.
+- `pg_database_size('seo')` against the scaling triggers and the disk budget: notice at 20 GB (step 1, move to a dedicated VPS), warn at 45 GB and critical at 60 GB (the PostgreSQL ceiling of the shared host's disk budget, section 9.5), and notice at 100 GB (step 2 on a dedicated host, doc 28 section 7).
+- PostgreSQL buffer cache hit ratio from `pg_stat_database` (`blks_hit / (blks_hit + blks_read)`), tracked daily; under 99% for a week is a supporting signal for step 1 (and a trigger for step 2 on a dedicated host).
 - Lengths of the `collect` and `process` queues, and the age of the oldest dispatched task still waiting in `ops.collection_tasks`.
 - Collection windows that overrun (runs not finished by `window_end`); twice in a month is the step 3 trigger.
 - Stale data: no successful check for 36 hours (daily) or 9 days (weekly), per doc 21 section 9; AI schedules without observations in their window.
@@ -1309,46 +1393,67 @@ These run as the `ops_health` maintenance job on the `process` queue, scheduled 
 
 ### 9.4 Alert thresholds (host and containers)
 
-All rows are evaluated by `seo-hostcheck.sh` at each 5-minute run unless the last column says otherwise. "Consecutive" means consecutive runs.
+All rows are evaluated by `seo-hostcheck.sh` at each 5-minute run unless the last column says otherwise. "Consecutive" means consecutive runs. Rows in the first block are host-wide and count both projects; rows in the second block are idraft's own slice and containers. A host-wide critical is an incident for idraft even when the cause is the neighbour (runbook 12.9).
+
+Host-wide (both projects):
 
 | Metric | Warning | Critical | Evaluated |
 |---|---|---|---|
-| Root disk used | 70% | 85% | each run |
+| Root disk used (193 GB: 135 GB / 164 GB) | 70% | 85% | each run |
 | Inodes used | 70% | 85% | each run |
-| Host CPU (all cores) | 85% | 95% | 2 consecutive runs |
-| CPU steal (shared vCPU) | 10% | 25% | 6 consecutive runs |
-| Load average (5 min) | 3.0 | 5.0 | 3 consecutive runs |
-| `MemAvailable` | below 500 MB | below 250 MB | 2 consecutive runs |
-| Swap used | above 256 MB | above 1 GB | 6 consecutive runs |
+| Host CPU (all 4 vCPU) | 85% | 95% | 2 consecutive runs |
+| CPU steal (the hypervisor shares the physical CPU) | 10% | 25% | 6 consecutive runs |
+| Load average (5 min, 4 vCPU) | 3.5 | 6.0 | 3 consecutive runs |
+| `MemAvailable` (of 15.6 GiB) | below 2 GB | below 1 GB | 2 consecutive runs |
+| Swap used (2 GB, shared) | above 256 MB | above 1 GB | 6 consecutive runs |
+| OOM kill anywhere on the host | 1 in the neighbour's slice | any in `idraft.slice`, or any outside both slices | each run |
+| Reboot pending | 48 h | 7 days | each run |
+| TLS certificate expiry (edge proxy) | 14 days | 7 days | Better Stack, daily |
+
+idraft only:
+
+| Metric | Warning | Critical | Evaluated |
+|---|---|---|---|
+| `idraft.slice` memory (`memory.current`, of 8 GB) | above 70% (5.6 GB) | above `MemoryHigh` (7 GB) | 2 consecutive runs; warning for a week is the step 1 trigger |
+| `idraft.slice` `memory.events` | `high` counter increased | `max` or `oom_kill` counter increased | each run |
+| `idraft.slice` memory pressure (`some avg60`, estimate) | above 10% | above 25% | 3 consecutive runs |
+| idraft disk (volumes, images, logs; budget 90 GB) | 65 GB | 80 GB | each run |
+| PostgreSQL data (`pg_database_size`) | 45 GB | 60 GB | `ops_health` (section 9.3) |
 | Container memory vs `mem_limit` | 90% | OOM kill event | 2 consecutive runs / each run |
 | Container restarts | 1 unexpected restart | 3 in 15 min | rolling |
 | Container unhealthy | 1 run | 2 consecutive runs | each run |
-| Reboot pending | 48 h | 7 days | each run |
-| TLS certificate expiry | 14 days | 7 days | Better Stack, daily |
 
-CPU steal is worth watching on a Basic (shared vCPU) droplet: sustained steal above 25% means noisy neighbours are taking our CPU, and the fix is a resize or the Premium AMD plan ($28 at the same size, verified 2026-09-29), not tuning.
+The 70% and 7 GB rows and the host `MemAvailable` row restate the revisit triggers of ADR-023, so a sustained warning there opens the step 1 planning ticket (section 11). The host load warning of 3.5 on 4 vCPU is the same trigger: more than three occurrences of 15 minutes above it in a week.
+
+CPU steal is worth watching on a virtualised VPS: sustained steal above 25% means the hypervisor is not giving us the vCPU we pay for. The fix is a Hostinger support ticket, a different plan, or moving to a dedicated VPS (step 1), not tuning. High host CPU with low steal and a busy neighbour slice is the fair-share case of section 3.3.
 
 ### 9.5 Disk budget
 
-80 GiB SSD, about 77 GiB usable after the filesystem. Thresholds: warning at 70% (54 GiB), critical at 85% (65 GiB).
+The VPS has one 193 GB disk shared by the host and both projects (8.3 GB used on 2026-10-31, measured). Host-wide thresholds are 70% (135 GB) for warning and 85% (164 GB) for critical, and they count both projects. **idraft's planning budget is 90 GB**; the arithmetic is visible below so the second project's owner can set a budget against the same disk:
+
+| Part of the 193 GB disk | Budget | Control |
+|---|---|---|
+| Host: OS and packages 5, swap file 2, journald 0.5, margin 2.5 | 10 GB | unattended-upgrades removes old kernels; `SystemMaxUse=500M`; swap is shared |
+| Second project (planning figure; its owner confirms) | 93 GB | its own budget and alerts |
+| **idraft** | **90 GB** | rows below |
+| Total | 10 + 93 + 90 = 193 GB | |
+
+idraft's 90 GB:
 
 | Consumer | Budget | Control |
 |---|---|---|
-| OS, packages, kernels | 5 GiB | unattended-upgrades removes old kernels |
-| Docker images (last 3 releases of web, api and worker; Postgres, Redis, Caddy) | 3 to 4 GiB | prune after deploy |
-| Container logs (6 containers) | 1.5 GiB | json-file rotation |
-| journald | 0.5 GiB | `SystemMaxUse` |
-| Swap file | 2 GiB | fixed |
-| Ballast file | 1 GiB | deleted only during a disk-full incident |
-| Redis AOF + RDB | 0.5 GiB | 256 MB maxmemory, AOF rewrite |
-| Raw payload spool (R2 outage buffer) | 5 GiB cap | `SPOOL_MAX_BYTES`; collection pauses when full. Not built yet: fetches wait for R2 instead |
-| PostgreSQL WAL | 2 to 3 GiB | `max_wal_size = 2GB` |
-| PostgreSQL temp files | up to 4 GiB transient | `temp_file_limit` |
-| **Subtotal excluding table data** | **about 21 to 26 GiB** | |
-| **PostgreSQL data + indexes** | **up to about 30 GiB before warning, about 40 GiB before critical** | scaling step 2 at 40 GiB (doc 28 section 7) |
+| Docker images (last 3 releases of web, api and worker; Postgres, Redis, Caddy) | 4 GB | prune after deploy |
+| Container logs (6 containers) | 1.5 GB | json-file rotation |
+| Ballast file | 1 GB | deleted only during a disk-full incident |
+| Redis AOF + RDB | 0.5 GB | 256 MB maxmemory, AOF rewrite |
+| Raw payload spool (R2 outage buffer) | 5 GB cap | `SPOOL_MAX_BYTES`; collection pauses when full. Not built yet: fetches wait for R2 instead |
+| PostgreSQL WAL | 3 GB | `max_wal_size = 2GB` |
+| PostgreSQL temp files | up to 4 GB transient | `temp_file_limit` |
+| **Subtotal excluding table data** | **19 GB** | 4 + 1.5 + 1 + 0.5 + 5 + 3 + 4 |
+| **PostgreSQL data + indexes** | **warning at 45 GB, critical at 60 GB** | 19 + 60 = 79 GB, which leaves 11 GB (12% of 90) for `REINDEX`, `pg_repack`-style maintenance and growth between alerts |
 | Backups | 0 | streamed straight to R2, never staged on disk |
 
-The PostgreSQL ceiling of 40 GiB (doc 03 step 2 trigger) lands close to the 85% critical line. That is intentional: the database trigger should fire before the disk alarm.
+idraft alert lines follow from the table: **warning at 65 GB** (19 + 45 = 64, rounded up) and **critical at 80 GB** (19 + 60 = 79, rounded up), measured by `seo-hostcheck` as the sum of idraft's volumes, images and container logs. The step 1 move to a dedicated VPS fires at a database size of 20 GB (section 11), long before the 60 GB shared-disk ceiling, in every scenario of section 10.5; the ceiling is the backstop if the move is postponed. The 100 GB database trigger of step 2 applies on a dedicated host, whose disk size is to be verified in hPanel before that point. A 90 GB budget is a planning split, not a quota: nothing enforces it except the alerts, and a neighbour that exceeds its own budget can still fill the disk (runbook 12.9).
 
 ## 10. Capacity analysis: is one server sufficient?
 
@@ -1361,6 +1466,8 @@ The PostgreSQL ceiling of 40 GiB (doc 03 step 2 trigger) lands close to the 85% 
 | C | 10,000 keywords daily | same | 300,000 SERPs/month; 52,000 answers/month |
 
 If "1,000 AI prompts per week" means 1,000 answers per week (one engine, one replicate), divide every AI figure below by 12. The conclusion does not change.
+
+The analysis is for idraft's share of the shared Hostinger VPS (ADR-023): 8 GB RAM (soft limit 7 GB), 2 guaranteed vCPU of 4 (up to 4 when the neighbour is idle), and a 90 GB disk budget (section 9.5). The scenario definitions are unchanged from the original single-droplet analysis.
 
 ### 10.2 Assumptions (all estimates; replace with Phase 0 spike measurements S-02, S-04, S-09)
 
@@ -1380,7 +1487,7 @@ If "1,000 AI prompts per week" means 1,000 answers per week (one engine, one rep
 
 ### 10.3 CPU
 
-Daily capacity: 2 vCPU x 86,400 s = 172,800 CPU-seconds.
+Daily capacity: the guaranteed share is 2 vCPU x 86,400 s = 172,800 CPU-seconds (under full contention with the neighbour, `CPUWeight` 100 against 100, section 3.3). With an idle neighbour idraft may use up to 4 vCPU, or 345,600 CPU-seconds, so the percentages below are against the worst case.
 
 | Item | A | B | C |
 |---|---|---|---|
@@ -1388,11 +1495,11 @@ Daily capacity: 2 vCPU x 86,400 s = 172,800 CPU-seconds.
 | AI processing, daily average (1,715 answers x 150 ms) | 257 s | 257 s | 257 s |
 | Rollups and alert evaluation | 50 s | 100 s | 150 s |
 | Background (0.1 vCPU all day) | 8,640 s | 8,640 s | 8,640 s |
-| **Total per day** | **about 9,050 s (5%)** | **about 9,500 s (5.5%)** | **about 10,050 s (5.8%)** |
+| **Total per day** | **about 9,050 s (5.2%)** | **about 9,500 s (5.5%)** | **about 10,050 s (5.8%)** |
 | Worst hour: all SERPs of the day land in one hour | 0.03 vCPU | 0.14 vCPU | 0.28 vCPU |
 | Worst window: the weekly AI batch (12,000 answers) in 6 h | 0.08 vCPU | 0.08 vCPU | 0.08 vCPU |
 
-Ingest ceiling: the worker is one Python process, so its Python-side work uses about one core at a time. At about 50 ms of Python CPU per SERP it can ingest about 20 SERPs per second (72,000 per hour). Scenario C's worst hour is 10,000 SERPs, a 7x margin. CPU is not the constraint in any scenario, even if the per-item estimates are off by 3x.
+Ingest ceiling: the worker is one Python process, so its Python-side work uses about one core at a time, which the guaranteed 2 vCPU still provide while PostgreSQL, `api` and `web` share the other core. At about 50 ms of Python CPU per SERP it can ingest about 20 SERPs per second (72,000 per hour). Scenario C's worst hour is 10,000 SERPs, a 7x margin. Total daily use is 5.2% to 5.8% of the guaranteed 172,800 s (9,050 / 172,800 = 5.2%; 9,500 / 172,800 = 5.5%; 10,050 / 172,800 = 5.8%). CPU is not the constraint in any scenario, even if the per-item estimates are off by 3x and the neighbour is busy all day. What changes against the old droplet is the variance, not the mean: the shared hypervisor and the neighbour make latency less predictable, which is why steal and load are alerted (section 9.4).
 
 ### 10.4 Database writes
 
@@ -1405,7 +1512,7 @@ Ingest ceiling: the worker is one Python process, so its Python-side work uses a
 | Weekly AI batch in 6 h (12,000 x 40 rows) | 22 rows/s | 22 rows/s | 22 rows/s |
 | WAL per day (about 30 KB per SERP with `wal_compression`) | 30 MB | 150 MB | 300 MB |
 
-A PostgreSQL 18 instance on SSD handles thousands of small commits per second; 150 rows per second is far below that. `max_wal_size = 2GB` means checkpoints are driven by `checkpoint_timeout` (15 min), not WAL volume.
+A PostgreSQL 18 instance on SSD handles thousands of small commits per second; 150 rows per second is far below that. `max_wal_size = 2GB` means checkpoints are driven by `checkpoint_timeout` (15 min), not WAL volume. The shared disk is the new variable: disk I/O is not isolated between the projects (section 3.3), so a neighbour's heavy write job can slow idraft's fsyncs. At these write rates this shows as latency, not as lost throughput; `track_io_timing` and `log_checkpoints` (section 4.2) are how it is noticed.
 
 ### 10.5 Storage growth
 
@@ -1417,47 +1524,53 @@ A PostgreSQL 18 instance on SSD handles thousands of small commits per second; 1
 | **PostgreSQL growth per month** | **0.93 GB** | **1.77 GB** | **2.82 GB** |
 | PostgreSQL size at 12 months (x 1.15, plus 0.5 GB base) | 13 GB | 25 GB | 39 GB |
 | PostgreSQL size at 24 months | 26 GB | 49 GB | 78 GB |
-| Month when PostgreSQL passes 10 GB (step 1 trigger) | about 9 | about 5 | about 3 |
-| Month when PostgreSQL reaches 40 GB (step 2 trigger) | not within 24 | about 19 | about 12 |
+| Month when PostgreSQL passes 20 GB (step 1 trigger) | about 19 | about 10 | about 6 |
+| Month when PostgreSQL reaches 45 GB (warning on the shared disk) | about 42 | about 22 | about 14 |
+| Month when PostgreSQL reaches 60 GB (critical on the shared disk) | about 56 | about 29 | about 19 |
+| Month when PostgreSQL reaches 100 GB (step 2 trigger, on a dedicated host) | about 93 | about 49 | about 31 |
 | R2 `seo-raw`: SERP payloads (x 45 KB) | 1.4 GB | 6.8 GB | 13.5 GB |
 | R2 `seo-raw`: AI payloads (x 15 KB) | 0.8 GB | 0.8 GB | 0.8 GB |
+
+The month figures solve size(m) = 0.5 GB + m x (monthly growth x 1.15): 1.07, 2.04 and 3.24 GB per month for A, B and C. For example, scenario B reaches 20 GB at (20 - 0.5) / 2.04 = month 9.6, so month 10, and scenario C reaches 60 GB at (60 - 0.5) / 3.24 = month 18.4, so month 19.
 
 R2 retention per class and its cost are in doc 23 sections 9 and 14. Shared fetches (doc 04 section 11.3) reduce SERP payload volume when several projects track the same keyword and location.
 
 ### 10.6 Memory pressure
 
-Memory does not grow with write volume but with the read working set. The hot set is current-state tables, rollups and the last 7 to 14 days of partitions. In scenario C, 90-day domain rank history is about 5.4 million rows (10,000 keywords x 6 entities x 90 days), roughly 1.5 GB with indexes, which exceeds `shared_buffers` (768 MB) plus page cache (under 1 GB). Dashboards stay fast because they read rollups, but ad hoc 90-day drill-downs will read from disk. In practice the 10 GB database trigger (step 1, section 11) fires first in every scenario (section 10.5), so the host is already at 8 GB with `shared_buffers = 2GB` before the working set outgrows the cache. The "cache hit ratio under 99% for a week" trigger is the backstop if the working set grows faster than the database.
+Memory does not grow with write volume but with the read working set. The hot set is current-state tables, rollups and the last 7 to 14 days of partitions. In scenario C, 90-day domain rank history is about 5.4 million rows (10,000 keywords x 6 entities x 90 days), roughly 1.5 GB with indexes, which now fits in `shared_buffers` (2 GB) with about 0.5 GB to spare, where the old 4 GB profile (768 MB) could not hold it. The working set outgrows the cache when the hot set passes about 2 GB of shared buffers plus roughly 0.5 to 0.9 GB of page cache left inside the 3000m container (section 3.1), for example when scenario C's rank history, the last 14 days of partitions and the rollups are read together. Dashboards stay fast because they read rollups, but ad hoc 90-day drill-downs beyond that read from disk. The slice has room to grow the database container (the sum of limits is 5.2 GB of the 7 GB soft limit), but raising `PG_MEM` and `shared_buffers` takes memory from the neighbour's side of the host, so it is a step 1 conversation, not a local change. The 20 GB database trigger (step 1, section 11) fires first in every scenario (section 10.5), and the "cache hit ratio under 99% for a week" signal is the backstop if the working set grows faster than the database. The binding memory limit is therefore the 8 GB share itself, not the host's 16 GB.
 
 ### 10.7 Verdict
 
-| Scenario | One droplet sufficient? | Binding constraint | Expected action |
+| Scenario | Is the 8 GB, 2 vCPU share of the shared VPS sufficient? | Binding constraint | Expected action |
 |---|---|---|---|
-| A | Yes, for at least 24 months | database size against the 10 GB resize trigger | step 1 (8 GB) around month 9 |
-| B | Yes, for about 19 months | database size, then disk | step 1 around month 5; step 2 (Volume, then a database droplet) around month 19 |
-| C | Yes, for about 12 months | database size, then disk | step 1 around month 3; step 2 around month 12 |
+| A | Yes, for at least 24 months (the database is about 26 GB at month 24, under the 60 GB critical line) | the 20 GB database trigger at month 19, a policy line; the hardware does not bind within 24 months. The shared disk would bind at month 56 | step 1 (dedicated 16 GB VPS) around month 19, earlier if the memory or load triggers fire |
+| B | Yes, for about 10 months on the share; the disk would allow about 29 | the 20 GB database trigger at month 10, then the 90 GB disk budget (60 GB database) at month 29 | step 1 around month 10; step 2 (dedicated 32 GB VPS or the database on its own host) around month 49 |
+| C | Yes, for about 6 months on the share; the disk would allow about 19 | the 20 GB database trigger at month 6, then the disk budget at month 19; memory next (hot set against the 2 GB `shared_buffers`) | step 1 around month 6; step 2 around month 31 |
 
-CPU, write throughput and network are not constraints in any scenario. If the Phase 0 spikes measure payloads or row sizes more than 50% above these assumptions, recompute this table before committing to scenario C on the $24 droplet.
+CPU, write throughput and network are not constraints in any scenario: CPU stays near 6% of the guaranteed 2 vCPU. What binds is database size, first against the 20 GB trigger (which exists so that the move happens as a plan) and then against the disk budget. Memory is the next constraint after that, not the first, because the working set of scenario C fits in `shared_buffers` for now. Compared with the old single droplet (4 GB, 80 GB disk) the verdicts improve for A and B on the time axis only because the trigger is 20 GB instead of 10 GB; they worsen on the shared-host risk (section 13), which no scenario figure captures. If the Phase 0 spikes measure payloads or row sizes more than 50% above these assumptions, recompute this table before committing to scenario C on the shared host.
 
 ## 11. Scaling triggers
 
-Step numbers match doc 03 section 10, and trigger values are the canonical ones in doc 28 section 7, fixed by ADR-022 (ClickHouse: doc 28 section 8). This table adds how each trigger is measured on this host. A fired trigger opens a planning ticket, not an emergency.
+Step numbers match doc 03 section 10 and doc 28 section 7, and trigger values are the canonical ones in doc 28 section 7, fixed by ADR-022 and, for steps 1 and 2, amended by ADR-023 (ClickHouse: doc 28 section 8). The original steps 1 and 2 (resize the droplet, attach a Volume) no longer exist; the same numbers now mean "dedicated 16 GB VPS" and "dedicated 32 GB VPS or database on its own host". This table adds how each trigger is measured on this host. A fired trigger opens a planning ticket, not an emergency.
 
 | Step | Change | Trigger (any one; values from doc 28 section 7) | Measured by |
 |---|---|---|---|
-| 1 | Resize to `s-4vcpu-8gb` ($48/month, verified 2026-09-29), CPU and RAM only, keep 80 GB disk so the resize is reversible (runbook 12.4) | Swap in steady use; PostgreSQL buffer cache hit ratio under 99% for a week; the database over 10 GB | hostcheck swap samples over 7 days; `ops_health`: `pg_stat_database` (`blks_hit / (blks_hit + blks_read)`) and `pg_database_size` |
-| 2 | Attach a DO Volume for PostgreSQL data ($0.10/GiB-month, verified 2026-09-29; 100 GiB = $10/month); then move PostgreSQL to its own droplet with the Volume and private VPC networking | The database over 40 GB | `ops_health` (`pg_database_size`), hostcheck disk use |
+| 1 | Move idraft to its own dedicated 16 GB VPS (provision, run `infra/bootstrap.sh`, restore the latest R2 dump, switch DNS; runbook 12.4). The baseline profile carries over unchanged and the 8 GB cap can be relaxed there | Any one of the revisit triggers of ADR-023: `idraft.slice` memory above 70% of 8 GB for a week, or swap in steady use; host `MemAvailable` under 2 GB more than twice a week; host load average above 3.5 for 15 minutes more than three times a week; the idraft database over 20 GB; the other project needing more than its half; the tool offered to outside customers (step 6). Supporting signal: PostgreSQL buffer cache hit ratio under 99% for a week | hostcheck slice and host samples over 7 days (section 9.4); `ops_health`: `pg_database_size` and `pg_stat_database` (`blks_hit / (blks_hit + blks_read)`) |
+| 2 | Move to a dedicated 32 GB VPS (same procedure as step 1, with `PG_MEM`, `shared_buffers` and `effective_cache_size` raised in a new profile file), or put PostgreSQL on its own host (private networking or a firewall allowlist between the two; verify in hPanel what the plan offers) | On the dedicated 16 GB VPS: swap in steady use, buffer cache hit ratio under 99% for a week, or the database over 100 GB (doc 28 section 7). The disk size of the dedicated host is verified in hPanel before this point | `ops_health` (`pg_database_size`, cache hit ratio), hostcheck disk and swap use |
 | 3 | Raise worker concurrency (`process` first, section 4.4); then a second `worker` container against the same PostgreSQL and Redis | The collection window overruns twice in a month | `ops_health` over `ops.collection_runs` (runs not finished by `window_end`), Operations screen |
 | 4 | Profile the query first; a second `api` container behind Caddy is the last resort | API p95 over 300 ms on the overview with rollups in place | Sentry performance (10% sampling) |
 | 5 | Add ClickHouse fed by batch export or CDC; PostgreSQL remains the ledger | Any two of the five conditions in doc 28 section 8 for 30 days (for example observation rows above 500 million and dashboard p95 above 1 s after rollup and index tuning) | `pg_class.reltuples` sum, doc 25 |
 | 6 | API keys, envelope encryption of tenant credentials, PITR, GFS backups | The tool is offered to outside companies | business decision |
 
-Host incidents are not scaling triggers, but they usually point at one: an OOM kill of `postgres` or `api`, or `MemAvailable` critical more than twice a week, means step 1 is due; CPU steal above 25% on several days a week means a resize or the Premium AMD plan (section 9.4).
+Host incidents are not scaling triggers, but they usually point at one: an OOM kill of `postgres` or `api` in `idraft.slice`, or host `MemAvailable` critical more than twice a week, means step 1 is due; CPU steal above 25% on several days a week means a support ticket with Hostinger or step 1 (section 9.4). The triggers measure the whole host, not only idraft, so the cause may be the neighbour: the first response is runbook 12.9, and step 1 is the answer when the neighbour's behaviour is not fixable.
+
+Step 1 is a planned move, not an emergency: the stack is Compose, the data is in nightly dumps in R2, and the move needs a provisioned VPS, about 15 minutes of bootstrap (section 6.6) and a restore (doc 23 section 11). Plan it when the first trigger fires, not when the last one does.
 
 A contractual RPO below 24 hours is the trigger for PITR with pgBackRest and WAL archiving (doc 23 section 13); it arrives with step 6 unless a contract requires it earlier.
 
 ## 12. Runbooks
 
-All commands run as `deploy` in `/opt/seo-platform/src/infra/compose` with `C="sudo docker compose --env-file /etc/seo-platform/.env --env-file /opt/seo-platform/release.env --env-file profiles/4gb.env"`. Compose needs root because it reads `/etc/seo-platform/.env` for interpolation; an operator's sudo asks for the `deploy` password. `ops` below stands for the ops CLI in the worker container: `$C exec worker python -m idraft.worker.cli`.
+All commands run as `deploy` in `/opt/seo-platform/src/infra/compose` with `C="sudo docker compose --env-file /etc/seo-platform/.env --env-file /opt/seo-platform/release.env --env-file profiles/8gb.env"` (the baseline profile; `4gb.env` is for laptops and CI only). Compose needs root because it reads `/etc/seo-platform/.env` for interpolation; an operator's sudo asks for the `deploy` password. `ops` below stands for the ops CLI in the worker container: `$C exec worker python -m idraft.worker.cli`.
 
 ### 12.1 Restart a service
 
@@ -1499,17 +1612,20 @@ Platform secrets are GitHub Actions `production` environment secrets; a deploy r
 
 Key-encryption keys (`KEK_vN`) arrive with envelope encryption of tenant credentials in Phase 12 (ADR-022 deferred list); doc 24 section 5.2 holds their rotation procedure.
 
-### 12.4 Resize the droplet (step 1)
+### 12.4 Move idraft to a dedicated VPS (step 1, or step 2 with a larger plan)
 
-1. Announce a 5 to 10 minute maintenance window; pick a time outside the heaviest collection window.
-2. `$C stop worker web api` (graceful), then `$C stop postgres redis caddy`.
-3. `doctl compute droplet-action power-off <droplet-id> --wait`
-4. `doctl compute droplet-action resize <droplet-id> --size s-4vcpu-8gb --wait` (no `--resize-disk`, so a later downsize stays possible).
-5. `doctl compute droplet-action power-on <droplet-id> --wait`
-6. Commit `infra/compose/profiles/8gb.env` (Postgres `mem_limit` 3000m, worker `mem_limit` 768m) and `postgresql.conf` changes: `shared_buffers = 2GB`, `effective_cache_size = 5GB`, `work_mem = 16MB`, `maintenance_work_mem = 256MB`, `max_connections = 80`. Point `deploy.sh` at the new profile and deploy.
-7. Verify health, `free -m`, and the hostcheck memory and swap readings over the next collection window.
+Prerequisites: a fired trigger (section 11), a new Hostinger VPS of 16 GB (step 1) or 32 GB (step 2) ordered in hPanel with the same Ubuntu 24.04 image (plan and price: verify in hPanel), and a recent successful nightly dump in R2. The old stack keeps serving until DNS switches, so the move needs no old-host downtime except the final data sync.
 
-Measured downtime target: under 10 minutes.
+1. **Provision.** Add the new VPS to the Tailscale tailnet by hand, or let bootstrap do it (step 8 of section 6.6). Take a manual snapshot of the old host first.
+2. **Bootstrap.** Clone the repo, run `infra/bootstrap.sh` as root. The slice unit is installed but its limits are set for the whole VPS (`MemoryHigh`/`MemoryMax` raised, or `cgroup_parent` left in place with a larger cap). Decide the edge proxy: on a dedicated host the gateway can own ports 80 and 443 with `auto_https` on, or keep the same edge proxy design as the old host.
+3. **Profile.** For 16 GB keep the baseline profile (`profiles/8gb.env`). For 32 GB commit `infra/compose/profiles/32gb.env` with raised `PG_MEM`, `shared_buffers` (about 8 GB) and `effective_cache_size`, and select it in `deploy.sh`.
+4. **Secrets and first deploy.** Run the normal deploy path (section 8.3): it writes `/etc/seo-platform/.env` from the GitHub `production` environment, pulls the images by digest and initialises an empty PostgreSQL. Use `deploy.sh bootstrap` if the database is restored before the application starts (doc 23 section 11).
+5. **Final sync and restore.** Announce a short maintenance window. On the old host: `ops queue pause collect`, wait for the queues to drain, then `systemctl start seo-backup.service` for a last dump. On the new host: restore that dump from R2 (`restore-verify.sh` in restore mode, doc 23 section 11). Typical size at the 20 GB trigger is 20 GB of database, so allow the restore time measured in the last monthly drill.
+6. **Verify.** `$C ps` all healthy, `curl -fsS https://<domain>/api/healthz` against the new IP with `--resolve <domain>:443:<new ip>`, sign in, open the Operations screen, compare row counts of the largest tables with the old host.
+7. **Switch DNS.** Lower the TTL a day ahead (to 300 s), then point the A record at the new IP, with the old IP kept alive for the TTL. Resume collection on the new host (`ops queue resume collect`); remember `INSTALLATION_ID`: the restored copy keeps `prod`, and the old host must stay paused until it is retired, so two installations never submit provider tasks at once.
+8. **Retire.** After 7 days with no traffic on the old edge proxy: stop idraft's stack on the old host (`$C down`, never `down -v` before the new host has run one full backup cycle), remove `idraft.slice` and idraft's volumes, hand the freed share back to the neighbour, and update doc 28 section 7 and this document's budgets.
+
+Measured downtime target: under 30 minutes from pausing collection to the first request on the new host, dominated by the dump and restore of the database at its size at that time.
 
 ### 12.5 Open a PostgreSQL shell
 
@@ -1535,7 +1651,7 @@ Symptoms: PostgreSQL `PANIC: could not write to file`, Redis `MISCONF` or AOF wr
 4. **Never** delete files under `pg_wal`, never run `VACUUM FULL` on a full disk (it needs free space equal to the table), never delete Redis AOF files by hand.
 5. **Restart what failed.** `$C restart postgres` if it stopped; for Redis, once space exists: `$C exec redis redis-cli --user admin BGREWRITEAOF`.
 6. **Restore the ballast** (`fallocate -l 1G /var/lib/seo-ballast/ballast`) once usage is below 70%.
-7. **Structural fix.** If usage is still above the 70% warning line after cleanup, bring step 2 forward (attach a Volume, section 11) and write a post-incident note.
+7. **Structural fix.** If idraft is above its 65 GB warning line (section 9.5) after cleanup, bring step 1 forward (dedicated VPS, section 11) and write a post-incident note. If the disk is full because of the neighbour, follow runbook 12.9 first: the cleanups above only free idraft's own files.
 
 ### 12.7 Drain or pause collection
 
@@ -1543,7 +1659,20 @@ Symptoms: PostgreSQL `PANIC: could not write to file`, Redis `MISCONF` or AOF wr
 
 ### 12.8 Monthly maintenance window
 
-First Tuesday of the month, 05:00 UTC, 30 minutes: upgrade Docker Engine packages (`apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin`; `live-restore` keeps containers up), merge Renovate PRs for the Caddy, Postgres and Redis digests (a PostgreSQL minor upgrade restarts the database for 10 to 30 s), check `ssh -V`, review the hostcheck warnings of the past month and the disk budget, and run the monthly restore drill (`restore-verify.sh` into a temporary container, doc 23) and record the result.
+First Tuesday of the month, 05:00 UTC, 30 minutes, announced to the second project because a Docker Engine upgrade and any reboot touch both stacks: upgrade Docker Engine packages (`apt-get install --only-upgrade docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin`; `live-restore` keeps containers up), merge Renovate PRs for the Caddy, Postgres and Redis digests (a PostgreSQL minor upgrade restarts the database for 10 to 30 s), check `ssh -V`, review the hostcheck warnings of the past month and the disk budget, and run the monthly restore drill (`restore-verify.sh` into a temporary container, doc 23) and record the result.
+
+### 12.9 Neighbour incident: the other project is eating the host
+
+Symptoms: a host-wide alert (`MemAvailable`, load, disk, swap, steal; section 9.4) while `idraft.slice` itself is within its limits; slow API responses with normal idraft logs; the `memory.events` counters of `idraft.slice` flat. Work as `deploy` unless a command says root. Do not stop, restart or signal the neighbour's containers or processes without its owner's agreement, except where step 6 says it is an emergency.
+
+1. **Confirm it is host-wide and not idraft.** `uptime`; `free -m`; `df -h /`; `cat /sys/fs/cgroup/idraft.slice/memory.current /sys/fs/cgroup/idraft.slice/memory.events`; the hostcheck ping body lists both slices' memory and CPU.
+2. **See who uses what.** `systemctl status idraft.slice` and the neighbour's slice; `systemd-cgtop -m -n 1` (memory by slice) and `systemd-cgtop -n 1` (CPU); `sudo docker stats --no-stream` (all containers on the host, both projects; idraft's are `seo-*`); `ps -eo pid,user,pcpu,pmem,cmd --sort=-pcpu | head -15`.
+3. **Read the logs.** `journalctl -k --since -30min | grep -i -E 'out of memory|oom|killed process'` shows which cgroup lost a process; `journalctl -u docker --since -30min`; `sudo journalctl --disk-usage`; `docker compose logs --since 30m` for idraft's services.
+4. **Disk.** `df -h /; df -i /; sudo du -xh --max-depth=2 /var/lib/docker | sort -h | tail`. Compare with idraft's 90 GB budget (section 9.5): `sudo du -sh /var/lib/docker/volumes/seo_*`. If the disk is full and the cause is the neighbour, free idraft's ballast (runbook 12.6, step 1) to keep PostgreSQL alive and contact the owner.
+5. **Protect idraft first.** Confirm `postgres` still has `oom_score_adj` -500 (`cat /proc/$(pgrep -o postgres)/oom_score_adj`). If memory is the problem and the neighbour will not act, pause idraft's own heavy work to shrink the load: `ops queue pause collect` (runbook 12.7) and, if swap is thrashing, `$C stop worker`. Queues wait in Redis and the reconciler recovers anything interrupted.
+6. **Throttle the neighbour (with its owner's agreement, or as an emergency when the host is unreachable).** CPU: `sudo systemctl set-property <neighbour>.slice CPUWeight=20` (lets idraft win under contention without stopping anything; undo with `CPUWeight=100`). Memory: `sudo systemctl set-property <neighbour>.slice MemoryHigh=<value>` reclaims and throttles it before its `MemoryMax`. Hard stop only in an emergency, when ssh and the API are failing: `docker stop <container>` for the named runaway container. Write down every change and the time.
+7. **Recover.** Once `MemAvailable`, load and disk are back below the warning lines for 30 minutes, resume `ops queue resume collect`, check `$C ps` all healthy and that the stale-data check recovers on the Operations screen.
+8. **Afterwards.** A post-incident note with the cause, what was throttled, what idraft lost, and whether a revisit trigger of ADR-023 was met (section 11). A second incident in a month is a reason to move to a dedicated VPS (step 1), or to tighten the neighbour's slice limits with its owner.
 
 ## 13. Concerns and cross-document adjustments
 
@@ -1552,11 +1681,16 @@ First Tuesday of the month, 05:00 UTC, 30 minutes: upgrade Docker Engine package
 > 1. **Platform secrets sit on disk and pass through CI.** ADR-022 replaces SOPS files decrypted to tmpfs with a root-only `/etc/seo-platform/.env` written from GitHub Actions environment secrets. The GitHub `production` environment now holds production secrets, and they appear in container config on the host (section 7.3). Accepted for V1; the controls are the 0600 root-owned file, the forced-command SSH key, Tailscale-only SSH and GitHub environment protection.
 > 2. **No public callback route.** Readiness is polling only (ADR-022), so the tokenized, IP-allowlisted pingback route and its Caddy rules are gone. Rate limiting stays in the API with Redis, because the official Caddy image has no rate-limit module and doc 24 section 10 allows official images only.
 > 3. **Docker socket and monitoring.** Doc 24 section 9 forbids mounting the Docker socket into containers. No monitoring agent runs on the host or in a container (ADR-022); the host check is a root systemd timer that reads container state with `docker inspect` (section 9.2).
-> 4. **Log retention is size-based.** Doc 24 section 11 promises 14 days of logs on the droplet. json-file rotation cannot guarantee a time window. The sizes in section 5.3 are chosen to hold about 14 days at V1 volume; a weekly check reports actual retention. Doc 24 section 11 now says "about 14 days at expected volume, size-capped".
+> 4. **Log retention is size-based.** Doc 24 section 11 promises 14 days of logs on the host. json-file rotation cannot guarantee a time window. The sizes in section 5.3 are chosen to hold about 14 days at V1 volume; a weekly check reports actual retention. Doc 24 section 11 now says "about 14 days at expected volume, size-capped".
 > 5. **Redis `requirepass`.** Doc 24 section 9 says Redis requires a password. With an ACL file the default user is disabled and every client uses a named user with a hashed password. Same intent, different mechanism; doc 24 section 9 now describes the ACL mechanism.
-> 6. **`vm.overcommit_memory = 1`** is required by Redis but PostgreSQL's docs prefer strict overcommit. Mitigated with per-container memory limits and `oom_score_adj`; revisit when PostgreSQL moves to its own droplet (step 2), where mode 2 becomes possible.
-> 7. **Shared vCPU.** Basic droplets share CPU. Steal time is monitored (section 9.4); Premium AMD at $28 is the cheap fix if steal becomes chronic.
-> 8. **Database size, not CPU, limits scenario C.** At 10,000 keywords daily with the AI workload, PostgreSQL passes the 10 GB resize trigger around month 3 and reaches the 40 GB trigger around month 12 (section 10.5). Budget the 8 GB droplet from the start and step 2 in the second half of year 1 if scenario C is the plan.
-> 9. **Tailscale is a third party in the SSH path.** A Tailscale outage falls back to the break-glass allowlist rule or the DO web console (section 6.1). Its free-plan user limits were not verified in research 08; confirm before relying on it for more than a few engineers.
+> 6. **`vm.overcommit_memory = 1`** is required by Redis but PostgreSQL's docs prefer strict overcommit. Mitigated with per-container memory limits and `oom_score_adj`; revisit when PostgreSQL moves to its own host (step 2) or idraft to a dedicated VPS (step 1), where mode 2 becomes possible. On the shared host the sysctl also applies to the neighbour (section 5.2).
+> 7. **Shared and virtualised vCPU.** The 4 vCPU are shared with the second project and with the hypervisor's other tenants. Steal time and load are monitored (section 9.4); a Hostinger ticket or step 1 is the fix if steal becomes chronic.
+> 8. **Database size, not CPU, limits scenario C.** At 10,000 keywords daily with the AI workload, PostgreSQL passes the 20 GB step 1 trigger around month 6 and the 60 GB shared-disk ceiling around month 19 (section 10.5). Plan the move to a dedicated VPS for the first half of year 1 if scenario C is the plan.
+> 9. **Tailscale is a third party in the SSH path.** A Tailscale outage falls back to the break-glass allowlist rule or the hPanel console (section 6.1). Its free-plan user limits were not verified in research 08; confirm before relying on it for more than a few engineers.
 > 10. **Two application roles.** Resolved on 2026-09-30: `app_api` is subject to RLS and `app_worker` bypasses it (section 4.2 and doc 04 section 13). Nothing to confirm.
 > 11. **Host check heartbeat.** ADR-022 names Healthchecks.io for the planner tick, backups, maintenance and the `ops_health` checks. This doc keeps the existing `seo-hostcheck` timer and its `host-health` check as well, because without a metrics agent it is the only source for the swap, memory and disk signals that the step 1 and step 2 triggers depend on.
+> 12. **Shared host blast radius (ADR-023).** The VPS is a single point of failure and now also a shared one: a mistake by the second project (fork bomb, disk fill, bad firewall or `daemon.json` change, reboot, a `docker` group member running the wrong command) is an idraft incident, and the reverse is true. Mitigations: `idraft.slice` memory cap and CPU weight (section 5.4), disk alerts that count both projects (section 9.4), per-project deploy users and Compose projects, `oom_score_adj` protecting `postgres`, R2 dumps that do not depend on the host, and runbook 12.9. What is not isolated: disk space, disk I/O and the `docker` group (root-equivalent for the whole host). Accepted for V1; a second incident in a month is a reason to take step 1.
+> 13. **Hostinger plan details are unverified.** The price (and so H in section 1), the included snapshots or backups and their retention, in-place plan upgrade, the hPanel firewall's rule limits and default, the console access, outbound network limits and the disk size of a dedicated plan are not recorded in these docs. They are open items for the owner (doc 30) and are marked "verify in hPanel" wherever they are used. No section depends on a snapshot being the only copy.
+> 14. **Edge proxy is an open decision (D-H2).** Ports 80 and 443 are owned by one host-level proxy, either today's nginx or a host-level Caddy (doc 30). The choice affects who renews certificates, how `X-Forwarded-For` is set (section 4.5), whether HTTP/3 is served, and who may reload it. Until it is decided, nothing in this document assumes more than: it terminates TLS, routes by hostname, overwrites `X-Forwarded-For` with the real client address, and forwards idraft's hostnames to `127.0.0.1:${GATEWAY_PORT}`. A change to its configuration is a change to both projects.
+> 15. **`effective_cache_size = 5GB` exceeds the container's cache.** The baseline profile (ADR-023) sets it for an 8 GB share, but `postgres` runs in a 3000m container whose limit also covers page cache, so the memory available as cache is about 0.5 to 0.9 GB beyond `shared_buffers = 2GB` (section 3.1). It is a planner hint and does no harm, but it can favour index scans that miss cache. Measure the buffer cache hit ratio (section 9.3) in the first weeks; if it is poor, raise `PG_MEM` within the slice (the sum of limits has about 1.8 GB spare) or lower the hint.
+> 16. **The gateway sees the bridge address, not loopback.** The Caddyfile trusts `172.30.20.1` as well as loopback because Docker NAT rewrites the source address of the edge proxy's connection (section 4.1). If a deploy changes the `edge` subnet, update `trusted_proxies` in the same change, or the real client address is lost and the sign-in throttle (doc 24 section 2) collapses to one address.

@@ -1,10 +1,10 @@
 # 28. Data Growth and Scaling
 
 Status: Draft for architecture freeze
-Last updated: 2026-09-30
-Related: [04-data-model.md](04-data-model.md) section 12, [22-infrastructure-devops.md](22-infrastructure-devops.md), [23-backup-disaster-recovery.md](23-backup-disaster-recovery.md), [27-cost-model.md](27-cost-model.md), [03-system-architecture.md](03-system-architecture.md) section 10, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)
+Last updated: 2026-10-31
+Related: [04-data-model.md](04-data-model.md) section 12, [22-infrastructure-devops.md](22-infrastructure-devops.md), [23-backup-disaster-recovery.md](23-backup-disaster-recovery.md), [27-cost-model.md](27-cost-model.md), [03-system-architecture.md](03-system-architecture.md) section 10, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [ADR-023](adr/ADR-023-shared-hostinger-vps.md)
 
-All sizes below are **estimates** from row layouts in doc 04 and typical payload sizes. Spikes S-02 (SERP payloads), S-04 (AI payloads) and S-09 (synthetic dataset on the target droplet) replace them with measurements in Phase 0. The formulas are kept so the projection can be recomputed.
+All sizes below are **estimates** from row layouts in doc 04 and typical payload sizes. Spikes S-02 (SERP payloads), S-04 (AI payloads) and S-09 (synthetic dataset on the target host) replace them with measurements in Phase 0. The formulas are kept so the projection can be recomputed.
 
 ## 1. Per-unit storage estimates (PostgreSQL, including indexes)
 
@@ -68,20 +68,34 @@ Checks per month = keywords x checks per month (30 for daily profiles). Rows per
 | 100,000 AI observations per month | 100,000 | 1.3 GB | 16 GB |
 | 1,000,000 AI observations per month | 1,000,000 | 13 GB | 160 GB |
 
-### 2.3 Combined scenarios on the 80 GB droplet
+### 2.3 Combined scenarios on idraft's disk budget
 
 Scenario letters in this section are this document's own; doc 22 section 10.1 and doc 23 section 14 use different A, B, C definitions (4 engines x 3 replicates, 15 KB per AI payload), so their numbers are not comparable row by row.
 
-Usable disk for PostgreSQL data on the 80 GB droplet: about 40 GB before the critical disk alert, per the disk budget in [22](22-infrastructure-devops.md) section 9.5 (OS and Docker images, WAL, logs, spool, swap file, and free-space reserve for vacuum and index rebuilds).
+**Disk budget ([ADR-023](adr/ADR-023-shared-hostinger-vps.md)).** The Hostinger VPS has 193 GB of disk shared with a second project. idraft plans on **90 GB**; the rest (103 GB) is the OS and the other project. Measured on 2026-10-31 (idle): 8.3 GB used on the whole disk, database 15 MB. Inside the 90 GB, PostgreSQL gets about **60 GB before the critical alert**:
 
-| Scenario | PG growth per year | Time until 40 GB (from empty) | Action |
-|---|---|---|---|
-| A. 1,000 keywords daily + 1,000 prompts/week | about 5 GB | about 8 years | none |
-| B. 5,000 keywords daily + 1,000 prompts/week | about 15 GB | about 2.7 years | none in year 1; Volume or DB droplet in year 2 |
-| C. 10,000 keywords daily + 5,000 prompts/week | about 49 GB | about 10 months | attach a DO Volume (100 GB, $10/month) or move PG to its own droplet in year 1 |
-| D. 100,000 rankings daily + 1M AI obs/month | about 410 GB | about 5 weeks | dedicated database host; plan ClickHouse for observation analytics |
+| Part of the 90 GB budget | GB |
+|---|---|
+| Docker images, application logs, spool, backup staging | 8 |
+| WAL and temporary files | 6 |
+| Free-space reserve for vacuum, index rebuilds and partition moves (about 25% of the budget) | 16 |
+| **PostgreSQL data usable before the critical alert** | **60** |
+| Total | 90 |
 
-The 40 GB column is the storage step (step 2 in section 7). The resize to 8 GB (step 1) fires much earlier, when the database passes 10 GB: within the first year in every scenario above.
+This split is a planning figure; the detailed budget and alert thresholds are in [22](22-infrastructure-devops.md) section 9.5. Raw SERP and AI payloads are in Cloudflare R2 per [ADR-004](adr/ADR-004-raw-payloads-r2.md), so they do not use this disk. The step 1 trigger (database over 20 GB) is set at one third of the 60 GB so a move to a dedicated host happens with room to spare.
+
+Time until limit = limit / PG growth per year (from empty):
+
+| Scenario | PG growth per year | Time until 20 GB (step 1 trigger) | Time until 60 GB (critical alert) | Action |
+|---|---|---|---|---|
+| A. 1,000 keywords daily + 1,000 prompts/week | about 5 GB | 20 / 5 = 4 years | 60 / 5 = 12 years | none |
+| B. 5,000 keywords daily + 1,000 prompts/week | about 15 GB | 20 / 15 = 1.3 years (16 months) | 60 / 15 = 4 years | none in year 1; dedicated 16 GB VPS (step 1) in year 2 |
+| C. 10,000 keywords daily + 5,000 prompts/week | about 49 GB | 20 / 49 = 4.9 months | 60 / 49 = 1.2 years (15 months) | dedicated 16 GB VPS (step 1) within the first 5 months, rehearsed beforehand |
+| D. 100,000 rankings daily + 1M AI obs/month | about 410 GB | 20 / 410 x 365 = 18 days | 60 / 410 x 365 = 53 days (about 8 weeks) | dedicated database host from the start; plan ClickHouse for observation analytics |
+
+The 20 GB column fires step 1 and the 60 GB column is the hard stop on the shared host. Step 1 can also fire earlier on memory, load or the other project's needs (section 7). The growth rates are the sums of the rows in sections 2.1 and 2.2 (A: 2.5 + 2.4, B: 12.6 + 2.4, C: 25 + 24, D: 252 + 160), rounded.
+
+**If raw payloads stayed on local disk** (they do not, ADR-004), they would share the same 60 GB. At the steady states of section 3, scenario A holds about 12 GB of raw after 13 months, so PostgreSQL plus raw reaches 60 GB after about 60 / (5 + 10.8) = 3.8 years (before raw rolls off at 400 days, which flattens it); scenario B holds about 52 GB of raw, so PostgreSQL plus raw grows by about 15 + 48 = 63 GB in the first year and hits 60 GB after about 11 months; at the largest load of section 3 (20 GB raw per month) the budget is gone in about 3 months. Keeping raw in R2 is what makes the shared disk workable.
 
 ## 3. R2 raw payload growth
 
@@ -110,20 +124,20 @@ Costs are in [27-cost-model.md](27-cost-model.md) section 7 (negligible relative
 | First-party (GSC etc.) | PostgreSQL | indefinite | GSC keeps only 16 months; our copy is the long history |
 | Imported files (CSV exports) | R2 `imports/` | 25 months | Provenance for imported first-party AI data |
 | Audit logs | PostgreSQL | 2 years | Security |
-| Backups | R2 `seo-backups/daily/` | 30 days, enforced by an R2 lifecycle rule; DigitalOcean weekly droplet backups as a second, host-level copy ([23](23-backup-disaster-recovery.md), ADR-022) | RPO 24 h, RTO 4 h |
+| Backups | R2 `seo-backups/daily/` | 30 days, enforced by an R2 lifecycle rule; Hostinger host snapshots as a second, host-level copy (verify in hPanel what the plan includes; never the only backup) ([23](23-backup-disaster-recovery.md), ADR-022) | RPO 24 h, RTO 4 h |
 
 Retention is per workspace configurable within limits (a workspace can shorten, not extend beyond platform maximums, in V1).
 
 ## 5. Partitioning and index strategy
 
-- Monthly range partitions for all observation tables ([04-data-model.md](04-data-model.md) section 12). At 10,000 keywords daily, the largest monthly partition (`seo.serp_features`) is about 2.4 M rows and 700 MB, a comfortable size for vacuum and index maintenance on the droplet.
+- Monthly range partitions for all observation tables ([04-data-model.md](04-data-model.md) section 12). At 10,000 keywords daily, the largest monthly partition (`seo.serp_features`) is about 2.4 M rows and 700 MB, a comfortable size for vacuum and index maintenance on the shared host.
 - Partition count after 5 years: about 60 per table x 12 partitioned tables = 720 partitions; well within PostgreSQL planner limits when queries include the partition key (every observation query is time-bounded by design).
 - Index rules:
   - Every observation index leads with the most selective tenant key (`tracked_keyword_id`, `prompt_id`, `project_id`) followed by time, so queries touch few partitions and few pages.
   - BRIN on `observed_at` for maintenance and ad-hoc time scans (with `autosummarize = on`, off by default in PostgreSQL, verified).
   - No GIN indexes on observation arrays in V1 (write cost); array containment queries are bounded by keyword and time.
   - `pg_stat_statements` reviewed monthly; unused indexes (idx_scan = 0 over 30 days on partitions older than 2 months) are dropped from **old** partitions only.
-- Old partitions can be moved to a slower tablespace on a DO Volume (`ALTER TABLE ... SET TABLESPACE`) before a full database move is needed.
+- There is no tablespace or extra-volume step: the Hostinger VPS has one disk (verify in hPanel whether extra disks can be attached). Growth beyond the 60 GB PostgreSQL budget is handled by the dedicated-host steps in section 7. Closed monthly partitions can be exported to Parquet in R2 (section 8) if the database must shrink before a move.
 
 ## 6. Query strategy at scale
 
@@ -139,16 +153,20 @@ Rollups store counts and sums, so any window and any prompt- or keyword-level di
 
 ## 7. Scaling path and triggers
 
-Step numbers match [03-system-architecture.md](03-system-architecture.md) section 10 and [22-infrastructure-devops.md](22-infrastructure-devops.md) section 11. This table is the canonical source for trigger values, which are fixed by [ADR-022](adr/ADR-022-python-backend-simplified-platform.md) and the [locked architecture diagram](diagrams/architecture-locked.html); doc 22 section 11 adds how each trigger is measured. A fired trigger opens a planning ticket, not an emergency. Decisions are made on measurements, not on a hunch; each trigger has one action.
+Step numbers match [03-system-architecture.md](03-system-architecture.md) section 10 and [22-infrastructure-devops.md](22-infrastructure-devops.md) section 11. This table is the canonical source for trigger values, which follow [ADR-023](adr/ADR-023-shared-hostinger-vps.md) and the [locked architecture diagram](diagrams/architecture-locked.html); doc 22 section 11 adds how each trigger is measured. A fired trigger opens a planning ticket, not an emergency. Decisions are made on measurements, not on a hunch; each trigger has one action.
+
+Step 0 is V1: idraft on the shared Hostinger VPS (4 vCPU, 16 GB RAM, 193 GB disk) with 8 GB RAM in `idraft.slice` (`MemoryHigh=7G`, `MemoryMax=8G`), fair-share CPU (about 2 vCPU guaranteed under contention, up to 4 when the neighbour is idle) and a 90 GB disk budget. The old "8 GB profile" is the baseline: Postgres `mem_limit` 3000m, `shared_buffers` 2 GB, `effective_cache_size` 5 GB. Today's baseline (2026-10-31, idle): load 0.06, 1.06 GB of 16 GB RAM used, 8.3 GB of 193 GB disk, database 15 MB.
 
 | Step | Trigger (any one) | Action | Cost and effort |
 |---|---|---|---|
-| 1. Vertical resize to 4 vCPU / 8 GB | swap in steady use; PostgreSQL buffer cache hit ratio under 99% for a week; the database over 10 GB | DO resize (minutes of downtime), raise `shared_buffers` to 2 GB | $24 to $48 a month; 1 hour |
-| 2. Database storage | the database over 40 GB | Attach a DO Volume for PostgreSQL data; then move PostgreSQL to its own droplet with the Volume and private VPC networking | from $10 a month; half a day for the Volume, 1 to 2 days for the move |
+| 1. Dedicated 16 GB VPS for idraft | `idraft.slice` memory above 70% of 8 GB (5.6 GB) for a week, or swap in steady use; host MemAvailable under 2 GB more than twice a week; host load average above 3.5 for 15 minutes more than three times a week; the idraft database over 20 GB; the other project needing more than its half; the tool offered to outside customers (step 6); PostgreSQL buffer cache hit ratio under 99% for a week | Provision a 16 GB VPS, run `infra/bootstrap.sh`, restore the latest nightly dump, switch DNS, retire the old stack. Remove the slice and the shared edge proxy dependency on the new host. Rehearsed in advance (doc 29, doc 31) | `H16` a month in place of `H` (owner enters, doc 27); half a day, 4 h RTO target |
+| 2. Dedicated 32 GB VPS or database on its own host | The dedicated 16 GB host above the same 70% / swap thresholds (70% of its memory for a week, or swap in steady use), or the database over 100 GB | Move to a 32 GB VPS (restore and switch as in step 1), or put PostgreSQL on its own host and keep the application on the 16 GB host | `H32` a month, or `H16` plus a database host; 1 to 2 days |
 | 3. Worker capacity | the collection window overruns twice in a month | Raise worker concurrency (`process` first); then a second `worker` container against the same PostgreSQL and Redis | none; an hour |
 | 4. API capacity | API p95 over 300 ms on the overview with rollups in place | Profile the query first; a second `api` container behind Caddy is the last resort | none; a day |
 | 5. ClickHouse for observation analytics | section 8 | CDC or batch export; PostgreSQL stays the ledger | project |
-| 6. Outside customers | the tool is offered to outside companies | API keys (and the Idempotency-Key header), envelope encryption of tenant integration credentials, point-in-time recovery (PITR), GFS backup rotation; revisit ADR-022 | engineering time |
+| 6. Outside customers | the tool is offered to outside companies | API keys (and the Idempotency-Key header), envelope encryption of tenant integration credentials, point-in-time recovery (PITR), GFS backup rotation; revisit ADR-022; step 1 fires too | engineering time |
+
+Before step 1, the first response to a memory or cache trigger is cheap: check `docker stats` against each `mem_limit` and the `idraft.slice` counters, and raise Postgres `mem_limit` within the 7 GB soft limit if the other services have room (section 9). Nothing is moved until a trigger is confirmed twice.
 
 Nothing in V1 blocks step 6: the tables for API keys may already exist without routes, and the backup and PITR upgrade path is described in [23](23-backup-disaster-recovery.md).
 
@@ -169,4 +187,6 @@ Design for later adoption (already in place):
 
 ## 9. Redis sizing
 
-Redis carries the Taskiq transport (the `collect` and `process` queues), the shared rate limiter, locks, dedupe keys and the 60 s session read-through cache ([21-scheduler-workers.md](21-scheduler-workers.md) section 5.1). Taskiq keeps a message in Redis only while it waits in its queue; there is no result backend and no retained completed or failed jobs, because outcomes are recorded in `ops.collection_tasks`. At V1 peak (about 20,000 jobs per day) with payloads under 1 KB, Redis stays under 100 MB. `maxmemory 256mb` with `noeviction` is the cap (ADR-022), so a runaway producer gets write errors instead of silently evicting queue messages or locks. Nothing lives only in Redis: after a loss, the reconciler rebuilds in-flight work from the ledger. The Redis cache for dashboard responses uses the `cache:` key prefix with its own TTLs ([22](22-infrastructure-devops.md) section 4.3) and is capped by an application-side size limit (responses over 1 MB are not cached).
+Redis carries the Taskiq transport (the `collect` and `process` queues), the shared rate limiter, locks, dedupe keys and the 60 s session read-through cache ([21-scheduler-workers.md](21-scheduler-workers.md) section 5.1). Taskiq keeps a message in Redis only while it waits in its queue; there is no result backend and no retained completed or failed jobs, because outcomes are recorded in `ops.collection_tasks`. At V1 peak (about 20,000 jobs per day) with payloads under 1 KB, Redis stays under 100 MB. `maxmemory 256mb` with `noeviction` is the cap (ADR-022); the Redis container `mem_limit` sits just above it and counts inside the 8 GB slice, so a runaway producer gets write errors instead of silently evicting queue messages or locks. Nothing lives only in Redis: after a loss, the reconciler rebuilds in-flight work from the ledger. The Redis cache for dashboard responses uses the `cache:` key prefix with its own TTLs ([22](22-infrastructure-devops.md) section 4.3) and is capped by an application-side size limit (responses over 1 MB are not cached).
+
+**Memory inside the slice.** Baseline limits: Postgres 3,000 MB, worker 768 MB, Redis 256 MB (`maxmemory`), plus `api` (about 165 MB) and `web` (about 170 MB) at their idle measurements of 2026-10-31: about 4.4 GB of the 7 GB soft limit, leaving about 2.6 GB for bursts, page cache and the migrator. The 70% trigger (5.6 GB) therefore fires with real headroom still left before `MemoryMax`. The host's 2 GB swap is shared with the other project and is a safety net only.

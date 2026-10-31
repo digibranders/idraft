@@ -25,7 +25,7 @@ There is no marketing site in scope. The only public routes are authentication r
 
 | Concern | Choice | Why this and not the alternative |
 |---|---|---|
-| Framework | Next.js (App Router), current major at freeze, version pinned | RSC shell, nested layouts matching workspace and project, intercepting routes for drawers. Self-hosted on the droplet with `output: 'standalone'`: one Node process in the `web` container, image built in CI. No Vercel ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) |
+| Framework | Next.js (App Router), current major at freeze, version pinned | RSC shell, nested layouts matching workspace and project, intercepting routes for drawers. Self-hosted on the shared Hostinger VPS (idraft share, ADR-023) with `output: 'standalone'`: one Node process in the `web` container, image built in CI. No Vercel ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md)) |
 | Language | TypeScript `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` | API types come from the client generated from the API's OpenAPI document, so a backend change the frontend does not follow fails type checking ([19-api-specification.md](19-api-specification.md) section 1.4); catches `rows[0].value` on empty results |
 | API client | `openapi-typescript` (types) plus `openapi-fetch` (runtime), generated from the committed OpenAPI document | Same-origin calls to `/api/v1`; typed paths, params and bodies without a hand-written client. Wrapped for TanStack Query (3.5) |
 | Server state | TanStack Query v5 | Filter-keyed cache, dedupe, `placeholderData` for smooth filter changes, mutation lifecycle for optimistic triage. SWR is weaker on mutations and dependent queries |
@@ -38,7 +38,7 @@ There is no marketing site in scope. The only public routes are authentication r
 | Dates and time zones | `date-fns` v4 + `@date-fns/tz` (`TZDate`) | DST-safe project-timezone windows. Temporal is adopted natively once every supported browser ships it, instead of a polyfill in the main bundle |
 | i18n | `next-intl`, single `en` catalog | English only, but no literal strings, so localization is not a rewrite |
 | Auth client | Generated client calls to `/api/v1/auth/*` on the same origin | Our own auth module in the API ([19-api-specification.md](19-api-specification.md) section 3.1, [24-security.md](24-security.md) section 2); no auth SDK in the browser |
-| Hosting and headers | `web` container behind Caddy on the droplet; static security headers in `next.config.ts` `headers()`, the nonce-bearing CSP in `proxy.ts` (7.3) | Same origin as the API, so no CORS and one cookie. Cloudflare proxied DNS is optional and only caches static assets (4.11) |
+| Hosting and headers | `web` container behind the idraft Caddy gateway on the shared host; static security headers in `next.config.ts` `headers()`, the nonce-bearing CSP in `proxy.ts` (7.3) | Same origin as the API, so no CORS and one cookie. Cloudflare proxied DNS is optional and only caches static assets (4.11) |
 | Errors and RUM | `@sentry/nextjs`, Web Vitals | `sendDefaultPii: false`, no session replay in V1 (tenant data on screen) |
 | Testing | Vitest, Testing Library, MSW, Playwright, `@axe-core/playwright`, `vitest-axe` | Section 8 |
 
@@ -167,7 +167,7 @@ Metadata: the root layout sets the title template (`%s · idraft.ai`, the produc
 
 ### 3.4 Server and client component policy
 
-1. **The shell is RSC.** Layouts and page frames render on the server and fetch only identity and configuration (`/api/v1/me`, project summary, flags) from the API over the Docker network (`API_INTERNAL_ORIGIN`, the `api` service) with the incoming `cookie` header forwarded and `cache: 'no-store'`. `web` and `api` run on the same droplet, so this call never leaves the host (section 9, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)).
+1. **The shell is RSC.** Layouts and page frames render on the server and fetch only identity and configuration (`/api/v1/me`, project summary, flags) from the API over the Docker network (`API_INTERNAL_ORIGIN`, the `api` service) with the incoming `cookie` header forwarded and `cache: 'no-store'`. `web` and `api` run on the same host, so this call never leaves the host (section 9, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)).
 2. **Analytics data is client-side.** Tables, charts and tiles fetch through TanStack Query from the browser as same-origin requests to `/api/v1` (the session cookie is sent automatically): instant filter changes, cached back-navigation, no extra server hop ([03-system-architecture.md](03-system-architecture.md) section 7.4).
 3. **Server prefetch where first paint matters.** Overview tiles and the Keyword Detail header are prefetched with `queryClient.prefetchQuery` and handed over through `HydrationBoundary` under the same query key. Tables are never server-prefetched.
 4. **No server actions for mutations.** Mutations go from the browser to the API so its Origin check applies ([24-security.md](24-security.md) section 2.1); a server action would call the API from the `web` container instead, outside the browser's Origin check.
@@ -1293,13 +1293,13 @@ The 10,000-row table and 10,000-point scatter budgets (4.11) run in Playwright w
 
 Unit test over `messages/en.json` and a Playwright check over rendered text fail on U+2014 and U+2013, matching the house writing rule.
 
-## 9. Build and deploy on the droplet
+## 9. Build and deploy on the host
 
 ### 9.1 Build and hosting
 
-- `apps/web` builds with pnpm (committed lockfile) and `next build` with `output: 'standalone'`. CI builds the `web` image (multi-stage: dependencies, build, then a slim runtime holding `.next/standalone`, `.next/static` and `public`), pushes it to GHCR by digest, and the deploy workflow pulls it on the droplet ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [22-infrastructure-devops.md](22-infrastructure-devops.md)). Runtime is one Node process (`node server.js`), 150 to 250 MB steady RAM.
+- `apps/web` builds with pnpm (committed lockfile) and `next build` with `output: 'standalone'`. CI builds the `web` image (multi-stage: dependencies, build, then a slim runtime holding `.next/standalone`, `.next/static` and `public`), pushes it to GHCR by digest, and the deploy workflow pulls it on the host ([ADR-022](adr/ADR-022-python-backend-simplified-platform.md), [22-infrastructure-devops.md](22-infrastructure-devops.md)). Runtime is one Node process (`node server.js`), 150 to 250 MB steady RAM.
 - As built: the image is `apps/web/Dockerfile`, built from the repository root (`docker build -f apps/web/Dockerfile .`, context trimmed by `apps/web/Dockerfile.dockerignore`), since the lockfile and the pnpm workspace live there. Base `node:24-bookworm-slim` pinned by digest; `pnpm install --frozen-lockfile`; a production build (`NEXT_PUBLIC_APP_ENV=production` and `NEXT_PUBLIC_RELEASE` as build arguments, mocking off); a runtime of the standalone tree, `.next/static` and `public`, running `node apps/web/server.js` as user `node` on port 3000. The CI job, the push to GHCR and the Compose `web` service belong to the backend session's deploy plan and are not written yet.
-- Caddy on the droplet terminates TLS for the single domain and routes `/api/*` to `api` and everything else to `web`. There is no Vercel project, no Turborepo and no function region.
+- The shared host-level edge proxy terminates TLS for the single domain and forwards it to the loopback-bound idraft Caddy gateway (ADR-023), which routes `/api/*` to `api` and everything else to `web`. There is no Vercel project, no Turborepo and no function region.
 - Production domain `<domain>`; the API is `/api/v1` on the same origin ([24-security.md](24-security.md) section 2.1).
 
 ### 9.2 Environment variables

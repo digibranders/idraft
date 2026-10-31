@@ -4,7 +4,7 @@
 
 **Goal:** Make idraft.ai run the way a product runs: the same stack on every machine from one command, a deploy that is a merge and a click, nightly backups that have been restored at least once, and the worker collecting real rank data every day under a hard spend cap.
 
-**Architecture:** Docker Compose on the existing single host, as ADR-022 and `docs/22-infrastructure-devops.md` already decide, with Caddy in front, images built in CI and pulled by digest, secrets written by the deploy workflow, and PostgreSQL dumps encrypted with age to Cloudflare R2. The live server today is a hand-built systemd and nginx install; this plan replaces it with the documented design through a short, reversible cutover.
+**Architecture:** Docker Compose on the existing single host (a Hostinger VPS shared with a second project, idraft capped at an 8 GB share, [ADR-023](../../adr/ADR-023-shared-hostinger-vps.md), 2026-10-31), as ADR-022 and `docs/22-infrastructure-devops.md` already decide, with Caddy in front, images built in CI and pulled by digest, secrets written by the deploy workflow, and PostgreSQL dumps encrypted with age to Cloudflare R2. The live server today is a hand-built systemd and nginx install; this plan replaces it with the documented design through a short, reversible cutover.
 
 **Tech Stack:** Docker Engine and Compose plugin, Caddy 2, PostgreSQL 18, Redis, GitHub Actions and GHCR, age, Cloudflare R2, Healthchecks.io, Sentry, Bash (shellcheck clean).
 
@@ -28,7 +28,7 @@ Everything in this table was checked on the live host or in the repository on th
 
 | Area | Today | Target (this plan) |
 |---|---|---|
-| Host | VPS 187.126.121.25, Ubuntu 24.04, 4 vCPU, 15 GB RAM, 193 GB disk. Expiry is the owner's concern, not ours; the plan treats the host as replaceable | Same host, but rebuildable on a fresh one by `infra/bootstrap.sh` in under 30 minutes |
+| Host | Hostinger VPS 187.126.121.25, Ubuntu 24.04, 4 vCPU, 16 GB RAM (15.6 GiB visible), 193 GB disk, 2 GB swap. Shared with a second project; idraft gets about half (8 GB). Plan price, snapshots and expiry are the owner's concern (D-H1); the plan treats the host as replaceable | Same host, idraft confined to `idraft.slice` (8 GB, fair-share CPU) behind a shared host-level edge proxy; rebuildable on a fresh one by `infra/bootstrap.sh` in under 30 minutes. Later moves to its own 16 GB or 32 GB VPS |
 | Runtime | systemd units `idraft-web` and `idraft-api`, nginx, Python venv, Node bundle copied by hand | Docker Compose: `caddy`, `web`, `api`, `worker`, `postgres`, `redis`, one-off `migrator` |
 | Domain | `app.idraft.ai` (A record, DNS only). The apex `idraft.ai` is a separate live marketing site on other IPs and must not be touched | Same. `docs/22` section 1 says the app lives on the apex; this plan amends that (decision D2) |
 | Database | Separate PostgreSQL 18 cluster on `127.0.0.1:5433`; roles created by `infra/compose/postgres/initdb/10-roles.sh`; migrations at 0013 | `postgres:18` container, same role script, no host port |
@@ -50,9 +50,11 @@ Everything in this table was checked on the live host or in the repository on th
 - G3. Real rank collection runs daily for a small set of keywords under a hard budget, and is observable.
 - G4. Backups exist, are encrypted, and have been restored once into a scratch database.
 - G5. The cutover from the hand-built install costs at most 10 minutes of downtime and can be undone in 5.
+- G6. idraft stays inside its 8 GB share and cannot starve, or be starved by, the second project on the same host (ADR-023).
 
 **Non-goals (explicit, to stop scope creep)**
-- No Kubernetes, managed databases, multi-host or high availability. One host is a recorded decision (ADR-002, ADR-022).
+- No Kubernetes, managed databases, multi-host or high availability. One host is a recorded decision (ADR-002, ADR-022, ADR-023).
+- No changes to the second project. Host-level changes that touch it (edge proxy, firewall) are agreed with its owner first (D-H4).
 - No new product features. Step 7 (SEO analytics) is a separate plan; section 12 lists what it needs from this one.
 - No migration of the marketing site on the apex.
 - No Prometheus or Grafana (`docs/22` section 9.1).
@@ -78,7 +80,9 @@ Each decision has the choice, the reason, and what was rejected. Reverse one onl
 
 **D8. One worker container, both queues.** As ADR-022. No split until a trigger in `docs/22` section 11 fires.
 
-**D9. Host tuning is recomputed for 15 GB.** `docs/22` sizes everything for a 4 GB droplet. The values below replace its PostgreSQL section for this host and are written into `infra/compose/postgres/postgresql.conf`: `shared_buffers=3GB`, `effective_cache_size=9GB`, `work_mem=16MB`, `maintenance_work_mem=512MB`, `max_connections=100`, `shm_size: 1gb`. Redis `maxmemory 512mb`, `noeviction`, AOF `everysec`. Container memory limits leave at least 3 GB free for the page cache and the OS.
+**D9. Host tuning follows the 8 GB profile (amended 2026-10-31 by ADR-023).** The first version of this decision sized Postgres for a whole 15 GB host (`shared_buffers=3GB`, `effective_cache_size=9GB`, `maintenance_work_mem=512MB`, `max_connections=100`, `shm_size: 1gb`); that was written before the host was known to be shared and is superseded. The 8 GB profile is the baseline and is written into `infra/compose/postgres/postgresql.conf` and `profiles/8gb.env`: Postgres `mem_limit` 3000m, `shared_buffers=2GB`, `effective_cache_size=5GB`, `work_mem=16MB`, `maintenance_work_mem=256MB`, `max_connections=80`, worker `mem_limit` 768m, Redis `maxmemory 512mb`, `noeviction`, AOF `everysec`. The sum of container limits stays under the 7 GB soft limit of `idraft.slice`. The 4 GB profile is for laptops and CI.
+
+**D11. Shared host (ADR-023).** `idraft.slice` (`MemoryHigh=7G`, `MemoryMax=8G`, `CPUWeight=100`) with `cgroup_parent: idraft.slice` on every service; `caddy` becomes the loopback-only application gateway; one host-level edge proxy owns ports 80 and 443 for both projects (open decision D-H2: nginx or host-level Caddy); firewall is Hostinger hPanel plus ufw; Hostinger snapshots are a second copy after the R2 dump (verify in hPanel).
 
 **D10. Rollout is progressive, in this order:** build and verify everything on a laptop under Colima, then on the server beside the live install on different ports, then cut over. The live site is never the first place a new file runs.
 
@@ -121,14 +125,31 @@ Packages are ordered; each ends with the gates (section 9), a Claude review on t
 - Create: `infra/compose/.env.example` (every variable the stack reads, placeholder values, one comment per variable saying where it comes from)
 - Keep: `infra/compose/docker-compose.dev.yml` and `infra/compose/postgres/initdb/10-roles.sh` unchanged (the role script is shared by production, dev, smoke and the test suite by design)
 
-- [ ] **Step 1.** Services: `caddy` (published 80 and 443, the only published ports), `web`, `api`, `worker`, `postgres` (`postgres:18`, volume at `/var/lib/postgresql`, the shared role script mounted into `docker-entrypoint-initdb.d`), `redis` (`redis:8` with the ACL and config file), and `migrator` (`restart: "no"`, `depends_on` postgres healthy, run explicitly by the deploy script).
+- [ ] **Step 1.** Services: `caddy` (the application gateway; per D11 it binds `127.0.0.1` only, with automatic HTTPS off, once the shared edge proxy exists; on a laptop it still publishes 80 and 443), `web`, `api`, `worker`, `postgres` (`postgres:18`, volume at `/var/lib/postgresql`, the shared role script mounted into `docker-entrypoint-initdb.d`), `redis` (`redis:8` with the ACL and config file), and `migrator` (`restart: "no"`, `depends_on` postgres healthy, run explicitly by the deploy script).
 - [ ] **Step 2.** Every long-running service has a healthcheck and a memory limit. The API check is `/api/readyz`; the worker check is the heartbeat file read by `python -m idraft.worker.healthcheck`; web is an HTTP check on its own port; Postgres is `pg_isready`; Redis is `redis-cli ping` with the ACL user.
 - [ ] **Step 3.** Images are referenced by `${API_IMAGE}`, `${WORKER_IMAGE}`, `${WEB_IMAGE}` (full `ghcr.io/...@sha256:...` strings supplied by the deploy), never a tag.
 - [ ] **Step 4.** `Caddyfile`: site `app.idraft.ai`, `/api/*` to `api:8000`, everything else to `web:3000`, security headers (`Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy`), request body limit 60 MB (the import upload) with the API's own 1 MB body rule still enforced by the API, gzip and zstd encoding, access log to stdout as JSON.
-- [ ] **Step 5.** Networks: one internal network for everything; only Caddy is attached to the host. Postgres and Redis publish nothing.
+- [ ] **Step 5.** Networks: one internal network for everything; only Caddy is attached to the host, on loopback. Postgres and Redis publish nothing.
 - [ ] **Step 6.** Settings the API and worker read are exactly the ones in `backend/src/idraft/config/settings.py` (`DATABASE_URL`, `REDIS_URL`, `APP_ENV=production`, `APP_ORIGIN=https://app.idraft.ai`, `TOTP_ENCRYPTION_KEY`, `EMAIL_PROVIDER=brevo`, `EMAIL_API_KEY`, `EMAIL_FROM`, `SENTRY_DSN`, and for the worker only `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`, `R2_RAW_ENDPOINT`, `R2_RAW_BUCKET`, `R2_RAW_ACCESS_KEY_ID`, `R2_RAW_SECRET_ACCESS_KEY`, `HEARTBEAT_FILE`). The worker has no `EMAIL_*` need today; do not give it the key.
 - [ ] **Step 7.** Local verification target: `docker compose -f infra/compose/docker-compose.yml --env-file infra/compose/.env.local up` under Colima with throwaway secrets serves the sign-in page on `https://localhost` (Caddy internal CA) and the API answers 401 on `/api/v1/me`.
 - **Acceptance:** the stack comes up on a clean laptop from the example env; every container reports healthy; `docker compose config` is clean; no service other than Caddy publishes a port; there are no secrets in any committed file.
+
+### WP2b. Shared-host changes (ADR-023; added 2026-10-31)
+
+**Files**
+- Create: `infra/host/idraft.slice` (systemd slice unit), `infra/compose/profiles/8gb.env` and `infra/compose/profiles/4gb.env`
+- Modify: `infra/compose/docker-compose.yml`, `infra/bootstrap.sh`, `infra/README.md`
+- Create (after D-H2): the edge proxy site file for the idraft hostnames
+
+- [ ] **Step 1.** Slice unit: `idraft.slice` with `MemoryHigh=7G`, `MemoryMax=8G`, `CPUWeight=100`, installed and enabled by `bootstrap.sh`. Verify with `systemctl show idraft.slice` and `systemd-cgls`.
+- [ ] **Step 2.** Compose: add `cgroup_parent: idraft.slice` to every service next to its `mem_limit`. Verify that `docker stats` and `systemd-cgtop` show the containers under the slice, and that a memory hog in a test container is killed at the cap without touching the host.
+- [ ] **Step 3.** Loopback gateway: bind `caddy` to `127.0.0.1:${GATEWAY_PORT}`, automatic HTTPS off, trust the client address header only from loopback. Verify with `ss -ltnp` that nothing of idraft listens on a public address.
+- [ ] **Step 4.** Edge proxy decision D-H2 (owner and the second project's owner): nginx (already on the host) or host-level Caddy for TLS and hostname routing of both projects. Write the decision into doc 30 and ADR-023, then add the idraft site file (hostname `app.idraft.ai` to the loopback gateway, set `X-Forwarded-For`). The apex marketing site stays untouched.
+- [ ] **Step 5.** Sizing profile: add `profiles/8gb.env` (baseline) and `profiles/4gb.env` (laptop and CI); the deploy selects the profile; Postgres and worker limits read from it (D9).
+- [ ] **Step 6.** Firewall: in Hostinger hPanel allow SSH (restricted as in doc 22 section 6), 80 and 443, deny the rest; mirror it with ufw in `bootstrap.sh`. Verify in hPanel which firewall features the plan has; do not assume.
+- [ ] **Step 7.** Snapshot before cutover: take a Hostinger snapshot in hPanel (verify in hPanel that the plan includes it and how long it is kept) and record its name and date in the cutover notes. It is a second copy only; the pre-cutover `pg_dump` off the host is still required.
+- [ ] **Step 8.** Isolation checks against the second project: distinct Compose project name, networks, deploy user and secret files; no port clash; disk and memory alerts count both projects.
+- **Acceptance:** `idraft.slice` is active and holds every idraft container; the stack stays under 7 GB at the end of the dry run; the public ports 80 and 443 are served only by the edge proxy; the second project is unaffected by a deploy and a forced idraft restart.
 
 ### WP3. Bootstrap, deploy and rollback scripts, and the deploy workflow
 
@@ -139,7 +160,7 @@ Packages are ordered; each ends with the gates (section 9), a Claude review on t
 - Create: `infra/README.md` (the operator's page: bootstrap, deploy, rollback, first operator, secrets)
 - Test: `infra/test/deploy-dryrun.sh` (shellcheck plus a dry run against a local Compose project)
 
-- [ ] **Step 1.** `bootstrap.sh`: install Docker Engine and the Compose plugin from Docker's apt repository; create the `deploy` user (no password, key only) and an `/srv/idraft` tree; 2 GB swap; unattended upgrades with a reboot window; fail2ban for SSH; firewall allowing 22, 80, 443 only; SSH hardening (no root login, key auth only) applied last and only after a second key is confirmed working. Re-running it changes nothing.
+- [ ] **Step 1.** `bootstrap.sh`: install Docker Engine and the Compose plugin from Docker's apt repository; create the `deploy` user (no password, key only) and an `/srv/idraft` tree; 2 GB swap; unattended upgrades with a reboot window; fail2ban for SSH; firewall (ufw; Hostinger hPanel firewall alongside, see WP2b) allowing 22, 80, 443 only; SSH hardening (no root login, key auth only) applied last and only after a second key is confirmed working. Re-running it changes nothing.
 - [ ] **Step 2.** `deploy.sh <env-file> <digests.json>`: (1) pull the three images by digest, (2) run the migrator as a one-off and stop on failure, (3) `compose up -d` api, worker, web, caddy in that order, waiting for each healthcheck, (4) call `/api/readyz` through Caddy, (5) on any failure, redeploy the previous digests recorded in `/srv/idraft/releases/previous.json` and exit non-zero. Every successful deploy appends a line to `/srv/idraft/releases/history.log`.
 - [ ] **Step 3.** `deploy.yml`: triggered by `workflow_dispatch` and by a successful `backend` plus `web` workflow on `main`, using the GitHub Environment `production` with a required reviewer. It downloads `digests.json`, writes `/etc/idraft/.env` from environment secrets over SSH (mode 0600, atomic move), copies `infra/` to the host, runs `deploy.sh`, and fails the job if the health gate fails. SSH uses a dedicated deploy key stored as an environment secret.
 - [ ] **Step 4.** Rollback is one command, documented: `infra/deploy.sh --rollback`. It must work with the database one migration ahead; therefore every migration from now on is backward compatible with the previous release (expand then contract). Add this rule to `backend/README.md`.
@@ -183,18 +204,18 @@ Prerequisites the owner provides: Cloudflare R2 buckets `seo-raw` and `seo-backu
 
 ### WP7. Documents and decisions
 
-- [ ] Amend `docs/22-infrastructure-devops.md` (domain `app.idraft.ai`, 15 GB host values, Brevo, Ubuntu 24.04 as run), `docs/adr/ADR-022` (one dated amendment), `docs/24-security.md` (Brevo key handling), `docs/29-phase-roadmap.md` (step 6 as built, rank collection soak status), `docs/31-implementation-checklist.md` (tick what is done).
+- [ ] Amend `docs/22-infrastructure-devops.md` (domain `app.idraft.ai`, 8 GB profile values for the shared host (ADR-023), Brevo, Ubuntu 24.04 as run), `docs/adr/ADR-022` (one dated amendment), `docs/24-security.md` (Brevo key handling), `docs/29-phase-roadmap.md` (step 6 as built, rank collection soak status), `docs/31-implementation-checklist.md` (tick what is done).
 - [ ] Add `docs/review-log.md` entries for every deviation from the written design with the reason and the date.
 
 ## 7. Cutover runbook (owner and Claude, about 30 minutes, 10 minutes of downtime)
 
 Preconditions: WP1 to WP3 merged, WP4 backup dry run done, secrets in the GitHub Environment, a fresh dump of the live database taken by hand (`pg_dump -Fc` on port 5433) and copied off the host.
 
-1. Announce the window. Nothing else is live on this host; the apex is elsewhere.
+1. Announce the window. A second project runs on this host and must not be disturbed; the apex marketing site is elsewhere. Take the Hostinger snapshot first (WP2b step 7).
 2. Run `bootstrap.sh` on the host (installs Docker, leaves the running install alone).
 3. Bring the new stack up on alternate ports (`COMPOSE_PROJECT_NAME=idraft-next`, Caddy on 8081 and 8443, no TLS) using the same database dump restored into the new Postgres container. Run the smoke checks and `readyz` against it.
 4. Stop the old services: `systemctl stop idraft-web idraft-api nginx`. Take a last dump of the old database and restore it into the new container (the delta since step 3 is minutes).
-5. Move Caddy to 80 and 443 and start it; Caddy obtains the certificate for `app.idraft.ai` (HTTP-01). Verify `https://app.idraft.ai/login`, sign in, load the Keywords page.
+5. Add the idraft site to the shared edge proxy (80 and 443) pointing at the loopback gateway; the edge proxy obtains the certificate for `app.idraft.ai` (HTTP-01). Do not stop the second project's services. Verify `https://app.idraft.ai/login`, sign in, load the Keywords page.
 6. Leave the old install stopped but intact for 7 days (units disabled, venv and bundle kept, old Postgres cluster kept). Rollback is `systemctl start` of the old units and stopping Caddy.
 7. After 7 clean days: remove nginx, certbot timers, the old units, the old cluster and the hand-made env files, in that order.
 
@@ -231,6 +252,7 @@ Run and report: `cd backend && ./check.sh`; `cd apps/web && pnpm lint && pnpm ty
 | Regenerated secrets invalidate stored data (TOTP key) | Low | High | D6: secrets are carried over once by the owner, never regenerated; documented in `infra/README.md` |
 | DataForSEO spend surprise (deep checks, async AIO billing) | Medium | Medium | D7: hard cap before credentials, 200-keyword soak, daily cost reconciliation already built |
 | Backups exist but cannot be restored | Medium | Critical | WP4 makes the restore drill part of the definition of done, not an afterthought |
+| The second project exhausts memory, disk or CPU, or a host-level change breaks one project | Medium | High | `idraft.slice` memory cap, CPU weights, disk alerts counting both projects, per-project deploy users, R2 backups that do not depend on the host, D-H4 (owner of host-level changes) |
 | The VPS expires or is lost | Medium | High | G1: rebuild from the repository; backups off-host in R2; the age key kept off the server |
 | Private repo image pulls fail on the host (token expiry) | Low | Medium | Deploy fails before touching running containers; the pull token's expiry is in the runbook |
 | Gemini changes files outside the brief or touches secrets | Low | High | Section 5 hard rules, branch-only work, Opus review before merge |
@@ -245,8 +267,9 @@ Step 7 (SEO analytics, `docs/29` Phase 5) is the next plan and starts when WP1 t
 1. Create the Cloudflare R2 account buckets (`seo-raw`, `seo-backups`) and tokens, and a funded DataForSEO account: who and when?
 2. Is 15 USD per month the right hard cap for the 200-keyword soak?
 3. Where do alerts go first: email only, or a chat channel as well?
-4. Does the VPS have a known expiry date, so the first real rebuild drill can be scheduled before it?
+4. Does the VPS have a known expiry date, so the first real rebuild drill can be scheduled before it? Also the Hostinger plan price and term, snapshot features and in-place upgrade options (D-H1, verify in hPanel).
 5. Who holds the age private key for backups, and where is the offline copy?
+6. Edge proxy: nginx or host-level Caddy (D-H2)? Who owns host-level changes, and what is the second project's name and expected resource need (D-H3, D-H4)?
 
 ## Self-review
 

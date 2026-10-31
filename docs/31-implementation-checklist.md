@@ -1,7 +1,7 @@
 # 31. Implementation Checklist
 
-Status: Draft for architecture freeze; Phases 0 and 1 follow [ADR-022](adr/ADR-022-python-backend-simplified-platform.md)
-Last updated: 2026-09-30
+Status: Draft for architecture freeze; Phases 0 and 1 follow [ADR-022](adr/ADR-022-python-backend-simplified-platform.md); the host follows [ADR-023](adr/ADR-023-shared-hostinger-vps.md)
+Last updated: 2026-10-31
 Use: copy the relevant phase section into the phase's tracking issue. Each item links to the document that specifies it. Phase goals, dependencies and acceptance criteria are in [29-phase-roadmap.md](29-phase-roadmap.md).
 
 ## Phase 0: Validation and freeze
@@ -11,7 +11,7 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 1 
 - [ ] Repository under git; baseline committed
 - [ ] DataForSEO account funded (minimum payment $50), sandbox credentials for request-shape tests
 - [ ] R2 buckets `seo-raw`, `seo-backups` created; lifecycle rules, including the 30-day rule on `seo-backups/daily/` ([23](23-backup-disaster-recovery.md)); no bucket lock
-- [ ] Scratch droplet with Docker; spike repo folder `spikes/`
+- [ ] Local Docker or a scratch VPS for spikes (never the shared host); spike repo folder `spikes/`
 - [ ] S-01 SERP task flow, billing formulas, `tasks_ready` recovery, `tag` echo, `id_list` returns tag ([06](06-dataforseo-seo-integration.md) section 11)
 - [ ] S-02 SERP payload sizes and zstd ratios
 - [ ] S-03 AI Overview async share and presence delta
@@ -87,16 +87,21 @@ Scope per [ADR-022](adr/ADR-022-python-backend-simplified-platform.md): about 3.
 
 ### Infrastructure
 
-- [ ] Droplet 2 vCPU, 4 GB, 80 GB, Ubuntu 26.04; bootstrap script; deploy user; SSH hardening; unattended upgrades with reboot window
-- [ ] DO Cloud Firewall (80/443 public only); SSH over Tailscale; break-glass port 22 rule documented ([22](22-infrastructure-devops.md) section 6.1)
-- [ ] Docker daemon.json (json-file log rotation, `"ip": "127.0.0.1"`), sysctls, swap 2 GB
-- [ ] Compose stack: `caddy`, `web`, `api`, `worker`, `postgres` (`postgres:18`, `shared_buffers` 768 MB), `redis` (`redis:8`), one-off `migrator` running `alembic upgrade head` ([22](22-infrastructure-devops.md)); Caddy with HTTPS routes `/api/*` to `api` and everything else to `web`
-- [ ] Steady RAM measured within 2.1 to 2.8 GB; resize triggers (steady swap, cache hit ratio under 99% for a week, database over 10 GB) documented
+- [ ] Open items D-H1 to D-H4 settled or consciously deferred ([30](30-risks-open-questions.md) Q-17 to Q-20): Hostinger plan price and term, edge proxy, the second project's needs and name, owner of host-level changes
+- [ ] Shared Hostinger VPS (4 vCPU, 16 GB RAM, 193 GB disk, Ubuntu 24.04) per [ADR-023](adr/ADR-023-shared-hostinger-vps.md); bootstrap script; deploy user separate from the other project's; SSH hardening; unattended upgrades with reboot window agreed with the host owner
+- [ ] `idraft.slice` (`MemoryHigh=7G`, `MemoryMax=8G`, `CPUWeight=100`) installed and active; every Compose service sets `cgroup_parent: idraft.slice` besides its own `mem_limit`; verified with `systemd-cgls` and `systemctl status idraft.slice` that all containers sit in the slice
+- [ ] Edge proxy decision D-H2 made and implemented: one host-level proxy owns 80 and 443 and forwards idraft's hostnames to the loopback gateway with the client address header; idraft's Caddy has automatic HTTPS off and trusts the header only from loopback
+- [ ] Hostinger hPanel firewall and `ufw`: 80 and 443 public, SSH restricted, everything else closed ([22](22-infrastructure-devops.md) section 6.1); SSH over Tailscale; break-glass rule documented
+- [ ] Docker daemon.json (json-file log rotation, `"ip": "127.0.0.1"`), sysctls; the host's 2 GB swap is shared and treated as a safety net only
+- [ ] Compose stack: `caddy`, `web`, `api`, `worker`, `postgres` (`postgres:18` on loopback, baseline profile: `mem_limit` 3000m, `shared_buffers` 2 GB, `effective_cache_size` 5 GB, `work_mem` 16 MB, `maintenance_work_mem` 256 MB, `max_connections` 80; worker `mem_limit` 768m), `redis` (`redis:8`), one-off `migrator` running `alembic upgrade head` ([22](22-infrastructure-devops.md)); no published ports on public addresses; separate Compose project name and network from the other project
+- [ ] Baseline measured and recorded (2026-10-31, idle: load 0.06, 1.06 GB of 16 GB RAM, 8.3 GB of 193 GB disk, database 15 MB); steady `idraft.slice` memory after the first week under 5.6 GB; dedicated-host triggers ([28](28-data-growth-scaling.md) section 7 step 1) wired to alerts
+- [ ] Disk alerts on the whole 193 GB disk counting both projects, plus idraft's 90 GB budget (PostgreSQL critical alert at about 60 GB)
 - [ ] Platform secrets in `/etc/seo-platform/.env` (root-owned, mode 0600), written by the deploy workflow from GitHub Actions environment secrets; no SOPS, no age for secrets
 - [ ] GitHub Actions: backend `uv run ruff check` and `uv run pytest`; web `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`; build the three images, push to GHCR by digest, SSH deploy (pull, run `migrator`, restart `api` and `worker`, then `web`); rollback to the previous tag
 - [ ] Backups: nightly `pg_dump -Fc`, zstd, age to one offline recipient pair, `rclone` to R2 `seo-backups/daily/` with a 30-day lifecycle rule; Healthchecks pings ([23](23-backup-disaster-recovery.md))
-- [ ] DigitalOcean weekly droplet backups enabled on the droplet
+- [ ] Hostinger snapshot and backup features verified in hPanel (what the plan includes, retention, restore method) and enabled as the second copy; manual snapshot before every risky change; hPanel plan-upgrade options noted; a snapshot is never the only backup
 - [ ] Monthly restore drill: `restore-verify.sh` into a temporary container; first run in Phase 1 (S-10) with dump and restore times recorded; monthly repeat scheduled
+- [ ] Dedicated-VPS migration rehearsal (before it is needed): provision a scratch 16 GB VPS, run `infra/bootstrap.sh`, restore the latest dump, point a test hostname at it, record the elapsed time against the 4 h RTO, destroy the scratch host ([28](28-data-growth-scaling.md) section 7 step 1)
 - [ ] Monitoring: Sentry (Python and Next.js SDKs), Healthchecks (planner tick, backups, maintenance, `ops_health` SQL checks), one Better Stack uptime check, alert routing ([25](25-observability.md)); logs read with `docker compose logs`
 
 ### Phase 1 security checklist
@@ -206,6 +211,7 @@ Proposed 2026-10-27; specification in [32-page-performance.md](32-page-performan
 
 - [ ] Definition of Done met for all MVP phases ([29](29-phase-roadmap.md) section 2)
 - [ ] Monthly restore drill passed in the last 30 days; RTO measured
+- [ ] Dedicated-VPS migration rehearsal done once and timed; Hostinger snapshot restore tested at least once (verify in hPanel)
 - [ ] Budgets configured for every project; balance alerts active
 - [ ] Cost reconciliation within 5% for the last 30 days
 - [ ] Methodology pages published in-app for every metric shown

@@ -323,7 +323,7 @@ Denominator-type columns are repeated on every entity row of the same (prompt, d
 
 ### 13.4 Caching and budgets
 
-| Query class | Target p95 on the V1 droplet | Mechanism |
+| Query class | Target p95 on the V1 host (idraft share of the Hostinger VPS) | Mechanism |
 |---|---|---|
 | Overview tiles (12 metrics, one engine set, 28 days) | 300 ms | rollups + Redis cache 5 min keyed by `data_version` |
 | Prompt Explorer list (1,000 prompts x 4 engines, 28 days) | 500 ms | rollups; server-side pagination and sort |

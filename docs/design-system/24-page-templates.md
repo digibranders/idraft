@@ -1022,7 +1022,7 @@ Route `/{workspace}/{project}/costs`: inside the project shell, sidebar item Cos
 | Provider     Endpoints  Requests   Units       Cost (USD)  Share   vs last month  Cost source        |
 | DataForSEO   9          1,041,220  1,062,400   $1,196.80   93.2%   +12.4%         Provider reported  |
 | OpenAI       1          18,400     22.1M tok   $41.10      3.2%    +3.0%          From tokens        |
-| DigitalOcean 2          n/a        n/a         $36.10      2.8%    0%             Price book estimate|
+| Hostinger    2          n/a        n/a         $36.10      2.8%    0%             Price book estimate|
 +------------------------------------------------------------------------------------------------------+
 | Reconciliation: provider spend vs recorded events, last run Sep 29, 00:45 UTC, difference 0.3%       |
 ```

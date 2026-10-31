@@ -665,3 +665,19 @@ Carried:
 | F96 | `balance_check` and `cost_reconcile` keep their readings in Redis, raise no `ops.platform_alerts` row and ping no Healthchecks check; the account's day is taken as UTC, and spend after the last reading of a day is not in that day's comparison (up to 15 minutes) | the operations step (doc 25) |
 | F97 | Every SERP fixture and the live answer shape (taken to equal `task_get/advanced`) are synthetic until spike S-01 captures real ones; re-run the parser tests on the captured set before the first deploy | S-01, before deploy |
 | F98 | The competitor backfill from stored snapshots and `ops.derivation_log`, the shared fetch cache, the data quality tables, `ops.task_attempts`, the load test on recorded payloads and the real 14-day run were deferred (plan R14) | steps 6 and 7 |
+
+### Shared Hostinger host (2026-10-31)
+
+The docs assumed one DigitalOcean droplet (`s-2vcpu-4gb`, $24 per month) used only by idraft. The host is a Hostinger VPS (4 vCPU, 16 GB RAM, 193 GB disk, 2 GB swap, Ubuntu 24.04) shared with a second project, and idraft gets a capped 8 GB share. [ADR-023](adr/ADR-023-shared-hostinger-vps.md) records the decision. Old entries above are history and were not rewritten.
+
+- Added: ADR-023 (shared Hostinger VPS, `idraft.slice` 8 GB share, 8 GB profile as baseline, shared host-level edge proxy, hPanel firewall plus ufw, R2 dump as the real backup with Hostinger snapshots as a second copy, path to a dedicated 16 GB or 32 GB VPS). Fixed monthly cost is now H (50% of the Hostinger invoice, owner fills in) plus R2 about $1 plus free tiers; the "$30 per month" figure is gone.
+- ADR-002 renamed "Single-host Docker Compose for V1", status "Accepted, amended by ADR-022 and ADR-023", with a dated amendment (host, sizes, firewall, backups, scaling ladder). Amendment notes added to ADR-001, 013, 015, 021 and 022; the ADR index has the new row.
+- Updated in this pass: docs 00, 01, 04, 13, 16, 19 and 20 (hosting and capacity wording only); `docs/diagrams/README.md` and `docs/diagrams/architecture-locked.html` (labels, legend and a visible "Amended 2026-10-31 by ADR-023: host" note on the locked page); `README.md`; `infra/README.md` (new "Shared host" section; the items are marked TO BE IMPLEMENTED in infra code, with the follow-up list); `docs/superpowers/plans/2026-10-28-production-runtime.md` (host rows, goal G6, D9 recomputed for the 8 GB profile, D11, new WP2b with the shared-host tasks, cutover and risk changes) and its Delivery 1 prompt (host note only). Docs 02, 03 and 21 to 31 were updated by the other agents of the same pass.
+- Not changed: `research/` (dated evidence snapshots), old completed plans, the design system documents (no hosting content), and all infra code.
+
+| Id | Item | Plan |
+|---|---|---|
+| D-H1 | Hostinger plan price, term and renewal, which snapshots or backups the plan includes and their retention, in-place upgrade options, outbound network limits. Verify in hPanel; nothing in the docs states them | owner, before the cutover |
+| D-H2 | Edge proxy for the shared ports 80 and 443: the existing nginx or a host-level Caddy | owner and the second project's owner, before WP2b step 4 |
+| D-H3 | The second project's name and its expected resource needs, so the split (about 8 GB each) can be reviewed against measured load | owner |
+| D-H4 | Who owns host-level changes (edge proxy, firewall, systemd slices, OS updates and reboots) | owner |

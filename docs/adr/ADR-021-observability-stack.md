@@ -20,3 +20,6 @@ Zero cost within free tiers; retention limited (14 days logs).
 
 ## Revisit trigger
 Free-tier limits exceeded or team size grows beyond free seats.
+
+## Amendment (2026-10-31)
+Host note only: "4 GB RAM" and "the droplet" above describe the original host. The current host is the idraft 8 GB share of a shared Hostinger VPS ([ADR-023](ADR-023-shared-hostinger-vps.md)); disk alerts must count both projects on the host. This ADR remains superseded by ADR-022.
