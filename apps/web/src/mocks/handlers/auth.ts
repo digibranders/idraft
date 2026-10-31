@@ -33,8 +33,6 @@ const LOCK_AFTER_FAILURES = 5;
 const LOCK_SECONDS = 15 * 60;
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
-/** The API matches the local part of the address in a password from 4 characters on. */
-const MIN_LOCAL_PART_MATCH = 4;
 
 /** The lock of an address, if it is locked now. */
 function lockOf(email: string, now: number = Date.now()): number | null {
@@ -60,11 +58,9 @@ function lockedOut(request: Request, lockedUntil: number): HttpResponse<Problem>
 }
 
 /** The password rules the API applies to a new password (19 section 3.1, `weak_password`). */
-function weakPasswordReason(password: string, email: string): string | null {
+function weakPasswordReason(password: string): string | null {
   if (password.length < MIN_PASSWORD_LENGTH) return 'too_short';
   if (password.length > MAX_PASSWORD_LENGTH) return 'too_long';
-  const localPart = email.split('@')[0]?.toLowerCase() ?? '';
-  if (localPart.length >= MIN_LOCAL_PART_MATCH && password.toLowerCase().includes(localPart)) return 'contains_email';
   return null;
 }
 
@@ -138,7 +134,7 @@ export const authHandlers: HttpHandler[] = [
     const refused = checkBody(request, body, { required: ['token', 'new_password'] });
     if (refused) return refused;
     if (body.token !== MOCK_TOKENS.reset) return problem(request, 'invalid_token');
-    const reason = weakPasswordReason(body.new_password, '');
+    const reason = weakPasswordReason(body.new_password);
     return reason ? weakPassword(request, reason) : HttpResponse.json({ status: 'ok' });
   }),
 
@@ -170,7 +166,7 @@ export const authHandlers: HttpHandler[] = [
     if (body.invitation_token !== MOCK_TOKENS.invitation || address !== MOCK_INVITED_USER.email) {
       return problem(request, 'registration_closed');
     }
-    const reason = weakPasswordReason(body.password, address);
+    const reason = weakPasswordReason(body.password);
     if (reason) return weakPassword(request, reason);
     if (inviteePassword(cookies) !== undefined) {
       return problem(request, 'duplicate', { detail: 'An account with this email exists.' });
@@ -189,10 +185,7 @@ export const authHandlers: HttpHandler[] = [
     const refused = checkBody(request, body, { required: ['current_password', 'new_password'] });
     if (refused) return refused;
     if (body.current_password !== MOCK_PASSWORD) return problem(request, 'invalid_credentials');
-    const reason =
-      body.new_password === body.current_password
-        ? 'unchanged'
-        : weakPasswordReason(body.new_password, session.user.email);
+    const reason = body.new_password === body.current_password ? 'unchanged' : weakPasswordReason(body.new_password);
     if (reason) return weakPassword(request, reason);
     // A new password signs out every other session (19 section 3.1)
     revoke(session.user.user_id, otherSessionIds());

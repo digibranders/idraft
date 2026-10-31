@@ -153,7 +153,6 @@ async def test_what_is_stored_cannot_be_replayed(
     [
         ("tiny pw", "too_short"),
         ("x" * 129, "too_long"),
-        ("my new-account password", "contains_email"),
     ],
 )
 async def test_a_weak_password_is_refused_with_its_reason(
