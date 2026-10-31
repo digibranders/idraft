@@ -4,7 +4,7 @@ import type { EntityWorld } from '../entities-state';
 import { MOCK_INVITED_USER, MOCK_USERS } from '../fixtures';
 import { fixtureReading, fixtureReadingsOf, METRICS_FETCHED_AT, type FixtureReading } from '../keyword-fixtures';
 import { keywordMetrics, metricsHistory } from '../keyword-metrics';
-import { rankStateOf, stoppedAtOf } from '../rank-state';
+import { competitorRankOf, rankStateOf, sparklineOf, stoppedAtOf } from '../rank-state';
 import { normalizeKeyword } from '@/lib/keywords/keyword-text';
 import {
   currentVersion,
@@ -337,6 +337,47 @@ export function overridesOf(
     );
 }
 
+export function effectiveCompetitors(
+  world: KeywordWorld,
+  entities: EntityWorld,
+  row: Pick<StoredTracked, 'tracked_keyword_id' | 'project_id'>,
+): Schemas['EntityRef'][] {
+  const competitorIds = new Set(
+    entities.roles
+      .filter(
+        (role) =>
+          role.project_id === row.project_id &&
+          role.role === 'competitor' &&
+          (role.track_seo ?? true) &&
+          (role.removed_at ?? null) === null,
+      )
+      .map((role) => role.entity_id),
+  );
+  const overrides = overridesOf(world, entities, row);
+  for (const override of overrides) {
+    if (override.mode === 'exclude') competitorIds.delete(override.entity.entity_id);
+    else competitorIds.add(override.entity.entity_id);
+  }
+  return entities.entities
+    .filter((entity) => competitorIds.has(entity.entity_id))
+    .sort(
+      (a, b) =>
+        a.canonical_name.toLowerCase().localeCompare(b.canonical_name.toLowerCase()) ||
+        a.entity_id.localeCompare(b.entity_id),
+    )
+    .map((entity) =>
+      entityRefView(
+        entity,
+        entities.roles.find(
+          (role) =>
+            role.project_id === row.project_id &&
+            role.entity_id === entity.entity_id &&
+            (role.removed_at ?? null) === null,
+        ),
+      ),
+    );
+}
+
 export function trackedKeywordRowView(
   world: KeywordWorld,
   entities: EntityWorld,
@@ -351,9 +392,16 @@ export function trackedKeywordRowView(
     terms: include.has('terms') ? termsOf(world, entities, row.tracked_keyword_id) : null,
     competitors: include.has('competitors') ? overridesOf(world, entities, row) : null,
     // The real API fills these blocks when asked (`include=sparkline,competitor_ranks,features,aio`); this UI
-    // does not ask for them yet, so the mocks accept the values and answer null
-    sparkline: null,
-    competitor_ranks: null,
+    // fills sparkline and competitor_ranks when asked; the other two still answer null until their tasks
+    sparkline: include.has('sparkline')
+      ? sparklineOf(row.tracked_keyword_id, row.created_at, rank.now, rank.domain, stoppedAtOf(row))
+      : null,
+    competitor_ranks: include.has('competitor_ranks')
+      ? effectiveCompetitors(world, entities, row).flatMap((entity) => {
+          const res = competitorRankOf(row.tracked_keyword_id, row.created_at, rank.now, entity, stoppedAtOf(row));
+          return res === null ? [] : [res];
+        })
+      : null,
     features: null,
     aio: null,
     state: stateOf(row, rank),

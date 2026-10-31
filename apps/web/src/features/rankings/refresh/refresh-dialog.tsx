@@ -49,6 +49,8 @@ export interface RefreshDialogProps {
   targets: RefreshTargets;
   /** The day's manual runs; `null` before they are read. */
   manual: ManualRuns | null;
+  /** Called when the member submits the dialog to start a refresh. */
+  onStart?: (() => void) | undefined;
   /** The API took the refresh: the run it made, which may already be `budget_blocked`. */
   onStarted: (run: Run) => void;
   /** The day's count is out of date: the API said the limit is reached. */
@@ -76,6 +78,7 @@ export function RefreshDialog({
   finalFocus,
   targets,
   manual,
+  onStart,
   onStarted,
   onLimitReached,
   onKeywordsUnknown,
@@ -111,6 +114,7 @@ export function RefreshDialog({
       choice === 'selection' ? targets.selection : choice === 'matching' ? (targets.matching?.ids ?? null) : [];
     if (ids === null) return;
     try {
+      onStart?.();
       const answer = await refresh.mutateAsync({
         params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } },
         body: refreshBody(choice, ids),

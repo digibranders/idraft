@@ -7,7 +7,13 @@ import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
 // jsdom has no canvas: the frame is tested with a stand-in for the ECharts canvas
-vi.mock('./echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+const latestOption = vi.fn<(opt: Record<string, unknown>) => void>();
+vi.mock('./echart', () => ({
+  EChart: ({ option }: { option: (tokens: unknown) => Record<string, unknown> }) => {
+    latestOption(option({ palette: [] }));
+    return <div data-testid="echart-canvas" />;
+  },
+}));
 
 const SERIES: CategorySeries[] = [
   { id: 'volume', name: 'Search volume', role: { kind: 'brand' }, values: [8100, null, 9900] },
@@ -70,5 +76,25 @@ describe('ChartFrame', () => {
     expect(screen.queryByRole('button', { name: 'Patterns' })).toBeNull();
     rerender(frame('bar'));
     expect(screen.getByRole('button', { name: 'Patterns' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('passes extended option to EChart when extendOption is provided', async () => {
+    renderWithProviders(
+      <ChartFrame
+        title="Search volume by month"
+        variant="panel"
+        kind="line"
+        categories={['Jul', 'Aug', 'Sep']}
+        categoryHeader="Month"
+        series={SERIES}
+        formatValue={(value) => value.toLocaleString('en-US')}
+        height={180}
+        summary="Summary"
+        status="ready"
+        extendOption={(opt) => ({ ...opt, marker: true })}
+      />,
+    );
+    expect(await screen.findByTestId('echart-canvas')).toBeInTheDocument();
+    expect(latestOption).toHaveBeenCalledWith(expect.objectContaining({ marker: true }));
   });
 });

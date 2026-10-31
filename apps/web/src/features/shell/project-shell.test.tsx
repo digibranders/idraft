@@ -150,13 +150,13 @@ describe('ProjectShell', () => {
     // Both open inside the project the member is in, so the sidebar stays on screen
     expect(listed).toEqual({
       editor: [
-        'Keywords /digibranders/fynix/seo/rankings',
+        'Keywords /digibranders/fynix/seo/keywords',
         'Runs /digibranders/fynix/ops/runs',
         'Costs /digibranders/fynix/costs',
         'Settings /digibranders/fynix/settings',
       ],
       viewer: [
-        'Keywords /digibranders/fynix/seo/rankings',
+        'Keywords /digibranders/fynix/seo/keywords',
         'Runs /digibranders/fynix/ops/runs',
         'Settings /digibranders/fynix/settings',
       ],
@@ -231,12 +231,12 @@ describe('ProjectShell', () => {
   });
 
   it('opens Rankings of the other project without a query, since its filters belong to one project', async () => {
-    navigation.pathname = '/digibranders/fynix/seo/rankings';
-    window.history.replaceState(null, '', '/digibranders/fynix/seo/rankings?intent=commercial');
+    navigation.pathname = '/digibranders/fynix/seo/keywords';
+    window.history.replaceState(null, '', '/digibranders/fynix/seo/keywords?intent=commercial');
     const { user } = renderWithProviders(shell());
     await screen.findByRole('heading', { name: 'Profile' });
     await chooseCleanstart(user);
-    expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/seo/rankings');
+    expect(navigation.push).toHaveBeenCalledWith('/digibranders/cleanstart/seo/keywords');
   });
 
   it('signs out from the account menu', async () => {
@@ -289,11 +289,11 @@ describe('ProjectShell', () => {
   });
 
   it('names no destination on the 404 page of a planned one', async () => {
-    navigation.pathname = '/digibranders/fynix/seo/keywords';
+    navigation.pathname = '/digibranders/fynix/seo/pages';
     renderWithProviders(shell());
     await screen.findByRole('heading', { name: 'Profile' });
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).queryByText('Keywords')).toBeNull();
+    expect(within(crumbs).queryByText('Pages')).toBeNull();
   });
 
   it('opens the keyboard shortcuts with ?', async () => {

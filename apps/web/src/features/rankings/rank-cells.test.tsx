@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -135,6 +135,72 @@ describe('RankCellView', () => {
       </>,
     );
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('gives failed, ranked, beyond and stale cases the same fixed 32 px rank box and slot alignment', () => {
+    const chg = changeDisplay(change('numeric', 2));
+    const { container } = renderWithProviders(
+      <div>
+        <div data-testid="ranked">
+          <RankCellView display={rankDisplay(cell({ rank: 5 }), false)} change={chg} />
+        </div>
+        <div data-testid="beyond">
+          <RankCellView display={rankDisplay(cell({ state: 'beyond_depth', rank: null }), false)} change={chg} />
+        </div>
+        <div data-testid="failed">
+          <RankCellView display={rankDisplay(cell({ state: 'failed', rank: null }), false)} change={chg} />
+        </div>
+        <div data-testid="stale">
+          <RankCellView display={rankDisplay(cell({ rank: 5 }), true)} change={chg} />
+        </div>
+        <div data-testid="stale-beyond-100">
+          <RankCellView
+            display={rankDisplay(cell({ state: 'beyond_depth', rank: null, depth_requested: 100 }), true)}
+            change={chg}
+          />
+        </div>
+      </div>,
+    );
+
+    for (const testId of ['ranked', 'beyond', 'failed', 'stale', 'stale-beyond-100']) {
+      const el = container.querySelector(`[data-testid="${testId}"]`);
+      const rankBox = el?.querySelector('.w-8');
+      expect(rankBox).toBeInTheDocument();
+      expect(rankBox).toHaveClass('w-8', 'shrink-0');
+      expect(rankBox).not.toHaveClass('overflow-hidden');
+    }
+  });
+
+  it('renders rank 100 without truncation or clipping', () => {
+    const { getByText } = renderWithProviders(<RankCellView display={rankDisplay(cell({ rank: 100 }), false)} />);
+    expect(getByText('100')).toBeInTheDocument();
+  });
+
+  it('shows tooltip with last successful check date on stale clock icon', async () => {
+    const { user } = renderWithProviders(
+      <RankCellView
+        display={rankDisplay(cell({ rank: 5, observed_at: '2026-10-29T10:00:00Z' }), true)}
+        timeZone="UTC"
+      />,
+    );
+    await user.hover(screen.getByText('stale'));
+    await waitFor(() =>
+      expect(screen.getByText('Last successful check: Oct 29, 2026 · 10:00 UTC.')).toBeInTheDocument(),
+    );
+  });
+
+  it('shows positions up to 100 with >100 at depth 100 and >20 at depth 20', () => {
+    const { rerender } = renderWithProviders(
+      <RankCellView display={rankDisplay(cell({ state: 'beyond_depth', rank: null, depth_requested: 100 }), false)} />,
+    );
+    expect(screen.getByText('>100')).toBeInTheDocument();
+    expect(screen.getByText('not in top 100')).toHaveClass('sr-only');
+
+    rerender(
+      <RankCellView display={rankDisplay(cell({ state: 'beyond_depth', rank: null, depth_requested: 20 }), false)} />,
+    );
+    expect(screen.getByText('>20')).toBeInTheDocument();
+    expect(screen.getByText('not in top 20')).toHaveClass('sr-only');
   });
 });
 
@@ -518,6 +584,14 @@ describe('rank tips', () => {
       detail: `Last successful check: ${DATE}.`,
       description: 'none',
     });
+  });
+
+  it('combines rank and change into one clean sentence without double dots', () => {
+    const r = rankDisplay(cell({ rank: 3 }), false);
+    const chg: RankChange = { label: 'numeric', value: -2, previous_rank: 1, previous_observed_at: NOW };
+    const tip = renderTip((tips) => tips.rank(r, chg, cell({ rank: 3 })));
+    expect(tip.content).toBe(`Rank 3, ${DATE}, depth 20. Declined 2 positions.`);
+    expect(tip.content).not.toMatch(/\.\./);
   });
 
   it('says that the last check failed beside a rank that is from an earlier check', () => {

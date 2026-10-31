@@ -11,7 +11,7 @@ import { membershipFactory } from '@/mocks/factories/identity';
 
 const navigation = vi.hoisted(() => ({
   segment: null as string | null,
-  pathname: '/digibranders/fynix/seo/rankings',
+  pathname: '/digibranders/fynix/seo/keywords',
   search: '',
   push: vi.fn<(path: string, options: { scroll: boolean }) => void>(),
   replace: vi.fn<(path: string, options: { scroll: boolean }) => void>(),
@@ -54,7 +54,7 @@ const route = (role: Role = 'editor'): ReactElement => (
 
 beforeEach(() => {
   navigation.segment = null;
-  navigation.pathname = '/digibranders/fynix/seo/rankings';
+  navigation.pathname = '/digibranders/fynix/seo/keywords';
   navigation.search = '';
   navigation.push.mockClear();
   navigation.replace.mockClear();
@@ -69,7 +69,7 @@ describe('RankingsRoute', () => {
     expect(screen.getByText('page')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'toggle' }));
     expect(navigation.push).toHaveBeenCalledExactlyOnceWith(
-      '/digibranders/fynix/seo/rankings/import?intent=commercial&archived=true',
+      '/digibranders/fynix/seo/keywords/import?intent=commercial&archived=true',
       { scroll: false },
     );
     expect(navigation.replace).not.toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe('RankingsRoute', () => {
     const view = render(route());
     await userEvent.click(screen.getByRole('button', { name: 'toggle' }));
     navigation.segment = 'import';
-    navigation.pathname = '/digibranders/fynix/seo/rankings/import';
+    navigation.pathname = '/digibranders/fynix/seo/keywords/import';
     view.rerender(route());
     expect(screen.getByText('dialog open')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'toggle' }));
@@ -104,13 +104,13 @@ describe('RankingsRoute', () => {
 
   it('reads the import segment as an open dialog, and a dialog that came with the URL closes by replacing', async () => {
     navigation.segment = 'import';
-    navigation.pathname = '/digibranders/fynix/seo/rankings/import';
+    navigation.pathname = '/digibranders/fynix/seo/keywords/import';
     navigation.search = 'q=audit';
     render(route());
     expect(screen.getByText('dialog open')).toBeInTheDocument();
     expect(navigation.replace).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'toggle' }));
-    expect(navigation.replace).toHaveBeenCalledExactlyOnceWith('/digibranders/fynix/seo/rankings?q=audit', {
+    expect(navigation.replace).toHaveBeenCalledExactlyOnceWith('/digibranders/fynix/seo/keywords?q=audit', {
       scroll: false,
     });
   });
@@ -132,16 +132,16 @@ describe('RankingsRoute', () => {
       </PermissionProvider>,
     );
     await userEvent.click(screen.getByRole('button', { name: 'toggle' }));
-    expect(navigation.push).toHaveBeenCalledExactlyOnceWith('/a-b/c%20d/seo/rankings/import', { scroll: false });
+    expect(navigation.push).toHaveBeenCalledExactlyOnceWith('/a-b/c%20d/seo/keywords/import', { scroll: false });
   });
 
   it('replaces the import address of a member who may not import with the page, keeping the query string', () => {
     navigation.segment = 'import';
-    navigation.pathname = '/digibranders/fynix/seo/rankings/import';
+    navigation.pathname = '/digibranders/fynix/seo/keywords/import';
     navigation.search = 'q=audit';
     render(route('viewer'));
     expect(screen.getByText('dialog closed')).toBeInTheDocument();
-    expect(navigation.replace).toHaveBeenCalledExactlyOnceWith('/digibranders/fynix/seo/rankings?q=audit', {
+    expect(navigation.replace).toHaveBeenCalledExactlyOnceWith('/digibranders/fynix/seo/keywords?q=audit', {
       scroll: false,
     });
   });

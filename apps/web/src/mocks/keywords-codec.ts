@@ -1,4 +1,5 @@
 import { MOCK_CREATED_AT } from './fixtures';
+import { MOCK_TRACKED_KEYWORDS } from './keyword-fixtures';
 import {
   DEPTH_PROFILES,
   DEVICES,
@@ -207,13 +208,16 @@ function decodeKeyword(d: Decoder, cells: Tuple): StoredKeyword {
 
 // Tracked keywords. The versions are [depth, url, from, reason, by] each.
 
+// Compare against the fixture's default version to omit version tuples when unedited,
+// keeping the mock cookie under the 3800-byte browser cookie limit budget during bulk edits.
 const isDefaultVersions = (row: StoredTracked): boolean => {
   const [only, ...rest] = row.versions;
+  if (only === undefined || rest.length > 0) return false;
+  const fixture = MOCK_TRACKED_KEYWORDS.find((f) => f.tracked_keyword_id === row.tracked_keyword_id);
+  const target = fixture?.versions[0]?.target_url ?? null;
   return (
-    only !== undefined &&
-    rest.length === 0 &&
     only.depth_profile === 'standard' &&
-    only.target_url === null &&
+    only.target_url === target &&
     only.valid_from === row.created_at &&
     only.change_reason === null &&
     only.changed_by === row.created_by
@@ -267,6 +271,11 @@ function encodeTracked(e: Encoder, row: StoredTracked): Tuple {
 }
 
 function decodeTracked(d: Decoder, cells: Tuple): StoredTracked {
+  const trackedKeywordId = d.id(d.number(cells, 0), 'tracked');
+  // When versions are omitted (encoded as 0 to stay within the cookie size budget),
+  // restore the initial version and target URL from the fixture row.
+  const fixture = MOCK_TRACKED_KEYWORDS.find((f) => f.tracked_keyword_id === trackedKeywordId);
+  const target = fixture?.versions[0]?.target_url ?? null;
   const createdAt = d.time(cells, 4);
   const deleted = d.number(cells, 14);
   const updated = d.number(cells, 15);
@@ -274,7 +283,7 @@ function decodeTracked(d: Decoder, cells: Tuple): StoredTracked {
   const createdBy = d.optId(cells, 19, null);
   const versions = cells[20] === undefined || cells[20] === 0 ? null : d.tuple(cells, 20);
   return {
-    tracked_keyword_id: d.id(d.number(cells, 0), 'tracked'),
+    tracked_keyword_id: trackedKeywordId,
     project_id: d.id(d.number(cells, 1), null),
     keyword_id: d.id(d.number(cells, 2), 'keyword'),
     location_id: d.number(cells, 3),
@@ -299,7 +308,7 @@ function decodeTracked(d: Decoder, cells: Tuple): StoredTracked {
         ? [
             {
               depth_profile: 'standard',
-              target_url: null,
+              target_url: target,
               valid_from: createdAt,
               change_reason: null,
               changed_by: createdBy,

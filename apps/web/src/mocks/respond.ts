@@ -112,6 +112,7 @@ const PROBLEMS = {
   weak_password: [422, 'Password is not strong enough'],
   rate_limited: [429, 'Too many requests'],
   manual_run_limit: [429, 'Manual run limit reached'],
+  provider_paused: [503, 'Provider paused'],
 } as const satisfies Record<string, readonly [number, string]>;
 
 export type MockProblemCode = keyof typeof PROBLEMS;

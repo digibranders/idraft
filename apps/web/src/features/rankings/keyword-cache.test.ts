@@ -6,7 +6,9 @@ import { applyKeywordWrite } from './keyword-cache';
 import {
   allListKey,
   countKey,
+  keywordsKey,
   pageListKey,
+  refreshKeywords,
   type KeywordFilters,
   type ListPage,
   type ListQuery,
@@ -121,5 +123,37 @@ describe('a write to one keyword reaches the lists in the cache', () => {
     expect(
       client.getQueryState(pageListKey(SCOPE, { ...ACTIVE, 'filter[priority_lte]': 5 }, byPriority))?.isInvalidated,
     ).toBe(true);
+  });
+
+  it('invalidates strip count queries when write changes membership', async () => {
+    seedAll(ACTIVE, rows);
+    const stripKey = [...keywordsKey(SCOPE), { ...ACTIVE, 'filter[priority_lte]': 8 }, 'strip', 'top3'];
+    client.setQueryData(stripKey, 42);
+    applyKeywordWrite(client, SCOPE, { ...detail, priority: detail.priority === 9 ? 8 : 9 });
+    expect(client.getQueryState(stripKey)?.isInvalidated).toBe(true);
+
+    await refreshKeywords(client, SCOPE);
+    expect(client.getQueryState(stripKey)?.isInvalidated).toBe(true);
+  });
+
+  it('leaves strip count queries untouched when write does not affect the filtered strip', () => {
+    seedAll(ACTIVE, rows);
+    const stripKey = [...keywordsKey(SCOPE), { ...ACTIVE, 'filter[device]': 'mobile' }, 'strip', 'top3'];
+    client.setQueryData(stripKey, 42);
+
+    applyKeywordWrite(client, SCOPE, { ...detail, target_url: null });
+    expect(client.getQueryState(stripKey)?.isInvalidated).toBe(false);
+  });
+
+  it('invalidates Top 10 strip count query after removing a keyword from the filtered group', () => {
+    const group = detail.groups[0];
+    if (group === undefined) throw new Error('The first mock keyword is in no group');
+    const byGroup: KeywordFilters = { ...ACTIVE, 'filter[group]': group.group_id };
+    seedAll(byGroup);
+    const groupTop10Key = [...keywordsKey(SCOPE), byGroup, 'strip', 'top10'];
+    client.setQueryData(groupTop10Key, 10);
+
+    applyKeywordWrite(client, SCOPE, { ...detail, groups: [] });
+    expect(client.getQueryState(groupTop10Key)?.isInvalidated).toBe(true);
   });
 });

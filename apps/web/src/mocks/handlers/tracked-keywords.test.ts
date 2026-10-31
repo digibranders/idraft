@@ -591,7 +591,14 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
       id: row.tracked_keyword_id,
       text: KEYWORD_TABLE[index]?.text ?? '',
       active: row.is_active,
-      state: rankStateOf(row.tracked_keyword_id, row.created_at, NOW, HOST, null, stoppedAtOf(row)),
+      state: rankStateOf(
+        row.tracked_keyword_id,
+        row.created_at,
+        NOW,
+        HOST,
+        row.versions.at(-1)?.target_url ?? null,
+        stoppedAtOf(row),
+      ),
     }));
   const live = (): Truth[] => fixtures().filter((entry) => entry.active);
   const ids = (entries: readonly { id: string }[]): string[] => entries.map((entry) => entry.id).sort();
@@ -707,22 +714,31 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     expect(await idsOfList(viewer, `filter[ranking_url_id]=${urlId}`)).toEqual(
       ids(live().filter((entry) => entry.state.current.url?.url_id === urlId)),
     );
-    // Nothing has a target URL yet, so the match is unknown for every keyword and neither value takes one
-    expect(await idsOfList(viewer, 'filter[target_url_match]=true')).toEqual([]);
-    expect(await idsOfList(viewer, 'filter[target_url_match]=false')).toEqual([]);
+    expect(await idsOfList(viewer, 'filter[target_url_match]=true')).toEqual(
+      ids(live().filter((entry) => entry.state.target_url_match === true)),
+    );
+    expect(await idsOfList(viewer, 'filter[target_url_match]=false')).toEqual(
+      ids(live().filter((entry) => entry.state.target_url_match === false)),
+    );
   });
 
   it('matches a target URL to the ranking URL once a keyword has one', async () => {
     const editor = mockBrowser('editor');
-    const [first, second] = live().filter((entry) => entry.state.current.url !== null);
+    const [first, second] = live().filter(
+      (entry) => entry.state.current.url !== null && entry.state.target_url_match === null,
+    );
     const same = first?.state.current.url;
     if (first === undefined || second === undefined || same === undefined || same === null) {
       throw new Error('Fewer than two fixture keywords rank');
     }
     await editor.call('PATCH', `${TK}/${first.id}`, { target_url: same.canonical_url });
     await editor.call('PATCH', `${TK}/${second.id}`, { target_url: `https://${HOST}/not-the-ranking-page` });
-    expect(await idsOfList(editor, 'filter[target_url_match]=true')).toEqual([first.id]);
-    expect(await idsOfList(editor, 'filter[target_url_match]=false')).toEqual([second.id]);
+    expect(await idsOfList(editor, 'filter[target_url_match]=true')).toEqual(
+      ids([first, ...live().filter((entry) => entry.state.target_url_match === true)]),
+    );
+    expect(await idsOfList(editor, 'filter[target_url_match]=false')).toEqual(
+      ids([second, ...live().filter((entry) => entry.state.target_url_match === false)]),
+    );
     const detail = dataOf(await editor.call('GET', `${TK}/${first.id}`), TRACKED_KEYWORD_DETAIL);
     expect(detail.state.target_url_match).toBe(true);
   });
@@ -834,17 +850,70 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     expect(fieldCodes(await viewer.call('GET', `${TK}?sort=-state`))).toEqual(['sort:invalid_sort']);
   });
 
-  it('accepts include=sparkline,competitor_ranks,features,aio and answers null for each block', async () => {
+  it('gives sparkline points when include=sparkline is requested', async () => {
     const viewer = mockBrowser('viewer');
-    for (const query of [
-      'include=sparkline,competitor_ranks,features,aio',
-      'include=sparkline&include=aio&include=metrics',
-    ]) {
+    const rows = await listOf(viewer, 'include=sparkline');
+    expect(rows.length).toBeGreaterThan(0);
+    const checked = rows.find((row) => row.state.current.state === 'ranked');
+    if (checked === undefined) throw new Error('No checked keyword');
+    expect(checked.sparkline).not.toBeNull();
+    expect(checked.sparkline?.depth_mode).toBe('daily_depth');
+    expect(checked.sparkline?.points.length).toBeGreaterThan(0);
+    expect(checked.sparkline?.points.length).toBeLessThanOrEqual(30);
+    const last = checked.sparkline?.points.at(-1);
+    expect(last?.t).toBe(checked.state.current.observed_at);
+
+    const pending = rows.find((row) => row.state.current.state === 'not_checked');
+    if (pending === undefined) throw new Error('No pending keyword');
+    expect(pending.sparkline?.points).toEqual([]);
+
+    const withoutInclude = await listOf(viewer, 'limit=5');
+    for (const row of withoutInclude) {
+      expect(row.sparkline).toBeNull();
+    }
+  });
+
+  it('gives competitor ranks when include=competitor_ranks is requested', async () => {
+    const viewer = mockBrowser('viewer');
+    const rows = await listOf(viewer, 'include=competitor_ranks');
+    expect(rows.length).toBeGreaterThan(0);
+
+    const checked = rows.find(
+      (row) => row.state.current.state === 'ranked' && row.tracked_keyword_id !== mockId('tracked', 1),
+    );
+    if (checked === undefined) throw new Error('No checked keyword');
+    expect(checked.competitor_ranks).not.toBeNull();
+    expect(checked.competitor_ranks?.length).toBe(5);
+    for (const comp of checked.competitor_ranks ?? []) {
+      expect(comp.entity.role).toBe('competitor');
+      expect(comp.current).toBeDefined();
+      expect(['ranked', 'beyond_depth']).toContain(comp.current.state);
+      expect(comp.change).toBeDefined();
+    }
+
+    const row1 = rows.find((row) => row.tracked_keyword_id === mockId('tracked', 1));
+    if (row1 && row1.competitor_ranks) {
+      const entityIds = row1.competitor_ranks.map((r) => r.entity.entity_id);
+      expect(entityIds).not.toContain(MOCK_ENTITY_IDS.meridian);
+      expect(entityIds).toContain(MOCK_ENTITY_IDS.seoWeekly);
+    }
+
+    const pending = rows.find((row) => row.state.current.state === 'not_checked');
+    if (pending === undefined) throw new Error('No pending keyword');
+    expect(pending.competitor_ranks).toEqual([]);
+
+    const withoutInclude = await listOf(viewer, 'limit=5');
+    for (const row of withoutInclude) {
+      expect(row.competitor_ranks).toBeNull();
+    }
+  });
+
+  it('accepts include=features,aio and answers null for each block', async () => {
+    const viewer = mockBrowser('viewer');
+    for (const query of ['include=features,aio', 'include=aio&include=metrics']) {
       const rows = await listOf(viewer, query);
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
-        expect(row.sparkline).toBeNull();
-        expect(row.competitor_ranks).toBeNull();
         expect(row.features).toBeNull();
         expect(row.aio).toBeNull();
       }
@@ -920,7 +989,9 @@ describe('tracked keywords: rank filters, sorts and includes', () => {
     expect(await matched({ feature_present: 'featured_snippet' })).toBe(
       everyone.filter((entry) => entry.state.feature_types_present.includes('featured_snippet')).length,
     );
-    expect(await matched({ target_url_match: true })).toBe(0);
+    expect(await matched({ target_url_match: true })).toBe(
+      everyone.filter((entry) => entry.state.target_url_match === true).length,
+    );
     // The body's own limits
     const refused = async (filter: Record<string, unknown>): Promise<string[]> =>
       fieldCodes(await editor.call('POST', `${TK}/bulk-archive`, { filter, archive: false }));

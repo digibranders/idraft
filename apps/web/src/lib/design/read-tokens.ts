@@ -13,6 +13,7 @@ export interface ChartTokens {
   axis: string;
   label: string;
   band: string;
+  rankBandNone: string;
   surfaceElevated: string;
   border: string;
   borderStrong: string;
@@ -62,6 +63,7 @@ export function readChartTokens(root: Element = document.documentElement): Chart
     axis: read('--chart-axis'),
     label: read('--chart-label'),
     band: read('--chart-band'),
+    rankBandNone: read('--rank-band-none'),
     surfaceElevated: read('--surface-elevated'),
     border: read('--border'),
     borderStrong: read('--border-strong'),

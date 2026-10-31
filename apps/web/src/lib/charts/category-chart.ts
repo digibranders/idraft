@@ -11,12 +11,14 @@ import type { ChartTokens } from '@/lib/design/read-tokens';
 export type SeriesRole =
   { kind: 'brand' } | { kind: 'palette'; index: 2 | 3 | 4 | 5 | 6 } | { kind: 'reference' } | { kind: 'other' };
 
+export type CategoryValue = number | null | 'failed';
+
 export interface CategorySeries {
   id: string;
   name: string;
   role: SeriesRole;
   /** One value per category; `null` is a gap, never a zero. */
-  values: readonly (number | null)[];
+  values: readonly CategoryValue[];
 }
 
 export interface CategoryChartInput {
@@ -118,7 +120,12 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
     series: shown.map((entry) => {
       const color = seriesColor(entry.role, tokens);
       const position = series.indexOf(entry);
-      const base = { id: entry.id, name: entry.name, data: [...entry.values], color };
+      const base = {
+        id: entry.id,
+        name: entry.name,
+        data: entry.values.map((v) => (typeof v === 'number' ? v : null)),
+        color,
+      };
       if (kind === 'bar') {
         // In a stack only the series on top is rounded, so the column reads as one bar
         const top = stacked === true && entry === shown[shown.length - 1];

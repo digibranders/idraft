@@ -1,6 +1,7 @@
 import type { KeywordFilters } from './rankings-queries';
 import type { FilterValues } from '@/components/app/filters/types';
 import { RANK_BUCKETS } from '@/lib/format';
+import { FEATURE_TYPES, OWNABLE_FEATURE_TYPES } from '@/lib/keywords/serp-features';
 
 /**
  * The Rank, Change and Stale chips (13-filters-search.md sections 4 and 5, 24-page-templates.md section 9.3)
@@ -14,9 +15,21 @@ export const RANK_CHOICES = ['top3', 'top10', 'top20', 'top50', 'top100', 'beyon
 /** The ids of the Change chip: `entered` is the API's `new` label. */
 export const CHANGE_CHOICES = ['improved', 'declined', 'entered', 'lost'] as const;
 export const STALE_CHOICES = ['stale'] as const;
+export const AIO_CHOICES = ['present_cited', 'present_not_cited', 'absent', 'not_loaded', 'unknown'] as const;
+export const TARGET_CHOICES = ['match', 'mismatch'] as const;
 
 export type RankChoice = (typeof RANK_CHOICES)[number];
 export type ChangeChoice = (typeof CHANGE_CHOICES)[number];
+export type AioChoice = (typeof AIO_CHOICES)[number];
+export type TargetChoice = (typeof TARGET_CHOICES)[number];
+
+export const AIO_MESSAGE_KEYS = {
+  present_cited: 'presentCited',
+  present_not_cited: 'presentNotCited',
+  absent: 'absent',
+  not_loaded: 'notLoaded',
+  unknown: 'unknown',
+} as const satisfies Record<AioChoice, string>;
 
 /** The parameters of the three chips. */
 export type RankFilterParams = Pick<
@@ -28,6 +41,10 @@ export type RankFilterParams = Pick<
   | 'filter[improved]'
   | 'filter[declined]'
   | 'filter[is_stale]'
+  | 'filter[feature_present]'
+  | 'filter[feature_owned]'
+  | 'filter[aio_state]'
+  | 'filter[target_url_match]'
 >;
 
 /** The one value a single choice chip holds, if it is one of `allowed`. */
@@ -36,6 +53,13 @@ function choiceOf<T extends string>(values: FilterValues, id: string, allowed: r
   if (value?.kind !== 'enum') return undefined;
   const [first] = value.values;
   return allowed.find((candidate) => candidate === first);
+}
+
+/** The values of a multi choice chip that are among `allowed`, in the chip's order. */
+function choicesOf<T extends string>(values: FilterValues, id: string, allowed: readonly T[]): T[] {
+  const value = values[id];
+  if (value?.kind !== 'enum') return [];
+  return value.values.flatMap((item) => allowed.filter((candidate) => candidate === item));
 }
 
 /** The API's parameters for the chips' values: only those that are set, never an empty value. */
@@ -58,5 +82,13 @@ export function rankFilterParams(values: FilterValues): RankFilterParams {
   if (change === 'entered') params['filter[rank_change_label_in]'] = ['new'];
   if (change === 'lost') params['filter[rank_change_label_in]'] = ['lost'];
   if (stale === 'stale') params['filter[is_stale]'] = true;
+  const feature = choiceOf(values, 'feat', FEATURE_TYPES);
+  const ownedFeature = choiceOf(values, 'featown', OWNABLE_FEATURE_TYPES);
+  if (feature !== undefined) params['filter[feature_present]'] = feature;
+  if (ownedFeature !== undefined) params['filter[feature_owned]'] = ownedFeature;
+  const aio = choicesOf(values, 'aio', AIO_CHOICES);
+  if (aio.length > 0) params['filter[aio_state]'] = aio;
+  const target = choiceOf(values, 'tmatch', TARGET_CHOICES);
+  if (target !== undefined) params['filter[target_url_match]'] = target === 'match';
   return params;
 }

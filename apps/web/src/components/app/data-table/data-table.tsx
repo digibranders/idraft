@@ -12,6 +12,7 @@ import {
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent,
   type ReactElement,
   type ReactNode,
 } from 'react';
@@ -30,18 +31,21 @@ import { Menu, type MenuItemDef } from '@/components/ui/menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import { announce } from '@/lib/a11y/announcer';
-import { MEDIA, useMediaQuery } from '@/lib/dom/use-media-query';
 import { formatInteger } from '@/lib/format';
 import { COLUMN_TYPES, resolveWidths, type SizedColumn } from '@/lib/tables/column-types';
 import { CELL_CONTROL_SELECTOR, moveFocus, rangeOf, stepControl, type GridCell } from '@/lib/tables/grid-focus';
 import { rangeGaps, rowWindow, SCROLL_STEP, scrollToRow } from '@/lib/tables/row-window';
 import { nextSort, type Density, type SortKey } from '@/lib/tables/table-state';
-import { columnsAtTier, chosenColumns, moveColumn, toggleColumn } from '@/lib/tables/visible-columns';
+import { chosenColumns, moveColumn, toggleColumn } from '@/lib/tables/visible-columns';
 import { cn } from '@/lib/utils';
 
 /** Row heights per density, as `h-row` and `h-row-compact` draw them (04-spacing-density.md). */
 const ROW_HEIGHT: Readonly<Record<Density, number>> = { default: 40, compact: 32 };
 const HEADER_HEIGHT = 40;
+/** The identity column a person drags (or nudges) to a width of their own, in pixels. */
+const IDENTITY_RESIZE = { min: 120, leaveRoom: 160, menuStep: 40 } as const;
+/** When the columns overflow, the identity column stays pinned only while it leaves this much room for them. */
+const PIN_LEAVES_ROOM = 360;
 const SKELETON_ROWS = 12;
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 const GROUP_ORDER: Readonly<Record<RecordAction<unknown>['group'], number>> = {
@@ -68,14 +72,6 @@ const ALIGN: Readonly<Record<'left' | 'right' | 'center', string>> = {
   right: 'text-right',
   center: 'text-center',
 };
-
-/** The column tier the viewport shows (19-responsive-behavior.md section 6.1). */
-function useColumnTier(): 1 | 2 | 3 | 4 {
-  const xl = useMediaQuery(MEDIA.xl);
-  const wide = useMediaQuery(MEDIA['2xl']);
-  const widest = useMediaQuery(MEDIA['3xl']);
-  return widest ? 4 : wide ? 3 : xl ? 2 : 1;
-}
 
 /** A record action as a menu item; destructive ones are listed last by the menu. */
 const toMenuItem = <TRow,>(action: RecordAction<TRow>, rows: readonly TRow[], scope: ActionScope): MenuItemDef => ({
@@ -159,9 +155,13 @@ export function DataTable<TRow extends RowData>({
   // Announcements about one subject share a key, so a newer one replaces one still waiting
   const selectionKey = `${captionId}-selection`;
   const region = useRef<HTMLDivElement>(null);
-  const tier = useColumnTier();
+  const [regionSize, setRegionSize] = useState({ width: 1200, height: 600 });
+  // The width a person gave the identity column (null: it takes what the other columns leave)
+  const [identityWidth, setIdentityWidth] = useState<number | null>(null);
+  const resizing = useRef<{ x: number; width: number } | null>(null);
 
-  // Columns: the chosen set at this width, framed by the selection and actions columns
+  // Columns: the chosen set, or the defaults, at every width, framed by the selection and actions columns.
+  // A narrow window scrolls sideways with the identity column pinned at its minimum width.
   const meta = columns.map((column) => ({
     id: column.id,
     priority: column.priority,
@@ -169,7 +169,7 @@ export function DataTable<TRow extends RowData>({
     defaultVisible: column.defaultVisible !== false,
   }));
   const byId = new Map(columns.map((column) => [column.id, column]));
-  const shown = columnsAtTier(meta, columnState.visible, tier).flatMap((id) => {
+  const shown = chosenColumns(meta, columnState.visible).flatMap((id) => {
     const column = byId.get(id);
     return column === undefined ? [] : [column];
   });
@@ -211,7 +211,6 @@ export function DataTable<TRow extends RowData>({
   }, [ids]);
 
   // Geometry
-  const [regionSize, setRegionSize] = useState({ width: 1200, height: 600 });
   const [scrollTop, setScrollTop] = useState(0);
   // A server list's next or previous page starts at its first row, not at the place the last page was left
   const pageOffset = server?.offset;
@@ -235,21 +234,35 @@ export function DataTable<TRow extends RowData>({
   const sized: SizedColumn[] = grid.map((column) => {
     if (column.kind !== 'data') return { id: column.kind, ...COLUMN_TYPES[column.kind] };
     const spec = COLUMN_TYPES[column.column.type];
+    const identity = column.column.identity === true;
+    if (identity && identityWidth !== null) {
+      // A width of the person's own is kept, and the other columns give way before it does
+      return { id: column.column.id, ...spec, min: identityWidth, width: identityWidth, flex: false };
+    }
     return {
       id: column.column.id,
       ...spec,
       min: column.column.minWidth ?? spec.min,
       width: column.column.width ?? spec.width,
-      flex: column.column.identity === true,
+      flex: identity,
     };
   });
   const widths = resolveWidths(sized, regionSize.width);
+  const identityColumn = grid.find((column) => column.kind === 'data' && column.column.identity === true);
+  const identityId = identityColumn?.kind === 'data' ? identityColumn.column.id : null;
+  const identityNow = identityId === null ? 0 : (widths.get(identityId) ?? 0);
+  // Pinned only while it leaves room to see other columns; a wide or narrow window never has it fill the view
+  // No wider than the window leaves room to see something beside it
+  const identityMax = Math.max(IDENTITY_RESIZE.min, regionSize.width - IDENTITY_RESIZE.leaveRoom);
+  const resizeIdentity = (width: number): void =>
+    setIdentityWidth(Math.min(identityMax, Math.max(IDENTITY_RESIZE.min, Math.round(width))));
   const widthOf = (column: GridColumn<TRow>): number => widths.get(keyOf(column)) ?? 0;
   const tableWidth = sized.reduce((sum, column) => sum + (widths.get(column.id) ?? column.width), 0);
+  const identityPinned = tableWidth <= regionSize.width || identityNow <= regionSize.width - PIN_LEAVES_ROOM;
   // Pinned on the left: the selection column, then the identity column
   const stickyLeft = (column: GridColumn<TRow>): number | null => {
     if (column.kind === 'select') return 0;
-    if (column.kind === 'data' && column.column.identity === true) {
+    if (column.kind === 'data' && column.column.identity === true && identityPinned) {
       return selection === undefined ? 0 : (widths.get('select') ?? COLUMN_TYPES.select.width);
     }
     return null;
@@ -697,7 +710,35 @@ export function DataTable<TRow extends RowData>({
               onSelect: () => change(toggleColumn(meta, columnState.visible, column.id, false)),
             },
           ];
-    return [...sortItems, ...layoutItems];
+    // The identity column cannot move or hide, but its width is the person's to set (also by dragging its edge)
+    const widthItems: MenuItemDef[] =
+      column.identity === true
+        ? [
+            {
+              id: 'wider',
+              label: t('wider'),
+              group: t('columns'),
+              onSelect: () => resizeIdentity(identityNow + IDENTITY_RESIZE.menuStep),
+            },
+            {
+              id: 'narrower',
+              label: t('narrower'),
+              group: t('columns'),
+              onSelect: () => resizeIdentity(identityNow - IDENTITY_RESIZE.menuStep),
+            },
+            ...(identityWidth === null
+              ? []
+              : [
+                  {
+                    id: 'resetWidth',
+                    label: t('resetWidth'),
+                    group: t('columns'),
+                    onSelect: () => setIdentityWidth(null),
+                  },
+                ]),
+          ]
+        : [];
+    return [...sortItems, ...layoutItems, ...widthItems];
   };
 
   // Row positions for assistive technology (20-accessibility.md section 6.4): in server mode the page's
@@ -882,6 +923,30 @@ export function DataTable<TRow extends RowData>({
                     ) : (
                       <span className="sr-only">{t('actionsColumn')}</span>
                     )}
+                    {column.kind === 'data' && column.column.identity === true ? (
+                      // A pointer affordance only, hidden from assistive technology (a labelled control inside
+                      // the header would become part of the column's name): the column options menu has
+                      // Wider, Narrower and Reset width for the keyboard and screen readers (WCAG 2.5.7).
+                      <div
+                        role="presentation"
+                        data-resize-handle=""
+                        className="absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none hover:bg-border active:bg-primary"
+                        onPointerDown={(event: PointerEvent<HTMLDivElement>) => {
+                          event.preventDefault();
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          resizing.current = { x: event.clientX, width: identityNow };
+                        }}
+                        onPointerMove={(event: PointerEvent<HTMLDivElement>) => {
+                          if (resizing.current !== null) {
+                            resizeIdentity(resizing.current.width + event.clientX - resizing.current.x);
+                          }
+                        }}
+                        onPointerUp={() => {
+                          resizing.current = null;
+                        }}
+                        onDoubleClick={() => setIdentityWidth(null)}
+                      />
+                    ) : null}
                   </th>
                 );
                 return definition === undefined ? (
@@ -1090,6 +1155,8 @@ function HeaderContent<TRow>({
   );
   const sortable = column.sortValue !== undefined;
   return (
+    // The flex container occupies the available cell width inside <th>, so right-0 places the
+    // options chevron wrapper at the cell's right edge without overlapping the sort button.
     <span className="group/header relative flex min-w-0 items-center gap-1">
       {sortable ? (
         <button
@@ -1112,11 +1179,10 @@ function HeaderContent<TRow>({
         label
       )}
       {items.length === 0 ? null : (
-        // Over the inner edge, so a short label keeps its width while the chevron is hidden
         <span
           className={cn(
-            'absolute top-1/2 right-0 -translate-y-1/2 bg-surface-subtle opacity-0 group-focus-within/header:opacity-100 group-hover/header:opacity-100',
-            menuOpen && 'opacity-100',
+            'pointer-events-none absolute top-1/2 right-0 -translate-y-1/2 bg-surface-subtle opacity-0 group-focus-within/header:pointer-events-auto group-focus-within/header:opacity-100 group-hover/header:pointer-events-auto group-hover/header:opacity-100',
+            menuOpen && 'pointer-events-auto opacity-100',
           )}
         >
           <Menu

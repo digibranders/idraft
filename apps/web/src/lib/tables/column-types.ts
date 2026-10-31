@@ -17,6 +17,10 @@ export type ColumnType =
   | 'rank'
   | 'rankDelta'
   | 'url'
+  | 'features'
+  | 'aiOverview'
+  | 'sparkline'
+  | 'competitor'
   | 'actions';
 
 export interface ColumnTypeSpec {
@@ -53,6 +57,10 @@ export const COLUMN_TYPES: Readonly<Record<ColumnType, ColumnTypeSpec>> = {
   // The identity place stays with the keyword column: a ranking URL is a plain column here
   // 160 px holds the 127 px capital header "RANKING URL" with its arrow; the path shows middle-truncated
   url: { width: 260, min: 160, max: 480, align: 'left', defaultDesc: false, flex: false },
+  features: { width: 140, min: 112, max: 220, align: 'left', defaultDesc: true, flex: false },
+  aiOverview: { width: 112, min: 96, max: 140, align: 'left', defaultDesc: false, flex: false },
+  sparkline: { width: 88, min: 88, max: 120, align: 'left', defaultDesc: null, flex: false },
+  competitor: { width: 160, min: 120, max: 240, align: 'left', defaultDesc: false, flex: false },
   actions: { width: 40, min: 40, max: 40, align: 'right', defaultDesc: null, flex: false },
 };
 

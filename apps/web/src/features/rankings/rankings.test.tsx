@@ -1,19 +1,25 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { delay, http } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import type { UrlUpdateEvent } from 'nuqs/adapters/testing';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import en from '../../../messages/en.json';
+
 import type { TrackedKeywordState } from '@/lib/api/types';
+import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
 import { FAILED_IDS, FAILING_IDS, rankStateOf } from '@/mocks/rank-state';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
+import { SORT_FIELDS } from './keyword-columns';
+import { parseSort } from '@/lib/tables/table-state';
 import { server } from '@/test/msw';
 import {
   answerTrackedAsMany,
   cleanstart,
+  fynix,
   columnIndex,
   columnTexts,
   keywordsIn,
@@ -26,9 +32,10 @@ import {
 } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/fynix/seo/rankings',
+  usePathname: () => '/digibranders/fynix/seo/keywords',
 }));
 
 const TRACKED = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords';
@@ -92,7 +99,7 @@ describe('Rankings', () => {
     );
   });
 
-  it('copies a keyword and its ranking URL from its row, and links the URL, without opening the keyword', async () => {
+  it('copies a keyword from inspector and links the ranking URL without opening the keyword', async () => {
     const url = urlWrites();
     const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
     const grid = await loadedGrid();
@@ -100,28 +107,32 @@ describe('Rankings', () => {
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     // The first row that ranks with a URL
-    const row = within(grid)
-      .getAllByRole('link', { name: /^Open \/.* in a new tab$/ })[0]
-      ?.closest('tr');
+    const openPattern = new RegExp(
+      '^' + en.rankings.columns.openRankingPage.replace('{keyword}', '.*').replace('{url}', 'https?:\\/\\/\\S+') + '$',
+    );
+    const link = within(grid).getAllByRole('link', { name: openPattern })[0];
+    const row = link?.closest('tr');
     const header = row === null || row === undefined ? undefined : within(row).getByRole('rowheader');
     const keyword = header?.querySelector('.truncate')?.textContent;
-    if (row === null || row === undefined || header === undefined || keyword === undefined || keyword === '') {
+    if (
+      row === null ||
+      row === undefined ||
+      header === undefined ||
+      keyword === undefined ||
+      keyword === '' ||
+      link === undefined
+    ) {
       throw new Error('No row with a ranking URL');
     }
     // The row header is named by the keyword alone, whatever buttons it holds
     expect(header).toHaveAccessibleName(keyword);
+    expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\//));
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     const keep = (event: Event): void => event.preventDefault();
     // Capturing: the link's own handler stops the click before it reaches the document
     document.addEventListener('click', keep, true);
     try {
-      await user.click(within(header).getByRole('button', { name: `Copy keyword ${keyword}` }));
-      expect(writeText).toHaveBeenLastCalledWith(keyword);
-      const link = within(row).getByRole('link', { name: /^Open \/.* in a new tab$/ });
-      expect(link).toHaveAttribute('href', expect.stringMatching(/^https:\/\//));
-      expect(link).toHaveAttribute('target', '_blank');
-      expect(link).toHaveAttribute('rel', 'noopener noreferrer nofollow');
-      await user.click(within(row).getByRole('button', { name: 'Copy ranking URL' }));
-      expect(writeText).toHaveBeenLastCalledWith(link.getAttribute('href'));
       await user.click(link);
     } finally {
       document.removeEventListener('click', keep, true);
@@ -130,6 +141,9 @@ describe('Rankings', () => {
     expect(url.latest().has('inspect')).toBe(false);
     await user.click(header);
     await waitFor(() => expect(url.latest().get('inspect')).toMatch(/^keyword:/));
+    await user.click(screen.getByRole('button', { name: new RegExp(`^More actions for ${keyword}`) }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Copy keyword' }));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(keyword));
     Reflect.deleteProperty(navigator, 'clipboard');
   });
 
@@ -369,6 +383,65 @@ describe('Rankings', () => {
     expect(screen.getAllByText(/^118 keywords/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Some keywords did not load/)).toBeNull();
   });
+
+  it('renders default visible column set and hides Ranking URL and Priority by default', async () => {
+    const { unmount } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const headers = within(grid).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
+    for (const expected of ['Rank', 'Volume', 'KD', 'CPC (USD)', 'Intent', 'Group', 'Tags', 'Updated', 'Added']) {
+      expect(headerTexts.some((t) => t?.includes(expected))).toBe(true);
+    }
+    expect(headerTexts.some((t) => t?.includes('Ranking URL'))).toBe(false);
+    expect(headerTexts.some((t) => t?.includes('Priority'))).toBe(false);
+    unmount();
+
+    // When explicitly named in cols, Ranking URL and Priority are shown
+    renderWithProviders(as('viewer'), { searchParams: '?cols=keyword,current_rank,ranking_url,priority' });
+    const customGrid = await loadedGrid();
+    const customHeaders = within(customGrid).getAllByRole('columnheader');
+    const customTexts = customHeaders.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
+    expect(customTexts.some((t) => t?.includes('Ranking URL'))).toBe(true);
+    expect(customTexts.some((t) => t?.includes('Priority'))).toBe(true);
+  });
+
+  it('drops rank_change quietly from cols parameter without toast or error', async () => {
+    renderWithProviders(as('viewer'), { searchParams: '?cols=keyword,current_rank,rank_change,search_volume' });
+    const grid = await loadedGrid();
+    expect(grid).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="toast"]')).toBeNull();
+    const headers = within(grid).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent?.replace(/[\s\n]+/g, ' ').trim()).filter(Boolean);
+    expect(headerTexts.some((t) => t?.toLowerCase().includes('change'))).toBe(false);
+    expect(within(grid).queryByRole('columnheader', { name: /change/i })).toBeNull();
+    expect(headerTexts.some((t) => t?.includes('Rank'))).toBe(true);
+    expect(headerTexts.some((t) => t?.includes('Volume'))).toBe(true);
+  });
+
+  it('shows Over 100 in the Rank filter bucket when depth is 100 at screen level', async () => {
+    const { unmount } = renderWithProviders(as('viewer', fynix.project_id, { depth: 100 }), {
+      searchParams: '?rank=beyond',
+    });
+    await loadedGrid();
+    expect(screen.getByRole('button', { name: 'Rank: Over 100. Edit filter' })).toBeInTheDocument();
+    unmount();
+
+    // Without depth or at depth 20, the filter chip says Beyond depth
+    renderWithProviders(as('viewer', fynix.project_id, { depth: 20 }), {
+      searchParams: '?rank=beyond',
+    });
+    await loadedGrid();
+    expect(screen.getByRole('button', { name: 'Rank: Beyond depth. Edit filter' })).toBeInTheDocument();
+  });
+
+  it('allows rank_change as a valid sort key in the URL', async () => {
+    expect(SORT_FIELDS.has('rank_change')).toBe(true);
+    expect(parseSort('rank_change', SORT_FIELDS)).toEqual([{ id: 'rank_change', desc: false }]);
+    expect(parseSort('-rank_change', SORT_FIELDS)).toEqual([{ id: 'rank_change', desc: true }]);
+    renderWithProviders(as('viewer'), { searchParams: '?sort=rank_change' });
+    const grid = await loadedGrid();
+    expect(grid).toBeInTheDocument();
+  });
 });
 
 /** The fixture keywords as the mocks state them now: what the API will answer for each active row. */
@@ -376,7 +449,13 @@ function fixtureStates(): { text: string; state: TrackedKeywordState }[] {
   const texts = new Map(MOCK_KEYWORDS.map((keyword) => [keyword.keyword_id, keyword.text]));
   return MOCK_TRACKED_KEYWORDS.filter((row) => row.is_active).map((row) => ({
     text: texts.get(row.keyword_id) ?? '',
-    state: rankStateOf(row.tracked_keyword_id, row.created_at, Date.now(), 'fynix.digital'),
+    state: rankStateOf(
+      row.tracked_keyword_id,
+      row.created_at,
+      Date.now(),
+      'fynix.digital',
+      row.versions.at(-1)?.target_url ?? null,
+    ),
   }));
 }
 
@@ -406,18 +485,34 @@ describe('Rankings rank columns', () => {
       .getAllByRole('rowheader')
       .find((candidate) => candidate.textContent === moved.text);
     const row = header?.closest('tr');
-    if (row === null || row === undefined) throw new Error(`No row for ${moved.text}`);
+    if (row === null || row === undefined || header === undefined) throw new Error(`No row for ${moved.text}`);
     const change = moved.state.change.value ?? 0;
-    const cellOf = (name: RegExp): HTMLElement => {
-      const cell = row.cells[columnIndex(grid, name)];
-      if (cell === undefined) throw new Error(`No ${String(name)} cell`);
-      return cell;
-    };
-    expect(within(cellOf(/^Rank$/)).getByText(String(moved.state.current.rank))).toHaveClass('num');
-    expect(within(cellOf(/^Change$/)).getByText(`${change > 0 ? '↑' : '↓'}${String(Math.abs(change))}`)).toHaveClass(
+    const rankCell = row.cells[columnIndex(grid, /^Rank$/)];
+    if (rankCell === undefined) throw new Error('No Rank cell');
+    expect(within(rankCell).getByText(String(moved.state.current.rank))).toHaveClass('num');
+    expect(within(rankCell).getByText(`${change > 0 ? '↑' : '↓'}${String(Math.abs(change))}`)).toHaveClass(
       change > 0 ? 'text-positive-text' : 'text-negative-text',
     );
-    expect(within(cellOf(/^Ranking URL$/)).getByText(moved.state.current.url?.path ?? '')).toBeInTheDocument();
+    const expectedLink = en.rankings.columns.openRankingPage
+      .replace('{keyword}', moved.text)
+      .replace('{url}', moved.state.current.url?.canonical_url ?? '');
+    const link = within(header).getByRole('link', { name: expectedLink });
+    expect(link).toHaveAttribute('href', moved.state.current.url?.canonical_url);
+  });
+
+  it('shows translated moreRankingPages when ranking_url_count is greater than 1', async () => {
+    const states = fixtureStates();
+    const multi = states.find(({ state }) => state.ranking_url_count > 1);
+    expect(multi).toBeDefined();
+    if (!multi) return;
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const row = within(grid).getByRole('row', { name: new RegExp(multi.text) });
+    const expectedLink = en.rankings.columns.openRankingPage
+      .replace('{keyword}', multi.text)
+      .replace('{url}', multi.state.current.url?.canonical_url ?? '');
+    const link = within(row).getByRole('link', { name: expectedLink });
+    expect(link).toBeInTheDocument();
   });
 
   it('shows what is not a rank in words: beyond the depth, still waiting, a failed check, and stale', async () => {
@@ -451,9 +546,6 @@ describe('Rankings rank columns', () => {
     await waitFor(() => expect(keywordsIn(grid)).toContain('rank tracker api'));
     const at = keywordsIn(grid).indexOf('rank tracker api');
     expect(columnTexts(grid, /^Rank$/)[at]).toBe('Pending');
-    // No check has run, so there is no first check to speak of: the Rank cell's "Pending" is all there is to say
-    expect(columnTexts(grid, /^Change$/)[at]).toBe('');
-    expect(columnTexts(grid, /^Ranking URL$/)[at]).toBe('Pending');
   }, 15_000);
 
   /** The cells of the row at a place in the grid, found by their column. */
@@ -486,6 +578,82 @@ describe('Rankings rank columns', () => {
     }
   });
 
+  it('shows SERP features icons and the spoken list for a keyword with features', async () => {
+    const withFeatures = fixtureStates().find(({ state }) => state.feature_types_present.length > 0);
+    if (withFeatures === undefined) throw new Error('No fixture keyword has features');
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => candidate.textContent === withFeatures.text);
+    const row = header?.closest('tr');
+    if (row === null || row === undefined) throw new Error(`No row for ${withFeatures.text}`);
+    const cell = row.cells[columnIndex(grid, /^SERP features$/)];
+    if (cell === undefined) throw new Error('No SERP features cell');
+    expect(cell.querySelectorAll('svg[data-slot="icon"]').length).toBeGreaterThan(0);
+    expect(within(cell).getByText(/^SERP features:/)).toHaveClass('sr-only');
+  });
+
+  it('shows Cited #n for a keyword cited in the AI Overview', async () => {
+    const withAioCited = fixtureStates().find(
+      ({ state }) => state.aio.state === 'present_cited' && state.aio.citation_position !== null,
+    );
+    if (withAioCited === undefined) throw new Error('No fixture keyword has a cited AI Overview');
+    renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => candidate.textContent === withAioCited.text);
+    const row = header?.closest('tr');
+    if (row === null || row === undefined) throw new Error(`No row for ${withAioCited.text}`);
+    const cell = row.cells[columnIndex(grid, /^AI Overview$/)];
+    if (cell === undefined) throw new Error('No AI Overview cell');
+    expect(within(cell).getByText(`Cited #${withAioCited.state.aio.citation_position}`)).toBeInTheDocument();
+  });
+
+  it('shows the rank trend sparkline for checked and pending keywords, and requests include=sparkline', async () => {
+    const asked: string[] = [];
+    const listener = ({ request }: { request: Request }): void => {
+      if (request.url.includes('/tracked-keywords')) {
+        const url = new URL(request.url, 'http://localhost');
+        asked.push(...url.searchParams.getAll('include').flatMap((v) => v.split(',')));
+      }
+    };
+    server.events.on('request:start', listener);
+    try {
+      renderWithProviders(as('viewer'));
+      const grid = await loadedGrid();
+      expect(within(grid).getByRole('columnheader', { name: /^Trend/ })).toBeInTheDocument();
+      await waitFor(() => expect(asked).toContain('sparkline'));
+
+      const checked = fixtureStates().find(({ state }) => state.current.state === 'ranked');
+      if (checked === undefined) throw new Error('No checked keyword');
+      const checkedRow = within(grid)
+        .getAllByRole('rowheader')
+        .find((candidate) => candidate.textContent === checked.text)
+        ?.closest('tr');
+      if (!checkedRow) throw new Error(`No row for ${checked.text}`);
+      const checkedCell = checkedRow.cells[columnIndex(grid, /^Trend$/)];
+      if (checkedCell === undefined) throw new Error('No Trend cell on checked row');
+      expect(
+        within(checkedCell).getByRole('img', {
+          name: 'Rank trend, last 30 checks: from 19 to 12, best 8, 1 check beyond the depth checked',
+        }),
+      ).toBeInTheDocument();
+
+      const pendingRow = within(grid)
+        .getAllByRole('rowheader')
+        .find((candidate) => candidate.textContent === 'generative engine optimization')
+        ?.closest('tr');
+      if (!pendingRow) throw new Error('No row for pending keyword');
+      const pendingCell = pendingRow.cells[columnIndex(grid, /^Trend$/)];
+      if (pendingCell === undefined) throw new Error('No Trend cell on pending row');
+      expect(within(pendingCell).getByRole('img', { name: 'Rank trend: no checks yet' })).toBeInTheDocument();
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+  });
+
   it('tells one story for a keyword whose checks all failed: a warning, n/a, no change, a stale marker', async () => {
     renderWithProviders(as('viewer'));
     const grid = await loadedGrid();
@@ -493,8 +661,10 @@ describe('Rankings rank columns', () => {
       const cells = rowCells(grid, keywordsIn(grid).indexOf(textOfKeyword(id)));
       expect(within(cells(/^Rank$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
       expect(within(cells(/^Rank$/)).getByText('stale')).toHaveClass('sr-only');
-      expect(cells(/^Ranking URL$/)).toHaveTextContent(/^n\/a$/);
-      expect(cells(/^Change$/)).toHaveTextContent(/^$/);
+      expect(within(cells(/^SERP features$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
+      expect(within(cells(/^SERP features$/)).getByText('stale')).toHaveClass('sr-only');
+      expect(within(cells(/^AI Overview$/)).getByRole('img', { name: 'Check failed' })).toBeInTheDocument();
+      expect(within(cells(/^AI Overview$/)).getByText('stale')).toHaveClass('sr-only');
       // Updated says the check failed and, because the API flags the keyword stale, shows the marker as well
       expect(within(cells(/^Updated$/)).getByText('Check failed')).toBeInTheDocument();
       expect(within(cells(/^Updated$/)).getByText('Stale')).toBeInTheDocument();
@@ -507,18 +677,21 @@ describe('Rankings rank columns', () => {
     const grid = await loadedGrid();
     await user.click(within(grid).getByRole('button', { name: 'Rank' }));
     await waitFor(() => expect(url.latest().get('sort')).toBe('current_rank'));
-    const numeric = (text: string): boolean => /^\d+$/.test(text);
+    const parseRank = (text: string): number | null => {
+      const match = text.match(/^(\d+)/);
+      return match ? Number(match[1]) : null;
+    };
     const places = (): string[] => visibleColumnTexts(grid, /^Rank$/);
     const asc = places();
-    const ranked = asc.filter(numeric).map(Number);
+    const ranked = asc.map(parseRank).filter((val): val is number => val !== null);
     expect(ranked.length).toBeGreaterThan(5);
     expect(ranked).toEqual([...ranked].sort((a, b) => a - b));
-    expect(asc.slice(0, ranked.length).every(numeric)).toBe(true);
+    expect(asc.slice(0, ranked.length).every((text) => parseRank(text) !== null)).toBe(true);
     await user.click(within(grid).getByRole('button', { name: 'Rank' }));
     await waitFor(() => expect(url.latest().get('sort')).toBe('-current_rank'));
     const desc = places();
-    expect(desc.slice(0, ranked.length).map(Number)).toEqual([...ranked].reverse());
-    expect(desc.slice(ranked.length).some(numeric)).toBe(false);
+    expect(desc.slice(0, ranked.length).map(parseRank)).toEqual([...ranked].reverse());
+    expect(desc.slice(ranked.length).some((text) => parseRank(text) !== null)).toBe(false);
   });
 
   it('gives the tooltip of a rank to the cell that holds the keyboard focus, as its description too', async () => {
@@ -554,6 +727,118 @@ describe('Rankings rank columns', () => {
     expect(choice).not.toBeChecked();
     await user.click(choice);
     expect(within(grid).getByRole('columnheader', { name: /Best rank/ })).toBeInTheDocument();
+  });
+
+  it('shows the first competitor column by default, lists others in column chooser, and shows n/a when excluded', async () => {
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url, 'http://localhost');
+      if (url.pathname.endsWith('/tracked-keywords') && request.method === 'GET') {
+        asked.push(url.search);
+      }
+    });
+    try {
+      const { user } = renderWithProviders(as('viewer'));
+      const grid = await loadedGrid();
+
+      // First competitor column (Brightwave Digital) is present by default
+      expect(within(grid).getByRole('columnheader', { name: /^Brightwave Digital/ })).toBeInTheDocument();
+      // Other competitor columns (e.g. Meridian Growth) are off by default
+      expect(within(grid).queryByRole('columnheader', { name: /^Meridian Growth/ })).toBeNull();
+
+      // Open column chooser
+      await user.click(screen.getByRole('button', { name: 'Columns' }));
+      const meridianChoice = screen.getByRole('checkbox', { name: 'Meridian Growth' });
+      expect(meridianChoice).not.toBeChecked();
+
+      const requestsBefore = asked.length;
+      await user.click(meridianChoice);
+
+      // Now Meridian Growth column is in the grid
+      expect(within(grid).getByRole('columnheader', { name: /^Meridian Growth/ })).toBeInTheDocument();
+      // Turning it on does not make a new list request
+      expect(asked.length).toBe(requestsBefore);
+
+      // Keyword 1 (seo agency berlin) excludes Meridian Growth, so its cell has "n/a"
+      const row1Header = within(grid)
+        .getAllByRole('rowheader')
+        .find((candidate) => candidate.textContent === 'seo agency berlin');
+      const row1 = row1Header?.closest('tr');
+      if (!row1) throw new Error('No row for seo agency berlin');
+      const meridianColIndex = columnIndex(grid, /^Meridian Growth$/);
+      const meridianCell = row1.cells[meridianColIndex];
+      if (meridianCell === undefined) throw new Error('No meridianCell');
+      expect(within(meridianCell).getByText('n/a')).toBeInTheDocument();
+    } finally {
+      server.events.removeAllListeners();
+    }
+  });
+
+  it('preserves competitor column in URL cols parameter on round trip without flash', async () => {
+    const meridianColId = `competitor_${MOCK_ENTITY_IDS.meridian}`;
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), {
+      searchParams: `?cols=keyword,current_rank,${meridianColId}`,
+      onUrlUpdate: url.onUrlUpdate,
+    });
+    const grid = await loadedGrid();
+
+    // Meridian Growth header is present
+    expect(within(grid).getByRole('columnheader', { name: /^Meridian Growth/ })).toBeInTheDocument();
+
+    // Opens column chooser and confirms Meridian Growth is checked
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const meridianChoice = screen.getByRole('checkbox', { name: 'Meridian Growth' });
+    expect(meridianChoice).toBeChecked();
+
+    // Toggling updates cols and preserves competitor column round-trip
+    await user.click(meridianChoice);
+    await waitFor(() => expect(url.latest().get('cols') ?? '').not.toContain(meridianColId));
+
+    await user.click(meridianChoice);
+    await waitFor(() => expect(url.latest().get('cols') ?? '').toContain(meridianColId));
+  });
+
+  it('asserts competitor header before entities query resolves without blank-name placeholder', async () => {
+    const meridianColId = `competitor_${MOCK_ENTITY_IDS.meridian}`;
+    server.use(
+      http.get('*/api/v1/workspaces/:workspace_id/projects/:project_id/entities', async () => {
+        await delay(500);
+        return HttpResponse.json({ data: [] });
+      }),
+    );
+    renderWithProviders(as('viewer'), {
+      searchParams: `?cols=keyword,current_rank,${meridianColId}`,
+    });
+    const grid = await loadedGrid();
+    const headers = within(grid).getAllByRole('columnheader');
+    const headerTexts = headers.map((h) => h.textContent?.trim()).filter(Boolean);
+    expect(headerTexts.some((text) => text === '')).toBe(false);
+    expect(headerTexts.some((text) => text?.includes(MOCK_ENTITY_IDS.meridian))).toBe(true);
+  });
+
+  it('shows error banner when entities query fails and preserves competitor ids in cols on next toggle', async () => {
+    const meridianColId = `competitor_${MOCK_ENTITY_IDS.meridian}`;
+    server.use(
+      http.get('*/api/v1/workspaces/:workspace_id/projects/:project_id/entities', () => {
+        return new HttpResponse(null, { status: 500 });
+      }),
+    );
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), {
+      searchParams: `?cols=keyword,current_rank,${meridianColId}`,
+      onUrlUpdate: url.onUrlUpdate,
+    });
+    await loadedGrid();
+    expect(await screen.findByText('The project competitors did not load.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const priorityChoice = screen.getByRole('checkbox', { name: 'Priority' });
+    await user.click(priorityChoice);
+    await waitFor(() => {
+      const cols = url.latest().get('cols') ?? '';
+      expect(cols).toContain(meridianColId);
+    });
   });
 });
 
@@ -601,7 +886,7 @@ describe('Rankings rank filters', () => {
     );
     expect(within4to10.length).toBeGreaterThan(0);
     await waitFor(() => expect(keywordsIn(grid)).toHaveLength(within4to10.length));
-    const places = visibleColumnTexts(grid, /^Rank$/).map(Number);
+    const places = visibleColumnTexts(grid, /^Rank$/).map((text) => parseInt(text, 10));
     expect(places.every((place) => place >= 4 && place <= 10)).toBe(true);
     expect(screen.getByRole('button', { name: 'Rank: 4 to 10. Edit filter' })).toBeInTheDocument();
   });
@@ -702,6 +987,150 @@ describe('Rankings rank filters', () => {
     await waitFor(() => expect(url.latest().has('rank') || url.latest().has('chg')).toBe(false));
     await loadedGrid();
     expect(asked.some((query) => [...query.keys()].some((key) => /rank_|improved|declined/.test(key)))).toBe(false);
+  });
+
+  it('chooses SERP feature: Video, sends filter[feature_present]=video and writes feat=video to the URL', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await choose(user, grid, 'SERP feature', 'Video');
+    await waitFor(() => expect(asked.some((query) => query.get('filter[feature_present]') === 'video')).toBe(true));
+    await waitFor(() => expect(url.latest().get('feat')).toBe('video'));
+  });
+
+  it('drops an unknown feature code from a link with a notice', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    renderWithProviders(as('viewer'), { searchParams: '?feat=image_pack', onUrlUpdate: url.onUrlUpdate });
+    expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
+    await waitFor(() => expect(url.latest().has('feat')).toBe(false));
+    await loadedGrid();
+    expect(asked.some((query) => query.has('filter[feature_present]'))).toBe(false);
+  });
+
+  it('chooses AI Overview: Cited, sends filter[aio_state]=present_cited and keeps only matching rows', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+    await user.click(screen.getByRole('button', { name: 'Add a filter' }));
+    const picker = (await screen.findAllByRole('button', { name: 'AI Overview' })).find(
+      (button) => !grid.contains(button),
+    );
+    if (picker === undefined) throw new Error('The field picker has no AI Overview');
+    await user.click(picker);
+    await user.click(await screen.findByRole('checkbox', { name: 'Cited' }));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(asked.some((query) => query.get('filter[aio_state]') === 'present_cited')).toBe(true));
+    await waitFor(() => expect(url.latest().get('aio')).toBe('present_cited'));
+    await waitFor(() => {
+      const texts = keywordsIn(grid);
+      expect(texts.length).toBeGreaterThan(0);
+      expect(
+        texts.every((text) => {
+          const item = fixtureStates().find((candidate) => candidate.text === text);
+          return item?.state.aio.state === 'present_cited';
+        }),
+      ).toBe(true);
+    });
+  });
+
+  it('marks a keyword whose ranking URL does not match its target and filters by target URL match', async () => {
+    const asked = listQueries();
+    const url = urlWrites();
+    const { user } = renderWithProviders(as('viewer'), { onUrlUpdate: url.onUrlUpdate });
+    const grid = await loadedGrid();
+
+    const mismatchRow = within(grid)
+      .getAllByRole('rowheader')
+      .find((candidate) => candidate.textContent === 'website seo audit');
+    expect(mismatchRow).toBeDefined();
+    if (!mismatchRow) throw new Error('No mismatch row found');
+    const icon = mismatchRow.querySelector('svg.text-warning-text');
+    expect(icon).toBeInTheDocument();
+    expect(mismatchRow).toHaveAccessibleDescription(/Ranks with \/blog\/local-seo, not the target \/audits\./);
+
+    await choose(user, grid, 'Target URL', 'Ranks with another URL');
+    await waitFor(() => expect(asked.some((query) => query.get('filter[target_url_match]') === 'false')).toBe(true));
+    await waitFor(() => expect(url.latest().get('tmatch')).toBe('mismatch'));
+    await waitFor(() => {
+      const texts = keywordsIn(grid);
+      expect(texts.length).toBeGreaterThan(0);
+      expect(
+        texts.every((text) => {
+          const item = fixtureStates().find((candidate) => candidate.text === text);
+          return item?.state.target_url_match === false;
+        }),
+      ).toBe(true);
+    });
+  });
+});
+
+describe('Rankings summary strip', () => {
+  afterEach(() => server.events.removeAllListeners());
+
+  it('is absent in the Archived view', async () => {
+    renderWithProviders(as('viewer'), { searchParams: '?archived=true' });
+    await loadedGrid();
+    expect(screen.queryByText('Summary for the filtered keywords')).toBeNull();
+    expect(screen.queryByText('Tracked')).toBeNull();
+  });
+
+  it('is absent when the project tracks nothing yet', async () => {
+    renderWithProviders(as('viewer', cleanstart.project_id));
+    expect(await screen.findByRole('heading', { name: 'No keywords tracked yet' })).toBeInTheDocument();
+    expect(screen.queryByText('Summary for the filtered keywords')).toBeNull();
+    expect(screen.queryByText('Tracked')).toBeNull();
+  });
+
+  it('follows a filter change', async () => {
+    const stripAsked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (
+        request.method === 'GET' &&
+        url.pathname.endsWith('/tracked-keywords') &&
+        url.searchParams.get('limit') === '1'
+      ) {
+        stripAsked.push(url.searchParams);
+      }
+    });
+
+    renderWithProviders(as('viewer'), { searchParams: '?dev=mobile' });
+    await loadedGrid();
+
+    await waitFor(() => {
+      expect(
+        stripAsked.some((query) => query.get('filter[device]') === 'mobile' && query.get('filter[rank_lte]') === '10'),
+      ).toBe(true);
+    });
+  });
+
+  it('ignores the search query in server mode and reads Tracked from the strip counts', async () => {
+    answerAsMany({ total: 12_000 });
+    const stripAsked: URLSearchParams[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (
+        request.method === 'GET' &&
+        url.pathname.endsWith('/tracked-keywords') &&
+        url.searchParams.get('limit') === '1'
+      ) {
+        stripAsked.push(url.searchParams);
+      }
+    });
+
+    const { user } = renderWithProviders(as('viewer'));
+    await loadedGrid();
+    expect(screen.getByText('Tracked')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('searchbox', { name: /Search/ }), 'audit');
+    await waitFor(() => {
+      expect(stripAsked.length).toBeGreaterThan(0);
+      expect(stripAsked.every((query) => !query.has('filter[q]'))).toBe(true);
+    });
+    expect(screen.getByText('Tracked')).toBeInTheDocument();
   });
 });
 

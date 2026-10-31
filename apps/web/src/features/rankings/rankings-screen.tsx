@@ -1,6 +1,6 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderTree, MoreHorizontal, Plus, Upload } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useLocale, useTranslations } from 'next-intl';
@@ -15,6 +15,7 @@ import { forgetWritingImport, useWritingImport } from './import/import-queries';
 import { DEFAULT_SORT, SORT_FIELDS, keywordText, rowId, useKeywordColumns, useKeywordRowName } from './keyword-columns';
 import { useKeywordFilterFields } from './keyword-filters';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
+import { isProjectCompetitor, projectEntitiesQuery } from './keyword-inspector/inspector-queries';
 import {
   PAGE_SIZE_CHOICES,
   keywordFilters,
@@ -25,6 +26,8 @@ import {
 } from './rankings-queries';
 import { usePendingMetrics } from './refresh/pending-metrics';
 import { useMetricsRefresh } from './refresh/use-metrics-refresh';
+import { useCheckNow } from './check-now/use-check-now';
+import { RankStrip } from './strip/rank-strip';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { TableStatus } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -44,7 +47,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { useErrorId } from '@/lib/api/use-error-id';
-import type { TrackedKeywordRow } from '@/lib/api/types';
+import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
 import { formatInteger, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
@@ -89,6 +92,8 @@ export interface RankingsScreenProps extends ProjectScope {
   importOpen?: boolean;
   /** Asks the route to open or close the import dialog. */
   onImportOpenChange?: (open: boolean) => void;
+  /** The project's tracked depth (e.g. 100), used to label the beyond-depth filter bucket "Over 100". */
+  depth?: number | undefined;
 }
 
 /**
@@ -105,10 +110,12 @@ export function RankingsScreen({
   defaults,
   importOpen = false,
   onImportOpenChange,
+  depth,
 }: RankingsScreenProps): ReactNode {
   const t = useTranslations('rankings');
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
+  const competitorT = useTranslations('rankings.competitor');
   const locale = useLocale();
   const canWrite = useCan('keywords:write');
   const canImport = useCan('imports:write');
@@ -127,7 +134,7 @@ export function RankingsScreen({
   const moreButton = useRef<HTMLButtonElement>(null);
   const scope = useMemo((): ProjectScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
 
-  const fields = useKeywordFilterFields(scope);
+  const fields = useKeywordFilterFields(scope, depth);
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [values, setValues] = useUrlFilters(fields, {
     onDropped: (dropped) =>
@@ -143,7 +150,31 @@ export function RankingsScreen({
       }),
   });
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
-  const columns = useKeywordColumns(timeZone);
+  const entitiesQuery = useQuery(projectEntitiesQuery(scope));
+  const competitors = useMemo((): EntityRef[] => {
+    if (entitiesQuery.data) {
+      return entitiesQuery.data.data
+        .filter(isProjectCompetitor)
+        .map((pe) => ({ ...pe.entity, color_index: pe.entity.color_index ?? pe.color_index }));
+    }
+    // Retain competitor columns from URL cols while entities query is pending or if it failed,
+    // so competitor IDs are not dropped on the next column toggle and no blank headers show.
+    if (view.cols) {
+      const parsedIds = view.cols.split(',').filter((colId) => colId.startsWith('competitor_'));
+      return parsedIds.map((colId) => {
+        const entityId = colId.replace(/^competitor_/, '');
+        return {
+          entity_id: entityId,
+          canonical_name: entityId,
+          color_index: null,
+          entity_type: 'organization' as const,
+          role: 'competitor' as const,
+        };
+      });
+    }
+    return [];
+  }, [entitiesQuery.data, view.cols]);
+  const columns = useKeywordColumns(timeZone, competitors);
   const rowName = useKeywordRowName(defaults.languageCode);
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const sort = useMemo((): readonly SortKey[] => {
@@ -243,13 +274,21 @@ export function RankingsScreen({
     menuButton: moreButton,
     onDrop: dropChosen,
   });
-  // Refresh metrics sits with the other changes to the chosen keywords, ahead of Archive and Delete
+  const checkNow = useCheckNow({
+    scope,
+    enabled: canRefresh,
+    archived: view.archived,
+    chosen,
+    onDrop: dropChosen,
+  });
+  // Check now goes right before Refresh metrics, both ahead of the first destructive action
   const firstDestructive = bulk.actions.findIndex((action) => action.group === 'destructive');
-  const refreshAt = firstDestructive === -1 ? bulk.actions.length : firstDestructive;
-  const bulkActions =
-    refresh.barAction === null
-      ? bulk.actions
-      : [...bulk.actions.slice(0, refreshAt), refresh.barAction, ...bulk.actions.slice(refreshAt)];
+  const insertAt = firstDestructive === -1 ? bulk.actions.length : firstDestructive;
+  const nonDestructive = bulk.actions.slice(0, insertAt);
+  const destructive = bulk.actions.slice(insertAt);
+  const checkNowBar = checkNow.barAction === null ? [] : [checkNow.barAction];
+  const refreshBar = refresh.barAction === null ? [] : [refresh.barAction];
+  const bulkActions = [...nonDestructive, ...checkNowBar, ...refreshBar, ...destructive];
   const menuItems: MenuItemDef[] = [
     ...(refresh.menuItem === null ? [] : [refresh.menuItem]),
     ...(canWrite
@@ -422,6 +461,7 @@ export function RankingsScreen({
         onEditStateChange={onEditStateChange}
         discards={discards}
         hiddenByFilters={hiddenByFilters}
+        frequentAction={checkNow.inspectorAction}
       />
     );
 
@@ -442,7 +482,23 @@ export function RankingsScreen({
             onSettled={onImportSettled}
           />
         ))}
+        {checkNow.progress}
         {refresh.progress}
+        {entitiesQuery.isError ? (
+          <Banner
+            tone="negative"
+            placement="region"
+            message={competitorT('failed')}
+            actions={
+              <Button variant="secondary" size="sm" onClick={() => void entitiesQuery.refetch()}>
+                {common('retry')}
+              </Button>
+            }
+          />
+        ) : null}
+        {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
+          <RankStrip scope={scope} filters={filters} total={list.total ?? list.rows.length} />
+        )}
         <FilterBar
           fields={fields}
           values={values}

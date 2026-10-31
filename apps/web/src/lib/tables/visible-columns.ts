@@ -1,18 +1,18 @@
 /**
  * Which columns a table shows (12-tables.md section 10, 19-responsive-behavior.md section 6.1): the
- * person's chosen set in their order, or the defaults, less the columns the viewport is too narrow for.
- * The identity column is always shown, first.
+ * person's chosen set in their order, or the defaults, at every width: a narrow window scrolls sideways with
+ * the identity column pinned (owner decision of 2026-10-30). The identity column is always shown, first.
  */
 
 export interface ColumnVisibilityMeta {
   id: string;
-  /** 1 always, 2 from 1280 px, 3 from 1440 px, 4 from 1680 px. */
+  /** 1 to 4, how much the screen cares about the column (19-responsive-behavior.md section 6.1). */
   priority: 1 | 2 | 3 | 4;
   identity: boolean;
   defaultVisible: boolean;
 }
 
-/** The chosen columns in order, before the width tier: the defaults when nothing is chosen. */
+/** The chosen columns in order: the defaults when nothing is chosen. */
 export function chosenColumns(columns: readonly ColumnVisibilityMeta[], chosen: readonly string[] | null): string[] {
   const identity = columns.filter((column) => column.identity).map((column) => column.id);
   const known = new Set(columns.map((column) => column.id));
@@ -23,19 +23,6 @@ export function chosenColumns(columns: readonly ColumnVisibilityMeta[], chosen: 
   return [...identity, ...ids.filter((id) => !identity.includes(id))].filter(
     (id, index, all) => all.indexOf(id) === index,
   );
-}
-
-/** The chosen columns the viewport's tier shows. */
-export function columnsAtTier(
-  columns: readonly ColumnVisibilityMeta[],
-  chosen: readonly string[] | null,
-  tier: 1 | 2 | 3 | 4,
-): string[] {
-  const byId = new Map(columns.map((column) => [column.id, column]));
-  return chosenColumns(columns, chosen).filter((id) => {
-    const column = byId.get(id);
-    return column !== undefined && (column.identity || column.priority <= tier);
-  });
 }
 
 /** The chosen set with `id` moved one place left or right; the identity column stays first. */

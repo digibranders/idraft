@@ -10,6 +10,27 @@ expect.extend(axeMatchers);
 // nothing when the screen is quick, and the test's own timeout (vitest.config.ts) still bounds it.
 configure({ asyncUtilTimeout: 5000 });
 
+if (typeof HTMLCanvasElement !== 'undefined') {
+  // Stub getContext('2d') on HTMLCanvasElement in jsdom tests to eliminate noise
+  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, contextId: string) {
+    if (contextId === '2d') {
+      return {
+        canvas: this,
+        clearRect: () => {},
+        setTransform: () => {},
+        beginPath: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
+        stroke: () => {},
+        arc: () => {},
+        fill: () => {},
+        measureText: () => ({ width: 0 }),
+      } as unknown as CanvasRenderingContext2D;
+    }
+    return null;
+  } as typeof HTMLCanvasElement.prototype.getContext;
+}
+
 afterEach(() => {
   cleanup();
 });

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHANGE_CHOICES, RANK_CHOICES, STALE_CHOICES, rankFilterParams } from './rank-filters';
+import {
+  AIO_CHOICES,
+  CHANGE_CHOICES,
+  RANK_CHOICES,
+  STALE_CHOICES,
+  TARGET_CHOICES,
+  rankFilterParams,
+} from './rank-filters';
 import type { FilterValues } from '@/components/app/filters/types';
 
 const one = (id: string, value: string): FilterValues => ({ [id]: { kind: 'enum', values: [value] } });
@@ -29,6 +36,31 @@ describe('rankFilterParams', () => {
     expect(rankFilterParams(one('chg', 'declined'))).toEqual({ 'filter[declined]': true });
     expect(rankFilterParams(one('chg', 'entered'))).toEqual({ 'filter[rank_change_label_in]': ['new'] });
     expect(rankFilterParams(one('chg', 'lost'))).toEqual({ 'filter[rank_change_label_in]': ['lost'] });
+  });
+
+  it('maps a SERP feature to feature_present and an owned feature to feature_owned', () => {
+    expect(rankFilterParams(one('feat', 'featured_snippet'))).toEqual({
+      'filter[feature_present]': 'featured_snippet',
+    });
+    expect(rankFilterParams(one('featown', 'video'))).toEqual({ 'filter[feature_owned]': 'video' });
+  });
+
+  it('drops a feature code the API does not know and an owned feature that cannot be owned', () => {
+    expect(rankFilterParams(one('feat', 'image_pack'))).toEqual({});
+    expect(rankFilterParams(one('featown', 'related_searches'))).toEqual({});
+  });
+
+  it('maps the AI Overview chip to a list of states, keeping only known ones', () => {
+    expect(rankFilterParams({ aio: { kind: 'enum', values: ['present_cited', 'absent'] } })).toEqual({
+      'filter[aio_state]': ['present_cited', 'absent'],
+    });
+    expect(rankFilterParams({ aio: { kind: 'enum', values: ['sometimes'] } })).toEqual({});
+  });
+
+  it('maps the target URL chip to target_url_match', () => {
+    expect(rankFilterParams(one('tmatch', 'match'))).toEqual({ 'filter[target_url_match]': true });
+    expect(rankFilterParams(one('tmatch', 'mismatch'))).toEqual({ 'filter[target_url_match]': false });
+    expect(rankFilterParams(one('tmatch', 'maybe'))).toEqual({});
   });
 
   it('maps stale to the API flag', () => {
@@ -65,5 +97,7 @@ describe('rankFilterParams', () => {
     expect(RANK_CHOICES).toEqual(['top3', 'top10', 'top20', 'top50', 'top100', 'beyond']);
     expect(CHANGE_CHOICES).toEqual(['improved', 'declined', 'entered', 'lost']);
     expect(STALE_CHOICES).toEqual(['stale']);
+    expect(AIO_CHOICES).toEqual(['present_cited', 'present_not_cited', 'absent', 'not_loaded', 'unknown']);
+    expect(TARGET_CHOICES).toEqual(['match', 'mismatch']);
   });
 });

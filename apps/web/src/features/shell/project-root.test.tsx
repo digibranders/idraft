@@ -71,7 +71,7 @@ describe('ProjectRoot', () => {
 describe('firstDestination', () => {
   it('is the first live destination the member can open, and none outside the workspace', async () => {
     as('editor');
-    await expect(firstDestination('digibranders', 'fynix')).resolves.toBe('/digibranders/fynix/seo/rankings');
+    await expect(firstDestination('digibranders', 'fynix')).resolves.toBe('/digibranders/fynix/seo/keywords');
     await expect(firstDestination('another-tenant', 'fynix')).resolves.toBeNull();
     state.cookie = '';
     await expect(firstDestination('digibranders', 'fynix')).resolves.toBeNull();
@@ -81,6 +81,6 @@ describe('firstDestination', () => {
     as('billing');
     await expect(firstDestination('digibranders', 'fynix')).resolves.toBe('/digibranders/fynix/costs');
     as('viewer');
-    await expect(firstDestination('digibranders', 'fynix')).resolves.toBe('/digibranders/fynix/seo/rankings');
+    await expect(firstDestination('digibranders', 'fynix')).resolves.toBe('/digibranders/fynix/seo/keywords');
   });
 });

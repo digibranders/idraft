@@ -45,7 +45,7 @@ export async function AuthShowcase(): Promise<ReactNode> {
       aria-hidden="true"
       className="relative flex flex-col gap-3 overflow-hidden border-b border-border bg-surface-subtle px-4 py-5 lg:min-h-dvh lg:w-5/12 lg:justify-between lg:gap-10 lg:border-r lg:border-b-0 lg:p-12"
     >
-      <div className="showcase-grid pointer-events-none absolute inset-0 hidden opacity-60 lg:block" />
+      <div className="pointer-events-none absolute inset-0 hidden showcase-grid opacity-60 lg:block" />
       <div className="relative flex animate-showcase-in flex-col gap-3">
         <p className="type-section-title text-primary-text">{app('name')}</p>
         <p className="type-body text-foreground-secondary lg:hidden">{t('compactTagline')}</p>

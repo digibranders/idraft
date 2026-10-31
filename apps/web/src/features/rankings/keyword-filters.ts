@@ -5,13 +5,21 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
 import { FUNNEL_STAGES, INTENTS, OFFERED_DEPTH_PROFILES, SOURCE_KEY, SOURCES } from './keyword-values';
-import { CHANGE_CHOICES, RANK_CHOICES, STALE_CHOICES } from './rank-filters';
+import {
+  CHANGE_CHOICES,
+  RANK_CHOICES,
+  STALE_CHOICES,
+  AIO_CHOICES,
+  AIO_MESSAGE_KEYS,
+  TARGET_CHOICES,
+} from './rank-filters';
 import type { ProjectScope } from './rankings-queries';
 import { useKeywordGroups, useVocabularies } from './taxonomy-queries';
 import type { FilterField, FilterOption } from '@/components/app/filters/types';
 import { api, unwrap } from '@/lib/api/client';
 import type { ApiResponse } from '@/lib/api/query';
 import { LANGUAGE_CODES, languageName } from '@/lib/format/language';
+import { FEATURE_TYPES, OWNABLE_FEATURE_TYPES, FEATURE_MESSAGE_KEYS } from '@/lib/keywords/serp-features';
 import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 
 /**
@@ -46,8 +54,11 @@ async function readCountries(signal: AbortSignal): Promise<Location[]> {
   return found;
 }
 
-export function useKeywordFilterFields(scope: ProjectScope): readonly FilterField[] {
+export function useKeywordFilterFields(scope: ProjectScope, depth?: number | undefined): readonly FilterField[] {
   const t = useTranslations('rankings.filters');
+  const targetT = useTranslations('rankings.target');
+  const featureNames = useTranslations('rankings.features.names');
+  const aioStates = useTranslations('rankings.aio.states');
   const depthLabel = useDepthLabel();
   const locale = useLocale();
   const groups = useKeywordGroups(scope);
@@ -106,7 +117,9 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
         kind: 'enum',
         label: t('rank'),
         multi: false,
-        options: options(RANK_CHOICES, (value) => t(`rankBuckets.${value}`)),
+        options: options(RANK_CHOICES, (value) =>
+          value === 'beyond' && depth === 100 ? t('rankBuckets.over100') : t(`rankBuckets.${value}`),
+        ),
       },
       {
         id: 'chg',
@@ -114,6 +127,34 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
         label: t('chg'),
         multi: false,
         options: options(CHANGE_CHOICES, (value) => t(`changes.${value}`)),
+      },
+      {
+        id: 'feat',
+        kind: 'enum',
+        label: t('feature'),
+        multi: false,
+        options: options(FEATURE_TYPES, (value) => featureNames(FEATURE_MESSAGE_KEYS[value])),
+      },
+      {
+        id: 'featown',
+        kind: 'enum',
+        label: t('featureOwned'),
+        multi: false,
+        options: options(OWNABLE_FEATURE_TYPES, (value) => featureNames(FEATURE_MESSAGE_KEYS[value])),
+      },
+      {
+        id: 'aio',
+        kind: 'enum',
+        label: t('aio'),
+        multi: true,
+        options: options(AIO_CHOICES, (value) => aioStates(AIO_MESSAGE_KEYS[value])),
+      },
+      {
+        id: 'tmatch',
+        kind: 'enum',
+        label: t('target'),
+        multi: false,
+        options: options(TARGET_CHOICES, (value) => (value === 'match' ? targetT('match') : targetT('mismatchChoice'))),
       },
       {
         id: 'dev',
@@ -177,7 +218,11 @@ export function useKeywordFilterFields(scope: ProjectScope): readonly FilterFiel
       },
     ];
   }, [
+    depth,
     t,
+    targetT,
+    featureNames,
+    aioStates,
     locale,
     depthLabel,
     groupOptions,

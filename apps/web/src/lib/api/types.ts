@@ -4,7 +4,7 @@
  */
 import type { components } from './schema';
 
-type Schemas = components['schemas'];
+export type Schemas = components['schemas'];
 
 export type Me = Schemas['Me'];
 export type MeMembership = Schemas['MeMembership'];
@@ -42,6 +42,7 @@ export type MonthlySearches = Schemas['MonthlySearches'];
 export type TrackedVariant = Schemas['TrackedVariant'];
 export type TrackedKeyword = Schemas['TrackedKeyword'];
 export type TrackedKeywordRow = Schemas['TrackedKeywordRow'];
+export type CompetitorRank = Schemas['CompetitorRank'];
 export type TrackedKeywordDetail = Schemas['TrackedKeywordDetail'];
 export type TrackedKeywordCreate = Schemas['TrackedKeywordCreate'];
 export type TrackedKeywordPatch = Schemas['TrackedKeywordPatch'];
@@ -60,8 +61,11 @@ export type GroupRef = Schemas['GroupRef'];
 export type TermRef = Schemas['TermRef'];
 export type UrlRef = Schemas['UrlRef'];
 export type RankCell = Schemas['RankCell'];
+export type AioStateInfo = Schemas['AioStateInfo'];
 export type RankChange = Schemas['RankChange'];
 export type TrackedKeywordState = Schemas['TrackedKeywordState'];
+export type Sparkline = Schemas['Sparkline'];
+export type SparklinePoint = Schemas['SparklinePoint'];
 export type KeywordGroup = Schemas['KeywordGroup'];
 export type KeywordGroupNode = Schemas['KeywordGroupNode'];
 export type KeywordGroupCreate = Schemas['KeywordGroupCreate'];
@@ -101,6 +105,10 @@ export type Budget = Schemas['Budget'];
 export type BudgetStatus = Schemas['BudgetStatus'];
 export type BudgetStatusList = Schemas['BudgetStatusList'];
 export type Price = Schemas['Price'];
+export type RankHistory = Schemas['RankHistory'];
+export type HistorySeries = Schemas['HistorySeries'];
+export type HistoryPoint = Schemas['HistoryPoint'];
+export type HistoryBand = Schemas['HistoryBand'];
 
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';

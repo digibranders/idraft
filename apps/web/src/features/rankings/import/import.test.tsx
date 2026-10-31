@@ -35,7 +35,7 @@ import { renderWithProviders } from '@/test/render';
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/fynix/seo/rankings',
+  usePathname: () => '/digibranders/fynix/seo/keywords',
 }));
 // Under jsdom MSW cannot take a multipart upload (see `fetch-upload.ts`), so the dialog "uploads" through a
 // `fetch` that sends the file's rows to the JSON route; `upload.test.ts` and the browser run cover the real one

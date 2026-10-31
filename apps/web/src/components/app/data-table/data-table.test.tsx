@@ -181,6 +181,103 @@ describe('DataTable house style (owner decisions of 2026-10-29)', () => {
     }
   });
 
+  it('shows every default column at a narrow width, whatever its priority (owner decision of 2026-10-30)', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    renderWithProviders(<Harness rows={rowsOf(3)} />);
+    const headers = within(grid())
+      .getAllByRole('columnheader')
+      .map((header) => header.textContent);
+    expect(headers.join(' ')).toMatch(/Keyword.*Volume.*KD/);
+    vi.unstubAllGlobals();
+  });
+
+  describe('the identity column width', () => {
+    class RegionObserver {
+      static width = 1200;
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element): void {
+        const entry = { target, contentRect: { width: RegionObserver.width, height: 600 } };
+        this.callback([entry as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    const handle = (): HTMLElement => {
+      const edge = grid().querySelector<HTMLElement>('[data-resize-handle]');
+      if (edge === null) throw new Error('The keyword header has no resize handle');
+      return edge;
+    };
+    // The columns' widths sit in the colgroup: the selection column first, then the keyword column
+    const keywordWidth = (): number => Number.parseFloat(grid().querySelectorAll('col')[1]?.style.width ?? '');
+    const keywordHeader = (): HTMLElement => screen.getByRole('columnheader', { name: /^Keyword/ });
+    beforeEach(() => vi.stubGlobal('ResizeObserver', RegionObserver));
+    afterEach(() => {
+      RegionObserver.width = 1200;
+      vi.unstubAllGlobals();
+    });
+
+    it('is dragged by its edge within its limits, and reset with a double click', () => {
+      renderWithProviders(<Harness rows={rowsOf(3)} />);
+      const before = keywordWidth();
+      const edge = handle();
+      Object.assign(edge, { setPointerCapture: vi.fn() });
+      fireEvent.pointerDown(edge, { clientX: 300, pointerId: 1 });
+      fireEvent.pointerMove(edge, { clientX: 260, pointerId: 1 });
+      expect(keywordWidth()).toBe(before - 40);
+      fireEvent.pointerMove(edge, { clientX: -2000, pointerId: 1 });
+      expect(keywordWidth()).toBe(120);
+      fireEvent.pointerMove(edge, { clientX: 5000, pointerId: 1 });
+      // Never wider than the region less the room kept beside it
+      expect(keywordWidth()).toBe(RegionObserver.width - 160);
+      fireEvent.pointerUp(edge, { pointerId: 1 });
+      fireEvent.pointerMove(edge, { clientX: 300, pointerId: 1 });
+      expect(keywordWidth()).toBe(RegionObserver.width - 160);
+      fireEvent.doubleClick(edge);
+      expect(keywordWidth()).toBe(before);
+    });
+
+    it('is widened, narrowed and reset from the column options menu, for the keyboard', async () => {
+      renderWithProviders(<Harness rows={rowsOf(3)} />);
+      const before = keywordWidth();
+      const open = async (item: string): Promise<void> => {
+        fireEvent.click(screen.getByRole('button', { name: 'Keyword column options' }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: item }));
+      };
+      await open('Narrower');
+      expect(keywordWidth()).toBe(before - 40);
+      await open('Wider');
+      await open('Wider');
+      expect(keywordWidth()).toBe(before + 40);
+      await open('Reset width');
+      expect(keywordWidth()).toBe(before);
+    });
+
+    it('has no labelled control in the header, so the column keeps its plain name', () => {
+      renderWithProviders(<Harness rows={rowsOf(3)} />);
+      expect(within(keywordHeader()).queryAllByRole('separator')).toHaveLength(0);
+      expect(keywordHeader()).toHaveAccessibleName(/^Keyword( |$)/);
+      expect(keywordHeader()).not.toHaveAccessibleName(/resize|width/i);
+    });
+
+    it('stays pinned while it leaves room beside it, and scrolls away with the columns when it would not', () => {
+      RegionObserver.width = 700;
+      renderWithProviders(<Harness rows={rowsOf(3)} />);
+      // The columns overflow a 700 px region and the keyword column is small: pinned
+      expect(keywordHeader().style.left).toBe('40px');
+      const edge = handle();
+      Object.assign(edge, { setPointerCapture: vi.fn() });
+      fireEvent.pointerDown(edge, { clientX: 100, pointerId: 1 });
+      fireEvent.pointerMove(edge, { clientX: 5000, pointerId: 1 });
+      // Dragged out to 540 px it would leave 160 px of the 700: it scrolls with the rest
+      expect(keywordHeader().style.left).toBe('');
+    });
+  });
+
   it('left aligns a numeric column in its header and its cells', () => {
     renderWithProviders(<Harness rows={rowsOf(3)} />);
     expect(screen.getByRole('columnheader', { name: /Volume/ })).toHaveClass('text-left');
@@ -670,9 +767,47 @@ describe('DataTable rank, change and URL columns', () => {
   it('sizes each type as its spec says, and keeps a screen width between its minimum and maximum', () => {
     const wide = col.rank<Row>('rank', () => 1, { header: 'Rank', width: 500, cell: () => null });
     const narrow = col.url<Row>('url', () => null, { header: 'URL', width: 50, cell: () => null });
+    const features = col.features<Row>('serp_features', () => null, {
+      header: 'SERP features',
+      priority: 3,
+      width: 120,
+      sortable: false,
+      cell: () => 'x',
+    });
+    const aio = col.aiOverview<Row>('aio', () => null, {
+      header: 'AI Overview',
+      priority: 2,
+      width: 104,
+      sortable: false,
+      cell: () => 'aio',
+    });
+    const spark = col.sparkline<Row>('trend', {
+      header: 'Trend',
+      priority: 2,
+      width: 96,
+      cell: () => 'spark',
+    });
+    const comp = col.competitor<Row>('competitor_1', {
+      header: 'Brightwave',
+      priority: 4,
+      width: 120,
+      cell: () => 'comp',
+    });
     expect(RANKED.map((column) => column.type)).toEqual(['keyword', 'rank', 'rankDelta', 'url']);
     expect(wide.width).toBe(112);
     expect(narrow.width).toBe(160);
+    expect(features.type).toBe('features');
+    expect(features.width).toBe(120);
+    expect(features.sortValue).toBeUndefined();
+    expect(aio.type).toBe('aiOverview');
+    expect(aio.width).toBe(104);
+    expect(aio.sortValue).toBeUndefined();
+    expect(spark.type).toBe('sparkline');
+    expect(spark.width).toBe(96);
+    expect(spark.sortValue).toBeUndefined();
+    expect(comp.type).toBe('competitor');
+    expect(comp.width).toBe(120);
+    expect(comp.sortValue).toBeUndefined();
     // A header that needs more than its type's minimum names its own, and the width follows it
     const priority = col.count<Row>('priority', () => 1, { header: 'Priority', width: 50, minWidth: 100 });
     expect(priority.minWidth).toBe(100);
@@ -689,6 +824,20 @@ describe('DataTable rank, change and URL columns', () => {
     await user.click(within(grid()).getByRole('button', { name: 'Rank' }));
     expect(screen.getByRole('columnheader', { name: /Rank/ })).toHaveAttribute('aria-sort', 'descending');
     expect(bodyKeywords()).toEqual(['keyword 004', 'keyword 003', 'keyword 002', 'keyword 000', 'keyword 001']);
+  });
+
+  it('sorts when clicking the header label and opens the column menu from the chevron', async () => {
+    const { user } = renderWithProviders(<Harness rows={rowsOf(5)} columns={RANKED} />);
+    const rankHeader = screen.getByRole('columnheader', { name: /Rank/ });
+    await user.click(within(rankHeader).getByRole('button', { name: 'Rank' }));
+    expect(rankHeader).toHaveAttribute('aria-sort', 'ascending');
+
+    const chevron = within(rankHeader).getByRole('button', { name: 'Rank column options' });
+    await user.click(chevron);
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Sort descending' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
   });
 
   it('sorts a change with the biggest improvement first, and leaves a URL column unsortable', async () => {
@@ -775,6 +924,34 @@ describe('DataTable rank, change and URL columns', () => {
       .getAllByRole('gridcell')
       .find((cell) => cell.textContent === '>20');
     expect(beyond).toHaveAccessibleDescription('Not in the top 20');
+  });
+
+  it('renders a marker in a keyword cell without changing the accessible name or tooltip', () => {
+    interface MarkedRow extends Row {
+      flag: boolean;
+    }
+    const columns = [
+      col.keyword<MarkedRow>('keyword', (row) => row.keyword, {
+        header: 'Keyword',
+        detail: (row) => `Detail for ${row.keyword}`,
+        marker: (row) => (row.flag ? <span data-testid="m" /> : null),
+      }),
+    ];
+    const rows: MarkedRow[] = [
+      { id: '1', keyword: 'flagged keyword', volume: 100, difficulty: 20, flag: true },
+      { id: '2', keyword: 'plain keyword', volume: 200, difficulty: 30, flag: false },
+    ];
+    renderWithProviders(<Harness rows={rows} columns={columns as unknown as readonly DataTableColumn<Row>[]} />);
+    const rowHeaders = screen.getAllByRole('rowheader');
+    const first = rowHeaders[0];
+    const second = rowHeaders[1];
+    if (first === undefined || second === undefined) throw new Error('No row headers');
+    expect(within(first).getByTestId('m')).toBeInTheDocument();
+    expect(within(second).queryByTestId('m')).toBeNull();
+    expect(first).toHaveAccessibleName('flagged keyword');
+    expect(second).toHaveAccessibleName('plain keyword');
+    expect(first).toHaveAccessibleDescription('Detail for flagged keyword');
+    expect(second).toHaveAccessibleDescription('Detail for plain keyword');
   });
 });
 

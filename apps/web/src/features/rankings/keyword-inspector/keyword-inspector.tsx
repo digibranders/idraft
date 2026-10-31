@@ -3,12 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChartColumn } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { CompetitorsSection } from './competitors-section';
 import { DepthDialog } from './depth-dialog';
 import { KeywordMetricStrip, VolumeByMonth } from './demand-section';
 import { HistorySection } from './history-section';
+import { RankHistorySection } from './rank-history-section';
 import { DETAIL, detailQuery, refreshAfterWrite, type KeywordDetail, type KeywordScope } from './inspector-queries';
 import { LinksSection } from './links-section';
 import type { EditableSection, SectionEdit } from './section-edit';
@@ -26,9 +27,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { MenuItemDef } from '@/components/ui/menu';
 import { toast } from '@/components/ui/toast';
+import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import type { TrackedKeywordRow } from '@/lib/api/types';
+import { copyText } from '@/lib/dom/clipboard';
 import { formatRelative } from '@/lib/format';
 import { languageName } from '@/lib/format/language';
 import { quotaFacts } from '@/lib/keywords/quota';
@@ -56,6 +59,8 @@ export interface KeywordInspectorProps {
   discards: number;
   /** The keyword is not among the rows the filters match (24-page-templates.md section 9.3, States). */
   hiddenByFilters: boolean;
+  /** Frequent action button in header (e.g. Check now). */
+  frequentAction?: ((trackedId: string, active: boolean) => ReactNode) | undefined;
 }
 
 type Tab = 'overview';
@@ -89,6 +94,7 @@ export function KeywordInspector({
   onEditStateChange,
   discards,
   hiddenByFilters,
+  frequentAction,
 }: KeywordInspectorProps): ReactElement {
   const t = useTranslations('rankings.inspector');
   const filters = useTranslations('rankings.filters');
@@ -179,15 +185,29 @@ export function KeywordInspector({
     }
   };
 
-  const moreActions: MenuItemDef[] =
-    data === null || !canWrite
-      ? []
-      : [
+  const kw = data?.keyword.text ?? row?.keyword.text;
+  const moreActions: MenuItemDef[] = [
+    ...(kw !== undefined
+      ? [
+          {
+            id: 'copy',
+            label: t('more.copyKeyword'),
+            onSelect: () => {
+              void copyText(kw);
+              announce(t('more.keywordCopied'));
+            },
+          },
+        ]
+      : []),
+    ...(data !== null && canWrite
+      ? [
           { id: 'depth', label: t('more.changeDepth'), onSelect: () => setDepthOpen(true) },
           data.is_active
             ? { id: 'archive', label: t('more.archive'), onSelect: () => void setActive(false, data, true) }
             : { id: 'unarchive', label: t('more.unarchive'), onSelect: () => void setActive(true, data, false) },
-        ];
+        ]
+      : []),
+  ];
 
   // Until the keyword is known (a shared link, a list that has not reached it) the type names the inspector
   const title = data?.keyword.text ?? row?.keyword.text ?? t('type');
@@ -228,6 +248,7 @@ export function KeywordInspector({
         positionText,
         navigation,
         badges,
+        frequentAction: frequentAction?.(trackedKeywordId, scopeOf?.is_active ?? false),
         freshness:
           fetchedAt === null ? null : <span>{t('updated', { time: formatRelative(fetchedAt, timeZone) })}</span>,
         moreActions,
@@ -283,6 +304,7 @@ export function KeywordInspector({
                 <InspectorSection title={t('demand.title')} icon={ChartColumn} status="loading" />
               ) : (
                 <>
+                  <RankHistorySection scope={keywordScope} />
                   <VolumeByMonth workspaceId={scope.workspaceId} detail={data} />
                   <LinksSection scope={keywordScope} detail={data} edit={editOf('links')} />
                   <TrackingSection scope={keywordScope} detail={data} timeZone={timeZone} edit={editOf('tracking')} />

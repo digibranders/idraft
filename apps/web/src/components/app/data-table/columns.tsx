@@ -101,6 +101,8 @@ export const col = {
     options: Options & {
       detail?: ((row: TRow) => string) | undefined;
       copy?: { label: (row: TRow) => string; announcement: string } | undefined;
+      marker?: ((row: TRow) => ReactNode) | undefined;
+      trailing?: ((row: TRow) => ReactNode) | undefined;
     },
   ): DataTableColumn<TRow> {
     return {
@@ -117,12 +119,26 @@ export const col = {
             ) : (
               <span className="block min-w-0 truncate text-foreground">{value}</span>
             );
-          if (options.copy === undefined) return label;
+          const marker = options.marker?.(row);
+          const trailing = options.trailing?.(row);
+          if (
+            options.copy === undefined &&
+            (marker === null || marker === undefined) &&
+            (trailing === null || trailing === undefined)
+          ) {
+            return label;
+          }
           // `bg-inherit` hands the cell's own background (hover, selected) to the button's backing
           return (
-            <span className="relative flex min-w-0 items-center bg-inherit">
-              {label}
-              <CopyButton text={value} label={options.copy.label(row)} announcement={options.copy.announcement} />
+            <span className="relative flex min-w-0 items-center justify-between gap-1.5 bg-inherit">
+              <span className="flex min-w-0 items-center gap-1.5">
+                {label}
+                {marker !== undefined && marker !== null ? <span className="shrink-0">{marker}</span> : null}
+              </span>
+              {options.copy !== undefined && (
+                <CopyButton text={value} label={options.copy.label(row)} announcement={options.copy.announcement} />
+              )}
+              {trailing !== undefined && trailing !== null ? <span className="shrink-0">{trailing}</span> : null}
             </span>
           );
         },
@@ -134,8 +150,8 @@ export const col = {
         },
       ),
       identity: true,
-      cellLabel: options.copy === undefined ? undefined : text,
-      hasControls: options.copy !== undefined,
+      cellLabel: options.copy === undefined && options.trailing === undefined ? undefined : text,
+      hasControls: options.copy !== undefined || options.trailing !== undefined,
     };
   },
 
@@ -282,6 +298,34 @@ export const col = {
     return rich(id, 'url', sortValue, options);
   },
 
+  /** SERP features: icon slots, left aligned (12-tables.md section 6, `SERPFeatureList`). */
+  features<TRow>(
+    id: string,
+    sortValue: (row: TRow) => number | null,
+    options: RichOptions<TRow>,
+  ): DataTableColumn<TRow> {
+    return rich(id, 'features', sortValue, options);
+  },
+
+  /** AI Overview: status and citation, left aligned (12-tables.md section 6, `AIOverviewStatus`). */
+  aiOverview<TRow>(
+    id: string,
+    sortValue: (row: TRow) => number | string | null,
+    options: RichOptions<TRow>,
+  ): DataTableColumn<TRow> {
+    return rich(id, 'aiOverview', sortValue, options);
+  },
+
+  /** Rank trend sparkline: canvas, left aligned (15-data-visualization.md section 9). Never sorts. */
+  sparkline<TRow>(id: string, options: RichOptions<TRow>): DataTableColumn<TRow> {
+    return rich(id, 'sparkline', () => null, { ...options, sortable: false });
+  },
+
+  /** A competitor's organic rank, left aligned with color swatch (12-tables.md CompetitorCell). */
+  competitor<TRow>(id: string, options: RichOptions<TRow>): DataTableColumn<TRow> {
+    return rich(id, 'competitor', () => null, { ...options, sortable: false });
+  },
+
   /** A neutral badge, such as an intent. */
   badge<TRow>(
     id: string,
@@ -320,7 +364,7 @@ interface RichOptions<TRow> extends Options {
 
 function rich<TRow>(
   id: string,
-  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url'>,
+  type: Extract<ColumnType, 'rank' | 'rankDelta' | 'url' | 'features' | 'aiOverview' | 'sparkline' | 'competitor'>,
   sortValue: (row: TRow) => string | number | null,
   options: RichOptions<TRow>,
 ): DataTableColumn<TRow> {

@@ -43,6 +43,24 @@ describe('bulk targets', () => {
         stale: { kind: 'enum', values: ['stale'] },
       }),
     ).toEqual({ is_active: true, rank_gte: 1, rank_lte: 3, declined: true, is_stale: true });
+    expect(
+      chosen({
+        feat: { kind: 'enum', values: ['video'] },
+        featown: { kind: 'enum', values: ['featured_snippet'] },
+      }),
+    ).toEqual({ is_active: true, feature_present: 'video', feature_owned: 'featured_snippet' });
+    expect(chosen({ aio: { kind: 'enum', values: ['present_cited', 'absent'] } })).toEqual({
+      is_active: true,
+      aio_state: ['present_cited', 'absent'],
+    });
+    expect(chosen({ tmatch: { kind: 'enum', values: ['match'] } })).toEqual({
+      is_active: true,
+      target_url_match: true,
+    });
+    expect(chosen({ tmatch: { kind: 'enum', values: ['mismatch'] } })).toEqual({
+      is_active: true,
+      target_url_match: false,
+    });
   });
 
   it('sends the search as the API takes it: printable and at most 200 characters, and none when nothing is left', () => {
