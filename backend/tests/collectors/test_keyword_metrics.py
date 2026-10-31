@@ -357,6 +357,37 @@ async def test_a_request_asks_about_the_keyword_as_entered_at_its_location_code(
     assert WORKLOAD.batch_key(task) == f"{OTHER_LOCATION}:en"
 
 
+async def test_a_city_is_asked_about_at_its_country_because_labs_refuses_a_city(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    project = await make_tenant(migrated)
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type) "
+        "VALUES (2356, 'India', 'IN', 'Country') ON CONFLICT (id) DO NOTHING",
+    )
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type, parent_id) "
+        "VALUES (9100, 'Maharashtra,India', 'IN', 'Region', 2356) ON CONFLICT (id) DO NOTHING",
+    )
+    await execute(
+        migrated,
+        "INSERT INTO core.locations (id, name, country_iso, location_type, parent_id) "
+        "VALUES (9101, 'Mumbai,Maharashtra,India', 'IN', 'City', 9100) ON CONFLICT (id) DO NOTHING",
+    )
+    keyword_id = await _track(migrated, project, "seo agency", location=9101)
+    country_keyword = await _track(migrated, project, "seo company", location=2356)
+    city_task = _ledger_task(project, keyword_id, 9101, task_id=11)
+    country_task = _ledger_task(project, country_keyword, 2356, task_id=12)
+
+    async with worker_db() as db:
+        requests = await WORKLOAD.build_requests(db, [city_task, country_task])
+
+    assert {request.params.location_code for request in requests.values()} == {2356}
+    assert len(requests) == 2
+
+
 # Ingesting.
 
 

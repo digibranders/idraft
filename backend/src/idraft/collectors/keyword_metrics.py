@@ -19,7 +19,7 @@ from typing import Any, Final
 from uuid import UUID
 
 import structlog
-from sqlalchemy import ColumnElement, and_, exists, func, or_, select, tuple_
+from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -35,6 +35,7 @@ from idraft.db.tables import (
     keyword_metric_snapshots,
     keyword_metrics_current,
     keywords,
+    locations,
     projects,
     provider_location_map,
     provider_price_book,
@@ -56,6 +57,8 @@ SOURCE: Final = "dataforseo_labs"
 SUBJECT_TYPE: Final = "keyword"
 # A keyword's metrics are asked for again once they are this old (plan decision D8).
 STALE_DAYS: Final = 25
+# DataForSEO's tree is country, region, city: a few levels. The cap stops a bad parent link looping.
+MAX_LOCATION_DEPTH: Final = 6
 # A new keyword is not asked about while a task for it is this recent, finished or not, so a
 # keyword whose task failed is not paid for every minute (plan decision D8).
 NEW_KEYWORD_QUIET: Final = timedelta(hours=24)
@@ -345,8 +348,10 @@ async def _texts(
 
 
 async def _location_codes(db: AsyncSession, location_ids: Collection[int | None]) -> dict[int, int]:
-    """DataForSEO's code for each location, where the provider map gives one. Locations are
-    synced from DataForSEO's list, so a location's id is its code otherwise."""
+    """DataForSEO's code for each location, for a Labs call. The provider map's own code wins.
+    Labs answers only for countries (a city is refused as `Invalid Field: location_code`), so a
+    place below a country is asked about at its country. Locations are synced from DataForSEO's
+    list, so a location's id is its code otherwise."""
     ids = [location_id for location_id in location_ids if location_id is not None]
     if not ids:
         return {}
@@ -360,7 +365,43 @@ async def _location_codes(db: AsyncSession, location_ids: Collection[int | None]
     for row in rows:
         if row.provider_value.isdigit():
             codes[row.location_id] = int(row.provider_value)
+    unmapped = [location_id for location_id in ids if location_id not in codes]
+    if unmapped:
+        codes.update(await _country_codes(db, unmapped))
     return codes
+
+
+async def _country_codes(db: AsyncSession, location_ids: Sequence[int]) -> dict[int, int]:
+    """The nearest country at or above each location, by id. A location with no country above
+    it is left out, and is asked about as itself."""
+    place = locations.c
+    start = (
+        select(
+            place.id.label("start_id"),
+            place.id.label("id"),
+            place.parent_id.label("parent_id"),
+            place.location_type.label("location_type"),
+            literal(0).label("depth"),
+        )
+        .where(place.id.in_(location_ids))
+        .cte("up", recursive=True)
+    )
+    parent = locations.alias("parent")
+    chain = start.union_all(
+        select(
+            start.c.start_id,
+            parent.c.id,
+            parent.c.parent_id,
+            parent.c.location_type,
+            start.c.depth + 1,
+        )
+        .join(parent, parent.c.id == start.c.parent_id)
+        .where(start.c.location_type != "Country", start.c.depth < MAX_LOCATION_DEPTH)
+    )
+    rows = await db.execute(
+        select(chain.c.start_id, chain.c.id).where(chain.c.location_type == "Country")
+    )
+    return {row.start_id: row.id for row in rows}
 
 
 # The new-keyword tick.
