@@ -376,6 +376,12 @@ async def test_a_city_is_asked_about_at_its_country_because_labs_refuses_a_city(
         "INSERT INTO core.locations (id, name, country_iso, location_type, parent_id) "
         "VALUES (9101, 'Mumbai,Maharashtra,India', 'IN', 'City', 9100) ON CONFLICT (id) DO NOTHING",
     )
+    # The map holds a rank-check code for the city itself, as it does for every place.
+    await execute(
+        migrated,
+        "INSERT INTO core.provider_location_map (provider_code, location_id, provider_value, "
+        "supports) VALUES ('dataforseo', 9101, '9101', ARRAY['serp']) ON CONFLICT DO NOTHING",
+    )
     keyword_id = await _track(migrated, project, "seo agency", location=9101)
     country_keyword = await _track(migrated, project, "seo company", location=2356)
     city_task = _ledger_task(project, keyword_id, 9101, task_id=11)

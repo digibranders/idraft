@@ -348,27 +348,26 @@ async def _texts(
 
 
 async def _location_codes(db: AsyncSession, location_ids: Collection[int | None]) -> dict[int, int]:
-    """DataForSEO's code for each location, for a Labs call. The provider map's own code wins.
-    Labs answers only for countries (a city is refused as `Invalid Field: location_code`), so a
-    place below a country is asked about at its country. Locations are synced from DataForSEO's
-    list, so a location's id is its code otherwise."""
+    """DataForSEO's code for each location, for a Labs call. Labs answers only for countries (a
+    city is refused as `Invalid Field: location_code`, and the map holds rank-check codes for
+    every place), so a place below a country is asked about at its country, and the provider
+    map's own code wins for that place. Locations are synced from DataForSEO's list, so a
+    location's id is its code otherwise."""
     ids = [location_id for location_id in location_ids if location_id is not None]
     if not ids:
         return {}
+    countries = await _country_codes(db, ids)
+    anchors = {location_id: countries.get(location_id, location_id) for location_id in ids}
     m = provider_location_map.c
     rows = await db.execute(
         select(m.location_id, m.provider_value).where(
-            m.provider_code == DATAFORSEO, m.location_id.in_(ids)
+            m.provider_code == DATAFORSEO, m.location_id.in_(set(anchors.values()))
         )
     )
-    codes: dict[int, int] = {}
-    for row in rows:
-        if row.provider_value.isdigit():
-            codes[row.location_id] = int(row.provider_value)
-    unmapped = [location_id for location_id in ids if location_id not in codes]
-    if unmapped:
-        codes.update(await _country_codes(db, unmapped))
-    return codes
+    mapped = {
+        row.location_id: int(row.provider_value) for row in rows if row.provider_value.isdigit()
+    }
+    return {location_id: mapped.get(anchor, anchor) for location_id, anchor in anchors.items()}
 
 
 async def _country_codes(db: AsyncSession, location_ids: Sequence[int]) -> dict[int, int]:
