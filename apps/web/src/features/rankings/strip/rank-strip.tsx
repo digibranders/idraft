@@ -68,7 +68,7 @@ export function RankStrip({ scope, filters, total }: RankStripProps): ReactEleme
 
   return (
     <div className="flex flex-col gap-2">
-      <MetricStrip size="md" label={t('label')} groups={groups} status={status} />
+      <MetricStrip size="inline" label={t('label')} groups={groups} status={status} />
       {error ? (
         <Banner
           tone="negative"

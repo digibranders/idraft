@@ -37,8 +37,11 @@ export interface MetricStripGroup {
 }
 
 export interface MetricStripProps {
-  /** `md`: the page strip, one panel in a row. `sm`: the key-value grid of the inspector. */
-  size: 'md' | 'sm';
+  /**
+   * `md`: the page strip, one panel in a row. `sm`: the key-value grid of the inspector. `inline`: label and
+   * value side by side without a panel, for a page toolbar; the context stays for screen readers and the tooltip.
+   */
+  size: 'md' | 'sm' | 'inline';
   /** Names the list: "Summary for the filtered keywords". */
   label: string;
   groups: readonly MetricStripGroup[];
@@ -47,7 +50,7 @@ export interface MetricStripProps {
 }
 
 /** Columns of the strip: one row when every cell gets 140 px, else two rows (23 section 2.3). */
-function columnsFor(count: number, width: number | null, size: 'md' | 'sm'): number {
+function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'inline'): number {
   if (size === 'sm') return count === 4 ? 2 : Math.min(count, 3);
   if (width === null || width >= count * MIN_CELL + (count - 1)) return count;
   return Math.ceil(count / 2);
@@ -75,6 +78,43 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
   );
   const columns = columnsFor(items.length, width, size);
   const md = size === 'md';
+  if (size === 'inline') {
+    return (
+      <div role="group" aria-label={label} aria-busy={status === 'ready' ? undefined : true}>
+        <dl className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+          {items.map(({ item }) => (
+            <div key={item.id} title={item.context ?? undefined} className="flex min-w-0 items-baseline gap-1.5">
+              <dt className="type-meta text-foreground-tertiary">{item.label}</dt>
+              <dd className="flex items-baseline gap-1.5">
+                {status === 'loading' ? (
+                  <span className="flex w-6 items-center">
+                    <Skeleton shape="text-14" widthPct={100} />
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      'num type-body-strong',
+                      item.unknown === null || item.unknown === undefined
+                        ? 'text-foreground'
+                        : 'text-foreground-tertiary',
+                    )}
+                  >
+                    {item.value}
+                  </span>
+                )}
+                {item.delta === undefined || item.delta === null ? null : (
+                  <span className="num type-body-strong">{item.delta}</span>
+                )}
+                {item.context === undefined || item.context === null ? null : (
+                  <span className="sr-only">{item.context}</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  }
   // A list of terms has no role that takes a name, so a group around it carries the name and the busy state
   return (
     <div role="group" aria-label={label} aria-busy={status === 'ready' ? undefined : true}>

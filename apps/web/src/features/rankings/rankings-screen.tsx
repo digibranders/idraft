@@ -467,11 +467,37 @@ export function RankingsScreen({
 
   return (
     <InspectorLayout inspector={keywordInspector}>
-      <div className="flex h-page-body min-h-page-body-min flex-col gap-4 px-3 pt-5 pb-5 md:px-4 lg:px-5">
+      <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
         <PageHeader
           title={t('title')}
           meta={meta === '' ? undefined : meta}
           actions={menuItems.length > 0 || canImport ? headerActions : undefined}
+          toolbar={
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
+                <RankStrip scope={scope} filters={filters} total={list.total ?? list.rows.length} />
+              )}
+              <div className="min-w-0 flex-1 basis-60">
+                <FilterBar
+                  fields={fields}
+                  values={values}
+                  onChange={setValues}
+                  trailing={
+                    <SegmentedControl<'active' | 'archived'>
+                      semantics="view"
+                      label={t('view.label')}
+                      value={view.archived ? 'archived' : 'active'}
+                      onValueChange={(next) => void setView({ archived: next === 'archived' ? true : null })}
+                      items={[
+                        { value: 'active', label: t('view.active') },
+                        { value: 'archived', label: t('view.archived') },
+                      ]}
+                    />
+                  }
+                />
+              </div>
+            </div>
+          }
         />
         {followedImports.map((importId) => (
           <ImportProgress
@@ -496,26 +522,6 @@ export function RankingsScreen({
             }
           />
         ) : null}
-        {view.archived || (list.total ?? list.rows.length) === 0 ? null : (
-          <RankStrip scope={scope} filters={filters} total={list.total ?? list.rows.length} />
-        )}
-        <FilterBar
-          fields={fields}
-          values={values}
-          onChange={setValues}
-          trailing={
-            <SegmentedControl<'active' | 'archived'>
-              semantics="view"
-              label={t('view.label')}
-              value={view.archived ? 'archived' : 'active'}
-              onValueChange={(next) => void setView({ archived: next === 'archived' ? true : null })}
-              items={[
-                { value: 'active', label: t('view.active') },
-                { value: 'archived', label: t('view.archived') },
-              ]}
-            />
-          }
-        />
         {list.incomplete === null ? null : (
           <Banner
             tone="warning"
