@@ -169,7 +169,7 @@ def test_a_weak_password_is_refused_with_its_reason_and_not_echoed(
     assert typed.strip() == "" or typed.strip() not in err
 
 
-def test_a_password_containing_the_email_name_is_refused(
+def test_a_password_containing_the_email_name_is_accepted(
     migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     code, _, err = _run(
@@ -179,8 +179,8 @@ def test_a_password_containing_the_email_name_is_refused(
         database_url=migrated.url("migrator"),
         typed="asha.rao is my password\n",
     )
-    assert code == 1
-    assert "must not contain the email" in err
+    assert code == 0
+    assert err == ""
 
 
 @pytest.mark.parametrize(

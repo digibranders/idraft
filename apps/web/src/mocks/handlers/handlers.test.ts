@@ -231,7 +231,7 @@ describe('registration and emailed links', () => {
 
   it.each([
     ['short', 'too_short'],
-    ['lena-was-here-2026', 'contains_email'],
+    ['x'.repeat(129), 'too_long'],
   ])('refuses the weak password %s with its reason', async (password, reason) => {
     const answer = await call('POST', '/api/v1/auth/register', {
       body: { ...invited, password, invitation_token: MOCK_TOKENS.invitation },

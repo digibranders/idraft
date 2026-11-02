@@ -14,9 +14,6 @@ from argon2.exceptions import InvalidHashError, VerificationError
 
 PASSWORD_MIN = 8
 PASSWORD_MAX = 128
-# The shortest email local part worth looking for inside a password. "jo" or "al" would match by
-# accident far more often than on purpose.
-_LOCAL_PART_MIN = 4
 RANGE_URL = "https://api.pwnedpasswords.com/range/"
 RANGE_TIMEOUT_SECONDS = 2.0
 # A real answer is about 35 KB with padding. Anything far larger is not the range API.
@@ -75,14 +72,16 @@ def dummy_verify() -> None:
 
 
 def check_policy(password: str, *, email: str) -> None:
-    """Length and the obvious self-reference. The breached check is separate because it does I/O."""
+    """Length only (owner decision of 2026-10-31: a password may contain the email name).
+
+    `email` stays in the signature so callers and a later rule need no change. The breached check
+    is separate because it does I/O.
+    """
+    del email
     if len(password) < PASSWORD_MIN:
         raise WeakPasswordError("too_short")
     if len(password) > PASSWORD_MAX:
         raise WeakPasswordError("too_long")
-    local_part = email.partition("@")[0].casefold()
-    if len(local_part) >= _LOCAL_PART_MIN and local_part in password.casefold():
-        raise WeakPasswordError("contains_email")
 
 
 class BreachedPasswords:
