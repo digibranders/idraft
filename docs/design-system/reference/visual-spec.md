@@ -118,7 +118,7 @@ The base font size of the application body is 14 px.
 | Top bar | 52 px tall, `--surface` background, bottom hairline | |
 | Top-bar controls | 36 px: search (360 to 440 px wide, with a ⌘K hint box), date range, location, 32 px avatar | Right-aligned, 12 px apart |
 | Page gutter | 20 px left and right | |
-| Page header | Title, then meta line 4 px below; 20 px from the top bar; actions right-aligned and vertically centered on the title block | |
+| Page header | Title, then meta line 4 px below; 12 px from the top bar; on pages with a summary or filters the meta line, summary, filters and actions share the title's row (23 section 3.1); actions right-aligned and vertically centered on the title block | |
 | Gap between page blocks | 16 px | Header to metric strip, strip to filter bar, panel to panel |
 | Panel | `--surface`, 1 px `--border`, radius 8, 16 px padding, title row 48 px | |
 | Metric strip | One panel, 76 px tall, cells split by full-height 1 px dividers, 20 px cell padding; label on top, value below with the delta inline to its right. When cells carry a context line (sample size, denominator), it sits on its own line below the value and the strip is 96 px; this keeps it readable at every width instead of truncating to a few letters | Screens 2, 5, 7 (screens 1 and 3 show inset dividers and the delta below) |

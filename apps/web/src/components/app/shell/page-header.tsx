@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /** The padding and rhythm of a page that scrolls with the window: the gutters grow at 768 and 1024 px (19 section 3). */
-export const PAGE_CLASS = 'flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
+export const PAGE_CLASS = 'flex flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5';
 
 export interface PageHeaderProps {
   /** The page's only `h1`. It never truncates and wraps to two lines at most. */

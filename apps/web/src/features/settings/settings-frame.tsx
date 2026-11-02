@@ -89,7 +89,7 @@ export function SettingsFrame({
       (section) => pathname.endsWith(`/settings/${section}`) || pathname.includes(`/settings/${section}/`),
     ) ?? 'profile';
   return (
-    <div className="flex flex-1 flex-col gap-5 px-3 pt-5 pb-8 md:px-4 lg:px-5">
+    <div className="flex flex-1 flex-col gap-5 px-3 pt-3 pb-8 md:px-4 lg:px-5">
       <h1 tabIndex={-1} className="type-page-title outline-none">
         {t('title')}
       </h1>

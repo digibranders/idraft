@@ -61,7 +61,7 @@ Commands (in `apps/web`): `pnpm dev` (development server), `pnpm lint`, `pnpm ty
 1. Neutral surfaces, one cobalt accent (`primary`, `#1E65E3`), semantic green, red, amber only for meaning.
 2. Geist Sans 14 px base, 13 px in table cells, 24 px page titles; Geist Mono only for technical values; tabular figures for numbers.
 3. 4 px spacing scale; 36 px controls and 40 px table rows by default; Compact density (32 px rows) per table; embedded tables always 32 px.
-4. Sidebar 208 px, top bar 52 px, 20 px gutters, 16 px between page blocks, full-width analytics, 400 px inspector (440 px for prompt, citation and answer evidence).
+4. Sidebar 208 px, top bar 52 px, 20 px gutters, 12 px between page blocks, a one-row header (title, meta, summary, filters, actions) on every page that has them, full-width analytics, 400 px inspector (440 px for prompt, citation and answer evidence).
 5. Borders and tonal layers; shadows only for overlays; radius 2 to 10 px (2 px only for bar-list bars and engine presence squares).
 6. Tables for records; one 76 px metric strip panel for summaries, never KPI cards; cards only when justified.
 7. One `FilterBar` with neutral chips for screen scope and filters; the date range and location sit in the top bar as project-wide scope; all view state in the URL.

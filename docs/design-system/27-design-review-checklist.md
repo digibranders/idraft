@@ -9,10 +9,10 @@ Every new screen, and every change that affects layout, color, typography or int
 
 ### Structure and density
 - [ ] Is information that users compare, sort or act on in bulk shown as a table ([12-tables.md](12-tables.md) section 2)?
-- [ ] Does real data start within 200 px below the 52 px top bar when the page has tabs and a filter bar, and about 130 px below it otherwise, at 1440 x 900 ([23-application-patterns.md](23-application-patterns.md) section 3.2)?
+- [ ] Does real data start within 100 px below the 52 px top bar (160 px with tabs) at 1440 x 900 ([23-application-patterns.md](23-application-patterns.md) section 3.2)? Are the title, meta, summary, filters and actions on one row, with no second header row and no filter row of their own (rule 7 of [00-design-principles.md](00-design-principles.md) section 3)?
 - [ ] Are there unnecessary cards, nested panels or borders around every group?
 - [ ] Is summary data in a metric strip (one 76 px panel, cells split by full-height dividers, delta inline after the value) rather than large KPI cards?
-- [ ] Is the spacing on the scale: 20 px page gutter, 16 px between page blocks, panels with 16 px padding, 8 px radius and a 48 px title row ([reference/visual-spec.md](reference/visual-spec.md) section 4)?
+- [ ] Is the spacing on the scale: 20 px page gutter, 12 px between page blocks, panels with 16 px padding, 8 px radius and a 48 px title row ([reference/visual-spec.md](reference/visual-spec.md) section 4)?
 - [ ] Are controls 36 px (`h-control`), with 32 px (`h-control-sm`) only for pagination and icon buttons in tables and inspectors? Are the table toolbar and table footer 48 px, and menu, select and combobox option rows 32 px?
 - [ ] Are table rows 32 px (`h-row-compact`, the default density since 2026-10-29), or 40 px (`h-row`) only where a person chose Default density, under a 40 px header row on `surface-subtle`? Are tables embedded in panels and inspectors always 32 px?
 - [ ] Is the inspector 400 px, or 440 px for prompt, citation and answer evidence, with no shadow when docked?
