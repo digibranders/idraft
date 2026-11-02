@@ -246,20 +246,25 @@ function CostsContent({ workspaceId, workspaceName, projects }: CostsScreenProps
 
   return (
     <div className={PAGE_CLASS}>
-      <PageHeader title={t('title')} meta={meta} />
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="w-48">
-          <MonthSelect
-            months={months}
-            value={month}
-            label={t('month')}
-            onValueChange={(next) => void setMonthParam(next === thisMonth ? null : next)}
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <FilterBar fields={fields} values={values} onChange={setValues} />
-        </div>
-      </div>
+      <PageHeader
+        title={t('title')}
+        meta={meta}
+        toolbar={
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="w-44">
+              <MonthSelect
+                months={months}
+                value={month}
+                label={t('month')}
+                onValueChange={(next) => void setMonthParam(next === thisMonth ? null : next)}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <FilterBar fields={fields} values={values} onChange={setValues} />
+            </div>
+          </div>
+        }
+      />
       {providerRows.isError ? (
         <div role="status" className="flex flex-wrap items-center gap-3">
           <p className="type-meta">{t('providersFailed')}</p>

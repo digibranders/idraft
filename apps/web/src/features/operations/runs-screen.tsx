@@ -339,21 +339,26 @@ function RunsContent({ workspaceId, project }: Readonly<{ workspaceId: string; p
 
   return (
     <InspectorLayout inspector={runInspector}>
-      <div className="flex h-page-body min-h-page-body-min flex-col gap-4 px-3 pt-5 pb-5 md:px-4 lg:px-5">
-        <PageHeader title={t('title')} meta={meta} />
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="w-48">
-            <MonthSelect
-              months={months}
-              value={month}
-              label={t('month')}
-              onValueChange={(next) => chooseMonth(next === thisMonth ? null : next)}
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <FilterBar fields={fields} values={values} onChange={setValues} />
-          </div>
-        </div>
+      <div className="flex h-page-body min-h-page-body-min flex-col gap-3 px-3 pt-3 pb-5 md:px-4 lg:px-5">
+        <PageHeader
+          title={t('title')}
+          meta={meta}
+          toolbar={
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="w-44">
+                <MonthSelect
+                  months={months}
+                  value={month}
+                  label={t('month')}
+                  onValueChange={(next) => chooseMonth(next === thisMonth ? null : next)}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <FilterBar fields={fields} values={values} onChange={setValues} />
+              </div>
+            </div>
+          }
+        />
         {list.capped ? (
           <Banner tone="info" placement="region" message={t('cappedNotice', { count: formatInteger(MAX_RUNS) })} />
         ) : null}

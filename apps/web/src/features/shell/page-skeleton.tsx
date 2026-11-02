@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 export function PageSkeleton(): ReactNode {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5">
+    <div aria-hidden="true" className="flex flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5">
       <div className="flex w-60 flex-col gap-2">
         <Skeleton shape="text-14" widthPct={80} />
         <Skeleton shape="text-12" widthPct={56} />

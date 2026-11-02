@@ -38,7 +38,7 @@ export interface ProjectListProps {
   now?: Date | undefined;
 }
 
-export const PROJECT_LIST_FRAME = 'flex w-full flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
+export const PROJECT_LIST_FRAME = 'flex w-full flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5';
 const LIST = 'flex flex-col divide-y divide-border-subtle overflow-hidden rounded-lg border border-border bg-surface';
 
 /**
