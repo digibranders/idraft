@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { chartCompetitors, MAX_HISTORY_COMPETITORS, pageRankHistoryQuery } from './detail-queries';
+import { aioHistoryQuery, chartCompetitors, MAX_HISTORY_COMPETITORS, pageRankHistoryQuery } from './detail-queries';
 import { rankHistoryQuery, type KeywordScope } from '../keyword-inspector/inspector-queries';
 import type { ProjectEntity } from '@/lib/api/types';
 
@@ -76,5 +76,20 @@ describe('the history queries', () => {
 
   it('keeps the inspector request as it was: the last 90 days and nothing else', () => {
     expect(rankHistoryQuery(scope).queryKey.at(-1)).toEqual({ window: 'last_90d' });
+  });
+});
+
+describe('aioHistoryQuery', () => {
+  it('asks for the days of the window, both included, under the keyword', () => {
+    const query = aioHistoryQuery(scope, { from: '2026-08-05', to: '2026-11-02' });
+    expect(query.queryKey.at(-1)).toEqual({ from: '2026-08-05', to: '2026-11-02' });
+    expect(query.queryKey).toContain('aio-history');
+    expect(query.queryKey).toContain(scope.trackedKeywordId);
+  });
+
+  it('is another request for another window, so that a new window never shows the old answer', () => {
+    const a = aioHistoryQuery(scope, { from: '2026-10-27', to: '2026-11-02' }).queryKey;
+    const b = aioHistoryQuery(scope, { from: '2026-08-05', to: '2026-11-02' }).queryKey;
+    expect(a).not.toEqual(b);
   });
 });

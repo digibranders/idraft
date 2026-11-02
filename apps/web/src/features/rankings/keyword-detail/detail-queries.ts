@@ -1,11 +1,16 @@
 import { apiWindow, type DetailWindow } from './detail-window';
 import {
   effectiveCompetitorIds,
+  keywordPath,
   rankHistoryQuery,
   type CompetitorOverride,
   type KeywordScope,
   type ProjectEntity,
 } from '../keyword-inspector/inspector-queries';
+import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
+
+const AIO_HISTORY =
+  '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/aio-history';
 
 /**
  * What the keyword page reads beyond the keyword itself. The routes sit under the keyword's key, so a
@@ -49,3 +54,13 @@ export const pageRankHistoryQuery = (
     entityIds: ['own', ...competitorIds],
     include: ['absolute', 'events'],
   });
+
+/**
+ * The AI Overview checks of the keyword between two local days, both included (`windowDates`). The strip
+ * counts them and the AI Overview history lists them: both ask with the same days, so it is one request.
+ */
+export const aioHistoryQuery = (
+  scope: KeywordScope,
+  days: { from: string; to: string },
+): ApiQueryOptions<typeof AIO_HISTORY> =>
+  apiQuery(AIO_HISTORY, { params: { path: keywordPath(scope), query: { from: days.from, to: days.to } } });

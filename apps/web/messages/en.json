@@ -2714,6 +2714,30 @@
       "statsDrawn": "Best {best}, worst {worst}, median {median} over {ranked} of {checks} checks",
       "stats": "Best {best}, worst {worst}, median {median}, average {average} over {ranked} of {checks} checks",
       "statsUnranked": "Not ranked in any of the {checks, plural, one {1 check} other {# checks}} in this window"
+    },
+    "strip": {
+      "label": "Summary for this keyword",
+      "rank": "Rank",
+      "rankChecked": "Checked {time}",
+      "rankStale": "Stale, last good check {time}",
+      "rankFailing": "Checked {time}, later checks failed",
+      "rankBeyond": "Not in top {depth}",
+      "rankBeyondChecked": "Not in top {depth}, checked {time}",
+      "rankPending": "Not checked yet",
+      "rankFailed": "Check failed",
+      "best": "Best rank",
+      "bestAt": "{date}",
+      "bestNone": "Never ranked",
+      "average": "Average rank",
+      "averageOf": "{ranked} of {checks, plural, one {1 check} other {# checks}}",
+      "averageNone": "Not ranked in {checks, plural, one {1 check} other {# checks}}",
+      "topTen": "Days in top 10",
+      "topTenOf": "of {days, plural, one {1 day checked} other {# days checked}}",
+      "aio": "AI Overview",
+      "aioChecks": "{present} of {of, plural, one {1 check} other {# checks}}",
+      "aioNoChecks": "No readable checks in this window",
+      "unavailable": "n/a",
+      "partialError": "Some figures did not load"
     }
   },
   "filters": {

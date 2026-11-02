@@ -61,8 +61,15 @@ const CHART_WIDTHS = [
 /** The share of the Overview panel's width the chart card takes. */
 /** Rows of controls the toolbar may take: one from 1024 px, two at 390 px. */
 const ROWS_MAX: Record<number, number> = { 1440: 1, 1280: 1, 1024: 1, 390: 2 };
-/** The most pixels the page may spend above the chart canvas, per width (screen 1: header, tabs, the card's head). */
-const CHART_TOP_MAX: Record<number, number> = { 1440: 440, 1280: 440, 1024: 440, 390: 600 };
+/**
+ * The most pixels the page may spend above the chart canvas, per width (header, metric strip, tabs, the card's
+ * head), and the lowest the canvas may end. Task 4 bound these at 440 and 600 px (and the canvas inside the
+ * first screen) before the strip existed; the six cell strip adds about 115 px at desktop and about 190 px at
+ * 390, so the bounds are the measured values (496, 496, 488 and 753 px) with a little room. The strip's own
+ * height is bounded in its layout test. At 390 px the chart's canvas now ends below the first screen.
+ */
+const CHART_TOP_MAX: Record<number, number> = { 1440: 520, 1280: 520, 1024: 520, 390: 780 };
+const CHART_BOTTOM_MAX: Record<number, number> = { 1440: 900, 1280: 800, 1024: 768, 390: 1020 };
 const SHARE = { column: [0.6, 0.72], full: [0.99, 1.01] } as const;
 
 /** A CSS colour (a custom property too) as red, green, blue and alpha, each 0 to 255, however the browser writes it. */
@@ -131,6 +138,43 @@ async function pixelsNear(panel: Locator, colour: readonly number[], fromFractio
       },
       [colour, fromFraction] as const,
     );
+}
+
+const STRIP_LABELS = ['Rank', 'Best rank', 'Average rank', 'Days in top 10', 'Volume', 'AI Overview'] as const;
+/**
+ * Rows of cells the metric strip takes: one while every cell keeps 140 px, else two (23 section 2.3). At 1024 px
+ * the content is wide enough for six cells of 140 px, so the strip stays on one row there; below 768 px it
+ * wraps to two rows of three.
+ */
+const STRIP_ROWS: Record<number, number> = { 1440: 1, 1280: 1, 1024: 1, 390: 2 };
+/** The most height the strip may take: one row of cells, two rows at 390 px. */
+const STRIP_HEIGHT_MAX: Record<number, number> = { 1440: 110, 1280: 110, 1024: 110, 390: 210 };
+
+const metricStrip = (page: Page): Locator => page.getByRole('group', { name: 'Summary for this keyword' });
+
+/** The cell boxes of the strip, in reading order. */
+async function stripCells(strip: Locator): Promise<Box[]> {
+  const cells = strip.locator('dl > div');
+  return Promise.all((await cells.all()).map((cell) => boxOf(cell)));
+}
+
+/** The text of every element of the strip that reaches past its cell or is cut by its own box (a truncated line is by design). */
+async function clippedInStrip(strip: Locator): Promise<string[]> {
+  return strip.evaluate((root) => {
+    const clipped: string[] = [];
+    for (const cell of root.querySelectorAll('dl > div')) {
+      const cellRight = cell.getBoundingClientRect().right;
+      for (const element of cell.querySelectorAll('dt *, dd *')) {
+        const hidden = element.closest('[data-truncate], .sr-only') !== null;
+        const box = element.getBoundingClientRect();
+        if (hidden || box.width === 0) continue;
+        if (box.right > cellRight + 0.5 || element.scrollWidth > element.clientWidth + 1) {
+          clipped.push(element.textContent ?? '');
+        }
+      }
+    }
+    return clipped;
+  });
 }
 
 const chartPanel = (page: Page): Locator =>
@@ -280,6 +324,31 @@ test.describe('keyword detail', () => {
     await expect(page.getByRole('tab', { name: 'Overview', selected: true })).toBeVisible();
     await expect(page).not.toHaveURL(/tab=/);
   });
+
+  for (const keyword of [RANKED, DEEP]) {
+    test(`the Rank cell of "${keyword.text}" reads what the Rank column of the list reads`, async ({ page }) => {
+      await signIn(page, EDITOR);
+      await page.goto(LIST);
+      const grid = page.getByRole('grid', { name: 'Tracked keywords' });
+      const header = rowHeader(page, keyword.text);
+      await expect(header).toBeVisible();
+      const index = await grid
+        .getByRole('columnheader', { name: /^Rank Rank column options$/ })
+        .evaluate((cell) => (cell instanceof HTMLTableCellElement ? cell.cellIndex : -1));
+      expect(index).toBeGreaterThan(0);
+      const row = grid
+        .getByRole('row')
+        .filter({ has: page.getByRole('rowheader').filter({ hasText: new RegExp(`^\\s*${keyword.text}\\b`) }) });
+      const listed = (await row.locator('th, td').nth(index).innerText()).trim().match(/^>?\d+/)?.[0];
+      expect(listed).toBeTruthy();
+
+      await page.goto(`${LIST}/${keyword.id}`);
+      const strip = metricStrip(page);
+      await expect(strip).not.toHaveAttribute('aria-busy');
+      const shown = (await strip.getByRole('definition').first().innerText()).trim().match(/^>?\d+/)?.[0];
+      expect(shown).toBe(listed);
+    });
+  }
 
   test('the page action is the primary 36 px Check now, where the inspector has a 32 px secondary one', async ({
     page,
@@ -467,6 +536,70 @@ test.describe('keyword detail', () => {
         });
       }
 
+      for (const { width, height } of WIDTHS) {
+        test(`lays the metric strip out at ${String(width)} px`, async ({ page }, testInfo) => {
+          const noise: string[] = [];
+          page.on('console', (message) => {
+            if (message.type() === 'error' || message.type() === 'warning') noise.push(message.text());
+          });
+          await page.setViewportSize({ width, height });
+          await signIn(page, EDITOR);
+          await page.goto(`${LIST}/${RANKED.id}`);
+          await expect(page.getByRole('heading', { level: 1, name: RANKED.text })).toBeVisible();
+          const strip = metricStrip(page);
+          await expect(strip).toBeVisible();
+          // Settled: the figures are in, not the bars of a loading strip
+          await expect(strip).not.toHaveAttribute('aria-busy');
+          const terms = strip.getByRole('term');
+          await expect(terms).toHaveCount(STRIP_LABELS.length);
+          const names = await terms.allTextContents();
+          STRIP_LABELS.forEach((label, index) => expect(names[index]).toMatch(new RegExp(`^${label}`)));
+          await expect(strip.getByRole('definition').nth(0)).toHaveText(/^\d+/);
+          await expect(strip.getByRole('definition').nth(2)).toHaveText(/^\d+\.\d/);
+
+          const cells = await stripCells(strip);
+          const frame = await boxOf(strip);
+          expect(frame.height).toBeLessThan(STRIP_HEIGHT_MAX[width] ?? 0);
+          expect(cells).toHaveLength(STRIP_LABELS.length);
+          const rows = [...new Set(cells.map((cell) => Math.round(cell.y)))].sort((a, b) => a - b);
+          const expectedRows = STRIP_ROWS[width] ?? 0;
+          expect(rows).toHaveLength(expectedRows);
+          // The cells of the first row, and the ones that wrapped under them: three, or none on one row
+          const first = cells.filter((cell) => Math.round(cell.y) === rows[0]);
+          const wrapped = cells.filter((cell) => Math.round(cell.y) !== rows[0]);
+          expect(wrapped).toHaveLength(expectedRows === 2 ? 3 : 0);
+          expect(first).toHaveLength(STRIP_LABELS.length - wrapped.length);
+          const firstBottom = Math.max(...first.map((cell) => cell.y + cell.height));
+          for (const cell of wrapped) expect(cell.y).toBeGreaterThanOrEqual(firstBottom - 1);
+          // Side by side, in order, without touching, and inside the strip
+          for (const row of [first, wrapped]) {
+            const byX = [...row].sort((a, b) => a.x - b.x);
+            byX.slice(1).forEach((cell, index) => {
+              const before = byX[index];
+              expect(cell.x).toBeGreaterThanOrEqual((before?.x ?? Infinity) + (before?.width ?? 0) - 1);
+            });
+          }
+          for (const cell of cells) {
+            expect(cell.x).toBeGreaterThanOrEqual(frame.x - 1);
+            expect(cell.x + cell.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
+          }
+          expect(await clippedInStrip(strip)).toEqual([]);
+          // The page does not scroll sideways and the strip sits between the header and the tabs
+          await expectNoHorizontalScroll(page);
+          const tabs = await boxOf(page.getByRole('tablist', { name: 'Keyword sections' }));
+          const check = await boxOf(page.getByRole('button', { name: 'Check now' }));
+          expect(frame.y).toBeGreaterThan(check.y + check.height - 1);
+          expect(tabs.y).toBeGreaterThanOrEqual(frame.y + frame.height - 1);
+          await expectAccessible(page);
+          expect(noise).toEqual([]);
+          await testInfo.attach('strip-measurements', {
+            body: JSON.stringify({ width, rows: rows.length, frame, cells }),
+            contentType: 'application/json',
+          });
+          await page.screenshot({ path: testInfo.outputPath(`keyword-detail-strip-${String(width)}-${theme}.png`) });
+        });
+      }
+
       test('shows a toggle that is on with 3:1 against the card, and the same for Table', async ({ page }) => {
         await signIn(page, EDITOR);
         await page.goto(`${LIST}/${RANKED.id}`);
@@ -541,7 +674,7 @@ test.describe('keyword detail', () => {
           expect(canvas.width).toBeGreaterThan(card.width * 0.8);
           // The chart starts above the fold with room to read: the chrome before it is bounded
           expect(canvas.y).toBeLessThan(CHART_TOP_MAX[width] ?? 0);
-          expect(canvas.y + canvas.height).toBeLessThan(height);
+          expect(canvas.y + canvas.height).toBeLessThan(CHART_BOTTOM_MAX[width] ?? 0);
           await expectNoHorizontalScroll(page);
           await expectAccessible(page);
           await page.screenshot({ path: testInfo.outputPath(`keyword-detail-chart-${String(width)}-${theme}.png`) });

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useMemo, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 
 import { KeywordDetailHeader } from './detail-header';
+import { DetailStrip } from './detail-strip';
 import { useDetailUrlState, type DetailTab } from './detail-url-state';
 import { listReturnHref, tabStorage } from './list-return';
 import { RankHistoryPanel } from './rank-history-panel';
@@ -140,6 +141,7 @@ function KeywordDetailContent({
         checkNow={checkNow}
       />
       {checkNow.progress}
+      <DetailStrip scope={scope} detail={data} timeZone={timeZone} />
       <Tabs
         variant="underline"
         label={t('tabs.label')}

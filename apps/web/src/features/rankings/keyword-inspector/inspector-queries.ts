@@ -38,7 +38,7 @@ export interface KeywordScope extends ProjectScope {
   trackedKeywordId: string;
 }
 
-const keywordPath = (scope: KeywordScope) =>
+export const keywordPath = (scope: KeywordScope) =>
   ({
     workspace_id: scope.workspaceId,
     project_id: scope.projectId,

@@ -22,6 +22,8 @@ export interface MetricStripItem {
    * and `insufficient` puts the hatching behind it (17 section 8).
    */
   unknown?: { kind: 'insufficient' | 'not-applicable' | 'pending' } | null | undefined;
+  /** The value is a word that is an answer ("Present, not cited"), not a figure: body type at full contrast, not the metric size. */
+  text?: boolean | undefined;
   /** A `Delta` or `RankDelta`, left out when there is no comparison (never a zero in its place). */
   delta?: ReactNode;
   /** The denominator, sample or variant: "of 986 keywords". */
@@ -110,7 +112,13 @@ export function MetricStrip({ size, label, groups, status }: MetricStripProps): 
                   </span>
                 ) : (
                   <span className="flex min-w-0 items-baseline gap-2">
-                    {unknown === null ? (
+                    {unknown === null && item.text === true ? (
+                      <span
+                        className={cn('flex min-w-0 items-center type-body-strong text-foreground', md ? 'h-8' : 'h-6')}
+                      >
+                        {item.value}
+                      </span>
+                    ) : unknown === null ? (
                       <span className={cn('shrink-0 num text-foreground', md ? 'type-metric' : 'type-metric-sm')}>
                         {item.value}
                       </span>
