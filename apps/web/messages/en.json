@@ -2627,6 +2627,53 @@
       }
     }
   },
+  "keywordDetail": {
+    "back": "Keywords",
+    "loading": "Loading the keyword",
+    "notFound": {
+      "title": "This keyword is no longer tracked",
+      "reason": "It was deleted, or you do not have access to its project.",
+      "toList": "Back to Keywords"
+    },
+    "noAccess": {
+      "title": "You do not have access to this keyword",
+      "reason": "You do not have permission to view rank data. Ask an admin of this workspace.",
+      "toOverview": "Back to the project"
+    },
+    "loadFailed": {
+      "title": "The keyword did not load",
+      "reason": "Nothing else on this page can be shown until it does."
+    },
+    "header": {
+      "facts": "{location} · {device} · {engine} · {language} · {depth}",
+      "updated": "Updated {time}",
+      "target": "Target {path}",
+      "noTarget": "No target URL",
+      "groups": "Groups {names}",
+      "terms": "Tags {names}",
+      "badges": {
+        "archived": "Archived",
+        "pending": "Not checked yet",
+        "failed": "Check failed",
+        "stale": "Stale",
+        "failing": "Last checks failed"
+      },
+      "openRankingPage": "Open ranking page",
+      "openRankingPageNewTab": "Open ranking page in a new tab",
+      "more": "More actions",
+      "copyLink": "Copy link",
+      "linkCopied": "Link copied",
+      "editSettings": "Edit settings",
+      "changeDepth": "Change depth",
+      "archive": "Archive",
+      "restore": "Restore"
+    },
+    "tabs": {
+      "label": "Keyword sections",
+      "overview": "Overview",
+      "snapshots": "SERP snapshots"
+    }
+  },
   "filters": {
     "applied": "Applied filters",
     "chip": "{name}: {value}",

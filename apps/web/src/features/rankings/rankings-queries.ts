@@ -86,11 +86,17 @@ export const pageListKey = (scope: ProjectScope, filters: KeywordFilters, query:
 export const countKey = (scope: ProjectScope): QueryKey => [...keywordsKey(scope), 'count'];
 
 /**
- * After any change to tracked keywords: the list, its counts, every page and the open keyword. Resolves
- * once the queries on screen have read again.
+ * After any change to tracked keywords: the list, its counts, every page and the open keyword, and with
+ * them the reads of the keyword page that sit outside the keyword's own key: the project's rank events and
+ * the SERP snapshots (Decision 12). Resolves once the queries on screen have read again.
  */
-export function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: keywordsKey(scope) });
+export async function refreshKeywords(queryClient: QueryClient, scope: ProjectScope): Promise<void> {
+  const project = projectKey(scope.workspaceId, scope.projectId);
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: keywordsKey(scope) }),
+    queryClient.invalidateQueries({ queryKey: [...project, 'seo', 'rank-events'] }),
+    queryClient.invalidateQueries({ queryKey: [...project, 'serp-snapshots'] }),
+  ]);
 }
 
 // The URL keys of the filters (13-filters-search.md section 5) and what each sends

@@ -1,13 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { listReturnHref } from './keyword-detail/list-return';
 import { RankingsRoute } from './rankings-route';
 import type { RankingsScreenProps } from './rankings-screen';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
+import { rankingsPath } from '@/lib/routes/paths';
 
 const navigation = vi.hoisted(() => ({
   segment: null as string | null,
@@ -59,6 +61,10 @@ beforeEach(() => {
   navigation.push.mockClear();
   navigation.replace.mockClear();
   navigation.back.mockClear();
+});
+// What a test remembered of the list goes whether it passed or not
+afterEach(() => {
+  window.sessionStorage.clear();
 });
 
 describe('RankingsRoute', () => {
@@ -149,5 +155,17 @@ describe('RankingsRoute', () => {
   it('leaves the page of a viewer as it is when the import is not what the URL names', () => {
     render(route('viewer'));
     expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it('remembers the list as it stands, without the inspector, for the back link of the keyword page', () => {
+    const list = rankingsPath('digibranders', 'fynix');
+    navigation.search = 'q=audit&sort=-rank&inspect=keyword%3Ak1&itab=history';
+    const view = render(route());
+    expect(listReturnHref(window.sessionStorage, list)).toBe(`${list}?q=audit&sort=-rank`);
+    view.unmount();
+    // A list without a query leaves no query behind
+    navigation.search = '';
+    render(route());
+    expect(listReturnHref(window.sessionStorage, list)).toBe(list);
   });
 });

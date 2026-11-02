@@ -1,0 +1,170 @@
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { Ban, SearchX } from 'lucide-react';
+import type { Route } from 'next';
+import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { useMemo, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
+
+import { KeywordDetailHeader } from './detail-header';
+import { useDetailUrlState, type DetailTab } from './detail-url-state';
+import { listReturnHref, tabStorage } from './list-return';
+import { useCheckNow } from '../check-now/use-check-now';
+import { detailQuery, type KeywordScope } from '../keyword-inspector/inspector-queries';
+import { SectionError } from '../keyword-inspector/section-error';
+import { PAGE_CLASS } from '@/components/app/shell/page-header';
+import { EmptyState } from '@/components/app/status/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsPanel } from '@/components/ui/tabs';
+import { TextLink } from '@/components/ui/text-link';
+import { isApiProblem } from '@/lib/api/problem';
+import { useCan } from '@/lib/permissions';
+import { projectPath, rankingsPath } from '@/lib/routes/paths';
+
+export interface KeywordDetailScreenProps {
+  workspaceId: string;
+  projectId: string;
+  /** The slugs in the URL, for the paths of the list and of the page itself. */
+  workspaceSlug: string;
+  projectSlug: string;
+  trackedKeywordId: string;
+  /** The project's time zone, for dates. */
+  timeZone: string;
+}
+
+const EMPTY_SELECTION = { ids: new Set<string>(), allMatching: false };
+const noop = (): void => undefined;
+const TAB_ITEMS: readonly DetailTab[] = ['overview', 'snapshots'];
+
+/** The list as the person left it. Server and first client render lead to the bare list: the storage is the browser's. */
+function useListHref(workspaceSlug: string, projectSlug: string): Route {
+  const bare = rankingsPath(workspaceSlug, projectSlug);
+  return useSyncExternalStore(
+    () => noop,
+    () => listReturnHref(tabStorage(), bare),
+    () => bare,
+  );
+}
+
+/**
+ * The page of one tracked keyword (20-frontend-specification.md section 5.4, 24-page-templates.md section
+ * 9.4). It needs `data:read`, as every rank route does. This task builds the route, the header, the tabs and
+ * the states; the sections of each tab join with the tasks that follow, each reading `detailStateOf` so
+ * that the whole page says the same about the keyword.
+ */
+export function KeywordDetailScreen(props: KeywordDetailScreenProps): ReactElement {
+  const canRead = useCan('data:read');
+  return canRead ? <KeywordDetailContent {...props} /> : <NoAccess {...props} />;
+}
+
+function NoAccess({ workspaceSlug, projectSlug }: KeywordDetailScreenProps): ReactElement {
+  const t = useTranslations('keywordDetail');
+  return (
+    <div className={PAGE_CLASS}>
+      <EmptyState
+        icon={Ban}
+        title={t('noAccess.title')}
+        reason={t('noAccess.reason')}
+        headingLevel={1}
+        secondaryAction={
+          <TextLink render={<Link href={projectPath(workspaceSlug, projectSlug)} />}>
+            {t('noAccess.toOverview')}
+          </TextLink>
+        }
+      />
+    </div>
+  );
+}
+
+function KeywordDetailContent({
+  workspaceId,
+  projectId,
+  workspaceSlug,
+  projectSlug,
+  trackedKeywordId,
+  timeZone,
+}: KeywordDetailScreenProps): ReactElement {
+  const t = useTranslations('keywordDetail');
+  const canCheck = useCan('runs:trigger');
+  const { tab, setTab } = useDetailUrlState();
+  const backHref = useListHref(workspaceSlug, projectSlug);
+  const scope = useMemo(
+    (): KeywordScope => ({ workspaceId, projectId, trackedKeywordId }),
+    [workspaceId, projectId, trackedKeywordId],
+  );
+  const detail = useQuery(detailQuery(scope));
+  const data = detail.data?.data ?? null;
+  // The keyword has no list here to drop from. A keyword deleted while the page is open keeps showing the last
+  // read until the page loads again: TanStack Query keeps the data of a read that failed, and `data` wins below
+  const checkNow = useCheckNow({ scope, enabled: canCheck, archived: false, chosen: EMPTY_SELECTION, onDrop: noop });
+
+  if (data === null) {
+    if (detail.isError) {
+      return isApiProblem(detail.error, 'not_found') ? (
+        <div className={PAGE_CLASS}>
+          <EmptyState
+            icon={SearchX}
+            title={t('notFound.title')}
+            reason={t('notFound.reason')}
+            headingLevel={1}
+            secondaryAction={<TextLink render={<Link href={backHref} />}>{t('notFound.toList')}</TextLink>}
+          />
+        </div>
+      ) : (
+        <div className={PAGE_CLASS}>
+          <SectionError
+            title={t('loadFailed.title')}
+            reason={t('loadFailed.reason')}
+            error={detail.error}
+            onRetry={() => void detail.refetch()}
+            retrying={detail.isFetching}
+          />
+        </div>
+      );
+    }
+    return <DetailSkeleton label={t('loading')} />;
+  }
+
+  const items = TAB_ITEMS.map((value) => ({ value, label: t(`tabs.${value}`) }));
+  return (
+    <div className={PAGE_CLASS}>
+      <KeywordDetailHeader
+        scope={scope}
+        detail={data}
+        workspaceSlug={workspaceSlug}
+        projectSlug={projectSlug}
+        timeZone={timeZone}
+        backHref={backHref}
+        checkNow={checkNow}
+      />
+      {checkNow.progress}
+      <Tabs
+        variant="underline"
+        label={t('tabs.label')}
+        value={tab}
+        onValueChange={(next) => void setTab(next)}
+        items={items}
+      >
+        {/* An empty panel is not a tab stop: Task 4 removes the tabIndex when the panel holds content */}
+        <TabsPanel<DetailTab> value="overview" tabIndex={-1} />
+        <TabsPanel<DetailTab> value="snapshots" tabIndex={-1} />
+      </Tabs>
+    </div>
+  );
+}
+
+/** The shape of the header while the keyword loads: the back link, the title, two meta lines and the tabs. */
+function DetailSkeleton({ label }: { label: string }): ReactNode {
+  return (
+    <div role="status" aria-label={label} aria-busy="true" className={PAGE_CLASS}>
+      <div className="flex w-72 max-w-full flex-col gap-2">
+        <Skeleton shape="text-12" widthPct={48} />
+        <Skeleton shape="text-14" widthPct={80} />
+        <Skeleton shape="text-12" widthPct={100} />
+        <Skeleton shape="text-12" widthPct={64} />
+      </div>
+      <Skeleton shape="block" height="row" />
+    </div>
+  );
+}

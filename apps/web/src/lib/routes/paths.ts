@@ -35,6 +35,10 @@ export const projectPath = (workspace: string, project: string, rest: '' | `/${s
 export const rankingsPath = (workspace: string, project: string): Route =>
   projectPath(workspace, project, '/seo/keywords');
 
+/** The page of one tracked keyword (`trackedKeywordId` is its uuid), the child of Keywords. */
+export const keywordDetailPath = (workspace: string, project: string, trackedKeywordId: string): Route =>
+  projectPath(workspace, project, `/seo/keywords/${encodeURIComponent(trackedKeywordId)}`);
+
 /** The import dialog over Keywords: its own route, so a link or the Back button opens and closes it. */
 export const rankingsImportPath = (workspace: string, project: string): Route =>
   projectPath(workspace, project, '/seo/keywords/import');

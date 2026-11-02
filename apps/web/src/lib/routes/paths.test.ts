@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { costsPath, projectPath, queryOf, rankingsImportPath, rankingsPath, runsPath, withQuery } from './paths';
+import {
+  costsPath,
+  keywordDetailPath,
+  projectPath,
+  queryOf,
+  rankingsImportPath,
+  rankingsPath,
+  runsPath,
+  withQuery,
+} from './paths';
 
 describe('Rankings paths', () => {
+  it('names the page of one tracked keyword under Keywords, with the slugs encoded', () => {
+    const id = '0192f0a1-3c44-7e10-9b1d-1f2a3b4c5d6e';
+    expect(keywordDetailPath('acme', 'fynix', id)).toBe(`/acme/fynix/seo/keywords/${id}`);
+    expect(keywordDetailPath('a b', 'c/d', id)).toBe(`/a%20b/c%2Fd/seo/keywords/${id}`);
+    // The id is a path segment too: nothing in it can add a segment
+    expect(keywordDetailPath('w', 'p', 'a b/c')).toBe('/w/p/seo/keywords/a%20b%2Fc');
+  });
+
   it('names Rankings and the import over it, with the slugs encoded', () => {
     expect(rankingsPath('digibranders', 'fynix')).toBe('/digibranders/fynix/seo/keywords');
     expect(rankingsImportPath('digibranders', 'fynix')).toBe('/digibranders/fynix/seo/keywords/import');

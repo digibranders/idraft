@@ -6,6 +6,8 @@ export const PAGE_CLASS = 'flex flex-col gap-4 px-3 pt-5 pb-8 md:px-4 lg:px-5';
 export interface PageHeaderProps {
   /** The page's only `h1`. It never truncates and wraps to two lines at most. */
   title: string;
+  /** The title's language, when it is not the interface's (a keyword in German). */
+  lang?: string | undefined;
   /** The meta line under the title: freshness first, then one scope fact. */
   meta?: ReactNode | undefined;
   /** At most two secondary actions, then the one primary action, right-aligned. */
@@ -23,12 +25,12 @@ export interface PageHeaderProps {
  * border: page blocks are 16 px apart. The saved view menu, the More menu and the filter bar join it with
  * the screens that have them.
  */
-export function PageHeader({ title, meta, actions, tabs, headingId }: PageHeaderProps): ReactElement {
+export function PageHeader({ title, lang, meta, actions, tabs, headingId }: PageHeaderProps): ReactElement {
   return (
     <div data-slot="page-header" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
         <div className="flex min-w-0 basis-full flex-col gap-1 md:flex-1 md:basis-auto">
-          <h1 id={headingId} tabIndex={-1} className="type-page-title outline-none">
+          <h1 id={headingId} tabIndex={-1} lang={lang} className="type-page-title break-words outline-none">
             {title}
           </h1>
           {meta === undefined ? null : <p className="type-meta">{meta}</p>}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ChartColumn } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
@@ -10,11 +10,12 @@ import { DepthDialog } from './depth-dialog';
 import { KeywordMetricStrip, VolumeByMonth } from './demand-section';
 import { HistorySection } from './history-section';
 import { RankHistorySection } from './rank-history-section';
-import { DETAIL, detailQuery, refreshAfterWrite, type KeywordDetail, type KeywordScope } from './inspector-queries';
+import { detailQuery, type KeywordScope } from './inspector-queries';
 import { LinksSection } from './links-section';
 import type { EditableSection, SectionEdit } from './section-edit';
 import { SectionError } from './section-error';
 import { TrackingSection } from './tracking-section';
+import { useKeywordArchive } from './use-keyword-archive';
 import type { ProjectScope } from '../rankings-queries';
 import { Inspector } from '@/components/app/inspector/inspector';
 import { InspectorFooter } from '@/components/app/inspector/inspector-footer';
@@ -26,15 +27,12 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { MenuItemDef } from '@/components/ui/menu';
-import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { isApiProblem } from '@/lib/api/problem';
-import { apiMutation } from '@/lib/api/query';
 import type { TrackedKeywordRow } from '@/lib/api/types';
 import { copyText } from '@/lib/dom/clipboard';
 import { formatRelative } from '@/lib/format';
 import { languageName } from '@/lib/format/language';
-import { quotaFacts } from '@/lib/keywords/quota';
 import { useDepthLabel } from '@/lib/keywords/use-depth-label';
 import { useCan } from '@/lib/permissions';
 
@@ -61,6 +59,8 @@ export interface KeywordInspectorProps {
   hiddenByFilters: boolean;
   /** Frequent action button in header (e.g. Check now). */
   frequentAction?: ((trackedId: string, active: boolean) => ReactNode) | undefined;
+  /** "Open page" in the header: the keyword's full page (the screen asks about unsaved changes first). */
+  onOpenPage: () => void;
 }
 
 type Tab = 'overview';
@@ -95,6 +95,7 @@ export function KeywordInspector({
   discards,
   hiddenByFilters,
   frequentAction,
+  onOpenPage,
 }: KeywordInspectorProps): ReactElement {
   const t = useTranslations('rankings.inspector');
   const filters = useTranslations('rankings.filters');
@@ -102,7 +103,6 @@ export function KeywordInspector({
   const common = useTranslations('common');
   const inspector = useTranslations('inspector');
   const locale = useLocale();
-  const queryClient = useQueryClient();
   const canWrite = useCan('keywords:write');
   const keywordScope: KeywordScope = { ...scope, trackedKeywordId };
   const detail = useQuery(detailQuery(keywordScope));
@@ -150,40 +150,7 @@ export function KeywordInspector({
   const [depthOpen, setDepthOpen] = useState(false);
   // Where focus goes back to when the depth dialog closes: the More button its item was in
   const moreButton = useRef<HTMLButtonElement>(null);
-  const patch = useMutation(apiMutation('patch', DETAIL));
-  const setActive = async (active: boolean, keyword: KeywordDetail, undo: boolean): Promise<void> => {
-    try {
-      await patch.mutateAsync({
-        params: {
-          path: {
-            workspace_id: scope.workspaceId,
-            project_id: scope.projectId,
-            tracked_keyword_id: keyword.tracked_keyword_id,
-          },
-        },
-        body: { is_active: active },
-      });
-      void refreshAfterWrite(queryClient, { ...scope, trackedKeywordId: keyword.tracked_keyword_id });
-      if (active) {
-        toast({ type: 'success', title: t('archive.unarchived') });
-        return;
-      }
-      toast({
-        type: 'success',
-        title: t('archive.archived'),
-        description: t('archive.archivedDescription', { keyword: keyword.keyword.text }),
-        ...(undo ? { action: { label: t('archive.undo'), onAction: () => void setActive(true, keyword, false) } } : {}),
-      });
-    } catch (error) {
-      toast({
-        type: 'error',
-        title: active ? t('archive.unarchiveFailed') : t('archive.failed'),
-        ...(isApiProblem(error, 'quota_exceeded')
-          ? { description: common('quota', { ...quotaFacts(error, 1) }) }
-          : { description: t('tryAgain') }),
-      });
-    }
-  };
+  const setActive = useKeywordArchive(scope);
 
   const kw = data?.keyword.text ?? row?.keyword.text;
   const moreActions: MenuItemDef[] = [
@@ -249,6 +216,7 @@ export function KeywordInspector({
         navigation,
         badges,
         frequentAction: frequentAction?.(trackedKeywordId, scopeOf?.is_active ?? false),
+        onOpenPage,
         freshness:
           fetchedAt === null ? null : <span>{t('updated', { time: formatRelative(fetchedAt, timeZone) })}</span>,
         moreActions,
